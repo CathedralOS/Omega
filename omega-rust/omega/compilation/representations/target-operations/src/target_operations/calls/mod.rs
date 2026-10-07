@@ -8,13 +8,7 @@ pub use inputs::{
     TargetNativeCallbackArgument, TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput,
 };
 mod abi;
-pub use abi::{
-    MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi,
-    TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
-    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
-};
-mod dynamic;
-pub use dynamic::{TargetDynamicCallResult, TargetDynamicDispatch};
+pub use abi::{MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi};
 mod arguments;
 pub use arguments::{
     TargetBoundaryResult, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,

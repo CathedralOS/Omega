@@ -249,14 +249,12 @@ pub(crate) fn scalar_case_result_contained(
                 // no claims in either direction.
                 O::CallStructural {
                     structural_arguments,
-                    dynamic_arguments,
                     claim_transfers,
                     result,
                     ..
-                } if dynamic_arguments.is_empty()
-                    && structural_arguments
-                        .iter()
-                        .any(|argument| argument.place == picked) =>
+                } if structural_arguments
+                    .iter()
+                    .any(|argument| argument.place == picked) =>
                 {
                     let claims_quiet = claim_transfers.is_empty()
                         && !matches!(
@@ -737,10 +735,6 @@ pub(crate) fn substitute_invariant_call_roots(
 ) -> bool {
     let mut applied = BTreeSet::new();
     match operation {
-        // No admission lane moves a call that forwards descriptors.
-        O::CallStructural {
-            dynamic_arguments, ..
-        } if !dynamic_arguments.is_empty() => {}
         O::EstablishStructuralArray {
             elements: structural_arguments,
             ..

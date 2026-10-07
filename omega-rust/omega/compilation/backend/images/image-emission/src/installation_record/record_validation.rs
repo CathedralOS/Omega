@@ -1,6 +1,6 @@
 //! Validating a decoded installation record against the final image: placed
-//! regions, installed calls and tables, private functions, foreign call
-//! stacks and scalar sources.
+//! regions, installed calls, private functions, foreign call stacks and
+//! scalar sources.
 
 use crate::ExecutableImage;
 use crate::installation_record::codec::fingerprint::{
@@ -9,12 +9,8 @@ use crate::installation_record::codec::fingerprint::{
 use crate::installation_record::record_shape::validate_record_shape;
 use crate::installation_record::{
     InstallationError, InstallationFingerprint, InstallationRecord,
-    InstalledCompilerPrivateFunction, InstalledDynamicCall, InstalledDynamicConformanceSlot,
-    InstalledDynamicConformanceTable, InstalledDynamicParameterCall, InstalledForeignCallStack,
-    InstalledForwardedDynamicDescriptorAdapter, InstalledForwardedDynamicDescriptorCall,
-    InstalledForwardedDynamicDescriptorSlot, InstalledForwardedDynamicDescriptorTable,
-    InstalledForwardedDynamicParameterCall, InstalledFunction, InstalledImageSections,
-    InstalledInternalUnitCall, InstalledInternalUnitScalarCall, InstalledStoredDynamicCall,
+    InstalledCompilerPrivateFunction, InstalledForeignCallStack, InstalledFunction,
+    InstalledImageSections, InstalledInternalUnitCall, InstalledInternalUnitScalarCall,
     InstalledStructuralReturn, encode_installation_record,
 };
 use semantic_vocabulary::MachineId;
@@ -86,18 +82,6 @@ pub fn validate_installation_record(
         || record.image != fingerprint_image(&image.output().bytes)
         || record.image_sections != installed_image_sections(image)
         || Some(record.compiler_text_validation) != image.output().compiler_text_validation
-        || record.dynamic_conformance_tables != installed_dynamic_conformance_tables(image)
-        || record.dynamic_calls != installed_dynamic_calls(image)?
-        || record.stored_dynamic_calls != installed_stored_dynamic_calls(image)?
-        || record.forwarded_dynamic_descriptor_adapters
-            != installed_forwarded_dynamic_descriptor_adapters(image)
-        || record.forwarded_dynamic_descriptor_tables
-            != installed_forwarded_dynamic_descriptor_tables(image)
-        || record.forwarded_dynamic_descriptor_calls
-            != installed_forwarded_dynamic_descriptor_calls(image)?
-        || record.dynamic_parameter_calls != installed_dynamic_parameter_calls(image)?
-        || record.forwarded_dynamic_parameter_calls
-            != installed_forwarded_dynamic_parameter_calls(image)?
         || record.semantic_code_attribution != image.semantic_code_attribution()
         || record.port_effects != image.port_effects()
         || record.boundary_settlements != image.boundary_settlements()
@@ -261,41 +245,11 @@ pub(crate) fn installed_image_sections(image: &ExecutableImage) -> InstalledImag
                 .checked_add(private.function.byte_count)
                 .expect("validated compiler-private function text extent")
         }))
-        .chain(
-            image
-                .forwarded_dynamic_descriptor_adapters()
-                .iter()
-                .map(|adapter| {
-                    adapter
-                        .text_offset
-                        .checked_add(adapter.byte_count)
-                        .expect("validated forwarded adapter text extent")
-                }),
-        )
         .max()
         .unwrap_or(0);
-    let data_byte_count = image
-        .dynamic_conformance_tables()
-        .iter()
-        .map(|table| {
-            table
-                .data_offset
-                .checked_add(table.byte_count)
-                .expect("validated dynamic-conformance table extent")
-        })
-        .chain(
-            image
-                .forwarded_dynamic_descriptor_tables()
-                .iter()
-                .map(|table| {
-                    table
-                        .data_offset
-                        .checked_add(table.byte_count)
-                        .expect("validated forwarded descriptor table extent")
-                }),
-        )
-        .max()
-        .unwrap_or(0);
+    // The compiler authors no initialized data; every final data byte belongs
+    // to the image writer.
+    let data_byte_count = 0;
     let final_compiler_data = image
         .output()
         .final_data_bytes
@@ -311,256 +265,6 @@ pub(crate) fn installed_image_sections(image: &ExecutableImage) -> InstalledImag
         executable_inventory_digest: image.output().executable_regions.inventory_digest,
         data_inventory_digest: image.output().data_regions.inventory_digest,
     }
-}
-
-pub(crate) fn installed_dynamic_conformance_tables(
-    image: &ExecutableImage,
-) -> Vec<InstalledDynamicConformanceTable> {
-    image
-        .dynamic_conformance_tables()
-        .iter()
-        .map(|table| InstalledDynamicConformanceTable {
-            application_commitment: table.application.commitment,
-            application_report_fingerprint: table.application.report_fingerprint,
-            data_offset: table.data_offset,
-            byte_count: table.byte_count,
-            slots: table
-                .slots
-                .iter()
-                .map(|slot| InstalledDynamicConformanceSlot {
-                    row_index: slot.row_index,
-                    target: slot.target,
-                    data_offset: slot.data_offset,
-                })
-                .collect(),
-        })
-        .collect()
-}
-
-pub(crate) fn installed_dynamic_calls(
-    image: &ExecutableImage,
-) -> Result<Vec<InstalledDynamicCall>, InstallationError> {
-    image
-        .functions()
-        .iter()
-        .flat_map(|function| {
-            function.dynamic_calls.iter().map(|call| {
-                call.code_offset
-                    .checked_add(function.text_offset)
-                    .map(|text_offset| InstalledDynamicCall {
-                        machine: function.machine,
-                        operation: call.psi_operation,
-                        application_commitment: call.dynamic_dispatch.application.commitment,
-                        initial_source: call.initial_instance.source.place,
-                        rebound_source: call.rebound_instance.source.place,
-                        selected_table_byte_offset: call.selected_table_byte_offset,
-                        realization: call.dynamic_dispatch.dispatch.realization,
-                        text_offset,
-                        byte_count: call.byte_count,
-                    })
-                    .ok_or(InstallationError::FunctionOffsetNotRepresentable)
-            })
-        })
-        .collect()
-}
-
-pub(crate) fn installed_stored_dynamic_calls(
-    image: &ExecutableImage,
-) -> Result<Vec<InstalledStoredDynamicCall>, InstallationError> {
-    image
-        .functions()
-        .iter()
-        .flat_map(|function| {
-            function.stored_dynamic_calls.iter().map(|call| {
-                let establishment = &call.establishment;
-                Some(InstalledStoredDynamicCall {
-                    machine: function.machine,
-                    establishment_operation: establishment.psi_operation,
-                    operation: call.psi_operation,
-                    descriptor_ordinal: establishment.stored.descriptor.ordinal,
-                    selection_ordinal: establishment.stored.selection.ordinal,
-                    application_commitment: establishment.stored.application.commitment,
-                    source: establishment.instance.source.place,
-                    descriptor_home_byte_offset: establishment.descriptor_home_byte_offset,
-                    selected_table_byte_offset: call.selected_table_byte_offset,
-                    realization: call.dynamic_dispatch.dispatch.realization,
-                    establishment_text_offset: establishment
-                        .code_offset
-                        .checked_add(function.text_offset)?,
-                    establishment_byte_count: establishment.byte_count,
-                    text_offset: call.code_offset.checked_add(function.text_offset)?,
-                    byte_count: call.byte_count,
-                })
-            })
-        })
-        .collect::<Option<Vec<_>>>()
-        .ok_or(InstallationError::FunctionOffsetNotRepresentable)
-}
-
-pub(crate) fn installed_forwarded_dynamic_descriptor_adapters(
-    image: &ExecutableImage,
-) -> Vec<InstalledForwardedDynamicDescriptorAdapter> {
-    image
-        .forwarded_dynamic_descriptor_adapters()
-        .iter()
-        .map(|adapter| InstalledForwardedDynamicDescriptorAdapter {
-            application_commitment: adapter.record.identity.application,
-            row_index: adapter.record.identity.row_index,
-            realization: adapter.record.identity.realization,
-            text_offset: adapter.text_offset,
-            byte_count: adapter.byte_count,
-        })
-        .collect()
-}
-
-pub(crate) fn installed_forwarded_dynamic_descriptor_tables(
-    image: &ExecutableImage,
-) -> Vec<InstalledForwardedDynamicDescriptorTable> {
-    image
-        .forwarded_dynamic_descriptor_tables()
-        .iter()
-        .map(|table| InstalledForwardedDynamicDescriptorTable {
-            application_commitment: table.application.commitment,
-            application_report_fingerprint: table.application.report_fingerprint,
-            data_offset: table.data_offset,
-            byte_count: table.byte_count,
-            slots: table
-                .slots
-                .iter()
-                .map(|slot| {
-                    let adapter = image
-                        .forwarded_dynamic_descriptor_adapters()
-                        .iter()
-                        .find(|adapter| adapter.record.identity == slot.adapter)
-                        .expect("validated forwarded descriptor slot has one adapter");
-                    InstalledForwardedDynamicDescriptorSlot {
-                        row_index: slot.row_index,
-                        realization: slot.adapter.realization,
-                        adapter_text_offset: adapter.text_offset,
-                        data_offset: slot.data_offset,
-                    }
-                })
-                .collect(),
-        })
-        .collect()
-}
-
-pub(crate) fn installed_forwarded_dynamic_descriptor_calls(
-    image: &ExecutableImage,
-) -> Result<Vec<InstalledForwardedDynamicDescriptorCall>, InstallationError> {
-    image
-        .functions()
-        .iter()
-        .flat_map(|function| {
-            function
-                .forwarded_dynamic_descriptor_calls
-                .iter()
-                .map(move |call| (function, call))
-        })
-        .map(|(function, call)| {
-            let [argument] = call.dynamic_arguments.as_slice() else {
-                return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
-                    function.machine,
-                ));
-            };
-            let (selection, application) = match &argument.custody.source {
-                abstract_operations::AbstractDynamicDescriptorSource::Selection {
-                    selection,
-                    application,
-                } => (selection, application),
-                abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                    rebound,
-                    application,
-                    ..
-                } => (rebound, application),
-                abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {
-                    return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
-                        function.machine,
-                    ));
-                }
-            };
-            Ok(InstalledForwardedDynamicDescriptorCall {
-                machine: function.machine,
-                operation: call.psi_operation,
-                callee: call.callee,
-                application_commitment: application.commitment,
-                source: selection.source.clone(),
-                semantic_result: call.semantic_result,
-                result: call.result.clone(),
-                text_offset: function
-                    .text_offset
-                    .checked_add(call.code_offset)
-                    .ok_or(InstallationError::FunctionOffsetNotRepresentable)?,
-                byte_count: call.byte_count,
-            })
-        })
-        .collect()
-}
-
-pub(crate) fn installed_dynamic_parameter_calls(
-    image: &ExecutableImage,
-) -> Result<Vec<InstalledDynamicParameterCall>, InstallationError> {
-    image
-        .functions()
-        .iter()
-        .flat_map(|function| {
-            function
-                .dynamic_parameter_calls
-                .iter()
-                .map(move |call| (function, call))
-        })
-        .map(|(function, call)| {
-            Ok(InstalledDynamicParameterCall {
-                machine: function.machine,
-                operation: call.psi_operation,
-                source_value: call.source_value,
-                requirement_slot: call.requirement.slot,
-                text_offset: function
-                    .text_offset
-                    .checked_add(call.code_offset)
-                    .ok_or(InstallationError::FunctionOffsetNotRepresentable)?,
-                byte_count: call.byte_count,
-            })
-        })
-        .collect()
-}
-
-pub(crate) fn installed_forwarded_dynamic_parameter_calls(
-    image: &ExecutableImage,
-) -> Result<Vec<InstalledForwardedDynamicParameterCall>, InstallationError> {
-    image
-        .functions()
-        .iter()
-        .flat_map(|function| {
-            function
-                .forwarded_dynamic_parameter_calls
-                .iter()
-                .map(move |call| (function, call))
-        })
-        .map(|(function, call)| {
-            let abstract_operations::AbstractDynamicDescriptorSource::Parameter(source) =
-                &call.argument.source
-            else {
-                return Err(InstallationError::InvalidForwardedDynamicParameterCall(
-                    function.machine,
-                ));
-            };
-            Ok(InstalledForwardedDynamicParameterCall {
-                machine: function.machine,
-                operation: call.psi_operation,
-                callee: call.callee,
-                source_value: call.source_value,
-                scalar_type: call.scalar_type,
-                source_parameter_ordinal: source.ordinal,
-                target_parameter_ordinal: call.argument.target.ordinal,
-                text_offset: function
-                    .text_offset
-                    .checked_add(call.code_offset)
-                    .ok_or(InstallationError::FunctionOffsetNotRepresentable)?,
-                byte_count: call.byte_count,
-            })
-        })
-        .collect()
 }
 
 pub(crate) fn installed_compiler_private_function(

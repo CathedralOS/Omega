@@ -1467,12 +1467,6 @@ fn apply(
                 Some(*result_case),
             )?;
         }
-        // A call that forwards descriptors moves no argument custody here.
-        AbstractOperation::CallStructural {
-            dynamic_arguments,
-            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
-            ..
-        } if !dynamic_arguments.is_empty() => {}
         AbstractOperation::CallStructural {
             structural_arguments,
             result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),

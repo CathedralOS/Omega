@@ -151,35 +151,9 @@ pub(crate) fn validator_machine_references(
                 }),
         );
         match operation {
-            O::Call { callee, .. } => {
+            O::Call { callee, .. } | O::CallStructural { callee, .. } => {
                 references.insert(*callee);
             }
-            O::CallStructural {
-                callee,
-                dynamic_arguments,
-                ..
-            } => {
-                references.insert(*callee);
-                for argument in dynamic_arguments {
-                    if let abstract_operations::AbstractDynamicDescriptorSource::Selection {
-                        application,
-                        ..
-                    }
-                    | abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                        application,
-                        ..
-                    } = &argument.source
-                    {
-                        references.extend(
-                            application
-                                .realization_callables
-                                .iter()
-                                .map(|callable| callable.machine),
-                        );
-                    }
-                }
-            }
-            O::CallDynamic { dispatch, .. } => references.extend(dispatch.realization()),
             _ => {}
         }
     }

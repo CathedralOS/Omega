@@ -14,9 +14,6 @@ use crate::object_artifact::replay::boundary::completion_receipts::{
 };
 use crate::object_artifact::replay::boundary::result_placement::boundary_result_is_exact;
 use crate::object_artifact::replay::boundary::runtime_scalar_custody::hosted_write_byte_custody_is_exact;
-use crate::object_artifact::replay::dynamic::conformance::{
-    validate_dynamic_calls, validate_stored_dynamic_calls,
-};
 use crate::object_artifact::replay::scalar::cleanup_preservation::validate_scalar_cleanup_preservation;
 use crate::object_artifact::replay::scalar::conditional_call_paths::{
     conditional_call_path, conditional_paths_are_exclusive,
@@ -35,7 +32,6 @@ use crate::object_artifact::replay::unit::call_custody::{
     structural_result_matches_return, validate_internal_unit_call_custody,
     validate_mixed_structural_scalar_abi, validate_unit_affine_scalar_records,
 };
-use crate::object_artifact::replay::unit::dynamic_descriptor_join::validate_unit_dynamic_descriptor_join;
 use crate::object_artifact::replay::unit::installed_provider_scalar_call::validate_installed_provider_unit_scalar_calls;
 use crate::object_artifact::replay::unit::scalar_call_custody::validate_internal_unit_scalar_calls;
 use crate::object_artifact::replay::unit::stack::{
@@ -313,7 +309,6 @@ fn validate_scalar_stack_evidence(
         function.machine,
         &function.bytes,
         &function.internal_calls,
-        &function.dynamic_parameter_calls,
         &function.provenance,
         &function.semantic_code_attribution,
         stack,
@@ -455,8 +450,8 @@ fn validate_call_stacks(
     Ok((validated_call_stacks, foreign_live_bytes))
 }
 
-/// Every Unit custody record (internal, scalar, forwarded and installed
-/// provider calls) has exactly one relocation, and the two rosters name the
+/// Every Unit custody record (internal, scalar and installed provider calls)
+/// has exactly one relocation, and the two rosters name the
 /// same owners and targets.
 fn validate_unit_custody_identities(function: &MachineCodeFunction) -> Result<(), ObjectError> {
     let is_unit_custody_relocation = |call: &&machine_code::InternalCallRelocation| {
@@ -471,21 +466,6 @@ fn validate_unit_custody_identities(function: &MachineCodeFunction) -> Result<()
         .internal_unit_calls
         .len()
         .checked_add(function.internal_unit_scalar_calls.len())
-        .and_then(|count| count.checked_add(function.forwarded_dynamic_descriptor_calls.len()))
-        .and_then(|count| {
-            count.checked_add(
-                function
-                    .forwarded_dynamic_parameter_calls
-                    .iter()
-                    .filter(|call| {
-                        matches!(
-                            call.call_stack,
-                            machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
-                        )
-                    })
-                    .count(),
-            )
-        })
         .and_then(|count| count.checked_add(function.installed_provider_unit_scalar_calls.len()))
         .ok_or(ObjectError::InvalidInternalUnitCallEvidence(
             function.machine,
@@ -516,24 +496,6 @@ fn validate_unit_custody_identities(function: &MachineCodeFunction) -> Result<()
                 .internal_unit_scalar_calls
                 .iter()
                 .map(|call| (call.owner, call.target)),
-        )
-        .chain(
-            function
-                .forwarded_dynamic_descriptor_calls
-                .iter()
-                .map(|call| (CallSiteOwner::Operation(call.psi_operation), call.callee)),
-        )
-        .chain(
-            function
-                .forwarded_dynamic_parameter_calls
-                .iter()
-                .filter_map(|call| {
-                    matches!(
-                        call.call_stack,
-                        machine_code::ForwardedDynamicParameterCallStackEvidence::Unit(_)
-                    )
-                    .then_some((CallSiteOwner::Operation(call.psi_operation), call.callee))
-                }),
         )
         .chain(
             function
@@ -788,8 +750,8 @@ fn validate_internal_unit_call_custodies(
 }
 
 /// The remaining operation families: affine scalar records, internal and
-/// installed-provider Unit scalar calls, dynamic calls (whose peaks raise the
-/// frame), and the primitive and structural scalar stores.
+/// installed-provider Unit scalar calls, and the primitive and structural
+/// scalar stores.
 fn validate_unit_operations(
     plan: &MachineCodePlan,
     function: &MachineCodeFunction,
@@ -811,24 +773,6 @@ fn validate_unit_operations(
         machine_functions,
         validated_call_stacks,
     )?;
-    let dynamic_peak = validate_dynamic_calls(
-        plan.target,
-        function,
-        machine_functions,
-        validated_function_stack.as_ref(),
-    )?;
-    let stored_dynamic_peak = validate_stored_dynamic_calls(
-        plan.target,
-        function,
-        machine_functions,
-        validated_function_stack.as_ref(),
-    )?;
-    if let Some(stack) = validated_function_stack.as_mut() {
-        stack.local_peak_bytes = stack
-            .local_peak_bytes
-            .max(dynamic_peak)
-            .max(stored_dynamic_peak);
-    }
     validate_unit_write_only_primitive_stores(
         plan.target,
         function,
@@ -1017,8 +961,6 @@ fn validate_complete_unit_stack(
             stack,
             &function.internal_calls,
             &function.foreign_calls,
-            &function.dynamic_calls,
-            &function.stored_dynamic_calls,
             &function.boundary_settlements,
             &function.unit_integer_constants,
             &function.unit_scalar_homes,
@@ -1069,7 +1011,6 @@ fn validate_function_shape(
         ));
     }
     validate_mixed_structural_scalar_abi(plan.target, function)?;
-    validate_unit_dynamic_descriptor_join(plan.target, function)?;
     if let Some(previous) = previous
         && previous >= function.machine
     {

@@ -5,15 +5,13 @@ use super::structural_signature::StructuralCallSignature;
 use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use abstract_operations::{AbstractFunction, AbstractFunctionResult};
 use calling_conventions::{CallPlan, ValueShape};
 use semantic_vocabulary::{IeeeFloatFormat, MachineId, PlaceId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
-use target_operations::{
-    ScalarAbiValue, TargetDynamicDescriptorParameterAbi, TargetStructuralParameter,
-};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+use target_operations::{ScalarAbiValue, TargetStructuralParameter};
+use terminal_psi::StructuralMultiplicity;
 
 pub(super) fn integer_parameters(
     machine: MachineId,
@@ -45,10 +43,6 @@ pub(super) struct PreparedFunctionSignature {
     pub(super) call_plan: CallPlan,
     pub(super) scalar_parameters: Vec<ScalarAbiValue>,
     pub(super) parameters: Vec<TargetStructuralParameter>,
-    /// The function's borrowed descriptor parameters in declared order, each
-    /// bound to the two trailing pointer placements its `{instance, table}`
-    /// words occupy in `call_plan`. Empty for every other signature family.
-    pub(super) dynamic_parameters: Vec<TargetDynamicDescriptorParameterAbi>,
 }
 
 pub(super) fn parameters_by_place(
@@ -81,52 +75,7 @@ pub(super) fn prepare_function_signature(
         .collect::<Result<Vec<_>, _>>()?;
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    // Dynamic descriptor parameters are declared as zero-code leading
-    // operations. They occupy a dense trailing lane in the evaluated plan:
-    // `ordinal` is the lane index and `source_position` must trail every
-    // authored non-self parameter so the two ABI words never reorder the
-    // source interface.
-    let declared_dynamic_parameters = function
-        .operations
-        .iter()
-        .take_while(|operation| {
-            matches!(
-                operation,
-                AbstractOperation::DynamicDescriptorParameter { .. }
-            )
-        })
-        .filter_map(|operation| match operation {
-            AbstractOperation::DynamicDescriptorParameter { parameter } => Some(parameter),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let structural_count = function.structural_parameters.len();
-    for (index, parameter) in declared_dynamic_parameters.iter().enumerate() {
-        let ordinal =
-            u32::try_from(index).map_err(|_| LoweringError::InvalidDynamicDescriptorParameter {
-                machine: function.machine,
-                ordinal: parameter.ordinal,
-            })?;
-        let source_position = u32::try_from(function.parameters.len() + structural_count + index)
-            .map_err(|_| LoweringError::InvalidDynamicDescriptorParameter {
-            machine: function.machine,
-            ordinal: parameter.ordinal,
-        })?;
-        if parameter.owner != function.machine
-            || parameter.ordinal != ordinal
-            || parameter.source_position != source_position
-            || !matches!(
-                parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            )
-        {
-            return Err(LoweringError::InvalidDynamicDescriptorParameter {
-                machine: function.machine,
-                ordinal: parameter.ordinal,
-            });
-        }
-    }
-    let mut signature = StructuralCallSignature::derive(
+    let signature = StructuralCallSignature::derive(
         &scalar_parameter_shapes,
         &function.structural_parameters,
         match &function.result {
@@ -173,28 +122,8 @@ pub(super) fn prepare_function_signature(
         &mut active,
     )?;
     let parameter_shapes = signature.structural_shapes().to_vec();
-    if !declared_dynamic_parameters.is_empty() {
-        let pointer_size = u16::try_from(target.pointer_size).map_err(|_| {
-            LoweringError::InvalidDynamicDescriptorParameter {
-                machine: function.machine,
-                ordinal: 0,
-            }
-        })?;
-        let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| {
-            LoweringError::InvalidDynamicDescriptorParameter {
-                machine: function.machine,
-                ordinal: 0,
-            }
-        })?;
-        signature.push_dynamic_parameter_words(
-            declared_dynamic_parameters.len(),
-            ValueShape::integer(u32::from(pointer_size), pointer_alignment),
-        );
-    }
     let call_plan = signature.plan(target)?;
-    let expected_parameter_count = function.parameters.len()
-        + function.structural_parameters.len()
-        + declared_dynamic_parameters.len() * 2;
+    let expected_parameter_count = function.parameters.len() + function.structural_parameters.len();
     if call_plan.parameters.len() != expected_parameter_count {
         return Err(LoweringError::AbiParameterCountMismatch {
             expected: expected_parameter_count,
@@ -236,21 +165,9 @@ pub(super) fn prepare_function_signature(
             },
         )
         .collect();
-    let descriptor_base = function.parameters.len() + function.structural_parameters.len();
-    let dynamic_parameters = declared_dynamic_parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| TargetDynamicDescriptorParameterAbi {
-            parameter: (*parameter).clone(),
-            instance: call_plan.parameters[descriptor_base + index * 2].clone(),
-            table: call_plan.parameters[descriptor_base + index * 2 + 1].clone(),
-        })
-        .collect();
-
     Ok(PreparedFunctionSignature {
         call_plan,
         scalar_parameters,
         parameters,
-        dynamic_parameters,
     })
 }

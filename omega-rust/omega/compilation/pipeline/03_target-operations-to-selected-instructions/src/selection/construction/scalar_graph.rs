@@ -418,7 +418,6 @@ fn select_function(
                     | LegalizedScalarInstructionKind::StructuralByteViewFieldStore { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_)
                     | LegalizedScalarInstructionKind::NormalizedForeignCall(_)
-                    | LegalizedScalarInstructionKind::DynamicParameterCall(_)
                     | LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
                         ..
                     }

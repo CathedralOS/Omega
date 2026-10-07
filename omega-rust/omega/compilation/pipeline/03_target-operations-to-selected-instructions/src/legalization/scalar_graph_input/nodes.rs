@@ -55,15 +55,6 @@ pub(in crate::legalization) fn admit(
         }
         return Ok((*psi_operation, result.map(|result| result.value)));
     }
-    // A call that forwards descriptors has no scalar-graph lane, whatever
-    // its result kind.
-    if let AbstractOperation::CallStructural {
-        dynamic_arguments, ..
-    } = &node.operation
-        && !dynamic_arguments.is_empty()
-    {
-        return Err(NodeRejection::UnsupportedFamily);
-    }
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
     | AbstractOperation::ElementViewSubslice { psi_operation, .. }
     | AbstractOperation::EstablishElementView { psi_operation, .. }
@@ -82,12 +73,6 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
     | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
-    | AbstractOperation::CallDynamic {
-        psi_operation,
-        dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
-        result: abstract_operations::AbstractDynamicCallResult::Unit,
-        ..
-    }
     | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
     | AbstractOperation::ElementViewWrite { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
@@ -154,25 +139,17 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         } => Ok((*psi_operation, *result)),
-        // A scalar call that forwards descriptors has no scalar-graph lane.
         AbstractOperation::CallStructural {
             psi_operation,
             result: AbstractStructuralCallResult::Scalar(result),
-            dynamic_arguments,
             ..
-        } if dynamic_arguments.is_empty() && scalar_shape(result.scalar_type).is_some() => {
+        } if scalar_shape(result.scalar_type).is_some() => {
             // The result defines one scalar regardless of owned arguments.
             // Projection retains claim transfers, requirements and crash
             // continuations; independent replay rejoins their exact source
             // rosters and the ordinary argument storage contract.
             Ok((*psi_operation, result.value))
         }
-        AbstractOperation::CallDynamic {
-            psi_operation,
-            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
-            result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
-            ..
-        } if scalar_shape(result.scalar_type).is_some() => Ok((*psi_operation, result.value)),
         AbstractOperation::ByteSequenceRead {
             psi_operation,
             result,
@@ -417,17 +394,6 @@ pub(super) fn validate(
         }
     }
     for (position, node) in body.iter().enumerate() {
-        // Signature-only descriptor declarations retain no operation identity
-        // and project no instruction row; any payload on one is fabricated.
-        if matches!(
-            node.operation,
-            AbstractOperation::DynamicDescriptorParameter { .. }
-        ) {
-            if !super::indirect_calls::is_descriptor_declaration(node) {
-                return Err(LegalizationError::custody());
-            }
-            continue;
-        }
         // Every runtime-selected path element names an integer selector the
         // 64-bit address model can extend; its bound is the operation's own
         // verified obligation.
@@ -764,17 +730,6 @@ pub(super) fn validate(
             }
             continue;
         }
-        if let AbstractOperation::CallDynamic {
-            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
-            result: abstract_operations::AbstractDynamicCallResult::Unit,
-            ..
-        } = &node.operation
-        {
-            if result.is_some() || !node.definitions.is_empty() {
-                return Err(LegalizationError::custody());
-            }
-            continue;
-        }
         if let AbstractOperation::BoundaryCall {
             arguments,
             result: boundary_result,
@@ -853,11 +808,6 @@ pub(super) fn validate(
             AbstractOperation::BooleanConstant { .. } => ScalarType::Boolean,
             AbstractOperation::CallStructural {
                 result: AbstractStructuralCallResult::Scalar(result),
-                ..
-            }
-            | AbstractOperation::CallDynamic {
-                dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
-                result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
                 ..
             }
             | AbstractOperation::BoundaryCall {

@@ -8,12 +8,9 @@
 pub mod abstract_operations;
 pub use abstract_operations::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
-    AbstractBlockEntry, AbstractBoundaryResult, AbstractDynamicCallResult,
-    AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource, AbstractDynamicDispatch,
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-    AbstractOperationPlanWithPlacedViewInputs, AbstractParameter, AbstractParameterDynamicDispatch,
-    AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
-    AbstractStoredDynamicDispatch, AbstractStructuralBinding, AbstractStructuralCallResult,
+    AbstractBlockEntry, AbstractBoundaryResult, AbstractFunction, AbstractFunctionResult,
+    AbstractOperation, AbstractOperationPlan, AbstractOperationPlanWithPlacedViewInputs,
+    AbstractParameter, AbstractResult, AbstractStructuralBinding, AbstractStructuralCallResult,
     AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
     AtomicCoherenceViolation, AtomicModificationAfter, AtomicModificationAfterViolation,
     AtomicReadsFrom, AtomicReadsFromViolation, CompletionClaimSource, IntegerArithmetic,

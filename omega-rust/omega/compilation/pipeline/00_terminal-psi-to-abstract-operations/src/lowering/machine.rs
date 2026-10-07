@@ -4,8 +4,7 @@ use semantic_vocabulary::OperationId;
 mod operation;
 mod terminator;
 use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractParameter, AbstractResult,
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractParameter, AbstractResult,
 };
 use operation::lower_operation;
 use semantic_vocabulary::StructuralPlaceKind;
@@ -29,8 +28,20 @@ pub(super) fn lower_machine(
     machine: &TerminalMachine,
 ) -> Result<AbstractFunction, LoweringError> {
     let structural_types = &module.structural_types;
+    // The retired data-attached dynamic route has no abstract lowering; the
+    // named-implementation selector route replaces it.
     let dynamic_dispatch = &module.dynamic_dispatch;
-    let closed_conformance_applications = &module.closed_conformance_applications;
+    if dynamic_dispatch
+        .parameters
+        .iter()
+        .any(|parameter| parameter.owner == machine.id)
+        || dynamic_dispatch
+            .arguments
+            .iter()
+            .any(|argument| argument.owner == machine.id)
+    {
+        return Err(LoweringError::UnsupportedDynamicDispatch(machine.id));
+    }
     let result = machine.result.scalar();
     let blocks = machine
         .blocks
@@ -96,24 +107,12 @@ pub(super) fn lower_machine(
                 .collect(),
             operation_offset: operations.len(),
         });
-        if block.id == machine.entry {
-            operations.extend(
-                dynamic_dispatch
-                    .parameters
-                    .iter()
-                    .filter(|parameter| parameter.owner == machine.id)
-                    .cloned()
-                    .map(|parameter| AbstractOperation::DynamicDescriptorParameter { parameter }),
-            );
-        }
         for operation in &block.operations {
             lower_operation(
                 operation,
                 block,
                 machine,
                 structural_types,
-                dynamic_dispatch,
-                closed_conformance_applications,
                 &value_types,
                 &byte_sequence_literals,
                 &unit_affine_locals,

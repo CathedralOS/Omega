@@ -1,7 +1,6 @@
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
-use abstract_operations::AbstractOperation;
 use calling_conventions::ValueShape;
 use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use semantic_vocabulary::{IeeeFloatFormat, IntegerType, ScalarType};
@@ -15,14 +14,7 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
     target: NativeTarget,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<Option<MixedStructuralScalarFunctionAbi>, LoweringError> {
-    if function.structural_parameters.is_empty()
-        || function.operations.iter().any(|operation| {
-            matches!(
-                operation,
-                AbstractOperation::DynamicDescriptorParameter { .. }
-            )
-        })
-    {
+    if function.structural_parameters.is_empty() {
         return Ok(None);
     }
     let Some(result) = function.result.scalar() else {
@@ -59,15 +51,7 @@ pub(super) fn derive_fixed_scalar_function_abi(
     function: &AbstractFunction,
     target: NativeTarget,
 ) -> Result<Option<ScalarFunctionAbi>, LoweringError> {
-    if !function.structural_parameters.is_empty()
-        || !function.entry_claims.is_empty()
-        || function.operations.iter().any(|operation| {
-            matches!(
-                operation,
-                AbstractOperation::DynamicDescriptorParameter { .. }
-            )
-        })
-    {
+    if !function.structural_parameters.is_empty() || !function.entry_claims.is_empty() {
         return Ok(None);
     }
     let Some(result) = function.result.scalar() else {

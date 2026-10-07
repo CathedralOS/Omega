@@ -37,7 +37,7 @@ pub(crate) fn validate_private_functions<'plan>(
             return Err(ObjectError::InvalidPrivateFunctionAbi);
         }
         // Call custody, not silhouette: the private channel publishes no
-        // import, unit-call, provider, dynamic-call, or boundary-settlement
+        // import, unit-call, provider, or boundary-settlement
         // custody, so a private function carrying any of those call families
         // has no path to bound custody and rejects. Internal calls stay
         // admissible — their custody resolves inside the published roster and
@@ -50,13 +50,6 @@ pub(crate) fn validate_private_functions<'plan>(
                 .installed_provider_unit_scalar_calls
                 .is_empty()
             || private.function.parameter_abi.is_some()
-            || !private.function.dynamic_calls.is_empty()
-            || !private.function.stored_dynamic_calls.is_empty()
-            || !private.function.dynamic_parameter_calls.is_empty()
-            || !private
-                .function
-                .forwarded_dynamic_descriptor_calls
-                .is_empty()
             || !private.function.boundary_settlements.is_empty()
         {
             return Err(ObjectError::UnsupportedPrivateFunctionBody);

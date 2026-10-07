@@ -1,13 +1,13 @@
 //! Native physical evidence: for each operation that survives optimization,
 //! the machine, object and final-image byte spans that realize it, bound to
-//! the operator, boundary or dynamic call occurrence it realizes.
+//! the operator or boundary occurrence it realizes.
 //!
 //! This file defines the evidence records: the surviving occurrence roster
 //! (`NativeOptimizationProjection`), the validated scope that admits it
 //! (`ValidatedOptimizedNativePhysicalEvidenceScope`), each physical child
 //! with its parent, spans, byte digests and relocation disposition
-//! (`NativePhysicalChild`), boundary settlements, dynamic call dispatches,
-//! normalized foreign call relocations and import fields, and the gap that
+//! (`NativePhysicalChild`), boundary settlements, normalized foreign call
+//! relocations and import fields, and the gap that
 //! names where a derivation stopped (`NativePhysicalEvidenceGap`). Their
 //! fields are private. The constructor functions at the end of this file are
 //! used only by the children below; code outside `physical` reads the
@@ -16,8 +16,8 @@
 //! Three entries, all called from `native_artifact`:
 //!
 //! - `derive_validated_optimization_scope` (`projection`) builds the scope
-//!   of a validated optimized abstract plan: its surviving operator,
-//!   boundary and dynamic call occurrences, checked against the Terminal
+//!   of a validated optimized abstract plan: its surviving operator and
+//!   boundary occurrences, checked against the Terminal
 //!   boundary-application coverage.
 //! - `derive_fragment_publication_scope` (`fragment_publication`) first
 //!   replays the function fragment object and its normalized foreign call
@@ -27,8 +27,8 @@
 //!   from its installed settlement, its normalized foreign call, or an
 //!   installed provider realized as a resolved internal call; a check that
 //!   every retained privileged port effect was consumed by a settlement; then
-//!   one child per operator occurrence and per dynamic call occurrence, whose
-//!   spans `operator_applications` derives. It returns `Complete` evidence,
+//!   one child per operator occurrence, whose spans `operator_applications`
+//!   derives. It returns `Complete` evidence,
 //!   `Blocked` with a gap naming the first occurrence or retained record it
 //!   could not bind, or `Unavailable` when the scope admits no derivation.
 //!   The native artifact types call it when built from emitted parts, when
@@ -156,7 +156,6 @@ pub struct NativeOptimizationProjection {
     terminal: TerminalPsiIdentity,
     operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
-    dynamic_call_occurrences: Vec<OptimizedOperatorOccurrence>,
     identity: NativeOptimizationProjectionIdentity,
 }
 
@@ -171,14 +170,6 @@ impl NativeOptimizationProjection {
 
     pub fn operator_occurrences(&self) -> &[OptimizedOperatorOccurrence] {
         &self.operator_occurrences
-    }
-
-    /// Surviving dynamic-call occurrences (`CallDynamic*` operations). They
-    /// carry descriptor or parameter ordinals rather than a boundary
-    /// application, so they cannot join the D29 coverage roster; they still
-    /// bind one physical child each through their emitted dispatch rows.
-    pub fn dynamic_call_occurrences(&self) -> &[OptimizedOperatorOccurrence] {
-        &self.dynamic_call_occurrences
     }
 
     pub const fn identity(&self) -> NativeOptimizationProjectionIdentity {
@@ -415,7 +406,6 @@ impl BoundaryTraitSettlement {
 pub enum PhysicalChildParent {
     OperatorApplicationCoverage(OperatorApplicationCoverageRef),
     BoundaryTraitSettlement(BoundaryTraitSettlement),
-    DynamicCallDispatch(DynamicCallDispatch),
 }
 
 impl PhysicalChildParent {
@@ -423,7 +413,6 @@ impl PhysicalChildParent {
         match self {
             Self::OperatorApplicationCoverage(reference) => *reference.coverage().as_bytes(),
             Self::BoundaryTraitSettlement(settlement) => *settlement.identity(),
-            Self::DynamicCallDispatch(dispatch) => *dispatch.identity(),
         }
     }
 
@@ -431,54 +420,6 @@ impl PhysicalChildParent {
         match self {
             Self::OperatorApplicationCoverage(_) => 1,
             Self::BoundaryTraitSettlement(_) => 2,
-            Self::DynamicCallDispatch(_) => 3,
-        }
-    }
-}
-
-/// Semantic parent of one surviving dynamic-call occurrence's physical
-/// child: the exact dispatch catalog row the Terminal operation names. The
-/// identity commits the operation's owner, dispatch family coordinates, and
-/// requirement/realization identities; `occurrence` retains which surviving
-/// occurrence the row dispatched.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DynamicCallDispatch {
-    occurrence: OptimizedOperatorOccurrence,
-    identity: [u8; 32],
-}
-
-impl DynamicCallDispatch {
-    pub const fn occurrence(&self) -> &OptimizedOperatorOccurrence {
-        &self.occurrence
-    }
-
-    pub const fn identity(&self) -> &[u8; 32] {
-        &self.identity
-    }
-
-    pub fn into_parts(self) -> DynamicCallDispatchParts {
-        DynamicCallDispatchParts {
-            occurrence: self.occurrence,
-            identity: self.identity,
-        }
-    }
-
-    pub fn from_replayed_parts(parts: DynamicCallDispatchParts) -> Self {
-        parts.into()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DynamicCallDispatchParts {
-    pub occurrence: OptimizedOperatorOccurrence,
-    pub identity: [u8; 32],
-}
-
-impl From<DynamicCallDispatchParts> for DynamicCallDispatch {
-    fn from(parts: DynamicCallDispatchParts) -> Self {
-        Self {
-            occurrence: parts.occurrence,
-            identity: parts.identity,
         }
     }
 }
@@ -487,50 +428,11 @@ impl From<DynamicCallDispatchParts> for DynamicCallDispatch {
 pub enum PhysicalRelocationDisposition {
     DirectInstructionBytes,
     ResolvedInternalCall,
-    /// Relocation custody for one descriptor-materializing `CallDynamic*`
-    /// record's complete emitted sequence. Every Text relocation inside the
-    /// span is one of the record's validated windows — each table-address
-    /// materialization joined to its conformance or descriptor table symbol,
-    /// plus a forwarded record's resolved direct call — committed as an
-    /// ordered digest of the exact windows so a record carrying one
-    /// materialization per dynamic argument stays a bounded child field.
-    DynamicCallCustody(DynamicCallRelocationCustody),
     UnresolvedNormalizedForeignCall(NormalizedForeignCallRelocation),
     /// Fragment-publication custody: the call's import field lives in the
     /// retained relocation-free object plan, which owns the unresolved field
     /// row and declared import symbol in place of object relocation records.
     UnresolvedNormalizedForeignCallImportField(NormalizedForeignCallImportField),
-}
-
-/// Ordered relocation custody of one descriptor-materializing dynamic-call
-/// sequence. The digest commits every window's exact relocation fields —
-/// object offset, byte width, kind, bound table or callee symbol, addend, and
-/// origin — in the record's materialization order, so replay rebinds custody
-/// rather than recomputing which relocations belong inside the span.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DynamicCallRelocationCustody {
-    windows_digest: [u8; 32],
-    window_count: u32,
-}
-
-impl DynamicCallRelocationCustody {
-    pub const fn windows_digest(&self) -> [u8; 32] {
-        self.windows_digest
-    }
-
-    pub const fn window_count(&self) -> u32 {
-        self.window_count
-    }
-}
-
-pub(crate) fn dynamic_call_relocation_custody(
-    windows_digest: [u8; 32],
-    window_count: u32,
-) -> DynamicCallRelocationCustody {
-    DynamicCallRelocationCustody {
-        windows_digest,
-        window_count,
-    }
 }
 
 /// Exact unresolved import relocation retained by one normalized-foreign D41
@@ -737,17 +639,12 @@ impl NormalizedForeignCallRelocation {
 pub enum NativePhysicalOccurrence {
     Operator(OptimizedOperatorOccurrenceIdentity),
     Boundary(OptimizedBoundaryOccurrenceIdentity),
-    /// A surviving `CallDynamic*` operation occurrence. Dynamic dispatches
-    /// carry no boundary or D29 application row, so their physical children
-    /// join under [`PhysicalChildParent::DynamicCallDispatch`] rather than a
-    /// coverage reference or boundary settlement.
-    DynamicCall(OptimizedOperatorOccurrenceIdentity),
 }
 
 impl NativePhysicalOccurrence {
     pub const fn identity(self) -> [u8; 32] {
         match self {
-            Self::Operator(identity) | Self::DynamicCall(identity) => identity.bytes(),
+            Self::Operator(identity) => identity.bytes(),
             Self::Boundary(identity) => identity.bytes(),
         }
     }
@@ -756,7 +653,6 @@ impl NativePhysicalOccurrence {
         match self {
             Self::Operator(_) => 1,
             Self::Boundary(_) => 2,
-            Self::DynamicCall(_) => 3,
         }
     }
 }
@@ -949,11 +845,6 @@ pub enum NativePhysicalEvidenceGapSubject {
     UnsupportedOperatorSpan {
         occurrence: OptimizedOperatorOccurrence,
     },
-    /// A surviving dynamic-call occurrence produced no exact dispatch call
-    /// record for its span arm to bind.
-    UnsupportedDynamicCallSpan {
-        occurrence: OptimizedOperatorOccurrence,
-    },
     /// A retained privileged port effect was consumed by no exact
     /// `MetadataOnlyPort` settlement join.
     UnownedPortEffect {
@@ -995,9 +886,6 @@ impl NativePhysicalEvidenceGap {
             }
             NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan { occurrence } => {
                 Some(NativePhysicalOccurrence::Operator(occurrence.identity()))
-            }
-            NativePhysicalEvidenceGapSubject::UnsupportedDynamicCallSpan { occurrence } => {
-                Some(NativePhysicalOccurrence::DynamicCall(occurrence.identity()))
             }
         }
     }
@@ -1059,15 +947,6 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
                 write!(
                     formatter,
                     "operator occurrence on machine {} operation {} ordinal {} has no supported physical span",
-                    occurrence.machine(),
-                    occurrence.operation(),
-                    occurrence.operation_ordinal(),
-                )
-            }
-            NativePhysicalEvidenceGapSubject::UnsupportedDynamicCallSpan { occurrence } => {
-                write!(
-                    formatter,
-                    "dynamic-call occurrence on machine {} operation {} ordinal {} has no supported physical span",
                     occurrence.machine(),
                     occurrence.operation(),
                     occurrence.operation_ordinal(),
@@ -1205,18 +1084,6 @@ fn optimized_boundary_occurrence(
     }
 }
 
-/// Construction stays derivation-owned: callers assemble a dispatch parent
-/// only from an identity this module issued.
-pub(crate) fn dynamic_call_dispatch(
-    occurrence: OptimizedOperatorOccurrence,
-    identity: [u8; 32],
-) -> DynamicCallDispatch {
-    DynamicCallDispatch {
-        occurrence,
-        identity,
-    }
-}
-
 fn optimized_operator_occurrence(
     terminal: TerminalPsiIdentity,
     machine: MachineId,
@@ -1237,14 +1104,12 @@ fn native_optimization_projection(
     terminal: TerminalPsiIdentity,
     operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
-    dynamic_call_occurrences: Vec<OptimizedOperatorOccurrence>,
     identity: NativeOptimizationProjectionIdentity,
 ) -> NativeOptimizationProjection {
     NativeOptimizationProjection {
         terminal,
         operator_occurrences,
         boundary_occurrences,
-        dynamic_call_occurrences,
         identity,
     }
 }

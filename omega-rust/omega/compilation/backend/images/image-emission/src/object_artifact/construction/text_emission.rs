@@ -1,16 +1,14 @@
-//! The `.text` section: every retained function, then every forwarded
-//! descriptor adapter, then every compiler-private function, in that order,
+//! The `.text` section: every retained function, then every compiler-private
+//! function, in that order,
 //! each with exactly one symbol and its retained records rebased to object
 //! text offsets.
 
 use super::function_validation::FunctionValidation;
 use crate::object_artifact::private_functions::ValidatedPrivateFunction;
-use crate::object_artifact::replay::dynamic::forwarded_descriptor::ValidatedForwardedDynamicApplication;
 use crate::object_artifact::{
     ObjectBoundarySettlement, ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectError,
-    ObjectForeignCall, ObjectForwardedDynamicDescriptorAdapter, ObjectFunction, ObjectPortEffect,
+    ObjectForeignCall, ObjectFunction, ObjectPortEffect,
 };
-use machine_code::ForwardedDynamicDescriptorAdapterIdentity;
 use machine_code::MachineCodePlan;
 use object_file::{
     FunctionSymbolPlan, ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolKind, SymbolPlan,
@@ -241,11 +239,6 @@ pub(super) fn emit_functions(
             installed_provider_unit_scalar_calls: function
                 .installed_provider_unit_scalar_calls
                 .clone(),
-            dynamic_calls: function.dynamic_calls.clone(),
-            stored_dynamic_calls: function.stored_dynamic_calls.clone(),
-            dynamic_parameter_calls: function.dynamic_parameter_calls.clone(),
-            forwarded_dynamic_parameter_calls: function.forwarded_dynamic_parameter_calls.clone(),
-            forwarded_dynamic_descriptor_calls: function.forwarded_dynamic_descriptor_calls.clone(),
             unit_scalar_homes: function.unit_scalar_homes.clone(),
             unit_integer_constants: function.unit_integer_constants.clone(),
             unit_affine_scalar_records: function.unit_affine_scalar_records.clone(),
@@ -274,74 +267,6 @@ pub(super) fn emit_functions(
         port_effects,
         boundary_settlements,
         foreign_calls,
-    })
-}
-
-/// The forwarded descriptor adapters as emitted, and each adapter's symbol
-/// for the descriptor tables to bind.
-pub(super) struct EmittedAdapters {
-    pub(super) records: Vec<ObjectForwardedDynamicDescriptorAdapter>,
-    pub(super) symbols:
-        std::collections::BTreeMap<ForwardedDynamicDescriptorAdapterIdentity, ObjectSymbolHandle>,
-}
-
-/// Append each forwarded descriptor adapter's bytes after the functions it
-/// forwards to, one symbol per adapter identity.
-pub(super) fn emit_forwarded_adapters(
-    forwarded_dynamic_applications: &[ValidatedForwardedDynamicApplication],
-    symbols_by_machine: &std::collections::BTreeMap<MachineId, ObjectSymbolHandle>,
-    object: &mut ObjectPlan,
-    text_bytes: &mut Vec<u8>,
-) -> Result<EmittedAdapters, ObjectError> {
-    let mut forwarded_dynamic_descriptor_adapters = Vec::new();
-    let mut forwarded_adapter_symbols = std::collections::BTreeMap::new();
-    for application in forwarded_dynamic_applications {
-        for adapter in &application.adapters {
-            let target_symbol = symbols_by_machine
-                .get(&adapter.identity.realization)
-                .copied()
-                .ok_or(ObjectError::UnknownDynamicConformanceTarget(
-                    adapter.identity.realization,
-                ))?;
-            let text_offset = text_bytes.len();
-            text_bytes.extend_from_slice(&adapter.bytes);
-            let commitment = adapter
-                .identity
-                .application
-                .as_bytes()
-                .into_iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
-            let symbol = object.layout.symbols.insert(SymbolPlan {
-                name: format!(
-                    "omega_forwarded_descriptor_adapter_{commitment}_{}_{}",
-                    adapter.identity.row_index,
-                    adapter.identity.realization.get()
-                ),
-                section: SymbolSection::Section(SectionKind::Text),
-                offset: text_offset,
-                size: adapter.bytes.len(),
-                kind: SymbolKind::Function,
-                import_library: String::new(),
-            });
-            if forwarded_adapter_symbols
-                .insert(adapter.identity.clone(), symbol)
-                .is_some()
-            {
-                return Err(ObjectError::DuplicateForwardedDynamicDescriptorAdapter);
-            }
-            forwarded_dynamic_descriptor_adapters.push(ObjectForwardedDynamicDescriptorAdapter {
-                record: adapter.clone(),
-                symbol,
-                target_symbol,
-                text_offset,
-                byte_count: adapter.bytes.len(),
-            });
-        }
-    }
-    Ok(EmittedAdapters {
-        records: forwarded_dynamic_descriptor_adapters,
-        symbols: forwarded_adapter_symbols,
     })
 }
 

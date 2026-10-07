@@ -2,7 +2,6 @@
 
 pub mod arguments;
 pub mod callbacks;
-pub mod dynamic;
 mod fixups;
 pub mod foreign;
 pub mod internal;
@@ -15,15 +14,6 @@ pub use arguments::{
 };
 pub use callbacks::{
     CallbackAddressDestination, CallbackAddressEncoding, CallbackAddressMaterialization,
-};
-pub use dynamic::{
-    DynamicCallRecord, DynamicInstanceMaterializationRecord, DynamicParameterCallMechanismRecord,
-    DynamicParameterCallRecord, DynamicTableAddressEncoding, DynamicTableAddressMaterialization,
-    DynamicTraitDescriptorAbiRecord, ForwardedDynamicDescriptorAdapterIdentity,
-    ForwardedDynamicDescriptorAdapterRecord, ForwardedDynamicDescriptorArgumentRecord,
-    ForwardedDynamicDescriptorCallRecord, ForwardedDynamicParameterCallRecord,
-    ForwardedDynamicParameterCallStackEvidence, StoredDynamicCallRecord,
-    StoredDynamicDescriptorMaterializationRecord,
 };
 pub use fixups::{
     SelectedFormCallbackMaterialization, SelectedFormCallbackMaterializationEncoding,

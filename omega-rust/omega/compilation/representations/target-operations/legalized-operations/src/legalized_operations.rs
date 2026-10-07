@@ -47,20 +47,19 @@ pub use calls::{
 };
 pub mod control_flow;
 pub use control_flow::{
-    LegalizedDescriptorOrigin, LegalizedDynamicParameterCall, LegalizedNormalizedForeignCall,
-    LegalizedRuntimeIndexOperand, LegalizedScalarArgument, LegalizedScalarBlock,
-    LegalizedScalarCall, LegalizedScalarComparison, LegalizedScalarFunction,
-    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarParameter,
-    LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
-    LegalizedScalarTerminator, LegalizedStructuralCasePayload, LegalizedStructuralCaseSource,
-    LegalizedStructuralCaseSuccessor, LegalizedValueDefinition, SaturatingCarrier,
-    SaturatingOperation, TrappingForm, TrappingOperation,
+    LegalizedDescriptorOrigin, LegalizedNormalizedForeignCall, LegalizedRuntimeIndexOperand,
+    LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison,
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
+    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralCasePayload,
+    LegalizedStructuralCaseSource, LegalizedStructuralCaseSuccessor, LegalizedValueDefinition,
+    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
 };
 
 pub mod identity;
 mod validation;
 pub use identity::{encode_hosted_read_byte_identity, legalized_operation_plan_identity};
-pub use validation::{LegalizedDynamicParameterCallShapeError, LegalizedScalarCallShapeError};
+pub use validation::LegalizedScalarCallShapeError;
 
 #[cfg(test)]
 mod tests;

@@ -20,8 +20,7 @@
 //!
 //! Each child checks one family: `aggregate_results` (aggregate constructors
 //! and structural leaf copies), `borrowed_windows` (structural field moves
-//! and stores), `direct_calls`, `indirect_calls` (calls through a borrowed
-//! descriptor parameter), `ieee_float` (float compare, constant and fused
+//! and stores), `direct_calls`, `ieee_float` (float compare, constant and fused
 //! multiply-add) and `primitive_store` (write-only primitive stores).
 //! `runtime_indices_rejoin` is used by `primitive_store`.
 
@@ -40,7 +39,6 @@ mod aggregate_results;
 mod borrowed_windows;
 mod direct_calls;
 mod ieee_float;
-mod indirect_calls;
 mod primitive_store;
 /// Replay one ordered Unit operation with only the SSA sources available here.
 pub(super) fn validate_operation(
@@ -981,18 +979,6 @@ pub(super) fn validate_operation(
             direct_calls::validate(
                 target, abstracted, sources, custody, optimized, native, plan, unit,
             )?;
-        }
-        // Only the parameter-descriptor dispatch has a legalization mirror; a
-        // stored, rebound or descriptor-forwarding dynamic call is a custody
-        // mismatch here.
-        (
-            TargetUnitOperation::CallDynamic {
-                dispatch: target_operations::TargetDynamicDispatch::Parameter { .. },
-                ..
-            },
-            _,
-        ) => {
-            indirect_calls::validate(function, target, abstracted, sources, native)?;
         }
         (
             TargetUnitOperation::IntegerConstant {

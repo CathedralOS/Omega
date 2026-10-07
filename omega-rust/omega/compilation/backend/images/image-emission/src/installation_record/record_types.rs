@@ -1,14 +1,11 @@
 //! The installation record and its carriers: fingerprints, installed image
-//! sections, dynamic conformance and descriptor tables, installed functions,
-//! foreign call stacks and internal unit calls.
+//! sections, installed functions, foreign call stacks and internal unit calls.
 
 use crate::installation_record::codec::fingerprint::write_hex;
 use crate::{ObjectBoundarySettlement, ObjectCodeAttribution, ObjectPortEffect};
 use image::{CompilerTextValidationEvidence, FinalImageLayout};
 use machine_code::StructuralReturnRecord;
-use semantic_vocabulary::{
-    MachineId, OperationId, PlaceId, ProfileDecisionId, StructuralTypeId, ValueId,
-};
+use semantic_vocabulary::{MachineId, ProfileDecisionId, StructuralTypeId};
 use std::num::NonZeroU64;
 use target::NativeTarget;
 use target_operations::CallSiteOwner;
@@ -115,15 +112,6 @@ pub struct InstallationRecord {
     pub(crate) structural_returns: Vec<InstalledStructuralReturn>,
     pub(crate) internal_unit_calls: Vec<InstalledInternalUnitCall>,
     pub(crate) internal_unit_scalar_calls: Vec<InstalledInternalUnitScalarCall>,
-    pub(crate) dynamic_conformance_tables: Vec<InstalledDynamicConformanceTable>,
-    pub(crate) dynamic_calls: Vec<InstalledDynamicCall>,
-    pub(crate) stored_dynamic_calls: Vec<InstalledStoredDynamicCall>,
-    pub(crate) forwarded_dynamic_descriptor_adapters:
-        Vec<InstalledForwardedDynamicDescriptorAdapter>,
-    pub(crate) forwarded_dynamic_descriptor_tables: Vec<InstalledForwardedDynamicDescriptorTable>,
-    pub(crate) forwarded_dynamic_descriptor_calls: Vec<InstalledForwardedDynamicDescriptorCall>,
-    pub(crate) dynamic_parameter_calls: Vec<InstalledDynamicParameterCall>,
-    pub(crate) forwarded_dynamic_parameter_calls: Vec<InstalledForwardedDynamicParameterCall>,
     pub(crate) semantic_code_attribution: Vec<ObjectCodeAttribution>,
     pub(crate) port_effects: Vec<ObjectPortEffect>,
     pub(crate) boundary_settlements: Vec<ObjectBoundarySettlement>,
@@ -165,58 +153,6 @@ impl InstallationRecord {
     #[cfg(any(test, feature = "test-support"))]
     pub fn private_functions_mut_for_test(&mut self) -> &mut Vec<InstalledCompilerPrivateFunction> {
         &mut self.private_functions
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn dynamic_conformance_tables_mut_for_test(
-        &mut self,
-    ) -> &mut Vec<InstalledDynamicConformanceTable> {
-        &mut self.dynamic_conformance_tables
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn dynamic_calls_mut_for_test(&mut self) -> &mut Vec<InstalledDynamicCall> {
-        &mut self.dynamic_calls
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn dynamic_parameter_calls_mut_for_test(
-        &mut self,
-    ) -> &mut Vec<InstalledDynamicParameterCall> {
-        &mut self.dynamic_parameter_calls
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn stored_dynamic_calls_mut_for_test(&mut self) -> &mut Vec<InstalledStoredDynamicCall> {
-        &mut self.stored_dynamic_calls
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn forwarded_dynamic_descriptor_adapters_mut_for_test(
-        &mut self,
-    ) -> &mut Vec<InstalledForwardedDynamicDescriptorAdapter> {
-        &mut self.forwarded_dynamic_descriptor_adapters
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn forwarded_dynamic_descriptor_tables_mut_for_test(
-        &mut self,
-    ) -> &mut Vec<InstalledForwardedDynamicDescriptorTable> {
-        &mut self.forwarded_dynamic_descriptor_tables
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn forwarded_dynamic_descriptor_calls_mut_for_test(
-        &mut self,
-    ) -> &mut Vec<InstalledForwardedDynamicDescriptorCall> {
-        &mut self.forwarded_dynamic_descriptor_calls
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn forwarded_dynamic_parameter_calls_mut_for_test(
-        &mut self,
-    ) -> &mut Vec<InstalledForwardedDynamicParameterCall> {
-        &mut self.forwarded_dynamic_parameter_calls
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -343,42 +279,6 @@ impl InstallationRecord {
         &self.internal_unit_scalar_calls
     }
 
-    pub fn dynamic_conformance_tables(&self) -> &[InstalledDynamicConformanceTable] {
-        &self.dynamic_conformance_tables
-    }
-
-    pub fn dynamic_calls(&self) -> &[InstalledDynamicCall] {
-        &self.dynamic_calls
-    }
-
-    pub fn stored_dynamic_calls(&self) -> &[InstalledStoredDynamicCall] {
-        &self.stored_dynamic_calls
-    }
-
-    pub fn forwarded_dynamic_descriptor_adapters(
-        &self,
-    ) -> &[InstalledForwardedDynamicDescriptorAdapter] {
-        &self.forwarded_dynamic_descriptor_adapters
-    }
-
-    pub fn forwarded_dynamic_descriptor_tables(
-        &self,
-    ) -> &[InstalledForwardedDynamicDescriptorTable] {
-        &self.forwarded_dynamic_descriptor_tables
-    }
-
-    pub fn forwarded_dynamic_descriptor_calls(&self) -> &[InstalledForwardedDynamicDescriptorCall] {
-        &self.forwarded_dynamic_descriptor_calls
-    }
-
-    pub fn dynamic_parameter_calls(&self) -> &[InstalledDynamicParameterCall] {
-        &self.dynamic_parameter_calls
-    }
-
-    pub fn forwarded_dynamic_parameter_calls(&self) -> &[InstalledForwardedDynamicParameterCall] {
-        &self.forwarded_dynamic_parameter_calls
-    }
-
     pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
         &self.semantic_code_attribution
     }
@@ -437,115 +337,6 @@ pub struct InstalledImageSections {
     /// Strong identity of the complete placed initialized-data inventory,
     /// covering compiler data plus writer-installed binding slots.
     pub data_inventory_digest: image::PlacedDataRegionInventoryDigest,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledDynamicConformanceTable {
-    pub application_commitment: terminal_psi::ClosedConformanceApplicationCommitment,
-    pub application_report_fingerprint: u64,
-    pub data_offset: usize,
-    pub byte_count: usize,
-    pub slots: Vec<InstalledDynamicConformanceSlot>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledDynamicConformanceSlot {
-    pub row_index: u32,
-    pub target: Option<MachineId>,
-    pub data_offset: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledDynamicCall {
-    pub machine: MachineId,
-    pub operation: OperationId,
-    pub application_commitment: terminal_psi::ClosedConformanceApplicationCommitment,
-    pub initial_source: PlaceId,
-    pub rebound_source: PlaceId,
-    pub selected_table_byte_offset: u32,
-    pub realization: MachineId,
-    pub text_offset: usize,
-    pub byte_count: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledStoredDynamicCall {
-    pub machine: MachineId,
-    pub establishment_operation: OperationId,
-    pub operation: OperationId,
-    pub descriptor_ordinal: u32,
-    pub selection_ordinal: u32,
-    pub application_commitment: terminal_psi::ClosedConformanceApplicationCommitment,
-    pub source: PlaceId,
-    pub descriptor_home_byte_offset: u32,
-    pub selected_table_byte_offset: u32,
-    pub realization: MachineId,
-    pub establishment_text_offset: usize,
-    pub establishment_byte_count: usize,
-    pub text_offset: usize,
-    pub byte_count: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledForwardedDynamicDescriptorAdapter {
-    pub application_commitment: terminal_psi::ClosedConformanceApplicationCommitment,
-    pub row_index: u32,
-    pub realization: MachineId,
-    pub text_offset: usize,
-    pub byte_count: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledForwardedDynamicDescriptorTable {
-    pub application_commitment: terminal_psi::ClosedConformanceApplicationCommitment,
-    pub application_report_fingerprint: u64,
-    pub data_offset: usize,
-    pub byte_count: usize,
-    pub slots: Vec<InstalledForwardedDynamicDescriptorSlot>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledForwardedDynamicDescriptorSlot {
-    pub row_index: u32,
-    pub realization: MachineId,
-    pub adapter_text_offset: usize,
-    pub data_offset: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledForwardedDynamicDescriptorCall {
-    pub machine: MachineId,
-    pub operation: OperationId,
-    pub callee: MachineId,
-    pub application_commitment: terminal_psi::ClosedConformanceApplicationCommitment,
-    pub source: terminal_psi::StructuralArgument,
-    pub semantic_result: Option<abstract_operations::AbstractResult>,
-    pub result: Option<machine_code::InternalUnitScalarCallResultRecord>,
-    pub text_offset: usize,
-    pub byte_count: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledDynamicParameterCall {
-    pub machine: MachineId,
-    pub operation: OperationId,
-    pub source_value: Option<ValueId>,
-    pub requirement_slot: u32,
-    pub text_offset: usize,
-    pub byte_count: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledForwardedDynamicParameterCall {
-    pub machine: MachineId,
-    pub operation: OperationId,
-    pub callee: MachineId,
-    pub source_value: Option<ValueId>,
-    pub scalar_type: Option<semantic_vocabulary::ScalarType>,
-    pub source_parameter_ordinal: u32,
-    pub target_parameter_ordinal: u32,
-    pub text_offset: usize,
-    pub byte_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

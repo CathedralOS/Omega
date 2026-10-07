@@ -6,15 +6,13 @@
 
 use super::{
     InstallationError, InstallationRecord, InstalledFunction, MachineId, ObjectFormat,
-    can_emit_executable_image, semantic_code_attribution,
-    validate_installed_unit_dynamic_descriptor_joins, validate_installed_unit_scalar_calls,
+    can_emit_executable_image, semantic_code_attribution, validate_installed_unit_scalar_calls,
     validate_installed_unit_structural_scalar_field_stores,
     validate_installed_unit_write_only_primitive_stores,
 };
 
 mod affine_cleanups;
 mod boundary_settlements;
-mod dynamic_conformance;
 mod function_rows;
 mod internal_unit_calls;
 mod stack_facts;
@@ -45,7 +43,7 @@ pub(super) fn validate_record_shape(record: &InstallationRecord) -> Result<(), I
 }
 
 /// Record-wide preconditions: a valid derivation digest, an emittable target,
-/// the dynamic tables and descriptor joins, the subsystem the object format
+/// the subsystem the object format
 /// requires, and a selected provider-plan set that closes over every
 /// settlement and foreign call the record retains.
 fn validate_record_preconditions(record: &InstallationRecord) -> Result<(), InstallationError> {
@@ -58,8 +56,6 @@ fn validate_record_preconditions(record: &InstallationRecord) -> Result<(), Inst
     if !can_emit_executable_image(record.target) {
         return Err(InstallationError::UnsupportedTarget(record.target));
     }
-    dynamic_conformance::validate_installed_dynamic_conformance(record)?;
-    validate_installed_unit_dynamic_descriptor_joins(record)?;
     match record.target.object_format {
         ObjectFormat::Coff if record.subsystem.is_none() => {
             return Err(InstallationError::MissingCoffSubsystem);

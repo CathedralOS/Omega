@@ -31,10 +31,8 @@ pub(super) fn result(
                 psi_operation,
                 result: AbstractStructuralCallResult::Scalar(result),
                 callee,
-                dynamic_arguments,
                 ..
-            } if dynamic_arguments.is_empty()
-                && installed_boundary.is_none()
+            } if installed_boundary.is_none()
                 && Some(*psi_operation) == contract.owner.operation()
                 && *callee == contract.call.callee =>
             {

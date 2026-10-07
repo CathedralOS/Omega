@@ -3,8 +3,7 @@
 //! Published scalar calls retain their independently checked standalone ABI;
 //! ordinary calls use the declared signature and live reference custody.
 //! Structural results establish their own homes and returned reference leaves
-//! only after argument preparation succeeds. Descriptor-forwarding calls remain
-//! with the dynamic-call owner.
+//! only after argument preparation succeeds.
 
 use super::LiveDefinitions;
 use crate::LoweringError;
@@ -15,8 +14,8 @@ use crate::lowering::scalar_abi::fixed_native_scalar_shape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use crate::lowering::unit::roster_arguments::lower_structural_argument;
 use abstract_operations::{
-    AbstractDynamicDescriptorArgument, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractResult, AbstractStructuralCallResult,
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
+    AbstractStructuralCallResult,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
@@ -50,7 +49,6 @@ struct DirectCall<'a> {
     callee: MachineId,
     scalar_arguments: &'a [ValueId],
     structural_arguments: &'a [StructuralArgument],
-    dynamic_arguments: &'a [AbstractDynamicDescriptorArgument],
     claim_transfers: &'a [ClaimTransfer],
     requirement_obligations: &'a [ObligationId],
     crash_continuations: &'a [CrashRouteBucket],
@@ -82,7 +80,6 @@ pub(super) fn lower_direct_call(
             callee,
             arguments,
             structural_arguments,
-            dynamic_arguments,
             claim_transfers,
             result,
             requirement_obligations,
@@ -93,7 +90,6 @@ pub(super) fn lower_direct_call(
                 callee: *callee,
                 scalar_arguments: arguments,
                 structural_arguments,
-                dynamic_arguments,
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
@@ -119,7 +115,6 @@ pub(super) fn lower_direct_call(
                 callee: *callee,
                 scalar_arguments: arguments,
                 structural_arguments: &[],
-                dynamic_arguments: &[],
                 claim_transfers: &[],
                 requirement_obligations,
                 crash_continuations,
@@ -381,7 +376,6 @@ fn published_scalar_contract(
         call_plan: expected_abi.call_plan,
         scalar_parameters: expected_abi.parameters,
         parameters: Vec::new(),
-        dynamic_parameters: Vec::new(),
     })
 }
 
@@ -413,10 +407,6 @@ fn ordinary_contract(
     ),
     LoweringError,
 > {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
-    if !call.dynamic_arguments.is_empty() {
-        return Err(invalid());
-    }
     if call.scalar_arguments.len() != callee_function.parameters.len() {
         return Err(LoweringError::CallArgumentCountMismatch {
             callee: call.callee,
@@ -460,9 +450,6 @@ fn ordinary_contract(
         )?),
     };
     let signature = prepare_function_signature(callee_function, target, types)?;
-    if !signature.dynamic_parameters.is_empty() {
-        return Err(invalid());
-    }
     Ok((signature, home))
 }
 
@@ -802,7 +789,6 @@ pub(super) fn lower_cleanup_calls(
                 )?);
             }
             if !signature.scalar_parameters.is_empty()
-                || !signature.dynamic_parameters.is_empty()
                 || signature.parameters.len() != callee.structural_parameters.len()
                 || (callee.structural_parameters.is_empty() && cleanup.cleanup_receiver.is_some())
             {

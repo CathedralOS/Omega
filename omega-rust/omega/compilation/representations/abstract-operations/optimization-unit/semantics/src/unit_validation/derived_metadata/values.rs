@@ -31,10 +31,6 @@ pub(crate) fn expected_definitions(
             result: AbstractStructuralCallResult::Scalar(result),
             ..
         }
-        | O::CallDynamic {
-            result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
-            ..
-        }
         | O::PrimitiveScalarRead { result, .. }
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }

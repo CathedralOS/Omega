@@ -152,12 +152,9 @@ pub(crate) fn rewrite_block_parameter_operation(
                 E::Load { .. } | E::Fence { .. } => {}
             }
         }
-        O::DynamicDescriptorParameter { .. }
-        | O::StoreDynamicDescriptor { .. }
-        | O::EstablishByteSequenceConcatenation { .. }
+        O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::CallDynamic { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }

@@ -419,7 +419,6 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
             call_plan,
             scalar_parameters: vec![],
             parameters: vec![target_parameter],
-            dynamic_parameters: vec![],
             entry: block,
             blocks: vec![TargetControlBlock {
                 block,
@@ -830,7 +829,6 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
         callee,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
-        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         result: AbstractStructuralCallResult::Structural {
             result: owner,
@@ -1330,7 +1328,6 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             callee: MachineId::new(2).unwrap(),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
-            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             result: AbstractStructuralCallResult::Structural {
                 result: result.clone(),
@@ -1763,7 +1760,6 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
             callee: MachineId::new(2).unwrap(),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
-            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             result: AbstractStructuralCallResult::Structural {
                 result,

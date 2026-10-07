@@ -62,7 +62,6 @@ struct LiveDefinitions {
     // Dominating definitions only. Abstract-unit validation owns edge liveness.
     structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     nonreturning: bool,
-    stored_descriptors: BTreeSet<OperationId>,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
     scalar_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
@@ -211,22 +210,6 @@ pub(super) fn lower(
     }
     let prepared =
         super::function_signature::prepare_function_signature(function, target, structural_types)?;
-    // Descriptor parameters are zero-code leading declarations: a stray
-    // declaration after the leading run would never join the signature lane,
-    // so it rejects rather than lowering as an inert row.
-    if function
-        .operations
-        .iter()
-        .skip(prepared.dynamic_parameters.len())
-        .any(|operation| {
-            matches!(
-                operation,
-                AbstractOperation::DynamicDescriptorParameter { .. }
-            )
-        })
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
     let parameters_by_place = super::function_signature::parameters_by_place(&prepared.parameters);
     let mut definitions = BTreeSet::new();
     for parameter in &function.parameters {
@@ -267,10 +250,6 @@ pub(super) fn lower(
             | AbstractOperation::StructuralCaseMembership { result, .. }
             | AbstractOperation::CallStructural {
                 result: AbstractStructuralCallResult::Scalar(result),
-                ..
-            }
-            | AbstractOperation::CallDynamic {
-                result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
                 ..
             } => Some(result.value),
             _ => None,
@@ -443,7 +422,6 @@ pub(super) fn lower(
         borrowed_reference_sources,
         structural_homes: BTreeMap::new(),
         nonreturning: false,
-        stored_descriptors: BTreeSet::new(),
         integers: super::function_signature::integer_parameters(
             function.machine,
             &prepared.scalar_parameters,
@@ -639,7 +617,6 @@ pub(super) fn lower(
             call_plan: prepared.call_plan,
             scalar_parameters: prepared.scalar_parameters,
             parameters: prepared.parameters,
-            dynamic_parameters: prepared.dynamic_parameters,
             entry: function.entry,
             blocks,
         },

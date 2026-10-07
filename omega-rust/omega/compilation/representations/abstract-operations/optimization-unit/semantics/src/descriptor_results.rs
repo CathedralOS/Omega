@@ -552,7 +552,6 @@ fn adapt(
                 O::CallStructural {
                     callee,
                     structural_arguments,
-                    dynamic_arguments,
                     claim_transfers,
                     result: call_result,
                     ..
@@ -567,7 +566,7 @@ fn adapt(
                             return None;
                         }
                         let mut arguments = Vec::new();
-                        let mut exact_arguments = dynamic_arguments.is_empty();
+                        let mut exact_arguments = true;
                         for (actual, formal) in structural_arguments
                             .iter()
                             .zip(&callee.structural_parameters)
@@ -575,10 +574,7 @@ fn adapt(
                             if actual.access != formal.access {
                                 return None;
                             }
-                            let actual = dynamic_arguments
-                                .is_empty()
-                                .then(|| location(actual.place, &actual.path, None))
-                                .flatten();
+                            let actual = location(actual.place, &actual.path, None);
                             exact_arguments &= actual.is_some();
                             arguments.push(actual);
                         }
@@ -630,8 +626,7 @@ fn adapt(
                             call_result,
                             abstract_operations::AbstractStructuralCallResult::Unit
                                 | abstract_operations::AbstractStructuralCallResult::Scalar(_)
-                        ) && dynamic_arguments.is_empty()
-                            && claim_transfers.is_empty()
+                        ) && claim_transfers.is_empty()
                             && structural_arguments.iter().all(|actual| {
                                 actual.access == StructuralAccess::SharedBorrow
                                     || graph.place_types.get(&actual.place).is_some_and(|ty| {
@@ -710,9 +705,6 @@ fn adapt(
                             )?);
                         }
                     }
-                }
-                O::CallDynamic { .. } | O::StoreDynamicDescriptor { .. } => {
-                    step.may_escape = true;
                 }
                 O::ReturnStructural { source, .. } => {
                     if let Some(returns) = &mut graph.returns {

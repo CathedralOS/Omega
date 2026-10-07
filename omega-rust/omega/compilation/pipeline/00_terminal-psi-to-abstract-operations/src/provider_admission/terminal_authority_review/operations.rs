@@ -1,59 +1,28 @@
 //! Exhaustive abstract-operation to terminal-authority edge classification.
 
-use abstract_operations::{
-    AbstractDynamicDescriptorArgument, AbstractDynamicDispatch, AbstractOperation,
-    AbstractParameterDynamicDispatch,
-};
+use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
-pub(super) enum AuthorityEdge<'operation> {
+pub(super) enum AuthorityEdge {
     None,
     Internal(MachineId),
-    InternalWithDynamicArguments {
-        callee: MachineId,
-        arguments: &'operation [AbstractDynamicDescriptorArgument],
-    },
-    DynamicParameterDispatch(&'operation AbstractParameterDynamicDispatch),
     Boundary(BoundaryMachineId),
-    CheckedPortWrite {
-        port: u16,
-    },
+    CheckedPortWrite { port: u16 },
 }
 
 /// Exhaustive match: adding an abstract operation forces an explicit D45
 /// decision rather than silently treating a new call/physical role as pure.
-pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_> {
+pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
     match operation {
-        AbstractOperation::CallStructural {
-            callee,
-            dynamic_arguments,
-            ..
-        } if !dynamic_arguments.is_empty() => AuthorityEdge::InternalWithDynamicArguments {
-            callee: *callee,
-            arguments: dynamic_arguments,
-        },
         AbstractOperation::CallStructural { callee, .. }
         | AbstractOperation::Call { callee, .. } => AuthorityEdge::Internal(*callee),
-        AbstractOperation::CallDynamic { dispatch, .. } => match dispatch {
-            AbstractDynamicDispatch::Rebound(dispatch) => {
-                AuthorityEdge::Internal(dispatch.dispatch.realization)
-            }
-            AbstractDynamicDispatch::Stored(dispatch) => {
-                AuthorityEdge::Internal(dispatch.dispatch.realization)
-            }
-            AbstractDynamicDispatch::Parameter(dispatch) => {
-                AuthorityEdge::DynamicParameterDispatch(dispatch)
-            }
-        },
         AbstractOperation::BoundaryCall { boundary, .. } => AuthorityEdge::Boundary(*boundary),
         AbstractOperation::PortWrite { port, .. } => {
             AuthorityEdge::CheckedPortWrite { port: *port }
         }
-        AbstractOperation::DynamicDescriptorParameter { .. }
         // An atomic event carries no call or boundary edge; its ordering and
         // custody evidence stay on the operation itself.
-        | AbstractOperation::AtomicEvent { .. }
-        | AbstractOperation::StoreDynamicDescriptor { .. }
+        AbstractOperation::AtomicEvent { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. }
         | AbstractOperation::ByteSequenceWrite { .. }
         | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }

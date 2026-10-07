@@ -24,8 +24,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{
-    AbstractAtomicEvent, AbstractDynamicDescriptorSource, AbstractDynamicDispatch,
-    AbstractOperation as O, AbstractStructuralBinding, StructuralCopyPath,
+    AbstractAtomicEvent, AbstractOperation as O, AbstractStructuralBinding, StructuralCopyPath,
 };
 use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance};
@@ -34,8 +33,8 @@ use semantic_vocabulary::{
     StructuralPlaceKind,
 };
 use terminal_psi::{
-    ClosedConformanceApplication, RecordFieldValue, StructuralAccess, StructuralArgument,
-    StructuralPathSegment, TerminalAffineCleanupAction, control_flow::ByteSequenceOperand,
+    RecordFieldValue, StructuralAccess, StructuralArgument, StructuralPathSegment,
+    TerminalAffineCleanupAction, control_flow::ByteSequenceOperand,
 };
 
 use super::semantically_reachable_blocks;
@@ -130,7 +129,7 @@ pub struct FunctionPlaceAccessSummary {
     /// results and for structural results that carry no references.
     pub result_sources: Vec<ResolvedResultSource>,
     /// `true` when a reachable call targets a machine this unit does not
-    /// carry, a dynamic-dispatch lane, or a boundary. Parameter surfaces
+    /// carry or a boundary. Parameter surfaces
     /// stay exact — an unsummarized target's argument lane is bounded by
     /// each argument's declared `access` — but external rows are then a
     /// lower bound, not the complete reach.
@@ -455,7 +454,7 @@ enum PendingContribution {
         arguments: Vec<StructuralArgument>,
     },
     /// A unit machine whose modeled caller-visible reach is storage outside
-    /// the argument lane — cleanup hooks and known dynamic realizations.
+    /// the argument lane — cleanup hooks.
     Reach { callee: MachineId },
 }
 
@@ -554,58 +553,6 @@ impl PendingSurface {
                 .push(PendingContribution::Reach { callee });
         } else {
             self.unsummarized = true;
-        }
-    }
-
-    /// One application's callee set: every realization callable the closed
-    /// conformance names may run behind the descriptor.
-    fn push_application(
-        &mut self,
-        machines: &BTreeSet<MachineId>,
-        application: &ClosedConformanceApplication,
-    ) {
-        for callable in &application.realization_callables {
-            self.push_reach(machines, callable.machine);
-        }
-    }
-
-    /// One argument of a dynamic-dispatch lane: the selected source view is
-    /// touched up to its declared access, and every statically named
-    /// realization joins by reach.
-    fn push_dynamic_source(
-        &mut self,
-        context: &FunctionContext<'_>,
-        machines: &BTreeSet<MachineId>,
-        source: &AbstractDynamicDescriptorSource,
-    ) {
-        match source {
-            AbstractDynamicDescriptorSource::Selection {
-                selection,
-                application,
-            } => {
-                let (reads, writes) = declared_access(selection.source.access);
-                self.attribute_argument(context, &selection.source, reads, writes);
-                self.push_application(machines, application);
-            }
-            AbstractDynamicDescriptorSource::Rebound {
-                initial,
-                rebound,
-                initial_application,
-                application,
-                ..
-            } => {
-                let (reads, writes) = declared_access(initial.source.access);
-                self.attribute_argument(context, &initial.source, reads, writes);
-                let (reads, writes) = declared_access(rebound.source.access);
-                self.attribute_argument(context, &rebound.source, reads, writes);
-                self.push_application(machines, initial_application);
-                self.push_application(machines, application);
-            }
-            AbstractDynamicDescriptorSource::Parameter(_) => {
-                // A parameter-shaped descriptor names a formal lane already
-                // bounded by the caller's own declared access; the dispatch
-                // itself is what stays unsummarized.
-            }
         }
     }
 }
@@ -803,13 +750,6 @@ fn scan_operation(
             let (reads, writes) = declared_access(value.access);
             pending.attribute_argument(context, value, reads, writes);
         }
-        O::StoreDynamicDescriptor { stored, .. } => {
-            // The stored row captures the instance through the descriptor's
-            // declared access; the aggregate field it lands in is outside
-            // the structural place vocabulary.
-            let (reads, writes) = declared_access(stored.selection.source.access);
-            pending.attribute_argument(context, &stored.selection.source, reads, writes);
-        }
         O::EstablishByteSequenceConcatenation { left, right, .. }
         | O::ByteSequenceEqual { left, right, .. } => {
             for operand in [left, right] {
@@ -868,51 +808,12 @@ fn scan_operation(
         O::CallStructural {
             callee,
             structural_arguments,
-            dynamic_arguments,
-            ..
-        } if !dynamic_arguments.is_empty() => {
-            pending.push_call(context, machines, *callee, structural_arguments);
-            for argument in dynamic_arguments {
-                pending.push_dynamic_source(context, machines, &argument.source);
-            }
-            // The forwarded descriptor lane itself is not summarized.
-            pending.unsummarized = true;
-        }
-        O::CallStructural {
-            callee,
-            structural_arguments,
             ..
         } => {
             pending.push_call(context, machines, *callee, structural_arguments);
         }
         O::Call { callee, .. } => {
             pending.push_call(context, machines, *callee, &[]);
-        }
-        O::CallDynamic { dispatch, .. } => {
-            match dispatch {
-                AbstractDynamicDispatch::Rebound(dispatch) => {
-                    let (reads, writes) = declared_access(dispatch.initial.source.access);
-                    pending.attribute_argument(context, &dispatch.initial.source, reads, writes);
-                    let (reads, writes) = declared_access(dispatch.rebound.source.access);
-                    pending.attribute_argument(context, &dispatch.rebound.source, reads, writes);
-                    pending.push_application(machines, &dispatch.initial_application);
-                    pending.push_application(machines, &dispatch.application);
-                    pending.push_reach(machines, dispatch.dispatch.realization);
-                }
-                AbstractDynamicDispatch::Stored(dispatch) => {
-                    let (reads, writes) = declared_access(dispatch.stored.selection.source.access);
-                    pending.attribute_argument(
-                        context,
-                        &dispatch.stored.selection.source,
-                        reads,
-                        writes,
-                    );
-                    pending.push_application(machines, &dispatch.stored.application);
-                    pending.push_reach(machines, dispatch.dispatch.realization);
-                }
-                AbstractDynamicDispatch::Parameter(_) => {}
-            }
-            pending.unsummarized = true;
         }
         O::BoundaryCall {
             structural_arguments,
@@ -937,7 +838,6 @@ fn scan_operation(
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
-        | O::DynamicDescriptorParameter { .. }
         | O::PortWrite { .. }
         | O::Crash { .. }
         | O::IntegerConstant { .. }

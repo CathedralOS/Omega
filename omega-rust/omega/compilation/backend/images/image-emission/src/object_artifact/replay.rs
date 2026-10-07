@@ -4,7 +4,6 @@
 //! unverified. Installation-record validation reuses the same passes.
 
 pub(crate) mod boundary;
-pub(crate) mod dynamic;
 pub(crate) mod instruction_loads;
 pub(crate) mod scalar;
 pub(crate) mod structural;

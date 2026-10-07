@@ -194,35 +194,13 @@ pub(crate) fn validate_operation_places(
         O::BoundaryCall {
             structural_arguments,
             ..
-        } => {
-            for argument in structural_arguments {
-                require(argument.place, known)?;
-            }
         }
-        O::CallStructural {
+        | O::CallStructural {
             structural_arguments,
-            dynamic_arguments,
             ..
         } => {
             for argument in structural_arguments {
                 require(argument.place, known)?;
-            }
-            for argument in dynamic_arguments {
-                match &argument.source {
-                    abstract_operations::AbstractDynamicDescriptorSource::Selection {
-                        selection,
-                        ..
-                    } => require(selection.source.place, known)?,
-                    abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                        initial,
-                        rebound,
-                        ..
-                    } => {
-                        require(initial.source.place, known)?;
-                        require(rebound.source.place, known)?;
-                    }
-                    abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {}
-                }
             }
         }
         O::ByteSequenceStore {
@@ -256,19 +234,6 @@ pub(crate) fn validate_operation_places(
         | O::StructuralScalarFieldRead { source, .. } => {
             require(*source, known)?;
         }
-        O::StoreDynamicDescriptor { stored, .. } => {
-            require(stored.selection.source.place, known)?;
-        }
-        O::CallDynamic { dispatch, .. } => match dispatch {
-            abstract_operations::AbstractDynamicDispatch::Stored(dispatch) => {
-                require(dispatch.stored.selection.source.place, known)?;
-            }
-            abstract_operations::AbstractDynamicDispatch::Rebound(dispatch) => {
-                require(dispatch.initial.source.place, known)?;
-                require(dispatch.rebound.source.place, known)?;
-            }
-            abstract_operations::AbstractDynamicDispatch::Parameter(_) => {}
-        },
         O::ReturnStructural { source, .. } => require(*source, known)?,
         _ => {}
     }

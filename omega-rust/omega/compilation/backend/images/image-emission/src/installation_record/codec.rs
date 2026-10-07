@@ -11,7 +11,6 @@ pub(super) mod boundary_result_scalar;
 pub(super) mod boundary_settlement;
 pub(super) mod call_site_owner;
 pub(super) mod completion_custody;
-pub(super) mod dynamic_conformance;
 pub(super) mod envelope;
 pub(super) mod fingerprint;
 pub(super) mod function;

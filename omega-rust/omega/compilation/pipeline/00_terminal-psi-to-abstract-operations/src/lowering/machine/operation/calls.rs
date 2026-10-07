@@ -1,27 +1,13 @@
 use abstract_operations::{
-    AbstractDynamicCallResult, AbstractDynamicDispatch, AbstractOperation, AbstractResult,
-    AbstractStructuralCallResult, CompletionClaimSource,
+    AbstractOperation, AbstractResult, AbstractStructuralCallResult, CompletionClaimSource,
 };
-use terminal_psi::{
-    ClosedConformanceApplication, Operation, OperationKind, TerminalDynamicDispatchCatalog,
-    TerminalMachine,
-};
+use terminal_psi::{Operation, OperationKind, TerminalMachine};
 
 use crate::lowering::LoweringError;
-
-mod dynamic_dispatch;
-
-pub(super) use dynamic_dispatch::lower_stored_descriptor;
-use dynamic_dispatch::{
-    lower_dynamic_arguments, lower_parameter_dynamic_dispatch, lower_rebound_dynamic_dispatch,
-    lower_stored_dynamic_dispatch,
-};
 
 pub(super) fn lower(
     operation: &Operation,
     machine: &TerminalMachine,
-    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
-    closed_conformance_applications: &[ClosedConformanceApplication],
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
         OperationKind::CallUnit {
@@ -33,31 +19,16 @@ pub(super) fn lower(
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } => {
-            let dynamic_arguments = lower_dynamic_arguments(
-                machine,
-                operation,
-                callee,
-                dynamic_dispatch,
-                closed_conformance_applications,
-            )?;
-            if !dynamic_arguments.is_empty() && !arguments.is_empty() {
-                return Err(LoweringError::UnsupportedUnitCallScalarAndDynamicArguments(
-                    operation.id,
-                ));
-            }
-            AbstractOperation::CallStructural {
-                psi_operation: operation.id,
-                callee,
-                arguments,
-                structural_arguments,
-                dynamic_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                result: AbstractStructuralCallResult::Unit,
-            }
-        }
+        } => AbstractOperation::CallStructural {
+            psi_operation: operation.id,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            result: AbstractStructuralCallResult::Unit,
+        },
         OperationKind::CallStructuralScalar {
             callee,
             arguments,
@@ -69,20 +40,6 @@ pub(super) fn lower(
             crash_continuations,
         } => {
             let result = operation.result.expect_scalar();
-            let dynamic_arguments = lower_dynamic_arguments(
-                machine,
-                operation,
-                callee,
-                dynamic_dispatch,
-                closed_conformance_applications,
-            )?;
-            // A call that forwards descriptors drops its scalar arguments
-            // instead of rejecting them as the Unit call does.
-            let arguments = if dynamic_arguments.is_empty() {
-                arguments
-            } else {
-                Vec::new()
-            };
             AbstractOperation::CallStructural {
                 psi_operation: operation.id,
                 result: AbstractStructuralCallResult::Scalar(AbstractResult {
@@ -92,118 +49,11 @@ pub(super) fn lower(
                 callee,
                 arguments,
                 structural_arguments,
-                dynamic_arguments,
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
             }
         }
-        OperationKind::CallDynamicScalar {
-            descriptor_ordinal,
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            let result = operation.result.expect_scalar();
-            let result = AbstractResult {
-                value: result.id,
-                scalar_type: result.scalar_type,
-            };
-            // A published stored dispatch reloads the descriptor from its
-            // aggregate field; every other scalar descriptor call is rebound.
-            let dispatch =
-                if dynamic_dispatch.stored_dispatches.iter().any(|dispatch| {
-                    dispatch.owner == machine.id && dispatch.operation == operation.id
-                }) {
-                    AbstractDynamicDispatch::Stored(lower_stored_dynamic_dispatch(
-                        machine,
-                        operation,
-                        descriptor_ordinal,
-                        Some(result.scalar_type),
-                        dynamic_dispatch,
-                        closed_conformance_applications,
-                    )?)
-                } else {
-                    AbstractDynamicDispatch::Rebound(lower_rebound_dynamic_dispatch(
-                        machine,
-                        operation,
-                        descriptor_ordinal,
-                        Some(result.scalar_type),
-                        dynamic_dispatch,
-                        closed_conformance_applications,
-                    )?)
-                };
-            AbstractOperation::CallDynamic {
-                psi_operation: operation.id,
-                dispatch,
-                result: AbstractDynamicCallResult::Scalar(result),
-                requirement_obligations,
-                crash_continuations,
-            }
-        }
-        OperationKind::CallDynamicParameterScalar {
-            parameter_ordinal,
-            requirement_slot,
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            let result = operation.result.expect_scalar();
-            AbstractOperation::CallDynamic {
-                psi_operation: operation.id,
-                dispatch: AbstractDynamicDispatch::Parameter(lower_parameter_dynamic_dispatch(
-                    machine,
-                    operation,
-                    parameter_ordinal,
-                    requirement_slot,
-                    Some(result.scalar_type),
-                    dynamic_dispatch,
-                )?),
-                result: AbstractDynamicCallResult::Scalar(AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                }),
-                requirement_obligations,
-                crash_continuations,
-            }
-        }
-        // A Unit descriptor call is always rebound: stored custody is admitted
-        // only with a scalar result.
-        OperationKind::CallDynamicUnit {
-            descriptor_ordinal,
-            requirement_obligations,
-            crash_continuations,
-        } => AbstractOperation::CallDynamic {
-            psi_operation: operation.id,
-            dispatch: AbstractDynamicDispatch::Rebound(lower_rebound_dynamic_dispatch(
-                machine,
-                operation,
-                descriptor_ordinal,
-                None,
-                dynamic_dispatch,
-                closed_conformance_applications,
-            )?),
-            result: AbstractDynamicCallResult::Unit,
-            requirement_obligations,
-            crash_continuations,
-        },
-        OperationKind::CallDynamicParameterUnit {
-            parameter_ordinal,
-            requirement_slot,
-            requirement_obligations,
-            crash_continuations,
-        } => AbstractOperation::CallDynamic {
-            psi_operation: operation.id,
-            dispatch: AbstractDynamicDispatch::Parameter(lower_parameter_dynamic_dispatch(
-                machine,
-                operation,
-                parameter_ordinal,
-                requirement_slot,
-                None,
-                dynamic_dispatch,
-            )?),
-            result: AbstractDynamicCallResult::Unit,
-            requirement_obligations,
-            crash_continuations,
-        },
         OperationKind::CallStructural {
             callee,
             structural_arguments,
@@ -226,7 +76,6 @@ pub(super) fn lower(
                 callee,
                 arguments: Vec::new(),
                 structural_arguments,
-                dynamic_arguments: Vec::new(),
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
@@ -256,7 +105,6 @@ pub(super) fn lower(
                 callee,
                 arguments,
                 structural_arguments,
-                dynamic_arguments: Vec::new(),
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,

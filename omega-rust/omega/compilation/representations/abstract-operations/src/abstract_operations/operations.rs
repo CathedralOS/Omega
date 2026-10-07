@@ -1,11 +1,9 @@
 //! Executable abstract vocabulary, including moves, drops, calls and control.
 
 use crate::{
-    AbstractAtomicEvent, AbstractBoundaryResult, AbstractDynamicCallResult,
-    AbstractDynamicDescriptorArgument, AbstractDynamicDispatch, AbstractResult,
-    AbstractStoredDynamicDescriptor, AbstractStructuralCallResult, AbstractStructuralCaseSuccessor,
-    AbstractSuccessor, AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource,
-    ValueBinding,
+    AbstractAtomicEvent, AbstractBoundaryResult, AbstractResult, AbstractStructuralCallResult,
+    AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicModificationAfter, AtomicReadsFrom,
+    CompletionClaimSource, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -15,7 +13,7 @@ use semantic_vocabulary::{
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashRouteBucket, StructuralArgument,
     StructuralOperationResult, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalDynamicDescriptorParameter,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -232,20 +230,6 @@ pub enum AbstractOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
-    /// Zero-code declaration of one existential descriptor in the current
-    /// function's runtime interface. Keeping the complete Terminal row in the
-    /// entry block prevents an unused parameter from disappearing before a
-    /// receiving lowerer selects its physical `{data, table}` ABI.
-    DynamicDescriptorParameter {
-        parameter: TerminalDynamicDescriptorParameter,
-    },
-    /// Establish a selected `{instance, table}` descriptor in one exact
-    /// aggregate field. This remains target-neutral; later stages choose the
-    /// physical two-word local and field offsets.
-    StoreDynamicDescriptor {
-        psi_operation: OperationId,
-        stored: AbstractStoredDynamicDescriptor,
-    },
     /// One verifier-approved non-observing replacement through an exact
     /// primitive leaf under a mutable/write-only parameter or an owned aggregate.
     /// `path` is the verified Terminal projection to the leaf — fields and
@@ -409,22 +393,12 @@ pub enum AbstractOperation {
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     /// Invoke one machine through the structural calling lane: exact
-    /// caller-local scalar and structural arguments, claim transfers, and
-    /// forwarded descriptors, with a Unit, scalar or structural result.
-    /// Physical ABI placement remains downstream.
+    /// caller-local scalar and structural arguments and claim transfers, with
+    /// a Unit, scalar or structural result. Physical ABI placement remains
+    /// downstream.
     ///
     /// `result` fixes how the arguments are admitted; consumers take the
     /// projection policy and routing from it, never from empty rosters.
-    ///
-    /// `dynamic_arguments` forwards exact existential descriptors into the
-    /// callee's declared dynamic parameter interface. A call that forwards
-    /// descriptors carries no scalar `arguments`: for a Unit result stage 00
-    /// rejects that mix, and for a scalar result it drops the scalar
-    /// arguments; the optimization-unit contract and stage 02 refuse it.
-    /// Only Unit and scalar results forward descriptors: stage 00 never
-    /// produces a structural result with descriptors, and the contract and
-    /// every lowering refuse one. Every consumer routes a nonempty
-    /// `dynamic_arguments` row apart from the plain call.
     CallStructural {
         psi_operation: OperationId,
         callee: MachineId,
@@ -432,22 +406,8 @@ pub enum AbstractOperation {
         /// established structural-only lane carries an empty row.
         arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
-        dynamic_arguments: Vec<AbstractDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         result: AbstractStructuralCallResult,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one requirement through an exact descriptor. Target realization
-    /// must materialize the two-word `{instance, table}` carrier and call
-    /// through the selected table; it may not replace this operation with a
-    /// direct call to a realization. `dispatch` keeps rebound, stored and
-    /// parameter custody distinct. `result` is a property of the selected
-    /// callable row, not of descriptor custody.
-    CallDynamic {
-        psi_operation: OperationId,
-        dispatch: AbstractDynamicDispatch,
-        result: AbstractDynamicCallResult,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
@@ -835,8 +795,8 @@ impl AbstractOperation {
     }
 
     /// The name-spelled paths this operation carries, in operand order.
-    /// Operations without a projection (scalar arithmetic, control, dynamic
-    /// dispatch selections, literal establishment) carry none.
+    /// Operations without a projection (scalar arithmetic, control, literal
+    /// establishment) carry none.
     fn structural_paths(&self) -> Vec<&[StructuralPathSegment]> {
         match self {
             Self::PrimitiveScalarRead { path, .. }
@@ -880,8 +840,7 @@ impl AbstractOperation {
     }
 
     /// The authored Terminal operation this row realizes, or `None` for a
-    /// control transfer (identified by its edge) and a dynamic descriptor
-    /// parameter (identified by its place).
+    /// control transfer (identified by its edge).
     pub fn psi_operation(&self) -> Option<OperationId> {
         match self {
             Self::WriteOnlyPrimitiveStore { psi_operation, .. }
@@ -900,7 +859,6 @@ impl AbstractOperation {
             | Self::MoveStructuralField { psi_operation, .. }
             | Self::StoreStructuralField { psi_operation, .. }
             | Self::StructuralLeafCopy { psi_operation, .. }
-            | Self::StoreDynamicDescriptor { psi_operation, .. }
             | Self::EstablishScalarArray { psi_operation, .. }
             | Self::EstablishStructuralArray { psi_operation, .. }
             | Self::EstablishCase { psi_operation, .. }
@@ -914,7 +872,6 @@ impl AbstractOperation {
             | Self::ReleaseReference { psi_operation, .. }
             | Self::AtomicEvent { psi_operation, .. }
             | Self::CallStructural { psi_operation, .. }
-            | Self::CallDynamic { psi_operation, .. }
             | Self::BoundaryCall { psi_operation, .. }
             | Self::PortWrite { psi_operation, .. }
             | Self::Call { psi_operation, .. }
@@ -950,8 +907,7 @@ impl AbstractOperation {
             | Self::IntegerShift { psi_operation, .. }
             | Self::IntegerArithmetic { psi_operation, .. }
             | Self::TrappingInteger { psi_operation, .. } => Some(*psi_operation),
-            Self::DynamicDescriptorParameter { .. }
-            | Self::Jump { .. }
+            Self::Jump { .. }
             | Self::Conditional { .. }
             | Self::StructuralCase { .. }
             | Self::Return { .. }

@@ -6,25 +6,6 @@ use target_operations::CallSiteOwner;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObjectError {
     EmptyPlan,
-    DynamicConformanceCommitmentCollision,
-    DynamicConformanceDataSizeOverflow,
-    InvalidDynamicConformanceTable,
-    InvalidForwardedDynamicDescriptorEvidence {
-        caller: MachineId,
-        operation: semantic_vocabulary::OperationId,
-    },
-    InvalidDynamicParameterCallEvidence {
-        caller: MachineId,
-        operation: semantic_vocabulary::OperationId,
-    },
-    InvalidForwardedDynamicParameterCallEvidence {
-        caller: MachineId,
-        operation: semantic_vocabulary::OperationId,
-    },
-    ForwardedDynamicDescriptorCommitmentCollision,
-    DuplicateForwardedDynamicDescriptorAdapter,
-    InvalidForwardedDynamicDescriptorTable,
-    UnknownDynamicConformanceTarget(MachineId),
     NonCanonicalFunctionOrder {
         previous: MachineId,
         current: MachineId,
@@ -87,11 +68,6 @@ pub enum ObjectError {
         caller: MachineId,
         owner: CallSiteOwner,
     },
-    InvalidDynamicCallEvidence {
-        caller: MachineId,
-        operation: semantic_vocabulary::OperationId,
-    },
-    InvalidUnitDynamicDescriptorJoin(MachineId),
     InvalidCallbackAddressCustody {
         caller: MachineId,
         owner: CallSiteOwner,

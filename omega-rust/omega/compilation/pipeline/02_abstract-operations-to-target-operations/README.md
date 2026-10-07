@@ -74,8 +74,8 @@ argument transport. Published scalar operations additionally retain their
 standalone ABI contract. Validation replays those rows through one
 `direct_call` replay with a tail per result kind.
 Source-specific semantic restrictions remain checked independently. Foreign
-calls and dynamic arguments/dispatch still have their own carriers; this is not
-a claim that the full call inventory is normalized.
+calls still have their own carriers; this is not a claim that the full call
+inventory is normalized.
 
 [Structural signatures](src/lowering/structural_signature.rs) derive placement
 from structural declarations and referent layout. Every borrowed access uses
@@ -206,11 +206,10 @@ selected bitwise instructions. Its x86-64 and AArch64 realizations independently
 check the opcode, operand registers and flag effects; an AND instruction cannot
 stand in for XOR even when both share register constraints.
 
-Dynamic descriptor operations may be representable here without native indirect
-call support. Their source/table/slot identities are not permission to substitute
-a direct call or fabricate an implementation. Object, image and installation
-replay must bind the actual call, table, relocation, stack and code intervals.
-See the descriptor recovery task on [TASKS.md](../../../../../TASKS.md).
+This stage has no dynamic dispatch lowering. The named-implementation selector
+route is tracked by the dynamic dispatch tasks on [TASKS.md](../../../../../TASKS.md);
+a selection is never permission to substitute a direct call or fabricate an
+implementation.
 
 ## Acceptance
 

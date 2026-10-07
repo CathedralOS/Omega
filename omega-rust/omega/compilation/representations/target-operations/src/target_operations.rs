@@ -3,11 +3,7 @@
 //! This root describes program data at this resolution level. Its subordinate
 //! areas own related facts; it does not contain transformation-stage objects.
 
-pub use abstract_operations::{
-    AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
-    AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
-    AbstractStoredDynamicDispatch, CompletionClaimSource,
-};
+pub use abstract_operations::{AbstractResult, CompletionClaimSource};
 pub use calling_conventions::MachineRegister;
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
@@ -30,11 +26,8 @@ pub struct TargetOperationPlan {
 pub mod calls;
 pub use calls::{
     MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, TargetBoundaryResult,
-    TargetCallResult, TargetDynamicCallResult, TargetDynamicDescriptorArgument,
-    TargetDynamicDescriptorInstanceArgument, TargetDynamicDescriptorInstanceSource,
-    TargetDynamicDescriptorParameterAbi, TargetDynamicDispatch, TargetNativeCallbackArgument,
-    TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument,
+    TargetCallResult, TargetNativeCallbackArgument, TargetOperationPlanWithPlacedViewInputs,
+    TargetPlacedViewInput, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
 };
 pub mod control_flow;
 pub use control_flow::{

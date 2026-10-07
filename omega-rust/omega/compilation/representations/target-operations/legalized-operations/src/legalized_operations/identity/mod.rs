@@ -3,7 +3,6 @@
 use crate::legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
 mod calling;
 mod canonical;
-mod dynamic_calls;
 mod encoding;
 mod normalized_foreign;
 mod plan;

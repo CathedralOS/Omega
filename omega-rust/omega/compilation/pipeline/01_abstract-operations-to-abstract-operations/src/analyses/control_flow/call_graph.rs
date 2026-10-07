@@ -33,33 +33,7 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                     }),
             );
             match operation {
-                O::Call { callee, .. } => callees.push(*callee),
-                O::CallStructural {
-                    callee,
-                    dynamic_arguments,
-                    ..
-                } => {
-                    callees.push(*callee);
-                    for argument in dynamic_arguments {
-                        if let abstract_operations::AbstractDynamicDescriptorSource::Selection {
-                            application,
-                            ..
-                        }
-                        | abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                            application,
-                            ..
-                        } = &argument.source
-                        {
-                            callees.extend(
-                                application
-                                    .realization_callables
-                                    .iter()
-                                    .map(|callable| callable.machine),
-                            );
-                        }
-                    }
-                }
-                O::CallDynamic { dispatch, .. } => callees.extend(dispatch.realization()),
+                O::Call { callee, .. } | O::CallStructural { callee, .. } => callees.push(*callee),
                 _ => {}
             }
         }

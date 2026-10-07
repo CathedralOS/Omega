@@ -87,10 +87,7 @@ impl<'unit> CallAccesses<'unit> {
             }
             if matches!(
                 node.operation,
-                O::CallDynamic { .. }
-                    | O::Call { .. }
-                    | O::AtomicEvent { .. }
-                    | O::PortWrite { .. }
+                O::Call { .. } | O::AtomicEvent { .. } | O::PortWrite { .. }
             ) {
                 return;
             }
@@ -190,11 +187,9 @@ impl<'unit> CallAccesses<'unit> {
         if let O::CallStructural {
             callee,
             structural_arguments,
-            dynamic_arguments,
             claim_transfers,
             ..
         } = operation
-            && dynamic_arguments.is_empty()
             && claim_transfers.is_empty()
             && let Some(Some(summary)) = self.functions.get(callee)
             && summary.parameters == structural_arguments.len()

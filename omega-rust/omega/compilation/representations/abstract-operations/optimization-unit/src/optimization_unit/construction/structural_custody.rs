@@ -151,49 +151,6 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         | O::ReturnStructural { source, .. } => {
             places.insert(*source);
         }
-        O::StoreDynamicDescriptor { stored, .. } => {
-            places.insert(stored.selection.source.place);
-        }
-        O::CallDynamic { dispatch, .. } => match dispatch {
-            abstract_operations::AbstractDynamicDispatch::Stored(dispatch) => {
-                places.insert(dispatch.stored.selection.source.place);
-            }
-            abstract_operations::AbstractDynamicDispatch::Rebound(dispatch) => {
-                places.insert(dispatch.initial.source.place);
-                places.insert(dispatch.rebound.source.place);
-            }
-            // A received descriptor names no caller-local source place.
-            abstract_operations::AbstractDynamicDispatch::Parameter(_) => {}
-        },
-        // Only a descriptor-forwarding call declares its argument places
-        // here; a plain call adds none.
-        O::CallStructural {
-            structural_arguments,
-            dynamic_arguments,
-            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
-            ..
-        } if !dynamic_arguments.is_empty() => {
-            places.extend(structural_arguments.iter().map(|argument| argument.place));
-            for argument in dynamic_arguments {
-                match &argument.source {
-                    abstract_operations::AbstractDynamicDescriptorSource::Selection {
-                        selection,
-                        ..
-                    } => {
-                        places.insert(selection.source.place);
-                    }
-                    abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                        initial,
-                        rebound,
-                        ..
-                    } => {
-                        places.insert(initial.source.place);
-                        places.insert(rebound.source.place);
-                    }
-                    abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {}
-                }
-            }
-        }
         O::AtomicEvent { event, .. } => {
             // The accessed atomic location joins place custody; a fence
             // accesses no place. A single-attempt compare-exchange also

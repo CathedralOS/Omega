@@ -17,9 +17,7 @@ use super::place_observations::{
     place_observation_root_visible,
 };
 use super::relocation_rewrites::scalar_case_result_contained;
-use abstract_operations::{
-    AbstractDynamicDispatch, AbstractOperation as O, AbstractStructuralCallResult,
-};
+use abstract_operations::{AbstractOperation as O, AbstractStructuralCallResult};
 use optimization_unit::{
     OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
@@ -127,7 +125,6 @@ fn unit_call_shape(
         psi_operation,
         callee,
         arguments,
-        dynamic_arguments,
         claim_transfers,
         crash_continuations,
         result: AbstractStructuralCallResult::Unit,
@@ -136,9 +133,7 @@ fn unit_call_shape(
     else {
         return None;
     };
-    // A call that forwards descriptors is never a relocation candidate.
-    (dynamic_arguments.is_empty()
-        && node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
         && node.definitions.is_empty()
         && node.uses.len() == arguments.len()
         && node
@@ -225,7 +220,6 @@ fn structural_scalar_call_shape(
         result: AbstractStructuralCallResult::Scalar(result),
         callee,
         arguments,
-        dynamic_arguments,
         claim_transfers,
         crash_continuations,
         ..
@@ -233,9 +227,7 @@ fn structural_scalar_call_shape(
     else {
         return None;
     };
-    // A call that forwards descriptors is never a relocation candidate.
-    (dynamic_arguments.is_empty()
-        && node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
         && node.definitions.len() == 1
         && node.definitions[0].value == result.value
         && node.definitions[0].scalar_type == result.scalar_type
@@ -342,7 +334,6 @@ fn structural_call_shape(
             },
         callee,
         arguments,
-        dynamic_arguments,
         claim_transfers,
         crash_continuations,
         ..
@@ -350,9 +341,7 @@ fn structural_call_shape(
     else {
         return None;
     };
-    // A structural result never forwards descriptors; refuse one that does.
-    (dynamic_arguments.is_empty()
-        && node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
         && node.definitions.is_empty()
         && node.uses.len() == arguments.len()
         && node
@@ -1254,18 +1243,11 @@ fn scalar_call_callee_pure(effects: &crate::EffectSummaryAnalysis, callee: Machi
         })
 }
 
-/// The statically realized callee a member call node invokes, when its call
-/// family carries one: the direct `callee` of the internal-call variants, or
-/// the sole permitted realization row of a rebound or stored dynamic
-/// dispatch. Descriptor-parameter and dynamic-argument calls have no single
-/// static callee here and stay unresolvable.
+/// The statically realized callee a member call node invokes: the direct
+/// `callee` of the internal-call variants.
 fn member_call_target(operation: &O) -> Option<MachineId> {
     match operation {
-        O::CallStructural {
-            dynamic_arguments, ..
-        } if !dynamic_arguments.is_empty() => None,
         O::Call { callee, .. } | O::CallStructural { callee, .. } => Some(*callee),
-        O::CallDynamic { dispatch, .. } => dispatch.realization(),
         _ => None,
     }
 }
@@ -1274,9 +1256,8 @@ fn member_call_target(operation: &O) -> Option<MachineId> {
 /// the member half of call custody. Non-call members consult their own node
 /// summary's observable axis; member calls must invoke a statically resolved
 /// callee whose transitive summary is pure under the same rule the relocated
-/// call obeys, so a descriptor-parameter or dynamic-argument member call —
-/// no single static callee — refuses. A member node absent from the summary
-/// refuses too: the gate fails closed rather than trusting a drifted table.
+/// call obeys. A member node absent from the summary refuses: the gate fails
+/// closed rather than trusting a drifted table.
 fn component_members_unobservable(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -1298,25 +1279,6 @@ fn component_members_unobservable(
                     }
                 }
                 None => {
-                    let forwards_descriptors = matches!(
-                        &node.operation,
-                        O::CallStructural {
-                            dynamic_arguments,
-                            ..
-                        }
-                            if !dynamic_arguments.is_empty()
-                    );
-                    if forwards_descriptors
-                        || matches!(
-                            node.operation,
-                            O::CallDynamic {
-                                dispatch: AbstractDynamicDispatch::Parameter(_),
-                                ..
-                            }
-                        )
-                    {
-                        return false;
-                    }
                     let observable = effects
                         .nodes
                         .iter()

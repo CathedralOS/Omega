@@ -306,8 +306,6 @@ pub(crate) fn validate_complete_unit_stack_evidence(
     function: UnitStackEvidence,
     calls: &[machine_code::InternalCallRelocation],
     foreign_calls: &[ForeignCallRelocation],
-    dynamic_calls: &[machine_code::DynamicCallRecord],
-    stored_dynamic_calls: &[machine_code::StoredDynamicCallRecord],
     boundary_settlements: &[machine_code::BoundarySettlementRecord],
     integer_constants: &[machine_code::UnitIntegerConstantRecord],
     scalar_homes: &[machine_code::UnitScalarHomeRecord],
@@ -334,20 +332,6 @@ pub(crate) fn validate_complete_unit_stack_evidence(
         }
     }
     for call in foreign_calls {
-        if let Some(outbound) = call.unit_stack.outbound
-            && !claim_pair(outbound)
-        {
-            return Err(ObjectError::DuplicateUnitStackAdjustment(machine));
-        }
-    }
-    for call in dynamic_calls {
-        if let Some(outbound) = call.unit_stack.outbound
-            && !claim_pair(outbound)
-        {
-            return Err(ObjectError::DuplicateUnitStackAdjustment(machine));
-        }
-    }
-    for call in stored_dynamic_calls {
         if let Some(outbound) = call.unit_stack.outbound
             && !claim_pair(outbound)
         {
@@ -413,12 +397,6 @@ pub(crate) fn validate_complete_unit_stack_evidence(
                     foreign_calls
                         .iter()
                         .map(|call| call.offset.saturating_sub(1)),
-                )
-                .chain(dynamic_calls.iter().map(|call| call.indirect_call_offset))
-                .chain(
-                    stored_dynamic_calls
-                        .iter()
-                        .map(|call| call.indirect_call_offset),
                 )
                 .collect::<std::collections::BTreeSet<_>>();
             for code in code_ranges(bytes.len(), inline_data) {

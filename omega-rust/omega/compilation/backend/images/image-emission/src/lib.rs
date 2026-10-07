@@ -45,14 +45,11 @@ pub use object_artifact::replay::scalar::control_flow::reconstruct_scalar_contro
 pub use object_artifact::stack_demand::{StackDemand, derive_stack_demand};
 pub use object_artifact::{
     ObjectArtifact, ObjectBoundarySettlement, ObjectByteLiteralAddress, ObjectByteLiteralPool,
-    ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectDynamicConformanceSlot,
-    ObjectDynamicConformanceTable, ObjectError, ObjectForeignCall,
-    ObjectForwardedDynamicDescriptorAdapter, ObjectForwardedDynamicDescriptorSlot,
-    ObjectForwardedDynamicDescriptorTable, ObjectFunction, ObjectPortEffect, ObjectScalarCallStack,
-    ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
-    build_admitted_x86_fma_object_artifact, build_feature_required_x86_fma_object_artifact,
-    build_object_artifact, build_object_artifact_with_private_functions,
-    derive_normalized_foreign_call_custody,
+    ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectError, ObjectForeignCall,
+    ObjectFunction, ObjectPortEffect, ObjectScalarCallStack, ObjectScalarStack,
+    ObjectUnitCallStack, ObjectUnitStack, build_admitted_x86_fma_object_artifact,
+    build_feature_required_x86_fma_object_artifact, build_object_artifact,
+    build_object_artifact_with_private_functions, derive_normalized_foreign_call_custody,
 };
 
 pub use function_fragments::{
@@ -77,15 +74,11 @@ pub use image_output::{
 pub use installation_record::{
     INSTALLATION_FORMAT_MARKER, ImageFingerprint, InitializedDataFingerprint, InstallationError,
     InstallationFingerprint, InstallationRecord, InstallationStackError,
-    InstalledCompilerPrivateFunction, InstalledComponentProgress, InstalledDynamicCall,
-    InstalledDynamicConformanceSlot, InstalledDynamicConformanceTable,
-    InstalledDynamicParameterCall, InstalledForeignCallStack,
-    InstalledForwardedDynamicDescriptorAdapter, InstalledForwardedDynamicDescriptorCall,
-    InstalledForwardedDynamicDescriptorSlot, InstalledForwardedDynamicDescriptorTable,
-    InstalledForwardedDynamicParameterCall, InstalledFunction, InstalledImageSections,
-    InstalledInternalUnitCall, InstalledInternalUnitScalarCall, InstalledStoredDynamicCall,
-    InstalledStructuralReturn, SelectedProviderPlanReportIdentity, build_installation_record,
-    build_installation_record_with_evidence, build_installation_record_with_provider_executions,
+    InstalledCompilerPrivateFunction, InstalledComponentProgress, InstalledForeignCallStack,
+    InstalledFunction, InstalledImageSections, InstalledInternalUnitCall,
+    InstalledInternalUnitScalarCall, InstalledStructuralReturn, SelectedProviderPlanReportIdentity,
+    build_installation_record, build_installation_record_with_evidence,
+    build_installation_record_with_provider_executions,
     build_installation_record_with_selected_provider_plans_and_evidence,
     decode_installation_record, derive_installation_stack_demand, encode_installation_record,
     installation_fingerprint, validate_installation_record,

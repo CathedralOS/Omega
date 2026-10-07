@@ -29,9 +29,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         O::IntegerArithmetic { arithmetic, .. } => {
             Some(obligation_family(arithmetic.obligation()))
         }
-        O::DynamicDescriptorParameter { .. }
-        | O::StoreDynamicDescriptor { .. }
-        | O::EstablishPrimitiveLocal { .. }
+        O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
@@ -47,7 +45,6 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::EstablishStructuralLocal { .. }
         | O::EstablishRecord { .. }
         | O::CallStructural { .. }
-        | O::CallDynamic { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }
         | O::Call { .. }

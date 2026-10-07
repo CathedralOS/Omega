@@ -206,7 +206,6 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::Conditional { .. }
         | O::StructuralCase { .. }
         | O::PortWrite { .. }
-        | O::DynamicDescriptorParameter { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::EstablishScalarArray { .. }
@@ -214,10 +213,6 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::EstablishCase { .. }
         | O::EstablishRecord { .. }
         | O::Call { .. } => true,
-        // A call that forwards descriptors is never on the whitelist.
-        O::CallStructural {
-            dynamic_arguments, ..
-        } if !dynamic_arguments.is_empty() => false,
         O::CallStructural {
             structural_arguments,
             claim_transfers,
@@ -286,9 +281,6 @@ fn exclusive_borrow_call_preserves_place_observations(
     node: &OptimizationNode,
 ) -> bool {
     let (structural_arguments, claim_transfers) = match &node.operation {
-        O::CallStructural {
-            dynamic_arguments, ..
-        } if !dynamic_arguments.is_empty() => return false,
         O::CallStructural {
             structural_arguments,
             claim_transfers,
@@ -496,14 +488,10 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
             references.insert(destination.place());
         }
         // A structural-signature call, whatever its result kind, whose
-        // complete place surface is `structural_arguments`. A call's forwarded descriptor
-        // arguments carry a place surface this scan does not model and fail
-        // closed here; a boundary call's completion claim sources and a
+        // complete place surface is `structural_arguments`. A boundary call's
+        // completion claim sources and a
         // `ReturnStructural`'s returned place plus owned declaration and
         // discard rosters fail closed below.
-        O::CallStructural {
-            dynamic_arguments, ..
-        } if !dynamic_arguments.is_empty() => return false,
         O::CallStructural {
             structural_arguments,
             ..
@@ -562,7 +550,6 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::Call { .. }
         | O::PortWrite { .. }
-        | O::DynamicDescriptorParameter { .. }
         | O::Jump { .. }
         | O::Conditional { .. }
         | O::Return { .. }

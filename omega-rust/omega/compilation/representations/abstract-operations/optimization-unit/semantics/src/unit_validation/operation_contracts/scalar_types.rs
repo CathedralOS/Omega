@@ -1,5 +1,4 @@
 use abstract_operations::AbstractStructuralCallResult;
-use abstract_operations::{AbstractDynamicCallResult, AbstractDynamicDispatch};
 use abstract_operations::{
     AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftPolicy,
 };
@@ -56,24 +55,6 @@ pub(crate) fn operation_scalar_types_match(
         | O::ElementViewRead { .. }
         | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. } => element_views::types_match(function, operation, definitions),
-        O::DynamicDescriptorParameter { parameter } => {
-            parameter.owner == function.machine
-                && !parameter.trait_identity.is_empty()
-                && !parameter.requirements.is_empty()
-                && parameter
-                    .requirements
-                    .iter()
-                    .enumerate()
-                    .all(|(slot, requirement)| {
-                        u32::try_from(slot) == Ok(requirement.slot)
-                            && !requirement.declaring_trait_identity.is_empty()
-                            && !requirement.public_requirement_identity.is_empty()
-                    })
-        }
-        O::StoreDynamicDescriptor {
-            psi_operation,
-            stored,
-        } => stored.has_complete_custody(function.machine, *psi_operation),
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }
@@ -350,10 +331,9 @@ pub(crate) fn operation_scalar_types_match(
         O::CallStructural {
             callee,
             arguments,
-            dynamic_arguments,
             result: AbstractStructuralCallResult::Unit,
             ..
-        } if dynamic_arguments.is_empty() => functions.get(callee).is_some_and(|callee| {
+        } => functions.get(callee).is_some_and(|callee| {
             matches!(
                 callee.result,
                 abstract_operations::AbstractFunctionResult::Unit
@@ -363,31 +343,12 @@ pub(crate) fn operation_scalar_types_match(
                     .zip(&callee.parameters)
                     .all(|(argument, parameter)| scalar(*argument) == Some(parameter.scalar_type))
         }),
-        // A call that forwards descriptors carries no scalar arguments, and
-        // its callee declares none.
-        O::CallStructural {
-            psi_operation,
-            callee,
-            arguments,
-            dynamic_arguments,
-            result: AbstractStructuralCallResult::Unit,
-            ..
-        } => functions.get(callee).is_some_and(|callee| {
-            arguments.is_empty()
-                && callee.parameters.is_empty()
-                && matches!(
-                    callee.result,
-                    abstract_operations::AbstractFunctionResult::Unit
-                )
-                && dynamic_arguments_match(function, *psi_operation, callee, dynamic_arguments)
-        }),
         O::CallStructural {
             result: AbstractStructuralCallResult::Scalar(result),
             callee,
             arguments,
-            dynamic_arguments,
             ..
-        } if dynamic_arguments.is_empty() => functions.get(callee).is_some_and(|callee| {
+        } => functions.get(callee).is_some_and(|callee| {
             arguments.len() == callee.parameters.len()
                 && arguments
                     .iter()
@@ -399,29 +360,6 @@ pub(crate) fn operation_scalar_types_match(
                         if signature.scalar_type == result.scalar_type
                 )
         }),
-        O::CallStructural {
-            psi_operation,
-            result: AbstractStructuralCallResult::Scalar(result),
-            callee,
-            arguments,
-            dynamic_arguments,
-            ..
-        } => functions.get(callee).is_some_and(|callee| {
-            arguments.is_empty()
-                && callee.parameters.is_empty()
-                && matches!(
-                callee.result,
-                abstract_operations::AbstractFunctionResult::Scalar(signature)
-                        if signature.scalar_type == result.scalar_type
-                )
-                && dynamic_arguments_match(function, *psi_operation, callee, dynamic_arguments)
-        }),
-        O::CallDynamic {
-            psi_operation,
-            dispatch,
-            result,
-            ..
-        } => dynamic_call_types_match(function, *psi_operation, dispatch, *result, functions),
         O::CallStructural {
             callee,
             arguments,
@@ -471,165 +409,5 @@ pub(crate) fn operation_scalar_types_match(
                     .zip(&boundary.scalar_parameters)
                     .all(|(argument, parameter)| scalar(*argument) == Some(*parameter))
         }),
-    }
-}
-
-fn dynamic_arguments_match(
-    function: &PsiOptimizationFunction,
-    psi_operation: semantic_vocabulary::OperationId,
-    callee: &PsiOptimizationFunction,
-    dynamic_arguments: &[abstract_operations::AbstractDynamicDescriptorArgument],
-) -> bool {
-    !dynamic_arguments.is_empty()
-        && dynamic_arguments.iter().all(|argument| {
-            argument.has_complete_custody(function.machine, psi_operation, callee.machine)
-                && callee
-                    .blocks
-                    .iter()
-                    .find(|block| block.id == callee.entry)
-                    .is_some_and(|entry| {
-                        entry.nodes.iter().any(|node| {
-                            matches!(
-                                &node.operation,
-                                O::DynamicDescriptorParameter { parameter }
-                                    if parameter == &argument.target
-                            )
-                        })
-                    })
-        })
-        && dynamic_arguments
-            .windows(2)
-            .all(|pair| pair[0].target.ordinal < pair[1].target.ordinal)
-}
-
-/// One descriptor call's custody, selected callable row and realization
-/// signature agree with its result role. Each custody route keeps its own
-/// replay: a rebound or stored descriptor names its realization, while a
-/// received parameter exposes only the closed interface slot.
-fn dynamic_call_types_match(
-    function: &PsiOptimizationFunction,
-    psi_operation: semantic_vocabulary::OperationId,
-    dispatch: &AbstractDynamicDispatch,
-    result: AbstractDynamicCallResult,
-    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-) -> bool {
-    let Some(expected) = dynamic_result_class(result) else {
-        return false;
-    };
-    match dispatch {
-        AbstractDynamicDispatch::Rebound(dynamic_dispatch) => functions
-            .get(&dynamic_dispatch.dispatch.realization)
-            .is_some_and(|callee| {
-                dynamic_dispatch.has_complete_application_custody(function.machine, psi_operation)
-                    && rebound_result_matches(dynamic_dispatch, expected)
-                    && realization_signature_matches(callee, result)
-            }),
-        // Stage 00 never produces stored custody with a Unit result.
-        AbstractDynamicDispatch::Stored(_) if result.is_unit() => false,
-        AbstractDynamicDispatch::Stored(dynamic_dispatch) => functions
-            .get(&dynamic_dispatch.dispatch.realization)
-            .is_some_and(|callee| {
-                dynamic_dispatch.has_complete_custody(function.machine, psi_operation)
-                    && stored_result_matches(dynamic_dispatch, expected)
-                    && realization_signature_matches(callee, result)
-            }),
-        AbstractDynamicDispatch::Parameter(dynamic_dispatch) => {
-            let parameter = &dynamic_dispatch.parameter;
-            let dispatch = &dynamic_dispatch.dispatch;
-            let requirements = parameter
-                .requirements
-                .iter()
-                .filter(|requirement| requirement.slot == dispatch.requirement_slot)
-                .collect::<Vec<_>>();
-            matches!(requirements.as_slice(), [requirement]
-                if parameter.owner == function.machine
-                    && dispatch.owner == function.machine
-                    && dispatch.operation == psi_operation
-                    && dispatch.parameter_ordinal == parameter.ordinal
-                    && requirement.result == expected)
-        }
-    }
-}
-
-/// The closed callable-result class a dynamic call's result role names, or
-/// `None` for a scalar type no callable row can return.
-fn dynamic_result_class(
-    result: AbstractDynamicCallResult,
-) -> Option<terminal_psi::ClosedConformanceCallableResult> {
-    match result {
-        AbstractDynamicCallResult::Unit => {
-            Some(terminal_psi::ClosedConformanceCallableResult::Unit)
-        }
-        AbstractDynamicCallResult::Scalar(result) => scalar_result_class(result.scalar_type),
-    }
-}
-
-/// A realization receives only the descriptor's instance and returns exactly
-/// the call's result role.
-fn realization_signature_matches(
-    callee: &PsiOptimizationFunction,
-    result: AbstractDynamicCallResult,
-) -> bool {
-    callee.parameters.is_empty()
-        && callee.structural_parameters.len() == 1
-        && match (&callee.result, result) {
-            (
-                abstract_operations::AbstractFunctionResult::Unit,
-                AbstractDynamicCallResult::Unit,
-            ) => true,
-            (
-                abstract_operations::AbstractFunctionResult::Scalar(signature),
-                AbstractDynamicCallResult::Scalar(result),
-            ) => signature.scalar_type == result.scalar_type,
-            _ => false,
-        }
-}
-
-fn rebound_result_matches(
-    dynamic_dispatch: &abstract_operations::AbstractReboundDynamicDispatch,
-    expected: terminal_psi::ClosedConformanceCallableResult,
-) -> bool {
-    dynamic_dispatch
-        .application
-        .realization_callables
-        .iter()
-        .find(|callable| {
-            callable.source_callable_identity
-                == dynamic_dispatch.dispatch.realization_callable_identity
-                && callable.machine == dynamic_dispatch.dispatch.realization
-        })
-        .is_some_and(|callable| callable.result == expected)
-}
-
-fn stored_result_matches(
-    dynamic_dispatch: &abstract_operations::AbstractStoredDynamicDispatch,
-    expected: terminal_psi::ClosedConformanceCallableResult,
-) -> bool {
-    dynamic_dispatch
-        .stored
-        .application
-        .realization_callables
-        .iter()
-        .find(|callable| {
-            callable.source_callable_identity
-                == dynamic_dispatch.dispatch.realization_callable_identity
-                && callable.machine == dynamic_dispatch.dispatch.realization
-        })
-        .is_some_and(|callable| callable.result == expected)
-}
-
-fn scalar_result_class(
-    scalar_type: ScalarType,
-) -> Option<terminal_psi::ClosedConformanceCallableResult> {
-    if scalar_type == ScalarType::Boolean {
-        Some(terminal_psi::ClosedConformanceCallableResult::Bool)
-    } else if scalar_type
-        == ScalarType::Integer(
-            IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32).expect("i32 is valid"),
-        )
-    {
-        Some(terminal_psi::ClosedConformanceCallableResult::I32)
-    } else {
-        None
     }
 }

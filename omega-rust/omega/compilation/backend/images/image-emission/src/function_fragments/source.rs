@@ -37,11 +37,9 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
         }
         if let AbstractOperation::CallStructural {
             structural_arguments,
-            dynamic_arguments,
             result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } = operation
-            && dynamic_arguments.is_empty()
             && structural_arguments
                 .iter()
                 .any(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
@@ -309,10 +307,6 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     structural_fields::retained(abstracted, operation, targeted)
                         && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
-                // A call that forwards descriptors has no shared-image lane,
-                // whatever its result kind.
-                AbstractOperation::CallStructural { dynamic_arguments, .. }
-                    if !dynamic_arguments.is_empty() => false,
                 AbstractOperation::StructuralCaseMembership { .. }
                 | AbstractOperation::EstablishCase { .. }
                 | AbstractOperation::EstablishRecord { .. }

@@ -1,6 +1,5 @@
-//! The sealed object-artifact carriers: the artifact, its functions,
-//! dynamic conformance and descriptor tables, call stacks, settlements,
-//! foreign calls, port effects and code attribution.
+//! The sealed object-artifact carriers: the artifact, its functions, call
+//! stacks, settlements, foreign calls, port effects and code attribution.
 
 use crate::HostedReceiverBinding;
 use machine_code::{
@@ -35,9 +34,6 @@ pub struct ObjectArtifact {
     pub(crate) relocations: RelocationPlan,
     pub(crate) text_bytes: Vec<u8>,
     pub(crate) data_bytes: Vec<u8>,
-    pub(crate) dynamic_conformance_tables: Vec<ObjectDynamicConformanceTable>,
-    pub(crate) forwarded_dynamic_descriptor_adapters: Vec<ObjectForwardedDynamicDescriptorAdapter>,
-    pub(crate) forwarded_dynamic_descriptor_tables: Vec<ObjectForwardedDynamicDescriptorTable>,
     pub(crate) functions: Vec<ObjectFunction>,
     pub(crate) private_functions: Vec<ObjectCompilerPrivateFunction>,
     pub(crate) semantic_code_attribution: Vec<ObjectCodeAttribution>,
@@ -157,20 +153,6 @@ impl ObjectArtifact {
         &self.data_bytes
     }
 
-    pub fn dynamic_conformance_tables(&self) -> &[ObjectDynamicConformanceTable] {
-        &self.dynamic_conformance_tables
-    }
-
-    pub fn forwarded_dynamic_descriptor_adapters(
-        &self,
-    ) -> &[ObjectForwardedDynamicDescriptorAdapter] {
-        &self.forwarded_dynamic_descriptor_adapters
-    }
-
-    pub fn forwarded_dynamic_descriptor_tables(&self) -> &[ObjectForwardedDynamicDescriptorTable] {
-        &self.forwarded_dynamic_descriptor_tables
-    }
-
     pub fn functions(&self) -> &[ObjectFunction] {
         &self.functions
     }
@@ -253,11 +235,6 @@ pub struct ObjectFunction {
     pub internal_unit_scalar_calls: Vec<machine_code::InternalUnitScalarCallRecord>,
     pub installed_provider_unit_scalar_calls:
         Vec<machine_code::InstalledProviderUnitScalarCallRecord>,
-    pub dynamic_calls: Vec<machine_code::DynamicCallRecord>,
-    pub stored_dynamic_calls: Vec<machine_code::StoredDynamicCallRecord>,
-    pub dynamic_parameter_calls: Vec<machine_code::DynamicParameterCallRecord>,
-    pub forwarded_dynamic_parameter_calls: Vec<machine_code::ForwardedDynamicParameterCallRecord>,
-    pub forwarded_dynamic_descriptor_calls: Vec<machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub unit_scalar_homes: Vec<machine_code::UnitScalarHomeRecord>,
     pub unit_integer_constants: Vec<machine_code::UnitIntegerConstantRecord>,
     pub unit_affine_scalar_records: Vec<machine_code::UnitAffineScalarRecordEstablishmentRecord>,
@@ -279,60 +256,6 @@ pub struct ObjectFunction {
     /// Byte-validated structural custody returned by this function, when the
     /// complete one-fragment slice applies.
     pub structural_return: Option<StructuralReturnRecord>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectDynamicConformanceTable {
-    pub application: terminal_psi::ClosedConformanceApplication,
-    pub symbol: ObjectSymbolHandle,
-    pub data_offset: usize,
-    pub byte_count: usize,
-    pub slots: Vec<ObjectDynamicConformanceSlot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectDynamicConformanceSlot {
-    pub row_index: u32,
-    pub realization_callable_identity: Option<String>,
-    pub target: Option<MachineId>,
-    pub target_symbol: Option<ObjectSymbolHandle>,
-    pub data_offset: usize,
-}
-
-/// One independently replayed erased-to-concrete bridge emitted outside the
-/// Terminal machine namespace.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectForwardedDynamicDescriptorAdapter {
-    pub record: machine_code::ForwardedDynamicDescriptorAdapterRecord,
-    pub symbol: ObjectSymbolHandle,
-    pub target_symbol: ObjectSymbolHandle,
-    pub text_offset: usize,
-    pub byte_count: usize,
-}
-
-impl ObjectForwardedDynamicDescriptorAdapter {
-    pub fn bytes<'artifact>(&self, artifact: &'artifact ObjectArtifact) -> &'artifact [u8] {
-        &artifact.text_bytes[self.text_offset..self.text_offset + self.byte_count]
-    }
-}
-
-/// Role-specific descriptor table whose slots address erased-ABI adapters,
-/// never concrete realization functions.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectForwardedDynamicDescriptorTable {
-    pub application: terminal_psi::ClosedConformanceApplication,
-    pub symbol: ObjectSymbolHandle,
-    pub data_offset: usize,
-    pub byte_count: usize,
-    pub slots: Vec<ObjectForwardedDynamicDescriptorSlot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectForwardedDynamicDescriptorSlot {
-    pub row_index: u32,
-    pub adapter: machine_code::ForwardedDynamicDescriptorAdapterIdentity,
-    pub adapter_symbol: ObjectSymbolHandle,
-    pub data_offset: usize,
 }
 
 impl ObjectFunction {

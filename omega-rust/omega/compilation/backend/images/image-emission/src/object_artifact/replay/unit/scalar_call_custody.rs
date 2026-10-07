@@ -42,12 +42,7 @@ pub(crate) fn validate_internal_unit_scalar_calls(
         .iter()
         .filter(|call| call.scalar_result.is_some())
         .count();
-    if function.internal_unit_scalar_calls.is_empty()
-        && function.dynamic_calls.is_empty()
-        && function.stored_dynamic_calls.is_empty()
-        && function.forwarded_dynamic_descriptor_calls.is_empty()
-        && foreign_result_count == 0
-    {
+    if function.internal_unit_scalar_calls.is_empty() && foreign_result_count == 0 {
         if !function.unit_scalar_homes.is_empty() {
             return Err(invalid());
         }
@@ -124,36 +119,6 @@ fn validate_home_roster(
                 .as_ref()
                 .map(|result| (call.operation_ordinal, call.owner, result))
         }))
-        .chain(function.dynamic_calls.iter().filter_map(|call| {
-            call.result.as_ref().map(|result| {
-                (
-                    call.operation_ordinal,
-                    CallSiteOwner::Operation(call.psi_operation),
-                    result,
-                )
-            })
-        }))
-        .chain(function.stored_dynamic_calls.iter().map(|call| {
-            (
-                call.operation_ordinal,
-                CallSiteOwner::Operation(call.psi_operation),
-                &call.result,
-            )
-        }))
-        .chain(
-            function
-                .forwarded_dynamic_descriptor_calls
-                .iter()
-                .filter_map(|call| {
-                    call.result.as_ref().map(|result| {
-                        (
-                            call.operation_ordinal,
-                            CallSiteOwner::Operation(call.psi_operation),
-                            result,
-                        )
-                    })
-                }),
-        )
         .collect::<Vec<_>>();
     producers.sort_by_key(|(ordinal, _, _)| *ordinal);
     if function.unit_scalar_homes.len() != producers.len()
@@ -194,70 +159,20 @@ fn validate_home_roster(
             .iter()
             .map(|constant| constant.source_value),
     );
-    enum Allocation<'a> {
-        Dynamic(&'a machine_code::DynamicCallRecord),
-        StoredDynamic(&'a machine_code::StoredDynamicCallRecord),
-        Scalar(
-            CallSiteOwner,
-            &'a machine_code::InternalUnitScalarCallResultRecord,
-        ),
-    }
-    let mut allocations = function
-        .dynamic_calls
-        .iter()
-        .map(|call| (call.operation_ordinal, 0_u8, Allocation::Dynamic(call)))
-        .chain(function.stored_dynamic_calls.iter().map(|call| {
-            (
-                call.establishment.operation_ordinal,
-                0_u8,
-                Allocation::StoredDynamic(call),
-            )
-        }))
-        .chain(
-            producers
-                .into_iter()
-                .map(|(ordinal, owner, result)| (ordinal, 1_u8, Allocation::Scalar(owner, result))),
-        )
-        .collect::<Vec<_>>();
-    allocations.sort_by_key(|(ordinal, phase, _)| (*ordinal, *phase));
     let mut scalar_homes = function.unit_scalar_homes.iter();
-    for (_, _, allocation) in allocations {
-        match allocation {
-            Allocation::Dynamic(dynamic) => {
-                cursor = align(cursor, 8).ok_or_else(invalid)?;
-                if dynamic.descriptor_home_byte_offset != cursor
-                    || dynamic.descriptor_abi.total_byte_size != 16
-                    || dynamic.descriptor_abi.byte_alignment != 8
-                {
-                    return Err(invalid());
-                }
-                cursor = cursor.checked_add(16).ok_or_else(invalid)?;
-            }
-            Allocation::StoredDynamic(dynamic) => {
-                cursor = align(cursor, 8).ok_or_else(invalid)?;
-                if dynamic.establishment.descriptor_home_byte_offset != cursor
-                    || dynamic.establishment.descriptor_abi.total_byte_size != 16
-                    || dynamic.establishment.descriptor_abi.byte_alignment != 8
-                {
-                    return Err(invalid());
-                }
-                cursor = cursor.checked_add(16).ok_or_else(invalid)?;
-            }
-            Allocation::Scalar(owner, result) => {
-                let home = scalar_homes.next().ok_or_else(invalid)?;
-                cursor = align(cursor, 8).ok_or_else(invalid)?;
-                if home.byte_offset != cursor
-                    || result.home != *home
-                    || owner != CallSiteOwner::Operation(home.defining_operation)
-                    || scalar_home_shape(home.scalar_type) != Some(home.shape)
-                    || !operations.insert(home.defining_operation)
-                    || !values.insert(home.source_value)
-                {
-                    return Err(invalid());
-                }
-                cursor = cursor.checked_add(8).ok_or_else(invalid)?;
-            }
+    for (_, owner, result) in producers {
+        let home = scalar_homes.next().ok_or_else(invalid)?;
+        cursor = align(cursor, 8).ok_or_else(invalid)?;
+        if home.byte_offset != cursor
+            || result.home != *home
+            || owner != CallSiteOwner::Operation(home.defining_operation)
+            || scalar_home_shape(home.scalar_type) != Some(home.shape)
+            || !operations.insert(home.defining_operation)
+            || !values.insert(home.source_value)
+        {
+            return Err(invalid());
         }
+        cursor = cursor.checked_add(8).ok_or_else(invalid)?;
     }
     if scalar_homes.next().is_some() {
         return Err(invalid());
@@ -593,48 +508,7 @@ pub(crate) fn exact_preceding_unit_scalar_home_producer_count(
                 })
         })
         .count();
-    let dynamic = function
-        .dynamic_calls
-        .iter()
-        .filter(|producer| {
-            producer.result.as_ref().is_some_and(|result| {
-                result.home == home
-                    && producer.operation_ordinal < consumer_operation_ordinal
-                    && result
-                        .code_offset
-                        .checked_add(result.byte_count)
-                        .is_some_and(|end| end <= consumer_code_offset)
-            })
-        })
-        .count();
-    let stored_dynamic = function
-        .stored_dynamic_calls
-        .iter()
-        .filter(|producer| {
-            producer.result.home == home
-                && producer.operation_ordinal < consumer_operation_ordinal
-                && producer
-                    .result
-                    .code_offset
-                    .checked_add(producer.result.byte_count)
-                    .is_some_and(|end| end <= consumer_code_offset)
-        })
-        .count();
-    let forwarded = function
-        .forwarded_dynamic_descriptor_calls
-        .iter()
-        .filter(|producer| {
-            producer.result.as_ref().is_some_and(|result| {
-                result.home == home
-                    && producer.operation_ordinal < consumer_operation_ordinal
-                    && result
-                        .code_offset
-                        .checked_add(result.byte_count)
-                        .is_some_and(|end| end <= consumer_code_offset)
-            })
-        })
-        .count();
-    internal + foreign + dynamic + stored_dynamic + forwarded
+    internal + foreign
 }
 
 /// Count exact ordinary internal Unit scalar producers that complete before a

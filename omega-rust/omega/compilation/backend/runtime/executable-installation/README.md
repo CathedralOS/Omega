@@ -47,9 +47,9 @@ snapshot, footprint, audience, and provider receipts behind report identities.
 Content and final-byte digest domains are separate. Container-v1 compact content
 values do not replace those acceptance premises.
 
-The compiler's frozen text plus immutable dynamic-conformance-table consumer
-does not establish a mutable-data or BSS installation model: its section gap is
-canonical zero padding and the whole extent remains read-only. A successful
+The compiler's frozen text does not establish a mutable-data or BSS
+installation model: its section gap is canonical zero padding and the whole
+extent remains read-only. A successful
 post-handoff writer similarly produces unpublished bytes, not an established
 hardware table or publication authority. Physical invocation, consumer semantic
 validation, source linear integration, and PCC/final-code admission must each

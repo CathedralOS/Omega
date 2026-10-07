@@ -8,7 +8,7 @@ use crate::{
     TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource, TargetX86ScalarFmaSettlement,
 };
-use abstract_operations::{AbstractResult, AbstractStoredDynamicDescriptor, CompletionClaimSource};
+use abstract_operations::{AbstractResult, CompletionClaimSource};
 use calling_conventions::{CallPlan, ValueShape};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
@@ -494,30 +494,6 @@ pub enum TargetUnitOperation {
         result_home: TargetStructuralHomeRequirement,
         result_case: semantic_vocabulary::StructuralCaseId,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
-    },
-    /// One call whose ABI transports existential descriptors: a direct call
-    /// forwarding `{data, table}` descriptor pairs, or an indirect call
-    /// through a stored, rebound or parameter descriptor. `dispatch` keeps
-    /// each route's custody distinct. `call_plan` is the evaluated native plan
-    /// of the call itself: the direct callee's descriptor-pair plan, the
-    /// selected realization's single-argument plan, or the erased one-pointer
-    /// adapter plan (policy, clobbers, stack contract) of a parameter slot.
-    /// `result` is a property of the invoked row, not of the route.
-    CallDynamic {
-        psi_operation: OperationId,
-        dispatch: crate::TargetDynamicDispatch,
-        call_plan: CallPlan,
-        result: crate::TargetDynamicCallResult,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Materialize one selected descriptor into a durable two-word local. The
-    /// structural argument retains the exact instance projection and the
-    /// destination placement shared with its later indirect call.
-    StoreDynamicDescriptor {
-        psi_operation: OperationId,
-        stored: AbstractStoredDynamicDescriptor,
-        source_argument: TargetStructuralArgument,
     },
     /// One evaluated foreign leaf. Native settlement rejoins
     /// this exact carrier; lowering never accepts locator or calling-plan

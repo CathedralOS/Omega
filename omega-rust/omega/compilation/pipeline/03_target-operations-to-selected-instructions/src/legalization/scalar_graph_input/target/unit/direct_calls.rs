@@ -39,10 +39,6 @@ pub(super) fn validate(
     };
     let (actual, called, values, structural_arguments, claims, requirements, crashes) =
         match abstracted {
-            // A call that forwards descriptors never pairs with a direct row.
-            AbstractOperation::CallStructural {
-                dynamic_arguments, ..
-            } if !dynamic_arguments.is_empty() => return Err(LegalizationError::custody()),
             AbstractOperation::CallStructural {
                 psi_operation,
                 callee,

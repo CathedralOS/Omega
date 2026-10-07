@@ -170,14 +170,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
             .any(|node| {
                 matches!(
                     node.operation,
-                    O::Call { .. }
-                        | O::CallStructural { .. }
-                        | O::CallDynamic {
-                            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(_)
-                                | abstract_operations::AbstractDynamicDispatch::Parameter(_),
-                            ..
-                        }
-                        | O::BoundaryCall { .. }
+                    O::Call { .. } | O::CallStructural { .. } | O::BoundaryCall { .. }
                 )
             })
     {

@@ -135,17 +135,9 @@ pub(super) fn entry_references(
     Ok(live)
 }
 
-/// One operation's structural-argument slice, including the dynamic-dispatch
-/// rebound receiver which carries the same loan/custody rules.
+/// One operation's structural-argument slice.
 fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
     match operation {
-        // A Unit call that forwards descriptors contributes no arguments
-        // here; the scalar-result call contributes them in both forms.
-        O::CallStructural {
-            dynamic_arguments,
-            result: AbstractStructuralCallResult::Unit,
-            ..
-        } if !dynamic_arguments.is_empty() => &[],
         O::CallStructural {
             structural_arguments,
             ..
@@ -157,11 +149,6 @@ fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
         // A window repair consumes its value like one owned whole call
         // argument; any reference leaves it carries settle with the store.
         O::StoreStructuralField { value, .. } => std::slice::from_ref(value),
-        O::CallDynamic {
-            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
-            result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
-            ..
-        } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
         _ => &[],
     }
 }

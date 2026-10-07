@@ -5,12 +5,8 @@ use crate::ExecutableImage;
 use crate::installation_record::codec::fingerprint::fingerprint_image;
 use crate::installation_record::record_shape::validate_record_shape;
 use crate::installation_record::record_validation::{
-    installed_compiler_private_function, installed_dynamic_calls,
-    installed_dynamic_conformance_tables, installed_dynamic_parameter_calls,
-    installed_foreign_call_stacks, installed_forwarded_dynamic_descriptor_adapters,
-    installed_forwarded_dynamic_descriptor_calls, installed_forwarded_dynamic_descriptor_tables,
-    installed_forwarded_dynamic_parameter_calls, installed_image_sections,
-    installed_internal_unit_calls, installed_stored_dynamic_calls,
+    installed_compiler_private_function, installed_foreign_call_stacks, installed_image_sections,
+    installed_internal_unit_calls,
 };
 use crate::installation_record::{
     InstallationError, InstallationRecord, InstalledComponentProgress, InstalledFunction,
@@ -263,16 +259,6 @@ where
                     })
             })
             .collect(),
-        dynamic_conformance_tables: installed_dynamic_conformance_tables(image),
-        dynamic_calls: installed_dynamic_calls(image)?,
-        stored_dynamic_calls: installed_stored_dynamic_calls(image)?,
-        forwarded_dynamic_descriptor_adapters: installed_forwarded_dynamic_descriptor_adapters(
-            image,
-        ),
-        forwarded_dynamic_descriptor_tables: installed_forwarded_dynamic_descriptor_tables(image),
-        forwarded_dynamic_descriptor_calls: installed_forwarded_dynamic_descriptor_calls(image)?,
-        dynamic_parameter_calls: installed_dynamic_parameter_calls(image)?,
-        forwarded_dynamic_parameter_calls: installed_forwarded_dynamic_parameter_calls(image)?,
         semantic_code_attribution: image.semantic_code_attribution().to_vec(),
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),

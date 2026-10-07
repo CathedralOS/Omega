@@ -42,10 +42,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
 
         O::AtomicEvent { .. } => atomic::encode(bytes, operation),
 
-        O::DynamicDescriptorParameter { .. }
-        | O::StoreDynamicDescriptor { .. }
-        | O::CallStructural { .. }
-        | O::CallDynamic { .. }
+        O::CallStructural { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }
         | O::Call { .. } => calls_and_effects::encode(bytes, operation),

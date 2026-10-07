@@ -1,17 +1,14 @@
 //! The public builder entries and the object construction route: validate
 //! every retained machine-code function (`function_validation`), size the
-//! object (`layout`), emit `.text` (`text_emission`) and `.data`
-//! (`data_tables`), then bind every relocation record (`relocations`).
+//! object (`layout`), emit `.text` (`text_emission`), then bind every
+//! relocation record (`relocations`).
 
 use crate::object_artifact::private_functions::validate_private_functions;
-use crate::object_artifact::replay::dynamic::forwarded_descriptor::validate_forwarded_dynamic_descriptors;
-use crate::object_artifact::replay::dynamic::forwarded_parameter::validate_forwarded_dynamic_parameter_calls;
 use crate::object_artifact::{ObjectArtifact, ObjectError};
 use machine_code::{
     CompilerPrivateMachineCodeFunction, MachineCodePlan, MachineCodePlanWithPrivateFunctions,
 };
 
-mod data_tables;
 mod function_validation;
 mod layout;
 mod relocations;
@@ -97,22 +94,6 @@ pub fn build_admitted_x86_fma_object_artifact(
     )
 }
 
-pub(crate) fn same_dynamic_table_application(
-    left: &terminal_psi::ClosedConformanceApplication,
-    right: &terminal_psi::ClosedConformanceApplication,
-) -> bool {
-    left.commitment == right.commitment
-        && left.declaration_identity == right.declaration_identity
-        && left.telescope == right.telescope
-        && left.subject_identity == right.subject_identity
-        && left.trait_identity == right.trait_identity
-        && left.trait_lifetime_arguments == right.trait_lifetime_arguments
-        && left.trait_arguments == right.trait_arguments
-        && left.realization_callables == right.realization_callables
-        && left.rows == right.rows
-        && left.report_fingerprint == right.report_fingerprint
-}
-
 pub(crate) fn build_object_artifact_with_x86_feature_profile(
     plan: &MachineCodePlan,
     private_functions: &[CompilerPrivateMachineCodeFunction],
@@ -122,9 +103,6 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
     if plan.functions.is_empty() {
         return Err(ObjectError::EmptyPlan);
     }
-    let forwarded_dynamic_applications =
-        validate_forwarded_dynamic_descriptors(plan.target, &plan.functions)?;
-    validate_forwarded_dynamic_parameter_calls(plan.target, &plan.functions)?;
     let validated_private_functions = validate_private_functions(plan.target, private_functions)?;
     let validation = function_validation::validate_functions(
         plan,
@@ -133,15 +111,12 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
     )?;
     let layout::ObjectLayout {
         mut object,
-        dynamic_applications,
         text_size,
-        dynamic_data_size,
         foreign_call_count,
     } = layout::plan_object_layout(
         plan,
         private_functions,
         &validated_private_functions,
-        &forwarded_dynamic_applications,
         validation.text_size,
     )?;
 
@@ -153,27 +128,6 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         &mut object,
         &mut text_bytes,
     )?;
-    let adapters = text_emission::emit_forwarded_adapters(
-        &forwarded_dynamic_applications,
-        &emitted.symbols_by_machine,
-        &mut object,
-        &mut text_bytes,
-    )?;
-
-    let mut data_bytes = Vec::with_capacity(dynamic_data_size);
-    let dynamic_conformance_tables = data_tables::emit_dynamic_conformance_tables(
-        dynamic_applications,
-        &emitted.symbols_by_machine,
-        &mut object,
-        &mut data_bytes,
-    )?;
-    let forwarded_dynamic_descriptor_tables = data_tables::emit_forwarded_descriptor_tables(
-        &forwarded_dynamic_applications,
-        &adapters.symbols,
-        &mut object,
-        &mut data_bytes,
-    )?;
-
     let object_private_functions = text_emission::emit_private_functions(
         validated_private_functions,
         &mut object,
@@ -187,9 +141,6 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         functions: &emitted.functions,
         symbols_by_machine: &emitted.symbols_by_machine,
         private_functions: &object_private_functions,
-        dynamic_conformance_tables: &dynamic_conformance_tables,
-        forwarded_dynamic_descriptor_tables: &forwarded_dynamic_descriptor_tables,
-        forwarded_dynamic_descriptor_adapters: &adapters.records,
         import_symbols: &import_symbols,
     })?;
 
@@ -213,10 +164,8 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         object,
         relocations,
         text_bytes,
-        data_bytes,
-        dynamic_conformance_tables,
-        forwarded_dynamic_descriptor_adapters: adapters.records,
-        forwarded_dynamic_descriptor_tables,
+        // The machine-code route emits no initialized data.
+        data_bytes: Vec::new(),
         functions,
         private_functions: object_private_functions,
         semantic_code_attribution,

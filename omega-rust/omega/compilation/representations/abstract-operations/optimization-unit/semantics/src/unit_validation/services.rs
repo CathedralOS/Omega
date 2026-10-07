@@ -205,33 +205,7 @@ pub(crate) fn derive_root_service_reach(
                     }),
             );
             match operation {
-                O::Call { callee, .. } => pending.push(*callee),
-                O::CallStructural {
-                    callee,
-                    dynamic_arguments,
-                    ..
-                } => {
-                    pending.push(*callee);
-                    for argument in dynamic_arguments {
-                        if let abstract_operations::AbstractDynamicDescriptorSource::Selection {
-                            application,
-                            ..
-                        }
-                        | abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                            application,
-                            ..
-                        } = &argument.source
-                        {
-                            pending.extend(
-                                application
-                                    .realization_callables
-                                    .iter()
-                                    .map(|callable| callable.machine),
-                            );
-                        }
-                    }
-                }
-                O::CallDynamic { dispatch, .. } => pending.extend(dispatch.realization()),
+                O::Call { callee, .. } | O::CallStructural { callee, .. } => pending.push(*callee),
                 O::BoundaryCall { boundary, .. } => {
                     let declaration = boundaries.get(boundary).copied().ok_or(
                         OptimizationUnitValidationError::OperationServiceContractMismatch {

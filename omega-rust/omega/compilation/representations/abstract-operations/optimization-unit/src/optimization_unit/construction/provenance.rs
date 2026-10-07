@@ -3,10 +3,7 @@ use super::super::{AbstractOperation, PsiProvenance};
 pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<PsiProvenance> {
     use AbstractOperation as O;
     let site = match operation {
-        O::DynamicDescriptorParameter { .. }
-        | O::Jump { .. }
-        | O::Conditional { .. }
-        | O::StructuralCase { .. } => {
+        O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => {
             return Vec::new();
         }
         O::Return { psi_edge, .. } | O::ReturnUnit { psi_edge, .. } | O::Crash { psi_edge, .. } => {
@@ -36,7 +33,6 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::WriteOnlyPrimitiveStore { psi_operation, .. }
         | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::AtomicEvent { psi_operation, .. }
-        | O::StoreDynamicDescriptor { psi_operation, .. }
         | O::EstablishScalarArray { psi_operation, .. }
         | O::EstablishStructuralArray { psi_operation, .. }
         | O::EstablishCase { psi_operation, .. }
@@ -52,7 +48,6 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::StructuralLeafCopy { psi_operation, .. }
         | O::EstablishRecord { psi_operation, .. }
         | O::CallStructural { psi_operation, .. }
-        | O::CallDynamic { psi_operation, .. }
         | O::BoundaryCall { psi_operation, .. }
         | O::PortWrite { psi_operation, .. }
         | O::Call { psi_operation, .. }

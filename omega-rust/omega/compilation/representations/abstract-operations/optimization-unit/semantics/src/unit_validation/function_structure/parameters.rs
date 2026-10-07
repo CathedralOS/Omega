@@ -1,7 +1,7 @@
 //! Entry-claim and parameter-definition metadata contracts.
 use crate::OptimizationUnitValidationError;
 use optimization_unit::{PsiOptimizationFunction, ValueDefinitionSite};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 pub(super) fn validate_entry_claim_index(
     function: &PsiOptimizationFunction,
@@ -56,82 +56,6 @@ pub(crate) fn validate_parameter_metadata(
                     machine: function.machine,
                     block: Some(block.id),
                 });
-            }
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn validate_dynamic_descriptor_parameters(
-    function: &PsiOptimizationFunction,
-) -> Result<(), OptimizationUnitValidationError> {
-    let entry = function
-        .blocks
-        .iter()
-        .find(|block| block.id == function.entry)
-        .ok_or(
-            OptimizationUnitValidationError::DynamicDescriptorParameterMismatch(function.machine),
-        )?;
-    let mut parameters = BTreeMap::new();
-    let mut declaration_prefix_open = true;
-    for node in &entry.nodes {
-        match &node.operation {
-            abstract_operations::AbstractOperation::DynamicDescriptorParameter { parameter }
-                if declaration_prefix_open =>
-            {
-                let expected_ordinal = u32::try_from(parameters.len()).map_err(|_| {
-                    OptimizationUnitValidationError::DynamicDescriptorParameterMismatch(
-                        function.machine,
-                    )
-                })?;
-                if parameter.owner != function.machine
-                    || parameter.ordinal != expected_ordinal
-                    || parameters.insert(parameter.ordinal, parameter).is_some()
-                {
-                    return Err(
-                        OptimizationUnitValidationError::DynamicDescriptorParameterMismatch(
-                            function.machine,
-                        ),
-                    );
-                }
-            }
-            abstract_operations::AbstractOperation::DynamicDescriptorParameter { .. } => {
-                return Err(
-                    OptimizationUnitValidationError::DynamicDescriptorParameterMismatch(
-                        function.machine,
-                    ),
-                );
-            }
-            _ => declaration_prefix_open = false,
-        }
-    }
-    if function.blocks.iter().any(|block| {
-        block.id != function.entry
-            && block.nodes.iter().any(|node| {
-                matches!(
-                    node.operation,
-                    abstract_operations::AbstractOperation::DynamicDescriptorParameter { .. }
-                )
-            })
-    }) {
-        return Err(
-            OptimizationUnitValidationError::DynamicDescriptorParameterMismatch(function.machine),
-        );
-    }
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
-        if let abstract_operations::AbstractOperation::CallDynamic {
-            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch),
-            result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
-            ..
-        } = &node.operation
-        {
-            let parameter = &dynamic_dispatch.parameter;
-            if parameters.get(&parameter.ordinal).copied() != Some(parameter) {
-                return Err(
-                    OptimizationUnitValidationError::DynamicDescriptorParameterMismatch(
-                        function.machine,
-                    ),
-                );
             }
         }
     }

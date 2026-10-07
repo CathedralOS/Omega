@@ -55,8 +55,7 @@ pub use package_publication::{
 };
 pub use physical::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
-    CompilerBuiltinResult, CompilerBuiltinScalarArgument, DynamicCallDispatch,
-    DynamicCallDispatchParts, DynamicCallRelocationCustody, InstalledProviderInternalCallCustody,
+    CompilerBuiltinResult, CompilerBuiltinScalarArgument, InstalledProviderInternalCallCustody,
     NativeByteSpan, NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection,
     NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
     NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts,

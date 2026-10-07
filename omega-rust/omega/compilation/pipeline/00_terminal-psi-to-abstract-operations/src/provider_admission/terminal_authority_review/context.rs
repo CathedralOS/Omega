@@ -2,44 +2,22 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::{
-    AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource, AbstractFunction,
-    AbstractOperationPlan, AbstractParameterDynamicDispatch,
-};
+use abstract_operations::{AbstractFunction, AbstractOperationPlan};
 use effects::{
     CheckedPhysicalTerminalMechanismIdentity, SelectedProviderPlanFacts, TerminalMechanismIdentity,
     provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow},
     terminal_mechanism_identity_bytes,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use terminal_psi::{ClosedConformanceApplication, ClosedConformanceApplicationCommitment};
 
 use super::operations::{AuthorityEdge, authority_edge};
 use crate::provider_admission::{
     AdmittedTerminalMechanism, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 
-type DynamicBindings = BTreeMap<u32, ClosedConformanceApplication>;
-
 pub(super) struct ReachableAuthorityEdges {
     pub(super) boundaries: BTreeSet<BoundaryMachineId>,
     pub(super) checked_physical: Vec<TerminalMechanismIdentity>,
-}
-
-fn binding_identity(
-    machine: MachineId,
-    bindings: &DynamicBindings,
-) -> (
-    MachineId,
-    Vec<(u32, ClosedConformanceApplicationCommitment)>,
-) {
-    (
-        machine,
-        bindings
-            .iter()
-            .map(|(ordinal, application)| (*ordinal, application.commitment))
-            .collect(),
-    )
 }
 
 pub(super) struct ReviewContext<'a> {
@@ -214,12 +192,12 @@ impl<'a> ReviewContext<'a> {
         &self,
         entry: MachineId,
     ) -> Result<ReachableAuthorityEdges, String> {
-        let mut pending = vec![(entry, DynamicBindings::new())];
+        let mut pending = vec![entry];
         let mut visited = BTreeSet::new();
         let mut boundaries = BTreeSet::new();
         let mut checked_physical = BTreeMap::new();
-        while let Some((machine, bindings)) = pending.pop() {
-            if !visited.insert(binding_identity(machine, &bindings)) {
+        while let Some(machine) = pending.pop() {
+            if !visited.insert(machine) {
                 continue;
             }
             let function = self.functions.get(&machine).ok_or_else(|| {
@@ -228,21 +206,7 @@ impl<'a> ReviewContext<'a> {
             for operation in &function.operations {
                 match authority_edge(operation) {
                     AuthorityEdge::None => {}
-                    AuthorityEdge::Internal(callee) => {
-                        pending.push((callee, DynamicBindings::new()));
-                    }
-                    AuthorityEdge::InternalWithDynamicArguments { callee, arguments } => {
-                        pending.push((
-                            callee,
-                            self.bind_dynamic_arguments(machine, callee, &bindings, arguments)?,
-                        ));
-                    }
-                    AuthorityEdge::DynamicParameterDispatch(dispatch) => {
-                        pending.push((
-                            self.parameter_dispatch_realization(machine, &bindings, dispatch)?,
-                            DynamicBindings::new(),
-                        ));
-                    }
+                    AuthorityEdge::Internal(callee) => pending.push(callee),
                     AuthorityEdge::Boundary(boundary) => {
                         boundaries.insert(boundary);
                     }
@@ -275,128 +239,5 @@ impl<'a> ReviewContext<'a> {
             boundaries,
             checked_physical: checked_physical.into_values().collect(),
         })
-    }
-
-    fn bind_dynamic_arguments(
-        &self,
-        caller: MachineId,
-        callee: MachineId,
-        caller_bindings: &DynamicBindings,
-        arguments: &[AbstractDynamicDescriptorArgument],
-    ) -> Result<DynamicBindings, String> {
-        let mut callee_bindings = DynamicBindings::new();
-        for argument in arguments {
-            if argument.argument.owner != caller || argument.target.owner != callee {
-                return Err(format!(
-                    "reachable dynamic argument from {caller:?} does not bind callee {callee:?}"
-                ));
-            }
-            let application = match &argument.source {
-                AbstractDynamicDescriptorSource::Selection { application, .. }
-                | AbstractDynamicDescriptorSource::Rebound { application, .. } => {
-                    application.clone()
-                }
-                AbstractDynamicDescriptorSource::Parameter(source) => caller_bindings
-                    .get(&source.ordinal)
-                    .cloned()
-                    .ok_or_else(|| {
-                        format!(
-                            "reachable machine {caller:?} forwards unbound dynamic parameter {}",
-                            source.ordinal
-                        )
-                    })?,
-            };
-            if callee_bindings
-                .insert(argument.target.ordinal, application)
-                .is_some()
-            {
-                return Err(format!(
-                    "reachable call from {caller:?} repeats dynamic parameter {} for {callee:?}",
-                    argument.target.ordinal
-                ));
-            }
-        }
-        Ok(callee_bindings)
-    }
-
-    fn parameter_dispatch_realization(
-        &self,
-        machine: MachineId,
-        bindings: &DynamicBindings,
-        dispatch: &AbstractParameterDynamicDispatch,
-    ) -> Result<MachineId, String> {
-        let parameter = &dispatch.parameter;
-        if parameter.owner != machine
-            || dispatch.dispatch.owner != machine
-            || dispatch.dispatch.parameter_ordinal != parameter.ordinal
-        {
-            return Err(format!(
-                "reachable machine {machine:?} has inconsistent dynamic-parameter dispatch custody"
-            ));
-        }
-        let application = bindings.get(&parameter.ordinal).ok_or_else(|| {
-            format!(
-                "reachable machine {machine:?} dispatches unbound dynamic parameter {}",
-                parameter.ordinal
-            )
-        })?;
-        if application.trait_identity != parameter.trait_identity {
-            return Err(format!(
-                "reachable machine {machine:?} substituted the dynamic parameter trait application"
-            ));
-        }
-        let requirements = parameter
-            .requirements
-            .iter()
-            .filter(|requirement| requirement.slot == dispatch.dispatch.requirement_slot)
-            .collect::<Vec<_>>();
-        let [requirement] = requirements.as_slice() else {
-            return Err(format!(
-                "reachable machine {machine:?} dynamic parameter slot does not resolve exactly once"
-            ));
-        };
-        let row = requirement_row(application, requirement).ok_or_else(|| {
-            format!(
-                "reachable machine {machine:?} dynamic parameter requirement does not resolve exactly once"
-            )
-        })?;
-        let callable_identity = row.realization_callable_identity.as_deref().ok_or_else(|| {
-            format!(
-                "reachable machine {machine:?} dynamic parameter requirement has no realization callable"
-            )
-        })?;
-        let callables = application
-            .realization_callables
-            .iter()
-            .filter(|callable| {
-                callable.source_callable_identity == callable_identity
-                    && callable.result == requirement.result
-            })
-            .collect::<Vec<_>>();
-        let [callable] = callables.as_slice() else {
-            return Err(format!(
-                "reachable machine {machine:?} dynamic parameter realization does not resolve exactly once"
-            ));
-        };
-        Ok(callable.machine)
-    }
-}
-
-/// The exact `(declaring trait, complete requirement overload, canonical
-/// value tuple)` row one descriptor requirement resolves to. A finite family
-/// places one row per declared tuple under the same two identities, so the
-/// tuple is a coordinate of the join, not a payload the row happens to carry.
-fn requirement_row<'a>(
-    application: &'a ClosedConformanceApplication,
-    requirement: &terminal_psi::TerminalDynamicRequirement,
-) -> Option<&'a terminal_psi::ClosedConformanceRow> {
-    let mut rows = application.rows.iter().filter(|row| {
-        row.declaring_trait_identity == requirement.declaring_trait_identity
-            && row.public_requirement_identity == requirement.public_requirement_identity
-            && row.family_tuple == requirement.family_tuple
-    });
-    match (rows.next(), rows.next()) {
-        (Some(row), None) => Some(row),
-        _ => None,
     }
 }

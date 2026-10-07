@@ -30,7 +30,6 @@ pub(crate) fn validate_scalar_stack(
     machine: MachineId,
     bytes: &[u8],
     calls: &[machine_code::InternalCallRelocation],
-    dynamic_parameter_calls: &[machine_code::DynamicParameterCallRecord],
     provenance: &TerminalPsiProvenance,
     attribution: &[SemanticCodeAttribution],
     evidence: &ScalarStackEvidence,
@@ -46,7 +45,6 @@ pub(crate) fn validate_scalar_stack(
     }
     if let ScalarControlFlowEvidence::Acyclic { blocks } = &evidence.control_flow {
         if !calls.is_empty()
-            || !dynamic_parameter_calls.is_empty()
             || scalar_affine_cleanup.is_some()
             || !scalar_control_affine_cleanups.is_empty()
             || !scalar_structural_parameter_homes.is_empty()
@@ -81,12 +79,6 @@ pub(crate) fn validate_scalar_stack(
         merge_offset,
     } = &evidence.control_flow
     {
-        if !dynamic_parameter_calls.is_empty() {
-            return Err(ObjectError::InvalidDynamicParameterCallEvidence {
-                caller: machine,
-                operation: dynamic_parameter_calls[0].psi_operation,
-            });
-        }
         if scalar_affine_cleanup.is_none() || !scalar_control_affine_cleanups.is_empty() {
             return Err(ObjectError::InvalidUnitAffineCleanupEvidence(machine));
         }
@@ -114,12 +106,6 @@ pub(crate) fn validate_scalar_stack(
         branches,
     } = &evidence.control_flow
     {
-        if !dynamic_parameter_calls.is_empty() {
-            return Err(ObjectError::InvalidDynamicParameterCallEvidence {
-                caller: machine,
-                operation: dynamic_parameter_calls[0].psi_operation,
-            });
-        }
         if scalar_affine_cleanup.is_some()
             || crash_leaves.iter().any(|crash| *crash) && !scalar_control_affine_cleanups.is_empty()
         {
@@ -140,12 +126,6 @@ pub(crate) fn validate_scalar_stack(
     if let ScalarControlFlowEvidence::LinearWithDivisionBranches { ref branches } =
         evidence.control_flow
     {
-        if !dynamic_parameter_calls.is_empty() {
-            return Err(ObjectError::InvalidDynamicParameterCallEvidence {
-                caller: machine,
-                operation: dynamic_parameter_calls[0].psi_operation,
-            });
-        }
         if scalar_affine_cleanup.is_some() || !scalar_control_affine_cleanups.is_empty() {
             return Err(ObjectError::InvalidUnitAffineCleanupEvidence(machine));
         }
@@ -185,16 +165,6 @@ pub(crate) fn validate_scalar_stack(
         };
         call_sites.insert(call_start, *call);
     }
-    let mut dynamic_call_sites = dynamic_parameter_calls
-        .iter()
-        .map(|call| (call.indirect_call_offset, call))
-        .collect::<std::collections::BTreeMap<_, _>>();
-    if dynamic_call_sites.len() != dynamic_parameter_calls.len() {
-        return Err(ObjectError::InvalidDynamicParameterCallEvidence {
-            caller: machine,
-            operation: dynamic_parameter_calls[0].psi_operation,
-        });
-    }
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut depth = 0_u32;
     let mut peak = 0_u32;
@@ -218,19 +188,6 @@ pub(crate) fn validate_scalar_stack(
                     continue;
                 }
                 if instruction.mnemonic() == iced_x86::Mnemonic::Call {
-                    if let Some(call) = dynamic_call_sites.remove(&offset) {
-                        let caller_live_bytes = depth
-                            .checked_add(8)
-                            .ok_or(ObjectError::ScalarStackArithmeticOverflow(machine))?;
-                        if !caller_live_bytes.is_multiple_of(evidence.stack_alignment) {
-                            return Err(ObjectError::InvalidDynamicParameterCallEvidence {
-                                caller: machine,
-                                operation: call.psi_operation,
-                            });
-                        }
-                        peak = peak.max(caller_live_bytes);
-                        continue;
-                    }
                     let call = call_sites
                         .remove(&offset)
                         .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
@@ -323,18 +280,9 @@ pub(crate) fn validate_scalar_stack(
                     saw_return = true;
                     continue;
                 }
+                // A register-indirect call names no typed internal callee.
                 if encoded & 0xffff_fc1f == 0xd63f_0000 {
-                    let call = dynamic_call_sites
-                        .remove(&offset)
-                        .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
-                    if !depth.is_multiple_of(evidence.stack_alignment) {
-                        return Err(ObjectError::InvalidDynamicParameterCallEvidence {
-                            caller: machine,
-                            operation: call.psi_operation,
-                        });
-                    }
-                    peak = peak.max(depth);
-                    continue;
+                    return Err(ObjectError::UntypedScalarInternalCall { machine, offset });
                 }
                 if encoded == 0x9400_0000 {
                     let call = call_sites
@@ -386,12 +334,6 @@ pub(crate) fn validate_scalar_stack(
             caller: machine,
             owner: call.owner,
             offset: call.offset,
-        });
-    }
-    if let Some((_, call)) = dynamic_call_sites.first_key_value() {
-        return Err(ObjectError::InvalidDynamicParameterCallEvidence {
-            caller: machine,
-            operation: call.psi_operation,
         });
     }
     if depth != 0 {

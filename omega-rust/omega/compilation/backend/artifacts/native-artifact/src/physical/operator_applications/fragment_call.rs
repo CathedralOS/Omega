@@ -18,9 +18,6 @@ pub(super) fn derive(
         | OperationKind::CallStructural { callee, .. }
         | OperationKind::CallStructuralScalar { callee, .. }
         | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
-        // Dynamic call kinds carry descriptor/parameter ordinals rather than a
-        // static callee, so no resolved call row can join them here; they
-        // remain named evidence-gap subjects.
         _ => return Ok(None),
     };
     let function = object

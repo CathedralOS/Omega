@@ -11,15 +11,13 @@ pub use exit_contract::{
 };
 
 use crate::{
-    BoundarySettlementRecord, DynamicCallRecord, DynamicParameterCallRecord, ForeignCallRelocation,
-    ForwardedDynamicDescriptorCallRecord, ForwardedDynamicParameterCallRecord,
-    InstalledProviderUnitScalarCallRecord, InternalCallRelocation, InternalUnitCallRecord,
-    InternalUnitScalarCallRecord, MachineCodePlan, ParameterFunctionAbiRecord, PortEffectRecord,
-    ScalarControlAffineCleanupRecord, ScalarStackEvidence, ScalarStructuralScalarFieldStoreRecord,
-    SemanticCodeAttribution, StoredDynamicCallRecord, StructuralCallScalarReturnEvidence,
-    StructuralReturnRecord, UnitAffineCleanupRecord, UnitAffineScalarRecordEstablishmentRecord,
-    UnitContinuationRecord, UnitIntegerConstantRecord, UnitParameterHomeRecord,
-    UnitParameterRecord, UnitScalarHomeRecord, UnitStackEvidence,
+    BoundarySettlementRecord, ForeignCallRelocation, InstalledProviderUnitScalarCallRecord,
+    InternalCallRelocation, InternalUnitCallRecord, InternalUnitScalarCallRecord, MachineCodePlan,
+    ParameterFunctionAbiRecord, PortEffectRecord, ScalarControlAffineCleanupRecord,
+    ScalarStackEvidence, ScalarStructuralScalarFieldStoreRecord, SemanticCodeAttribution,
+    StructuralCallScalarReturnEvidence, StructuralReturnRecord, UnitAffineCleanupRecord,
+    UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord, UnitIntegerConstantRecord,
+    UnitParameterHomeRecord, UnitParameterRecord, UnitScalarHomeRecord, UnitStackEvidence,
     UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
     X86FloatingControlRecord, X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
 };
@@ -118,27 +116,6 @@ pub struct MachineCodeFunction {
     /// remain distinct from anonymous internal scalar calls so provider and
     /// completion authority survive object replay.
     pub installed_provider_unit_scalar_calls: Vec<InstalledProviderUnitScalarCallRecord>,
-    /// Complete descriptor, table-address, receiver-copy, and indirect-call
-    /// custody for rebound named-dynamic calls in attached Unit bodies.
-    /// The table contents remain semantic demands until object construction
-    /// binds every canonical row to an exact function symbol.
-    pub dynamic_calls: Vec<DynamicCallRecord>,
-    /// Split establishment/reload custody for descriptors stored in local
-    /// aggregates. Each row binds the earlier materialization bytes and table
-    /// relocation to the later indirect call using one shared descriptor home.
-    pub stored_dynamic_calls: Vec<StoredDynamicCallRecord>,
-    /// Complete semantic, ABI, register, slot, stack, and byte custody for
-    /// scalar calls through an existential descriptor received as a function
-    /// parameter. Unlike `dynamic_calls`, these rows do not materialize
-    /// or relocate a table: the caller supplies both descriptor words.
-    pub dynamic_parameter_calls: Vec<DynamicParameterCallRecord>,
-    /// Complete direct-call custody for a scalar helper that forwards its
-    /// incoming existential descriptor parameter unchanged to another helper.
-    /// No local table or instance address is materialized by this call.
-    pub forwarded_dynamic_parameter_calls: Vec<ForwardedDynamicParameterCallRecord>,
-    /// Complete caller-side materialization and direct-call custody for
-    /// existential descriptors passed to another Terminal machine.
-    pub forwarded_dynamic_descriptor_calls: Vec<ForwardedDynamicDescriptorCallRecord>,
     /// Complete ordered durable scalar homes in an attached Unit frame.
     pub unit_scalar_homes: Vec<UnitScalarHomeRecord>,
     /// Complete ordered zero-code integer definitions available to attached

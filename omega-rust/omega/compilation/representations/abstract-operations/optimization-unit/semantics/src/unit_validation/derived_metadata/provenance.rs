@@ -7,10 +7,7 @@ pub(crate) fn expected_provenance(
 ) -> Vec<PsiProvenance> {
     use abstract_operations::AbstractOperation as O;
     match operation {
-        O::DynamicDescriptorParameter { .. }
-        | O::Jump { .. }
-        | O::Conditional { .. }
-        | O::StructuralCase { .. } => Vec::new(),
+        O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => Vec::new(),
         O::Return { psi_edge, .. } | O::ReturnUnit { psi_edge, .. } | O::Crash { psi_edge, .. } => {
             vec![PsiProvenance::Edge(*psi_edge)]
         }
@@ -37,7 +34,6 @@ pub(crate) fn expected_provenance(
         | O::WriteOnlyPrimitiveStore { psi_operation, .. }
         | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::AtomicEvent { psi_operation, .. }
-        | O::StoreDynamicDescriptor { psi_operation, .. }
         | O::EstablishScalarArray { psi_operation, .. }
         | O::EstablishStructuralArray { psi_operation, .. }
         | O::EstablishCase { psi_operation, .. }
@@ -53,7 +49,6 @@ pub(crate) fn expected_provenance(
         | O::StructuralLeafCopy { psi_operation, .. }
         | O::EstablishRecord { psi_operation, .. }
         | O::CallStructural { psi_operation, .. }
-        | O::CallDynamic { psi_operation, .. }
         | O::BoundaryCall { psi_operation, .. }
         | O::PortWrite { psi_operation, .. }
         | O::Call { psi_operation, .. }
@@ -108,7 +103,6 @@ pub(crate) fn provenance_matches_operation(
     let expected = expected_provenance(operation);
     if expected.is_empty() {
         match operation {
-            O::DynamicDescriptorParameter { .. } => provenance.is_empty(),
             O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => true,
             _ => provenance.is_empty(),
         }

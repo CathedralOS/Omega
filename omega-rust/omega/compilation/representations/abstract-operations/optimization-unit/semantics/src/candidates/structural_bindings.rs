@@ -98,9 +98,6 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
         O::StoreStructuralField { destination, .. } => destination.place() == place,
         O::StructuralScalarFieldStore { destination, .. } => destination.place() == place,
         O::MoveStructuralField { source, .. } => source.place() == place,
-        // The stored descriptor's selection source is the written aggregate:
-        // whatever the argument's access, a field beneath it is established.
-        O::StoreDynamicDescriptor { stored, .. } => stored.selection.source.place == place,
         // An atomic resident's contents may change under another event.
         O::AtomicEvent { event, .. } => event.place() == Some(place),
         _ => false,
@@ -112,8 +109,7 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
 
 /// Every structural-argument operand `operation` carries: record children
 /// stored whole, element-view and reference sources, a reseating store's
-/// delivered value, call argument rows, and the conformance-selection
-/// sources dynamic dispatches and stored descriptors retain.
+/// delivered value, and call argument rows.
 fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &StructuralArgument> {
     let mut operands: Vec<&StructuralArgument> = Vec::new();
     match operation {
@@ -137,16 +133,6 @@ fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &Structur
             structural_arguments,
             ..
         } => operands.extend(structural_arguments.iter()),
-        O::CallDynamic { dispatch, .. } => match dispatch {
-            abstract_operations::AbstractDynamicDispatch::Rebound(dispatch) => {
-                operands.push(&dispatch.initial.source);
-                operands.push(&dispatch.rebound.source);
-            }
-            abstract_operations::AbstractDynamicDispatch::Stored(dispatch) => {
-                operands.push(&dispatch.stored.selection.source);
-            }
-            abstract_operations::AbstractDynamicDispatch::Parameter(_) => {}
-        },
         _ => {}
     }
     operands.into_iter()

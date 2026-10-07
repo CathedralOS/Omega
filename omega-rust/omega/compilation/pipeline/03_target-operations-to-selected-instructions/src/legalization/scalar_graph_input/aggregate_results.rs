@@ -54,14 +54,12 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
                 ) || matches!(&node.operation,
                     AbstractOperation::CallStructural {
                         structural_arguments,
-                        dynamic_arguments,
                         result:
                             AbstractStructuralCallResult::Unit
                             | AbstractStructuralCallResult::Scalar(_),
                         ..
                     }
-                        if dynamic_arguments.is_empty()
-                            && structural_arguments.iter().any(|argument|
+                        if structural_arguments.iter().any(|argument|
                                 argument.access == terminal_psi::StructuralAccess::Owned))
                     // Dispatching on an incoming parameter reads its tag and
                     // payloads, as a membership observation reads its tag.

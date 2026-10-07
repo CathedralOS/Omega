@@ -88,7 +88,6 @@ pub(crate) fn validate_function(
     let blocks = control_flow::index_blocks(function)?;
     parameters::validate_parameter_metadata(function)?;
     structural_transfers::validate(function, structural_types, structural_domains)?;
-    parameters::validate_dynamic_descriptor_parameters(function)?;
     let control_flow = control_flow::validate_nodes_and_edges(function, blocks)?;
     control_flow::validate_total_cfg(
         function,

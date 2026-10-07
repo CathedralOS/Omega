@@ -144,43 +144,6 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                     .flat_map(|edge| edge.provenance.iter().copied()),
             );
             match &node.operation {
-                // A call that forwards descriptors also reaches every
-                // realization its descriptors select.
-                O::CallStructural {
-                    callee,
-                    dynamic_arguments,
-                    ..
-                } if !dynamic_arguments.is_empty() => {
-                    summary.callees.insert(*callee);
-                    for argument in dynamic_arguments {
-                        if let abstract_operations::AbstractDynamicDescriptorSource::Selection {
-                            application,
-                            ..
-                        }
-                        | abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                            application,
-                            ..
-                        } = &argument.source
-                        {
-                            summary.callees.extend(
-                                application
-                                    .realization_callables
-                                    .iter()
-                                    .map(|callable| callable.machine),
-                            );
-                        }
-                    }
-                    if summary
-                        .callees
-                        .iter()
-                        .any(|callee| !machines.contains(callee))
-                    {
-                        summary.observable = EffectKnowledge::May;
-                        summary.structural_state = EffectKnowledge::May;
-                        summary.crash = EffectKnowledge::May;
-                        summary.suspension = EffectKnowledge::May;
-                    }
-                }
                 O::CallStructural { callee, .. } | O::Call { callee, .. } => {
                     summary.callees.insert(*callee);
                     if !machines.contains(callee) {
@@ -190,29 +153,6 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         summary.suspension = EffectKnowledge::May;
                     }
                 }
-                O::CallDynamic { dispatch, .. } => match dispatch.realization() {
-                    // Rebound and stored custody name their selected row.
-                    Some(callee) => {
-                        summary.callees.insert(callee);
-                        if !machines.contains(&callee) {
-                            summary.observable = EffectKnowledge::May;
-                            summary.structural_state = EffectKnowledge::May;
-                            summary.crash = EffectKnowledge::May;
-                            summary.suspension = EffectKnowledge::May;
-                        }
-                    }
-                    // A parameter descriptor's table row is an incoming
-                    // runtime value. Until target realization rejoins every
-                    // caller-supplied descriptor, retain the conservative
-                    // internal-call summary without inventing one static
-                    // callee.
-                    None => {
-                        summary.observable = EffectKnowledge::May;
-                        summary.structural_state = EffectKnowledge::May;
-                        summary.crash = EffectKnowledge::May;
-                        summary.suspension = EffectKnowledge::May;
-                    }
-                },
                 O::PortWrite { service, .. } => {
                     summary.services.insert(*service);
                     join_operation_effect(&mut summary, &node.operation, join);
@@ -290,7 +230,6 @@ fn operation_effect(
 ) {
     use EffectKnowledge::{May, No, Yes};
     match operation {
-        O::DynamicDescriptorParameter { .. } => (EffectClass::StructuralState, No, No, No, No),
         O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
@@ -329,7 +268,6 @@ fn operation_effect(
         // a fresh owned value: structural state, unobservable from scalar
         // consumers but never erasable, duplicable, or reorderable.
         | O::StructuralLeafCopy { .. }
-        | O::StoreDynamicDescriptor { .. }
         | O::EstablishScalarArray { .. } | O::EstablishStructuralArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
@@ -369,7 +307,6 @@ fn operation_effect(
             )
         }
         O::CallStructural { .. }
-        | O::CallDynamic { .. }
         | O::Call { .. } => (EffectClass::InternalCall, May, May, May, May),
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),
         O::PortWrite { .. } => (EffectClass::Service, Yes, No, No, No),

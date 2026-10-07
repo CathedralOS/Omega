@@ -657,12 +657,6 @@ fn invalidates_location(
     location: &AbstractAtomicLocation,
     roots_may_alias: &impl Fn(PlaceId, PlaceId) -> bool,
 ) -> bool {
-    // Access polarity is not a write summary for atomic storage. A shared
-    // callee may modify the cell; without its event history this activation
-    // cannot name the call's prior or retain an earlier reads-from claim.
-    if matches!(operation, AbstractOperation::CallDynamic { .. }) {
-        return true;
-    }
     let called_arguments = match operation {
         AbstractOperation::CallStructural {
             structural_arguments,

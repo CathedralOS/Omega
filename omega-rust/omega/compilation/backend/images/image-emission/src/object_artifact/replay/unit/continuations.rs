@@ -412,11 +412,6 @@ pub(crate) fn validate_function(
         || !function.unit_write_only_primitive_stores.is_empty()
         || !function.internal_unit_scalar_calls.is_empty()
         || !function.installed_provider_unit_scalar_calls.is_empty()
-        || !function.dynamic_calls.is_empty()
-        || !function.stored_dynamic_calls.is_empty()
-        || !function.dynamic_parameter_calls.is_empty()
-        || !function.forwarded_dynamic_parameter_calls.is_empty()
-        || !function.forwarded_dynamic_descriptor_calls.is_empty()
     {
         return Err(invalid());
     }

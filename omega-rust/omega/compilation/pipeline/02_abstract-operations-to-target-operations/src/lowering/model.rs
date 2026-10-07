@@ -148,31 +148,6 @@ pub enum LoweringError {
         result: ValueId,
     },
     UnitScalarCallTargetAbiMismatch(MachineId),
-    InvalidDynamicDispatch {
-        machine: MachineId,
-        operation: OperationId,
-    },
-    /// One declared dynamic descriptor parameter must occupy a dense trailing
-    /// lane: its owner-local ordinal matches its declaration index and its
-    /// `source_position` trails the scalar and non-self structural parameters,
-    /// so the two trailing ABI words never silently reorder the authored
-    /// interface.
-    InvalidDynamicDescriptorParameter {
-        machine: MachineId,
-        ordinal: u32,
-    },
-    /// Target-neutral custody retains aggregate descriptor storage and reload,
-    /// but target operations do not yet define its physical two-word local.
-    UnsupportedStoredDynamicDescriptor {
-        machine: MachineId,
-        operation: OperationId,
-    },
-    /// Abstract custody admits result-less dynamic dispatch, but target
-    /// operations do not yet define its descriptor ABI or indirect call form.
-    UnsupportedDynamicUnitDispatch {
-        machine: MachineId,
-        operation: OperationId,
-    },
     StructuralCallArgumentCountMismatch {
         callee: MachineId,
         expected: usize,

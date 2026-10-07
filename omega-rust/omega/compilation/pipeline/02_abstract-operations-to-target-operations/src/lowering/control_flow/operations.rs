@@ -3,7 +3,7 @@ use super::observations;
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractDynamicDispatch, AbstractFunction, AbstractOperation};
+use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
@@ -145,19 +145,10 @@ pub(super) fn lower_operation(
     // Call paths that do not lower reference-aware arguments reject any
     // structural argument that touches live custody outright.
     let blind_arguments: &[terminal_psi::StructuralArgument] = match operation {
-        AbstractOperation::CallStructural {
-            structural_arguments,
-            dynamic_arguments,
-            ..
-        } if !dynamic_arguments.is_empty() => structural_arguments.as_slice(),
         AbstractOperation::BoundaryCall {
             structural_arguments,
             ..
         } => structural_arguments.as_slice(),
-        AbstractOperation::CallDynamic {
-            dispatch: AbstractDynamicDispatch::Rebound(dynamic_dispatch),
-            ..
-        } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
         _ => &[],
     };
     if blind_arguments
@@ -181,71 +172,6 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::StoreDynamicDescriptor { psi_operation, .. } => {
-            crate::lowering::unit::dynamic::lower_stored_descriptor(
-                operation,
-                function,
-                target,
-                functions,
-                structural_types,
-                parameters_by_place,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-                operations,
-                provenance,
-            )?;
-            if !live.stored_descriptors.insert(*psi_operation) {
-                return Err(LoweringError::InvalidDynamicDispatch {
-                    machine: function.machine,
-                    operation: *psi_operation,
-                });
-            }
-            Ok(())
-        }
-        // Descriptor dispatches and direct calls that forward descriptors lower
-        // to one `CallDynamic` row. This arm must stay ahead of the direct-call
-        // arm below, which admits no forwarded descriptors.
-        AbstractOperation::CallDynamic { .. } | AbstractOperation::CallStructural { .. }
-            if crate::lowering::unit::dynamic::is_dynamic_call(operation) =>
-        {
-            let home = crate::lowering::unit::dynamic::lower_dynamic_call(
-                operation,
-                function,
-                target,
-                functions,
-                structural_types,
-                parameters_by_place,
-                &prepared.dynamic_parameters,
-                &live.stored_descriptors,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-                &mut live.integers,
-                operations,
-                provenance,
-            )?;
-            if let Some(home) = home
-                && home.scalar_type == ScalarType::Boolean
-            {
-                live.scalar_homes.insert(home.source_value, home);
-            }
-            Ok(())
-        }
-        // Descriptor parameters are interface declarations: they produce no
-        // graph operation, but the declared row must be the same one the
-        // signature lane bound at this ordinal.
-        AbstractOperation::DynamicDescriptorParameter { parameter } => {
-            if prepared
-                .dynamic_parameters
-                .get(usize::try_from(parameter.ordinal).unwrap_or(usize::MAX))
-                .is_none_or(|abi| abi.parameter != *parameter)
-            {
-                return Err(LoweringError::InvalidDynamicDescriptorParameter {
-                    machine: function.machine,
-                    ordinal: parameter.ordinal,
-                });
-            }
-            Ok(())
-        }
         AbstractOperation::FloatResultPolicy {
             psi_operation,
             result,

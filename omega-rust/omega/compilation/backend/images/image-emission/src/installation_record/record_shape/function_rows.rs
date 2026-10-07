@@ -1,6 +1,6 @@
 //! The installed function rows: each function's retained facts are canonical
-//! and its text span follows the previous function's, then the forwarded
-//! descriptor adapters and the compiler-private function continue the text,
+//! and its text span follows the previous function's, then the
+//! compiler-private functions continue the text,
 //! which must end exactly at the recorded text size.
 //!
 //! `validate_function_row` checks one row's site and hands its
@@ -44,23 +44,6 @@ pub(super) fn validate_function_rows(record: &InstallationRecord) -> Result<(), 
             .checked_add(function.byte_count)
             .ok_or(InstallationError::FunctionOffsetNotRepresentable)?;
         previous_function = Some(function.machine);
-    }
-    let mut adapter_identities = std::collections::BTreeSet::new();
-    for adapter in &record.forwarded_dynamic_descriptor_adapters {
-        if adapter.application_commitment.is_zero()
-            || adapter.byte_count == 0
-            || adapter.text_offset != expected_text_offset
-            || !adapter_identities.insert((
-                adapter.application_commitment,
-                adapter.row_index,
-                adapter.realization,
-            ))
-        {
-            return Err(InstallationError::InvalidForwardedDynamicDescriptorAdapter);
-        }
-        expected_text_offset = expected_text_offset
-            .checked_add(adapter.byte_count)
-            .ok_or(InstallationError::FunctionOffsetNotRepresentable)?;
     }
     let mut private_identities = std::collections::BTreeSet::new();
     for private in &record.private_functions {

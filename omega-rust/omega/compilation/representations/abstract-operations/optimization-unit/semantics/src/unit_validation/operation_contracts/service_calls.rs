@@ -41,38 +41,9 @@ pub(crate) fn operation_service_contract_matches(
         O::Call { callee, .. } => functions
             .get(callee)
             .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
-        O::CallStructural {
-            callee,
-            dynamic_arguments,
-            ..
-        } => {
-            functions
-                .get(callee)
-                .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling))
-                && dynamic_arguments
-                    .iter()
-                    .all(|argument| match &argument.source {
-                        abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                            application,
-                            ..
-                        }
-                        | abstract_operations::AbstractDynamicDescriptorSource::Selection {
-                            application,
-                            ..
-                        } => application.realization_callables.iter().all(|callable| {
-                            functions.get(&callable.machine).is_some_and(|realization| {
-                                reached_is_published(&realization.published_service_ceiling)
-                            })
-                        }),
-                        abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => true,
-                    })
-        }
-        O::CallDynamic { dispatch, .. } => match dispatch.realization() {
-            Some(realization) => functions
-                .get(&realization)
-                .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
-            None => true,
-        },
+        O::CallStructural { callee, .. } => functions
+            .get(callee)
+            .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
         O::BoundaryCall { boundary, .. } => boundaries
             .get(boundary)
             .is_some_and(|boundary| reached_is_published(&boundary.published_service_ceiling)),
@@ -153,50 +124,6 @@ pub(crate) fn operation_structural_call_contract_matches(
                 claim_transfers,
             )
         }),
-        O::CallDynamic { dispatch, .. } => match dispatch {
-            abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch) => functions
-                .get(&dynamic_dispatch.dispatch.realization)
-                .is_some_and(|callee| {
-                    structural_arguments_match(
-                        caller,
-                        operation.psi_operation(),
-                        std::slice::from_ref(&dynamic_dispatch.initial.source),
-                        &callee.structural_parameters,
-                        types,
-                        domains,
-                        StructuralProjectionPolicy::Projected,
-                    ) && structural_arguments_match(
-                        caller,
-                        operation.psi_operation(),
-                        std::slice::from_ref(&dynamic_dispatch.rebound.source),
-                        &callee.structural_parameters,
-                        types,
-                        domains,
-                        StructuralProjectionPolicy::Projected,
-                    )
-                }),
-            abstract_operations::AbstractDynamicDispatch::Stored(dynamic_dispatch) => functions
-                .get(&dynamic_dispatch.dispatch.realization)
-                .is_some_and(|callee| {
-                    structural_arguments_match(
-                        caller,
-                        operation.psi_operation(),
-                        std::slice::from_ref(&dynamic_dispatch.stored.selection.source),
-                        &callee.structural_parameters,
-                        types,
-                        domains,
-                        StructuralProjectionPolicy::Projected,
-                    )
-                }),
-            abstract_operations::AbstractDynamicDispatch::Parameter(_) => true,
-        },
-        // A structural result forwards no descriptors: stage 00 never
-        // produces that shape and no lowering admits it.
-        O::CallStructural {
-            dynamic_arguments,
-            result: AbstractStructuralCallResult::Structural { .. },
-            ..
-        } if !dynamic_arguments.is_empty() => false,
         O::CallStructural {
             result:
                 AbstractStructuralCallResult::Structural {

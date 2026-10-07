@@ -35,11 +35,7 @@ pub use atomic::{
 };
 pub mod calls;
 pub use calls::{
-    AbstractBoundaryResult, AbstractDynamicCallResult, AbstractDynamicDescriptorArgument,
-    AbstractDynamicDescriptorSource, AbstractDynamicDispatch,
-    AbstractOperationPlanWithPlacedViewInputs, AbstractParameterDynamicDispatch,
-    AbstractReboundDynamicDispatch, AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
-    AbstractStructuralCallResult,
+    AbstractBoundaryResult, AbstractOperationPlanWithPlacedViewInputs, AbstractStructuralCallResult,
 };
 pub mod control_flow;
 pub use control_flow::{

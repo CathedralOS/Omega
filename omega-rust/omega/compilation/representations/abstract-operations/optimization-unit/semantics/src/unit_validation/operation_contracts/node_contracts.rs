@@ -3,7 +3,6 @@ use crate::unit_validation::operation_contracts::scalar_types::operation_scalar_
 use crate::unit_validation::operation_contracts::service_calls::{
     operation_service_contract_matches, operation_structural_call_contract_matches,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_unit::{PsiOptimizationFunction, ValueDefinition};
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
@@ -23,15 +22,13 @@ pub(super) fn validate_node_operation_contracts(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    if !stored_dynamic_contract_matches(function, block, node_index, &node.operation)
-        || !operation_scalar_types_match(
-            function,
-            &node.operation,
-            definitions,
-            functions,
-            boundary_machines,
-        )
-    {
+    if !operation_scalar_types_match(
+        function,
+        &node.operation,
+        definitions,
+        functions,
+        boundary_machines,
+    ) {
         return Err(
             OptimizationUnitValidationError::ScalarOperationContractMismatch {
                 machine: function.machine,
@@ -72,60 +69,4 @@ pub(super) fn validate_node_operation_contracts(
         );
     }
     Ok(())
-}
-
-fn stored_dynamic_contract_matches(
-    function: &PsiOptimizationFunction,
-    block: &optimization_unit::OptimizationBlock,
-    node_index: usize,
-    operation: &O,
-) -> bool {
-    let stores =
-        function
-            .blocks
-            .iter()
-            .flat_map(|candidate_block| {
-                candidate_block.nodes.iter().enumerate().filter_map(
-                    move |(candidate_index, node)| match &node.operation {
-                        O::StoreDynamicDescriptor {
-                            psi_operation,
-                            stored,
-                        } => Some((candidate_block.id, candidate_index, psi_operation, stored)),
-                        _ => None,
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-    match operation {
-        O::StoreDynamicDescriptor {
-            psi_operation,
-            stored,
-        } => {
-            stored.has_complete_custody(function.machine, *psi_operation)
-                && stores
-                    .iter()
-                    .filter(|(_, _, _, candidate)| {
-                        candidate.descriptor.ordinal == stored.descriptor.ordinal
-                    })
-                    .count()
-                    == 1
-        }
-        O::CallDynamic {
-            psi_operation,
-            dispatch: abstract_operations::AbstractDynamicDispatch::Stored(dynamic_dispatch),
-            ..
-        } => {
-            dynamic_dispatch.has_complete_custody(function.machine, *psi_operation)
-                && matches!(
-                    stores
-                        .iter()
-                        .filter(|(_, _, _, stored)| *stored == &dynamic_dispatch.stored)
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                    [(store_block, store_index, _, _)]
-                        if *store_block == block.id && *store_index < node_index
-                )
-        }
-        _ => true,
-    }
 }

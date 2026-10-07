@@ -156,10 +156,6 @@ pub(super) fn structural_metadata_may_change(
             destination.place() == root
                 && terminal_semantics::structural_paths_may_overlap(path, written)
         }
-        // A call that forwards descriptors keeps the conservative answer.
-        O::CallStructural {
-            dynamic_arguments, ..
-        } if !dynamic_arguments.is_empty() => true,
         O::CallStructural {
             structural_arguments,
             ..
@@ -227,8 +223,8 @@ pub(super) fn structural_metadata_may_change(
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => false,
-        // Unresolved dynamic receivers, escaped descriptors, and other effects
-        // have no independently established disjoint write footprint here.
+        // Other effects have no independently established disjoint write
+        // footprint here.
         _ => true,
     }
 }

@@ -455,7 +455,6 @@ mod cleanup_tests {
                 .unwrap(),
                 scalar_parameters: vec![],
                 parameters: vec![],
-                dynamic_parameters: vec![],
                 entry: BlockId::new(1).unwrap(),
                 blocks: vec![target_operations::TargetControlBlock {
                     block: BlockId::new(1).unwrap(),

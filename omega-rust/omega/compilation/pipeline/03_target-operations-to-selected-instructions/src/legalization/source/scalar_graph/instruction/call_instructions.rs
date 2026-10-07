@@ -5,12 +5,10 @@ use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOper
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
-use legalized_operations::LegalizedDynamicParameterCall;
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstructionKind, NativeCallOrigin,
 };
 use semantic_vocabulary::OperationId;
-use target_operations::TargetUnitScalarHomeRequirement;
 
 pub(super) fn project_call_structural(
     node: &optimization_unit::OptimizationNode,
@@ -305,96 +303,4 @@ pub(super) fn project_call(
         })
     };
     Ok(kind)
-}
-
-/// One indirect requirement invocation through the function's own borrowed
-/// descriptor parameter. The retained contract is recomputed from the
-/// signature roster, the dispatch row, and the target ABI — the stored target
-/// operation is never read back here, and its own replay checks equality.
-pub(super) fn project_dynamic_parameter_call(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let (
-        psi_operation,
-        dynamic_dispatch,
-        expected_result,
-        result_home,
-        requirement_obligations,
-        crash_continuations,
-    ) = match &node.operation {
-        AbstractOperation::CallDynamic {
-            psi_operation,
-            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch),
-            result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            let shape = scalar_graph_input::scalar_shape(result.scalar_type)
-                .ok_or_else(|| Error::custody())?;
-            (
-                *psi_operation,
-                dynamic_dispatch,
-                Some(result.scalar_type),
-                Some(TargetUnitScalarHomeRequirement {
-                    defining_operation: *psi_operation,
-                    source_value: result.value,
-                    scalar_type: result.scalar_type,
-                    shape,
-                }),
-                requirement_obligations,
-                crash_continuations,
-            )
-        }
-        AbstractOperation::CallDynamic {
-            psi_operation,
-            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch),
-            result: abstract_operations::AbstractDynamicCallResult::Unit,
-            requirement_obligations,
-            crash_continuations,
-        } => (
-            *psi_operation,
-            dynamic_dispatch,
-            None,
-            None,
-            requirement_obligations,
-            crash_continuations,
-        ),
-        _ => unreachable!("dispatched project_dynamic_parameter_call"),
-    };
-    let function = native
-        .functions
-        .iter()
-        .find(|function| function.machine == optimized.machine)
-        .ok_or_else(|| Error::custody())?;
-    let contract = scalar_graph_input::indirect_calls::parameter_call_contract(
-        &function.graph.dynamic_parameters,
-        optimized.machine,
-        psi_operation,
-        dynamic_dispatch,
-        expected_result,
-        native.target,
-    )?;
-    if contract
-        .dispatch_call_plan
-        .result
-        .as_ref()
-        .map(|placement| placement.shape)
-        != result_home.map(|home| home.shape)
-    {
-        return Err(Error::custody());
-    }
-    Ok(LegalizedScalarInstructionKind::DynamicParameterCall(
-        LegalizedDynamicParameterCall {
-            dynamic_dispatch: dynamic_dispatch.clone(),
-            parameter_abi: contract.parameter_abi,
-            requirement: contract.requirement,
-            dispatch_call_plan: contract.dispatch_call_plan,
-            table_slot_byte_offset: contract.table_slot_byte_offset,
-            result_home,
-            requirement_obligations: requirement_obligations.clone(),
-            crash_continuations: crash_continuations.clone(),
-        },
-    ))
 }

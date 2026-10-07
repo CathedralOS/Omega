@@ -322,10 +322,6 @@ pub(super) fn project(
         } => call_instructions::project_call_unit(
             node, optimized, native, plan, unit, operation, custody,
         )?,
-        AbstractOperation::CallDynamic {
-            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
-            ..
-        } => call_instructions::project_dynamic_parameter_call(node, optimized, native)?,
         AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_byte_store(
                 node, optimized, unit, custody,

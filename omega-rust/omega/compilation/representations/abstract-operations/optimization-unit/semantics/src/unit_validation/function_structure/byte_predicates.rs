@@ -486,8 +486,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
         escapes || (operation.psi_operation() != Some(consumer)
             && (may_change_owned_source(operation, source)
                 || matches!(operation, Operation::EstablishReference { source: argument, .. } | Operation::EstablishElementView { source: argument, .. } if argument.place == source)
-                || matches!(operation, Operation::ByteSequenceSubslice { source: viewed, .. } if *viewed == source)
-                || matches!(operation, Operation::CallDynamic { .. })))
+                || matches!(operation, Operation::ByteSequenceSubslice { source: viewed, .. } if *viewed == source)))
     }) { return None; }
     Some(field.field_type.byte_predicates())
 }
@@ -790,9 +789,6 @@ fn may_change_owned_source(operation: &Operation, source: PlaceId) -> bool {
         Operation::StructuralScalarFieldStore { destination, .. } => destination.place() == source,
         Operation::StoreStructuralField { destination, .. } => destination.place() == source,
         Operation::MoveStructuralField { source: moved, .. } => moved.place() == source,
-        Operation::CallStructural {
-            dynamic_arguments, ..
-        } if !dynamic_arguments.is_empty() => true,
         Operation::CallStructural {
             structural_arguments,
             ..

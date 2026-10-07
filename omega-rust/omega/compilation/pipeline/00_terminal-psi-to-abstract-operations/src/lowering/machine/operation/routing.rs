@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use abstract_operations::AbstractOperation;
-use terminal_psi::{OperationKind, TerminalDynamicDispatchCatalog, TerminalMachine};
+use terminal_psi::{OperationKind, TerminalMachine};
 
 use super::{
     LoweredAffineLocal, ScalarType, StructuralLiteral, arithmetic, atomic_events, boolean,
@@ -19,8 +19,6 @@ pub(super) fn lower(
     block: &terminal_psi::Block,
     machine: &TerminalMachine,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
-    closed_conformance_applications: &[terminal_psi::ClosedConformanceApplication],
     value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     byte_sequence_literals: &[StructuralLiteral<'_>],
     unit_affine_locals: &[StructuralLiteral<'_>],
@@ -458,17 +456,12 @@ pub(super) fn lower(
                 obligation: *obligation,
             })
         }
-        OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
-            Ok(AbstractOperation::StoreDynamicDescriptor {
-                psi_operation: operation.id,
-                stored: calls::lower_stored_descriptor(
-                    machine,
-                    operation,
-                    *descriptor_ordinal,
-                    dynamic_dispatch,
-                    closed_conformance_applications,
-                )?,
-            })
+        OperationKind::StoreDynamicDescriptor { .. }
+        | OperationKind::CallDynamicScalar { .. }
+        | OperationKind::CallDynamicParameterScalar { .. }
+        | OperationKind::CallDynamicUnit { .. }
+        | OperationKind::CallDynamicParameterUnit { .. } => {
+            Err(LoweringError::UnsupportedDynamicDispatch(machine.id))
         }
         OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishStructuralArray { .. }
@@ -490,18 +483,10 @@ pub(super) fn lower(
         ),
         OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
-        | OperationKind::CallDynamicScalar { .. }
-        | OperationKind::CallDynamicParameterScalar { .. }
-        | OperationKind::CallDynamicUnit { .. }
-        | OperationKind::CallDynamicParameterUnit { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::CallStructuralWithScalarArguments { .. }
-        | OperationKind::BoundaryCall { .. } => calls::lower(
-            operation,
-            machine,
-            dynamic_dispatch,
-            closed_conformance_applications,
-        ),
+        | OperationKind::BoundaryCall { .. }
+        | OperationKind::Call { .. } => calls::lower(operation, machine),
         OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
             effects::lower(operation, machine, structural_types, value_types)
         }
@@ -525,12 +510,6 @@ pub(super) fn lower(
             structural_types,
             *source,
             abstract_operations::StructuralCopyPath::Case(path.clone()),
-        ),
-        OperationKind::Call { .. } => calls::lower(
-            operation,
-            machine,
-            dynamic_dispatch,
-            closed_conformance_applications,
         ),
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
         OperationKind::IeeeFloatCompare { .. }

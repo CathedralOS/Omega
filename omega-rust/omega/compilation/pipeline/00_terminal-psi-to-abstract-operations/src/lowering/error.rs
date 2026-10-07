@@ -73,9 +73,10 @@ pub enum LoweringError {
     InvalidElementViewLength(semantic_vocabulary::OperationId),
     InvalidElementViewRead(semantic_vocabulary::OperationId),
     InvalidElementViewSubslice(semantic_vocabulary::OperationId),
-    /// Independent Terminal-to-Omega projection could not rejoin one exact
-    /// descriptor, its initializer/latest selections, and its indirect row.
-    InvalidDynamicCall(semantic_vocabulary::OperationId),
+    /// The machine uses the retired data-attached dynamic route, which has
+    /// no abstract lowering; the named-implementation selector route
+    /// replaces it.
+    UnsupportedDynamicDispatch(MachineId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// write-only parameter, its storage path or array shape, the u64 runtime
     /// index, or the preceding scalar definition.
@@ -86,9 +87,6 @@ pub enum LoweringError {
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// shared parameter root, integer field, and typed scalar result.
     InvalidIntegerStructuralField(semantic_vocabulary::OperationId),
-    /// The dynamic-call representation has no combined scalar-and-descriptor
-    /// argument carrier yet. Ordinary Unit calls retain scalar arguments.
-    UnsupportedUnitCallScalarAndDynamicArguments(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// mutable-borrowed parameter root, declared structural field type, or
     /// the result/value custody rows a restoration window requires.

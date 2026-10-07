@@ -379,8 +379,7 @@ fn operation_observations(
         operation: operation.clone(),
     };
     match operation {
-        O::DynamicDescriptorParameter { .. }
-        | O::IntegerConstant { .. }
+        O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. }
@@ -414,7 +413,6 @@ fn operation_observations(
         // memory-ordering event. None of them may be erased or reordered
         // into ordinary scalar computation.
         | O::AtomicEvent { .. }
-        | O::StoreDynamicDescriptor { .. }
         | O::EstablishScalarArray { .. } | O::EstablishStructuralArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishByteSequenceConcatenation { .. }
@@ -449,7 +447,6 @@ fn operation_observations(
         | O::StructuralByteSequenceFieldRead { .. }
         | O::StructuralScalarFieldRead { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallStructural { .. }
-        | O::CallDynamic { .. }
         | O::Call { .. } => (vec![event(C::InternalCall)], May, May),
         O::BoundaryCall { .. } => (vec![event(C::BoundaryCall)], May, May),
         O::PortWrite { .. } => (vec![event(C::Service)], No, No),

@@ -107,10 +107,6 @@ pub(crate) fn realize(
             // here instead of spelling unverifiable evidence.
             let structural_call = matches!(node.operation, O::CallStructural { .. });
             let crash_custody = match &node.operation {
-                // No admission lane moves a call that forwards descriptors.
-                O::CallStructural {
-                    dynamic_arguments, ..
-                } if !dynamic_arguments.is_empty() => None,
                 O::Call {
                     callee,
                     crash_continuations,

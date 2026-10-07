@@ -137,7 +137,7 @@ rows. Parameter/result sources and unrelated live roots remain distinct.
 This stage retaining an operation does not establish its native implementation.
 The next stages accept Unit, scalar, and structural functions through one graph.
 Executable cleanup, claim-bearing continuations, projected qualifications,
-installed-provider calls, and descriptor forwarding require their complete
+and installed-provider calls require their complete
 ordinary operation and proof joins; missing support rejects. No flat
 whole-function or no-code structural-return alternative supplies that support.
 
@@ -230,15 +230,9 @@ and proof joins are implemented.
 The [dynamic-dispatch contract](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
 owns selection identity, forwarding roles, and complete tables. Its governing
 model is runtime selection of named implementations with separately supplied
-data arguments. The former instance/table descriptor, subject erasure and
-receiver adapters are migration debt under
-`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION`; they must not constrain the source
-contract or be retained as a compatibility path. Reconstruction
-starts in [dynamic_dispatch.rs](src/lowering/machine/operation/calls/dynamic_dispatch.rs).
-Retain whole closed applications, not just the selected callable. Changing an
-unselected row must still change identity and fail stale replay.
-
-Descriptor transport and checked selection do not establish native indirect-call
-execution. Immutable-table calls still require the exact descriptor, table, slot,
-relocation, call/return, and resource joins on the common graph. Missing joins
-reject; there is no direct-selection or transparent-hop native fallback.
+data arguments. This stage has no dynamic lowering: the retired instance/table
+descriptor route was deleted, and the named-implementation selector route
+under `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` replaces it. Retain whole
+closed applications, not just the selected callable. Changing an unselected row
+must still change identity and fail stale replay. Missing joins reject; there
+is no direct-selection or transparent-hop native fallback.

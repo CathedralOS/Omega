@@ -62,17 +62,10 @@ pub(super) fn validate(
         AbstractFunctionResult::Scalar(_) => {
             let expected =
                 super::super::header::function_abi(native.target, function, abstracted, optimized)?;
-            // `scalar_abi` is only emitted for functions without descriptor
-            // parameters; with them, the graph header is the sole signature
-            // record and the roster rows carry the descriptor bindings.
-            if let Some(abi) = &function.scalar_abi {
-                if graph.call_plan != expected
-                    || graph.scalar_parameters != abi.parameters
-                    || !graph.dynamic_parameters.is_empty()
-                {
-                    return Err(LegalizationError::custody());
-                }
-            } else if graph.call_plan != expected || graph.dynamic_parameters.is_empty() {
+            let Some(abi) = &function.scalar_abi else {
+                return Err(LegalizationError::custody());
+            };
+            if graph.call_plan != expected || graph.scalar_parameters != abi.parameters {
                 return Err(LegalizationError::custody());
             }
             if !graph.parameters.is_empty()
@@ -111,20 +104,11 @@ pub(super) fn validate(
                     actual.value != expected.value || actual.scalar_type != expected.scalar_type
                 })
             || (source.id == optimized.entry && !source.parameters.is_empty())
-            || source
-                .nodes
-                .iter()
-                .filter(|node| !super::super::indirect_calls::is_descriptor_declaration(node))
-                .count()
-                != body.len() + 1
+            || source.nodes.len() != body.len() + 1
         {
             return Err(LegalizationError::custody());
         }
-        let source_nodes: Vec<_> = source
-            .nodes
-            .iter()
-            .filter(|node| !super::super::indirect_calls::is_descriptor_declaration(node))
-            .collect();
+        let source_nodes: Vec<_> = source.nodes.iter().collect();
         let mut available = sources::available(graph, optimized, &dominators, block.block);
         let mut custody = block_entries
             .get(&block.block)

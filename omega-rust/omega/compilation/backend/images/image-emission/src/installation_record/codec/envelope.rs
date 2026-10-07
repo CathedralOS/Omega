@@ -3,9 +3,6 @@
 use crate::installation_record::codec::boundary_settlement::{
     decode_boundary_settlements, encode_boundary_settlements,
 };
-use crate::installation_record::codec::dynamic_conformance::{
-    decode_dynamic_conformance_custody, encode_dynamic_conformance_custody,
-};
 use crate::installation_record::codec::function::{decode_functions, encode_functions};
 use crate::installation_record::codec::installation_header::{
     DecodedInstallationHeader, decode_installation_header, encode_installation_header,
@@ -99,17 +96,6 @@ pub fn encode_installation_record(
         internal_unit_scalar_call_count,
         &record.internal_unit_scalar_calls,
     )?;
-    encode_dynamic_conformance_custody(
-        &mut bytes,
-        &record.dynamic_conformance_tables,
-        &record.dynamic_calls,
-        &record.stored_dynamic_calls,
-        &record.forwarded_dynamic_descriptor_adapters,
-        &record.forwarded_dynamic_descriptor_tables,
-        &record.forwarded_dynamic_descriptor_calls,
-        &record.dynamic_parameter_calls,
-        &record.forwarded_dynamic_parameter_calls,
-    )?;
     encode_semantic_code_attributions(
         &mut bytes,
         semantic_code_attribution_count,
@@ -139,16 +125,6 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
     let structural_returns = decode_structural_returns(&mut reader)?;
     let internal_unit_calls = decode_internal_unit_calls(&mut reader)?;
     let internal_unit_scalar_calls = decode_internal_unit_scalar_calls(&mut reader)?;
-    let (
-        dynamic_conformance_tables,
-        dynamic_calls,
-        stored_dynamic_calls,
-        forwarded_dynamic_descriptor_adapters,
-        forwarded_dynamic_descriptor_tables,
-        forwarded_dynamic_descriptor_calls,
-        dynamic_parameter_calls,
-        forwarded_dynamic_parameter_calls,
-    ) = decode_dynamic_conformance_custody(&mut reader)?;
     let semantic_code_attribution = decode_semantic_code_attributions(&mut reader)?;
     let port_effects = decode_port_effects(&mut reader)?;
     let boundary_settlements = decode_boundary_settlements(&mut reader)?;
@@ -169,14 +145,6 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         structural_returns,
         internal_unit_calls,
         internal_unit_scalar_calls,
-        dynamic_conformance_tables,
-        dynamic_calls,
-        stored_dynamic_calls,
-        forwarded_dynamic_descriptor_adapters,
-        forwarded_dynamic_descriptor_tables,
-        forwarded_dynamic_descriptor_calls,
-        dynamic_parameter_calls,
-        forwarded_dynamic_parameter_calls,
         semantic_code_attribution,
         port_effects,
         boundary_settlements,

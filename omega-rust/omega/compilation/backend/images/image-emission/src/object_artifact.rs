@@ -20,13 +20,10 @@ pub(crate) mod stack_demand;
 
 pub use carriers::{
     ObjectArtifact, ObjectBoundarySettlement, ObjectByteLiteralAddress, ObjectByteLiteralPool,
-    ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectDynamicConformanceSlot,
-    ObjectDynamicConformanceTable, ObjectForeignCall, ObjectForwardedDynamicDescriptorAdapter,
-    ObjectForwardedDynamicDescriptorSlot, ObjectForwardedDynamicDescriptorTable, ObjectFunction,
+    ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectForeignCall, ObjectFunction,
     ObjectPortEffect, ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack,
     ObjectUnitStack,
 };
-pub(crate) use construction::same_dynamic_table_application;
 pub(crate) use construction::text_emission::emit_private_functions;
 pub use construction::{
     build_admitted_x86_fma_object_artifact, build_feature_required_x86_fma_object_artifact,

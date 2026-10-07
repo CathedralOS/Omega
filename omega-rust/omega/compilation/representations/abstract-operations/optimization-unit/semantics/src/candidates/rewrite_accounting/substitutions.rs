@@ -121,14 +121,11 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
                 E::Load { .. } | E::Fence { .. } => {}
             }
         }
-        O::DynamicDescriptorParameter { .. }
-        | O::StoreDynamicDescriptor { .. }
-        | O::EstablishByteSequenceConcatenation { .. }
+        O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
-        | O::CallDynamic { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }

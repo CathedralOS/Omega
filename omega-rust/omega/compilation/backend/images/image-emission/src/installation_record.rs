@@ -21,7 +21,6 @@ mod record_validation;
 #[cfg(test)]
 mod resource_tests;
 mod semantic_code_attribution;
-mod unit_dynamic_descriptor_join;
 
 pub use codec::envelope::{decode_installation_record, encode_installation_record};
 pub use installation_errors::InstallationError;
@@ -33,14 +32,9 @@ pub use record_construction::{
 };
 pub use record_types::{
     ImageFingerprint, InitializedDataFingerprint, InstallationFingerprint, InstallationRecord,
-    InstalledCompilerPrivateFunction, InstalledComponentProgress, InstalledDynamicCall,
-    InstalledDynamicConformanceSlot, InstalledDynamicConformanceTable,
-    InstalledDynamicParameterCall, InstalledForeignCallStack,
-    InstalledForwardedDynamicDescriptorAdapter, InstalledForwardedDynamicDescriptorCall,
-    InstalledForwardedDynamicDescriptorSlot, InstalledForwardedDynamicDescriptorTable,
-    InstalledForwardedDynamicParameterCall, InstalledFunction, InstalledImageSections,
-    InstalledInternalUnitCall, InstalledInternalUnitScalarCall, InstalledStoredDynamicCall,
-    InstalledStructuralReturn, SelectedProviderPlanReportIdentity,
+    InstalledCompilerPrivateFunction, InstalledComponentProgress, InstalledForeignCallStack,
+    InstalledFunction, InstalledImageSections, InstalledInternalUnitCall,
+    InstalledInternalUnitScalarCall, InstalledStructuralReturn, SelectedProviderPlanReportIdentity,
 };
 pub use record_validation::{installation_fingerprint, validate_installation_record};
 
@@ -63,10 +57,7 @@ use target::{Architecture, ObjectFormat};
 use target_operations::{BoundaryRealization, CallSiteOwner};
 use terminal_psi::{StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape};
 
-use codec::fingerprint::fingerprint_initialized_data;
-
 use installed_unit_scalar_transport::{
-    installed_forwarded_dynamic_scalar_result_is_canonical,
     installed_function_scalar_transport_is_canonical, validate_installed_unit_scalar_calls,
     validate_installed_unit_structural_scalar_field_stores,
     validate_installed_unit_write_only_primitive_stores,
@@ -80,7 +71,6 @@ use codec::structural::scalar::{
 };
 use codec::structural::types::{decode_structural_types, encode_structural_types};
 use codec::wire::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
-use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 
 /// The current vocabulary includes owned incoming stack pointers and AArch64's
 /// dedicated indirect-result register. Earlier envelopes cannot carry those roles.

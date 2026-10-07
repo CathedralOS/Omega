@@ -8,7 +8,6 @@ use crate::current_ownership::{
     CurrentOwnership, LiveClaim, consume_edge_sources, establish_edge_parameters,
 };
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
     OptimizationBlock, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     PsiOptimizationFunction,
@@ -418,13 +417,6 @@ pub(super) fn validate_current_ownership_cfg(
                 O::EstablishCase { .. }
                 | O::EstablishRecord { .. }
                 | O::EstablishStructuralArray { .. } => record_arguments.as_slice(),
-                // A Unit call that forwards descriptors is not replayed here;
-                // the scalar-result call is replayed in both forms.
-                O::CallStructural {
-                    dynamic_arguments,
-                    result: AbstractStructuralCallResult::Unit,
-                    ..
-                } if !dynamic_arguments.is_empty() => &[],
                 O::CallStructural {
                     structural_arguments,
                     ..
@@ -436,12 +428,6 @@ pub(super) fn validate_current_ownership_cfg(
                 // A window repair consumes its value exactly like one owned
                 // whole call argument: live-owned custody in, once.
                 O::StoreStructuralField { value, .. } => std::slice::from_ref(value),
-                O::CallDynamic {
-                    dispatch:
-                        abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
-                    result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
-                    ..
-                } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
                 _ => &[],
             };
             let parameter_multiplicities = match &node.operation {
@@ -482,22 +468,7 @@ pub(super) fn validate_current_ownership_cfg(
                         )?,
                     ]
                 }
-                O::CallStructural {
-                    dynamic_arguments,
-                    result: AbstractStructuralCallResult::Unit,
-                    ..
-                } if !dynamic_arguments.is_empty() => Vec::new(),
                 O::CallStructural { callee, .. } => functions[callee]
-                    .structural_parameters
-                    .iter()
-                    .map(|parameter| parameter.multiplicity)
-                    .collect::<Vec<_>>(),
-                O::CallDynamic {
-                    dispatch:
-                        abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
-                    result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
-                    ..
-                } => functions[&dynamic_dispatch.dispatch.realization]
                     .structural_parameters
                     .iter()
                     .map(|parameter| parameter.multiplicity)
@@ -653,11 +624,6 @@ pub(super) fn validate_current_ownership_cfg(
                 });
             }
             let transferred = match &node.operation {
-                O::CallStructural {
-                    dynamic_arguments,
-                    result: AbstractStructuralCallResult::Unit,
-                    ..
-                } if !dynamic_arguments.is_empty() => Vec::new(),
                 O::CallStructural {
                     claim_transfers, ..
                 } => claim_transfers

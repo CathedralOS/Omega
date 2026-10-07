@@ -116,50 +116,14 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         O::BoundaryCall {
             structural_arguments,
             ..
+        }
+        | O::CallStructural {
+            structural_arguments,
+            ..
         } => structural_arguments
             .iter()
             .map(|argument| argument.place)
             .collect(),
-        // Capture reads the selected source now; a later stored dispatch uses
-        // that retained descriptor, not a fresh read of this source name.
-        O::StoreDynamicDescriptor { stored, .. } => vec![stored.selection.source.place],
-        O::CallStructural {
-            structural_arguments,
-            dynamic_arguments,
-            ..
-        } => {
-            let mut places = structural_arguments
-                .iter()
-                .map(|argument| argument.place)
-                .collect::<Vec<_>>();
-            for argument in dynamic_arguments {
-                match &argument.source {
-                    abstract_operations::AbstractDynamicDescriptorSource::Selection {
-                        selection,
-                        ..
-                    } => places.push(selection.source.place),
-                    abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                        initial,
-                        rebound,
-                        ..
-                    } => {
-                        places.push(initial.source.place);
-                        places.push(rebound.source.place);
-                    }
-                    abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {}
-                }
-            }
-            places
-        }
-        // Only a rebound descriptor's two selection sources join here; a
-        // stored descriptor's source is not required at the call.
-        O::CallDynamic {
-            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
-            ..
-        } => vec![
-            dynamic_dispatch.initial.source.place,
-            dynamic_dispatch.rebound.source.place,
-        ],
         O::ByteSequenceStore {
             destination,
             source,

@@ -4,7 +4,7 @@
 //! A field remains attached to its carrier until the consumer resolves geometry;
 //! this description does not assume that names on distinct edges are disjoint.
 
-use crate::{AbstractDynamicDispatch, AbstractOperation};
+use crate::AbstractOperation;
 use semantic_vocabulary::{PlaceId, StructuralFieldId};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
@@ -52,10 +52,6 @@ impl AbstractOperation {
                 structural_arguments,
                 ..
             } => exclusive(structural_arguments),
-            Self::CallDynamic {
-                dispatch: AbstractDynamicDispatch::Rebound(dispatch),
-                ..
-            } => exclusive(std::slice::from_ref(&dispatch.rebound.source)),
             Self::EstablishReference { source, .. } | Self::EstablishElementView { source, .. } => {
                 exclusive(std::slice::from_ref(source))
             }
