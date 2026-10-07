@@ -129,20 +129,13 @@ pub(crate) fn derive_early_clobbers(
                 operand: definition.operand,
             });
         }
-        let block = liveness
-            .blocks
-            .iter()
-            .find(|block| {
-                block
-                    .instructions
-                    .iter()
-                    .any(|instruction| instruction.instruction == definition.instruction)
-            })
-            .ok_or(LiveRangeError::UnsupportedEarlyClobber {
+        let block = defining_block(liveness, definition).ok_or(
+            LiveRangeError::UnsupportedEarlyClobber {
                 function,
                 instruction: definition.instruction.0,
                 operand: definition.operand,
-            })?;
+            },
+        )?;
         let uses = unrelated
             .into_iter()
             // Other definitions interfere at the ordinary after point, even
@@ -220,16 +213,8 @@ pub(crate) fn derive_tied_pairs(
                 operand: definition.operand,
             });
         }
-        let block = liveness
-            .blocks
-            .iter()
-            .find(|block| {
-                block
-                    .instructions
-                    .iter()
-                    .any(|instruction| instruction.instruction == definition.instruction)
-            })
-            .ok_or(LiveRangeError::UnsupportedTiedOperand {
+        let block =
+            defining_block(liveness, definition).ok_or(LiveRangeError::UnsupportedTiedOperand {
                 function,
                 instruction: definition.instruction.0,
                 operand: definition.operand,
@@ -249,4 +234,17 @@ pub(crate) fn derive_tied_pairs(
     }
     pairs.sort_unstable();
     Ok(pairs)
+}
+
+/// The liveness block carrying `definition`'s instruction.
+fn defining_block<'liveness>(
+    liveness: &'liveness selected_instructions::FunctionLiveness,
+    definition: &selected_instructions::OperandPosition,
+) -> Option<&'liveness selected_instructions::BlockLiveness> {
+    liveness.blocks.iter().find(|block| {
+        block
+            .instructions
+            .iter()
+            .any(|instruction| instruction.instruction == definition.instruction)
+    })
 }
