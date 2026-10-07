@@ -762,20 +762,7 @@ fn ensures_result_interval(program: &TypedTrees, machine: &Machine, entry: &Stat
         .chain(program.state_contracts(entry))
         .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
-    for fact in ensures {
-        let ProofFact::Expression(expression) = fact else {
-            continue;
-        };
-        let mut conjuncts = vec![*expression];
-        while let Some(conjunct) = conjuncts.pop() {
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
-            else {
-                continue;
-            };
-            if binary.operator == BinaryOperator::And {
-                conjuncts.extend([binary.left, binary.right]);
-                continue;
-            }
+    each_proof_conjunct(program, ensures, |_, binary| {
             for (subject, operand, subject_on_left) in [
                 (binary.left, binary.right, true),
                 (binary.right, binary.left, false),
@@ -791,8 +778,7 @@ fn ensures_result_interval(program: &TypedTrees, machine: &Machine, entry: &Stat
                     ));
                 }
             }
-        }
-    }
+    });
     interval
 }
 
@@ -822,20 +808,7 @@ fn requires_interval(
         .chain(program.state_contracts(state))
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
-    for fact in requires {
-        let ProofFact::Expression(expression) = fact else {
-            continue;
-        };
-        let mut conjuncts = vec![*expression];
-        while let Some(conjunct) = conjuncts.pop() {
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
-            else {
-                continue;
-            };
-            if binary.operator == BinaryOperator::And {
-                conjuncts.extend([binary.left, binary.right]);
-                continue;
-            }
+    each_proof_conjunct(program, requires, |conjunct, binary| {
             let builtin = match binary.operator {
                 BinaryOperator::Equal => super::guard_narrowing::has_builtin_equality(
                     program,
@@ -851,7 +824,7 @@ fn requires_interval(
                 ),
             };
             if !builtin {
-                continue;
+                return;
             }
             for (subject, operand, subject_on_left) in [
                 (binary.left, binary.right, true),
@@ -876,7 +849,33 @@ fn requires_interval(
                     ));
                 }
             }
+    });
+    interval
+}
+
+/// Visit each non-`And` binary conjunct inside the proof facts' expression
+/// terms — the `And`-splitting walk both parameter-bound readers share.
+fn each_proof_conjunct<'program>(
+    program: &'program TypedTrees,
+    facts: impl Iterator<Item = &'program ProofFact>,
+    mut visit: impl FnMut(ExpressionHandle, &'program typed_trees::expression::TableBinaryExpression),
+) {
+    for fact in facts {
+        let ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let mut conjuncts = vec![*expression];
+        while let Some(conjunct) = conjuncts.pop() {
+            let ExpressionNode::Binary(binary) =
+                program.expression_table.expression(conjunct)
+            else {
+                continue;
+            };
+            if binary.operator == BinaryOperator::And {
+                conjuncts.extend([binary.left, binary.right]);
+                continue;
+            }
+            visit(conjunct, binary);
         }
     }
-    interval
 }
