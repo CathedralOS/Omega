@@ -160,6 +160,27 @@ pub(crate) fn check_bounded_assignment<'program>(
 /// Calls and transitions are unconditional consumption points. Reads of the
 /// place and writes that may alias it also close the window. Pure work over
 /// disjoint places may occur between the opening write and its repair.
+/// The shared atom leg of the dependent-bound discharge: the argument's
+/// symbolic maximum must restate this field at a tighter-or-equal floor and
+/// the state must preserve the field.
+fn dependent_atom_proves(
+    proof_plan: &ProofPlan,
+    argument_constraints: arena::HandleSpan<crate::obligations::ProofConstraint>,
+    machine: &str,
+    state: &str,
+    max_field: &typed_trees::name::Identifier,
+    minimum: i64,
+    max_offset: i64,
+) -> bool {
+    symbolic_max_from_constraints(type_constraints(proof_plan, argument_constraints)).is_some_and(
+        |(arg_min, arg_field, arg_offset)| {
+            arg_field.as_str() == max_field.as_str()
+                && arg_offset <= max_offset
+                && arg_min >= minimum
+        },
+    ) && state_preserves_field(proof_plan, machine, state, max_field)
+}
+
 fn assignment_is_overwritten_before_consumption(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
@@ -528,19 +549,14 @@ pub(crate) fn check_bounded_call_argument(
         // Route (c), as on transitions: a same-field tighter-or-equal
         // dependent argument forwards (self-receiver keeps `self.<field>`
         // the same place).
-        let argument_atom = symbolic_max_from_constraints(type_constraints(
+        let atom_proves = dependent_atom_proves(
             proof_plan,
             obligation.argument_constraints,
-        ));
-        let atom_proves = argument_atom.is_some_and(|(arg_min, arg_field, arg_offset)| {
-            arg_field.as_str() == max_field.as_str()
-                && arg_offset <= max_offset
-                && arg_min >= minimum
-        }) && state_preserves_field(
-            proof_plan,
             obligation.machine.as_str(),
             obligation.state.as_str(),
             max_field,
+            minimum,
+            max_offset,
         );
         let proven = self_receiver
             && (atom_proves
@@ -707,19 +723,14 @@ pub(crate) fn check_bounded_transition_argument(
         // forwarded into `k: [0..=self.count]`; the exclusive sugar's -1
         // offset forwards into the inclusive form). Transitions stay within
         // one machine, so the field is the same place.
-        let argument_atom = symbolic_max_from_constraints(type_constraints(
+        let atom_proves = dependent_atom_proves(
             proof_plan,
             obligation.argument_constraints,
-        ));
-        let atom_proves = argument_atom.is_some_and(|(arg_min, arg_field, arg_offset)| {
-            arg_field.as_str() == max_field.as_str()
-                && arg_offset <= max_offset
-                && arg_min >= minimum
-        }) && state_preserves_field(
-            proof_plan,
             obligation.machine.as_str(),
             obligation.state.as_str(),
             max_field,
+            minimum,
+            max_offset,
         );
         let lower_proven = atom_proves || argument_range.minimum >= BigInt::from_i64(minimum);
         let upper_proven = atom_proves
