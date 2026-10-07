@@ -356,28 +356,17 @@ fn selected_named_statement_callable_symbol(
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
-    if !call.target_symbol.is_valid() && call.receiver.is_empty() {
-        return named_machine_overload_family_symbol(
-            program,
-            call.target.as_str(),
-            source_span,
-            expected_result,
-            diagnostics,
-        );
-    }
-    if provisional_target_is_named_non_operator_callable(
+    if let Some(resolution) = named_callable_resolution(
         program,
         machine_overloads,
         call.target_symbol,
+        call.receiver.is_empty(),
+        call.target.as_str(),
+        source_span,
+        expected_result,
+        diagnostics,
     ) {
-        return selected_named_callable_symbol(
-            program,
-            machine_overloads,
-            call.target_symbol,
-            source_span,
-            expected_result,
-            diagnostics,
-        );
+        return resolution;
     }
     if let Some(provisional) = program.operators().iter().find(|operator| {
         operator.symbol == call.target_symbol && operator.is_boundary && operator.spelling.is_none()
@@ -448,28 +437,17 @@ fn selected_named_expression_callable_symbol(
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
-    if !call.target_symbol.is_valid() && !call.receiver.is_valid() {
-        return named_machine_overload_family_symbol(
-            program,
-            call.target.as_str(),
-            source_span,
-            expected_result,
-            diagnostics,
-        );
-    }
-    if provisional_target_is_named_non_operator_callable(
+    if let Some(resolution) = named_callable_resolution(
         program,
         machine_overloads,
         call.target_symbol,
+        !call.receiver.is_valid(),
+        call.target.as_str(),
+        source_span,
+        expected_result,
+        diagnostics,
     ) {
-        return selected_named_callable_symbol(
-            program,
-            machine_overloads,
-            call.target_symbol,
-            source_span,
-            expected_result,
-            diagnostics,
-        );
+        return resolution;
     }
     if program.operators().iter().any(|operator| {
         operator.symbol == call.target_symbol && operator.is_boundary && operator.spelling.is_none()
@@ -530,6 +508,48 @@ fn selected_named_expression_callable_symbol(
         diagnostics,
         "requirement",
     )
+}
+
+/// The named-callable admission shared by statement and expression calls:
+/// a targetless unnamed call resolves through the machine overload family;
+/// a provisional target naming a non-operator callable resolves directly.
+/// `receiver_missing` is each call shape's own empty-receiver test; the
+/// admitted branch's own verdict rides the inner `Option` so a declining
+/// family lookup still ends the caller early.
+fn named_callable_resolution(
+    program: &TypedTrees,
+    machine_overloads: &MachineOverloadIndex,
+    target_symbol: SymbolHandle,
+    receiver_missing: bool,
+    target_name: &str,
+    source_span: SourceSpan,
+    expected_result: Option<TypeReferenceHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<Option<SymbolHandle>> {
+    if !target_symbol.is_valid() && receiver_missing {
+        return Some(named_machine_overload_family_symbol(
+            program,
+            target_name,
+            source_span,
+            expected_result,
+            diagnostics,
+        ));
+    }
+    if provisional_target_is_named_non_operator_callable(
+        program,
+        machine_overloads,
+        target_symbol,
+    ) {
+        return Some(selected_named_callable_symbol(
+            program,
+            machine_overloads,
+            target_symbol,
+            source_span,
+            expected_result,
+            diagnostics,
+        ));
+    }
+    None
 }
 
 fn provisional_target_is_named_non_operator_callable(
