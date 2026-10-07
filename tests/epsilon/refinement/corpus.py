@@ -28,7 +28,6 @@ MAIN_ONLY = CONSOLE + b"""data Main {
 
 """
 
-
 def swap(old, new):
     def apply(source):
         count = source.count(old)
@@ -38,20 +37,11 @@ def swap(old, new):
     apply.__name__ = f"{old!r} -> {new!r}"
     return apply
 
-
-def insert_at(offset, data):
-    def apply(source):
-        return source[:offset] + data + source[offset:]
-    apply.__name__ = f"insert {data!r} at {offset}"
-    return apply
-
-
 def drop_last(n):
     def apply(source):
         return source[:-n]
     apply.__name__ = f"drop last {n} bytes"
     return apply
-
 
 def chain(*mutations):
     def apply(source):
@@ -61,13 +51,11 @@ def chain(*mutations):
     apply.__name__ = " -> ".join(m.__name__ for m in mutations)
     return apply
 
-
 def append(data):
     def apply(source):
         return source + data
     apply.__name__ = f"append {data!r}"
     return apply
-
 
 # --- Programs -----------------------------------------------------------------
 
