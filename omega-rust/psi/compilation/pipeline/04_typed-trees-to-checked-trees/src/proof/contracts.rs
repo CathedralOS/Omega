@@ -1,3 +1,18 @@
+/// The next free lane position for this contract fact kind.
+fn next_contract_lane_position(
+    kind: ContractProofFactKind,
+    requires_position: &mut usize,
+    ensures_position: &mut usize,
+) -> usize {
+    let counter = match kind {
+        ContractProofFactKind::Requires => requires_position,
+        ContractProofFactKind::Ensures => ensures_position,
+    };
+    let position = *counter;
+    *counter += 1;
+    position
+}
+
 use checked_trees::CheckedEvidenceTerm;
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
 use symbols::SymbolHandle;
@@ -97,18 +112,11 @@ pub(crate) fn append_machine_contract_facts(
         };
         for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
             let evidence_term = contract.binding.as_ref().map(|binding| {
-                let lane_position = match kind {
-                    ContractProofFactKind::Requires => {
-                        let position = requires_position;
-                        requires_position += 1;
-                        position
-                    }
-                    ContractProofFactKind::Ensures => {
-                        let position = ensures_position;
-                        ensures_position += 1;
-                        position
-                    }
-                };
+                let lane_position = next_contract_lane_position(
+                    kind,
+                    &mut requires_position,
+                    &mut ensures_position,
+                );
                 let typed_trees::domain::ProofFact::Proposition(application) =
                     program.proof_facts.get(fact)
                 else {
@@ -282,18 +290,11 @@ pub(crate) fn append_state_signature_contract_facts(
             };
             for fact in crate::proof::proposition_vocabulary::fact_handles(contract.facts) {
                 let evidence_term = contract.binding.as_ref().map(|binding| {
-                    let lane_position = match kind {
-                        ContractProofFactKind::Requires => {
-                            let position = requires_position;
-                            requires_position += 1;
-                            position
-                        }
-                        ContractProofFactKind::Ensures => {
-                            let position = ensures_position;
-                            ensures_position += 1;
-                            position
-                        }
-                    };
+                    let lane_position = next_contract_lane_position(
+                        kind,
+                        &mut requires_position,
+                        &mut ensures_position,
+                    );
                     let typed_trees::domain::ProofFact::Proposition(application) =
                         program.proof_facts.get(fact)
                     else {
