@@ -5,7 +5,6 @@ import hashlib
 from lexical import BOOLEAN_TABLES, HEX_BYTES
 from wire import clause, function, record, theory
 
-
 def partial_records():
     """The accepted 8-sort/284-constructor/57-function theory records."""
     constructors = [record(1, 0)] * 256 + [record(2, 0)] * 2
@@ -64,23 +63,11 @@ def partial_records():
     functions.append(function((5, 5), (clause(templates, 277, 10),), mode=1, result=8))
     return constructors, functions
 
-
-def partial_theory():
-    constructors, functions = partial_records()
-    return theory(constructors, functions, sorts=8)
-
-
 def complete_theory():
     """The 18-sort/361-constructor/107-function error-valued package."""
     import encoding
     constructors, functions = partial_records()
     return encoding.section_bytes(constructors, functions)
-
-
-def complete_identity():
-    package = complete_theory()
-    return len(package), hashlib.sha256(package).hexdigest()
-
 
 def fixed_identity():
     package = complete_theory()
