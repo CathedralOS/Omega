@@ -1,3 +1,4 @@
+use psi::parse::clause;
 use psi::parse::data;
 use psi::parse::expression;
 use psi::parse::input;
@@ -65,6 +66,8 @@ pub data Parser {
     machine_parameter_count: u64 in Trapping;
     machine_has_return_type: bool;
     machine_return_type: u64 in Trapping;
+    machine_first_clause: u64 in Trapping;
+    machine_clause_count: u64 in Trapping;
     machine_first_statement: u64 in Trapping;
     machine_statement_count: u64 in Trapping;
     machine_first_state: u64 in Trapping;
@@ -107,6 +110,9 @@ pub data Parser {
     pattern_first_field: u64 in Trapping;
     pattern_field_start: u64 in Trapping;
     pattern_field_end: u64 in Trapping;
+    clause_first: u64 in Trapping;
+    clause_start: u64 in Trapping;
+    clause_first_member: u64 in Trapping;
     case_start: u64 in Trapping;
     case_keyword_end: u64 in Trapping;
     case_name_start: u64 in Trapping;

@@ -40,6 +40,7 @@ class Observation:
     statements: tuple[tuple[int, ...], ...] = ()
     arms: tuple[tuple[int, ...], ...] = ()
     pattern_fields: tuple[tuple[int, ...], ...] = ()
+    clauses: tuple[tuple[int, ...], ...] = ()
 
 
 class Reader:
@@ -193,6 +194,8 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
             reader.byte(),
             reader.u64(),
             reader.u64(),
@@ -308,6 +311,19 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    clauses = tuple(
+        (
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
     assert reader.cursor == len(payload), "trailing parser observation bytes"
     return Observation(
         accepted,
@@ -332,6 +348,7 @@ def decode(payload: bytes) -> Observation:
         statements,
         arms,
         pattern_fields,
+        clauses,
     )
 
 
@@ -1166,6 +1183,8 @@ def main() -> None:
             parameter_count,
             0 if return_type < 0 else 1,
             max(return_type, 0),
+            0,
+            0,
             first_statement,
             statement_count,
             first_state,
@@ -1245,7 +1264,7 @@ def main() -> None:
         program, "machine-states", source,
         ((3, 0, 1, 0, 64),), (), (),
         type_references=(named(source, b"u64"), named(source, b"u8", 1), named(source, b"u8", 2)),
-        machines=((0, 1, 0, 0, 1, 8, 11, 0, 1, 0, 0, 0, 0, 0, 2, 0, 1, 0, 64),),
+        machines=((0, 1, 0, 0, 1, 8, 11, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 64),),
         parameters=((1, 12, 13, 0, 1, 12, 18), (1, 33, 34, 1, 1, 33, 38)),
         states=(
             (1, 28, 32, 1, 1, 1, 2, 0, 0, 1, 22, 48),
@@ -1270,7 +1289,7 @@ def main() -> None:
         ((1, 0, 1, 16, 22),),
         ((1, 16, 17, 0, 1, 16, 22),),
         type_references=(named(source, b"u8"),),
-        machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 25, 39),),
+        machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 25, 39),),
     )
     source = b"data View { target: &Record; }"
     accepted(
@@ -1298,7 +1317,7 @@ def main() -> None:
     rejected(program, "machine-parameter-domain", b"machine f(a: u8 in) {}", 31, (18, 19))
     rejected(program, "machine-return-type", b"machine f() -> {}", 46, (15, 16))
     rejected(program, "machine-bodyless", b"machine f();", 47, (11, 12))
-    rejected(program, "machine-clause", b"machine f() reaches Console {}", 47, (12, 19))
+    rejected(program, "machine-unknown-clause", b"machine f() decreases n {}", 47, (12, 21))
     rejected(program, "machine-unsupported-statement", b"machine f() { if x {} }", 48, (14, 16))
     rejected(program, "machine-body-end-at-end", b"machine f() {", 48, (13, 13))
     rejected(program, "state-name", b"machine f() { state }", 49, (20, 21))
@@ -1627,6 +1646,62 @@ def main() -> None:
         ),
     )
     for name, source, diagnostic, span, counts in transition_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    # Machine clauses: rows carry the kind (reaches 1, invokes 2, suspends 3,
+    # blocks 4, crashes 5, requires 6, ensures 7), member range, crash cause
+    # tag, fact expression handle and span; the machine row keeps their range.
+    def clauses(
+        name: str,
+        source: bytes,
+        expected: tuple[tuple[int, ...], ...],
+        members: tuple[tuple[int, int, int], ...],
+        expression_count: int,
+        clause_range: tuple[int, int],
+    ) -> None:
+        status, payload = run(program, source)
+        assert status == 0, f"{name}: status {status}"
+        actual = decode(payload)
+        assert actual.clauses == expected, f"{name}:\n{actual.clauses}"
+        assert actual.members == members, f"{name}:\n{actual.members}"
+        assert len(actual.expressions) == expression_count, f"{name}:\n{actual.expressions}"
+        assert actual.machines[0][11:13] == clause_range, f"{name}:\n{actual.machines}"
+
+    clauses(
+        "operational-clauses",
+        b"machine f() reaches Console, Clock + Log invokes Console; crashes Trap blocks; suspends; {}",
+        (
+            (1, 0, 3, 1, 0, 1, 12, 40),
+            (2, 3, 1, 1, 0, 1, 41, 57),
+            (5, 0, 0, 1, 0, 1, 58, 70),
+            (4, 4, 0, 1, 0, 1, 71, 78),
+            (3, 4, 0, 1, 0, 1, 79, 88),
+        ),
+        ((1, 20, 27), (1, 29, 34), (1, 37, 40), (1, 49, 56)),
+        0,
+        (0, 5),
+    )
+    clauses(
+        "fact-clauses",
+        b"machine f(n: u64) requires n < 9 ensures n > 0 crashes Abort {}",
+        (
+            (6, 0, 0, 1, 2, 1, 18, 32),
+            (7, 0, 0, 1, 5, 1, 33, 46),
+            (5, 0, 0, 2, 0, 1, 47, 60),
+        ),
+        ((1, 27, 28), (1, 41, 42)),
+        6,
+        (0, 3),
+    )
+    clause_rejections = (
+        ("reach-service", b"machine f() reaches {}", 92, (20, 21), {}),
+        ("invokes-binding", b"machine f() invokes ;", 93, (20, 21), {}),
+        ("invokes-end", b"machine f() invokes A {}", 94, (22, 23), {"member_count": 1}),
+        ("blocks-end", b"machine f() blocks {}", 94, (19, 20), {}),
+        ("requires-fact", b"machine f() requires {}", 95, (21, 22), {}),
+        ("crashes-cause", b"machine f() crashes Halt {}", 79, (20, 24), {}),
+    )
+    for name, source, diagnostic, span, counts in clause_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
     # Body rejections keep the nodes completed before the rejected token.

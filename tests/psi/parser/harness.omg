@@ -221,6 +221,11 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedPatternFieldEnd -> parse_diagnostic(parser_harness, output, 89)
             ParseDiagnosticCode::ArmCapacityExceeded -> parse_diagnostic(parser_harness, output, 90)
             ParseDiagnosticCode::PatternFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 91)
+            ParseDiagnosticCode::ExpectedReachService -> parse_diagnostic(parser_harness, output, 92)
+            ParseDiagnosticCode::ExpectedInvokesBinding -> parse_diagnostic(parser_harness, output, 93)
+            ParseDiagnosticCode::ExpectedClauseEnd -> parse_diagnostic(parser_harness, output, 94)
+            ParseDiagnosticCode::ExpectedClauseFact -> parse_diagnostic(parser_harness, output, 95)
+            ParseDiagnosticCode::ClauseCapacityExceeded -> parse_diagnostic(parser_harness, output, 96)
         }
     }
 
@@ -713,8 +718,8 @@ machine ParserHarness::write_parse_observation(
 
 // The machine, parameter and state tables follow the generic parameters.
 // Machine rows carry the owner flag and span, the name, the parameter range,
-// the return-type flag and handle, the entry statement range, the state
-// range, the visibility flag and the span. Parameter rows carry the name,
+// the return-type flag and handle, the clause range, the entry statement
+// range, the state range, the visibility flag and the span. Parameter rows carry the name,
 // type-reference handle and span. State rows carry the name, parameter range,
 // return-type flag and handle, statement range and span.
 machine ParserHarness::write_machine_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
@@ -740,6 +745,8 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.parameter_count);
         ParserHarness::write_flag(parser_harness, item.has_return_type);
         ParserHarness::write_u64(parser_harness, item.return_type);
+        ParserHarness::write_u64(parser_harness, item.first_clause);
+        ParserHarness::write_u64(parser_harness, item.clause_count);
         ParserHarness::write_u64(parser_harness, item.first_statement);
         ParserHarness::write_u64(parser_harness, item.statement_count);
         ParserHarness::write_u64(parser_harness, item.first_state);
@@ -808,8 +815,9 @@ crashes Trap
 // value handle, span), statements (kind tag, name, mutability, type handle,
 // value flag and handle, assignment target, crash cause tag, arm range,
 // span), transition arms (pattern kind tag, pattern handle, field range,
-// target handle, terminal flag, span) and pattern fields (name, value flag
-// and handle, span).
+// target handle, terminal flag, span), pattern fields (name, value flag and
+// handle, span) and machine clauses (kind tag, member range, crash cause tag,
+// fact handle, span).
 machine ParserHarness::write_body_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
 reaches Console
 crashes Trap
@@ -1040,8 +1048,62 @@ crashes Trap
     state pattern_field_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.pattern_field_count {
             true -> write_pattern_field(parser_harness, output, index)
+            _ -> clause_count(parser_harness, output)
+        }
+    }
+
+    state clause_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.clause_count as u64 in Trapping);
+        transition { _ -> clause_row(parser_harness, output, 0) }
+    }
+
+    state clause_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.clause_count {
+            true -> write_clause(parser_harness, output, index)
             _ -> done()
         }
+    }
+
+    state write_clause(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let clause: MachineClause = SyntaxTrees::clause(output, index);
+        transition clause.kind {
+            ClauseKind::Reaches -> clause_kind(parser_harness, output, index, clause, 1)
+            ClauseKind::Invokes -> clause_kind(parser_harness, output, index, clause, 2)
+            ClauseKind::Suspends -> clause_kind(parser_harness, output, index, clause, 3)
+            ClauseKind::Blocks -> clause_kind(parser_harness, output, index, clause, 4)
+            ClauseKind::Crashes -> clause_kind(parser_harness, output, index, clause, 5)
+            ClauseKind::Requires -> clause_kind(parser_harness, output, index, clause, 6)
+            ClauseKind::Ensures -> clause_kind(parser_harness, output, index, clause, 7)
+        }
+    }
+
+    state clause_kind(
+        parser_harness: &mut ParserHarness,
+        output: &SyntaxTrees,
+        index: u64 in Trapping,
+        clause: MachineClause,
+        tag: u8
+    ) {
+        ParserHarness::write_byte(parser_harness, tag);
+        ParserHarness::write_u64(parser_harness, clause.first_member);
+        ParserHarness::write_u64(parser_harness, clause.member_count);
+        transition clause.cause {
+            CrashCause::Trap -> clause_cause(parser_harness, output, index, clause, 1)
+            CrashCause::Abort -> clause_cause(parser_harness, output, index, clause, 2)
+        }
+    }
+
+    state clause_cause(
+        parser_harness: &mut ParserHarness,
+        output: &SyntaxTrees,
+        index: u64 in Trapping,
+        clause: MachineClause,
+        tag: u8
+    ) {
+        ParserHarness::write_byte(parser_harness, tag);
+        ParserHarness::write_u64(parser_harness, clause.expression);
+        ParserHarness::write_source_span(parser_harness, clause.source_span);
+        transition { _ -> clause_row(parser_harness, output, index + 1) }
     }
 
     state write_pattern_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {

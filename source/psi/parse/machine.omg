@@ -1,3 +1,4 @@
+use psi::parse::clause;
 use psi::parse::input;
 use psi::parse::parser;
 use psi::parse::statement;
@@ -6,10 +7,11 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // Machine-declaration grammar attached to the parser owner:
-// `[pub] machine [Owner::]name [(parameters)] [-> Type] { statements state* }`.
-// The entry's statements precede the `state` members; statement.omg owns
-// their grammar. Machine generics, clauses and bodyless declarations reject
-// at their first token, with the diagnostic of the element expected there.
+// `[pub] machine [Owner::]name [(parameters)] [-> Type] clauses { statements
+// state* }`. clause.omg owns the clauses and statement.omg the statements;
+// the entry's statements precede the `state` members. Machine generics and
+// bodyless declarations reject at their first token, with the diagnostic of
+// the element expected there.
 pub machine Parser::parse_machine(
     parser: &mut Parser,
     input: &TokenStream,
@@ -72,16 +74,26 @@ crashes Trap
     state signature(parser: &mut Parser, input: &TokenStream) {
         Parser::parse_signature(parser, input);
         transition parser.output.accepted {
+            true -> clauses(parser, input)
+            _ -> done()
+        }
+    }
+
+    state clauses(parser: &mut Parser, input: &TokenStream) {
+        parser.machine_first_parameter = parser.signature_first_parameter;
+        parser.machine_parameter_count = parser.signature_parameter_count;
+        parser.machine_has_return_type = parser.signature_has_return_type;
+        parser.machine_return_type = parser.signature_return_type;
+        Parser::parse_machine_clauses(parser, input);
+        transition parser.output.accepted {
             true -> body(parser, input)
             _ -> done()
         }
     }
 
     state body(parser: &mut Parser, input: &TokenStream) {
-        parser.machine_first_parameter = parser.signature_first_parameter;
-        parser.machine_parameter_count = parser.signature_parameter_count;
-        parser.machine_has_return_type = parser.signature_has_return_type;
-        parser.machine_return_type = parser.signature_return_type;
+        parser.machine_first_clause = parser.clause_first;
+        parser.machine_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
         Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace,
             ParseDiagnosticCode::ExpectedMachineBody
         );
@@ -153,6 +165,8 @@ crashes Trap
             parameter_count: parser.machine_parameter_count,
             has_return_type: parser.machine_has_return_type,
             return_type: parser.machine_return_type,
+            first_clause: parser.machine_first_clause,
+            clause_count: parser.machine_clause_count,
             first_statement: parser.machine_first_statement,
             statement_count: parser.machine_statement_count,
             first_state: parser.machine_first_state,

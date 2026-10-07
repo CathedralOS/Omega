@@ -247,6 +247,29 @@ pub data Statement [copy] {
     source_span: SourceSpan;
 }
 
+// One machine clause between the signature and the body. `Reaches` names
+// services and `Invokes` a binding, both in `SyntaxTrees::members`; `Crashes`
+// records its cause; `Requires` and `Ensures` hold a fact expression;
+// `Suspends` and `Blocks` carry nothing more.
+pub data ClauseKind [copy] {
+    case Reaches;
+    case Invokes;
+    case Suspends;
+    case Blocks;
+    case Crashes;
+    case Requires;
+    case Ensures;
+}
+
+pub data MachineClause [copy] {
+    kind: ClauseKind;
+    first_member: u64 in Trapping;
+    member_count: u64 in Trapping;
+    cause: CrashCause;
+    expression: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
 // A named state member of a machine body. Its parameters are a contiguous
 // range of `SyntaxTrees::parameters`.
 pub data StateItem [copy] {
@@ -273,6 +296,8 @@ pub data MachineItem [copy] {
     parameter_count: u64 in Trapping;
     has_return_type: bool;
     return_type: u64 in Trapping;
+    first_clause: u64 in Trapping;
+    clause_count: u64 in Trapping;
     first_statement: u64 in Trapping;
     statement_count: u64 in Trapping;
     first_state: u64 in Trapping;
@@ -386,6 +411,11 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedPatternFieldEnd;
     case ArmCapacityExceeded;
     case PatternFieldCapacityExceeded;
+    case ExpectedReachService;
+    case ExpectedInvokesBinding;
+    case ExpectedClauseEnd;
+    case ExpectedClauseFact;
+    case ClauseCapacityExceeded;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -432,6 +462,8 @@ pub data SyntaxTrees {
     arm_count: u64 [0..=1024];
     pattern_fields: [PatternField; 512] in Trapping;
     pattern_field_count: u64 [0..=512];
+    clauses: [MachineClause; 512] in Trapping;
+    clause_count: u64 [0..=512];
     diagnostic: ParseDiagnostic;
     accepted: bool;
 }
@@ -456,6 +488,7 @@ pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId)
     syntax_trees.statement_count = 0;
     syntax_trees.arm_count = 0;
     syntax_trees.pattern_field_count = 0;
+    syntax_trees.clause_count = 0;
     syntax_trees.accepted = true;
     syntax_trees.diagnostic.code = ParseDiagnosticCode::None;
     syntax_trees.diagnostic.source_span.source = source;
@@ -748,6 +781,23 @@ crashes Trap
     }
 
     state invalid() -> PatternField {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::clause(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> MachineClause
+crashes Trap
+{
+    transition handle < syntax_trees.clause_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.clauses[handle]
+    }
+
+    state invalid() -> MachineClause {
         crash Trap;
     }
 }
