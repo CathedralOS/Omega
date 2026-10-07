@@ -184,22 +184,14 @@ pub(super) fn validate_receiver_call(
                 .find(|signature| signature.name == call.target)
         })
     {
-        validate_result_use(
+        validate_signature_result_and_arguments(
             program,
             call,
-            &signature.name,
-            signature.return_type,
-            diagnostics,
-        );
-        validate_call_arguments_handles(
-            program,
+            signature,
             current_machine,
             current_state,
             value_environment,
             arguments,
-            &signature.name,
-            program.state_signature_parameters(signature),
-            None,
             writable_roots,
             diagnostics,
         );
@@ -207,6 +199,42 @@ pub(super) fn validate_receiver_call(
     }
 
     validate_resolved_receiver_call(scope, arguments, false, diagnostics);
+}
+
+/// Result-use and argument validation every resolved receiver signature
+/// shares; the boundary rung adds native-callback destination selection on
+/// top of it.
+#[allow(clippy::too_many_arguments)]
+fn validate_signature_result_and_arguments(
+    program: &TypedTrees,
+    call: &TableCall,
+    signature: &StateSignature,
+    current_machine: &typed_trees::machine::Machine,
+    current_state: Option<&typed_trees::state::State>,
+    value_environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
+    arguments: &[ExpressionHandle],
+    writable_roots: &crate::value_custody::locals::WritableRoots<'_, '_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_result_use(
+        program,
+        call,
+        &signature.name,
+        signature.return_type,
+        diagnostics,
+    );
+    validate_call_arguments_handles(
+        program,
+        current_machine,
+        current_state,
+        value_environment,
+        arguments,
+        &signature.name,
+        program.state_signature_parameters(signature),
+        None,
+        writable_roots,
+        diagnostics,
+    );
 }
 
 /// The exact target owns the call's signature. Namespace and runtime-place
@@ -286,24 +314,16 @@ fn validate_resolved_receiver_call(
         return true;
     }
     if let Some(signature) = boundary_trait_call_signature(program, current_machine, call) {
-        validate_result_use(
-            program,
-            call,
-            &signature.name,
-            signature.return_type,
-            diagnostics,
-        );
         // Runtime formals only: native callback destinations live outside
         // `parameters` and are joined to their selections below.
-        validate_call_arguments_handles(
+        validate_signature_result_and_arguments(
             program,
+            call,
+            signature,
             current_machine,
             current_state,
             value_environment,
             arguments,
-            &signature.name,
-            program.state_signature_parameters(signature),
-            None,
             writable_roots,
             diagnostics,
         );
