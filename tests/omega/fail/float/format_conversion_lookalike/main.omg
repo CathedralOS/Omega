@@ -1,0 +1,4 @@
+use omega::language::core::float_operations;
+
+machine from_f64(value: f64) -> f32 { 2.0 }
+machine lookalike(value: f64) -> f32[0.1..=0.1] { from_f64(value) }

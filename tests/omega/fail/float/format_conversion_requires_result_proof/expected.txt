@@ -1,0 +1,3 @@
+constructor field `amount`
+bounded parameter `value` for `consume`
+bounded return type in `unknown.entry`

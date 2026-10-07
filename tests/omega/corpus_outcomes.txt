@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "3", "load1_end": 2.57, "load1_start": 2.62, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1102,6 +1102,14 @@ fail/float/finite_store_invalidated rejected 491ms expected @ca8c127c90c5
 	cannot prove transition argument `sample.value` satisfies `finite` for bounded parameter `value` in `inspect.entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 57ms expected @2d8ed253669f
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
+fail/float/format_conversion_exclusive_upper rejected 527ms expected @c9e4c60b2906+wt
+	cannot prove return value `F32.from_f64(value)` satisfies bounded return type in `exclusive.entry`; expected 0..1
+fail/float/format_conversion_lookalike rejected 526ms expected @c9e4c60b2906+wt
+	cannot prove return value `__hoist_34` satisfies bounded return type in `lookalike.entry`; expected 0.10000000149011612..=0.10000000149011612
+fail/float/format_conversion_requires_result_proof rejected 469ms expected @c9e4c60b2906+wt
+	cannot prove initializer `F32.from_f64(huge())` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
+	cannot prove call argument `F32.from_f64(huge())` satisfies `finite` for bounded parameter `value` for `consume` in `overflow.entry`
+	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
 fail/float/local_initializer_range_unproven rejected 666ms expected @9ef088fc5f88+wt
 	cannot prove initializer `20.0` satisfies the bounded value of machine `literal` state `entry` local `bounded`; expected 0..=0.5
 	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
@@ -2783,6 +2791,7 @@ pass/float/runtime_float_call_same_carrier_cast_exit checked 9730ms check-target
 pass/float/runtime_float_digit_separators_exit checked 88080ms check-target:macos_arm64 @e129ea486356
 pass/float/runtime_float_integer_conversion_boundaries_exit checked 4633ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_float_to_integer_policy_casts_exit checked 4840ms check-target:macos_arm64 @2d8ed253669f
+pass/float/runtime_format_conversion_result_bounds_exit checked 4706ms check-target:macos_arm64 @c9e4c60b2906+wt
 pass/float/runtime_named_float_to_integer_conversion_exit checked 6246ms check-target:macos_arm64 @921839635ad
 pass/float/runtime_named_fma_sequence_exit checked 16819ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_named_format_conversion_exit checked 6217ms check-target:macos_arm64 @2d8ed253669f

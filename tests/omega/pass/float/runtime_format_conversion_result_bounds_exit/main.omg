@@ -1,0 +1,18 @@
+use omega::language::core::float_operations;
+
+machine sample() -> f64[0.1..=0.1] { 0.1 }
+
+machine rounded() -> f32[0.1..=0.1] { F32::from_f64(sample()) }
+
+machine open_window(value: f64[0.0..1.0]) -> f64[0.0..1.0] { value }
+
+machine main() crashes Trap {
+    let value: f32[0.1..=0.1] = rounded();
+    let inside: f64[0.0..1.0] = open_window(0.5);
+    transition value == 0.1f32 && inside == 0.5f64 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

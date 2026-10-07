@@ -2,6 +2,9 @@
 //! binary operators, selected builtin extrema, and named facts. Authored
 //! lookalikes supply only their own checked result guarantees; a leaf spelling
 //! never licenses builtin operand closure.
+//! Format conversion transports value facts through its rounded result. Source
+//! finiteness and ordered bounds are not predicates about the same value after
+//! narrowing; destination annotations remain demands, never conversion premises.
 
 use crate::obligations::plan::ConstraintBuffer;
 use crate::obligations::ranges::{
@@ -61,6 +64,22 @@ pub(crate) fn expression_constraints(
                 return constraints;
             }
 
+            if let Some(operator) =
+                typed_trees::operator::resolve_named_expression_call(program, call)
+                && let Some((source, target)) =
+                    validation::float_format_conversion_contract(program, operator)
+                && let [operand] = program.expression_table.expression_handles(call.arguments)
+            {
+                let mut constraints =
+                    collect_constraints_in_state(program, machine, state, operator.return_type);
+                constraints.extend(converted_float_constraints(
+                    &expression_constraints(program, machine, state, *operand),
+                    source,
+                    target,
+                    program.arithmetic_domain_for_type_reference(operator.return_type),
+                ));
+                return constraints;
+            }
             if let Some(return_type) = call_expression_return_type(program, machine, state, call) {
                 return collect_constraints_in_state(program, machine, state, return_type);
             }
@@ -128,6 +147,79 @@ pub(crate) fn expression_constraints(
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::ZeroValue(_) => ConstraintBuffer::new(),
     }
+}
+
+fn float_format(primitive: PrimitiveType) -> Option<numerics::float_semantics::FloatFormat> {
+    match primitive {
+        PrimitiveType::F32 => Some(numerics::float_semantics::FloatFormat::BINARY32),
+        PrimitiveType::F64 => Some(numerics::float_semantics::FloatFormat::BINARY64),
+        _ => None,
+    }
+}
+
+/// IEEE nearest-even conversion is monotone on ordered values, but narrowing
+/// can merge values at an exclusive endpoint or overflow to infinity. Round
+/// both endpoints through the shared executable meaning and close a narrowed
+/// upper bound. A finite-only source supplies its own carrier extent, not the
+/// destination's extent; only finite converted endpoints establish finiteness.
+/// Same-format and widening conversions preserve strictness because they are
+/// exact on their source carrier. No target refinement enters this derivation.
+fn converted_float_constraints(
+    source_constraints: &ConstraintBuffer,
+    source: PrimitiveType,
+    target: PrimitiveType,
+    domain: numerics::arithmetic::ArithmeticDomain,
+) -> ConstraintBuffer {
+    use numerics::float_semantics::{FloatMeaning, FloatSemantics};
+
+    let mut constraints = ConstraintBuffer::new();
+    if domain != numerics::arithmetic::ArithmeticDomain::Exact {
+        constraints.push(ProofConstraint::ArithmeticDomain(domain));
+    }
+    let Some(target_format) = float_format(target) else {
+        return constraints;
+    };
+    let mut source_range = float_range_from_constraints(source_constraints);
+    if constraints_prove_finite(source_constraints) {
+        let largest = match source {
+            PrimitiveType::F32 => f64::from(f32::MAX),
+            PrimitiveType::F64 => f64::MAX,
+            _ => return constraints,
+        };
+        let finite = crate::obligations::FloatRange {
+            minimum: -largest,
+            maximum: largest,
+            maximum_inclusive: true,
+        };
+        source_range = Some(source_range.map_or(finite, |range| range.intersect(finite)));
+    }
+    let Some(source_range) = source_range else {
+        // An unqualified float can be NaN; an ordered range would exclude it.
+        return constraints;
+    };
+    let minimum =
+        FloatSemantics::convert(target_format, &FloatMeaning::from_f64(source_range.minimum))
+            .to_f64();
+    let maximum =
+        FloatSemantics::convert(target_format, &FloatMeaning::from_f64(source_range.maximum))
+            .to_f64();
+    let narrowed = source == PrimitiveType::F64 && target == PrimitiveType::F32;
+    let converted = crate::obligations::FloatRange {
+        minimum,
+        maximum,
+        maximum_inclusive: narrowed || source_range.maximum_inclusive,
+    };
+    if converted.proves_finite() {
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
+            "finite",
+        )));
+    }
+    constraints.push(ProofConstraint::FloatRange {
+        minimum: FloatLiteral::new(converted.minimum),
+        maximum: FloatLiteral::new(converted.maximum),
+        maximum_inclusive: converted.maximum_inclusive,
+    });
+    constraints
 }
 
 pub(crate) fn collect_constraints(

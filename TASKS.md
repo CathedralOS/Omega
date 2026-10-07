@@ -3139,7 +3139,10 @@ deletions, which the commit lists.
   - Carry decisions through generated selectors and remaining
     semantic-to-storage casts. Synthesized widenings and generated scalar-graph
     casts still need exact source-decision transport. Join the exact checked
-    occurrence rather than performing another syntax walk.
+    occurrence rather than performing another syntax walk. Exact float narrowing
+    still needs unchanged-denotation proof at source checking: a helper returning
+    finite `1.0e100` currently permits `sample() as f32` into a `Finite` receiver.
+    Named rounded conversions do not authorize that Exact coercion.
   - Cover representation geometry, capacities
     and remaining bounded stores outside bounded-integer field replacements
     and interval/finite-refined element-view writes, including generated indexed
@@ -3204,6 +3207,12 @@ deletions, which the commit lists.
   finite-result guarantees and payload-preserving casts in callers and returns;
   `float/same_carrier_cast_cannot_mint_finite` and
   `float/finite_result_requires_proof` must still reject independently.
+  `float/runtime_format_conversion_result_bounds_exit` (0) constrains rounded
+  named-conversion result guarantees and strict IEEE ranges;
+  shared Terminal execution needs `TERMINAL-RUNTIME-DRIVERS`' exact host-binding
+  adapter for `F32::from_f64` (native/checked execution already works).
+  `float/format_conversion_{requires_result_proof,exclusive_upper,lookalike}`
+  must reject overflow, unknown NaN, rounded excluded ends and spelling lookalikes.
   `collections/runtime_finite_element_view_call_write_exit` (0) constrains
   finite-result stores, captured indices and ordinary float carriers;
   `float/finite_constructor_requires_operand_proof` must reject an unqualified

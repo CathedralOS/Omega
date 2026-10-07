@@ -1,0 +1,6 @@
+use omega::language::core::float_operations;
+
+// Values below the excluded binary64 endpoint can still round to 1.0f32.
+machine exclusive(value: f64[0.0..1.000000059604644775390625]) -> f32[0.0..1.0] {
+    F32::from_f64(value)
+}

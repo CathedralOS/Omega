@@ -26,7 +26,7 @@ pub(crate) fn check_range_under_non_exact_domain(
     owner: crate::value_custody::type_references::TypeReferenceOwner<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-        // Walk Reference wrappers AND nested Constrained spellings: `u8 [0..=4]
+    // Walk Reference wrappers AND nested Constrained spellings: `u8 [0..=4]
     // in Wrapping` may parse as Constrained(Constrained(u8, [Range]),
     // [Domain]), where the shallow per-node accessors see only one
     // constraint set each.
@@ -66,6 +66,12 @@ pub(crate) fn range_constraint_interval(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
+    // Integral-looking IEEE endpoints are still floating bounds. Applying an
+    // integer predecessor to their exclusive maximum would turn [0.0..1.0]
+    // into [0..=0]. The floating obligation owner retains IEEE comparisons.
+    if floating_range_carrier(program, handle) {
+        return None;
+    }
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => {
             range_constraint_interval(program, *referee)
@@ -254,6 +260,9 @@ pub(crate) fn enforced_declared_range_interval(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
+    if floating_range_carrier(program, handle) {
+        return None;
+    }
     let shells = crate::program_scope::type_shape::exact_constrained_shells(program, handle)?;
     // Every shell contributes conjunctively. Taking only the first
     // range could hide a later empty interval and authorize a store.
@@ -269,6 +278,17 @@ pub(crate) fn enforced_declared_range_interval(
             _ => None,
         })
         .reduce(Interval::intersect)
+}
+
+fn floating_range_carrier(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    crate::unwrapped_type_reference(program, reference)
+        .and_then(|carrier| program.primitive_type_reference(carrier))
+        .is_some_and(|primitive| {
+            matches!(
+                primitive,
+                typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64
+            )
+        })
 }
 
 /// Whether the type spells a BRACKETED range constraint anywhere in its

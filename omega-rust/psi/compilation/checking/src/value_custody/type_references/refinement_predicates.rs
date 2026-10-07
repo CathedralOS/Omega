@@ -20,7 +20,7 @@ pub fn scalar_type_refinement_predicates(
 /// A scalar result can use the ordinary value-return route when every
 /// refinement has a complete predicate meaning and no semantic atom needs
 /// separate result custody. This describes the contract; returning paths
-/// still owe every predicate. In particular, finite floats and integer ranges
+/// still owe every predicate. In particular, finite floats and scalar ranges
 /// share the same decoder that normal-return guarantee emission consumes.
 pub fn scalar_result_contract_is_represented(
     program: &TypedTrees,
@@ -103,6 +103,41 @@ fn scalar_type_refinements(
                     }
                     _ => return None,
                 },
+                TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                } if matches!(
+                    primitive,
+                    typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64
+                ) =>
+                {
+                    // Float endpoints retain their carrier and exclusive end;
+                    // integer predecessor arithmetic would change IEEE meaning.
+                    let minimum = crate::closed_float_range_endpoint(program, *minimum, primitive)?;
+                    let maximum = crate::closed_float_range_endpoint(program, *maximum, primitive)?;
+                    predicates.push(CheckedBooleanExpression::And {
+                        left: Box::new(CheckedBooleanExpression::ScalarIeeeFloatComparison {
+                            kind: checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual,
+                            left: Box::new(CheckedScalarExpression::IeeeFloatLiteral {
+                                value: minimum,
+                            }),
+                            right: Box::new(subject.clone()),
+                        }),
+                        right: Box::new(CheckedBooleanExpression::ScalarIeeeFloatComparison {
+                            kind: if *end_inclusive {
+                                checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual
+                            } else {
+                                checked_trees::CheckedIeeeFloatComparisonKind::LessThan
+                            },
+                            left: Box::new(subject.clone()),
+                            right: Box::new(CheckedScalarExpression::IeeeFloatLiteral {
+                                value: maximum,
+                            }),
+                        }),
+                    });
+                    continue;
+                }
                 TypeConstraintNode::Range {
                     minimum,
                     maximum,

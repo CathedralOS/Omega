@@ -154,7 +154,9 @@ fn contract_occurrence_owner(
 }
 
 /// Every callable contract in the order owner resolution visits them:
-/// machines with an entry state, then trait requirement signatures. A trait
+/// machines with an entry state, operators, then trait requirement signatures.
+/// Operators own their result guarantees even when their boundary body is
+/// absent; ignoring them leaves the result projection without an owner. A trait
 /// symbol cannot distinguish sibling requirements, and manufacturing a machine
 /// for a bodyless signature would give it the wrong result owner.
 fn callable_contracts(
@@ -189,13 +191,21 @@ fn callable_contracts(
                 )
             })
     });
-    machines
-        .chain(requirements)
-        .flat_map(|(callable, return_type, parameters, contracts)| {
+    let operators = program.operators().iter().map(|operator| {
+        (
+            operator.symbol,
+            operator.return_type,
+            program.operator_parameters(operator),
+            program.operator_contracts(operator),
+        )
+    });
+    machines.chain(operators).chain(requirements).flat_map(
+        |(callable, return_type, parameters, contracts)| {
             contracts
                 .iter()
                 .map(move |contract| (callable, return_type, parameters, contract))
-        })
+        },
+    )
 }
 
 /// Every expression node one contract's facts reach.

@@ -4,6 +4,7 @@
 //! exact signature. A similarly named operator cannot acquire projection
 //! semantics, and a drifted canonical declaration fails before facts are built.
 
+mod conversion_contracts;
 /// The sibling closed catalog: `FloatSemantics::<name>` semantic definitions,
 /// validated by the same custody rule. Its row/contract query
 /// (`semantic_operations::exact_toolchain_float_semantic_contract`) is shared
@@ -11,6 +12,7 @@
 /// query replaces the artifact verifier's independent catalog reconstruction.
 pub(crate) mod semantic_operations;
 pub(crate) mod semantic_values;
+pub use conversion_contracts::float_format_conversion_contract;
 
 use diagnostics::Diagnostic;
 use numerics::float_projection::{FloatProjectionContractIdentity, FloatProjectionOperation};
