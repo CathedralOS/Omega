@@ -215,3 +215,7 @@ pub struct ResolvedTableSnapshot {
     pub statement_count: usize,
     pub type_reference_count: usize,
 }
+
+pub(crate) fn to_strings<T: ToString>(values: impl IntoIterator<Item = T>) -> Vec<String> {
+    values.into_iter().map(|value| value.to_string()).collect()
+}

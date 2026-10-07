@@ -1,6 +1,7 @@
 //! Snapshots of machines, traits, conformances, states, signatures,
 //! contracts and parameters.
 
+use super::to_strings;
 use crate::SymbolResolvedTrees;
 use crate::machine::{Machine, OwnedData};
 use crate::signature::{StateParameter, StateSignature};
@@ -225,11 +226,7 @@ pub(crate) fn machine_snapshot(
         attached_data: machine.attached_data.as_ref().map(ToString::to_string),
         spelling: machine.spelling.map(|spelling| spelling.symbol()),
         is_public: machine.is_public,
-        lifetime_parameters: machine
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        lifetime_parameters: to_strings(machine.lifetime_parameters.iter()),
         type_parameters: program
             .machine_type_parameters(machine)
             .iter()
@@ -262,16 +259,8 @@ pub(crate) fn machine_snapshot(
             .iter()
             .map(|handle| table_expression_snapshot(program, *handle))
             .collect(),
-        ranking_view: program
-            .machine_ranking_view(machine.ranking_view)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
-        invokes: program
-            .machine_invokes(machine)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        ranking_view: to_strings(program.machine_ranking_view(machine.ranking_view).iter()),
+        invokes: to_strings(program.machine_invokes(machine).iter()),
         service_reach: service_reach_names(program, machine.service_reach_row),
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
         suspends: machine.suspends,
@@ -364,11 +353,7 @@ pub(crate) fn trait_definition_snapshot(
         name: trait_definition.name.to_string(),
         is_boundary: trait_definition.is_boundary,
         is_public: trait_definition.is_public,
-        lifetime_parameters: trait_definition
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        lifetime_parameters: to_strings(trait_definition.lifetime_parameters.iter()),
         type_parameters: program
             .trait_type_parameters(trait_definition)
             .iter()
@@ -456,11 +441,7 @@ pub(crate) fn conformance_snapshot(
             ToString::to_string,
         ),
         is_public: conformance.is_public,
-        lifetime_parameters: conformance
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        lifetime_parameters: to_strings(conformance.lifetime_parameters.iter()),
         type_parameters: program
             .data_type_parameters(conformance.type_parameters)
             .iter()
@@ -473,11 +454,7 @@ pub(crate) fn conformance_snapshot(
             .then(|| conformance.carrier_symbol.arena_index()),
         trait_name: conformance.trait_name.to_string(),
         trait_symbol: conformance.trait_symbol.arena_index(),
-        trait_lifetime_arguments: conformance
-            .trait_lifetime_arguments
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        trait_lifetime_arguments: to_strings(conformance.trait_lifetime_arguments.iter()),
         arguments: program
             .child_type_references(conformance.arguments)
             .iter()
@@ -521,11 +498,7 @@ fn state_signature_snapshot(
     StateSignatureSnapshot {
         name: signature.name.to_string(),
         spelling: signature.spelling.map(|spelling| spelling.symbol()),
-        lifetime_parameters: signature
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        lifetime_parameters: to_strings(signature.lifetime_parameters.iter()),
         type_parameters: program
             .data_type_parameters(signature.type_parameters)
             .iter()
@@ -550,11 +523,7 @@ fn state_signature_snapshot(
             .return_type
             .as_ref()
             .map(|type_reference| type_reference_snapshot(program, type_reference)),
-        invokes: program
-            .signature_invokes(signature.invokes)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        invokes: to_strings(program.signature_invokes(signature.invokes).iter()),
         service_reach: service_reach_names(program, signature.service_reach_row),
         suspends: signature.suspends,
         blocks: signature.blocks,

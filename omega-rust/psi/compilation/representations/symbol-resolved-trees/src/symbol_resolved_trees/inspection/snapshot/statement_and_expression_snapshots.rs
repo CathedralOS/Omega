@@ -1,6 +1,7 @@
 //! Snapshots of statements, transitions, match arms, expressions and static
 //! arguments.
 
+use super::to_strings;
 use crate::SymbolResolvedTrees;
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
@@ -225,12 +226,8 @@ pub(crate) fn statement_snapshot(
     match statement {
         Statement::RootBinding(binding) => StatementSnapshot::RootBinding {
             receiver: statement_expression_snapshot(program, binding.receiver),
-            slot: binding.slot.iter().map(ToString::to_string).collect(),
-            implementation: binding
-                .implementation
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            slot: to_strings(binding.slot.iter()),
+            implementation: to_strings(binding.implementation.iter()),
             implementation_operand: binding
                 .implementation_operand
                 .is_valid()
@@ -271,11 +268,7 @@ pub(crate) fn statement_snapshot(
                 .iter()
                 .map(|expression| table_expression_snapshot(program, *expression))
                 .collect(),
-            evidence_arguments: call
-                .evidence_arguments
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            evidence_arguments: to_strings(call.evidence_arguments.iter()),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
@@ -474,11 +467,7 @@ pub(crate) fn table_expression_snapshot(
                 .iter()
                 .map(|argument| table_expression_snapshot(program, *argument))
                 .collect(),
-            evidence_arguments: call
-                .evidence_arguments
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            evidence_arguments: to_strings(call.evidence_arguments.iter()),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
@@ -499,11 +488,7 @@ pub(crate) fn table_expression_snapshot(
         },
         ExpressionNode::Membership(membership) => ExpressionSnapshot::Membership {
             value: Box::new(table_expression_snapshot(program, membership.value)),
-            domain: table
-                .name_path_members(membership.domain)
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            domain: to_strings(table.name_path_members(membership.domain).iter()),
         },
         ExpressionNode::Member(member) => ExpressionSnapshot::Member {
             receiver: Box::new(table_expression_snapshot(program, member.receiver)),
@@ -514,11 +499,7 @@ pub(crate) fn table_expression_snapshot(
             value: Box::new(table_expression_snapshot(program, value.target)),
         },
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {
-            path: table
-                .name_path_members(path.members)
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            path: to_strings(table.name_path_members(path.members).iter()),
         },
         ExpressionNode::Range(range) => ExpressionSnapshot::Range {
             start: range
@@ -592,7 +573,7 @@ pub(crate) fn snapshot_static_argument(
 }
 
 fn diagnostic_name_span_snapshot(path: &[crate::name::DiagnosticName]) -> Vec<String> {
-    path.iter().map(ToString::to_string).collect()
+    to_strings(path.iter())
 }
 
 fn binary_operator_name(operator: BinaryOperator) -> &'static str {

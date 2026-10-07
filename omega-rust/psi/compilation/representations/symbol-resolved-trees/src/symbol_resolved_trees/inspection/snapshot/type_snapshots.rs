@@ -1,5 +1,6 @@
 //! Snapshots of type references, constraints and wire schemas.
 
+use super::to_strings;
 use crate::SymbolResolvedTrees;
 use crate::symbol_resolved_trees::inspection::snapshot::ExpressionSnapshot;
 use crate::symbol_resolved_trees::inspection::snapshot::declaration_snapshots::snapshot_binding_relevance;
@@ -190,11 +191,7 @@ pub(crate) fn type_reference_snapshot_from_program(
         },
         TypeReference::Generic(generic) => TypeReferenceSnapshot::Generic {
             base_name: generic.base_name.to_string(),
-            lifetime_arguments: generic
-                .lifetime_arguments
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            lifetime_arguments: to_strings(generic.lifetime_arguments.iter()),
             arguments: program
                 .child_type_references(generic.arguments)
                 .iter()
