@@ -105,20 +105,7 @@ impl Denotation {
         right: TermHandle,
         strict: bool,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = if strict {
-            self.integer_less_than()?
-        } else {
-            self.integer_less_or_equal()?
-        };
-        let relation = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function: relation,
-            argument: left,
-        });
-        Ok(self.arena.insert(Term::Apply {
-            function,
-            argument: right,
-        }))
+        self.order_term_application(strict, left, right)
     }
 
     /// Read one chain edge's cited definition axiom: `Equal(next, cast)`

@@ -744,21 +744,19 @@ impl Denotation {
         Ok(Some(denoted))
     }
 
-    /// `IntLt l r` or `IntLe l r` — the relation constant applied to the
-    /// two interned `Int` endpoints.
-    pub(super) fn integer_order_term(
+    /// `IntLt l r` or `IntLe l r` — the chosen order constant applied to
+    /// two already-interned endpoints.
+    pub(super) fn order_term_application(
         &mut self,
         strict: bool,
-        left: &IntegerMathTerm,
-        right: &IntegerMathTerm,
+        left: TermHandle,
+        right: TermHandle,
     ) -> Result<TermHandle, BoundedDenotationError> {
         let position = if strict {
             self.integer_less_than()?
         } else {
             self.integer_less_or_equal()?
         };
-        let left = self.math_term(left)?;
-        let right = self.math_term(right)?;
         let relation = self.constant(position);
         let function = self.arena.insert(Term::Apply {
             function: relation,
@@ -768,6 +766,19 @@ impl Denotation {
             function,
             argument: right,
         }))
+    }
+
+    /// `IntLt l r` or `IntLe l r` — the relation constant applied to the
+    /// two interned `Int` endpoints.
+    pub(super) fn integer_order_term(
+        &mut self,
+        strict: bool,
+        left: &IntegerMathTerm,
+        right: &IntegerMathTerm,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let left = self.math_term(left)?;
+        let right = self.math_term(right)?;
+        self.order_term_application(strict, left, right)
     }
 
     /// The denoted head and endpoints of a proposition in the integer
