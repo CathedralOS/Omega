@@ -209,15 +209,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_index_expressi
         selection,
         &GenericApplicationSubstitution::new(),
     )?;
-    let required = selected_type_label(syntax, parameter_type, selection)?;
-    if required == "Rat" {
-        validate_canonical_rat(&node)?;
-    }
-    Ok(CanonicalConstValue::new(
-        required,
-        node.encoding(),
-        node.display(),
-    ))
+    canonical_const_result(syntax, parameter_type, node, selection)
 }
 
 pub(in crate::preparation::generic_data) fn syntax_type_identity(
@@ -346,6 +338,25 @@ fn selected_constructor<'syntax>(
             "`{name}` does not select one declared constructor carrier"
         )),
     }
+}
+
+/// The shared canonical-leaf packaging: re-label the selected type, gate a
+/// `Rat` carrier through its canonical-form check, and wrap the node.
+fn canonical_const_result(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    node: CanonicalConstNode,
+    selection: Option<&ConstantSelection>,
+) -> Result<CanonicalConstValue, String> {
+    let required = selected_type_label(syntax, type_reference, selection)?;
+    if required == "Rat" {
+        validate_canonical_rat(&node)?;
+    }
+    Ok(CanonicalConstValue::new(
+        required,
+        node.encoding(),
+        node.display(),
+    ))
 }
 
 fn selected_type_label(
@@ -661,15 +672,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_selected_declaration_va
         selection,
         &substitution,
     )?;
-    let required = selected_type_label(syntax, definition.type_reference, selection)?;
-    if required == "Rat" {
-        validate_canonical_rat(&node)?;
-    }
-    Ok(CanonicalConstValue::new(
-        required,
-        node.encoding(),
-        node.display(),
-    ))
+    canonical_const_result(syntax, definition.type_reference, node, selection)
 }
 
 fn validate_selected_const_type(
