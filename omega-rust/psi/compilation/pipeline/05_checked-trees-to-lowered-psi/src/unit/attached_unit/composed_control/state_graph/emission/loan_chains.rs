@@ -21,7 +21,7 @@
 //! - **Lender home.** Exactly one state's one local lends into the chain and
 //!   that state is not itself a member. Every path into the chain passes the
 //!   lender's establishment, so its home stays in place, members keep their
-//!   exclusive views, and the chain's ends discard the home. Omega's
+//!   views, and the chain's ends discard the home. Omega's
 //!   abstract-operation ownership replay (`current_ownership/address_joins.rs`)
 //!   today disposes of a mutably joined local home only at a return, so a
 //!   chain that ends on an edge verifies here but is not yet realized natively.
@@ -35,12 +35,17 @@
 //!   block parameter (`00_terminal-psi-to-abstract-operations` admits stores
 //!   only through exclusive parameters and owned operation results).
 //!
-//! Every arrival into a chain must lend a whole local or forward a member: a
-//! caller-owned or projected loan cannot be disposed of at the chain's ends,
-//! so that join stays refused, as does re-lending a member shared or by
-//! projection into a successor, which would need the storage to outlive the
-//! state holding it. An activation-entry local lent into a chain joins it as
-//! one more lender, provided no other edge retains it as an entry home.
+//! Every exclusive member's arrival must lend a whole local or forward a
+//! member: a caller-owned or projected loan from outside cannot be disposed
+//! of at the chain's ends, so that join stays refused. A member may re-lend
+//! its storage onward, shared or exclusive, whole or by projection
+//! (`report(&parser.output)`): the successor's parameter then joins the chain
+//! as a derived member, every arrival into it must come from the chain, and
+//! its state's exits end the chain like any member's. That needs the lender
+//! home: the home outlives every name derived from it, whereas transferred
+//! storage lives in one member parameter and a projection cannot move it.
+//! An activation-entry local lent into a chain joins it as one more lender,
+//! provided no other edge retains it as an entry home.
 
 use crate::LoweringError;
 use checked_trees::{
@@ -95,7 +100,8 @@ impl LoanChain {
 /// How a successor edge lowers its argument into a chain member.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ChainArrival {
-    /// An exclusive loan of the lender's home or of the previous member.
+    /// A loan of the lender's home or of a previous member; the home stays in
+    /// place.
     Retained,
     /// An owned move of the storage itself.
     Transferred,
@@ -113,15 +119,19 @@ enum LoanSource {
     Other,
 }
 
-/// How a whole exclusive loan reaches one candidate parameter.
+/// How a loan reaches one candidate parameter.
 enum Arrival {
     Local {
         lender: usize,
         binding: u32,
     },
+    /// A whole forward of another candidate.
     Forward,
-    /// Caller-owned storage, a projected loan, or the reentered entry's
-    /// invocation arrival: storage the chain's ends cannot dispose of.
+    /// A projection below another candidate.
+    Projected,
+    /// Caller-owned storage, a projection of storage outside the chain, or
+    /// the reentered entry's invocation arrival: storage the chain's ends
+    /// cannot dispose of.
     Foreign,
 }
 
@@ -145,9 +155,15 @@ impl LoanChains {
         for (position, state) in plan.states.iter().enumerate() {
             let mut dense_nodes = Vec::with_capacity(state.structural_parameters.len());
             for (dense, parameter) in state.structural_parameters.iter().enumerate() {
+                // Shared parameters join only as derived members: they never
+                // seed a chain, but a member's loan may continue through them.
                 let candidate = live.get(position).copied().unwrap_or(false)
                     && block_owned(position)
-                    && parameter.access == CheckedStructuralAccess::MutableBorrow
+                    && matches!(
+                        parameter.access,
+                        CheckedStructuralAccess::MutableBorrow
+                            | CheckedStructuralAccess::SharedBorrow
+                    )
                     && !aliased
                         .get(position)
                         .is_some_and(|aliased| aliased.contains_key(&(dense as u32)));
@@ -229,11 +245,16 @@ impl LoanChains {
                             (None, None) => {}
                         },
                         LoanSource::ProjectedParameter(index) => {
-                            if let Some(origin) = node(source, index) {
-                                escapes[origin] = true;
-                            }
-                            if let Some(destination) = destination {
-                                arrivals[destination].push(Arrival::Foreign);
+                            match (node(source, index), destination) {
+                                (Some(origin), Some(destination)) => {
+                                    link(&mut links, origin, destination);
+                                    arrivals[destination].push(Arrival::Projected);
+                                }
+                                (Some(origin), None) => escapes[origin] = true,
+                                (None, Some(destination)) => {
+                                    arrivals[destination].push(Arrival::Foreign);
+                                }
+                                (None, None) => {}
                             }
                         }
                         LoanSource::Other => {
@@ -257,13 +278,19 @@ impl LoanChains {
             .collect::<Vec<_>>();
         // A chain exists once any arrival lends a later state's local; an
         // entry-only chain keeps the activation-entry route unchanged.
+        let exclusive = |index: usize| {
+            let (position, dense) = nodes[index];
+            plan.states[position].structural_parameters[dense as usize].access
+                == CheckedStructuralAccess::MutableBorrow
+        };
         let seeded = arrivals
             .iter()
             .enumerate()
-            .filter(|(_, arrivals)| {
-                arrivals.iter().any(|arrival| {
-                    matches!(arrival, Arrival::Local { lender, .. } if block_owned(*lender))
-                })
+            .filter(|(index, arrivals)| {
+                exclusive(*index)
+                    && arrivals.iter().any(|arrival| {
+                        matches!(arrival, Arrival::Local { lender, .. } if block_owned(*lender))
+                    })
             })
             .map(|(node, _)| roots[node])
             .collect::<BTreeSet<_>>();
@@ -285,6 +312,8 @@ impl LoanChains {
             let mut members = Vec::new();
             let mut lenders = BTreeSet::new();
             let mut multiplicity = None;
+            // A shared or projected member needs the lender home to outlive it.
+            let mut derived = false;
             for (index, &(position, dense)) in nodes.iter().enumerate() {
                 if roots[index] != root {
                     continue;
@@ -295,10 +324,20 @@ impl LoanChains {
                     ));
                 }
                 let parameter = &plan.states[position].structural_parameters[dense as usize];
+                derived |= !exclusive(index);
                 for arrival in &arrivals[index] {
                     let (lender, binding) = match arrival {
+                        Arrival::Local { .. } if !exclusive(index) => {
+                            return Err(LoweringError::Unsupported(
+                                "Unit graph state loan chain's shared member also receives a local loan",
+                            ));
+                        }
                         Arrival::Local { lender, binding } => (*lender, *binding),
                         Arrival::Forward => continue,
+                        Arrival::Projected => {
+                            derived = true;
+                            continue;
+                        }
                         Arrival::Foreign => {
                             return Err(LoweringError::Unsupported(
                                 "Unit graph state loan joins a state-local loan chain with a caller-owned or projected loan",
@@ -355,6 +394,11 @@ impl LoanChains {
                         home: None,
                         lender: *lender,
                     }
+                }
+                _ if derived => {
+                    return Err(LoweringError::Unsupported(
+                        "Unit graph state-local loan chain is re-lent beyond its exclusive members",
+                    ));
                 }
                 _ => ChainBacking::Transferred,
             };

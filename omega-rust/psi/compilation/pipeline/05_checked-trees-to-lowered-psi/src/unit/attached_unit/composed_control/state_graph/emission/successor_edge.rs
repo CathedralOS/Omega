@@ -479,8 +479,8 @@ impl StateGraphEmission<'_, '_> {
                         }
                     };
                 // A member of a later state's loan chain (`loan_chains`)
-                // either keeps an exclusive view of its one lender's home or
-                // receives the moved storage; neither retains an entry home.
+                // either keeps a view of its one lender's home or receives the
+                // moved storage; neither retains an entry home.
                 let chain_arrival = self.loan_chains.arrival(target, target_index as u32);
                 if chain_arrival.is_some()
                     && let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {

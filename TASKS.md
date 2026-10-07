@@ -5807,10 +5807,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   Current blocker: `OMEGA_CLI=<fresh debug CLI> OMEGA_TARGET=macos_arm64
   tests/psi/parser/test-parser.sh` reviews and checks the gate's three
   packages (the gate package's check takes 113 s), then Terminal production
-  refuses the gate: "Unit graph state-local loan chain is re-lent beyond its
-  exclusive members". Identify the machine and loan chain, reduce it to a
-  corpus fixture and repair that lowering on the
-  **STATE-LOCAL-VALUE-FRONTIER** route. `omega --check source/omega/main.omg`
+  refuses the gate: "record read requires a record namespace". Identify the
+  machine and read, reduce it to a corpus fixture and repair that lowering
+  on the **STATE-LOCAL-VALUE-FRONTIER** route. `omega --check source/omega/main.omg`
   is unverified on current main. Then run all 75 gate cases, keeping the
   acceptance/rejection, lexical handoff, structural identity, capacity and
   determinism controls. Keep range-proven narrowing casts.

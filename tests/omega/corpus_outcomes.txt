@@ -2557,6 +2557,7 @@ pass/control_flow/runtime_loop_patterns_exit checked 1480ms check-target:macos_a
 pass/control_flow/runtime_namespace_local_state_loan checked 834ms check-target:macos_arm64 @2ff81f36a14
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit checked 1509ms check-target:macos_arm64 @3f6c649ef545
 pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit checked 910ms check-target:macos_arm64 @3f6c649ef545
+pass/control_flow/runtime_nonentry_state_local_loan_shared_relend_exit checked 1102ms check-target:macos_arm64 @225e40d30d96+wt
 pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit checked 725ms check-target:macos_arm64 @c260ca98bc09+wt
 pass/control_flow/runtime_nonentry_state_local_record_loan_exit checked 924ms check-target:macos_arm64 @3f6c649ef545
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit checked 1704ms check-target:macos_arm64 @ca8c127c90c5
