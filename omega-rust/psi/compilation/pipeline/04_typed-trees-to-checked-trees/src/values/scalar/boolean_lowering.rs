@@ -61,227 +61,241 @@ pub(crate) fn lower_boolean_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
-    if let Some(CheckedScalarExpression::Boolean(read)) = primitive_reference_read::lower(
-        program,
-        authored_parameters,
-        expression,
-        PrimitiveType::Bool,
-    ) {
-        return Some(*read);
-    }
-    // A `&place as &bool` operand re-views its source place under the bool
-    // carrier (§5b address identity): the checked form is the source place's
-    // own read retagged to bool. Validation already proved the
-    // representation relation.
-    if let Some(read) = crate::values::scalar::scalar_lowering::lower_recast_boolean_operand(
+    BooleanLowering {
         program,
         operators,
-        expression,
         parameters,
         authored_parameters,
         parameter_types,
         locals,
         exact_integer_casts,
-    ) {
-        return Some(read);
     }
-    if let Some(membership) = case_membership::lower(program, authored_parameters, expression) {
-        return Some(membership);
-    }
-    if let Some((leaf, PrimitiveType::Bool)) =
-        validation::closed_record_scalar_projection(program, expression)
-    {
-        let ExpressionNode::Boolean(value) = program.expression_table.expression(leaf) else {
-            return None;
-        };
-        return Some(CheckedBooleanExpression::Constant(*value));
-    }
-    if let Some(leaf) = constant_array_projection::selected_leaf(
-        program,
-        operators,
-        authored_parameters,
-        expression,
-    ) {
-        return lower_boolean_expression(
-            program,
-            operators,
-            leaf,
-            parameters,
-            authored_parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-        );
-    }
-    if matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-    ) && let Some((CheckedScalarExpression::Boolean(field), _)) =
-        structural_fields::lower_structural_parameter_field(
-            program,
-            authored_parameters,
+    .expression(expression)
+}
+
+// The recursive Boolean walk keeps the same invocation checking input and
+// borrowed scalar namespace. Authored coordinates remain separate from dense
+// scalar positions; guard normalization and admission keep their existing order.
+struct BooleanLowering<'a> {
+    program: &'a dyn ::validation::CheckingInput,
+    operators: &'a CheckedOperatorFacts,
+    parameters: &'a [StateParameter],
+    authored_parameters: &'a [StateParameter],
+    parameter_types: &'a [PrimitiveType],
+    locals: &'a [ScalarLocal],
+    exact_integer_casts: &'a [validation::ExactIntegerCastFact],
+}
+
+impl BooleanLowering<'_> {
+    fn expression(&self, expression: ExpressionHandle) -> Option<CheckedBooleanExpression> {
+        if let Some(CheckedScalarExpression::Boolean(read)) = primitive_reference_read::lower(
+            self.program,
+            self.authored_parameters,
             expression,
-        )
-    {
-        return Some(*field);
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
-        ExpressionNode::Name(path) => {
-            if let Some(position) = parameter_position(program, path, parameters) {
-                let parameter = &parameters[position];
-                if parameter.is_mutable {
-                    return (crate::values::mutable_scalar_parameter_type(program, parameter)
-                        == Some(PrimitiveType::Bool)
-                        && path.symbol == parameter.symbol
-                        && path.head_symbol == parameter.symbol)
-                        .then_some(CheckedBooleanExpression::StorageRead {
-                            symbol: parameter.symbol,
-                        });
+            PrimitiveType::Bool,
+        ) {
+            return Some(*read);
+        }
+        // A `&place as &bool` operand re-views its source place under the bool
+        // carrier (§5b address identity): the checked form is the source place's
+        // own read retagged to bool. Validation already proved the
+        // representation relation.
+        if let Some(read) = crate::values::scalar::scalar_lowering::lower_recast_boolean_operand(
+            self.program,
+            self.operators,
+            expression,
+            self.parameters,
+            self.authored_parameters,
+            self.parameter_types,
+            self.locals,
+            self.exact_integer_casts,
+        ) {
+            return Some(read);
+        }
+        if let Some(membership) =
+            case_membership::lower(self.program, self.authored_parameters, expression)
+        {
+            return Some(membership);
+        }
+        if let Some((leaf, PrimitiveType::Bool)) =
+            validation::closed_record_scalar_projection(self.program, expression)
+        {
+            let ExpressionNode::Boolean(value) = self.program.expression_table.expression(leaf)
+            else {
+                return None;
+            };
+            return Some(CheckedBooleanExpression::Constant(*value));
+        }
+        if let Some(leaf) = constant_array_projection::selected_leaf(
+            self.program,
+            self.operators,
+            self.authored_parameters,
+            expression,
+        ) {
+            return self.expression(leaf);
+        }
+        if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        ) && let Some((CheckedScalarExpression::Boolean(field), _)) =
+            structural_fields::lower_structural_parameter_field(
+                self.program,
+                self.authored_parameters,
+                expression,
+            )
+        {
+            return Some(*field);
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
+            ExpressionNode::Name(path) => {
+                if let Some(position) = parameter_position(self.program, path, self.parameters) {
+                    let parameter = &self.parameters[position];
+                    if parameter.is_mutable {
+                        return (crate::values::mutable_scalar_parameter_type(
+                            self.program,
+                            parameter,
+                        ) == Some(PrimitiveType::Bool)
+                            && path.symbol == parameter.symbol
+                            && path.head_symbol == parameter.symbol)
+                            .then_some(CheckedBooleanExpression::StorageRead {
+                                symbol: parameter.symbol,
+                            });
+                    }
+                    return (self.parameter_types[position] == PrimitiveType::Bool)
+                        .then_some(CheckedBooleanExpression::Parameter { position });
                 }
-                return (parameter_types[position] == PrimitiveType::Bool)
-                    .then_some(CheckedBooleanExpression::Parameter { position });
-            }
-            let local_position = local_position(program, expression, path, locals)?;
-            let local = &locals[local_position];
-            if local.is_mutable || local.is_reference {
-                return (local.primitive_type == PrimitiveType::Bool).then_some(
-                    CheckedBooleanExpression::StorageRead {
-                        symbol: local.symbol,
-                    },
-                );
-            }
-            let position = parameters.len().checked_add(
-                locals[..local_position]
-                    .iter()
-                    .filter(|local| local.is_value_binding())
-                    .count(),
-            )?;
-            (locals[local_position].primitive_type == PrimitiveType::Bool)
-                .then_some(CheckedBooleanExpression::Local { position })
-        }
-        ExpressionNode::Unary(unary)
-            if unary.operator == UnaryOperator::LogicalNot
-                && operator_is_builtin(operators, expression) =>
-        {
-            Some(CheckedBooleanExpression::Not(Box::new(
-                lower_boolean_expression(
-                    program,
-                    operators,
-                    unary.operand,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                )?,
-            )))
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-            ) && operator_is_builtin(operators, expression) =>
-        {
-            let integer_comparison = (|| {
-                let ((left, _), (right, _)) = lower_scalar_operands(
-                    program,
-                    operators,
-                    binary,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
+                let local_position = local_position(self.program, expression, path, self.locals)?;
+                let local = &self.locals[local_position];
+                if local.is_mutable || local.is_reference {
+                    return (local.primitive_type == PrimitiveType::Bool).then_some(
+                        CheckedBooleanExpression::StorageRead {
+                            symbol: local.symbol,
+                        },
+                    );
+                }
+                let position = self.parameters.len().checked_add(
+                    self.locals[..local_position]
+                        .iter()
+                        .filter(|local| local.is_value_binding())
+                        .count(),
                 )?;
-                construct_integer_comparison(binary.operator, left, right)
-            })();
-            if !matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) || integer_comparison.is_some()
-            {
-                return integer_comparison;
+                (self.locals[local_position].primitive_type == PrimitiveType::Bool)
+                    .then_some(CheckedBooleanExpression::Local { position })
             }
-            // A byte carrier compared against a byte-sequence literal or
-            // another bounded byte carrier has no scalar operand pair:
-            // content equality is the live-length observations plus each
-            // byte at its fixed index, evaluated left to right so a length
-            // comparison dominates every indexed read.
-            if let Some(equality) =
-                byte_carrier_literal_equality(program, binary, authored_parameters)
-                    .or_else(|| byte_carrier_pair_equality(program, binary, authored_parameters))
+            ExpressionNode::Unary(unary)
+                if unary.operator == UnaryOperator::LogicalNot
+                    && operator_is_builtin(self.operators, expression) =>
             {
-                return Some(if binary.operator == BinaryOperator::NotEqual {
+                Some(CheckedBooleanExpression::Not(Box::new(
+                    self.expression(unary.operand)?,
+                )))
+            }
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                        | BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
+                ) && operator_is_builtin(self.operators, expression) =>
+            {
+                let integer_comparison = (|| {
+                    let ((left, _), (right, _)) = lower_scalar_operands(
+                        self.program,
+                        self.operators,
+                        binary,
+                        self.parameters,
+                        self.authored_parameters,
+                        self.parameter_types,
+                        self.locals,
+                        self.exact_integer_casts,
+                    )?;
+                    construct_integer_comparison(binary.operator, left, right)
+                })();
+                if !matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) || integer_comparison.is_some()
+                {
+                    return integer_comparison;
+                }
+                // A byte carrier compared against a byte-sequence literal or
+                // another bounded byte carrier has no scalar operand pair:
+                // content equality is the live-length observations plus each
+                // byte at its fixed index, evaluated left to right so a length
+                // comparison dominates every indexed read.
+                if let Some(equality) =
+                    byte_carrier_literal_equality(self.program, binary, self.authored_parameters)
+                        .or_else(|| {
+                            byte_carrier_pair_equality(
+                                self.program,
+                                binary,
+                                self.authored_parameters,
+                            )
+                        })
+                {
+                    return Some(if binary.operator == BinaryOperator::NotEqual {
+                        CheckedBooleanExpression::Not(Box::new(equality))
+                    } else {
+                        equality
+                    });
+                }
+                let equality = CheckedBooleanExpression::Equal {
+                    left: Box::new(self.expression(binary.left)?),
+                    right: Box::new(self.expression(binary.right)?),
+                };
+                Some(if binary.operator == BinaryOperator::NotEqual {
                     CheckedBooleanExpression::Not(Box::new(equality))
                 } else {
                     equality
-                });
+                })
             }
-            let equality = CheckedBooleanExpression::Equal {
-                left: Box::new(lower_boolean_expression(
-                    program,
-                    operators,
-                    binary.left,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                )?),
-                right: Box::new(lower_boolean_expression(
-                    program,
-                    operators,
-                    binary.right,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                )?),
-            };
-            Some(if binary.operator == BinaryOperator::NotEqual {
-                CheckedBooleanExpression::Not(Box::new(equality))
-            } else {
-                equality
-            })
+            ExpressionNode::Binary(binary)
+                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+                    && operator_is_builtin(self.operators, expression) =>
+            {
+                let left = Box::new(self.expression(binary.left)?);
+                let right = Box::new(self.expression(binary.right)?);
+                Some(if binary.operator == BinaryOperator::And {
+                    CheckedBooleanExpression::And { left, right }
+                } else {
+                    CheckedBooleanExpression::Or { left, right }
+                })
+            }
+            _ => None,
         }
-        ExpressionNode::Binary(binary)
-            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
-                && operator_is_builtin(operators, expression) =>
+    }
+
+    fn guard(&self, expression: ExpressionHandle) -> Option<CheckedBooleanExpression> {
+        if let Some(value) =
+            lower_closed_integer_literal_guard(self.program, self.operators, expression)
         {
-            let left = Box::new(lower_boolean_expression(
-                program,
-                operators,
-                binary.left,
-                parameters,
-                authored_parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
-            )?);
-            let right = Box::new(lower_boolean_expression(
-                program,
-                operators,
-                binary.right,
-                parameters,
-                authored_parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
-            )?);
-            Some(if binary.operator == BinaryOperator::And {
-                CheckedBooleanExpression::And { left, right }
-            } else {
-                CheckedBooleanExpression::Or { left, right }
-            })
+            return Some(value);
         }
-        _ => None,
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return self.expression(expression);
+        };
+        if binary.operator == BinaryOperator::Equal
+            && operator_is_builtin(self.operators, expression)
+        {
+            match (
+                self.program.expression_table.expression(binary.left),
+                self.program.expression_table.expression(binary.right),
+            ) {
+                (ExpressionNode::Boolean(true), _) => {
+                    return self.expression(binary.right);
+                }
+                (_, ExpressionNode::Boolean(true)) => {
+                    return self.expression(binary.left);
+                }
+                _ => {}
+            }
+        }
+        self.expression(expression)
     }
 }
 
@@ -596,61 +610,14 @@ pub(crate) fn lower_boolean_guard(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
-    if let Some(value) = lower_closed_integer_literal_guard(program, operators, expression) {
-        return Some(value);
-    }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-        return lower_boolean_expression(
-            program,
-            operators,
-            expression,
-            parameters,
-            authored_parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-        );
-    };
-    if binary.operator == BinaryOperator::Equal && operator_is_builtin(operators, expression) {
-        match (
-            program.expression_table.expression(binary.left),
-            program.expression_table.expression(binary.right),
-        ) {
-            (ExpressionNode::Boolean(true), _) => {
-                return lower_boolean_expression(
-                    program,
-                    operators,
-                    binary.right,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                );
-            }
-            (_, ExpressionNode::Boolean(true)) => {
-                return lower_boolean_expression(
-                    program,
-                    operators,
-                    binary.left,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                );
-            }
-            _ => {}
-        }
-    }
-    lower_boolean_expression(
+    BooleanLowering {
         program,
         operators,
-        expression,
         parameters,
         authored_parameters,
         parameter_types,
         locals,
         exact_integer_casts,
-    )
+    }
+    .guard(expression)
 }
