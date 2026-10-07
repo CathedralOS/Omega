@@ -83,6 +83,82 @@ macro_rules! resident_view_accessors {
     };
 }
 
+/// The owned-placement carrier surface every admission-holding record
+/// reports under the same names: the `OwnedPlacementAdmission`-held base
+/// accessors — admission identity, placement plan, profile receipt, resource
+/// compatibility, and extent — plus the carrier-specific tails each arm adds:
+/// `occurrence` for placed carriers, `resident` for the provider content
+/// receipts (validity/custody/claim), and `correspondence` for the retained
+/// schema/device route. The `OwnedPlacementAdmission` leaf keeps its
+/// direct-field accessors; every other carrier emits this block and keeps
+/// divergent members (view establishment, retirement, adoption) in its impl.
+macro_rules! owned_placement_accessors {
+    (resident, occurrence) => {
+        owned_placement_accessors!(resident);
+
+        pub const fn occurrence(&self) -> PlacedOccurrenceId {
+            self.occurrence
+        }
+    };
+    (resident) => {
+        owned_placement_accessors!();
+
+        pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
+            self.content.validity_receipt()
+        }
+
+        pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
+            self.content.custody_receipt()
+        }
+
+        pub const fn resident_claim(&self) -> ResidentClaimId {
+            self.content.resident_claim()
+        }
+    };
+    (correspondence, occurrence) => {
+        owned_placement_accessors!(correspondence);
+
+        pub const fn occurrence(&self) -> PlacedOccurrenceId {
+            self.occurrence
+        }
+    };
+    (correspondence) => {
+        owned_placement_accessors!();
+
+        pub const fn correspondence(&self) -> &AdmittedSchemaDeviceCorrespondence {
+            &self.correspondence
+        }
+    };
+    (occurrence) => {
+        owned_placement_accessors!();
+
+        pub const fn occurrence(&self) -> PlacedOccurrenceId {
+            self.occurrence
+        }
+    };
+    () => {
+        pub const fn admission(&self) -> PlacementAdmissionId {
+            self.admission.identity
+        }
+
+        pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
+            &self.admission.placement_plan
+        }
+
+        pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
+            self.admission.profile_receipt
+        }
+
+        pub const fn resources(&self) -> &PlacementResourceCompatibility {
+            &self.admission.resources
+        }
+
+        pub const fn extent(&self) -> &Extent {
+            &self.admission.extent
+        }
+    };
+}
+
 pub(crate) mod atomic_resident_views;
 pub(crate) mod borrowed_view;
 pub(crate) mod owned_atomic_resident_custody;

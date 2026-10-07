@@ -142,37 +142,7 @@ impl OwnedResidentViewEstablishmentError {
 }
 
 impl DormantOwnedResident {
-    pub const fn admission(&self) -> PlacementAdmissionId {
-        self.admission.identity
-    }
-
-    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-        &self.admission.placement_plan
-    }
-
-    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
-        self.admission.profile_receipt
-    }
-
-    pub const fn resources(&self) -> &PlacementResourceCompatibility {
-        &self.admission.resources
-    }
-
-    pub const fn extent(&self) -> &Extent {
-        &self.admission.extent
-    }
-
-    pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-        self.content.validity_receipt()
-    }
-
-    pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-        self.content.custody_receipt()
-    }
-
-    pub const fn resident_claim(&self) -> ResidentClaimId {
-        self.content.resident_claim()
-    }
+    owned_placement_accessors!(resident);
 
     /// Transfer dormant resident custody into one requested active placed
     /// occurrence after replaying the retained owned placement authority.
@@ -208,41 +178,7 @@ impl OwnedResidentRetirementError {
 }
 
 impl EstablishedOwnedPlacement {
-    pub const fn admission(&self) -> PlacementAdmissionId {
-        self.admission.identity
-    }
-
-    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-        &self.admission.placement_plan
-    }
-
-    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
-        self.admission.profile_receipt
-    }
-
-    pub const fn resources(&self) -> &PlacementResourceCompatibility {
-        &self.admission.resources
-    }
-
-    pub const fn extent(&self) -> &Extent {
-        &self.admission.extent
-    }
-
-    pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-        self.content.validity_receipt()
-    }
-
-    pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-        self.content.custody_receipt()
-    }
-
-    pub const fn resident_claim(&self) -> ResidentClaimId {
-        self.content.resident_claim()
-    }
-
-    pub const fn occurrence(&self) -> PlacedOccurrenceId {
-        self.occurrence
-    }
+    owned_placement_accessors!(resident, occurrence);
 
     /// End this active owned view without destroying or moving out its
     /// content. The exact resident claim and provider receipts return to the

@@ -186,29 +186,7 @@ fn validate_external_correspondence_binding(
 }
 
 impl OwnedCorrespondedExternalAdmission {
-    pub const fn admission(&self) -> PlacementAdmissionId {
-        self.admission.identity
-    }
-
-    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-        &self.admission.placement_plan
-    }
-
-    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
-        self.admission.profile_receipt
-    }
-
-    pub const fn resources(&self) -> &PlacementResourceCompatibility {
-        &self.admission.resources
-    }
-
-    pub const fn extent(&self) -> &Extent {
-        &self.admission.extent
-    }
-
-    pub const fn correspondence(&self) -> &AdmittedSchemaDeviceCorrespondence {
-        &self.correspondence
-    }
+    owned_placement_accessors!(correspondence);
 
     /// Separate the route back into its non-Clone inputs.
     pub fn into_parts(self) -> (OwnedPlacementAdmission, AdmittedSchemaDeviceCorrespondence) {
@@ -250,33 +228,7 @@ impl OwnedCorrespondedExternalAdmission {
 }
 
 impl EstablishedOwnedExternalPlacement {
-    pub const fn admission(&self) -> PlacementAdmissionId {
-        self.admission.identity
-    }
-
-    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-        &self.admission.placement_plan
-    }
-
-    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
-        self.admission.profile_receipt
-    }
-
-    pub const fn resources(&self) -> &PlacementResourceCompatibility {
-        &self.admission.resources
-    }
-
-    pub const fn extent(&self) -> &Extent {
-        &self.admission.extent
-    }
-
-    pub const fn correspondence(&self) -> &AdmittedSchemaDeviceCorrespondence {
-        &self.correspondence
-    }
-
-    pub const fn occurrence(&self) -> PlacedOccurrenceId {
-        self.occurrence
-    }
+    owned_placement_accessors!(correspondence, occurrence);
 
     /// Replay the retained schema/device correspondence binding for the
     /// sealed-request authority hooks.

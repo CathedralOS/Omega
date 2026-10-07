@@ -120,37 +120,7 @@ pub fn adopt_owned_atomic(
 }
 
 impl DormantOwnedAtomicResident {
-    pub const fn admission(&self) -> PlacementAdmissionId {
-        self.admission.identity
-    }
-
-    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-        &self.admission.placement_plan
-    }
-
-    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
-        self.admission.profile_receipt
-    }
-
-    pub const fn resources(&self) -> &PlacementResourceCompatibility {
-        &self.admission.resources
-    }
-
-    pub const fn extent(&self) -> &Extent {
-        &self.admission.extent
-    }
-
-    pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-        self.content.validity_receipt()
-    }
-
-    pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-        self.content.custody_receipt()
-    }
-
-    pub const fn resident_claim(&self) -> ResidentClaimId {
-        self.content.resident_claim()
-    }
+    owned_placement_accessors!(resident);
 
     /// Activate this exact resident claim through one requested occurrence.
     /// The occurrence issuer remains responsible for global freshness.
@@ -178,46 +148,12 @@ impl DormantOwnedAtomicResident {
 }
 
 impl EstablishedOwnedAtomicPlacement {
-    pub const fn admission(&self) -> PlacementAdmissionId {
-        self.admission.identity
-    }
-
-    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-        &self.admission.placement_plan
-    }
-
-    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
-        self.admission.profile_receipt
-    }
+    owned_placement_accessors!(resident, occurrence);
 
     pub(super) const fn profile(
         &self,
     ) -> &crate::resources::resource_profile_admission::AdmittedResourceProfile {
         &self.admission.profile
-    }
-
-    pub const fn resources(&self) -> &PlacementResourceCompatibility {
-        &self.admission.resources
-    }
-
-    pub const fn extent(&self) -> &Extent {
-        &self.admission.extent
-    }
-
-    pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-        self.content.validity_receipt()
-    }
-
-    pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-        self.content.custody_receipt()
-    }
-
-    pub const fn resident_claim(&self) -> ResidentClaimId {
-        self.content.resident_claim()
-    }
-
-    pub const fn occurrence(&self) -> PlacedOccurrenceId {
-        self.occurrence
     }
 
     pub fn project<'view>(
