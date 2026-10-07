@@ -55,9 +55,8 @@ pub(super) fn argument(
     }
     // A live aggregate home lends one exact subtree through a borrow: the
     // producer keeps whole storage, and the argument transports the leaf's
-    // address inside it. The verifier admits the same projected loan only
-    // under its exact-access and claim-free bounds, which this shape check
-    // replays against the home's own establishment metadata. An empty path borrows
+    // address inside it. Claims stay on the owner, independently of the
+    // borrowed argument's unrestricted multiplicity. An empty path borrows
     // the home whole when the formal is no primitive reference — primitive
     // storage keeps its own custody channel below.
     if let Some(home) = live.structural_homes.get(&argument.place)
@@ -124,13 +123,11 @@ pub(super) fn argument(
             || !declaration.projected_qualifications.is_empty()
             || projected_type != declaration.structural_type
             || home.access() != StructuralAccess::Owned
-            || home.multiplicity() == StructuralMultiplicity::Linear
             || (!home.qualifications().is_empty() && !owner_loan)
             || !home.projected_qualifications().is_empty()
             || home
                 .operation_result()
                 .is_some_and(|(_, result)| !result.qualification_establishments.is_empty())
-            || home.has_claims()
             || crate::lowering::structural_layout::structural_parameter_shape(
                 projected_shape,
                 declaration.access,

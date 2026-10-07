@@ -1,4 +1,9 @@
 //! Atomic record establishment over the interpreter's existing structural storage.
+//! Constructors stage child storage and custody before publishing the parent.
+//! Linear claims relocate by identity and typed path; the affine frontier owns
+//! only their disjoint complement. Records, arrays and cases share that staged
+//! ownership transaction in `record/operands.rs`, so nesting neither remints a
+//! child's claim nor disposes it as an affine subtree.
 use crate::custody::resolve_structural_arguments;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -10,7 +15,6 @@ use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::OperationKind;
 use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralAffineDiscard;
 use terminal_psi::StructuralFieldType;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
@@ -26,13 +30,7 @@ impl TerminalExecution {
         result: &terminal_psi::StructuralOperationResult,
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
-        if !matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-        ) || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-        {
+        if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
             return Err(malformed());
         }
         let declaration = self
@@ -63,6 +61,7 @@ impl TerminalExecution {
         let mut staged_bytes = BTreeMap::new();
 
         let mut consumed = Vec::new();
+        let mut claim_operands = Vec::new();
         let mut frontier = self.live_affine_frontier.clone();
         for (binding, declaration) in fields.iter().zip(declarations) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
@@ -85,6 +84,10 @@ impl TerminalExecution {
                     );
                 }
                 terminal_psi::RecordFieldValue::Structural(argument) => {
+                    claim_operands.push((
+                        argument,
+                        vec![StructuralPathSegment::Field(declaration.identity.clone())],
+                    ));
                     let child = resolve_structural_arguments(
                         &self.program.structural_types,
                         &self.structural_values,
@@ -132,9 +135,11 @@ impl TerminalExecution {
                         {
                             return Err(malformed());
                         }
-                        let affine =
+                        let transfers_custody =
                             self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
-                        if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
+                        if transfers_custody
+                            && result.multiplicity == StructuralMultiplicity::Unrestricted
+                        {
                             return Err(malformed());
                         }
                         staged_bytes.insert(
@@ -196,9 +201,11 @@ impl TerminalExecution {
                     {
                         return Err(malformed());
                     }
-                    let affine =
+                    let transfers_custody =
                         self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
-                    if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
+                    if transfers_custody
+                        && result.multiplicity == StructuralMultiplicity::Unrestricted
+                    {
                         return Err(malformed());
                     }
                     let mut member_path = value.path.clone();
@@ -211,23 +218,17 @@ impl TerminalExecution {
                             opaque_identity: value.opaque_identity,
                             path: member_path,
                         },
-                        affine,
+                        transfers_custody,
                     )?;
                 }
             }
         }
-        self.commit_constructor_operands(frontier, &consumed)?;
+        let claims = self.stage_constructor_claims(result, &claim_operands, &mut frontier)?;
+        self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged);
         self.structural_byte_sequence_fields.extend(staged_bytes);
         storage.publish(self);
         self.structural_values.insert(result.place, value);
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            });
-        }
         Ok(())
     }
     /// Stage independent payloads for each owned unrestricted occurrence. The

@@ -368,19 +368,11 @@ pub(super) fn validate_establish_record(
     let Some(result) = operation.result.structural() else {
         return malformed("record has no structural result");
     };
-    // Complete construction issues the root's declared obligation. This
-    // shape check retains exactly one whole claim for Linear; independent
-    // verification still owns fresh identity and every child transfer.
-    let complete_root_custody = match result.multiplicity {
-        StructuralMultiplicity::Linear => {
-            matches!(result.claims.as_slice(), [claim] if claim.path.is_empty())
-        }
-        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted => {
-            result.claims.is_empty()
-        }
-    };
-    if !complete_root_custody
-        || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
+    // Multiplicity does not describe the record's live claim set: an affine
+    // record can carry disjoint linear descendants. Source custody owns their
+    // identities and transfers; this codec checks the result's storage shape,
+    // not a second ownership eligibility rule.
+    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
         || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
         return malformed("record result custody is noncanonical");
     }

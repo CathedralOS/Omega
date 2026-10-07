@@ -1,6 +1,6 @@
 //! Completed array operands relocate through the same staged subtree transaction
 //! as structural record fields. The destination is published only after every
-//! element and affine transfer has been checked.
+//! element and custody transfer has been checked.
 use super::*;
 use crate::byte_sequences::ByteSequenceView;
 use crate::errors::malformed;
@@ -27,7 +27,7 @@ impl ConstructorStorage {
         argument: &terminal_psi::StructuralArgument,
         child: &TerminalStructuralValue,
         destination: &StructuralRuntimePlace,
-        affine: bool,
+        transfers_custody: bool,
     ) -> Result<(), TerminalInterpretError> {
         let relocate = |home: &StructuralRuntimePlace| {
             if home.opaque_identity != child.opaque_identity || !home.path.starts_with(&child.path)
@@ -78,7 +78,7 @@ impl ConstructorStorage {
         }
         for (home, referent) in &execution.reference_referents {
             if let Some(target) = relocate(home) {
-                if !affine {
+                if !transfers_custody {
                     return Err(malformed());
                 }
                 self.references.insert(target, referent.clone());
@@ -150,13 +150,8 @@ impl TerminalExecution {
         };
         let element = *element;
         if u64::try_from(elements.len()).ok() != Some(*length)
-            || !matches!(
-                result.multiplicity,
-                StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-            )
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
             || self
                 .live_affine_frontier
                 .iter()
@@ -180,6 +175,7 @@ impl TerminalExecution {
         let mut staged = ConstructorStorage::default();
         let mut frontier = self.live_affine_frontier.clone();
         let mut consumed = Vec::new();
+        let mut claim_operands = Vec::new();
         for (index, argument) in elements.iter().enumerate() {
             let child = resolve_structural_arguments(
                 &self.program.structural_types,
@@ -195,8 +191,9 @@ impl TerminalExecution {
             {
                 return Err(malformed());
             }
-            let affine = self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
-            if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
+            let transfers_custody =
+                self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
+            if transfers_custody && result.multiplicity == StructuralMultiplicity::Unrestricted {
                 return Err(malformed());
             }
             let destination = StructuralRuntimePlace {
@@ -205,19 +202,14 @@ impl TerminalExecution {
                     u64::try_from(index).map_err(|_| malformed())?,
                 )],
             };
-            staged.stage(self, argument, &child, &destination, affine)?;
+            claim_operands.push((argument, destination.path.clone()));
+            staged.stage(self, argument, &child, &destination, transfers_custody)?;
         }
-        self.commit_constructor_operands(frontier, &consumed)?;
+        let claims = self.stage_constructor_claims(result, &claim_operands, &mut frontier)?;
+        self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.local_structural_identities.commit_cursor(cursor);
         staged.publish(self);
         self.structural_values.insert(result.place, value);
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            });
-        }
         Ok(crate::execution::OperationFlow::Advance)
     }
 }

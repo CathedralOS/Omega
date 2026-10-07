@@ -171,13 +171,8 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         if self.structural_values.contains_key(&result.place)
             || self.scalar_case_values.contains_key(&result.place)
-            || !matches!(
-                result.multiplicity,
-                StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-            )
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
         {
             return Err(malformed());
         }
@@ -234,6 +229,7 @@ impl TerminalExecution {
         let mut staged_element_views = BTreeMap::new();
         let mut consumed = Vec::new();
         let mut frontier = self.live_affine_frontier.clone();
+        let mut claim_operands = Vec::new();
         for ((declaration, namespace), binding) in roster.into_iter().zip(fields) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
                 return Err(malformed());
@@ -270,9 +266,12 @@ impl TerminalExecution {
                         opaque_identity: value.opaque_identity,
                         path: vec![StructuralPathSegment::Field(declaration.identity.clone())],
                     };
-                    let affine =
+                    claim_operands.push((argument, member.path.clone()));
+                    let transfers_custody =
                         self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
-                    if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
+                    if transfers_custody
+                        && result.multiplicity == StructuralMultiplicity::Unrestricted
+                    {
                         return Err(malformed());
                     }
                     if argument.path.is_empty()
@@ -312,7 +311,7 @@ impl TerminalExecution {
                         return Err(malformed());
                     }
                     // Retarget every live subtree cell into member coordinates;
-                    // affine children additionally vacate their source region
+                    // non-copyable children additionally vacate their source region
                     // once the whole roster validates.
                     let retarget = |parent: &StructuralRuntimePlace| {
                         (parent.opaque_identity == child.opaque_identity
@@ -345,7 +344,7 @@ impl TerminalExecution {
                     }
                     for (carrier, referent) in &self.reference_referents {
                         if let Some(place) = retarget(carrier) {
-                            if !affine {
+                            if !transfers_custody {
                                 return Err(malformed());
                             }
                             staged_referents.insert(place, referent.clone());
@@ -385,7 +384,8 @@ impl TerminalExecution {
                 }
             }
         }
-        self.commit_constructor_operands(frontier, &consumed)?;
+        let claims = self.stage_constructor_claims(result, &claim_operands, &mut frontier)?;
+        self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged_scalars);
         self.structural_cases.extend(staged_cases);
         self.structural_byte_sequence_fields
@@ -403,13 +403,6 @@ impl TerminalExecution {
             },
         );
         self.structural_values.insert(result.place, value);
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            });
-        }
         Ok(())
     }
 

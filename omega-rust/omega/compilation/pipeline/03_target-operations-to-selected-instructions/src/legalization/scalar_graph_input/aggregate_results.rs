@@ -139,8 +139,8 @@ pub(super) fn cleanup(
         Vec<terminal_psi::StructuralPathSegment>,
     )> = std::collections::BTreeSet::new();
     // This reconstructs the retained owner declaration, not permission to
-    // dispose it. Unit custody independently checks the action's exact live
-    // claim frontier and authorized nominal hook before native lowering.
+    // dispose it. Source checking selects the exact claim dispositions and
+    // nominal hook; claims do not change the retained storage declaration.
     let owner = |place: semantic_vocabulary::PlaceId| {
         if let Some((_, structural_type, _)) =
             owned_arguments::trivial_affine_local(function, place)
@@ -161,22 +161,14 @@ pub(super) fn cleanup(
         {
             return (parameter.access == terminal_psi::StructuralAccess::Owned
                 && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
-                && (parameter.multiplicity != StructuralMultiplicity::Affine
-                    || function
-                        .entry_claim_declarations
-                        .iter()
-                        .all(|claim| claim.input != place)))
+                && parameter.projected_qualifications.is_empty())
             .then_some((parameter.structural_type, parameter.multiplicity));
         }
         match super::structural_case::source_owner(function, place).ok()? {
             legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 result, ..
-            } => (result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && (result.multiplicity != StructuralMultiplicity::Affine
-                    || result.claims.is_empty()))
-            .then_some((result.structural_type, result.multiplicity)),
+            } => (result.qualifications.is_empty() && result.projected_qualifications.is_empty())
+                .then_some((result.structural_type, result.multiplicity)),
             legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                 declaration,
                 ..

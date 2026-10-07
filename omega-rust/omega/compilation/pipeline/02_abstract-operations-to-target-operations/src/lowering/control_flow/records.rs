@@ -294,7 +294,6 @@ pub(super) fn establish(
                         || home.access() != StructuralAccess::Owned
                         || (!argument.path.is_empty()
                             && home.multiplicity() != StructuralMultiplicity::Affine)
-                        || home.has_claims()
                         || (byte_carrier.is_none() && !home.qualifications().is_empty())
                         || !home.projected_qualifications().is_empty()
                     {
@@ -321,11 +320,14 @@ pub(super) fn establish(
                     }
                     parameter.multiplicity
                 };
+                // Claims travel with the exact home origin, not its byte
+                // layout. Every noncopyable operand transfers once, whether
+                // its obligation is affine or linear; construction must not
+                // replace the child's claims with a new parent identity.
                 if argument.access != StructuralAccess::Owned
-                    || multiplicity == StructuralMultiplicity::Linear
                     || (byte_carrier.is_some()
                         && multiplicity != StructuralMultiplicity::Unrestricted)
-                    || (multiplicity == StructuralMultiplicity::Affine
+                    || (multiplicity != StructuralMultiplicity::Unrestricted
                         && (consumed.iter().any(
                             |(place, path): &(
                                 semantic_vocabulary::PlaceId,

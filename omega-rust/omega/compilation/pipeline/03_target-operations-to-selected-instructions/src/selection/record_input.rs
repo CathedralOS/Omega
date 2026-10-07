@@ -20,18 +20,9 @@ pub(super) fn fields(
         return None;
     };
     let declarations = &source.structural.as_ref()?.structural_types;
-    // Complete construction retains its independently admitted whole-root
-    // issuance; field transport below still authenticates each child.
-    let complete_root_custody = match result.multiplicity {
-        StructuralMultiplicity::Linear => {
-            matches!(result.claims.as_slice(), [claim] if claim.path.is_empty())
-        }
-        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted => {
-            result.claims.is_empty()
-        }
-    };
+    // Claims retain source ownership identities but add no bytes. Geometry
+    // follows the complete carrier, including affine records with linear fields.
     if row.result.is_some()
-        || !complete_root_custody
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || crate::structural_inputs::structural_reference_input::shape(
@@ -260,7 +251,6 @@ pub(super) fn structural_operand_shape(
                     (
                         parameter.structural_type,
                         parameter.access == terminal_psi::StructuralAccess::Owned
-                            && parameter.multiplicity != StructuralMultiplicity::Linear
                             && (parent.multiplicity != StructuralMultiplicity::Unrestricted
                                 || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
                             && parameter.qualifications.is_empty()
@@ -276,12 +266,8 @@ pub(super) fn structural_operand_shape(
                             let result = row.kind.get_structural_result()?;
                             (result.place == argument.place).then_some((
                                 result.structural_type,
-                                result.multiplicity != StructuralMultiplicity::Linear
-                                    && (parent.multiplicity
-                                        != StructuralMultiplicity::Unrestricted
-                                        || result.multiplicity
-                                            == StructuralMultiplicity::Unrestricted)
-                                    && result.claims.is_empty()
+                                (parent.multiplicity != StructuralMultiplicity::Unrestricted
+                                    || result.multiplicity == StructuralMultiplicity::Unrestricted)
                                     && result.qualifications.is_empty()
                                     && result.projected_qualifications.is_empty(),
                             ))

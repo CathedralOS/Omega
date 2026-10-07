@@ -9,10 +9,11 @@
 //! [`AbstractOptimizationError`].
 //!
 //! The run entries below share one shape: check the selection against the
-//! registries it names, open a [`VerifiedPsiOptimizationSession`] (the
-//! initial independent validation), then hand the session to
+//! registries it names, open a [`VerifiedPsiOptimizationSession`], then hand it to
 //! `pass_manager::run_registries`, which executes each registry's rules to a
 //! fixed point under the budget and records every decision.
+//! An empty production schedule retains the producer's unit without replaying
+//! ownership; selected rewrites still prepare their current analysis facts.
 //! [`run_psi_pipeline`] and [`run_psi_pipeline_for_projection`] run every
 //! selected built-in registry in schedule order; [`run_psi_registry`] runs
 //! one registry the caller constructed, refusing one that is not the exact
@@ -158,8 +159,17 @@ pub(crate) fn run_psi_pipeline_for_projection(
     }
     let steps = built_in_psi_steps_for_selections(projection.selections())
         .map_err(OptimizationRunError::RegistryConstruction)?;
-    let session = VerifiedPsiOptimizationSession::new(verified)
-        .map_err(OptimizationRunError::InitialValidation)?;
+    // With no selected pass this stage is an identity transform. Source
+    // checking already established custody; reconstructing optimizer ownership
+    // here would make an unused analysis a second admission gate for ordinary
+    // compilation. Selected rewrites retain their existing analysis preparation.
+    let session = if steps.is_empty() {
+        let (input, unit) = verified.into_parts();
+        VerifiedPsiOptimizationSession::from_transformed(input, unit)
+    } else {
+        VerifiedPsiOptimizationSession::new(verified)
+    }
+    .map_err(OptimizationRunError::InitialValidation)?;
     run_registries(
         session,
         selections,

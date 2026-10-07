@@ -79,9 +79,10 @@ pub(super) fn argument(
             },
         )
     } else if let Some(home) = live.structural_homes.get(&argument.place) {
+        // A loan addresses the existing home without transferring its claims.
+        // The borrow's unrestricted multiplicity is independent of the owned
+        // aggregate's affine or linear obligations.
         if home.access() != StructuralAccess::Owned
-            || home.has_claims()
-            || home.multiplicity() == StructuralMultiplicity::Linear
             || !home.qualifications().is_empty()
             || !home.projected_qualifications().is_empty()
         {

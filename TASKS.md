@@ -779,19 +779,19 @@ defines the complete product bar.
     intact receiver also reaches `InvalidNominalAffineCleanup` in the retiring
     replay. Preserve receiver custody through the ordinary callable path as
     that replay is removed, rather than expanding its bounded receiver model.
-  - Complete claim-bearing temporary cleanup on
-    **STATE-LOCAL-VALUE-FRONTIER**'s computed-call evaluation path. Extend the
+  - Complete remaining claim-bearing values on
+    **STATE-LOCAL-VALUE-FRONTIER**'s computed-call evaluation path. Preserve the
     checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not
     consume retained claims. Preserve the selected transfer and ordered
     residual complement under the original owner, never a second whole
     temporary for the selected field.
-    `pending/drops/runtime_claim_bearing_temporary_cleanup_exit` passes source
-    checking and now reaches Terminal production, but `omega run` on macOS
-    ARM64 stops at `UnknownStructuralArgument` for its claim-bearing child
-    result in the old receiver replay. Reproduce the current frontier and do not
-    add a linear exception. Scalar materialization
+    Keep `pass/drops/runtime_claim_bearing_temporary_cleanup_exit` and
+    `pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit` as native
+    and Terminal controls for conditional establishment, descendant identity
+    transport, disjoint affine complements and exact linear hook disposition.
+    Scalar materialization
     of moved linear places and claim-bearing call results remains unfinished;
     an anonymous returned owner without a unique conserved claim map must
     still reject rather than mint replacement identities.

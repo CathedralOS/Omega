@@ -3,13 +3,10 @@ the scalar consumer borrows one complete temporary, and its normal continuation
 must retire the two owner-authorized linear fields in reverse declaration order.
 The false branch establishes no temporary or obligation.
 
-`omega --check main.omg` succeeds. On macOS ARM64, `omega run main.omg` now
-reaches Terminal production but the retiring verifier rejects a claim-bearing
-child result with `UnknownStructuralArgument`. Its operation-result argument
-policy only admits claim-free affine results. OMEGA-READS-TERMINAL-UNVERIFIED
-and TERMINAL-VERIFIER-DELETED own removal of that replay, not an exception for
-this program. This fixture stays pending until native and Terminal execution
-produce the authored result.
+Native and Terminal execution must both return 0 through the corpus:
+`python3 tools/corpus_gate.py --both --filter runtime_claim_bearing_temporary_cleanup_exit`.
+The checked interpreter's separate cleanup-plan support is not this runtime
+oracle.
 
 CML4 owns the exact temporary disposition; STATE-LOCAL-VALUE-FRONTIER owns
 the shared produced-value frontier. Scalar materialization of moved linear
