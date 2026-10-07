@@ -16,8 +16,7 @@ use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType, StructuralTypeI
 use std::collections::BTreeMap;
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
 impl TerminalExecution {
@@ -71,40 +70,21 @@ impl TerminalExecution {
         {
             return Err(malformed());
         }
-        let Some(StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Sum { cases },
-            ..
-        }) = self.program.structural_types.get(&result.structural_type)
-        else {
-            return Err(malformed());
+        let value = TerminalScalarCaseValue {
+            structural_type: result.structural_type,
+            result_case,
+            fields: fields
+                .iter()
+                .map(|binding| Ok((binding.field, self.scalar_value(binding.value)?)))
+                .collect::<Result<Vec<_>, TerminalInterpretError>>()?,
         };
-        let Some(selected) = cases.iter().find(|case| case.id == result_case) else {
-            return Err(malformed());
-        };
-        if selected.fields.len() != fields.len() {
-            return Err(malformed());
-        }
-        let mut payload = Vec::with_capacity(fields.len());
-        for (declaration, binding) in selected.fields.iter().zip(fields) {
-            let value = self.scalar_value(binding.value)?;
-            if declaration.id != binding.field
-                || declaration.field_type.scalar_type() != Some(value.scalar_type())
-            {
-                return Err(malformed());
-            }
-            if !value.satisfies_field(&declaration.field_type) {
-                return Err(malformed());
-            }
-            payload.push((binding.field, value));
-        }
-        self.scalar_case_values.insert(
-            result.place,
-            TerminalScalarCaseValue {
-                structural_type: result.structural_type,
-                result_case,
-                fields: payload,
-            },
-        );
+        value.validate_against(
+            self.program
+                .structural_types
+                .get(&result.structural_type)
+                .ok_or_else(malformed)?,
+        )?;
+        self.scalar_case_values.insert(result.place, value);
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier.insert(StructuralAffineDiscard {
                 place: result.place,

@@ -179,6 +179,15 @@ impl TerminalProgram {
         }
     }
 
+    /// Exact admitted payload description for typed host adapters. Describing
+    /// a type establishes neither runtime contents nor result custody.
+    pub fn structural_type(
+        &self,
+        identity: StructuralTypeId,
+    ) -> Option<&StructuralTypeDeclaration> {
+        self.program.structural_types.get(&identity)
+    }
+
     /// The precise import/provider roster of this entry's possible execution,
     /// after capability decisions on its admitted immutable projection. Runs
     /// no guest code; every execution start enforces this same decision before

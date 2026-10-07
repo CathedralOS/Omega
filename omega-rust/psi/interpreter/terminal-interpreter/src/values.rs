@@ -42,6 +42,41 @@ pub struct TerminalScalarCaseValue {
     pub fields: Vec<(semantic_vocabulary::StructuralFieldId, TerminalScalarValue)>,
 }
 
+impl TerminalScalarCaseValue {
+    /// Admit actual scalar payload contents, not a tag inferred from an opaque
+    /// identity. Both ordinary construction and external completion use this
+    /// join; carrier equality alone does not establish bounded field contents.
+    pub(crate) fn validate_against(
+        &self,
+        declaration: &terminal_psi::StructuralTypeDeclaration,
+    ) -> Result<(), crate::errors::TerminalInterpretError> {
+        use crate::errors::malformed;
+        let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+            return Err(malformed());
+        };
+        let selected = cases
+            .iter()
+            .find(|case| case.id == self.result_case)
+            .ok_or_else(malformed)?;
+        if declaration.id != self.structural_type
+            || selected.fields.len() != self.fields.len()
+            || selected
+                .fields
+                .iter()
+                .zip(&self.fields)
+                .any(|(field, (identity, value))| {
+                    field.relevance.is_erased()
+                        || field.id != *identity
+                        || field.field_type.scalar_type() != Some(value.scalar_type())
+                        || !value.satisfies_field(&field.field_type)
+                })
+        {
+            return Err(malformed());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalStructuralBooleanFieldValue {
     pub argument_index: u32,

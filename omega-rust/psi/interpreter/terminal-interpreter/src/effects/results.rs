@@ -4,10 +4,8 @@ use crate::effects::TerminalEffect;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::results::{TerminalCrash, TerminalCrashSite};
-use crate::values::{TerminalScalarValue, TerminalStructuralValue};
-use semantic_vocabulary::PlaceId;
+use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::StructuralTypeId;
-use semantic_vocabulary::ValueId;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use terminal_psi::BoundaryMachineDeclaration;
@@ -25,6 +23,9 @@ pub enum TerminalEffectResult {
     Crash(CrashCause),
     Unit,
     Scalar(TerminalScalarValue),
+    /// An exact selected sum case and its actual scalar payload. No opaque
+    /// host allocation identity, grants, claims or qualifications are inferred.
+    ScalarCase(TerminalScalarCaseValue),
     /// The same opaque, target-neutral value used for structural entry inputs.
     /// This does not provide a sum discriminator or materialized payload fields.
     Structural(TerminalStructuralValue),
@@ -90,7 +91,8 @@ impl TerminalExecution {
         result: &OperationResult,
     ) -> Result<(), TerminalInterpretError> {
         if let OperationResult::Structural(result) = result
-            && (requires_materialized_host_custody(&self.program.structural_types, result.structural_type)
+            && ((requires_materialized_host_custody(&self.program.structural_types, result.structural_type)
+                && !self.supports_scalar_case_result(result))
                 || self.structural_values.contains_key(&result.place)
                 || self.scalar_case_values.contains_key(&result.place)
                 || self
@@ -106,6 +108,28 @@ impl TerminalExecution {
             return Err(malformed());
         }
         Ok(())
+    }
+
+    fn supports_scalar_case_result(
+        &self,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> bool {
+        result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+            && matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            )
+            && self
+                .program
+                .structural_types
+                .get(&result.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
+                    if cases.iter().all(|case| case.fields.iter().all(|field|
+                        !field.relevance.is_erased() && field.field_type.scalar_type().is_some())))
+                })
     }
 }
 
@@ -139,9 +163,9 @@ pub(crate) fn requires_materialized_host_custody(
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::Record { fields: members } => fields.extend(members),
-            StructuralTypeShape::Sum { cases } => {
-                fields.extend(cases.iter().flat_map(|case| &case.fields));
-            }
+            // A discriminator and actual payload are required even when every
+            // field is an unrestricted scalar. Opaque identity is not a case.
+            StructuralTypeShape::Sum { .. } => return true,
             StructuralTypeShape::Mixed {
                 fields: members,
                 cases,
@@ -167,44 +191,72 @@ pub(crate) fn requires_materialized_host_custody(
     false
 }
 
-pub(crate) fn commit_boundary_result(
-    values: &mut BTreeMap<ValueId, TerminalScalarValue>,
-    structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
-    live_affine_frontier: &mut BTreeSet<StructuralAffineDiscard>,
-    result: &OperationResult,
-    expected: &BoundaryMachineResult,
-    returned: TerminalEffectResult,
-) -> Result<(), TerminalInterpretError> {
-    match (result, expected, returned) {
-        (OperationResult::Unit, BoundaryMachineResult::Unit, TerminalEffectResult::Unit) => {}
-        (
-            OperationResult::Scalar(declaration),
-            BoundaryMachineResult::Scalar(expected),
-            TerminalEffectResult::Scalar(value),
-        ) if declaration.scalar_type == *expected && value.scalar_type() == *expected => {
-            values.insert(declaration.id, value);
-        }
-        (
-            OperationResult::Structural(declaration),
-            BoundaryMachineResult::Structural(expected),
-            TerminalEffectResult::Structural(value),
-        ) if declaration.structural_type == expected.structural_type
-            && declaration.multiplicity == expected.multiplicity
-            && declaration.qualifications == expected.qualifications
-            && value.structural_type == expected.structural_type
-            && value.qualifications == expected.qualifications
-            && value.path.is_empty() =>
-        {
-            structural_values.insert(declaration.place, value);
-            if declaration.multiplicity == StructuralMultiplicity::Affine {
-                live_affine_frontier.insert(StructuralAffineDiscard {
-                    place: declaration.place,
-                    path: Vec::new(),
-                    structural_type: declaration.structural_type,
-                });
+impl TerminalExecution {
+    pub(crate) fn commit_boundary_result(
+        &mut self,
+        result: &OperationResult,
+        expected: &BoundaryMachineResult,
+        returned: TerminalEffectResult,
+    ) -> Result<(), TerminalInterpretError> {
+        match (result, expected, returned) {
+            (OperationResult::Unit, BoundaryMachineResult::Unit, TerminalEffectResult::Unit) => {}
+            (
+                OperationResult::Scalar(declaration),
+                BoundaryMachineResult::Scalar(expected),
+                TerminalEffectResult::Scalar(value),
+            ) if declaration.scalar_type == *expected && value.scalar_type() == *expected => {
+                self.values.insert(declaration.id, value);
             }
+            (
+                OperationResult::Structural(declaration),
+                BoundaryMachineResult::Structural(expected),
+                TerminalEffectResult::ScalarCase(value),
+            ) if declaration.structural_type == expected.structural_type
+                && declaration.multiplicity == expected.multiplicity
+                && declaration.qualifications == expected.qualifications
+                && self.supports_scalar_case_result(declaration) =>
+            {
+                value.validate_against(
+                    self.program
+                        .structural_types
+                        .get(&declaration.structural_type)
+                        .ok_or_else(malformed)?,
+                )?;
+                self.scalar_case_values.insert(declaration.place, value);
+                if declaration.multiplicity == StructuralMultiplicity::Affine {
+                    self.live_affine_frontier.insert(StructuralAffineDiscard {
+                        place: declaration.place,
+                        path: Vec::new(),
+                        structural_type: declaration.structural_type,
+                    });
+                }
+            }
+            (
+                OperationResult::Structural(declaration),
+                BoundaryMachineResult::Structural(expected),
+                TerminalEffectResult::Structural(value),
+            ) if declaration.structural_type == expected.structural_type
+                && declaration.multiplicity == expected.multiplicity
+                && declaration.qualifications == expected.qualifications
+                && value.structural_type == expected.structural_type
+                && value.qualifications == expected.qualifications
+                && value.path.is_empty()
+                && !requires_materialized_host_custody(
+                    &self.program.structural_types,
+                    declaration.structural_type,
+                ) =>
+            {
+                self.structural_values.insert(declaration.place, value);
+                if declaration.multiplicity == StructuralMultiplicity::Affine {
+                    self.live_affine_frontier.insert(StructuralAffineDiscard {
+                        place: declaration.place,
+                        path: Vec::new(),
+                        structural_type: declaration.structural_type,
+                    });
+                }
+            }
+            _ => return Err(malformed()),
         }
-        _ => return Err(malformed()),
+        Ok(())
     }
-    Ok(())
 }

@@ -15,7 +15,10 @@ use terminal_psi::{
 /// Resource ceiling for expanded cells and pending work. Shape admission does
 /// not use this ceiling: large valid types can need another materialization
 /// strategy. Aggregate visits are bounded too, including empty element shapes.
-const MAX_ZEROED_LEAVES: usize = 65_536;
+/// A root with 65,536 scalar array cells also needs room for its record fields
+/// and traversal work. This execution budget is not a language validity limit;
+/// 131,072 keeps materialization bounded without rejecting that ordinary root.
+const MAX_ZEROED_LEAVES: usize = 131_072;
 
 /// One zero-initialized leaf cell of a zero-constructible structural type,
 /// addressed the way runtime storage keys it: a record/common or selected case field

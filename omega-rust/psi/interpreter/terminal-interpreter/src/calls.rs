@@ -13,7 +13,6 @@ use crate::custody::{
     bind_arguments, bind_boundary_arguments, bind_structural_arguments, complete_claims,
     remove_affine_root, validate_boundary_requirements,
 };
-use crate::effects::results;
 use crate::effects::results::TerminalEffectResult;
 use crate::effects::{TerminalEffect, TerminalEffectHandler};
 use crate::errors::{TerminalInterpretError, malformed};
@@ -274,7 +273,10 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_boundary_call")
         };
-        let boundary_declaration = self.program.boundary_machines.get(&boundary).ok_or(
+        // Keep the admitted declaration owner independent of mutable result
+        // storage; no declaration or program contents are copied for a call.
+        let program = std::sync::Arc::clone(&self.program);
+        let boundary_declaration = program.boundary_machines.get(&boundary).ok_or(
             TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
         )?;
         let scalar_arguments = scalar_argument_ids
@@ -434,14 +436,7 @@ impl TerminalExecution {
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }
-        results::commit_boundary_result(
-            &mut self.values,
-            &mut self.structural_values,
-            &mut self.live_affine_frontier,
-            &operation.result,
-            &boundary_declaration.result,
-            returned,
-        )?;
+        self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)?;
         for (argument, parameter) in structural_arguments
             .iter()
             .zip(&boundary_declaration.structural_parameters)
