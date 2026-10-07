@@ -340,37 +340,8 @@ fn expression_evaluates_effects(program: &TypedTrees, root: ExpressionHandle) ->
                     pending.push(arm.value);
                 }
             }
-            ExpressionNode::Binary(binary) => {
-                pending.push(binary.left);
-                pending.push(binary.right);
-            }
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
             ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Indexed(indexed) => {
-                pending.push(indexed.collection);
-                pending.push(indexed.index);
-            }
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Range(range) => {
-                pending.push(range.start);
-                pending.push(range.end);
-            }
-            ExpressionNode::ArrayLiteral(values) => {
-                pending.extend(
-                    program
-                        .expression_table
-                        .expression_handles(*values)
-                        .iter()
-                        .copied(),
-                );
-            }
-            ExpressionNode::StructLiteral(literal) => {
-                for field in program.expression_table.struct_fields(literal.fields) {
-                    pending.push(field.value);
-                }
-            }
-            _ => {}
+            _ => crate::facts::push_expression_children(program, expression, &mut pending),
         }
     }
     false

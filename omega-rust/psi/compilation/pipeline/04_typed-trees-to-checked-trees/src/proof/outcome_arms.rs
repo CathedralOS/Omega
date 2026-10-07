@@ -530,26 +530,8 @@ pub(crate) fn outcome_specific_assignment_matches_result(
     };
     let result_label = program.render_proof_expression(result, ProofSubstitutions::None);
     let substitutions = [(SymbolHandle::invalid(), "result".to_owned(), result_label)];
-    let binder_labels = application
-        .binder_arguments
-        .iter()
-        .map(|argument| {
-            substitutions
-                .iter()
-                .find(|(symbol, _, _)| *symbol == argument.symbol)
-                .map(|(_, _, replacement)| replacement.clone())
-                .unwrap_or_else(|| argument.display_name())
-        })
-        .collect::<Vec<_>>();
-    let argument_labels = program
-        .expression_table
-        .expression_handles(application.arguments)
-        .iter()
-        .map(|argument| {
-            program
-                .render_proof_expression(*argument, ProofSubstitutions::ByParameter(&substitutions))
-        })
-        .collect::<Vec<_>>();
+    let (binder_labels, argument_labels) =
+        proposition_label_parts(program, application, &substitutions);
     program
         .normalize_nominal_proposition_application(
             application,
