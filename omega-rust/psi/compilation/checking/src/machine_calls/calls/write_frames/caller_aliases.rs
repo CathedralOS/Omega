@@ -371,29 +371,11 @@ pub(super) fn local_write_origins_before_statement(
     )?;
     let evidence = match site {
         CallerPrefixSite::Tracked { state, index, .. } => {
-            let prefix =
-                collected_prefix_at(collections, program, machine, state, symbols, index, false)?;
             let statements = program.statement_table.statements(state.statement_nodes);
             let statement = statements.get(index)?;
-            if super::stored_origins::statement_exposes_frozen_binding(
-                program,
-                machine,
-                state,
-                statement,
-                &prefix.stored,
-                &prefix.aliases,
-                symbols,
-                &mut FrameInference::for_state(state.symbol),
-            ) {
-                return None;
-            }
-            CallerPrefixEvidence {
-                state: Some(state),
-                isolated_locals: prefix.isolated_locals,
-                aliases: prefix.aliases,
-                divergent: prefix.divergent,
-                stored: prefix.stored,
-            }
+            tracked_prefix_evidence(
+                collections, program, machine, state, statement, index, symbols,
+            )?
         }
         CallerPrefixSite::Untracked => CallerPrefixEvidence {
             state: None,
@@ -884,6 +866,42 @@ fn caller_prefix_entry<'program>(
     })
 }
 
+/// Collect the caller-origin evidence one tracked site contributes: the
+/// state's recorded prefix, unless the statement it names exposes a frozen
+/// binding at that slot.
+fn tracked_prefix_evidence<'program>(
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: &'program typed_trees::state::State,
+    statement: &'program StatementNode,
+    index: usize,
+    symbols: &TopLevelSymbols<'_>,
+) -> Option<CallerPrefixEvidence<'program>> {
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, false)?;
+    if super::stored_origins::statement_exposes_frozen_binding(
+        program,
+        machine,
+        state,
+        statement,
+        &prefix.stored,
+        &prefix.aliases,
+        symbols,
+        &mut FrameInference::for_state(state.symbol),
+    ) {
+        return None;
+    }
+    Some(CallerPrefixEvidence {
+        state: Some(state),
+        isolated_locals: prefix.isolated_locals,
+        aliases: prefix.aliases,
+        divergent: prefix.divergent,
+        stored: prefix.stored,
+    })
+}
+
 fn caller_aliases_at_prefix<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
@@ -907,26 +925,9 @@ fn caller_aliases_at_prefix<'program>(
             stored: Vec::new(),
         });
     };
-    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, false)?;
-    if super::stored_origins::statement_exposes_frozen_binding(
-        program,
-        machine,
-        state,
-        statement,
-        &prefix.stored,
-        &prefix.aliases,
-        symbols,
-        &mut FrameInference::for_state(state.symbol),
-    ) {
-        return None;
-    }
-    Some(CallerPrefixEvidence {
-        state: Some(state),
-        isolated_locals: prefix.isolated_locals,
-        aliases: prefix.aliases,
-        divergent: prefix.divergent,
-        stored: prefix.stored,
-    })
+    tracked_prefix_evidence(
+        collections, program, machine, state, statement, index, symbols,
+    )
 }
 
 /// Locate a unique retained occurrence without resolving declarations by name.
