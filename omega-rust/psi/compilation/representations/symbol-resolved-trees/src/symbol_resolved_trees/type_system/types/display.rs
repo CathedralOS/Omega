@@ -1,24 +1,20 @@
 use crate::symbol_resolved_trees::display::comma_join_display;
 use arena::Arena;
 
-use crate::types::{TypeConstraint, TypeReference};
+use crate::types::{ConstrainedTypeReference, TypeConstraint, TypeReference};
 
 impl TypeReference {
-    pub fn display_name(&self) -> String {
+    /// The arm both spellings share; only the `Constrained` summary differs.
+    fn display_name_with(
+        &self,
+        constrained_name: impl Fn(&ConstrainedTypeReference) -> String,
+    ) -> String {
         match self {
             TypeReference::Reference(reference) => {
                 let qualifier = reference_qualifier(reference.access);
                 format!("&{qualifier}<type>")
             }
-            TypeReference::Constrained(constrained) => {
-                format!(
-                    "<type>[{}]",
-                    match constrained.constraints.count() {
-                        1 => "1 constraint".to_owned(),
-                        count => format!("{count} constraints"),
-                    }
-                )
-            }
+            TypeReference::Constrained(constrained) => constrained_name(constrained),
             TypeReference::FixedArray(fixed_array) => {
                 format!("[<type>; {}]", fixed_array.length)
             }
@@ -46,49 +42,31 @@ impl TypeReference {
         }
     }
 
+    pub fn display_name(&self) -> String {
+        self.display_name_with(|constrained| {
+            format!(
+                "<type>[{}]",
+                match constrained.constraints.count() {
+                    1 => "1 constraint".to_owned(),
+                    count => format!("{count} constraints"),
+                }
+            )
+        })
+    }
+
     pub fn display_name_with_constraints(
         &self,
         type_constraints: &Arena<TypeConstraint>,
     ) -> String {
-        match self {
-            TypeReference::Reference(reference) => {
-                let qualifier = reference_qualifier(reference.access);
-                format!("&{qualifier}<type>")
-            }
-            TypeReference::Constrained(constrained) => {
-                let constraints = type_constraints
-                    .span(constrained.constraints)
-                    .unwrap_or(&[]);
-                format!(
-                    "<type>[{}]",
-                    comma_join_display(constraints.iter(), TypeConstraint::display_name)
-                )
-            }
-            TypeReference::FixedArray(fixed_array) => {
-                format!("[<type>; {}]", fixed_array.length)
-            }
-            TypeReference::Slice(slice) => {
-                let _ = slice;
-                "[<type>]".to_owned()
-            }
-            TypeReference::Generic(generic) => {
-                let arguments = match generic.arguments.count() {
-                    1 => "1 argument".to_owned(),
-                    count => format!("{count} arguments"),
-                };
-                format!("{}<{arguments}>", generic.base_name)
-            }
-            TypeReference::ConstExpression(_) => "const <expression>".to_owned(),
-            TypeReference::DynamicTrait {
-                name, arguments, ..
-            } => match arguments.count() {
-                0 => format!("dyn {name}"),
-                1 => format!("dyn {name}<1 argument>"),
-                count => format!("dyn {name}<{count} arguments>"),
-            },
-            TypeReference::Named { name, .. } => name.to_string(),
-            TypeReference::Unit => "()".to_owned(),
-        }
+        self.display_name_with(|constrained| {
+            let constraints = type_constraints
+                .span(constrained.constraints)
+                .unwrap_or(&[]);
+            format!(
+                "<type>[{}]",
+                comma_join_display(constraints.iter(), TypeConstraint::display_name)
+            )
+        })
     }
 }
 
