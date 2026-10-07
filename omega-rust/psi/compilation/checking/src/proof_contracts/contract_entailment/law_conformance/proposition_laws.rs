@@ -24,18 +24,9 @@ pub(crate) fn check_proposition_law_conformance(
     let Some(entry_state) = program.machine_states(machine).first() else {
         return;
     };
-    let substitutions = program
-        .state_signature_parameters(requirement)
-        .iter()
-        .zip(program.state_parameters(entry_state))
-        .map(|(required, actual)| {
-            (
-                required.symbol,
-                required.name.as_str().to_owned(),
-                actual.name.as_str().to_owned(),
-            )
-        })
-        .collect::<Vec<_>>();
+    let substitutions = crate::declarations::state_signatures::signature_entry_substitutions(
+        program, requirement, entry_state,
+    );
     let trait_parameters = program.trait_type_parameters(trait_definition);
 
     for law in proposition_laws {

@@ -916,18 +916,9 @@ fn validate_named_contract_lane(
         return;
     }
 
-    let parameter_substitutions = program
-        .state_signature_parameters(requirement)
-        .iter()
-        .zip(program.state_parameters(entry_state))
-        .map(|(required, actual)| {
-            (
-                required.symbol,
-                required.name.as_str().to_owned(),
-                actual.name.as_str().to_owned(),
-            )
-        })
-        .collect::<Vec<_>>();
+    let parameter_substitutions = crate::declarations::state_signatures::signature_entry_substitutions(
+        program, requirement, entry_state,
+    );
 
     for (lane_position, (required, actual)) in required.iter().zip(actual).enumerate() {
         let required_name = required

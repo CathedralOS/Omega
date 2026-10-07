@@ -12,7 +12,8 @@ use std::fmt;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
-use typed_trees::signature::{SignatureContract, StateParameter};
+use typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
+use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
 mod value_scope;
@@ -325,6 +326,28 @@ fn validate_state_signature_contracts(
             },
         );
     }
+}
+
+/// `(required symbol, required name, actual name)` for each signature
+/// parameter zipped with the machine's entry-state parameters — the
+/// substitution table conformance and law walks build identically.
+pub(crate) fn signature_entry_substitutions(
+    program: &TypedTrees,
+    requirement: &StateSignature,
+    entry_state: &State,
+) -> Vec<(symbols::SymbolHandle, String, String)> {
+    program
+        .state_signature_parameters(requirement)
+        .iter()
+        .zip(program.state_parameters(entry_state))
+        .map(|(required, actual)| {
+            (
+                required.symbol,
+                required.name.as_str().to_owned(),
+                actual.name.as_str().to_owned(),
+            )
+        })
+        .collect()
 }
 
 pub(crate) fn validate_machine_contracts(
