@@ -841,17 +841,13 @@ fn operand_declared_interval(
     })
 }
 
-/// R1a dependent maximum as an INTERVAL operand: `y: u32 [0..=self.rows]`
-/// contributes `(0, high(rows) + offset)` -- the named field's own
-/// store-enforced literal range caps the dependent bound at every moment,
-/// so the substituted interval is sound for the temp's synthesized range
-/// (the same substitution the checker's index prover applies). The field
-/// resolves on the ENCLOSING machine's attached data (`attached_data`).
-fn dependent_exact_range_substituted(
-    source_trees: &resolved::SymbolResolvedTrees,
-    attached_data: Option<&resolved::name::DiagnosticName>,
-    type_reference: &TypeReference,
-) -> Option<(i64, i64)> {
+/// Constrained-shell constraint rows of `type_reference`, only when every
+/// arithmetic domain in the shell is Exact — the shared gate both range
+/// recognizers run.
+fn exact_domain_constraints<'t>(
+    source_trees: &'t resolved::SymbolResolvedTrees,
+    type_reference: &'t TypeReference,
+) -> Option<(&'t resolved::types::ConstrainedTypeReference, &'t [TypeConstraint])> {
     let TypeReference::Constrained(constrained) = type_reference else {
         return None;
     };
@@ -869,6 +865,21 @@ fn dependent_exact_range_substituted(
     }) {
         return None;
     }
+    Some((constrained, constraints))
+}
+
+/// R1a dependent maximum as an INTERVAL operand: `y: u32 [0..=self.rows]`
+/// contributes `(0, high(rows) + offset)` -- the named field's own
+/// store-enforced literal range caps the dependent bound at every moment,
+/// so the substituted interval is sound for the temp's synthesized range
+/// (the same substitution the checker's index prover applies). The field
+/// resolves on the ENCLOSING machine's attached data (`attached_data`).
+fn dependent_exact_range_substituted(
+    source_trees: &resolved::SymbolResolvedTrees,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    type_reference: &TypeReference,
+) -> Option<(i64, i64)> {
+    let (_constrained, constraints) = exact_domain_constraints(source_trees, type_reference)?;
     let data_name = attached_data?;
     constraints.iter().find_map(|constraint| {
         let TypeConstraint::Range {
@@ -1026,23 +1037,7 @@ fn declared_exact_range(
     source_trees: &resolved::SymbolResolvedTrees,
     type_reference: &TypeReference,
 ) -> Option<(i64, i64)> {
-    let TypeReference::Constrained(constrained) = type_reference else {
-        return None;
-    };
-    let constraints = source_trees
-        .tables
-        .types
-        .constraints
-        .span_or_empty(constrained.constraints);
-    if constraints.iter().any(|constraint| {
-        matches!(
-            constraint,
-            TypeConstraint::ArithmeticDomain(domain)
-                if *domain != numerics::arithmetic::ArithmeticDomain::Exact
-        )
-    }) {
-        return None;
-    }
+    let (constrained, constraints) = exact_domain_constraints(source_trees, type_reference)?;
     constraints
         .iter()
         .find_map(|constraint| match constraint {
