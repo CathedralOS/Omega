@@ -30,7 +30,7 @@ pub(super) fn admit_assignment_value<'p>(
             return false;
         };
         let Some((element_type, length)) =
-            crate::program_scope::type_shape::collection_element_and_length(
+            crate::value_custody::type_shapes::collection_element_and_length(
                 program,
                 collection_type,
             )

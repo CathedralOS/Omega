@@ -323,7 +323,7 @@ impl RankProjection {
             return None;
         }
         let definition =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, *data)?;
+            crate::declarations::data_queries::data_definition_by_symbol(program, *data)?;
 
         // The normalized view path is the existing measure-selection carrier.
         // Resolve it once, reject ambiguity, then use only this occurrence and
@@ -482,7 +482,7 @@ impl RankProjection {
             return false;
         }
         let Some(data) =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)
+            crate::declarations::data_queries::data_definition_by_symbol(program, owner)
         else {
             return false;
         };
@@ -597,7 +597,7 @@ fn unsigned_subject_carrier(
 /// The slice carrier under any reference or constrained shells. A ranked
 /// subject without an exact slice base cannot carry a length projection.
 fn slice_carrier_type(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -> bool {
-    crate::program_scope::type_shape::has_slice_base(program, reference)
+    crate::value_custody::type_shapes::has_slice_base(program, reference)
 }
 
 /// The unsigned primitive carrier under any constrained shells. A ranked

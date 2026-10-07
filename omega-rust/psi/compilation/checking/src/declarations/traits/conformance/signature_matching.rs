@@ -351,7 +351,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
             }
             _ => {
                 let Some((required_type, actual_type)) =
-                    crate::program_scope::type_shape::scalar_parameter_type_pair(
+                    crate::value_custody::type_shapes::scalar_parameter_type_pair(
                         &required.kind,
                         &actual.kind,
                     )
@@ -749,20 +749,17 @@ pub(crate) fn type_references_match_with_trait_bindings(
             },
             TypeReferenceNode::Generic { .. },
         ) if actual_symbol.is_valid() => {
-            crate::program_scope::data_definitions::data_definition_by_symbol(
-                program,
-                *actual_symbol,
-            )
-            .and_then(|definition| definition.generic_instance)
-            .is_some_and(|origin| {
-                type_references_match_with_trait_bindings(
-                    program,
-                    origin,
-                    required,
-                    trait_type_parameters,
-                    bindings,
-                )
-            })
+            crate::declarations::data_queries::data_definition_by_symbol(program, *actual_symbol)
+                .and_then(|definition| definition.generic_instance)
+                .is_some_and(|origin| {
+                    type_references_match_with_trait_bindings(
+                        program,
+                        origin,
+                        required,
+                        trait_type_parameters,
+                        bindings,
+                    )
+                })
         }
         _ => type_references_match(program, actual, required),
     }
@@ -1025,7 +1022,7 @@ fn type_reference_is_instance_of_family(
         return false;
     };
     let Some(family_definition) =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, *family_symbol)
+        crate::declarations::data_queries::data_definition_by_symbol(program, *family_symbol)
     else {
         return false;
     };
@@ -1114,7 +1111,7 @@ pub(crate) fn carrier_data_definition_for_argument<'program>(
     else {
         return None;
     };
-    crate::program_scope::data_definitions::data_definition_by_symbol(program, *carrier_symbol)
+    crate::declarations::data_queries::data_definition_by_symbol(program, *carrier_symbol)
 }
 
 pub(crate) fn parameter_shape_label(

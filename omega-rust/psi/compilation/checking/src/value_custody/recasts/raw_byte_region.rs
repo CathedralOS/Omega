@@ -285,8 +285,7 @@ fn record_view_is_fact_free(
     if !visiting.insert(symbol_identity) {
         return false;
     }
-    let Some(data) =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)
+    let Some(data) = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
     else {
         visiting.remove(&symbol_identity);
         return false;

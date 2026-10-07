@@ -90,7 +90,7 @@ fn shape(
             TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
             TypeReferenceNode::Named { symbol, .. }
                 if symbol.is_valid()
-                    && crate::program_scope::data_definitions::data_definition_by_symbol(
+                    && crate::declarations::data_queries::data_definition_by_symbol(
                         program, *symbol,
                     )
                     .is_some() =>

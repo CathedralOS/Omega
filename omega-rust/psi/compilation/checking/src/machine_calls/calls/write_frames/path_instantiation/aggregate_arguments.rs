@@ -344,9 +344,8 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
                 {
                     return None;
                 }
-                let definition = crate::program_scope::data_definitions::data_definition_by_symbol(
-                    program, symbol,
-                )?;
+                let definition =
+                    crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
                 let mut fields = Vec::new();
                 let mut local_segments = local_segments;
                 if let Some(case) = literal.case_name.as_ref() {

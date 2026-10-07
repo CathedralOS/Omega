@@ -338,7 +338,7 @@ fn retain_declared_integer_ranges(
         return Some(());
     }
     for (minimum, maximum, end_inclusive) in
-        crate::program_scope::type_shape::range_constraints(program, parameter.type_reference)
+        crate::value_custody::type_shapes::range_constraints(program, parameter.type_reference)
     {
         if program.arithmetic_domain_for_type_reference(parameter.type_reference)
             != numerics::arithmetic::ArithmeticDomain::Exact
@@ -855,10 +855,9 @@ pub fn structural_owned_path(
                 facts::PlaceSegment::Field { symbol },
                 TypeReferenceNode::Named { symbol: owner, .. },
             ) => {
-                let definition = crate::program_scope::data_definitions::data_definition_by_symbol(
-                    program, *owner,
-                )
-                .ok_or("structural claim field has no exact data owner")?;
+                let definition =
+                    crate::declarations::data_queries::data_definition_by_symbol(program, *owner)
+                        .ok_or("structural claim field has no exact data owner")?;
                 let field = program
                     .data_members(definition)
                     .iter()

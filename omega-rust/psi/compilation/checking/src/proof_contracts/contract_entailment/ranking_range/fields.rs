@@ -368,7 +368,7 @@ impl<'program> Coordinate<'program> {
         // range does, so the coordinate carries them as hypotheses too.
         let owner = program.symbols.get(self.field.symbol).parent;
         if let Some(definition) =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)
+            crate::declarations::data_queries::data_definition_by_symbol(program, owner)
             && let Some(intervals) =
                 crate::proof_contracts::default_domains::data_where_field_intervals(
                     program, definition,
@@ -711,8 +711,7 @@ pub(super) fn record_referent(
         return None;
     };
     (symbol.is_valid()
-        && crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
-            .is_some())
+        && crate::declarations::data_queries::data_definition_by_symbol(program, *symbol).is_some())
     .then_some((*symbol, borrowed))
 }
 
@@ -873,7 +872,7 @@ fn for_each_record_field_path(
             return;
         }
         let Some(declaration) =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)
+            crate::declarations::data_queries::data_definition_by_symbol(program, owner)
         else {
             return;
         };

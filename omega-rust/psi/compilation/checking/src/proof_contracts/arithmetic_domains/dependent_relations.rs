@@ -66,7 +66,7 @@ pub(super) fn dependent_maximum_of_type_reference(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<(typed_trees::name::Identifier, i64)> {
-    let shells = crate::program_scope::type_shape::exact_constrained_shells(program, handle)?;
+    let shells = crate::value_custody::type_shapes::exact_constrained_shells(program, handle)?;
     shells
         .iter()
         .flat_map(|constraints| constraints.iter())

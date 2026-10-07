@@ -40,21 +40,21 @@ pub fn transparent_proposition_application_entailed(
             {
                 return structural_term(program, expression);
             }
-            let Some(state) = crate::program_scope::call_targets::unique_state_by_symbol(
-                program,
-                call.target_symbol,
-            ) else {
+            let Some(state) =
+                crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
+                    program,
+                    call.target_symbol,
+                )
+            else {
                 return None;
             };
             let Some(data_symbol) =
-                crate::program_scope::type_shape::head_data_symbol(program, state.return_type)
+                crate::value_custody::type_shapes::head_data_symbol(program, state.return_type)
             else {
                 return structural_term(program, expression);
             };
-            let data = crate::program_scope::data_definitions::data_definition_by_symbol(
-                program,
-                data_symbol,
-            )?;
+            let data =
+                crate::declarations::data_queries::data_definition_by_symbol(program, data_symbol)?;
             // Product eta reconstructs plain records only. A sum's common
             // fields do not identify its case or active payload.
             if program

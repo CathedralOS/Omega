@@ -247,7 +247,7 @@ fn checked_projection_path(
     for segment in path {
         match segment {
             RepresentationSegment::Field(symbol) => {
-                let owner = crate::program_scope::data_definitions::data_definition_by_symbol(
+                let owner = crate::declarations::data_queries::data_definition_by_symbol(
                     program,
                     program.type_reference_symbol(carrier),
                 )?;
@@ -360,7 +360,7 @@ fn recast_projection_path(
             }
             _ => return None,
         };
-        let owner = crate::program_scope::data_definitions::data_definition_by_symbol(
+        let owner = crate::declarations::data_queries::data_definition_by_symbol(
             program,
             program.type_reference_symbol(carrier),
         )?;
@@ -599,7 +599,7 @@ fn mutable_record_representation_inner_body(
     if !visiting.insert(symbol_identity) {
         return None;
     }
-    let data = crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)?;
+    let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
     let Some(where_bounds) =
         crate::proof_contracts::default_domains::data_where_field_literal_bounds(program, data)
     else {

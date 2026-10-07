@@ -581,7 +581,7 @@ fn runtime_scalar_can_embed(
     type_reference: TypeReferenceHandle,
 ) -> bool {
     let type_reference =
-        crate::program_scope::type_shape::unconstrained_base(program, type_reference);
+        crate::value_custody::type_shapes::unconstrained_base(program, type_reference);
     matches!(
         program.type_reference_table.type_reference(type_reference),
         TypeReferenceNode::Named { name, .. }
@@ -630,7 +630,7 @@ fn projection_subject(
         } if access.is_readable() && !access.is_exclusive() => Some(ProjectionSubject {
             symbol: parameter.symbol,
             qualified: *referee,
-            carrier: crate::program_scope::type_shape::unconstrained_base(program, *referee),
+            carrier: crate::value_custody::type_shapes::unconstrained_base(program, *referee),
         }),
         _ => None,
     }

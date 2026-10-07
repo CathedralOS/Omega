@@ -40,10 +40,9 @@ pub(crate) fn collect_validated_quotient_formations(
             )));
             continue;
         };
-        let Some(carrier) = crate::program_scope::data_definitions::data_definition_by_symbol(
-            program,
-            carrier_symbol,
-        ) else {
+        let Some(carrier) =
+            crate::declarations::data_queries::data_definition_by_symbol(program, carrier_symbol)
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` has unknown carrier `{}`",
                 definition.name,

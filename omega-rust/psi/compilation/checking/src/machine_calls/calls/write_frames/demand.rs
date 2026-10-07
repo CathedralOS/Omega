@@ -657,7 +657,7 @@ impl<'program> CallFrameResolver<'program> {
                                 inference,
                             );
                         }
-                        let receiver = crate::program_scope::call_targets::call_receiver_member_names(
+                        let receiver = crate::machine_calls::calls::signature_queries::call_receiver_member_names(
                             self.program,
                             call,
                         );
@@ -1329,7 +1329,7 @@ pub(crate) fn conservative_call_written_paths(
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<String>> {
     let receiver_members =
-        crate::program_scope::call_targets::call_receiver_member_names(program, call);
+        crate::machine_calls::calls::signature_queries::call_receiver_member_names(program, call);
     syntactic_call_written_paths(
         program,
         current_machine,

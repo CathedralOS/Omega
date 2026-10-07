@@ -20,10 +20,9 @@ pub(crate) fn validate_plans(
         }
         data_symbols.push(plan.data_symbol);
 
-        let Some(data) = crate::program_scope::data_definitions::data_definition_by_symbol(
-            program,
-            plan.data_symbol,
-        ) else {
+        let Some(data) =
+            crate::declarations::data_queries::data_definition_by_symbol(program, plan.data_symbol)
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact synthesized data identity",
                 plan.data_name
@@ -45,7 +44,7 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(schema) = crate::program_scope::data_definitions::data_definition_by_symbol(
+        let Some(schema) = crate::declarations::data_queries::data_definition_by_symbol(
             program,
             plan.schema_symbol,
         ) else {
@@ -108,7 +107,7 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(policy) = crate::program_scope::data_definitions::data_definition_by_symbol(
+        let Some(policy) = crate::declarations::data_queries::data_definition_by_symbol(
             program,
             plan.policy_symbol,
         ) else {

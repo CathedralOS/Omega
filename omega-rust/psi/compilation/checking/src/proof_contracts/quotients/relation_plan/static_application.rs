@@ -324,7 +324,7 @@ fn validate_closed_type_argument(
         return Err(RelationPlanError::RepresentativeStaticArgumentCategoryMismatch(position));
     }
     let Some(data) =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, argument.symbol)
+        crate::declarations::data_queries::data_definition_by_symbol(program, argument.symbol)
     else {
         let primitive = argument.application.is_none()
             && argument.path.len() == 1

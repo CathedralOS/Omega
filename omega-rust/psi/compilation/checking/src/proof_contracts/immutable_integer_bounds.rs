@@ -317,7 +317,7 @@ fn exact_integer_type_primitive(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    crate::program_scope::type_shape::exact_integer_primitive(program, type_reference, false)
+    crate::value_custody::type_shapes::exact_integer_primitive(program, type_reference, false)
 }
 
 fn collect_bound_terms(

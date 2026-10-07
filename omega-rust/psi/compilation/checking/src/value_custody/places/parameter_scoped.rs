@@ -62,7 +62,7 @@ fn expression_type(
                 _ => return None,
             };
             let data =
-                crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)?;
+                crate::declarations::data_queries::data_definition_by_symbol(program, owner)?;
             exact_data_member_field(
                 program,
                 data,

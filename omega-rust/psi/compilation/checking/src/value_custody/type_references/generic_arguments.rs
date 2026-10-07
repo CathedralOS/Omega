@@ -447,7 +447,7 @@ fn canonical_carrier_label(
 ) -> String {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+            crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
                 .map_or_else(
                     || type_reference_label(program, reference),
                     |definition| definition.name.as_str().to_owned(),
@@ -474,8 +474,7 @@ fn exact_structured_const_data_carrier_is_eligible(
         return false;
     };
     symbol.is_valid()
-        && crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
-            .is_some()
+        && crate::declarations::data_queries::data_definition_by_symbol(program, *symbol).is_some()
         && exact_structured_const_carrier_is_eligible(program, type_reference, &mut Vec::new())
 }
 
@@ -498,7 +497,7 @@ fn exact_structured_const_carrier_is_eligible(
             }
             visiting.push(*symbol);
             let eligible =
-                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
                     .is_some_and(|definition| {
                         let members = program.data_members(definition);
                         definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
@@ -564,9 +563,8 @@ fn structured_const_carrier_definition<'p>(
     if !symbol.is_valid() || visiting.contains(symbol) {
         return Err("structured const carrier is unresolved or recursive".to_owned());
     }
-    let definition =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
-            .ok_or_else(|| "structured const carrier symbol has no data definition".to_owned())?;
+    let definition = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
+        .ok_or_else(|| "structured const carrier symbol has no data definition".to_owned())?;
     if type_name != definition.name.as_str() {
         return Err(format!(
             "{node_kind} node names `{type_name}`, expected `{}`",

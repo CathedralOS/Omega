@@ -72,10 +72,6 @@ pub fn owned_receiver_claims(
             }],
         );
     }
-    let data_definitions_by_symbol =
-        crate::program_scope::data_definitions::memoized_data_definition_positions(program);
-    let parameters_by_symbol =
-        crate::program_scope::data_definitions::memoized_type_parameter_multiplicities(program);
     let mut claims = Vec::new();
     append_data_linear_claim_frontier(
         program,
@@ -83,8 +79,6 @@ pub fn owned_receiver_claims(
         &[],
         &mut Vec::new(),
         &mut Vec::new(),
-        &data_definitions_by_symbol,
-        &parameters_by_symbol,
         &mut claims,
     );
     (multiplicity, claims)
@@ -94,34 +88,23 @@ pub fn linear_claim_frontier(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
-    crate::program_scope::value_properties::memoized_claim_frontier(program, type_reference)
+    crate::value_custody::type_properties::memoized_claim_frontier(program, type_reference)
 }
 
-/// The uncached whole-table walk; the memoized entry routes here on a miss or
-/// when no program plan scope is open.
+/// A fresh custody walk on a memo miss or a mutable preparation input.
 pub(crate) fn linear_claim_frontier_uncached(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
     let mut claims = Vec::new();
-    // Data definitions are only ever identified by their own symbol during
-    // the walk; the build-scope index shares the table so each missed type
-    // reference does not rebuild it.
-    let data_definitions_by_symbol =
-        crate::program_scope::data_definitions::memoized_data_definition_positions(program);
-    // Multiplicity answers below look up the same declaration and parameter
-    // identities; `type_multiplicity` rescans both tables per named type, so
-    // index the parameter table once the same way.
-    let parameters_by_symbol =
-        crate::program_scope::data_definitions::memoized_type_parameter_multiplicities(program);
+    // Declaration relationships stay typed-owned; only this walk's result
+    // belongs to the immutable checking invocation.
     append_linear_claim_frontier(
         program,
         type_reference,
         &[],
         &mut Vec::new(),
         &mut Vec::new(),
-        &data_definitions_by_symbol,
-        &parameters_by_symbol,
         &mut claims,
     );
     claims
@@ -133,23 +116,12 @@ fn append_linear_claim_frontier(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
-    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
-    parameters_by_symbol: &std::collections::HashMap<
-        SymbolHandle,
-        (Multiplicity, typed_trees::data::TypeParameterKind),
-    >,
     claims: &mut Vec<ClaimFrontierClaim>,
 ) {
     if !type_reference.is_valid() {
         return;
     }
-    let multiplicity = type_multiplicity_with_substitutions(
-        program,
-        type_reference,
-        substitutions,
-        data_definitions_by_symbol,
-        parameters_by_symbol,
-    );
+    let multiplicity = type_multiplicity_with_substitutions(program, type_reference, substitutions);
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
             if multiplicity == Multiplicity::Linear {
@@ -162,8 +134,6 @@ fn append_linear_claim_frontier(
                 substitutions,
                 path,
                 visiting,
-                data_definitions_by_symbol,
-                parameters_by_symbol,
                 claims,
             );
             return;
@@ -185,8 +155,6 @@ fn append_linear_claim_frontier(
                 substitutions,
                 &mut Vec::new(),
                 visiting,
-                data_definitions_by_symbol,
-                parameters_by_symbol,
                 &mut element_claims,
             );
             let prefix_is_conditional = path
@@ -224,8 +192,6 @@ fn append_linear_claim_frontier(
                     substitutions,
                     path,
                     visiting,
-                    data_definitions_by_symbol,
-                    parameters_by_symbol,
                     claims,
                 );
                 return;
@@ -241,9 +207,7 @@ fn append_linear_claim_frontier(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { .. } => unreachable!("handled before multiplicity"),
         TypeReferenceNode::Named { symbol, name } => {
-            let Some(definition) =
-                find_data_definition(program, data_definitions_by_symbol, *symbol, name.as_str())
-            else {
+            let Some(definition) = find_data_definition(program, *symbol, name.as_str()) else {
                 return;
             };
             append_data_linear_claim_frontier(
@@ -252,8 +216,6 @@ fn append_linear_claim_frontier(
                 substitutions,
                 path,
                 visiting,
-                data_definitions_by_symbol,
-                parameters_by_symbol,
                 claims,
             );
         }
@@ -263,12 +225,8 @@ fn append_linear_claim_frontier(
             arguments,
             ..
         } => {
-            let Some(definition) = find_data_definition(
-                program,
-                data_definitions_by_symbol,
-                *base_symbol,
-                base_name.as_str(),
-            ) else {
+            let Some(definition) = find_data_definition(program, *base_symbol, base_name.as_str())
+            else {
                 return;
             };
             let mut instantiated = substitutions.to_vec();
@@ -292,8 +250,6 @@ fn append_linear_claim_frontier(
                 &instantiated,
                 path,
                 visiting,
-                data_definitions_by_symbol,
-                parameters_by_symbol,
                 claims,
             );
         }
@@ -315,11 +271,6 @@ fn append_data_linear_claim_frontier(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
-    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
-    parameters_by_symbol: &std::collections::HashMap<
-        SymbolHandle,
-        (Multiplicity, typed_trees::data::TypeParameterKind),
-    >,
     claims: &mut Vec<ClaimFrontierClaim>,
 ) {
     if visiting.contains(&definition.symbol) {
@@ -329,16 +280,7 @@ fn append_data_linear_claim_frontier(
     for member in program.data_members(definition) {
         match member {
             typed_trees::data::DataMember::Field(field) => {
-                append_field_claim_frontier(
-                    program,
-                    field,
-                    substitutions,
-                    path,
-                    visiting,
-                    data_definitions_by_symbol,
-                    parameters_by_symbol,
-                    claims,
-                );
+                append_field_claim_frontier(program, field, substitutions, path, visiting, claims);
             }
             typed_trees::data::DataMember::Variant(variant) => {
                 path.push(facts::PlaceSegment::Case {
@@ -351,8 +293,6 @@ fn append_data_linear_claim_frontier(
                         substitutions,
                         path,
                         visiting,
-                        data_definitions_by_symbol,
-                        parameters_by_symbol,
                         claims,
                     );
                 }
@@ -371,11 +311,6 @@ fn append_field_claim_frontier(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
-    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
-    parameters_by_symbol: &std::collections::HashMap<
-        SymbolHandle,
-        (Multiplicity, typed_trees::data::TypeParameterKind),
-    >,
     claims: &mut Vec<ClaimFrontierClaim>,
 ) {
     path.push(facts::PlaceSegment::Field {
@@ -387,8 +322,6 @@ fn append_field_claim_frontier(
         substitutions,
         path,
         visiting,
-        data_definitions_by_symbol,
-        parameters_by_symbol,
         claims,
     );
     path.pop();
@@ -415,30 +348,17 @@ fn type_multiplicity_with_substitutions(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
-    parameters_by_symbol: &std::collections::HashMap<
-        SymbolHandle,
-        (Multiplicity, typed_trees::data::TypeParameterKind),
-    >,
 ) -> Multiplicity {
     if !type_reference.is_valid() {
         return Multiplicity::Affine;
     }
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => type_multiplicity_with_substitutions(
-            program,
-            *base_type,
-            substitutions,
-            data_definitions_by_symbol,
-            parameters_by_symbol,
-        ),
-        TypeReferenceNode::FixedArray { element_type, .. } => type_multiplicity_with_substitutions(
-            program,
-            *element_type,
-            substitutions,
-            data_definitions_by_symbol,
-            parameters_by_symbol,
-        ),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_multiplicity_with_substitutions(program, *base_type, substitutions)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_multiplicity_with_substitutions(program, *element_type, substitutions)
+        }
         TypeReferenceNode::Named { symbol, .. } => substitutions
             .iter()
             .rev()
@@ -446,45 +366,22 @@ fn type_multiplicity_with_substitutions(
                 (*parameter == *symbol && *replacement != type_reference).then_some(*replacement)
             })
             .map(|replacement| {
-                type_multiplicity_with_substitutions(
-                    program,
-                    replacement,
-                    substitutions,
-                    data_definitions_by_symbol,
-                    parameters_by_symbol,
-                )
+                type_multiplicity_with_substitutions(program, replacement, substitutions)
             })
-            .unwrap_or_else(|| {
-                frontier_type_multiplicity(
-                    program,
-                    data_definitions_by_symbol,
-                    parameters_by_symbol,
-                    type_reference,
-                )
-            }),
-        _ => frontier_type_multiplicity(
-            program,
-            data_definitions_by_symbol,
-            parameters_by_symbol,
-            type_reference,
-        ),
+            .unwrap_or_else(|| frontier_type_multiplicity(program, type_reference)),
+        _ => frontier_type_multiplicity(program, type_reference),
     }
 }
 
 /// `TypedTrees::type_multiplicity` against the frontier's declaration and
-/// parameter indexes: the named and generic arms below reach the declaration
-/// through the symbol index instead of rescanning the definition table. The
+/// parameter indexes: named and generic arms reach the typed-owned declaration
+/// relationships instead of rescanning the definition table. The
 /// order keeps the representation's exact precedence — a resolved symbol hits
-/// the declaration index, a parameter symbol the parameter map, a spelled
+/// the declaration index, a parameter symbol its exact declaration, a spelled
 /// primitive name the builtin domain, and only then a name lookup — so every
 /// verdict is the same value the scanning version produced.
 fn frontier_type_multiplicity(
     program: &dyn crate::CheckingInput,
-    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
-    parameters_by_symbol: &std::collections::HashMap<
-        SymbolHandle,
-        (Multiplicity, typed_trees::data::TypeParameterKind),
-    >,
     type_reference: TypeReferenceHandle,
 ) -> Multiplicity {
     if !type_reference.is_valid() {
@@ -494,31 +391,25 @@ fn frontier_type_multiplicity(
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => Multiplicity::Unrestricted,
-        TypeReferenceNode::Constrained { base_type, .. } => frontier_type_multiplicity(
-            program,
-            data_definitions_by_symbol,
-            parameters_by_symbol,
-            *base_type,
-        ),
-        TypeReferenceNode::FixedArray { element_type, .. } => frontier_type_multiplicity(
-            program,
-            data_definitions_by_symbol,
-            parameters_by_symbol,
-            *element_type,
-        ),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            frontier_type_multiplicity(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            frontier_type_multiplicity(program, *element_type)
+        }
         TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Slice { .. } => {
             Multiplicity::Affine
         }
         TypeReferenceNode::Named { symbol, name } => {
             if symbol.is_valid()
-                && let Some(index) = data_definitions_by_symbol.get(symbol)
+                && let Some(definition) = last_data_definition_by_symbol(program, *symbol)
             {
-                return program.data_definitions()[*index].properties.multiplicity;
+                return definition.properties.multiplicity;
             }
             if symbol.is_valid()
-                && let Some((multiplicity, _)) = parameters_by_symbol.get(symbol)
+                && let Some(parameter) = program.data_type_parameter_by_symbol(*symbol)
             {
-                return *multiplicity;
+                return parameter.bounds.multiplicity;
             }
             if typed_trees::types::PrimitiveType::from_name(name.as_str()).is_some() {
                 return Multiplicity::Unrestricted;
@@ -536,9 +427,9 @@ fn frontier_type_multiplicity(
             ..
         } => {
             if base_symbol.is_valid()
-                && let Some(index) = data_definitions_by_symbol.get(base_symbol)
+                && let Some(definition) = last_data_definition_by_symbol(program, *base_symbol)
             {
-                return program.data_definitions()[*index].properties.multiplicity;
+                return definition.properties.multiplicity;
             }
             program
                 .data_definitions()
@@ -556,17 +447,26 @@ fn frontier_type_multiplicity(
 /// for a resolved one.
 fn find_data_definition<'program>(
     program: &'program dyn crate::CheckingInput,
-    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
     symbol: SymbolHandle,
     name: &str,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
     if symbol.is_valid() {
-        return data_definitions_by_symbol
-            .get(&symbol)
-            .map(|index| &program.data_definitions()[*index]);
+        return last_data_definition_by_symbol(program, symbol);
     }
     program
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == name)
+}
+
+/// Custody formerly collected declaration positions into a map, whose last
+/// duplicate won. Preserve that answer through the representation's complete
+/// position index rather than substituting its first-match convenience query.
+fn last_data_definition_by_symbol(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    let position = program
+        .with_data_definition_index(|index| index.positions_for_symbol(symbol).last().copied())?;
+    program.data_definitions().get(position as usize)
 }

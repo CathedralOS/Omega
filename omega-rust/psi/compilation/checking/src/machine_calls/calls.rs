@@ -40,6 +40,7 @@ mod receiver_calls;
 mod receiverless_calls;
 mod recursion;
 mod result_use;
+pub(crate) mod signature_queries;
 mod unit_returns;
 mod write_frames;
 

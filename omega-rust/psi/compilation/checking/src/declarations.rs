@@ -2,6 +2,7 @@
 //! declarations, state signatures, symbols, traits, transitions and
 //! operators.
 
+pub(crate) mod data_queries;
 pub(crate) mod declaration_visibility;
 pub(crate) mod definition_facts;
 pub(crate) mod operators;

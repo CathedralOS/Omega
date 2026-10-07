@@ -8,10 +8,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod licenses;
 
-pub(crate) use licenses::{
-    EntryMachines, LicenseCandidates, conformance_slot_carriers_uncached,
-    declared_index_algebra_laws,
-};
+pub(crate) use licenses::{EntryMachines, LicenseCandidates, declared_index_algebra_laws};
 use licenses::{
     RingLicense, SemiringLicense, additive_addends, fold_scalar_binary, polynomial_normal_form,
     sorted_multiset_subtract, term_uses_application,
@@ -1065,19 +1062,21 @@ impl<'program> StructuralJudge<'program> {
                             )
                         })
                         .collect::<Option<Vec<_>>>()?;
-                    let Some(state) = crate::program_scope::call_targets::unique_state_by_symbol(
-                        program,
-                        call.target_symbol,
-                    ) else {
+                    let Some(state) =
+                        crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
+                            program,
+                            call.target_symbol,
+                        )
+                    else {
                         return None;
                     };
-                    let Some(data_symbol) = crate::program_scope::type_shape::head_data_symbol(
+                    let Some(data_symbol) = crate::value_custody::type_shapes::head_data_symbol(
                         program,
                         state.return_type,
                     ) else {
                         return None;
                     };
-                    let data = crate::program_scope::data_definitions::data_definition_by_symbol(
+                    let data = crate::declarations::data_queries::data_definition_by_symbol(
                         program,
                         data_symbol,
                     )?;

@@ -714,7 +714,7 @@ fn relation_identity(
     program: &dyn crate::CheckingInput,
     relation: ExactQuotientRelation,
 ) -> Result<QuotientRelationIdentity, String> {
-    let quotient = crate::program_scope::data_definitions::data_definition_by_symbol(
+    let quotient = crate::declarations::data_queries::data_definition_by_symbol(
         program,
         relation.quotient_symbol,
     )

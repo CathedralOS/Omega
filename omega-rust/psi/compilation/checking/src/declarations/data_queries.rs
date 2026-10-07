@@ -1,8 +1,4 @@
-//! Declaration lookups delegated to the `TypedTrees`-owned indexes, plus the
-//! per-scope `Rc` tables claim-frontier walks hold by reference.
-
-use super::{DATA_DEF_POSITIONS_SLOT, TYPE_PARAMETER_MULTIPLICITY_SLOT, scoped_program_map};
-use std::collections::HashMap;
+//! Declaration queries over typed-owned indexes and invocation-owned field rows.
 
 /// The declaration-table answer for a symbol: absent, exactly one
 /// definition at a position, or a duplicate.
@@ -56,7 +52,7 @@ enum DataFieldPosition {
 
 /// Every data field symbol's first position, in the definition, member and
 /// payload order a whole-table `find_map` visits them. Built once inside
-/// the frozen-program scope's identity-checked memos.
+/// the immutable checking invocation's memos.
 pub(crate) struct DataFieldIndex(symbols::SymbolKeyMap<symbols::SymbolHandle, DataFieldPosition>);
 
 impl DataFieldIndex {
@@ -115,55 +111,6 @@ impl DataFieldIndex {
             _ => None,
         }
     }
-}
-
-/// The symbol -> data-definition position table, built once per scoped
-/// program and shared by `Rc`: the claim-frontier walk built this table per
-/// missed type reference, rescans of the declaration slice dominated its
-/// cost. The slot keys on the program's identity plus its structural
-/// fingerprint — a replacement program can never inherit the table, and any
-/// declaration mutation reopens it.
-pub(crate) fn memoized_data_definition_positions(
-    program: &dyn crate::CheckingInput,
-) -> std::rc::Rc<HashMap<symbols::SymbolHandle, usize>> {
-    scoped_program_map(program, &DATA_DEF_POSITIONS_SLOT, |program| {
-        program
-            .data_definitions()
-            .iter()
-            .enumerate()
-            .map(|(index, definition)| (definition.symbol, index))
-            .collect()
-    })
-}
-
-/// The symbol -> (multiplicity, kind) table over the type-parameter
-/// declarations, built once per scoped program and shared by `Rc` for the
-/// same reason as the data-definition positions. Keyed like that slot: the
-/// program's identity plus its structural fingerprint.
-pub(crate) fn memoized_type_parameter_multiplicities(
-    program: &dyn crate::CheckingInput,
-) -> std::rc::Rc<
-    HashMap<
-        symbols::SymbolHandle,
-        (
-            language_semantics::Multiplicity,
-            typed_trees::data::TypeParameterKind,
-        ),
-    >,
-> {
-    scoped_program_map(program, &TYPE_PARAMETER_MULTIPLICITY_SLOT, |program| {
-        program
-            .data_type_parameters
-            .iter()
-            .filter(|(_, parameter)| parameter.symbol.is_valid())
-            .map(|(_, parameter)| {
-                (
-                    parameter.symbol,
-                    (parameter.bounds.multiplicity, parameter.kind.clone()),
-                )
-            })
-            .collect()
-    })
 }
 
 /// The named field of `definition`, when it declares one.

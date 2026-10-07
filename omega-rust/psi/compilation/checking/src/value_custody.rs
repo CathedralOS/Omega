@@ -38,6 +38,8 @@ pub(crate) mod storage_contents;
 pub(crate) mod struct_literals;
 pub(crate) mod structural_identity;
 pub(crate) mod transition_operand_moves;
+pub(crate) mod type_properties;
 pub(crate) mod type_references;
+pub(crate) mod type_shapes;
 pub(crate) mod wire;
 pub(crate) mod write_only_borrows;

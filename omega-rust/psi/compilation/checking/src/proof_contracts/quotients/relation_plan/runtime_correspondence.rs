@@ -1045,7 +1045,7 @@ fn quotient_carrier_matches_type(
         // rewrite; do not erase that mode by unwrapping here.
         return false;
     }
-    let Some(quotient) = crate::program_scope::data_definitions::data_definition_by_symbol(
+    let Some(quotient) = crate::declarations::data_queries::data_definition_by_symbol(
         program,
         relation.quotient_symbol,
     ) else {
@@ -1063,7 +1063,7 @@ fn quotient_carrier_matches_type(
         return false;
     };
     let Some(carrier) =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, carrier_symbol)
+        crate::declarations::data_queries::data_definition_by_symbol(program, carrier_symbol)
     else {
         return false;
     };

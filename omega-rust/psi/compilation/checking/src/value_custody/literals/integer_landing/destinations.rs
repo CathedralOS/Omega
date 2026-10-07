@@ -538,48 +538,10 @@ fn call_argument_destinations(
     target: symbols::SymbolHandle,
     argument_count: usize,
 ) -> Option<Vec<TypeReferenceHandle>> {
-    crate::program_scope::call_targets::memoized_call_argument_destinations(
+    crate::machine_calls::calls::signature_queries::call_argument_destinations(
         program,
         target,
         argument_count,
-        || call_argument_destinations_uncached(program, target, argument_count),
-    )
-}
-
-fn call_argument_destinations_uncached(
-    program: &dyn crate::CheckingInput,
-    target: symbols::SymbolHandle,
-    argument_count: usize,
-) -> Option<Vec<TypeReferenceHandle>> {
-    let (machine, state) = crate::machine_calls::calls::machine_state_by_symbol(program, target)?;
-    if !machine.symbol.is_valid()
-        || !program.machine_type_parameters(machine).is_empty()
-        || !machine.lifetime_parameters.is_empty()
-        || !machine.conformance_bounds.is_empty()
-        || program
-            .machines()
-            .iter()
-            .filter(|candidate| candidate.symbol == machine.symbol)
-            .count()
-            != 1
-    {
-        return None;
-    }
-    let parameters: Vec<_> = program.state_parameters(state).iter().collect();
-    if parameters.len() != argument_count {
-        return None;
-    }
-    Some(
-        parameters
-            .into_iter()
-            .map(|parameter| {
-                if parameter.is_const || !parameter.symbol.is_valid() {
-                    TypeReferenceHandle::invalid()
-                } else {
-                    parameter.type_reference
-                }
-            })
-            .collect(),
     )
 }
 

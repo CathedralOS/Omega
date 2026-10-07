@@ -106,10 +106,9 @@ fn type_graph_requires_nominal_drop_with_substitutions(
             arguments,
             ..
         } => {
-            let Some(data) = crate::program_scope::data_definitions::data_definition_by_symbol(
-                program,
-                *base_symbol,
-            ) else {
+            let Some(data) =
+                crate::declarations::data_queries::data_definition_by_symbol(program, *base_symbol)
+            else {
                 return false;
             };
             let arguments = program
@@ -304,8 +303,7 @@ fn is_reserved_cleanup(program: &dyn crate::CheckingInput, machine: &Machine) ->
     machine.attached_data.is_some()
         && owner.is_valid()
         && machine.name.as_str().rsplit("::").next() == Some("drop")
-        && crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)
-            .is_some()
+        && crate::declarations::data_queries::data_definition_by_symbol(program, owner).is_some()
 }
 
 /// Recover the owner-designated cleanup role from an exact checked declaration.

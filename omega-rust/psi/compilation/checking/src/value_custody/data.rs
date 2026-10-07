@@ -262,7 +262,7 @@ fn type_requires_establishment_inner(
         }
         TypeReferenceNode::Named { symbol, name } => {
             let definition = if symbol.is_valid() {
-                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
             } else {
                 program
                     .data_definitions()
@@ -290,7 +290,7 @@ pub fn data_requires_establishment(
     }
     // A fresh index answers each top-level query, so the answer depends only
     // on the program and the definition and memoizes for the checked build.
-    crate::program_scope::value_properties::memoized_data_requires_establishment(
+    crate::value_custody::type_properties::memoized_data_requires_establishment(
         program,
         definition,
         || data_requires_establishment_inner(program, definition, &mut EstablishmentIndex::new()),

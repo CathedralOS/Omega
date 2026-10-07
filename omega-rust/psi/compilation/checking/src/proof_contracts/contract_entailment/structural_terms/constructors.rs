@@ -293,8 +293,7 @@ fn zero_term(
     if !symbol.is_valid() || active.contains(&symbol) {
         return None;
     }
-    let definition =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)?;
+    let definition = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
     if crate::value_custody::data::data_requires_establishment(program, definition) {
         return None;
     }

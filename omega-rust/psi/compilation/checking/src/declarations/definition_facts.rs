@@ -540,7 +540,7 @@ fn domain_target_member_symbol(
         _ => return None,
     };
     let data =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, target_symbol)?;
+        crate::declarations::data_queries::data_definition_by_symbol(program, target_symbol)?;
     program
         .data_members(data)
         .iter()

@@ -563,7 +563,7 @@ fn validate_routed_service_carrier_placement(
                 return;
             }
             if let Some(origin) =
-                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
                     .and_then(|definition| definition.generic_instance)
             {
                 validate_routed_service_carrier_placement(

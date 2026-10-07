@@ -142,6 +142,15 @@ struct DomainPositionIndex {
     by_symbol: HashMap<SymbolHandle, usize>,
 }
 
+/// Exact type-parameter declaration handles, in symbol order. A flat arena
+/// includes data, machine and trait parameters; call-target indexes cover only
+/// machines and cannot answer this relationship. Last duplicate wins, matching
+/// the declaration table consumed by custody queries before this index existed.
+#[derive(Clone, Default)]
+struct TypeParameterIndex {
+    rows: Vec<(SymbolHandle, Handle<data::TypeParameter>)>,
+}
+
 /// Data symbols owning an attached `::drop` machine, computed once per
 /// machine-table revision.
 #[derive(Clone, Default)]
@@ -218,6 +227,7 @@ pub struct DeclarationIndexes {
     machines: OwnedIndex<MachinePositionIndex>,
     states: OwnedIndex<StatePositionIndex>,
     data_definitions: OwnedIndex<DataDefinitionIndex>,
+    type_parameters: OwnedIndex<TypeParameterIndex>,
     domains: OwnedIndex<DomainPositionIndex>,
     attached_drops: OwnedIndex<AttachedDropIndex>,
     call_targets: OwnedIndex<CallTargetIndex>,
@@ -343,6 +353,49 @@ impl super::TypedTrees {
             }
         }
         index
+    }
+
+    /// Resolve an exact parameter symbol without rebuilding a custody-owned
+    /// copy of the declaration table. Generations stay part of the handle.
+    pub fn data_type_parameter_by_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<&data::TypeParameter> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let handle = self.declaration_indexes.type_parameters.with(
+            self.data_type_parameters.revision(),
+            || {
+                let mut rows: Vec<_> = self
+                    .data_type_parameters
+                    .iter()
+                    .filter(|(_, parameter)| parameter.symbol.is_valid())
+                    .map(|(handle, parameter)| (parameter.symbol, handle))
+                    .collect();
+                rows.sort_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
+                rows.dedup_by(|later, earlier| {
+                    if later.0 == earlier.0 {
+                        *earlier = *later;
+                        true
+                    } else {
+                        false
+                    }
+                });
+                TypeParameterIndex { rows }
+            },
+            |index| {
+                index
+                    .rows
+                    .binary_search_by_key(
+                        &(symbol.arena_index(), symbol.generation()),
+                        |(symbol, _)| (symbol.arena_index(), symbol.generation()),
+                    )
+                    .ok()
+                    .map(|position| index.rows[position].1)
+            },
+        )?;
+        Some(self.data_type_parameters.get(handle))
     }
 
     /// The whole data-definition index: every position per symbol, every

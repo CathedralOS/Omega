@@ -131,7 +131,7 @@ pub(crate) fn build_check_facts(
     static_machine_selections: validation::ValidatedStaticMachineSelections,
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
-) -> Result<(CheckFacts, validation::PreparedEffectScope), Vec<diagnostics::Diagnostic>> {
+) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
     // One resolver serves this immutable fact-construction window, including
     // stored-reference loans, flow classification, terminal ranking projections,
     // termination progress proofs, mutation frames, and crash-route refinement.
@@ -274,8 +274,15 @@ pub(crate) fn build_check_facts(
     let operational =
         validation::infer_operational_may_with_cleanup_dependencies(program, &dependencies);
     let service_reach_inference = validation::infer_service_reaches(program, &operational);
-    let effect_scope =
-        validation::enter_prepared_effect_scope(program, &operational, &service_reach_inference);
+    let prepared_effects = validation::PreparedEffectPlans {
+        operational: operational.clone(),
+        service_reaches: service_reach_inference.clone(),
+    };
+    let completed = validation::CheckingContext::new(program.typed_program())
+        .with_authored_declaration_selections(program.authored_declaration_selections())
+        .with_prepared_effect_plans(&prepared_effects);
+    let program: &dyn validation::CheckingInput = &completed;
+    let call_frames = validation::CallFrameResolver::new(program);
     validation::admit_prepared_program_effects(program, &operational, &mut validation_facts)?;
     crate::checking::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
     crate::flow::attach_reach_summaries(
@@ -484,7 +491,7 @@ pub(crate) fn build_check_facts(
             placed_view_inputs: build_checked_placed_view_inputs(program),
             ..CheckFacts::default()
         },
-        effect_scope,
+        prepared_effects,
     ))
 }
 

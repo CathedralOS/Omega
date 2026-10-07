@@ -390,7 +390,7 @@ fn data_definition_by_symbol(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)
+    crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
 }
 
 fn push_field(

@@ -2990,8 +2990,11 @@ of a check the same flow already performed, not the check itself.
   not a preparation input; source checks every candidate before Omega selection.
 
   The checking invocation also owns every derived index, memo and recursion
-  stack in explicit arena/context storage passed by borrow. Remove
-  `checking::program_scope`'s thread-local slots and the separate operational,
+  stack in explicit arena/context storage passed by borrow. Program-scope slots,
+  restore guards and direct operational inference state are removed; completed
+  cleanup effects are explicit checking inputs. Declaration relationships stay
+  typed-owned, custody and call-signature answers stay invocation-owned, and the
+  intermediate conformance-carrier cache is gone. Remove the remaining
   return-range, root-currency, field-domain and structural-roster
   `thread_local!`/`RefCell` caches; durable declaration indexes belong to the
   frozen typed arenas, while transient query state belongs to the checker or

@@ -102,7 +102,7 @@ pub(crate) fn boundary_trait_signature<'program>(
     call: &TableCall,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
     let receiver_members =
-        crate::program_scope::call_targets::call_receiver_member_names(program, call);
+        crate::machine_calls::calls::signature_queries::call_receiver_member_names(program, call);
     boundary_trait_signature_for_parts(
         program,
         current_machine,
@@ -129,7 +129,7 @@ pub(crate) fn boundary_trait_call_signature<'program>(
     call: &TableCall,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
     let receiver_members =
-        crate::program_scope::call_targets::call_receiver_member_names(program, call);
+        crate::machine_calls::calls::signature_queries::call_receiver_member_names(program, call);
     boundary_trait_signature_and_receiver_inner(
         program,
         current_machine,
@@ -659,7 +659,7 @@ fn requirement_signature_for_receiver_path<'program>(
                 signature.name.as_str() == target
             });
         }
-        data = crate::program_scope::data_definitions::data_definition_by_symbol(
+        data = crate::declarations::data_queries::data_definition_by_symbol(
             program,
             receiver_type_symbol(program, field_type),
         )?;

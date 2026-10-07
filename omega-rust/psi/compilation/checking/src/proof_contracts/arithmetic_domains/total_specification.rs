@@ -435,9 +435,7 @@ pub(super) fn abstract_specification_place_type(
             }
         };
         if symbol.is_valid() {
-            return crate::program_scope::data_definitions::data_definition_by_symbol(
-                program, symbol,
-            );
+            return crate::declarations::data_queries::data_definition_by_symbol(program, symbol);
         }
         let mut candidates = program
             .data_definitions()

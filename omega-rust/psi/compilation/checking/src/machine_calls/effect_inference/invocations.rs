@@ -682,7 +682,7 @@ fn data_definition_by_symbol(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)
+    crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
 }
 
 fn collect_expression_call(
@@ -899,7 +899,7 @@ fn origin_for_symbol(
         return boundary_service_for_type(program, owned.type_reference)
             .map(InvocationTarget::Service);
     }
-    let attached = crate::program_scope::data_definitions::data_definition_by_symbol(
+    let attached = crate::declarations::data_queries::data_definition_by_symbol(
         program,
         machine.attached_data_symbol,
     );

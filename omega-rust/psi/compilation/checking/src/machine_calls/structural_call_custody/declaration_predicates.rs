@@ -130,7 +130,7 @@ fn parameter_data_definition<'program>(
         arguments,
         ..
     } = program.type_reference_table.type_reference(
-        crate::program_scope::type_shape::unconstrained_base(program, referee),
+        crate::value_custody::type_shapes::unconstrained_base(program, referee),
     )
     else {
         return None;
@@ -225,7 +225,7 @@ impl RowEmitter<'_, '_> {
         visited: &mut Vec<SymbolHandle>,
     ) {
         let carrier =
-            crate::program_scope::type_shape::unconstrained_base(self.program, type_reference);
+            crate::value_custody::type_shapes::unconstrained_base(self.program, type_reference);
         match self.program.type_reference_table.type_reference(carrier) {
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -277,7 +277,7 @@ impl RowEmitter<'_, '_> {
             // A borrowed field's referee is not this storage.
             if matches!(
                 self.program.type_reference_table.type_reference(
-                    crate::program_scope::type_shape::unconstrained_base(
+                    crate::value_custody::type_shapes::unconstrained_base(
                         self.program,
                         field.type_reference
                     )
@@ -426,7 +426,7 @@ fn field_consequence_primitive(
     field: &DataField,
 ) -> Option<PrimitiveType> {
     let carrier =
-        crate::program_scope::type_shape::unconstrained_base(program, field.type_reference);
+        crate::value_custody::type_shapes::unconstrained_base(program, field.type_reference);
     let leaf = match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
         _ => carrier,
@@ -457,7 +457,7 @@ fn owned_data_definition(
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
     match program.type_reference_table.type_reference(
-        crate::program_scope::type_shape::unconstrained_base(program, type_reference),
+        crate::value_custody::type_shapes::unconstrained_base(program, type_reference),
     ) {
         // Array traversal revisits these owners at each exact index. Reuse the
         // program's revision-checked first-match index instead of rescanning

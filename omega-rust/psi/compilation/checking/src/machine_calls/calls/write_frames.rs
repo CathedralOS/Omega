@@ -120,7 +120,7 @@ fn known_call_written_paths(
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     let receiver_members =
-        crate::program_scope::call_targets::call_receiver_member_names(program, call);
+        crate::machine_calls::calls::signature_queries::call_receiver_member_names(program, call);
     known_call_written_paths_for_parts_with_origins(
         program,
         call.target_symbol,

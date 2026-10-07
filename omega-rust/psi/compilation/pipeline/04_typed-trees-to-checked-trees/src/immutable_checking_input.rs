@@ -20,10 +20,29 @@ fn checking_does_not_reopen_typed_preparation() {
         "specialize_static_machine_calls(",
         "bind_selected_operator_calls(",
         "resolve_projected_receiver_calls(",
+        "enter_program_plan_scope(",
+        "enter_prepared_effect_scope(",
     ] {
         assert!(!source.contains(forbidden), "checking restored {forbidden}");
     }
     assert!(source.contains("program: typed_trees::FrozenTypedTrees"));
+    let effects =
+        include_str!("../../../checking/src/machine_calls/effect_inference/prepared_effects.rs");
+    let operational =
+        include_str!("../../../checking/src/machine_calls/effect_inference/operational.rs");
+    for source in [effects, operational] {
+        for forbidden in [
+            "thread_local!",
+            "RefCell",
+            "structural_fingerprint",
+            "ProgramKey",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "effect inference restored {forbidden}"
+            );
+        }
+    }
 
     // Product pruning is a consuming transform, not permission to reopen the
     // embedded source in an already constructed checked result.

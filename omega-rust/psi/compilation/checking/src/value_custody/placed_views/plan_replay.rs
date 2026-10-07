@@ -79,17 +79,16 @@ pub(crate) fn validate_plans(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for view in &program.placed_view_plans {
-        let Some(view_data) = crate::program_scope::data_definitions::data_definition_by_symbol(
-            program,
-            view.data_symbol,
-        ) else {
+        let Some(view_data) =
+            crate::declarations::data_queries::data_definition_by_symbol(program, view.data_symbol)
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "placed view `{}` no longer names its exact synthesized data identity",
                 view.data_name
             )));
             continue;
         };
-        let Some(schema) = crate::program_scope::data_definitions::data_definition_by_symbol(
+        let Some(schema) = crate::declarations::data_queries::data_definition_by_symbol(
             program,
             view.schema_symbol,
         ) else {
@@ -99,7 +98,7 @@ pub(crate) fn validate_plans(
             )));
             continue;
         };
-        let Some(policy) = crate::program_scope::data_definitions::data_definition_by_symbol(
+        let Some(policy) = crate::declarations::data_queries::data_definition_by_symbol(
             program,
             view.policy_symbol,
         ) else {
@@ -290,12 +289,11 @@ pub(crate) fn validate_plans(
                 )));
             }
 
-            let has_accessor_data =
-                crate::program_scope::data_definitions::data_definition_by_symbol(
-                    program,
-                    field.accessor_data_symbol,
-                )
-                .is_some();
+            let has_accessor_data = crate::declarations::data_queries::data_definition_by_symbol(
+                program,
+                field.accessor_data_symbol,
+            )
+            .is_some();
             if !has_accessor_data {
                 diagnostics.push(Diagnostic::error(format!(
                     "placed view `{}` field `{}` no longer names its exact generated accessor data identity",

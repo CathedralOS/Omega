@@ -308,8 +308,7 @@ fn closed_write_only_data_by_symbol(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&DataDefinition> {
-    let definition =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)?;
+    let definition = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
     (definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && definition.lifetime_parameters.is_empty()
         && program.data_type_parameters(definition).is_empty()

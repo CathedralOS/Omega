@@ -52,7 +52,7 @@ pub(super) fn validate_requirement_call_arguments(
                 // signature matching is invariant in access, so compare the
                 // referents explicitly for that one permitted call relation.
                 let (actual, required) =
-                    crate::program_scope::type_shape::attenuated_reference_pair(
+                    crate::value_custody::type_shapes::attenuated_reference_pair(
                         program, actual, required,
                     );
                 return crate::declarations::traits::named_conformance_argument_matches(

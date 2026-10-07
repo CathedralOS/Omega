@@ -73,7 +73,7 @@ fn reference_origin_expansion_is_bounded(
             _ => return Some(()),
         };
         if let Some(data) =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)
+            crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
         {
             for member in program.data_members(data) {
                 if let typed_trees::data::DataMember::Field(field) = member {
@@ -129,8 +129,7 @@ pub fn is_reference_record(
         if seen.contains(symbol) {
             return None;
         }
-        let data =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
+        let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || program.type_multiplicity(reference) != Multiplicity::Affine
             || !program.data_type_parameters(data).is_empty()
@@ -459,7 +458,7 @@ fn nominal_member_owner_type<'p>(
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             TypeReferenceNode::Named { symbol, .. } => {
-                return crate::program_scope::data_definitions::data_definition_by_symbol(
+                return crate::declarations::data_queries::data_definition_by_symbol(
                     program, *symbol,
                 );
             }
@@ -468,7 +467,7 @@ fn nominal_member_owner_type<'p>(
                 arguments,
                 ..
             } if arguments.count() == 0 => {
-                return crate::program_scope::data_definitions::data_definition_by_symbol(
+                return crate::declarations::data_queries::data_definition_by_symbol(
                     program,
                     *base_symbol,
                 );
@@ -1295,8 +1294,7 @@ fn formal_record_sources(
             } if arguments.count() == 0 => base_symbol,
             _ => return None,
         };
-        let data =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
+        let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
         for member in program.data_members(data) {
             let typed_trees::data::DataMember::Field(field) = member else {
                 return None;
@@ -1374,8 +1372,7 @@ fn aggregate_construction_sources(
         if literal.type_symbol != *symbol || literal.case_symbol.is_some() {
             return None;
         }
-        let data =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
+        let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
         let initializers = program.expression_table.struct_fields(literal.fields);
         let fields = program.data_members(data);
         if initializers.len() != fields.len() {
@@ -1882,8 +1879,7 @@ pub(crate) fn declared_field_path<'a>(
             } if arguments.count() == 0 => base_symbol,
             _ => return None,
         };
-        let data =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
+        let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
         let field = crate::value_custody::places::exact_data_member_field(
             program,
             data,
@@ -3083,9 +3079,8 @@ fn mutable_receiver_type_symbol(
                 statement_index,
                 indexed.collection,
             )?;
-            let definition = crate::program_scope::data_definitions::data_definition_by_symbol(
-                program, collection,
-            )?;
+            let definition =
+                crate::declarations::data_queries::data_definition_by_symbol(program, collection)?;
             Some(definition.symbol)
         }
         ExpressionNode::Member(member) => {
@@ -3206,7 +3201,7 @@ fn mutable_member_from_type_symbol(
             })
     };
     if let Some(definition) =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, type_symbol)
+        crate::declarations::data_queries::data_definition_by_symbol(program, type_symbol)
         && let Some(symbol) = resolved(definition)
     {
         return Some(symbol);

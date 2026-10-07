@@ -282,7 +282,7 @@ pub(super) fn validate_statement_call_receiver(
         // `self` resolves to the machine itself, never an erased binding;
         // its fields live on the attached data.
 
-        crate::program_scope::data_definitions::data_definition_by_symbol(
+        crate::declarations::data_queries::data_definition_by_symbol(
             program,
             machine.attached_data_symbol,
         )
@@ -517,7 +517,7 @@ fn field_by_symbol(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> 
         return memos
             .data_fields
             .get_or_init(|| {
-                std::sync::Arc::new(crate::program_scope::data_definitions::DataFieldIndex::of(
+                std::sync::Arc::new(crate::declarations::data_queries::DataFieldIndex::of(
                     program,
                 ))
             })

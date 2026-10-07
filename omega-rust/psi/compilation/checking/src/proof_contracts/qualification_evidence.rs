@@ -145,7 +145,7 @@ fn lifetime_erased_nominal_carriers_match(
             .type_reference_table
             .type_reference_handles(*arguments)
             .is_empty()
-        && crate::program_scope::data_definitions::data_definition_by_symbol(program, *base_symbol)
+        && crate::declarations::data_queries::data_definition_by_symbol(program, *base_symbol)
             .is_some_and(|definition| {
                 !definition.lifetime_parameters.is_empty()
                     && definition.lifetime_parameters.len() == lifetime_arguments.len()

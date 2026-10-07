@@ -246,7 +246,7 @@ fn validate_public_const_data_visibility(
     if program.symbols.get(selected_symbol).kind != SymbolKind::Data {
         return;
     }
-    let Some(data) = crate::program_scope::data_definitions::data_definition_by_symbol(
+    let Some(data) = crate::declarations::data_queries::data_definition_by_symbol(
         program.product_declarations(),
         selected_symbol,
     ) else {

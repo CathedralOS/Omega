@@ -71,7 +71,7 @@ struct DirectCallOperational {
 }
 
 pub fn infer_operational_may(program: &dyn crate::CheckingInput) -> OperationalPlan {
-    crate::program_scope::effects::memoized_operational_plan(program)
+    super::prepared_effects::operational_plan(program)
 }
 
 pub(crate) fn infer_operational_may_uncached(
@@ -86,20 +86,18 @@ pub fn infer_operational_may_with_cleanup_dependencies(
     program: &dyn crate::CheckingInput,
     dependencies: &arena::Arena<flow_effects::CleanupDependency>,
 ) -> OperationalPlan {
-    DIRECT_OPERATIONAL_MEMO.with(|cell| {
-        *cell.borrow_mut() = Some(symbols::SymbolKeyMap::default());
-    });
-    let mut machines = build_machine_work(program);
+    let signature_effects = DirectSignatureEffects::of(program);
+    let mut machines = build_machine_work(&signature_effects, program);
     propagate_operational_may(&mut machines, dependencies);
     let mut plan = build_plan(program, machines);
     plan.cleanup_dependencies = dependencies.clone();
-    DIRECT_OPERATIONAL_MEMO.with(|cell| {
-        *cell.borrow_mut() = None;
-    });
     plan
 }
 
-fn build_machine_work(program: &dyn crate::CheckingInput) -> Vec<MachineWork> {
+fn build_machine_work(
+    signature_effects: &DirectSignatureEffects,
+    program: &dyn crate::CheckingInput,
+) -> Vec<MachineWork> {
     let mut machines = Vec::with_capacity(program.machines().len());
 
     for machine in program.machines() {
@@ -114,7 +112,7 @@ fn build_machine_work(program: &dyn crate::CheckingInput) -> Vec<MachineWork> {
                 direct_may_block: false,
                 transitive_may_suspend: false,
                 transitive_may_block: false,
-                calls: collect_state_calls(program, machine.symbol, state),
+                calls: collect_state_calls(signature_effects, program, machine.symbol, state),
             })
             .collect();
 
@@ -135,6 +133,7 @@ fn build_machine_work(program: &dyn crate::CheckingInput) -> Vec<MachineWork> {
 }
 
 fn collect_state_calls(
+    signature_effects: &DirectSignatureEffects,
     program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: &State,
@@ -151,6 +150,7 @@ fn collect_state_calls(
         // shared with borrow, flow, contracts, and diagnostics.
         let mut call_ordinal = 0usize;
         collect_statement_calls(
+            signature_effects,
             program,
             machine,
             statement,
@@ -164,6 +164,7 @@ fn collect_state_calls(
 }
 
 fn collect_statement_calls(
+    signature_effects: &DirectSignatureEffects,
     program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     statement: &StatementNode,
@@ -177,6 +178,7 @@ fn collect_statement_calls(
             for expression in [binding.receiver, binding.implementation_operand] {
                 if expression.is_valid() {
                     collect_expression_calls(
+                        signature_effects,
                         program,
                         expression,
                         statement_index,
@@ -189,6 +191,7 @@ fn collect_statement_calls(
         StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             collect_expression_calls(
+                signature_effects,
                 program,
                 assignment.target,
                 statement_index,
@@ -196,6 +199,7 @@ fn collect_statement_calls(
                 calls,
             );
             collect_expression_calls(
+                signature_effects,
                 program,
                 assignment.value,
                 statement_index,
@@ -203,15 +207,26 @@ fn collect_statement_calls(
                 calls,
             );
         }
-        StatementNode::Call(call) => {
-            push_statement_call(program, call, statement_index, call_ordinal, calls)
-        }
-        StatementNode::Expression(expression) => {
-            collect_expression_calls(program, *expression, statement_index, call_ordinal, calls)
-        }
+        StatementNode::Call(call) => push_statement_call(
+            signature_effects,
+            program,
+            call,
+            statement_index,
+            call_ordinal,
+            calls,
+        ),
+        StatementNode::Expression(expression) => collect_expression_calls(
+            signature_effects,
+            program,
+            *expression,
+            statement_index,
+            call_ordinal,
+            calls,
+        ),
         StatementNode::LocalData(local_data) => {
             if local_data.initial_value.is_valid() {
                 collect_expression_calls(
+                    signature_effects,
                     program,
                     local_data.initial_value,
                     statement_index,
@@ -222,9 +237,17 @@ fn collect_statement_calls(
         }
         StatementNode::Transition(transition) => {
             if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                collect_expression_calls(program, guard, statement_index, call_ordinal, calls);
+                collect_expression_calls(
+                    signature_effects,
+                    program,
+                    guard,
+                    statement_index,
+                    call_ordinal,
+                    calls,
+                );
             }
             collect_transition_target_expression_calls(
+                signature_effects,
                 program,
                 machine,
                 transition.target,
@@ -234,6 +257,7 @@ fn collect_statement_calls(
             );
             if transition.continuation.is_valid() {
                 collect_transition_target_expression_calls(
+                    signature_effects,
                     program,
                     machine,
                     transition.continuation,
@@ -247,6 +271,7 @@ fn collect_statement_calls(
 }
 
 fn collect_transition_target_expression_calls(
+    signature_effects: &DirectSignatureEffects,
     program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     target: typed_trees::statement::TransitionTargetHandle,
@@ -278,6 +303,7 @@ fn collect_transition_target_expression_calls(
                     .collect::<Vec<_>>()
                     .join("::");
                 push_call(
+                    signature_effects,
                     program,
                     &target_name,
                     target,
@@ -295,17 +321,32 @@ fn collect_transition_target_expression_calls(
                 *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
             }
             for argument in program.statement_table.expression_handles(*arguments) {
-                collect_expression_calls(program, *argument, statement_index, call_ordinal, calls);
+                collect_expression_calls(
+                    signature_effects,
+                    program,
+                    *argument,
+                    statement_index,
+                    call_ordinal,
+                    calls,
+                );
             }
         }
         typed_trees::statement::TransitionTargetNode::Value(expression) => {
-            collect_expression_calls(program, *expression, statement_index, call_ordinal, calls);
+            collect_expression_calls(
+                signature_effects,
+                program,
+                *expression,
+                statement_index,
+                call_ordinal,
+                calls,
+            );
         }
         typed_trees::statement::TransitionTargetNode::Terminal => {}
     }
 }
 
 fn push_statement_call(
+    signature_effects: &DirectSignatureEffects,
     program: &dyn crate::CheckingInput,
     call: &TableCall,
     statement_index: usize,
@@ -320,6 +361,7 @@ fn push_statement_call(
         }
     };
     push_call(
+        signature_effects,
         program,
         call.target.as_str(),
         call.target_symbol,
@@ -332,11 +374,19 @@ fn push_statement_call(
         calls,
     );
     for argument in program.statement_table.expression_handles(call.arguments) {
-        collect_expression_calls(program, *argument, statement_index, call_ordinal, calls);
+        collect_expression_calls(
+            signature_effects,
+            program,
+            *argument,
+            statement_index,
+            call_ordinal,
+            calls,
+        );
     }
 }
 
 fn collect_expression_calls(
+    signature_effects: &DirectSignatureEffects,
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     statement_index: usize,
@@ -349,22 +399,58 @@ fn collect_expression_calls(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            collect_expression_calls(program, atomic.value, statement_index, call_ordinal, calls);
+            collect_expression_calls(
+                signature_effects,
+                program,
+                atomic.value,
+                statement_index,
+                call_ordinal,
+                calls,
+            );
         }
         ExpressionNode::Call(call) => {
-            push_expression_call(program, call, statement_index, call_ordinal, calls);
-            collect_expression_calls(program, call.receiver, statement_index, call_ordinal, calls);
+            push_expression_call(
+                signature_effects,
+                program,
+                call,
+                statement_index,
+                call_ordinal,
+                calls,
+            );
+            collect_expression_calls(
+                signature_effects,
+                program,
+                call.receiver,
+                statement_index,
+                call_ordinal,
+                calls,
+            );
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_calls(program, *argument, statement_index, call_ordinal, calls);
+                collect_expression_calls(
+                    signature_effects,
+                    program,
+                    *argument,
+                    statement_index,
+                    call_ordinal,
+                    calls,
+                );
             }
         }
         other => crate::expression_traversal::children(program, other, |child| {
-            collect_expression_calls(program, child, statement_index, call_ordinal, calls);
+            collect_expression_calls(
+                signature_effects,
+                program,
+                child,
+                statement_index,
+                call_ordinal,
+                calls,
+            );
         }),
     }
 }
 
 fn push_expression_call(
+    signature_effects: &DirectSignatureEffects,
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
     statement_index: usize,
@@ -382,6 +468,7 @@ fn push_expression_call(
         .filter(|operator| operator.is_boundary)
         .map_or(call.target_symbol, |operator| operator.symbol);
     push_call(
+        signature_effects,
         program,
         call.target.as_str(),
         target_state_symbol,
@@ -396,6 +483,7 @@ fn push_expression_call(
 }
 
 fn push_call(
+    signature_effects: &DirectSignatureEffects,
     program: &dyn crate::CheckingInput,
     target_name: &str,
     target_state_symbol: SymbolHandle,
@@ -413,7 +501,7 @@ fn push_call(
     let direct = program
         .retained_static_machine_contract(static_machine_parameter)
         .map(|contract| signature_operational(program, contract.signature()))
-        .unwrap_or_else(|| direct_operational_for_signature_symbol(program, target_state_symbol));
+        .unwrap_or_else(|| signature_effects.for_symbol(target_state_symbol));
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,
@@ -442,41 +530,51 @@ fn machine_symbol_for_state(
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
-thread_local! {
-    /// A signature symbol's operational verdict is a pure property of the
-    /// program: every call site would otherwise pay the same
-    /// machine-parameter and trait scan. Scoped to a single
-    /// `infer_operational_may` build so a slightly-mutated successor program
-    /// can never inherit the previous program's verdicts.
-    static DIRECT_OPERATIONAL_MEMO: std::cell::RefCell<
-        Option<symbols::SymbolKeyMap<SymbolHandle, DirectCallOperational>>,
-    > = const { std::cell::RefCell::new(None) };
+/// Signature effects are declaration data for this inference pass. Collection
+/// borrows these rows explicitly; nested inference owns another table and
+/// cannot clear or replace its caller's answers.
+struct DirectSignatureEffects {
+    rows: Vec<(SymbolHandle, DirectCallOperational)>,
 }
 
-fn direct_operational_for_signature_symbol(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> DirectCallOperational {
-    if !symbol.is_valid() {
-        return DirectCallOperational::default();
+impl DirectSignatureEffects {
+    fn of(program: &dyn crate::CheckingInput) -> Self {
+        let mut symbols: Vec<_> = program
+            .data_type_parameters
+            .iter()
+            .map(|(_, parameter)| parameter.symbol)
+            .chain(
+                program
+                    .trait_machine_signatures
+                    .iter()
+                    .map(|(_, signature)| signature.symbol),
+            )
+            .filter(|symbol| symbol.is_valid())
+            .collect();
+        symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        symbols.dedup();
+        let rows = symbols
+            .into_iter()
+            .map(|symbol| {
+                (
+                    symbol,
+                    direct_operational_for_signature_symbol_uncached(program, symbol),
+                )
+            })
+            .collect();
+        Self { rows }
     }
-    if let Some(hit) = DIRECT_OPERATIONAL_MEMO.with(|cell| {
-        cell.borrow()
-            .as_ref()
-            .and_then(|memo| memo.get(&symbol))
-            .copied()
-    }) {
-        return hit;
+
+    fn for_symbol(&self, symbol: SymbolHandle) -> DirectCallOperational {
+        self.rows
+            .binary_search_by_key(
+                &(symbol.arena_index(), symbol.generation()),
+                |(symbol, _)| (symbol.arena_index(), symbol.generation()),
+            )
+            .ok()
+            .map(|position| self.rows[position].1)
+            .unwrap_or_default()
     }
-    let value = direct_operational_for_signature_symbol_uncached(program, symbol);
-    DIRECT_OPERATIONAL_MEMO.with(|cell| {
-        if let Ok(mut slot) = cell.try_borrow_mut()
-            && let Some(memo) = &mut *slot
-        {
-            memo.insert(symbol, value);
-        }
-    });
-    value
 }
 
 fn direct_operational_for_signature_symbol_uncached(

@@ -709,7 +709,7 @@ impl ReturnReader<'_, '_> {
                     TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
                     _ => return None,
                 };
-                let data = crate::program_scope::data_definitions::data_definition_by_symbol(
+                let data = crate::declarations::data_queries::data_definition_by_symbol(
                     self.program,
                     owner,
                 )?;

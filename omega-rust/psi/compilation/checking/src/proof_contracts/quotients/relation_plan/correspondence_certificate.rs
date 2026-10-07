@@ -620,7 +620,7 @@ fn exact_integer_parameter(
     program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<(PrimitiveType, bool)> {
-    crate::program_scope::type_shape::exact_integer_primitive(program, type_reference, true)
+    crate::value_custody::type_shapes::exact_integer_primitive(program, type_reference, true)
         .map(|primitive| (primitive, !primitive.is_signed_integer()))
 }
 

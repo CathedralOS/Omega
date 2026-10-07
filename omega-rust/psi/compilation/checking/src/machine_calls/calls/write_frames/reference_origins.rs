@@ -335,10 +335,8 @@ pub(super) fn projected_carrier_reference_origins(
         super::boundary_calls::receiver_type_symbol(program, callee_state.return_type);
     let mut segments = Vec::with_capacity(member_names.len());
     for member_name in member_names {
-        let data = crate::program_scope::data_definitions::data_definition_by_symbol(
-            program,
-            carrier_symbol,
-        )?;
+        let data =
+            crate::declarations::data_queries::data_definition_by_symbol(program, carrier_symbol)?;
         let field = program
             .data_members(data)
             .iter()

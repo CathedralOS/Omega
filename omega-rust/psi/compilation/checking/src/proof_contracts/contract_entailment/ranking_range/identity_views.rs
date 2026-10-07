@@ -359,9 +359,7 @@ pub fn measure_body_shape(
         else {
             return None;
         };
-        if !crate::program_scope::data_definitions::data_definition_by_symbol(program, *next)
-            .is_some()
-        {
+        if !crate::declarations::data_queries::data_definition_by_symbol(program, *next).is_some() {
             return None;
         }
         path.push(ProjectionStep {

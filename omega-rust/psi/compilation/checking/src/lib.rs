@@ -350,7 +350,6 @@ mod declarations;
 pub mod expression_traversal;
 mod frozen_program;
 mod machine_calls;
-mod program_scope;
 mod program_validation;
 mod proof_contracts;
 mod value_custody;
@@ -360,9 +359,8 @@ mod value_custody;
 pub use frozen_program::{
     CheckingContext, CheckingInput, CheckingMemos, CheckingProjection, proof_only_classification,
 };
+pub use machine_calls::effect_inference::PreparedEffectPlans;
 pub use machine_calls::reference_result_custody;
-pub use program_scope::effects::{PreparedEffectScope, enter_prepared_effect_scope};
-pub use program_scope::{ProgramPlanScopeGuard, enter_program_plan_scope};
 pub use program_validation::{
     ContractEntailmentStandDown, ContractEntailmentStandDownReason, ExactIntegerCastFact,
     ExpressionInterval, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,

@@ -267,7 +267,7 @@ pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) ->
 /// The (trait symbol, bound requirement name) -> conforming (carrier, entry
 /// symbol) index: conformances are fixed for the build, so per-law slot
 /// membership reads this instead of re-scanning every machine per candidate.
-pub(crate) fn conformance_slot_carriers_uncached(
+fn conformance_slot_carriers_uncached(
     program: &dyn crate::CheckingInput,
 ) -> std::collections::HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>> {
     let mut slot_carriers = std::collections::HashMap::new();
@@ -336,8 +336,9 @@ pub(crate) struct LicenseCandidates {
 
 impl LicenseCandidates {
     pub(crate) fn of(program: &dyn crate::CheckingInput) -> Self {
-        let slot_carriers =
-            crate::program_scope::call_targets::memoized_conformance_slot_carriers(program);
+        // LicenseCandidates is already invocation-memoized. A second cache
+        // for this intermediate index would retain duplicate owned storage.
+        let slot_carriers = conformance_slot_carriers_uncached(program);
         Self {
             ring: ring_license_candidates(&slot_carriers, program),
             semiring: semiring_license_candidates(&slot_carriers, program),

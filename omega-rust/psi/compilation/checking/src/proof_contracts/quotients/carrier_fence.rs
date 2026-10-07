@@ -35,7 +35,7 @@ pub(super) fn first_forbidden_carrier_content(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { symbol, name } => {
             if let Some(definition) =
-                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
             {
                 return first_forbidden_data_content(
                     program,
@@ -60,7 +60,7 @@ pub(super) fn first_forbidden_carrier_content(
             arguments,
             ..
         } => {
-            let definition = crate::program_scope::data_definitions::data_definition_by_symbol(
+            let definition = crate::declarations::data_queries::data_definition_by_symbol(
                 program,
                 *base_symbol,
             )?;

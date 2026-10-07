@@ -50,10 +50,9 @@ pub(super) fn enforce_construction_field_obligations(
     statement_index: usize,
 ) {
     let type_name = literal.type_name.as_str();
-    let Some(data_definition) = crate::program_scope::data_definitions::data_definition_by_symbol(
-        program,
-        literal.type_symbol,
-    ) else {
+    let Some(data_definition) =
+        crate::declarations::data_queries::data_definition_by_symbol(program, literal.type_symbol)
+    else {
         return;
     };
     if !construction_members_are_concrete(program, data_definition) {

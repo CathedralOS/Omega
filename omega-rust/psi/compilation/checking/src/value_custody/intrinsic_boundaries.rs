@@ -330,7 +330,7 @@ pub fn checked_shape_data_declaration<'program>(
     else {
         return None;
     };
-    let data = crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
+    let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
     if !symbol.is_valid()
         || data.name.as_str() != name
         || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape

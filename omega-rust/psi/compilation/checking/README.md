@@ -22,15 +22,23 @@ The identity queries preserve positional binders and the published hash grammar;
 specialization and rebinding remain with the transforming stage.
 
 Shared program queries have explicit owners beside that coordinator.
-[program_scope.rs](src/program_scope.rs) owns scoped memo lifetimes; its children
-serve declaration indexes, value properties, call targets and effect plans.
+[Declaration queries](src/declarations/data_queries.rs),
+[custody properties](src/value_custody/type_properties.rs) and
+[call signatures](src/machine_calls/calls/signature_queries.rs) live with their
+semantic owners. Typed-owned indexes supply declaration relationships rather
+than checking maintaining another copy.
 [frozen_program.rs](src/frozen_program.rs) owns `CheckingContext`: stage 04 borrows
 its prepared typed program with invocation memos in one immutable checking input.
 Read-only consumers take `CheckingInput`, preserving that context through queries;
 bare typed programs used during construction have no frozen memos. Ending the
 context releases that borrow and scratch, never attaching memos to an IR or product.
-No thread or program address selects this state. The independent program-plan
-memo scope remains separate. [expression_traversal.rs](src/expression_traversal.rs) owns the
+No thread or program address selects these memos.
+[Effect inputs](src/machine_calls/effect_inference/prepared_effects.rs) distinguish
+source-only inference from ownership-complete checking. Stage 04 supplies the
+completed graph by explicit borrow after selecting cleanup; service-reach reuse
+requires the exact operational input. There is no ambient program-plan scope or
+restore guard. Other checker-local ambient state remains unfinished migration.
+[expression_traversal.rs](src/expression_traversal.rs) owns the
 ordered expression-child roster, while each checker keeps its own visitation and
 pruning policy. [Operator namespaces](src/declarations/operators/namespaces.rs)
 are declaration resolution, consumed by call checking and local-value checks.

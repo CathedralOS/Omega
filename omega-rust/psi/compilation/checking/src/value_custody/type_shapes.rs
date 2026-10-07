@@ -1,4 +1,4 @@
-//! Whole-type shape walks shared by program-scope judgments.
+//! Whole-type shape walks shared by source custody and contract judgments.
 
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;

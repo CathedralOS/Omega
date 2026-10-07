@@ -6,9 +6,10 @@
 //! bare TypedTrees remain one-shot, so mutation passes cannot borrow frozen
 //! evidence accidentally. Memos are not durable IR or semantic identity.
 
+use crate::declarations::data_queries::DataFieldIndex;
 use crate::declarations::symbols::CallerSiteCaches;
 use crate::machine_calls::calls::CallFrameCaches;
-use crate::program_scope::data_definitions::DataFieldIndex;
+use crate::machine_calls::effect_inference::PreparedEffectPlans;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };
@@ -46,6 +47,12 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
 
     #[doc(hidden)]
     fn checking_memos(&self) -> Option<&CheckingMemos>;
+
+    /// Cleanup-complete effects are an explicit input to the later checking
+    /// phase. Source preparation has no such input and infers source effects.
+    fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
+        None
+    }
 }
 
 impl Deref for dyn CheckingInput + '_ {
@@ -104,6 +111,7 @@ impl CheckingInput for checked_trees::CheckedTrees {
 pub struct CheckingContext<'program> {
     program: &'program TypedTrees,
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
+    prepared_effects: Option<&'program PreparedEffectPlans>,
     memos: CheckingMemos,
 }
 
@@ -112,6 +120,7 @@ impl<'program> CheckingContext<'program> {
         Self {
             program,
             finalized_selections: None,
+            prepared_effects: None,
             memos: CheckingMemos::default(),
         }
     }
@@ -125,6 +134,14 @@ impl<'program> CheckingContext<'program> {
         selections: &'program AuthoredDeclarationSelections,
     ) -> Self {
         self.finalized_selections = Some(selections);
+        self.memos = CheckingMemos::default();
+        self
+    }
+
+    /// Switch to the ownership-complete execution graph. Effects participate
+    /// in later judgments, so no source-only memo survives this phase change.
+    pub fn with_prepared_effect_plans(mut self, plans: &'program PreparedEffectPlans) -> Self {
+        self.prepared_effects = Some(plans);
         self.memos = CheckingMemos::default();
         self
     }
@@ -164,6 +181,10 @@ impl CheckingInput for CheckingContext<'_> {
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         Some(&self.memos)
+    }
+
+    fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
+        self.prepared_effects
     }
 }
 
@@ -237,6 +258,13 @@ impl CheckingInput for CheckingProjection<'_> {
             None => self.original.checking_memos(),
         }
     }
+
+    fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
+        match self.projected {
+            Some(_) => None,
+            None => self.original.prepared_effect_plans(),
+        }
+    }
 }
 
 /// Opaque invocation scratch. Only checking owns these fields; callers carry
@@ -244,6 +272,16 @@ impl CheckingInput for CheckingProjection<'_> {
 #[doc(hidden)]
 #[derive(Default)]
 pub struct CheckingMemos {
+    pub(crate) claim_frontiers:
+        OnceLock<crate::value_custody::type_properties::ClaimFrontierQueries>,
+    pub(crate) establishment: OnceLock<crate::value_custody::type_properties::EstablishmentQueries>,
+    pub(crate) call_destinations:
+        OnceLock<crate::machine_calls::calls::signature_queries::CallDestinationQueries>,
+    pub(crate) operational: OnceLock<Arc<flow_effects::OperationalPlan>>,
+    pub(crate) service_reaches: OnceLock<(
+        flow_effects::OperationalPlan,
+        flow_effects::ServiceReachInferencePlan,
+    )>,
     pub(crate) call_frames: Arc<CallFrameCaches>,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,

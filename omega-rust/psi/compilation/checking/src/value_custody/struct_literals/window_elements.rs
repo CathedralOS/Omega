@@ -45,7 +45,7 @@ pub(crate) fn validate_array_window_elements<'p>(
         return;
     };
     let Some((element_type, collection_length)) =
-        crate::program_scope::type_shape::collection_element_and_length(program, collection_type)
+        crate::value_custody::type_shapes::collection_element_and_length(program, collection_type)
     else {
         return;
     };

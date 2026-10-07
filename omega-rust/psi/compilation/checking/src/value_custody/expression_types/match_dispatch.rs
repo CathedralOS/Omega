@@ -566,7 +566,7 @@ fn selected_shared_borrow_place(
         return false;
     };
     let Some(record) =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+        crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
     else {
         return false;
     };
@@ -732,7 +732,7 @@ pub(super) fn fresh_payloadless_case(
     else {
         return None;
     };
-    let data = crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
+    let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
     let members = program.data_members(data);
     if members.is_empty()
         || members.iter().any(|member| match member {
@@ -1071,7 +1071,7 @@ fn case_pattern(
         _ => return None,
     };
     let owner =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, owner_symbol)?;
+        crate::declarations::data_queries::data_definition_by_symbol(program, owner_symbol)?;
     let reference = program
         .type_reference_table
         .find_named_type_reference(owner.symbol)?;

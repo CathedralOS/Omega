@@ -296,7 +296,7 @@ fn validate_direct_projection(
         return None;
     }
     let Some(data) =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, data_symbol)
+        crate::declarations::data_queries::data_definition_by_symbol(program, data_symbol)
     else {
         reject("the result is not one nominal plain record", diagnostics);
         return None;

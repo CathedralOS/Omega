@@ -256,7 +256,7 @@ fn validate_machine_top_level_requirement_conformance(
         .enumerate()
     {
         let Some((required_type, actual_type)) =
-            crate::program_scope::type_shape::scalar_parameter_type_pair(
+            crate::value_custody::type_shapes::scalar_parameter_type_pair(
                 &required.kind,
                 &actual.kind,
             )

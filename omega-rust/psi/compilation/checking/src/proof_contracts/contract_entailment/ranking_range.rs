@@ -1298,7 +1298,7 @@ fn parameter_comparisons(
             continue;
         }
         for (minimum, maximum, end_inclusive) in
-            crate::program_scope::type_shape::range_constraints(program, parameter.type_reference)
+            crate::value_custody::type_shapes::range_constraints(program, parameter.type_reference)
         {
             // Missing or ambiguous aliases cannot contribute an auxiliary
             // invariant, even when another premise makes the edge dead.

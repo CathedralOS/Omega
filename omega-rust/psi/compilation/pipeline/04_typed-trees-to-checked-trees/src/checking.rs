@@ -159,10 +159,6 @@ fn check_program(
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    // Preparation's specialization and call rebinding have finished. Open
-    // the immutable plan scope here: the first consumer computes program-pure
-    // operational and service-reach plans and the rest serve from them.
-    let _plan_scope = ::validation::enter_program_plan_scope();
     let _field_domain_scope = crate::facts::field_domain::enter_field_domain_scope();
     let _root_currency_scope = checks::enter_root_currency_scope();
     // Borrow the prepared program with invocation-owned query state. Read-only inputs
@@ -191,7 +187,7 @@ fn check_program(
     // The range checker bounds indexes with the intervals the same
     // arithmetic walk established; nothing after checking reads them.
     let expression_intervals = std::mem::take(&mut validated.validation_facts.expression_intervals);
-    let (mut facts, _prepared_effect_scope) = build_check_facts(
+    let (mut facts, prepared_effects) = build_check_facts(
         &program,
         &validated.proof_plan,
         &validated.integer_assignments,
@@ -202,6 +198,7 @@ fn check_program(
         mathematics,
         &mutation_summaries,
     )?;
+    let program = program.with_prepared_effect_plans(&prepared_effects);
     // Sealed quotient requests were deferred by validation until termination
     // was proved: judge them now against the checked termination facts. The
     // batch is all-or-nothing and grants no executable operation.
@@ -247,10 +244,10 @@ fn check_program(
     // Visibility and cleanup consume checked choices over the same immutable
     // source. No cloned typed program or consumer fallback supplies this ledger.
     let finalized = validation::CheckingContext::new(&program)
-        .with_authored_declaration_selections(&facts.finalized_selections);
+        .with_authored_declaration_selections(&facts.finalized_selections)
+        .with_prepared_effect_plans(&prepared_effects);
     validation::validate_reserved_cleanup_selections(&finalized)?;
     validation::validate_declaration_visibility(&finalized)?;
-    drop(finalized);
 
     // Classify borrow custody last: `program`'s type, machine and state
     // tables stopped growing in preparation, after monomorphization, so a
@@ -259,19 +256,19 @@ fn check_program(
     // takes `program` mutably — `CheckedTrees::with_roots` only pairs it
     // with the facts — so neither table can grow past this point.
     facts.reference_custody =
-        validation::reference_result_custody::classify_program_reference_custody(&program);
+        validation::reference_result_custody::classify_program_reference_custody(&finalized);
     facts.state_reference_custody =
-        validation::reference_result_custody::classify_program_state_reference_custody(&program);
+        validation::reference_result_custody::classify_program_state_reference_custody(&finalized);
     // Content classification rides the same placement, and for the same
     // reason. Both memos it leans on -- the data-definition index and the
     // attached-`::drop` index -- are owned by `program` and keyed by table
-    // revision, not by the frozen scope dropped above, so they still answer
-    // from cache here.
-    facts.content_classes = validation::classify_program_content_classes(&program);
+    // revision, so they still answer from cache here.
+    facts.content_classes = validation::classify_program_content_classes(&finalized);
     // Retain place/result decisions under final occurrence handles. Recording
     // before specialization or authored-selection finalization would miss the
     // generated bodies; lowering must not repair an incomplete table itself.
-    facts.resolved_types = crate::facts::resolved_types::resolve_program_types(&program);
+    facts.resolved_types = crate::facts::resolved_types::resolve_program_types(&finalized);
+    drop(finalized);
 
     let checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;

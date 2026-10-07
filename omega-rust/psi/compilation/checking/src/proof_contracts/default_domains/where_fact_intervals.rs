@@ -417,7 +417,7 @@ fn bound_source_interval(
                 .expression_table
                 .name_path_members(path.members)
                 .last()?;
-            let handle = crate::program_scope::data_definitions::data_field_named(
+            let handle = crate::declarations::data_queries::data_field_named(
                 program,
                 definition,
                 name.clone(),

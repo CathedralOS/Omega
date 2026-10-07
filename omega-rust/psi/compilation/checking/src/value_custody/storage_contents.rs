@@ -608,8 +608,8 @@ fn definition(
     if !symbol.is_valid() {
         return None;
     }
-    match crate::program_scope::data_definitions::memoized_data_definition_lookup(program, symbol) {
-        crate::program_scope::data_definitions::DataDefinitionLookup::Unique(position) => {
+    match crate::declarations::data_queries::memoized_data_definition_lookup(program, symbol) {
+        crate::declarations::data_queries::DataDefinitionLookup::Unique(position) => {
             program.data_definitions().get(position as usize)
         }
         _ => None,
@@ -619,7 +619,7 @@ fn definition(
 /// Whether a machine attached to `symbol` realizes `::drop`, resolved
 /// through the build-scope memo when one is open.
 fn owns_drop_hook(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
-    crate::program_scope::value_properties::memoized_owns_drop_hook(program, symbol)
+    crate::value_custody::type_properties::memoized_owns_drop_hook(program, symbol)
 }
 
 fn check_contents(

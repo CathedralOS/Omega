@@ -86,7 +86,7 @@ pub fn infer_service_reaches(
     program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
 ) -> ServiceReachInferencePlan {
-    crate::program_scope::effects::memoized_service_reach_plan(program, operational)
+    super::prepared_effects::service_reach_plan(program, operational)
 }
 
 pub(crate) fn infer_service_reaches_uncached(

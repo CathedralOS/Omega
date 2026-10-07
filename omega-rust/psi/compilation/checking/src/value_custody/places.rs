@@ -220,8 +220,8 @@ fn data_definition_by_symbol(
     if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Data {
         return None;
     }
-    match crate::program_scope::data_definitions::memoized_data_definition_lookup(program, symbol) {
-        crate::program_scope::data_definitions::DataDefinitionLookup::Unique(position) => {
+    match crate::declarations::data_queries::memoized_data_definition_lookup(program, symbol) {
+        crate::declarations::data_queries::DataDefinitionLookup::Unique(position) => {
             program.data_definitions().get(position as usize)
         }
         _ => None,

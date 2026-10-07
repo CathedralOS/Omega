@@ -369,9 +369,8 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
                 {
                     return None;
                 }
-                let definition = crate::program_scope::data_definitions::data_definition_by_symbol(
-                    program, symbol,
-                )?;
+                let definition =
+                    crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
                 selected_case =
                     program
                         .data_members(definition)
@@ -398,10 +397,9 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
                         .find(|candidate| candidate.symbol == *field)?
                         .type_reference
                 } else {
-                    let definition =
-                        crate::program_scope::data_definitions::data_definition_by_symbol(
-                            program, symbol,
-                        )?;
+                    let definition = crate::declarations::data_queries::data_definition_by_symbol(
+                        program, symbol,
+                    )?;
                     program
                         .data_members(definition)
                         .iter()

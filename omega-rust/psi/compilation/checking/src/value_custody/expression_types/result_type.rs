@@ -402,7 +402,7 @@ fn result_type(
                                     }
                                 })
                             } else {
-                                crate::program_scope::data_definitions::data_field_type_by_symbol(
+                                crate::declarations::data_queries::data_field_type_by_symbol(
                                     program,
                                     member.member_symbol,
                                 )

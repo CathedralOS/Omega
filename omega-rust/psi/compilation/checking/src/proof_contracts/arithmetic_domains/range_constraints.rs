@@ -262,7 +262,7 @@ pub(crate) fn enforced_declared_range_interval(
     if floating_range_carrier(program, handle) {
         return None;
     }
-    let shells = crate::program_scope::type_shape::exact_constrained_shells(program, handle)?;
+    let shells = crate::value_custody::type_shapes::exact_constrained_shells(program, handle)?;
     // Every shell contributes conjunctively. Taking only the first
     // range could hide a later empty interval and authorize a store.
     shells

@@ -30,7 +30,7 @@ pub(super) fn validate_nested_value_field(
     child: &WireSchema,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
+    let Some(value_field) = crate::declarations::data_queries::data_field_named(
         program,
         value_data,
         field.name.clone(),
@@ -76,7 +76,7 @@ pub(super) fn validate_nested_value_field(
         if child_field.relevance.is_erased() {
             continue;
         }
-        let Some(child_value_field) = crate::program_scope::data_definitions::data_field_named(
+        let Some(child_value_field) = crate::declarations::data_queries::data_field_named(
             program,
             child_value_data,
             child_field.name.clone(),
@@ -257,7 +257,7 @@ fn value_field_or_missing<'program>(
     direction: CodecDirection,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let value_field = crate::program_scope::data_definitions::data_field_named(
+    let value_field = crate::declarations::data_queries::data_field_named(
         program,
         value_data,
         field.name.clone(),

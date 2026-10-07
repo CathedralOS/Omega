@@ -21,7 +21,7 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn is_slice(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -> bool {
-    crate::program_scope::type_shape::has_slice_base(program, reference)
+    crate::value_custody::type_shapes::has_slice_base(program, reference)
 }
 
 pub(super) fn parameter<'program>(
