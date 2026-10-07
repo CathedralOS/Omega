@@ -410,19 +410,8 @@ impl Evaluation {
                 return unsupported("structural value repeats or substitutes its local binding");
             }
             local_symbol = local.symbol;
-            // A projected owned alias names a subtree of the root's place, so
-            // its scalar fields sit under the alias path rather than at the
-            // place's own offset. The field roster keys a whole carrier only;
-            // leave an alias out of it so a field read refuses instead of
-            // addressing the root's own layout.
-            if produced.path().is_empty() {
-                self.structural_fields.register_local(
-                    local.symbol,
-                    produced.place(),
-                    produced.structural_type(),
-                    structural_types,
-                );
-            }
+            self.structural_fields
+                .adopt_declarations(produced.structural_type(), structural_types);
             self.structural_locals.push(
                 crate::expression_preparation::bindings::StructuralLocalBinding {
                     result_binding_ordinal: Some(result.binding_ordinal),

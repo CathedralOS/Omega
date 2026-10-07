@@ -2883,11 +2883,6 @@ impl OperationFrame<'_, '_> {
         }
         local.argument.place = replacement.place;
         local.result_binding_ordinal = value.source_structural_result_binding_ordinal();
-        self.evaluation.structural_fields.rebind_local(
-            symbol,
-            replacement.place,
-            replacement.structural_type,
-        )?;
         self.evaluation
             .structural_value_owners
             .retain(|owner| owner.symbol != symbol || owner.value.place == replacement.place);

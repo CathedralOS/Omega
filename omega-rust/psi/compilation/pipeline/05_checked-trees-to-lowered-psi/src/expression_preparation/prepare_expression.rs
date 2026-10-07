@@ -199,11 +199,16 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
             let count_type = terminal_scalar_type(PrimitiveType::U64)?;
             if !path.is_empty() {
-                let (source, path, field) =
-                    byte_field_observation(structural_fields, scalar_bindings, *root, path)?
-                        .ok_or(LoweringError::Unsupported(
-                            "field length requires a live byte or element descriptor",
-                        ))?;
+                let (source, path, field) = byte_field_observation(
+                    structural_fields,
+                    structural_locals,
+                    scalar_bindings,
+                    *root,
+                    path,
+                )?
+                .ok_or(LoweringError::Unsupported(
+                    "field length requires a live byte or element descriptor",
+                ))?;
                 return Ok(LoweredDirectExpression::ByteSequenceFieldLength {
                     source,
                     path,
@@ -593,8 +598,13 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         _
                     ))
                 )
-                && let Some((source, path, field)) =
-                    byte_field_observation(structural_fields, scalar_bindings, *root, path)?
+                && let Some((source, path, field)) = byte_field_observation(
+                    structural_fields,
+                    structural_locals,
+                    scalar_bindings,
+                    *root,
+                    path,
+                )?
             {
                 return Ok(LoweredDirectExpression::ByteSequenceFieldRead {
                     source,
@@ -702,7 +712,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     let local = view_locals::resolve(view_locals, symbol)?;
                     (local.place, local.structural_type)
                 }
-                _ => structural_fields.observation_source(*root)?,
+                _ => structural_fields.observation_source(*root, structural_locals)?,
             };
             let (source, path, explicit_path, scalar_type) =
                 crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(
@@ -1025,11 +1035,16 @@ fn lower_checked_boolean_expression_with_parameters(
             path,
         } => {
             if !path.is_empty() {
-                let (source, path, field) =
-                    byte_field_observation(structural_fields, scalar_bindings, *root, path)?
-                        .ok_or(LoweringError::Unsupported(
-                            "byte predicate requires a live byte descriptor",
-                        ))?;
+                let (source, path, field) = byte_field_observation(
+                    structural_fields,
+                    structural_locals,
+                    scalar_bindings,
+                    *root,
+                    path,
+                )?
+                .ok_or(LoweringError::Unsupported(
+                    "byte predicate requires a live byte descriptor",
+                ))?;
                 return Ok(LoweredBooleanReturnExpression::ByteSequencePredicate {
                     predicate: *predicate,
                     source,
@@ -1069,6 +1084,7 @@ fn lower_checked_boolean_expression_with_parameters(
             let operand = |field: &checked_trees::CheckedStructuralParameterField| {
                 byte_field_observation(
                     structural_fields,
+                    structural_locals,
                     scalar_bindings,
                     checked_trees::CheckedStorageRoot::Parameter {
                         index: field.parameter_position,
@@ -1243,6 +1259,7 @@ fn lower_checked_boolean_expression_with_parameters(
 
 fn byte_field_observation(
     fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
+    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
     root: checked_trees::CheckedStorageRoot,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -1255,7 +1272,7 @@ fn byte_field_observation(
     LoweringError,
 > {
     use crate::emission::runtime_elements::ProjectionStep;
-    let (source, structural_type) = fields.observation_source(root)?;
+    let (source, structural_type) = fields.observation_source(root, structural_locals)?;
     let Some((source, steps, field)) =
         crate::expression_preparation::bindings::structural_fields::resolve_byte_projection(
             source,

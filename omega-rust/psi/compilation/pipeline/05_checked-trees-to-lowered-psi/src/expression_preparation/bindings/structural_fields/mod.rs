@@ -38,7 +38,6 @@ pub(crate) struct StructuralScalarFieldBinding {
 #[derive(Clone, Default)]
 pub(crate) struct StructuralFieldBindings {
     roots: Vec<StructuralScalarFieldBinding>,
-    locals: Vec<(symbols::SymbolHandle, PlaceId, StructuralTypeId)>,
     established_payloads: Vec<EstablishedCasePayload>,
     declarations: std::sync::Arc<[StructuralTypeDeclaration]>,
 }
@@ -60,10 +59,10 @@ impl StructuralFieldBindings {
         self.roots.clear();
     }
 
-    pub(crate) fn register_local(
+    /// Adopt the full declaration catalog when an evaluation built without
+    /// structural parameters establishes its first structural local.
+    pub(crate) fn adopt_declarations(
         &mut self,
-        symbol: symbols::SymbolHandle,
-        place: PlaceId,
         structural_type: StructuralTypeId,
         declarations: &[StructuralTypeDeclaration],
     ) {
@@ -74,37 +73,19 @@ impl StructuralFieldBindings {
         {
             self.declarations = declarations.into();
         }
-        self.locals.push((symbol, place, structural_type));
     }
 
-    /// Replace the observation home when an owned binding receives a new
-    /// occurrence. Captured earlier observations retain their old value IDs;
-    /// subsequent reads resolve the binding's current home.
-    pub(crate) fn rebind_local(
-        &mut self,
-        symbol: symbols::SymbolHandle,
-        place: PlaceId,
-        structural_type: StructuralTypeId,
-    ) -> Result<(), LoweringError> {
-        let mut bindings = self
-            .locals
-            .iter_mut()
-            .filter(|(root, _, _)| *root == symbol);
-        let binding = bindings.next().ok_or(LoweringError::Unsupported(
-            "replaced local has no field observation home",
-        ))?;
-        if bindings.next().is_some() || binding.2 != structural_type {
-            return Err(LoweringError::Unsupported(
-                "replaced local has ambiguous or incompatible field storage",
-            ));
-        }
-        binding.1 = place;
-        Ok(())
-    }
-
+    /// Locals resolve through the evaluation's one owned-local roster, the
+    /// same mapping moves, rebinds and retirements update; a parallel field
+    /// map here went stale whenever an establishment route forgot to mirror
+    /// it. A projected alias names a subtree of its root's place, so its
+    /// fields sit under the alias path rather than at the place's own
+    /// layout; leave it out so a field read refuses instead of addressing the
+    /// root's layout.
     pub(crate) fn observation_source(
         &self,
         root: checked_trees::CheckedStorageRoot,
+        structural_locals: &[super::StructuralLocalBinding],
     ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
         let candidates: Vec<_> = match root {
             checked_trees::CheckedStorageRoot::Parameter { index } => self
@@ -114,11 +95,12 @@ impl StructuralFieldBindings {
                 .map(|binding| (binding.source, binding.structural_type))
                 .collect(),
             checked_trees::CheckedStorageRoot::ViewLocal { symbol }
-            | checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => self
-                .locals
+            | checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => structural_locals
                 .iter()
-                .filter(|(candidate, _, _)| *candidate == symbol)
-                .map(|(_, place, structural_type)| (*place, *structural_type))
+                .filter(|local| {
+                    local.root == facts::PlaceRoot::Symbol(symbol) && local.argument.path.is_empty()
+                })
+                .map(|local| (local.argument.place, local.structural_type))
                 .collect(),
         };
         match candidates.as_slice() {
@@ -247,7 +229,6 @@ impl StructuralScalarFieldBinding {
         }
         StructuralFieldBindings {
             roots: bindings,
-            locals: Vec::new(),
             established_payloads: Vec::new(),
             declarations,
         }
