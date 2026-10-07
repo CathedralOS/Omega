@@ -1,38 +1,13 @@
 //! Raw IEEE register transport. These instructions neither evaluate floats nor touch control state.
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, RegisterViewId,
-    SelectedInstructionKind, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    MachineAlternativeKey, MachineEncodedEffects, RegisterViewId, SelectedInstructionKind,
+    ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
 use crate::selected_form_encoding::request_validation::resolve_registers;
+use selected_instructions::float_bit_transfer_properties;
 type Error = X86_64SelectedFormEncodingError;
 type Encoding = ValidatedX86_64SelectedFormEncoding;
-pub(super) fn is_transfer(kind: SelectedInstructionKind) -> bool {
-    matches!(
-        kind,
-        SelectedInstructionKind::Float32ToBits
-            | SelectedInstructionKind::Float64ToBits
-            | SelectedInstructionKind::BitsToFloat32
-            | SelectedInstructionKind::BitsToFloat64
-    )
-}
-fn properties(kind: SelectedInstructionKind) -> Option<(MachineAlternativeFamily, bool, bool)> {
-    Some(match kind {
-        SelectedInstructionKind::Float32ToBits => {
-            (MachineAlternativeFamily::Float32ToBits, true, false)
-        }
-        SelectedInstructionKind::Float64ToBits => {
-            (MachineAlternativeFamily::Float64ToBits, true, true)
-        }
-        SelectedInstructionKind::BitsToFloat32 => {
-            (MachineAlternativeFamily::BitsToFloat32, false, false)
-        }
-        SelectedInstructionKind::BitsToFloat64 => {
-            (MachineAlternativeFamily::BitsToFloat64, false, true)
-        }
-        _ => return None,
-    })
-}
 
 fn operands(
     physical: &ValidatedPhysicalRegisterModel,
@@ -43,7 +18,8 @@ fn operands(
     if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(Error::NonCanonicalPhysicalModel);
     }
-    let (family, to_bits, wide) = properties(kind).ok_or(Error::AlternativeMismatch)?;
+    let (family, to_bits, wide) =
+        float_bit_transfer_properties(kind).ok_or(Error::AlternativeMismatch)?;
     if alternative != (MachineAlternativeKey { family, variant: 0 }) {
         return Err(Error::AlternativeMismatch);
     }
@@ -168,7 +144,7 @@ mod tests {
                 for bits_name in ["rax", "r15"] {
                     let float = physical.model().view_named(float_name).unwrap().id;
                     let bits = physical.model().view_named(bits_name).unwrap().id;
-                    let values = if properties(kind).unwrap().1 {
+                    let values = if float_bit_transfer_properties(kind).unwrap().1 {
                         [float, bits]
                     } else {
                         [bits, float]

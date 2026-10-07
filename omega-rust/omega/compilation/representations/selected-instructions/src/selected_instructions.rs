@@ -24,6 +24,7 @@ pub use float_result_policy::{FloatResultPolicyForm, FloatResultPolicyKind, Floa
 pub use ieee_float_arithmetic::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
     IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
+    float_bit_transfer_properties, is_float_bit_transfer,
 };
 pub mod constraints;
 pub mod control_flow;

@@ -6,38 +6,12 @@ use super::{
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::MachineAlternativeFamily;
 use selected_instructions::MachineAlternativeKey;
 use selected_instructions::MachineEncodedEffects;
 use selected_instructions::SelectedInstructionKind;
+use selected_instructions::float_bit_transfer_properties;
 type Error = Aarch64SelectedFormEncodingError;
 type Encoding = ValidatedAarch64SelectedFormEncoding;
-pub(super) fn is_transfer(kind: SelectedInstructionKind) -> bool {
-    matches!(
-        kind,
-        SelectedInstructionKind::Float32ToBits
-            | SelectedInstructionKind::Float64ToBits
-            | SelectedInstructionKind::BitsToFloat32
-            | SelectedInstructionKind::BitsToFloat64
-    )
-}
-fn properties(kind: SelectedInstructionKind) -> Option<(MachineAlternativeFamily, bool, bool)> {
-    Some(match kind {
-        SelectedInstructionKind::Float32ToBits => {
-            (MachineAlternativeFamily::Float32ToBits, true, false)
-        }
-        SelectedInstructionKind::Float64ToBits => {
-            (MachineAlternativeFamily::Float64ToBits, true, true)
-        }
-        SelectedInstructionKind::BitsToFloat32 => {
-            (MachineAlternativeFamily::BitsToFloat32, false, false)
-        }
-        SelectedInstructionKind::BitsToFloat64 => {
-            (MachineAlternativeFamily::BitsToFloat64, false, true)
-        }
-        _ => return None,
-    })
-}
 
 fn operands(
     physical: &ValidatedPhysicalRegisterModel,
@@ -48,7 +22,8 @@ fn operands(
     if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Error::NonCanonicalPhysicalModel);
     }
-    let (family, to_bits, wide) = properties(kind).ok_or(Error::AlternativeMismatch)?;
+    let (family, to_bits, wide) =
+        float_bit_transfer_properties(kind).ok_or(Error::AlternativeMismatch)?;
     if alternative != (MachineAlternativeKey { family, variant: 0 }) {
         return Err(Error::AlternativeMismatch);
     }
@@ -142,7 +117,6 @@ pub(super) fn validate(
 #[cfg(test)]
 mod tests {
     use super::{encode, properties, validate};
-    use selected_instructions::MachineAlternativeFamily;
     use selected_instructions::MachineAlternativeKey;
     use selected_instructions::MachineEncodedEffects;
     use selected_instructions::SelectedInstructionKind;
@@ -174,7 +148,7 @@ mod tests {
                 for bits_name in ["x0", "x28"] {
                     let float = physical.model().view_named(float_name).unwrap().id;
                     let bits = physical.model().view_named(bits_name).unwrap().id;
-                    let values = if properties(kind).unwrap().1 {
+                    let values = if float_bit_transfer_properties(kind).unwrap().1 {
                         [float, bits]
                     } else {
                         [bits, float]

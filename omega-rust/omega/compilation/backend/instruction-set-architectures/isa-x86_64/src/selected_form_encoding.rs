@@ -85,7 +85,7 @@ use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionKind,
+    MachineEncodedTrapBehavior, SelectedInstructionKind, is_float_bit_transfer,
 };
 
 use crate::selected_form_encoding::decoding::{decode_all, footprint, validate_decoded};
@@ -161,7 +161,7 @@ pub fn encode_x86_64_selected_form(
     if kind == SelectedInstructionKind::CompareByteSequences {
         return compare_byte_sequences::encode(physical, alternative, operands, 0);
     }
-    if float_bits::is_transfer(kind) {
+    if is_float_bit_transfer(kind) {
         return float_bits::encode(physical, kind, alternative, operands);
     }
     if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {
@@ -194,7 +194,7 @@ pub fn validate_x86_64_selected_form_encoding(
     if kind == SelectedInstructionKind::CompareByteSequences {
         return compare_byte_sequences::validate(physical, alternative, operands, 0, bytes);
     }
-    if float_bits::is_transfer(kind) {
+    if is_float_bit_transfer(kind) {
         return float_bits::validate(physical, kind, alternative, operands, bytes);
     }
     if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {

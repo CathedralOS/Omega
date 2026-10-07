@@ -13,7 +13,7 @@ use crate::selected_form_encoding::{
 };
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
+    MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind, is_float_bit_transfer,
 };
 use semantic_vocabulary::IntegerValue;
 
@@ -32,7 +32,7 @@ pub fn encode_aarch64_selected_form(
     if kind == SelectedInstructionKind::CompareByteSequences {
         return compare_byte_sequences::encode(physical, alternative, operands);
     }
-    if float_bits::is_transfer(kind) {
+    if is_float_bit_transfer(kind) {
         return float_bits::encode(physical, kind, alternative, operands);
     }
     validate_request(physical, kind, alternative, operands)?;
@@ -58,7 +58,7 @@ pub fn validate_aarch64_selected_form_encoding(
     if kind == SelectedInstructionKind::CompareByteSequences {
         return compare_byte_sequences::validate(physical, alternative, operands, bytes);
     }
-    if float_bits::is_transfer(kind) {
+    if is_float_bit_transfer(kind) {
         return float_bits::validate(physical, kind, alternative, operands, bytes);
     }
     validate_request(physical, kind, alternative, operands)?;

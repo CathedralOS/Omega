@@ -17,6 +17,8 @@
 //! Every form shares machine tag 230, followed in each identity and codec by
 //! one payload byte holding its dense ordinal.
 
+use super::MachineAlternativeFamily;
+use crate::SelectedInstructionKind;
 pub use semantic_vocabulary::IeeeFloatFormat;
 pub use target_operations::{
     IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier,
@@ -126,4 +128,38 @@ mod tests {
         // Catalog declarations follow this order, so it must be sorted.
         assert!(IeeeFloatArithmeticForm::ALL.is_sorted());
     }
+}
+
+/// Whether `kind` is a raw IEEE register transport between float and
+/// integer bits (neither evaluates floats nor touches control state).
+pub fn is_float_bit_transfer(kind: SelectedInstructionKind) -> bool {
+    matches!(
+        kind,
+        SelectedInstructionKind::Float32ToBits
+            | SelectedInstructionKind::Float64ToBits
+            | SelectedInstructionKind::BitsToFloat32
+            | SelectedInstructionKind::BitsToFloat64
+    )
+}
+
+/// The alternative family, direction and width a float-bit transport
+/// selects: `(family, to_bits, wide)`.
+pub fn float_bit_transfer_properties(
+    kind: SelectedInstructionKind,
+) -> Option<(MachineAlternativeFamily, bool, bool)> {
+    Some(match kind {
+        SelectedInstructionKind::Float32ToBits => {
+            (MachineAlternativeFamily::Float32ToBits, true, false)
+        }
+        SelectedInstructionKind::Float64ToBits => {
+            (MachineAlternativeFamily::Float64ToBits, true, true)
+        }
+        SelectedInstructionKind::BitsToFloat32 => {
+            (MachineAlternativeFamily::BitsToFloat32, false, false)
+        }
+        SelectedInstructionKind::BitsToFloat64 => {
+            (MachineAlternativeFamily::BitsToFloat64, false, true)
+        }
+        _ => return None,
+    })
 }
