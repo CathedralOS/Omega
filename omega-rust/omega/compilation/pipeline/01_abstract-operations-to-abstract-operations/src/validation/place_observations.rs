@@ -661,22 +661,7 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
 /// collected: their callee cannot read the cell, so a staying write-only
 /// borrower keeps writing deterministic contents no member observes.
 pub(crate) fn mutable_borrow_roots(operation: &O) -> BTreeSet<PlaceId> {
-    let structural_arguments = match operation {
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => return BTreeSet::new(),
-    };
-    structural_arguments
-        .iter()
-        .filter(|argument| argument.access == terminal_psi::StructuralAccess::MutableBorrow)
-        .map(|argument| argument.place)
-        .collect()
+    structural_argument_roots(operation, terminal_psi::StructuralAccess::MutableBorrow)
 }
 
 /// The place roots `operation` hands a callee through an `Owned` structural
@@ -692,22 +677,7 @@ pub(crate) fn mutable_borrow_roots(operation: &O) -> BTreeSet<PlaceId> {
 /// bound refuses that spelling on a verified seed, but the freeze replay
 /// runs on hand-moved units where no source grammar pruned it.
 pub(crate) fn owned_argument_roots(operation: &O) -> BTreeSet<PlaceId> {
-    let structural_arguments = match operation {
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => return BTreeSet::new(),
-    };
-    structural_arguments
-        .iter()
-        .filter(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
-        .map(|argument| argument.place)
-        .collect()
+    structural_argument_roots(operation, terminal_psi::StructuralAccess::Owned)
 }
 
 /// The number of member nodes that produce `root` inside `component`'s
@@ -1317,5 +1287,29 @@ pub(crate) fn invariant_member_place_parameters(
             Resolution::Representative(representative) => Some((parameter, representative)),
             Resolution::Unresolved | Resolution::LoopCarried => None,
         })
+        .collect()
+}
+
+/// The place roots `operation` hands a callee through a `structural`
+/// argument carrying `access`.
+fn structural_argument_roots(
+    operation: &O,
+    access: terminal_psi::StructuralAccess,
+) -> BTreeSet<PlaceId> {
+    let structural_arguments = match operation {
+        O::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | O::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => return BTreeSet::new(),
+    };
+    structural_arguments
+        .iter()
+        .filter(|argument| argument.access == access)
+        .map(|argument| argument.place)
         .collect()
 }
