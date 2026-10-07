@@ -233,6 +233,25 @@ pub(super) fn assign_machine_symbols(
                 resolved_kind;
         }
 
+        // Machine-owned value expressions (owned-data initializers and
+        // conformance `via` paths) resolve against the same enclosing scope.
+        let expression_scope = MachineScope {
+            attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
+            symbol: machine_symbol,
+            lexical_requirements: LexicalRequirements::none(),
+            type_parameters: &local_type_parameters,
+            attached_data: machine.attached_data.as_ref(),
+            attached_data_symbol: machine.attached_data_symbol,
+            owned_data: &[],
+            prior_statements: &[],
+            inherited_data_members: None,
+            data_definitions,
+            data_members,
+            data_payload_fields: &declarations.data_payload_fields,
+            type_constraints,
+        };
+
         for owned_data in machine_owned_data.span_mut_or_empty(machine.owned_data) {
             owned_data.symbol =
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
@@ -246,22 +265,7 @@ pub(super) fn assign_machine_symbols(
             if owned_data.initial_value.is_valid() {
                 assign_expression_table_symbols(
                     symbols,
-                    &MachineScope {
-                        attached_machines: &attached_machines,
-                        resolution_indexes: &program.resolution_indexes,
-                        symbol: machine_symbol,
-                        lexical_requirements: LexicalRequirements::none(),
-                        type_parameters: &local_type_parameters,
-                        attached_data: machine.attached_data.as_ref(),
-                        attached_data_symbol: machine.attached_data_symbol,
-                        owned_data: &[],
-                        prior_statements: &[],
-                        inherited_data_members: None,
-                        data_definitions,
-                        data_members,
-                        data_payload_fields: &declarations.data_payload_fields,
-                        type_constraints,
-                    },
+&expression_scope,
                     &[],
                     SymbolHandle::invalid(),
                     expression_table,
@@ -371,22 +375,7 @@ pub(super) fn assign_machine_symbols(
             if conformance.via_expression.is_valid() {
                 assign_expression_table_symbols(
                     symbols,
-                    &MachineScope {
-                        attached_machines: &attached_machines,
-                        resolution_indexes: &program.resolution_indexes,
-                        symbol: machine_symbol,
-                        lexical_requirements: LexicalRequirements::none(),
-                        type_parameters: &local_type_parameters,
-                        attached_data: machine.attached_data.as_ref(),
-                        attached_data_symbol: machine.attached_data_symbol,
-                        owned_data: &[],
-                        prior_statements: &[],
-                        inherited_data_members: None,
-                        data_definitions,
-                        data_members,
-                        data_payload_fields: &declarations.data_payload_fields,
-                        type_constraints,
-                    },
+&expression_scope,
                     &[],
                     SymbolHandle::invalid(),
                     expression_table,
