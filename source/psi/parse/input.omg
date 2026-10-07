@@ -24,7 +24,9 @@ machine Parser::load_current(parser: &mut Parser, input: &TokenStream) {
         }
     }
 
-    state present(parser: &mut Parser, retained: u64 [0..=16383]) {
+    state present(parser: &mut Parser, retained: u64)
+    requires retained <= 16383
+    {
         parser.current_index = retained;
         parser.current_present = true;
     }

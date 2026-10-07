@@ -142,11 +142,15 @@ pub data LexDiagnostic [copy] {
     source_span: SourceSpan;
 }
 
-pub data TokenStream {
+pub data TokenStream
+where
+    token_count <= 16384,
+    decoded_length <= 65536,
+{
     tokens: [Token; 16384] in Trapping;
-    token_count: u64 [0..=16384];
+    token_count: u64;
     decoded: [u8; 65536] in Trapping;
-    decoded_length: u64 [0..=65536];
+    decoded_length: u64;
     diagnostic: LexDiagnostic;
     accepted: bool;
     last_retained: bool;

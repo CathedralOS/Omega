@@ -1008,12 +1008,14 @@ machine Parser::parse_data(
     }
 
     state generic_const_byte0(parser: &mut Parser, input: &TokenStream,
-        decoded_start: u64 [0..=65531],
+        decoded_start: u64,
         start: u64 in Trapping,
         end: u64 in Trapping
-    ) {
-        let byte1: u64 [0..=65532] = decoded_start + 1;
-        let byte2: u64 [0..=65533] = decoded_start + 2;
+    )
+    requires decoded_start <= 65531
+    {
+        let byte1: u64 = decoded_start + 1;
+        let byte2: u64 = decoded_start + 2;
         transition input.decoded[decoded_start] == 99 && input.decoded[byte1] == 111 {
             true -> generic_const_byte2(parser, input, byte2, start, end)
             _ -> generic_bare_name(parser, input, start, end)
@@ -1021,11 +1023,13 @@ machine Parser::parse_data(
     }
 
     state generic_const_byte2(parser: &mut Parser, input: &TokenStream,
-        decoded_start: u64 [0..=65533],
+        decoded_start: u64,
         start: u64 in Trapping,
         end: u64 in Trapping
-    ) {
-        let byte1: u64 [0..=65534] = decoded_start + 1;
+    )
+    requires decoded_start <= 65533
+    {
+        let byte1: u64 = decoded_start + 1;
         transition input.decoded[decoded_start] == 110 && input.decoded[byte1] == 115 {
             true -> generic_const_byte4(parser, input, byte1, start, end)
             _ -> generic_bare_name(parser, input, start, end)
@@ -1033,11 +1037,13 @@ machine Parser::parse_data(
     }
 
     state generic_const_byte4(parser: &mut Parser, input: &TokenStream,
-        decoded_start: u64 [0..=65534],
+        decoded_start: u64,
         start: u64 in Trapping,
         end: u64 in Trapping
-    ) {
-        let byte1: u64 [0..=65535] = decoded_start + 1;
+    )
+    requires decoded_start <= 65534
+    {
+        let byte1: u64 = decoded_start + 1;
         transition input.decoded[decoded_start] == 115 && input.decoded[byte1] == 116 {
             true -> generic_const_name_start(parser, input, start)
             _ -> generic_bare_name(parser, input, start, end)
@@ -1141,7 +1147,9 @@ machine Parser::parse_data(
         }
     }
 
-    state generic_dup_prefix(parser: &mut Parser, input: &TokenStream, index: u64 [0..=255]) {
+    state generic_dup_prefix(parser: &mut Parser, input: &TokenStream, index: u64)
+    requires index <= 255
+    {
         let prior: GenericParameter = parser.output.generic_parameters[index];
         let prior_length: u64 = prior.name_decoded_length as u64;
         let current_length: u64 = parser.generic_decoded_length as u64;
@@ -1157,11 +1165,13 @@ machine Parser::parse_data(
     }
 
     state generic_dup_bytes(parser: &mut Parser, input: &TokenStream,
-        index: u64 [0..=255],
+        index: u64,
         prior_cursor: u64 in Trapping,
         current_cursor: u64 in Trapping,
         prior_end: u64 in Trapping
-    ) {
+    )
+    requires index <= 255
+    {
         let prior_cursor_u64: u64 = prior_cursor as u64;
         let prior_end_u64: u64 = prior_end as u64;
         transition prior_cursor_u64 < prior_end_u64 {
@@ -1176,11 +1186,13 @@ machine Parser::parse_data(
     }
 
     state generic_dup_byte(parser: &mut Parser, input: &TokenStream,
-        index: u64 [0..=255],
+        index: u64,
         prior_cursor: u64 in Trapping,
         current_cursor: u64 in Trapping,
         prior_end: u64 in Trapping
-    ) {
+    )
+    requires index <= 255
+    {
         let prior_cursor_u64: u64 = prior_cursor as u64;
         let current_cursor_u64: u64 = current_cursor as u64;
         transition prior_cursor_u64 < 65536 && current_cursor_u64 < 65536 {
@@ -1195,11 +1207,13 @@ machine Parser::parse_data(
     }
 
     state generic_dup_byte_compare(parser: &mut Parser, input: &TokenStream,
-        index: u64 [0..=255],
-        prior_cursor: u64 [0..=65535],
-        current_cursor: u64 [0..=65535],
+        index: u64,
+        prior_cursor: u64,
+        current_cursor: u64,
         prior_end: u64 in Trapping
-    ) {
+    )
+    requires index <= 255 && prior_cursor <= 65535 && current_cursor <= 65535
+    {
         transition input.decoded[prior_cursor] == input.decoded[current_cursor] {
             true -> generic_dup_bytes(parser, input,
                 index,
@@ -1211,7 +1225,9 @@ machine Parser::parse_data(
         }
     }
 
-    state generic_dup_next(parser: &mut Parser, input: &TokenStream, index: u64 [0..=255]) {
+    state generic_dup_next(parser: &mut Parser, input: &TokenStream, index: u64)
+    requires index <= 255
+    {
         transition { _ -> generic_dup_scan(parser, input, (index + 1) as u64 in Trapping) }
     }
 

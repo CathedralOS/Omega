@@ -84,10 +84,13 @@ pub data ResolveDiagnostic [copy] {
     source_span: SourceSpan;
 }
 
-pub data NameResolution {
+pub data NameResolution
+where
+    binding_count <= 1024,
+{
     type_bindings: [TypeBinding; 1024];
     domain_bindings: [DomainBinding; 1024];
-    binding_count: u64 [0..=1024];
+    binding_count: u64;
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }

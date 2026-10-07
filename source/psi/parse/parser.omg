@@ -13,12 +13,20 @@ use psi::tokens::tokens;
 // its TokenStream; `parse` observes it through one shared borrow forwarded
 // along every state edge that reads a token, so no token or stream is copied
 // and nothing is moved out of the owning lexer.
-pub data Parser {
+pub data Parser
+where
+    current_index <= 16383,
+    expression_operand_depth <= 64,
+    expression_operator_depth <= 64,
+    expression_frame_depth <= 32,
+    pending_argument_count <= 256,
+    pending_field_count <= 64,
+{
     output: SyntaxTrees;
     source: SourceId;
     source_length: u64 in Trapping;
     cursor: u64 in Trapping;
-    current_index: u64 [0..=16383];
+    current_index: u64;
     current_present: bool;
     item_start: u64 in Trapping;
     use_first_member: u64 in Trapping;
@@ -83,15 +91,15 @@ pub data Parser {
     // Expression stacks: operands, pending operators and open brackets, with
     // the arguments and construction fields staged until their bracket closes.
     expression_operands: [u64; 64] in Trapping;
-    expression_operand_depth: u64 [0..=64];
+    expression_operand_depth: u64;
     expression_operators: [PendingOperator; 64] in Trapping;
-    expression_operator_depth: u64 [0..=64];
+    expression_operator_depth: u64;
     expression_frames: [ExpressionFrame; 32] in Trapping;
-    expression_frame_depth: u64 [0..=32];
+    expression_frame_depth: u64;
     pending_arguments: [u64; 256] in Trapping;
-    pending_argument_count: u64 [0..=256];
+    pending_argument_count: u64;
     pending_fields: [ConstructField; 64] in Trapping;
-    pending_field_count: u64 [0..=64];
+    pending_field_count: u64;
     expression_result: u64 in Trapping;
     expression_allow_construct: bool;
     path_first_member: u64 in Trapping;

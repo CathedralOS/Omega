@@ -423,47 +423,69 @@ pub data ParseDiagnostic [copy] {
     source_span: SourceSpan;
 }
 
-pub data SyntaxTrees {
+pub data SyntaxTrees
+where
+    root_count <= 256,
+    use_count <= 256,
+    member_count <= 1024,
+    data_count <= 256,
+    generic_parameter_count <= 256,
+    field_count <= 1024,
+    data_member_count <= 1024,
+    case_count <= 512,
+    payload_field_count <= 1024,
+    type_reference_count <= 1024,
+    machine_count <= 256,
+    parameter_count <= 1024,
+    state_count <= 1024,
+    expression_count <= 2048,
+    argument_count <= 1024,
+    construct_field_count <= 512,
+    statement_count <= 1024,
+    arm_count <= 1024,
+    pattern_field_count <= 512,
+    clause_count <= 512,
+{
     roots: [RootItem; 256] in Trapping;
-    root_count: u64 [0..=256];
+    root_count: u64;
     uses: [UseItem; 256] in Trapping;
-    use_count: u64 [0..=256];
+    use_count: u64;
     members: [IdentifierSpan; 1024] in Trapping;
-    member_count: u64 [0..=1024];
+    member_count: u64;
     data_items: [DataItem; 256] in Trapping;
-    data_count: u64 [0..=256];
+    data_count: u64;
     generic_parameters: [GenericParameter; 256] in Trapping;
-    generic_parameter_count: u64 [0..=256];
+    generic_parameter_count: u64;
     fields: [DataField; 1024] in Trapping;
-    field_count: u64 [0..=1024];
+    field_count: u64;
     data_members: [DataMember; 1024] in Trapping;
-    data_member_count: u64 [0..=1024];
+    data_member_count: u64;
     cases: [DataCase; 512] in Trapping;
-    case_count: u64 [0..=512];
+    case_count: u64;
     payload_fields: [DataField; 1024] in Trapping;
-    payload_field_count: u64 [0..=1024];
+    payload_field_count: u64;
     type_references: [TypeReference; 1024] in Trapping;
-    type_reference_count: u64 [0..=1024];
+    type_reference_count: u64;
     machines: [MachineItem; 256] in Trapping;
-    machine_count: u64 [0..=256];
+    machine_count: u64;
     parameters: [Parameter; 1024] in Trapping;
-    parameter_count: u64 [0..=1024];
+    parameter_count: u64;
     states: [StateItem; 1024] in Trapping;
-    state_count: u64 [0..=1024];
+    state_count: u64;
     expressions: [Expression; 2048] in Trapping;
-    expression_count: u64 [0..=2048];
+    expression_count: u64;
     arguments: [u64; 1024] in Trapping;
-    argument_count: u64 [0..=1024];
+    argument_count: u64;
     construct_fields: [ConstructField; 512] in Trapping;
-    construct_field_count: u64 [0..=512];
+    construct_field_count: u64;
     statements: [Statement; 1024] in Trapping;
-    statement_count: u64 [0..=1024];
+    statement_count: u64;
     arms: [TransitionArm; 1024] in Trapping;
-    arm_count: u64 [0..=1024];
+    arm_count: u64;
     pattern_fields: [PatternField; 512] in Trapping;
-    pattern_field_count: u64 [0..=512];
+    pattern_field_count: u64;
     clauses: [MachineClause; 512] in Trapping;
-    clause_count: u64 [0..=512];
+    clause_count: u64;
     diagnostic: ParseDiagnostic;
     accepted: bool;
 }

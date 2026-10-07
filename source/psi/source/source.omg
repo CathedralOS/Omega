@@ -18,10 +18,13 @@ pub data SourceSpan [copy] {
     span: Span;
 }
 
-pub data SourceUnit {
+pub data SourceUnit
+where
+    length <= 65536,
+{
     id: SourceId;
     bytes: [u8; 65536] in Trapping;
-    length: u64 [0..=65536];
+    length: u64;
     last_retained: bool;
 }
 

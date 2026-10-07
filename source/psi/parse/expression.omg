@@ -729,12 +729,14 @@ crashes Trap
     }
 
     state pop(parser: &mut Parser) {
-        let top: u64 [0..=63] = parser.expression_operand_depth - 1;
+        let top: u64 = parser.expression_operand_depth - 1;
         parser.expression_operand_depth = top;
         transition { _ -> read(parser, top) }
     }
 
-    state read(parser: &Parser, top: u64 [0..=63]) {
+    state read(parser: &Parser, top: u64)
+    requires top <= 63
+    {
         parser.expression_operands[top]
     }
 
@@ -832,7 +834,9 @@ crashes Trap
         _ -> invalid()
     }
 
-    state element(parser: &Parser, top: u64 [0..=63]) {
+    state element(parser: &Parser, top: u64)
+    requires top <= 63
+    {
         parser.expression_operators[top]
     }
 
@@ -965,7 +969,9 @@ crashes Trap
         _ -> invalid()
     }
 
-    state element(parser: &Parser, top: u64 [0..=31]) {
+    state element(parser: &Parser, top: u64)
+    requires top <= 31
+    {
         parser.expression_frames[top]
     }
 
@@ -1020,7 +1026,7 @@ crashes Trap
     }
 
     state set(parser: &mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        let top: u64 [0..=31] = parser.expression_frame_depth - 1;
+        let top: u64 = parser.expression_frame_depth - 1;
         parser.expression_frames[top].field_start = start;
         parser.expression_frames[top].field_end = end;
     }
@@ -1114,7 +1120,9 @@ crashes Trap
         }
     }
 
-    state truncate(parser: &mut Parser, base: u64 [0..=256]) {
+    state truncate(parser: &mut Parser, base: u64)
+    requires base <= 256
+    {
         parser.pending_argument_count = base;
     }
 
@@ -1162,7 +1170,9 @@ crashes Trap
         }
     }
 
-    state truncate(parser: &mut Parser, base: u64 [0..=64]) {
+    state truncate(parser: &mut Parser, base: u64)
+    requires base <= 64
+    {
         parser.pending_field_count = base;
     }
 

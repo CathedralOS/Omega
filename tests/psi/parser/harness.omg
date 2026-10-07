@@ -43,7 +43,7 @@ blocks;
 
     state source_full(parser_harness: &mut ParserHarness, lexer: &mut Lexer) {
         // Read the rejection span before borrowing the lexer mutably for the call.
-        let length: u64 [0..=65536] = lexer.source.length;
+        let length: u64 = lexer.source.length;
         Lexer::reject(lexer, LexDiagnosticCode::SourceCapacityExceeded,
             length as u64 in Trapping,
             length as u64 in Trapping
@@ -248,7 +248,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_root(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=255]) {
+    state parse_root(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 255
+    {
         let root: RootItem = output.roots[index];
         transition root.kind {
             RootItemKind::Use -> parse_root_tagged(parser_harness, output, root, index, 1)
@@ -260,9 +262,11 @@ machine ParserHarness::write_parse_observation(
     state parse_root_tagged(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         root: RootItem,
-        index: u64 [0..=255],
+        index: u64,
         tag: u8
-    ) {
+    )
+    requires index <= 255
+    {
         ParserHarness::write_byte(parser_harness, tag);
         ParserHarness::write_u64(parser_harness, root.item_index);
         ParserHarness::write_source_span(parser_harness, root.source_span);
@@ -288,7 +292,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_use_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=255]) {
+    state parse_use_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 255
+    {
         let item: UseItem = output.uses[index];
         ParserHarness::write_u64(parser_harness, item.first_member);
         ParserHarness::write_u64(parser_harness, item.member_count as u64 in Trapping);
@@ -315,7 +321,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=1023]) {
+    state parse_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 1023
+    {
         let member: IdentifierSpan = output.members[index];
         ParserHarness::write_source_span(parser_harness, member.source_span);
         let next: u64 = index + 1;
@@ -340,7 +348,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_data_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=255]) {
+    state parse_data_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 255
+    {
         let item: DataItem = output.data_items[index];
         ParserHarness::write_source_span(parser_harness, item.name.source_span);
         ParserHarness::write_u64(parser_harness, item.first_member);
@@ -359,9 +369,11 @@ machine ParserHarness::write_parse_observation(
     state parse_data_multiplicity(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         item: DataItem,
-        index: u64 [0..=255],
+        index: u64,
         multiplicity: u8
-    ) {
+    )
+    requires index <= 255
+    {
         ParserHarness::write_byte(parser_harness, multiplicity);
         transition item.is_public {
             true -> parse_data_public(parser_harness, output, item, index)
@@ -372,8 +384,10 @@ machine ParserHarness::write_parse_observation(
     state parse_data_public(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         item: DataItem,
-        index: u64 [0..=255]
-    ) {
+        index: u64
+    )
+    requires index <= 255
+    {
         ParserHarness::write_byte(parser_harness, 1);
         transition { _ -> parse_data_span(parser_harness, output, item, index) }
     }
@@ -381,8 +395,10 @@ machine ParserHarness::write_parse_observation(
     state parse_data_private(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         item: DataItem,
-        index: u64 [0..=255]
-    ) {
+        index: u64
+    )
+    requires index <= 255
+    {
         ParserHarness::write_byte(parser_harness, 0);
         transition { _ -> parse_data_span(parser_harness, output, item, index) }
     }
@@ -390,8 +406,10 @@ machine ParserHarness::write_parse_observation(
     state parse_data_span(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         item: DataItem,
-        index: u64 [0..=255]
-    ) {
+        index: u64
+    )
+    requires index <= 255
+    {
         ParserHarness::write_source_span(parser_harness, item.source_span);
         ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
         ParserHarness::write_u64(parser_harness, item.generic_parameter_count as u64 in Trapping);
@@ -417,7 +435,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_data_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=1023]) {
+    state parse_data_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 1023
+    {
         let member: DataMember = output.data_members[index];
         transition member.kind {
             DataMemberKind::Field -> parse_data_member_kind(parser_harness, output, member, index, 1)
@@ -428,9 +448,11 @@ machine ParserHarness::write_parse_observation(
     state parse_data_member_kind(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         member: DataMember,
-        index: u64 [0..=1023],
+        index: u64,
         kind: u8
-    ) {
+    )
+    requires index <= 1023
+    {
         ParserHarness::write_byte(parser_harness, kind);
         ParserHarness::write_u64(parser_harness, member.item_index);
         ParserHarness::write_source_span(parser_harness, member.source_span);
@@ -456,7 +478,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=1023]) {
+    state parse_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 1023
+    {
         let field: DataField = output.fields[index];
         ParserHarness::write_source_span(parser_harness, field.name.source_span);
         ParserHarness::write_u64(parser_harness, field.type_reference);
@@ -483,7 +507,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_payload_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=1023]) {
+    state parse_payload_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 1023
+    {
         let field: DataField = output.payload_fields[index];
         ParserHarness::write_source_span(parser_harness, field.name.source_span);
         ParserHarness::write_u64(parser_harness, field.type_reference);
@@ -510,7 +536,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_case(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=511]) {
+    state parse_case(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 511
+    {
         let data_case: DataCase = output.cases[index];
         ParserHarness::write_source_span(parser_harness, data_case.name.source_span);
         ParserHarness::write_source_span(parser_harness, data_case.source_span);
@@ -538,7 +566,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_type_reference(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=1023]) {
+    state parse_type_reference(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 1023
+    {
         let type_reference: TypeReference =
             output.type_references[index];
         transition type_reference.kind {
@@ -555,8 +585,10 @@ machine ParserHarness::write_parse_observation(
     state parse_reference_type_reference(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
-        index: u64 [0..=1023]
-    ) {
+        index: u64
+    )
+    requires index <= 1023
+    {
         ParserHarness::write_byte(parser_harness, 3);
         ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
         ParserHarness::write_source_span(parser_harness, type_reference.source_span);
@@ -573,9 +605,11 @@ machine ParserHarness::write_parse_observation(
     state parse_type_reference_tail(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
-        index: u64 [0..=1023],
+        index: u64,
         access: u8
-    ) {
+    )
+    requires index <= 1023
+    {
         ParserHarness::write_byte(parser_harness, access);
         ParserHarness::write_u64(parser_harness, type_reference.referee);
         let next: u64 = index + 1;
@@ -588,8 +622,10 @@ machine ParserHarness::write_parse_observation(
     state parse_qualified_type_reference(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
-        index: u64 [0..=1023]
-    ) {
+        index: u64
+    )
+    requires index <= 1023
+    {
         ParserHarness::write_byte(parser_harness, 2);
         ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
         ParserHarness::write_source_span(parser_harness, type_reference.source_span);
@@ -601,8 +637,10 @@ machine ParserHarness::write_parse_observation(
     state parse_named_type_reference(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
-        index: u64 [0..=1023]
-    ) {
+        index: u64
+    )
+    requires index <= 1023
+    {
         ParserHarness::write_byte(parser_harness, 1);
         ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
         ParserHarness::write_source_span(parser_harness, type_reference.source_span);
@@ -628,7 +666,9 @@ machine ParserHarness::write_parse_observation(
         }
     }
 
-    state parse_generic_parameter(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=255]) {
+    state parse_generic_parameter(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 255
+    {
         let parameter: GenericParameter = output.generic_parameters[index];
         transition parameter.kind {
             GenericParameterKind::Lifetime -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 1)
@@ -642,9 +682,11 @@ machine ParserHarness::write_parse_observation(
     state parse_generic_parameter_kind(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
-        index: u64 [0..=255],
+        index: u64,
         kind: u8
-    ) {
+    )
+    requires index <= 255
+    {
         ParserHarness::write_byte(parser_harness, kind);
         transition { _ -> parse_generic_parameter_name(parser_harness, output, parameter, index) }
     }
@@ -652,8 +694,10 @@ machine ParserHarness::write_parse_observation(
     state parse_generic_parameter_name(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
-        index: u64 [0..=255]
-    ) {
+        index: u64
+    )
+    requires index <= 255
+    {
         ParserHarness::write_source_span(parser_harness, parameter.name.source_span);
         transition parameter.has_type_reference {
             true -> parse_generic_parameter_typed(parser_harness, output, parameter, index)
@@ -664,8 +708,10 @@ machine ParserHarness::write_parse_observation(
     state parse_generic_parameter_typed(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
-        index: u64 [0..=255]
-    ) {
+        index: u64
+    )
+    requires index <= 255
+    {
         ParserHarness::write_byte(parser_harness, 1);
         ParserHarness::write_u64(parser_harness, parameter.type_reference);
         transition { _ -> parse_generic_parameter_bounds(parser_harness, output, parameter, index) }
@@ -674,16 +720,20 @@ machine ParserHarness::write_parse_observation(
     state parse_generic_parameter_untyped(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
-        index: u64 [0..=255]
-    ) {
+        index: u64
+    )
+    requires index <= 255
+    {
         ParserHarness::write_byte(parser_harness, 0);
         ParserHarness::write_u64(parser_harness, 0);
         transition { _ -> parse_generic_parameter_bounds(parser_harness, output, parameter, index) }
     }
 
     state parse_generic_parameter_bounds(parser_harness: &mut ParserHarness, output: &SyntaxTrees, parameter: GenericParameter,
-        index: u64 [0..=255]
-    ) {
+        index: u64
+    )
+    requires index <= 255
+    {
         transition parameter.bounds {
             DataMultiplicity::Affine -> parse_generic_parameter_bounded(parser_harness, output, parameter, index, 0)
             DataMultiplicity::Unrestricted -> parse_generic_parameter_bounded(parser_harness, output, parameter, index, 1)
@@ -694,9 +744,11 @@ machine ParserHarness::write_parse_observation(
     state parse_generic_parameter_bounded(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         parameter: GenericParameter,
-        index: u64 [0..=255],
+        index: u64,
         bounds: u8
-    ) {
+    )
+    requires index <= 255
+    {
         ParserHarness::write_byte(parser_harness, bounds);
         ParserHarness::write_source_span(parser_harness, parameter.source_span);
         let next: u64 = index + 1;
