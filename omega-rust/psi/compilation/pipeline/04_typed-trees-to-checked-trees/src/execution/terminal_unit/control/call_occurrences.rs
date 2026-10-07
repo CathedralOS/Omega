@@ -444,18 +444,14 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         )
                 })
             {
-                if root.machine != machine {
-                    return None;
-                }
-                collect(
+                collect_owned_root_calls(
                     program,
                     facts,
+                    machine,
                     state.symbol,
                     statement_index,
-                    root.root,
+                    root,
                     calls,
-                    0,
-                    &mut Vec::new(),
                     &mut consumed,
                 )?;
             }
@@ -907,18 +903,14 @@ fn collect_constructor_calls(
                 )
         })
     {
-        if root.machine != machine {
-            return None;
-        }
-        collect(
+        collect_owned_root_calls(
             program,
             facts,
+            machine,
             state.symbol,
             statement_index,
-            root.root,
+            root,
             calls,
-            0,
-            &mut Vec::new(),
             consumed,
         )?;
     }
@@ -1449,6 +1441,34 @@ fn collect_structural_argument_calls(
         )?;
     }
     Some(())
+}
+
+/// The calls owned by one computation root in this machine — `None` when the
+/// root belongs to another machine or the walk cannot consume them.
+fn collect_owned_root_calls(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    root: &checked_trees::CheckedScalarComputationRoot,
+    calls: &[checked_trees::FlowCallFact],
+    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+) -> Option<()> {
+    if root.machine != machine {
+        return None;
+    }
+    collect(
+        program,
+        facts,
+        state,
+        statement_index,
+        root.root,
+        calls,
+        0,
+        &mut Vec::new(),
+        consumed,
+    )
 }
 
 fn collect(
