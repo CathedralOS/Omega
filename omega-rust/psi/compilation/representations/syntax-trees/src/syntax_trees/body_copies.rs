@@ -42,32 +42,24 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<StateHandle>,
     ) -> HandleSpan<StateHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-        for handle in other.items.state_handles(span).iter().copied() {
-            let state = other.items.state(handle);
-            let parameters = self.copy_state_parameter_handle_span(other, state.parameters);
-            let return_type = self.copy_type_reference_handle(other, state.return_type);
-            let contracts = self.copy_capability_contract_span(other, state.contracts);
-            let statements = self.copy_statement_handle_span(other, state.statements);
-            let copied = self.items.insert_state(&State {
-                name: state.name.clone(),
-                parameters,
-                return_type,
-                contracts,
-                statements,
-            });
-            let copied = self.items.append_state_handle(copied);
-            if count == 0 {
-                start = copied;
-            }
-            count += 1;
-        }
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        self.copy_mapped_span(
+            other.items.state_handles(span).iter().copied(),
+            |this, handle| {
+                let state = other.items.state(handle);
+                let parameters = this.copy_state_parameter_handle_span(other, state.parameters);
+                let return_type = this.copy_type_reference_handle(other, state.return_type);
+                let contracts = this.copy_capability_contract_span(other, state.contracts);
+                let statements = this.copy_statement_handle_span(other, state.statements);
+                this.items.insert_state(&State {
+                    name: state.name.clone(),
+                    parameters,
+                    return_type,
+                    contracts,
+                    statements,
+                })
+            },
+            |this, handle| this.items.append_state_handle(handle),
+        )
     }
 
     pub(crate) fn copy_state_signature_handle_span(
@@ -75,23 +67,15 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<StateSignatureHandle>,
     ) -> HandleSpan<StateSignatureHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-        for handle in other.items.state_signatures(span).iter().copied() {
-            let signature = other.items.state_signature(handle);
-            let copied_signature = self.copy_state_signature_node(other, signature);
-            let copied = self.items.insert_state_signature(&copied_signature);
-            let copied = self.items.append_state_signature_handle(copied);
-            if count == 0 {
-                start = copied;
-            }
-            count += 1;
-        }
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        self.copy_mapped_span(
+            other.items.state_signatures(span).iter().copied(),
+            |this, handle| {
+                let signature = other.items.state_signature(handle);
+                let copied_signature = this.copy_state_signature_node(other, signature);
+                this.items.insert_state_signature(&copied_signature)
+            },
+            |this, handle| this.items.append_state_signature_handle(handle),
+        )
     }
 
     pub(crate) fn copy_state_signature_value(
@@ -161,29 +145,22 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<StateParameterHandle>,
     ) -> HandleSpan<StateParameterHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-        for handle in other.items.state_parameters(span).iter().copied() {
-            let parameter = other.items.state_parameter(handle);
-            let type_reference = self.copy_type_reference_handle(other, parameter.type_reference);
-            let copied = self.items.insert_state_parameter_node(StateParameterNode {
-                name: parameter.name.clone(),
-                type_reference,
-                is_const: parameter.is_const,
-                is_mutable: parameter.is_mutable,
-                relevance: parameter.relevance,
-            });
-            let copied = self.items.append_state_parameter_handle(copied);
-            if count == 0 {
-                start = copied;
-            }
-            count += 1;
-        }
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        self.copy_mapped_span(
+            other.items.state_parameters(span).iter().copied(),
+            |this, handle| {
+                let parameter = other.items.state_parameter(handle);
+                let type_reference =
+                    this.copy_type_reference_handle(other, parameter.type_reference);
+                this.items.insert_state_parameter_node(StateParameterNode {
+                    name: parameter.name.clone(),
+                    type_reference,
+                    is_const: parameter.is_const,
+                    is_mutable: parameter.is_mutable,
+                    relevance: parameter.relevance,
+                })
+            },
+            |this, handle| this.items.append_state_parameter_handle(handle),
+        )
     }
 
     fn copy_statement_handle_span(
@@ -191,22 +168,14 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<StatementHandle>,
     ) -> HandleSpan<StatementHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-        for handle in other.items.statements(span).iter().copied() {
-            let statement = self.copy_statement_node(other, other.statements.statement(handle));
-            let copied = self.statements.insert(statement);
-            let copied = self.items.append_statement_handle(copied);
-            if count == 0 {
-                start = copied;
-            }
-            count += 1;
-        }
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        self.copy_mapped_span(
+            other.items.statements(span).iter().copied(),
+            |this, handle| {
+                let statement = this.copy_statement_node(other, other.statements.statement(handle));
+                this.statements.insert(statement)
+            },
+            |this, handle| this.items.append_statement_handle(handle),
+        )
     }
 
     fn copy_statement_node(
