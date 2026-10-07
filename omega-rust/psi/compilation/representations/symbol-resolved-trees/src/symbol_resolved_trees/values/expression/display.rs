@@ -3,6 +3,7 @@ use crate::expression::{
     TableCallExpression, TableCastExpression, TableUnaryExpression, UnaryOperator,
 };
 use crate::name::DiagnosticName;
+use crate::symbol_resolved_trees::display::comma_join_display;
 
 impl ExpressionNode {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
@@ -151,10 +152,9 @@ impl TableCallExpression {
                     .join(", ")
             )
         };
-        let arguments =
-            comma_join_display_names(table.expression_handles(self.arguments), |argument| {
-                table.display_name(*argument)
-            });
+        let arguments = comma_join_display(table.expression_handles(self.arguments), |argument| {
+            table.display_name(*argument)
+        });
 
         if self.receiver.is_valid() {
             format!(
@@ -251,29 +251,5 @@ where
     }
 
     output.push(']');
-    output
-}
-
-fn comma_join_display_names<'item, I, T>(
-    values: I,
-    mut display_name: impl FnMut(&'item T) -> String,
-) -> String
-where
-    I: IntoIterator<Item = &'item T>,
-    T: 'item,
-{
-    let mut output = String::new();
-    let mut first = true;
-
-    for value in values {
-        if first {
-            first = false;
-        } else {
-            output.push_str(", ");
-        }
-
-        output.push_str(&display_name(value));
-    }
-
     output
 }

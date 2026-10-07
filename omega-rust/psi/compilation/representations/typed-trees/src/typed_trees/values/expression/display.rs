@@ -4,6 +4,7 @@ use crate::expression::{
     TableCallExpression, TableCastExpression, TableUnaryExpression, UnaryExpression, UnaryOperator,
 };
 use crate::name::Identifier;
+use crate::typed_trees::display::comma_join_display;
 
 impl Expression {
     pub fn display_name(&self) -> String {
@@ -292,7 +293,7 @@ impl TableCastExpression {
 
 impl CallExpression {
     pub fn display_name(&self) -> String {
-        let arguments = comma_join_display_names(&*self.arguments, Expression::display_name);
+        let arguments = comma_join_display(&*self.arguments, Expression::display_name);
 
         if let Some(receiver) = &self.receiver {
             format!("{}.{}({arguments})", receiver.display_name(), self.target)
@@ -430,29 +431,5 @@ where
     }
 
     output.push(']');
-    output
-}
-
-fn comma_join_display_names<'item, I, T>(
-    values: I,
-    mut display_name: impl FnMut(&'item T) -> String,
-) -> String
-where
-    I: IntoIterator<Item = &'item T>,
-    T: 'item,
-{
-    let mut output = String::new();
-    let mut first = true;
-
-    for value in values {
-        if first {
-            first = false;
-        } else {
-            output.push_str(", ");
-        }
-
-        output.push_str(&display_name(value));
-    }
-
     output
 }

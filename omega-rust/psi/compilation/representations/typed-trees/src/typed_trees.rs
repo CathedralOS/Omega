@@ -15,6 +15,7 @@ pub mod control_flow;
 pub mod declaration_index;
 mod declaration_tables;
 pub mod declarations;
+mod display;
 pub mod evidence;
 pub mod inspection;
 pub mod names;

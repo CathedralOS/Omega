@@ -6,6 +6,7 @@
 pub mod calls;
 pub mod control_flow;
 pub mod declarations;
+mod display;
 pub mod evidence;
 pub mod inspection;
 pub mod lookup_indexes;
