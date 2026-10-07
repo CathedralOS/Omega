@@ -4,7 +4,7 @@ use selected_instructions::{SelectedInstruction, SelectedTerminator};
 
 use super::{
     super::{AllocatedCalleeSavedRequirementError, FunctionAllocatedCalleeSavedRequirements},
-    state::{DirectTraversal, add, finish_units},
+    state::{DirectTraversal, HomeIndex, add, finish_units},
 };
 
 pub(super) fn derive(
@@ -22,6 +22,7 @@ pub(super) fn derive(
             return Err(AllocatedCalleeSavedRequirementError::HomeRosterMismatch);
         }
         traversal.function_count = add(traversal.function_count, 1)?;
+        let home_index = HomeIndex::new(homes);
         let mut units = BTreeMap::new();
         for block in &function.blocks {
             traversal.block_count = add(traversal.block_count, 1)?;
@@ -34,7 +35,7 @@ pub(super) fn derive(
                     function.machine,
                     block.id,
                     instruction,
-                    homes,
+                    &home_index,
                     &mut units,
                 )?;
             }

@@ -29,7 +29,9 @@ pub(super) fn usage(
     .try_fold(0_u64, add)?;
     Ok(OptimizationWorkUsage {
         rule_evaluations: add(traversal.function_count, 1)?,
-        candidates: traversal.write_count,
+        // The derivation is one linear traversal: its writes are traversal
+        // work, counted below; its candidates are the requirements it derives.
+        candidates: modified_units,
         validation_steps: function_block_instruction_operand_writes,
         commits: [
             1,

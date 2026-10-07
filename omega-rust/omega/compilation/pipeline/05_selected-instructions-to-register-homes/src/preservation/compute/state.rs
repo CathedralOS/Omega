@@ -8,6 +8,51 @@ use super::super::{
     CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
 };
 
+/// One function's home assignments sorted by virtual register, so each
+/// written operand finds its home by binary search instead of rescanning every
+/// assignment in the function.
+pub(super) struct HomeIndex<'homes> {
+    sorted: Vec<&'homes crate::VirtualRegisterHome>,
+}
+
+impl<'homes> HomeIndex<'homes> {
+    pub(super) fn new(homes: &'homes crate::FunctionRegisterHomes) -> Self {
+        let mut sorted = homes.assignments.iter().collect::<Vec<_>>();
+        sorted.sort_by_key(|home| home.virtual_register);
+        Self { sorted }
+    }
+
+    /// The one home of `register`; a missing or repeated home rejects.
+    fn unique(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        register: selected_instructions::VirtualRegisterId,
+    ) -> Result<&'homes crate::VirtualRegisterHome, AllocatedCalleeSavedRequirementError> {
+        let start = self
+            .sorted
+            .partition_point(|home| home.virtual_register < register);
+        match self.sorted.get(start..).unwrap_or_default() {
+            [home, rest @ ..] if home.virtual_register == register => {
+                if rest
+                    .first()
+                    .is_some_and(|next| next.virtual_register == register)
+                {
+                    Err(AllocatedCalleeSavedRequirementError::DuplicateHome {
+                        function: machine,
+                        virtual_register: register,
+                    })
+                } else {
+                    Ok(home)
+                }
+            }
+            _ => Err(AllocatedCalleeSavedRequirementError::MissingHome {
+                function: machine,
+                virtual_register: register,
+            }),
+        }
+    }
+}
+
 pub(super) struct DirectTraversal<'model> {
     physical: &'model ValidatedPhysicalRegisterModel,
     callee_saved: &'model BTreeSet<RegisterUnitId>,
@@ -43,7 +88,7 @@ impl<'model> DirectTraversal<'model> {
         machine: semantic_vocabulary::MachineId,
         block: SelectedBlockId,
         instruction: &SelectedInstruction,
-        homes: &crate::FunctionRegisterHomes,
+        homes: &HomeIndex<'_>,
         units: &mut BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
     ) -> Result<(), AllocatedCalleeSavedRequirementError> {
         self.instruction_count = add(self.instruction_count, 1)?;
@@ -55,23 +100,7 @@ impl<'model> DirectTraversal<'model> {
             ) {
                 continue;
             }
-            let mut matching = homes
-                .assignments
-                .iter()
-                .filter(|home| home.virtual_register == operand.virtual_register);
-            let home =
-                matching
-                    .next()
-                    .ok_or(AllocatedCalleeSavedRequirementError::MissingHome {
-                        function: machine,
-                        virtual_register: operand.virtual_register,
-                    })?;
-            if matching.next().is_some() {
-                return Err(AllocatedCalleeSavedRequirementError::DuplicateHome {
-                    function: machine,
-                    virtual_register: operand.virtual_register,
-                });
-            }
+            let home = homes.unique(machine, operand.virtual_register)?;
             let view = self
                 .physical
                 .model()
