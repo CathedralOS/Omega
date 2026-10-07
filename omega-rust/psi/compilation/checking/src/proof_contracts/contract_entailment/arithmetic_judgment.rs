@@ -185,7 +185,7 @@ impl Polynomial {
 /// simultaneous substitution can re-mint the same shape under the
 /// transported operands rather than dropping the term.
 #[derive(Clone)]
-enum OpaqueTerm {
+pub(super) enum OpaqueTerm {
     /// A truncating remainder keeps both inputs, including a runtime modulus;
     /// equal result intervals do not establish conserved endpoint identity.
     Remainder {
