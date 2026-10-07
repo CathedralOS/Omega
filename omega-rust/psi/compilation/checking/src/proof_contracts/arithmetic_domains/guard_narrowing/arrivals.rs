@@ -682,13 +682,8 @@ impl ArrivalWalk<'_, '_> {
                 .boolean_values
                 .extend(value.rebound(&exact_bindings));
         }
-        for relation in &environment.ordered_values {
-            for relation in relation.rebound(&exact_bindings) {
-                if !rebound.ordered_values.contains(&relation) {
-                    rebound.ordered_values.push(relation);
-                }
-            }
-        }
+        rebound.ordered_values =
+            ordered_values::rebind_relations(&environment.ordered_values, &exact_bindings);
         for (parameter, interval) in parameters.iter().zip(intervals) {
             // A scalar value is a snapshot taken at its own argument position.
             // Reference parameters retain only facts surviving later arguments.

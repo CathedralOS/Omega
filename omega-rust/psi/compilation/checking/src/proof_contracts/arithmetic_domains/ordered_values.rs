@@ -6,6 +6,10 @@
 //! a ceiling may disappear at a state edge without losing its bound on a
 //! surviving scalar. This is not repeated-call equality. Effects invalidate
 //! mutable subjects; only exact immutable copied values survive unknown writes.
+//! At a state edge, forgetting an undelivered operand must not forget the
+//! consequences it connects between delivered operands. The same bounded
+//! difference walk serves arithmetic queries and this scope projection; only
+//! ordering facts compose, while nonconvex exclusions keep their own meaning.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, State, TypeReferenceNode, TypedTrees, ValueEnvironment, declared_place_type_raw,
@@ -306,6 +310,65 @@ impl Relation {
             })
             .collect()
     }
+}
+
+/// Project live relations onto an edge's delivered operands before forgetting
+/// the others. `ceiling >= intermediary` and `intermediary > value` still imply
+/// `ceiling > value` when the intermediary is not an argument. Merely rebinding
+/// each relation independently loses that consequence. This operates on the
+/// already checked observations; it never replays a guard or equates paths.
+/// Unequal observations transport directly but do not compose as orders.
+pub(super) fn rebind_relations(
+    relations: &[Relation],
+    bindings: &[(Operand, Operand)],
+) -> Vec<Relation> {
+    let mut rebound = Vec::new();
+    for relation in relations
+        .iter()
+        .flat_map(|relation| relation.rebound(bindings))
+    {
+        if !rebound.contains(&relation) {
+            rebound.push(relation);
+        }
+    }
+    let mut operands = Vec::new();
+    for relation in relations {
+        for operand in [&relation.left, &relation.right] {
+            if !operands.contains(&operand) {
+                operands.push(operand);
+            }
+        }
+    }
+    let delivered = operands
+        .iter()
+        .map(|operand| operand.rebound(bindings))
+        .collect::<Vec<_>>();
+    if delivered.iter().all(|operands| !operands.is_empty()) {
+        return rebound;
+    }
+    for (operand, targets) in operands.iter().zip(&delivered) {
+        if targets.is_empty() {
+            continue;
+        }
+        for (ceiling, floor) in ordered_gaps(relations, operand) {
+            if ceiling == *operand {
+                continue;
+            }
+            for left in ceiling.rebound(bindings) {
+                for right in targets {
+                    let relation = Relation {
+                        left: left.clone(),
+                        right: right.clone(),
+                        constraint: RelationConstraint::MinimumDifference(floor),
+                    };
+                    if !rebound.contains(&relation) {
+                        rebound.push(relation);
+                    }
+                }
+            }
+        }
+    }
+    rebound
 }
 
 /// Only a builtin element store through an exact mutable byte parameter leaves
@@ -931,10 +994,9 @@ fn operand_carrier_within_ceiling(
 /// `dist` tracks the largest derived gap per operand and each round relaxes
 /// every relation once — `left >= right + floor` with `right >= value + gap`
 /// derives `left >= value + gap + floor`. Rounds are bounded by the operand
-/// count: a chain that needs more hops revisits an operand, and a cycle that
-/// still adds distance (`x >= x + k`, `k > 0`) is a contradiction no live
-/// environment can contain, so cyclic chases cannot form and the walk
-/// always terminates.
+/// count: in a consistent environment the strongest path needs no repeated
+/// operand. Contradictory guards can contain positive cycles, but the bounded
+/// walk still terminates and only publishes consequences of its actual links.
 fn composed_ceiling_gap(
     relations: &[Relation],
     value: &Operand,
@@ -944,6 +1006,18 @@ fn composed_ceiling_gap(
     if needed <= 0 {
         return true;
     }
+    ordered_gaps(relations, value)
+        .into_iter()
+        .any(|(operand, gap)| gap >= needed && admits(operand))
+}
+
+/// Largest representable minimum differences reachable from one observation.
+/// Edge projection and arithmetic queries share this bounded walk. A sum
+/// outside i64 loses precision rather than clamping to a stronger premise.
+fn ordered_gaps<'relations>(
+    relations: &'relations [Relation],
+    value: &'relations Operand,
+) -> Vec<(&'relations Operand, i64)> {
     let mut operands: Vec<&Operand> = vec![value];
     for relation in relations {
         for operand in [&relation.left, &relation.right] {
@@ -967,7 +1041,9 @@ fn composed_ceiling_gap(
             let Some(gap) = known_gap(&dist, &relation.right) else {
                 continue;
             };
-            let gap = gap.saturating_add(floor);
+            let Some(gap) = gap.checked_add(floor) else {
+                continue;
+            };
             match dist.iter_mut().find(|(known, _)| **known == relation.left) {
                 Some((_, known)) if *known >= gap => {}
                 Some((_, known)) => {
@@ -979,13 +1055,10 @@ fn composed_ceiling_gap(
                     improved = true;
                 }
             }
-            if gap >= needed && admits(&relation.left) {
-                return true;
-            }
         }
         if !improved {
             break;
         }
     }
-    false
+    dist
 }

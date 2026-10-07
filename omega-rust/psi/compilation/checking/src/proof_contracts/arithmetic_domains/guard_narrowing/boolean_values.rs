@@ -4,7 +4,7 @@
 //! transport those same observations; writing a subject withdraws its relation
 //! without changing the Boolean's saved value.
 
-use super::super::ordered_values::{Operand, Relation};
+use super::super::ordered_values::{Operand, Relation, rebind_relations};
 use super::{ExpressionHandle, Machine, State, TypedTrees, ValueEnvironment};
 use typed_trees::types::PrimitiveType;
 
@@ -19,17 +19,19 @@ impl BooleanValue {
         &self,
         bindings: &[(Operand, Operand)],
     ) -> Vec<Self> {
-        self.binding
-            .rebound(bindings)
+        let targets = self.binding.rebound(bindings);
+        if targets.is_empty() {
+            return Vec::new();
+        }
+        let alternatives = self
+            .alternatives
+            .each_ref()
+            .map(|relations| rebind_relations(relations, bindings));
+        targets
             .into_iter()
             .map(|binding| Self {
                 binding,
-                alternatives: self.alternatives.each_ref().map(|relations| {
-                    relations
-                        .iter()
-                        .flat_map(|relation| relation.rebound(bindings))
-                        .collect()
-                }),
+                alternatives: alternatives.clone(),
             })
             .collect()
     }

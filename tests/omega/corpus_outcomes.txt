@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 3.16, "load1_start": 3.16, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 5.09, "load1_start": 5.09, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -146,10 +146,18 @@ fail/arithmetic/total_contract_signed_division_unproven rejected 394ms expected 
 	partial exact division in machine `invalid` requires contract: the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/total_contract_wrapping_division_unguarded rejected 392ms expected @f2ab4f931c37+wt
 	partial wrapping division in machine `invalid` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/transitive_bit_guard_missing_arrival rejected 233ms expected @04ef5a694099+wt
+	exact arithmetic in machine `bit` state `calculate` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	shift count in machine `bit` state `calculate` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/arithmetic/transitive_bit_guard_nonstrict_count rejected 235ms expected @04ef5a694099+wt
+	exact arithmetic in machine `bit` state `calculate` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	shift count in machine `bit` state `calculate` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
 fail/arithmetic/undeclared_bare_name_rejected rejected 299ms expected @2d8ed253669f
 	machine `Main::main` state `main` uses `undeclared_var`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/arithmetic/unequal_observations_do_not_compose rejected 195ms expected @04ef5a694099+wt
+	partial exact division in machine `quotient` state `calculate` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/unknown_field_write_rejected rejected 249ms expected @2d8ed253669f
 	machine `Main::main` state `main` assignment: data `Main` has no field `cont` (check the spelling of the field name)
 	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -1852,6 +1860,8 @@ pass/arithmetic/runtime_shl_saturating_exit checked 3352ms check-target:macos_ar
 pass/arithmetic/runtime_short_circuit_cast_decisions_exit checked 2659ms check-target:macos_arm64 @fa71a470ad1
 pass/arithmetic/runtime_signed_modulo_shift_edges_exit checked 1366ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_transition_arg_false_arm_narrowing_exit checked 1429ms check-target:macos_arm64 @2d8ed253669f
+pass/arithmetic/runtime_transitive_bit_value_exit checked 1831ms check-target:macos_arm64 @04ef5a694099+wt
+pass/arithmetic/runtime_transitive_product_exit checked 1836ms check-target:macos_arm64 @04ef5a694099+wt
 pass/arithmetic/runtime_trapping_mutable_local_traps checked 915ms check-target:macos_arm64 @ca8c127c90c5
 pass/arithmetic/runtime_trapping_overflow_traps checked 1251ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_trapping_shift_count_traps checked 1744ms check-target:macos_arm64 @2d8ed253669f
