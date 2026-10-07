@@ -9,7 +9,7 @@ use super::{
     MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, RankingRangeState, State,
     TypedTrees, collect_guard, entry_comparisons, exact_integer_parameter, field_coordinates,
     fields, find_declared_measure, integer_bindings, lengths, meanings, measure_body_shape,
-    parameter_comparisons, projections, saved_arguments, validate_mapping,
+    hypothesis_landed_endpoints, parameter_comparisons, projections, saved_arguments, validate_mapping,
 };
 use symbols::SymbolHandle;
 mod endpoint_pins;
@@ -193,29 +193,17 @@ pub(crate) fn prove_ranking_range_call_entry(
         }
         let floor = engine.normalize(range.start)?;
         let ceiling = engine.normalize(range.end)?;
-        if !engine.install_hypotheses(comparisons) {
-            return None;
-        }
-        engine.refresh_opaque_intervals();
-        if !engine.requires_unsatisfiable {
-            for endpoint in &deferred_endpoints {
-                let polynomial = if *endpoint == range.start {
-                    &floor
-                } else {
-                    &ceiling
-                };
-                if !fields::endpoint_lands_under(
-                    &mut engine,
-                    program,
-                    member.machine,
-                    state,
-                    *endpoint,
-                    polynomial,
-                ) {
-                    return None;
-                }
-            }
-        }
+        hypothesis_landed_endpoints(
+            &mut engine,
+            program,
+            member.machine,
+            state,
+            range.start,
+            &floor,
+            &ceiling,
+            &deferred_endpoints,
+            comparisons,
+        )?;
         Some(
             engine.requires_unsatisfiable
                 || (membership(

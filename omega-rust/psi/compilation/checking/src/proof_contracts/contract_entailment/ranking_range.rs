@@ -788,35 +788,17 @@ fn prove_edge(
             ),
         ]);
     }
-    if !engine.install_hypotheses(comparisons) {
-        return None;
-    }
-    engine.refresh_opaque_intervals();
-    // A computed endpoint that declaration bounds alone could not place still
-    // owes its carrier landing under this edge's hypotheses: a requires or
-    // constrained-parameter fact that bounds a leaf reaches the produced
-    // polynomial where the declaration-interval owner saw only the leaves'
-    // store ranges. Dead edges stay vacuous; a live edge that cannot land its
-    // endpoint has no defined range to read.
-    if !engine.requires_unsatisfiable {
-        for endpoint in &deferred_endpoints {
-            let polynomial = if *endpoint == range.start {
-                &floor
-            } else {
-                &ceiling
-            };
-            if !fields::endpoint_lands_under(
-                &mut engine,
-                program,
-                machine,
-                root,
-                *endpoint,
-                polynomial,
-            ) {
-                return None;
-            }
-        }
-    }
+    hypothesis_landed_endpoints(
+        &mut engine,
+        program,
+        machine,
+        root,
+        range.start,
+        &floor,
+        &ceiling,
+        &deferred_endpoints,
+        comparisons,
+    )?;
     // For distance views raw subtraction represents the produced natural rank
     // only on this proved branch. The caller retains the separate clamped
     // interval tier for entries where subject <= limit is not established.
@@ -1083,6 +1065,49 @@ fn prove_edge(
 /// and therefore share its parameter symbol -- each produce their own rank
 /// in one engine, and lets destination substitution of the subject reach the
 /// rank through the subject's atoms.
+/// The hypothesis-install + deferred-endpoint landing tail both callers
+/// share: install `comparisons`, refresh opaque intervals, then on a live
+/// engine every deferred endpoint's normalized polynomial (floor at the
+/// range start, ceiling at the end) must land under the new hypotheses.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn hypothesis_landed_endpoints(
+    engine: &mut Engine<'_>,
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    range_start: ExpressionHandle,
+    floor: &Polynomial,
+    ceiling: &Polynomial,
+    deferred_endpoints: &[ExpressionHandle],
+    comparisons: Vec<(BinaryOperator, Polynomial, Polynomial)>,
+) -> Option<()> {
+    if !engine.install_hypotheses(comparisons) {
+        return None;
+    }
+    engine.refresh_opaque_intervals();
+    // A computed endpoint that declaration bounds alone could not place still
+    // owes its carrier landing under this edge's hypotheses: a requires or
+    // constrained-parameter fact that bounds a leaf reaches the produced
+    // polynomial where the declaration-interval owner saw only the leaves'
+    // store ranges. Dead edges stay vacuous; a live edge that cannot land its
+    // endpoint has no defined range to read.
+    if !engine.requires_unsatisfiable {
+        for endpoint in deferred_endpoints {
+            let polynomial = if *endpoint == range_start {
+                floor
+            } else {
+                ceiling
+            };
+            if !fields::endpoint_lands_under(
+                engine, program, machine, state, *endpoint, polynomial,
+            ) {
+                return None;
+            }
+        }
+    }
+    Some(())
+}
+
 pub(super) fn computed_rank(
     program: &TypedTrees,
     machine: &Machine,
