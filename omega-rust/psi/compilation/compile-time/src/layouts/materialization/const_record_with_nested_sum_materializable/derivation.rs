@@ -13,13 +13,13 @@ use super::{
     ValidatedConstRecordSumArrayFieldMaterialization, ValidatedConstRecordSumChildMaterialization,
     ValidatedConstRecordSumFieldMaterialization,
     ValidatedConstRecursiveNestedSumOccurrenceMaterialization,
-    exact_named_data, exact_struct_fields, field_occurrence_matches,
+    exact_named_data, field_occurrence_matches,
     flatten_literal_array_elements, materialize_aggregate_layout_into,
     normalized_schema_report_fingerprint, prepare_sum_array_field, record_sum_profile, recursive,
     reject_sum_array_type, unique_data_by_name,
     validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums, validate_outer_layout,
-    validate_outer_record_owner, value_kind,
+    validate_outer_record_owner,
 };
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
@@ -506,27 +506,10 @@ pub(super) fn derive_record_level_children_bytes(
             "ConstMaterializable recursive level outer layout schema report fingerprint does not match `{schema_name}`"
         )));
     }
-    let BuildTimeValue::Struct { type_name, fields } = value else {
-        return Err(MaterializationDiagnostic(format!(
-            "value expected record `{schema_name}`, found {}",
-            value_kind(value)
-        )));
-    };
-    if type_name != data.name.as_str() {
-        return Err(MaterializationDiagnostic(format!(
-            "value record `{type_name}` does not match `{}`",
-            data.name
-        )));
-    }
-    let supplied = exact_struct_fields(schema_name, fields)?;
-    let members = typed.data_members(data);
-    if supplied.len() != members.len() {
-        return Err(MaterializationDiagnostic(format!(
-            "value supplies {} field(s), expected {} for `{schema_name}`",
-            supplied.len(),
-            members.len()
-        )));
-    }
+    let (supplied, members) =
+        crate::layouts::materialization::supplied_record_fields(
+            typed, data, schema_name, value,
+        )?;
 
     let classified = classify_record_level_children(typed, data, &supplied, reachability)?;
     if classified.is_empty() {
@@ -815,27 +798,10 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
             "ConstMaterializable nested-record outer layout schema report fingerprint does not match `{schema_name}`"
         )));
     }
-    let BuildTimeValue::Struct { type_name, fields } = value else {
-        return Err(MaterializationDiagnostic(format!(
-            "value expected record `{schema_name}`, found {}",
-            value_kind(value)
-        )));
-    };
-    if type_name != data.name.as_str() {
-        return Err(MaterializationDiagnostic(format!(
-            "value record `{type_name}` does not match `{}`",
-            data.name
-        )));
-    }
-    let supplied = exact_struct_fields(schema_name, fields)?;
-    let members = typed.data_members(data);
-    if supplied.len() != members.len() {
-        return Err(MaterializationDiagnostic(format!(
-            "value supplies {} field(s), expected {} for `{schema_name}`",
-            supplied.len(),
-            members.len()
-        )));
-    }
+    let (supplied, members) =
+        crate::layouts::materialization::supplied_record_fields(
+            typed, data, schema_name, value,
+        )?;
 
     let mut candidates = Vec::new();
     candidates.try_reserve_exact(members.len()).map_err(|_| {

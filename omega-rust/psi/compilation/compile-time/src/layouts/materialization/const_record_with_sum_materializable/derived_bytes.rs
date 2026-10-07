@@ -1,7 +1,7 @@
 //! Deriving the bytes of records with sums and sum arrays.
 
 use crate::layouts::materialization::const_materializable::{
-    unique_data_by_name, value_kind,
+    unique_data_by_name,
 };
 use crate::layouts::materialization::const_record_with_nested_sum_materializable::SumReachability;
 use crate::layouts::materialization::const_record_with_sum_materializable::outer_layouts::{
@@ -14,7 +14,7 @@ use crate::layouts::materialization::const_record_with_sum_materializable::{
     ValidatedConstRecordSumFieldMaterialization,
 };
 use crate::layouts::materialization::{
-    BuildTimeValue, RepeatedFieldInfo, exact_struct_fields,
+    BuildTimeValue, RepeatedFieldInfo,
     normalized_schema_report_fingerprint,
     validate_const_materializable_conventional_sum,
 };
@@ -213,27 +213,10 @@ pub(crate) fn derive_record_with_sum_bytes(
         )));
     }
 
-    let BuildTimeValue::Struct { type_name, fields } = value else {
-        return Err(MaterializationDiagnostic(format!(
-            "value expected record `{schema_name}`, found {}",
-            value_kind(value)
-        )));
-    };
-    if type_name != data.name.as_str() {
-        return Err(MaterializationDiagnostic(format!(
-            "value record `{type_name}` does not match `{}`",
-            data.name
-        )));
-    }
-    let supplied = exact_struct_fields(schema_name, fields)?;
-    let members = typed.data_members(data);
-    if supplied.len() != members.len() {
-        return Err(MaterializationDiagnostic(format!(
-            "value supplies {} field(s), expected {} for `{schema_name}`",
-            supplied.len(),
-            members.len()
-        )));
-    }
+    let (supplied, members) =
+        crate::layouts::materialization::supplied_record_fields(
+            typed, data, schema_name, value,
+        )?;
 
     let mut direct_sums = Vec::new();
     for member in members {
@@ -498,27 +481,10 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
             "ConstMaterializable sum-array layout schema report fingerprint does not match `{schema_name}`"
         )));
     }
-    let BuildTimeValue::Struct { type_name, fields } = value else {
-        return Err(MaterializationDiagnostic(format!(
-            "value expected record `{schema_name}`, found {}",
-            value_kind(value)
-        )));
-    };
-    if type_name != data.name.as_str() {
-        return Err(MaterializationDiagnostic(format!(
-            "value record `{type_name}` does not match `{}`",
-            data.name
-        )));
-    }
-    let supplied = exact_struct_fields(schema_name, fields)?;
-    let members = typed.data_members(data);
-    if supplied.len() != members.len() {
-        return Err(MaterializationDiagnostic(format!(
-            "value supplies {} field(s), expected {} for `{schema_name}`",
-            supplied.len(),
-            members.len()
-        )));
-    }
+    let (supplied, members) =
+        crate::layouts::materialization::supplied_record_fields(
+            typed, data, schema_name, value,
+        )?;
 
     let mut selected_arrays = Vec::new();
     selected_arrays

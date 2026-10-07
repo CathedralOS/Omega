@@ -11,7 +11,7 @@ use layout_plans::{
     MaterializationDiagnostic, materialize_aggregate_layout_into,
 };
 use typed_trees::TypedTrees;
-use typed_trees::data::DataField;
+use typed_trees::data::{DataDefinition, DataField, DataMember};
 
 use super::schema_reflection::{
     RepeatedFieldInfo, checked_align_up, normalized_schema_report_fingerprint, primitive_byte_size,
@@ -337,4 +337,42 @@ pub(super) fn push_encoded_field_schema_values(
         values.push(AggregateFieldValue::new(field.name, field.bytes)?);
     }
     Ok(())
+}
+
+/// The supplied field map and declared members of `value`'s struct for
+/// `data`'s record, after shape, owner-name, and arity admission.
+pub(super) fn supplied_record_fields<'a, 't>(
+    typed: &'t TypedTrees,
+    data: &'t DataDefinition,
+    schema_name: &str,
+    value: &'a BuildTimeValue,
+) -> Result<
+    (
+        std::collections::BTreeMap<&'a str, &'a BuildTimeValue>,
+        &'t [DataMember],
+    ),
+    MaterializationDiagnostic,
+> {
+    let BuildTimeValue::Struct { type_name, fields } = value else {
+        return Err(MaterializationDiagnostic(format!(
+            "value expected record `{schema_name}`, found {}",
+            const_materializable::value_kind(value)
+        )));
+    };
+    if type_name != data.name.as_str() {
+        return Err(MaterializationDiagnostic(format!(
+            "value record `{type_name}` does not match `{}`",
+            data.name
+        )));
+    }
+    let supplied = owned_value_encoding::exact_struct_fields(schema_name, fields)?;
+    let members = typed.data_members(data);
+    if supplied.len() != members.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "value supplies {} field(s), expected {} for `{schema_name}`",
+            supplied.len(),
+            members.len()
+        )));
+    }
+    Ok((supplied, members))
 }
