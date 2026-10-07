@@ -282,21 +282,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
             let Some(required_label) = semantic.proposition_fact_label(program, fact) else {
                 return false;
             };
-            entry_contexts.iter().any(|entry_context| {
-                let context = semantic.contexts.get(*entry_context);
-                semantic
-                    .context_view(context)
-                    .proves_proposition_label(program, &required_label)
-                    || required_label
-                        .strip_prefix("boolean:")
-                        .is_some_and(|required_boolean| {
-                            semantic.context_view(context).facts().any(|candidate| {
-                                semantic
-                                    .boolean_fact_label(program, candidate)
-                                    .is_some_and(|label| label == required_boolean)
-                            })
-                        })
-            })
+            contexts_prove_proposition_label(semantic, program, entry_contexts, &required_label)
         }
         FactPayload::CarryOrigin { .. } => {
             let FactPlace::Place(place) = fact.place else {
@@ -426,4 +412,30 @@ fn case_test_subject_actual(
         crate::semantic::calls::call_site_argument_expressions(program, call_site),
         subject,
     )
+}
+
+/// Whether any selected context proves `required_label` — directly, or through
+/// a retained boolean fact whose label matches the `boolean:` suffix form.
+/// Call `requires` resolution uses the same admission as the contract prover.
+pub(crate) fn contexts_prove_proposition_label(
+    semantic: &facts::FactPlan,
+    program: &typed_trees::TypedTrees,
+    contexts: &[facts::FactContextHandle],
+    required_label: &str,
+) -> bool {
+    contexts.iter().any(|context| {
+        let context = semantic.contexts.get(*context);
+        semantic
+            .context_view(context)
+            .proves_proposition_label(program, required_label)
+            || required_label
+                .strip_prefix("boolean:")
+                .is_some_and(|required_boolean| {
+                    semantic.context_view(context).facts().any(|candidate| {
+                        semantic
+                            .boolean_fact_label(program, candidate)
+                            .is_some_and(|label| label == required_boolean)
+                    })
+                })
+    })
 }

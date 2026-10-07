@@ -621,21 +621,12 @@ fn requires_fact_proven(
             else {
                 return false;
             };
-            contexts.iter().any(|context| {
-                let context = semantic.contexts.get(*context);
-                semantic
-                    .context_view(context)
-                    .proves_proposition_label(program, &required_label)
-                    || required_label
-                        .strip_prefix("boolean:")
-                        .is_some_and(|required_boolean| {
-                            semantic.context_view(context).facts().any(|candidate| {
-                                semantic
-                                    .boolean_fact_label(program, candidate)
-                                    .is_some_and(|label| label == required_boolean)
-                            })
-                        })
-            })
+            crate::checks::contracts::contexts_prove_proposition_label(
+                semantic,
+                program,
+                &contexts,
+                &required_label,
+            )
         }
     }
 }
