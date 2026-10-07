@@ -97,15 +97,6 @@ fn payload(arena: &mut TermArena) -> TermHandle {
     lambda(arena, domain, body)
 }
 
-/// The constructor carrier `A = Σ(tag : Two). Payload tag`.
-fn carrier(arena: &mut TermArena) -> TermHandle {
-    let tag = variable(arena, 0);
-    let payload_fn = payload(arena);
-    let codomain = apply(arena, payload_fn, tag);
-    let domain = two(arena);
-    sigma(arena, domain, codomain)
-}
-
 /// `B = λ(a : A). caseTwo(λ_.Type 0, Id Two zero one, Id Two zero zero,
 /// fst a)` — child positions selected by tag: none under nil, one under
 /// cons.
@@ -116,7 +107,10 @@ fn branching(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let tag = fst(arena, bound);
     let body = case_two(arena, motive, empty, unit, tag);
-    let domain = carrier(arena);
+    let domain = {
+        let payload_fn = payload(arena);
+        carrier(arena, payload_fn)
+    };
     lambda(arena, domain, body)
 }
 
@@ -128,7 +122,7 @@ fn out_index(arena: &mut TermArena) -> TermHandle {
         // Under the tag binder: `Π(_ : Payload tag). Nat`.
         let tag = variable(arena, 0);
         let payload_fn = payload(arena);
-        let payload_at = apply(arena, payload_fn, tag);
+            let payload_at = apply(arena, payload_fn, tag);
         let length = nat(arena);
         let codomain = pi(arena, payload_at, length);
         let domain = two(arena);
@@ -159,7 +153,10 @@ fn out_index(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let payload_component = snd(arena, bound);
     let body = apply(arena, selected, payload_component);
-    let domain = carrier(arena);
+    let domain = {
+        let payload_fn = payload(arena);
+        carrier(arena, payload_fn)
+    };
     lambda(arena, domain, body)
 }
 
@@ -173,7 +170,7 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
         // `λ(tag : Two). Π(p : Payload tag). Π(_ : B' tag). Nat`.
         let tag = variable(arena, 0);
         let payload_fn = payload(arena);
-        let payload_at = apply(arena, payload_fn, tag);
+            let payload_at = apply(arena, payload_fn, tag);
         let branching_at = {
             // Under the `p` binder the tag is index 1.
             let motive = type_motive(arena);
@@ -218,7 +215,10 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let payload_component = snd(arena, bound);
     let body = apply(arena, selected, payload_component);
-    let domain = carrier(arena);
+    let domain = {
+        let payload_fn = payload(arena);
+        carrier(arena, payload_fn)
+    };
     lambda(arena, domain, body)
 }
 
@@ -228,7 +228,10 @@ fn vector_family(arena: &mut TermArena) -> IndexedFamily {
     IndexedFamily {
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: nat(arena),
-        carrier: carrier(arena),
+        carrier: {
+            let payload_fn = payload(arena);
+            carrier(arena, payload_fn)
+        },
         children: branching(arena),
         out: out_index(arena),
         next: next_index(arena),
@@ -352,7 +355,10 @@ fn eliminator_context(arena: &mut TermArena, family: &IndexedFamily) -> Context 
         };
         let inner = pi(arena, hypothesis_type, result);
         let middle = pi(arena, g_type, inner);
-        let domain = carrier(arena);
+        let domain = {
+        let payload_fn = payload(arena);
+        carrier(arena, payload_fn)
+    };
         pi(arena, domain, middle)
     };
     let element_type = elem(arena);
@@ -506,7 +512,10 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
         let bound = variable(&mut arena, 0);
         let payload_component = snd(&mut arena, bound);
         let body = apply(&mut arena, selected, payload_component);
-        let domain = carrier(&mut arena);
+        let domain = {
+            let payload_fn = payload(&mut arena);
+            carrier(&mut arena, payload_fn)
+        };
         lambda(&mut arena, domain, body)
     };
     let length = variable(&mut arena, 1);
@@ -532,7 +541,10 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
         let bound = variable(&mut arena, 0);
         let tag = fst(&mut arena, bound);
         let body = case_two(&mut arena, motive, empty, unit, tag);
-        let domain = carrier(&mut arena);
+        let domain = {
+            let payload_fn = payload(&mut arena);
+            carrier(&mut arena, payload_fn)
+        };
         lambda(&mut arena, domain, body)
     };
     let length = variable(&mut arena, 1);
