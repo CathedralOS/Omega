@@ -32,7 +32,7 @@ pub(super) fn validate_consumer(
     let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
         return Ok(false);
     };
-    let (machine, state) = crate::declarations::state_declaration(checked, caller.state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, caller.state)?;
     // A reference record is a constructed value or an ordinary structural
     // call's result.
     let record_result = caller.operations.iter().find_map(|operation| match operation {
@@ -46,11 +46,10 @@ pub(super) fn validate_consumer(
             Some(StatementNode::LocalData(local)) if crate::reference_custody::is_reference_record(checked, local.type_reference))
     });
     if record_result.is_some() {
-        let Some(reference) =
-            validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
-        else {
+        let reference = checked.facts.resolved_types.place(expression);
+        if !reference.is_valid() {
             return Ok(false);
-        };
+        }
         if crate::reference_custody::primitive_loan_parts(checked, reference).is_none() {
             return Ok(false);
         }

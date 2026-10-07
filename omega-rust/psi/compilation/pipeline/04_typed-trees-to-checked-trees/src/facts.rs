@@ -8,6 +8,8 @@
 //! `requirement_call_specializations.rs` the specializations generic calls
 //! derived at their static machine arguments, and `qualification_facts.rs`
 //! qualification and service reach facts.
+//! `resolved_types.rs` publishes final executable place/result and carrier
+//! decisions after the typed arenas stop changing in `checking.rs`.
 
 pub(crate) mod boolean_predicates;
 pub(crate) mod capabilities;
@@ -35,6 +37,7 @@ mod placed_views_and_uses;
 pub(crate) mod qualification_evidence;
 mod qualification_facts;
 mod requirement_call_specializations;
+pub(crate) mod resolved_types;
 pub(crate) mod review_sources;
 
 pub(crate) use crash_calls::{infer_checked_crash_causes, infer_checked_machine_crash_causes};

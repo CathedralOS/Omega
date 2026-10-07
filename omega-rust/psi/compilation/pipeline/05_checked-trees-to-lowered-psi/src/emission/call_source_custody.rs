@@ -60,15 +60,10 @@ pub(crate) fn validate_parameter_binding_receiver(
                 coordinate.statement_index as usize,
                 source.receiver,
             )?;
-            let carrier = validation::declared_place_type_raw(
-                &checked.typed,
-                machine,
-                Some(state),
-                source.receiver,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "binding receiver has no exact declared type",
-            ))?;
+            let carrier = checked.facts.resolved_types.place(source.receiver);
+            if !carrier.is_valid() {
+                return unsupported("binding receiver has no exact declared type");
+            }
             (projected.root, projected.path, carrier)
         }
         Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
@@ -137,12 +132,13 @@ pub(crate) fn validate_parameter_binding_receiver(
     {
         return unsupported("binding receiver has inconsistent ordinary parameter custody");
     }
-    checked
-        .typed
-        .unwrapped_type_reference(source_parameter.type_reference)
-        .ok_or(LoweringError::Unsupported(
-            "binding receiver parameter has no declared carrier",
-        ))?;
+    let parameter_carrier = checked
+        .facts
+        .resolved_types
+        .carrier(source_parameter.type_reference);
+    if !parameter_carrier.is_valid() {
+        return unsupported("binding receiver parameter has no declared carrier");
+    }
     let requirement =
         typed_trees::service::exact_bound_service_requirement(&checked.typed, carrier).ok_or(
             LoweringError::Unsupported("parameter receiver is not an exact Binding carrier"),

@@ -121,13 +121,12 @@ pub(super) fn validate_shape(
                 // storage carrier: an element spelled `i32 in Saturating`
                 // stores under the bare carrier's shape, so walk through the
                 // shell the way custody checks do.
-                match checked.typed.unwrapped_type_reference(reference) {
-                    Some(carrier) if carrier != reference => {
-                        reference = carrier;
-                        continue;
-                    }
-                    _ => return unsupported("array source shape is absent"),
+                let carrier = checked.facts.resolved_types.carrier(reference);
+                if carrier.is_valid() && carrier != reference {
+                    reference = carrier;
+                    continue;
                 }
+                return unsupported("array source shape is absent");
             }
         }
         if matches.next().is_some() {

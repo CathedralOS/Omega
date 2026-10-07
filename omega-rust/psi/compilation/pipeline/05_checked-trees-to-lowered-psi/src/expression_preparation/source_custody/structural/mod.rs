@@ -111,15 +111,16 @@ pub(crate) fn shared_slice_view_referent(
 /// checker resolved it. A non-view declaration is returned unchanged.
 pub(crate) fn declared_view_binding_type(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    state: &checked_trees::state::State,
     declared: TypeReferenceHandle,
     initial_value: ExpressionHandle,
 ) -> TypeReferenceHandle {
     if validation::reference_shell(&checked.typed, declared).is_some() {
         return declared;
     }
-    validation::expression_result_type_reference(&checked.typed, machine, state, initial_value)
-        .filter(|result| validation::slice_view_shell(&checked.typed, *result, &[]).is_some())
-        .unwrap_or(declared)
+    let result = checked.facts.resolved_types.result(initial_value);
+    if result.is_valid() && validation::slice_view_shell(&checked.typed, result, &[]).is_some() {
+        result
+    } else {
+        declared
+    }
 }

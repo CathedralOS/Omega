@@ -272,23 +272,21 @@ fn indexed_target(
     let IndexedWriteLeaf::ElementView(write) = leaf else {
         return Ok(assignment.target);
     };
-    let (machine, state) = crate::declarations::state_declaration(checked, state_symbol)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let mut target = assignment.target;
     for segment in write.path.iter().rev() {
         match (segment, checked.expression_table.expression(target)) {
             (CheckedUnitStructuralPathSegment::Field(_), ExpressionNode::Member(member))
                 if member.case_variant.is_none() =>
             {
-                let reference = validation::declared_place_type_raw(
-                    &checked.typed,
-                    machine,
-                    Some(state),
-                    member.receiver,
-                )
-                .and_then(|reference| checked.typed.unwrapped_type_reference(reference))
-                .ok_or(LoweringError::Unsupported(
-                    "element-view field lost its authored owner",
-                ))?;
+                let reference = checked.facts.resolved_types.place(member.receiver);
+                if !reference.is_valid() {
+                    return unsupported("element-view field lost its authored owner");
+                }
+                let reference = checked.facts.resolved_types.carrier(reference);
+                if !reference.is_valid() {
+                    return unsupported("element-view field lost its authored owner");
+                }
                 let owner = checked.typed.closed_data_definition(reference).ok_or(
                     LoweringError::Unsupported("element-view field has no record declaration"),
                 )?;

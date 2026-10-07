@@ -307,7 +307,7 @@ impl Evaluation {
         {
             return unsupported("structural value binding was established twice");
         }
-        let (machine, source) = crate::declarations::state_declaration(checked, state)?;
+        let (_, source) = crate::declarations::state_declaration(checked, state)?;
         let local = match checked
             .statement_table
             .statements(source.statement_nodes)
@@ -329,8 +329,6 @@ impl Evaluation {
             let binding_type =
                 crate::expression_preparation::source_custody::structural::declared_view_binding_type(
                     checked,
-                    machine,
-                    source,
                     local.type_reference,
                     local.initial_value,
                 );

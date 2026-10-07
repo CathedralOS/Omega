@@ -170,15 +170,10 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                     checked_trees::expression::ExpressionNode::Borrow(borrow) => borrow.target,
                     _ => expression,
                 };
-                let source_type = validation::declared_place_type_raw(
-                    &checked.typed,
-                    source_machine,
-                    Some(source_state),
-                    place_expression,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "service argument lost its exact declared carrier",
-                ))?;
+                let source_type = checked.facts.resolved_types.place(place_expression);
+                if !source_type.is_valid() {
+                    return unsupported("service argument lost its exact declared carrier");
+                }
                 let actual = carrier(checked, source_type)?.ok_or(LoweringError::Unsupported(
                     "service argument is not a declared Binding occurrence",
                 ))?;

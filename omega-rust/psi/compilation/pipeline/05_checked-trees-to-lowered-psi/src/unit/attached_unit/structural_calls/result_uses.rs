@@ -1445,22 +1445,13 @@ fn validate_operand_producers(
             };
             // The element-declared view spelling (`let v: u8 = coll[a..b]`)
             // binds the subslice's own result type, not the authored element;
-            // a declared view keeps its spelling. Without an authored state
-            // the declaration is taken as written.
-            let binding_type = crate::declarations::state_declaration(
-                checked,
-                caller.state,
-            )
-            .map(|(machine, state)| {
+            // a declared view keeps its spelling.
+            let binding_type =
                 crate::expression_preparation::source_custody::structural::declared_view_binding_type(
                     checked,
-                    machine,
-                    state,
                     local.type_reference,
                     local.initial_value,
-                )
-            })
-            .unwrap_or(local.type_reference);
+                );
             // A `&T` producer keeps the authored reference on its local but
             // joins the referent's carrier: compare the slice/record the
             // view names, not the borrow shell. A `&mut` producer's carrier

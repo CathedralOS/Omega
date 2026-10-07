@@ -125,13 +125,14 @@ fn resolve_source(
             {
                 let field = validation::exact_self_field(&checked.typed, machine, cursor)
                     .or_else(|| {
-                        let reference = validation::declared_place_type_raw(
-                            &checked.typed,
-                            machine,
-                            Some(state),
-                            member.receiver,
-                        )?;
-                        let reference = checked.typed.unwrapped_type_reference(reference)?;
+                        let reference = checked.facts.resolved_types.place(member.receiver);
+                        if !reference.is_valid() {
+                            return None;
+                        }
+                        let reference = checked.facts.resolved_types.carrier(reference);
+                        if !reference.is_valid() {
+                            return None;
+                        }
                         let owner = checked.typed.closed_data_definition(reference)?;
                         validation::exact_data_member_field(
                             &checked.typed,
@@ -188,15 +189,10 @@ fn resolve_source(
                     checked.expression_table.expression(member.receiver),
                     ExpressionNode::Name(_)
                 ) {
-                    let mut reference = validation::declared_place_type_raw(
-                        &checked.typed,
-                        machine,
-                        Some(state),
-                        member.receiver,
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "projected receiver lost its carrier type",
-                    ))?;
+                    let mut reference = checked.facts.resolved_types.place(member.receiver);
+                    if !reference.is_valid() {
+                        return unsupported("projected receiver lost its carrier type");
+                    }
                     while let Some(shell) = validation::reference_shell(&checked.typed, reference) {
                         path.push(CheckedUnitStructuralPathSegment::Referent);
                         reference = shell.referee;
@@ -236,14 +232,7 @@ fn resolve_source(
                 ) {
                     return unsupported("store destination index has no builtin address meaning");
                 }
-                validate_indexed_collection(
-                    checked,
-                    machine,
-                    state,
-                    indexed.collection,
-                    None,
-                    purpose,
-                )?;
+                validate_indexed_collection(checked, indexed.collection, None, purpose)?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
                 ));
@@ -308,14 +297,7 @@ fn resolve_source(
                 ) {
                     return unsupported("projected receiver index has no builtin address meaning");
                 }
-                validate_indexed_collection(
-                    checked,
-                    machine,
-                    state,
-                    indexed.collection,
-                    None,
-                    purpose,
-                )?;
+                validate_indexed_collection(checked, indexed.collection, None, purpose)?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::Parameter { position },
                 ));
@@ -347,14 +329,7 @@ fn resolve_source(
                 ) {
                     return unsupported("projected receiver index has no builtin address meaning");
                 }
-                validate_indexed_collection(
-                    checked,
-                    machine,
-                    state,
-                    indexed.collection,
-                    None,
-                    purpose,
-                )?;
+                validate_indexed_collection(checked, indexed.collection, None, purpose)?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::StructuralField(selector),
                 ));
@@ -377,14 +352,7 @@ fn resolve_source(
                 ) {
                     return unsupported("projected receiver index has no builtin address meaning");
                 }
-                validate_indexed_collection(
-                    checked,
-                    machine,
-                    state,
-                    indexed.collection,
-                    Some(index),
-                    purpose,
-                )?;
+                validate_indexed_collection(checked, indexed.collection, Some(index), purpose)?;
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
                 // Materialization may fold an immutable local's value, but
                 // capture retains that local read's exact selector occurrence.
@@ -517,18 +485,18 @@ fn resolve_source(
 /// independent storage/loan and index obligations still establish those.
 fn validate_indexed_collection(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    state: &checked_trees::state::State,
     collection: ExpressionHandle,
     fixed_index: Option<u64>,
     purpose: SourceUse,
 ) -> Result<(), LoweringError> {
-    let reference =
-        validation::declared_place_type_raw(&checked.typed, machine, Some(state), collection)
-            .and_then(|reference| checked.typed.unwrapped_type_reference(reference))
-            .ok_or(LoweringError::Unsupported(
-                "projected index has no declared collection",
-            ))?;
+    let reference = checked.facts.resolved_types.place(collection);
+    if !reference.is_valid() {
+        return unsupported("projected index has no declared collection");
+    }
+    let reference = checked.facts.resolved_types.carrier(reference);
+    if !reference.is_valid() {
+        return unsupported("projected index has no declared collection");
+    }
     match checked.type_reference_table.type_reference(reference) {
         TypeReferenceNode::FixedArray {
             length: checked_trees::types::FixedArrayLength::Literal(length),

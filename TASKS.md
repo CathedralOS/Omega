@@ -2644,8 +2644,7 @@ shape gates and review/certificate support. Owners are stage 04
 and the `validation` crate (`omega-rust/psi/compilation/checking`). The rulings
 in [PCC removal](#pcc-removal) and
 [Lowering simplification](#lowering-simplification) apply here. Related items
-already filed elsewhere: **LOWERING-READS-CHECKED-TYPES**,
-**TYPED-FROZEN-BEFORE-CHECKING**.
+already filed elsewhere: **TYPED-FROZEN-BEFORE-CHECKING**.
 
 Each coherent repair deletes what it replaces and keeps every
 check-corpus verdict and diagnostic family unchanged unless the item says
@@ -2887,17 +2886,6 @@ of a check the same flow already performed, not the check itself.
   `CheckedTrees.typed` after construction (source-scanning guard), and the
   full check corpus plus native corpus `--filter
   generics,operators,providers/` are unchanged.
-
-- **LOWERING-READS-CHECKED-TYPES.** (new-scope) Stage 05
-  (`omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/`)
-  recomputes place and expression types that checking already resolved, via
-  `validation::declared_place_type_raw`, `validation::unwrapped_type_reference`
-  and `validation::expression_result_type_reference`. Have checking record
-  each resolved place and expression type once, in a dense `CheckFacts` table
-  indexed by expression handle, and replace every stage 05 call with a read of
-  that table. Acceptance: stage 05 non-test sources call none of
-  the three functions (stage 05 source-scanning guard); check and native
-  corpus unchanged.
 
 - **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct and dynamic ELF image
   emission now each build their final image once. Only retained artifacts

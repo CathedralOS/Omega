@@ -571,13 +571,10 @@ impl Preparation<'_> {
             let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
                 return unsupported("structural array has a nonarray carrier");
             };
-            let reference = self
-                .checked
-                .typed
-                .unwrapped_type_reference(reference)
-                .ok_or(LoweringError::Unsupported(
-                    "structural array source carrier is missing",
-                ))?;
+            let reference = self.checked.facts.resolved_types.carrier(reference);
+            if !reference.is_valid() {
+                return unsupported("structural array source carrier is missing");
+            }
             let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
                 self.checked.type_reference_table.type_reference(reference)
             else {

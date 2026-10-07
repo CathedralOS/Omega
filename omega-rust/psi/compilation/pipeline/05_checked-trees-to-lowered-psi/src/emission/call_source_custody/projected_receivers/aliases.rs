@@ -286,15 +286,13 @@ pub(crate) fn parameter_source(
         // the source place's declared type is the byte carrier T re-views.
         let reference = match checked.expression_table.expression(initializer.target) {
             ExpressionNode::Cast(cast) if cast.form.is_recast() => cast.result_type,
-            _ => validation::declared_place_type_raw(
-                &checked.typed,
-                authored_machine,
-                Some(authored_state),
-                initializer.target,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "receiver alias initializer has no exact referent type",
-            ))?,
+            _ => {
+                let reference = checked.facts.resolved_types.place(initializer.target);
+                if !reference.is_valid() {
+                    return unsupported("receiver alias initializer has no exact referent type");
+                }
+                reference
+            }
         };
         match checked.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => *referee,

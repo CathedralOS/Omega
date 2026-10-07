@@ -10,6 +10,9 @@ use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedVi
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
+    /// Frozen executable place/result types and type-reference carriers.
+    /// Lowering consumes these decisions instead of reconstructing them.
+    pub resolved_types: crate::ResolvedTypeFacts,
     /// Completed source assignments proved to fit their physical integer encoding.
     pub stored_integer_writes: arena::Arena<crate::CheckedStoredIntegerWrite>,
     /// Source `[]` occurrences whose every bounds check proved a scalar index

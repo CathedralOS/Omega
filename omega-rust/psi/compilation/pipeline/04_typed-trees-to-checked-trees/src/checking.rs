@@ -469,6 +469,10 @@ fn check_program(
     // revision, not by the frozen scope dropped above, so they still answer
     // from cache here.
     facts.content_classes = validation::classify_program_content_classes(&program);
+    // Retain place/result decisions under final occurrence handles. Recording
+    // before specialization or authored-selection finalization would miss the
+    // generated bodies; lowering must not repair an incomplete table itself.
+    facts.resolved_types = crate::facts::resolved_types::resolve_program_types(&program);
 
     let checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;

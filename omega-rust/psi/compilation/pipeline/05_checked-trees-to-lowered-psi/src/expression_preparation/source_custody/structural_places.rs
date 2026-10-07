@@ -67,16 +67,14 @@ pub(crate) fn walk_exact_place(
         visited.push(cursor);
         match checked.expression_table.expression(cursor) {
             ExpressionNode::Member(member) => {
-                let receiver = validation::declared_place_type_raw(
-                    &checked.typed,
-                    machine,
-                    Some(authored),
-                    member.receiver,
-                )
-                .and_then(|receiver| checked.typed.unwrapped_type_reference(receiver))
-                .ok_or(LoweringError::Unsupported(
-                    "borrowed selection lost its receiver type",
-                ))?;
+                let receiver = checked.facts.resolved_types.place(member.receiver);
+                if !receiver.is_valid() {
+                    return unsupported("borrowed selection lost its receiver type");
+                }
+                let receiver = checked.facts.resolved_types.carrier(receiver);
+                if !receiver.is_valid() {
+                    return unsupported("borrowed selection lost its receiver type");
+                }
                 // A `&'a` receiver on a lifetime-parameterized record unwraps
                 // to a `Generic` node whose base symbol still names the data
                 // declaration — the erased borrow-region arguments are not
@@ -160,16 +158,14 @@ pub(crate) fn walk_exact_place(
                     cursor = indexed.collection;
                     continue;
                 };
-                let container = validation::declared_place_type_raw(
-                    &checked.typed,
-                    machine,
-                    Some(authored),
-                    indexed.collection,
-                )
-                .and_then(|container| checked.typed.unwrapped_type_reference(container))
-                .ok_or(LoweringError::Unsupported(
-                    "borrowed selection index has no declared collection",
-                ))?;
+                let container = checked.facts.resolved_types.place(indexed.collection);
+                if !container.is_valid() {
+                    return unsupported("borrowed selection index has no declared collection");
+                }
+                let container = checked.facts.resolved_types.carrier(container);
+                if !container.is_valid() {
+                    return unsupported("borrowed selection index has no declared collection");
+                }
                 // A slice-typed collection — a `&[Cell]` view root — carries no
                 // literal bound: the receiving operation must retain the
                 // view's live extent obligation. Owners without that contract
@@ -394,11 +390,10 @@ pub(crate) fn field_selector(
         .ok_or(LoweringError::Unsupported(
             "runtime index field selector has no parameter root",
         ))?;
-    let leaf =
-        validation::expression_result_type_reference(&checked.typed, machine, authored, expression)
-            .ok_or(LoweringError::Unsupported(
-                "runtime index field selector lost its leaf type",
-            ))?;
+    let leaf = checked.facts.resolved_types.result(expression);
+    if !leaf.is_valid() {
+        return unsupported("runtime index field selector lost its leaf type");
+    }
     if !selector_is_integer(checked, leaf) {
         return unsupported("runtime index field selector leaf is not an integer");
     }

@@ -8,6 +8,16 @@ optimization and portable publication belong to the following stages.
 The checker's permission ledger is consumed as checked: lowering does not
 re-validate the checker's own fresh output.
 
+Place types, destination-independent expression results and shell-free type
+carriers come from `checked.facts.resolved_types`. Checking publishes the dense
+tables after specialization and authored-selection finalization freeze the
+arenas. Place and result remain separate: a borrowed place is not a by-value
+result, and arithmetic cannot inherit an operand's refinement. Lowering reads
+the exact generational handle's decision; absent types have no reconstruction
+fallback. Stored facts and their read APIs both use zero handles for absence,
+not optional handle wrappers. The source guard in `src/checked_type_reads.rs`
+protects this boundary.
+
 [Machine selection](src/machine_lowering/machine_dispatch.rs) owns plan precedence. Each selected
 producer supplies its source closure and a shared
 [result contract](src/producer_result.rs): conformance publication, operand

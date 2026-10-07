@@ -38,14 +38,15 @@ mod requirement_call_specializations;
 
 // Carry, domains and placement: carry policy, domain dependency and element
 // facts, index compatibility conditions, placed view inputs, each type
-// reference's borrow custody and content classification, and each state's
-// reference-result custody.
+// reference's borrow custody and content classification, each state's
+// reference-result custody, and frozen expression/place/carrier types.
 mod carry;
 mod content_classes;
 mod domains;
 mod index_compatibility;
 mod placement;
 mod reference_custody;
+mod resolved_types;
 mod state_reference_custody;
 mod stored_integer_writes;
 pub use stored_integer_writes::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
@@ -110,6 +111,7 @@ pub use requirement_call_specializations::{
     CheckedRequirementCallMachineSelection, CheckedRequirementCallSpecialization,
     CheckedRequirementCallTypeBinding, RequirementCallSpecializationFacts,
 };
+pub use resolved_types::{ResolvedCarrierType, ResolvedExpressionType, ResolvedTypeFacts};
 pub use service_reaches::{
     CallServiceReachRows, MachineServiceReachRows, ServiceReachFacts, StateServiceReachRows,
 };

@@ -39,14 +39,14 @@ pub(crate) fn construction_expression(
                 }
                 // A whole array-literal replacement: the literal lands at its
                 // target place's declared type.
-                StatementNode::Assignment(assignment) => validation::declared_place_type_raw(
-                    &checked.typed,
-                    owner,
-                    Some(state),
-                    assignment.target,
-                )
-                .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
-                .map(|reference| (assignment.value, reference)),
+                StatementNode::Assignment(assignment) => {
+                    let declared = checked.facts.resolved_types.place(assignment.target);
+                    if !declared.is_valid() {
+                        return None;
+                    }
+                    validation::closed_array_store_type(&checked.typed, declared)
+                        .map(|reference| (assignment.value, reference))
+                }
                 _ => None,
             }
         }

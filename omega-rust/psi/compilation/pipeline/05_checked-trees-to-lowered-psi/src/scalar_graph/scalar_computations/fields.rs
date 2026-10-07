@@ -697,14 +697,7 @@ fn captured_place_subject(
                         expression,
                     )?,
                 );
-                if validation::expression_result_type_reference(
-                    &checked.typed,
-                    source_machine,
-                    source_state,
-                    expression,
-                )
-                .is_none()
-                {
+                if !checked.facts.resolved_types.result(expression).is_valid() {
                     return unsupported("record loan's index selector lost its leaf type");
                 }
                 runtime_split = Some(path.len());
@@ -779,15 +772,10 @@ fn captured_place_subject(
         {
             place = cast.value;
         }
-        let source = validation::declared_place_type_raw(
-            &checked.typed,
-            source_machine,
-            Some(source_state),
-            place,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "record view lost its source place type",
-        ))?;
+        let source = checked.facts.resolved_types.place(place);
+        if !source.is_valid() {
+            return unsupported("record view lost its source place type");
+        }
         typed_overlay = Some(TypedRecordOverlay {
             source,
             referee: *referee,

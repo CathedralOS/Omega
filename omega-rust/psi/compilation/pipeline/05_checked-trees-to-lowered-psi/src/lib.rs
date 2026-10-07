@@ -4,6 +4,8 @@
 //!
 //! Output retains source custody, proof and debug companions for later stages.
 //! Unsupported constructs fail closed; this stage does not optimize or publish.
+//! Expression place/result types and storage carriers come from the frozen
+//! checked facts; lowering does not resolve them again from source context.
 //!
 //! One entrance: [`lower_machine`], in `machine_lowering.rs`. Read
 //! `lower_terminal_selection` there to read this stage — the module order
@@ -68,6 +70,9 @@ mod lowering_error;
 mod producer_result;
 mod reference_custody;
 mod terminal_identities;
+
+#[cfg(test)]
+mod checked_type_reads;
 
 // The entrance, and the failure vocabulary its callers match on.
 pub use lowering_error::LoweringError;

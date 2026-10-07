@@ -300,15 +300,10 @@ pub(crate) fn storage(
         checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
         | checked_trees::CheckedStorageRoot::ViewLocal { symbol } => symbol,
     };
-    let reference = validation::declared_place_type_raw(
-        &checked.typed,
-        machine,
-        Some(authored),
-        collection_expression,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "range collection has no declared type",
-    ))?;
+    let reference = checked.facts.resolved_types.place(collection_expression);
+    if !reference.is_valid() {
+        return unsupported("range collection has no declared type");
+    }
     let mut identity =
         validation::stored_structural_type_identity(&checked.typed, reference, &[], &[]);
     // A root reference is represented by its parameter/view-local custody.
@@ -771,7 +766,7 @@ pub(crate) fn binding_site(
     else {
         return unsupported("view subslice binding lost its range source");
     };
-    let (machine, authored) = crate::declarations::state_declaration(checked, state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
     let (declared_type, site) = match statements.get(result.statement_index as usize) {
         Some(checked_trees::statement::StatementNode::LocalData(local))
@@ -782,8 +777,6 @@ pub(crate) fn binding_site(
             (
                 crate::expression_preparation::source_custody::structural::declared_view_binding_type(
                     checked,
-                    machine,
-                    authored,
                     local.type_reference,
                     local.initial_value,
                 ),

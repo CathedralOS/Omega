@@ -27,13 +27,10 @@ impl emission::Emission<'_, '_, '_> {
         let StructuralTypeShape::FixedArray { element, .. } = declaration.shape else {
             return unsupported("fixed array literal has a nonarray carrier");
         };
-        let reference = self
-            .checked
-            .typed
-            .unwrapped_type_reference(type_reference)
-            .ok_or(LoweringError::Unsupported(
-                "fixed array source carrier is missing",
-            ))?;
+        let reference = self.checked.facts.resolved_types.carrier(type_reference);
+        if !reference.is_valid() {
+            return unsupported("fixed array source carrier is missing");
+        }
         let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
             self.checked.type_reference_table.type_reference(reference)
         else {

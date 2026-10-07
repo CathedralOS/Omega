@@ -109,7 +109,7 @@ impl Preparation<'_> {
         &mut self,
         producer: &checked_trees::CheckedStructuralValueCall,
     ) -> Result<PlaceId, LoweringError> {
-        let (machine, source) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (machine, _) = crate::declarations::state_declaration(self.checked, self.state)?;
         let caller = super::super::unit_operations::Caller::published(
             self.checked,
             machine.symbol,
@@ -234,15 +234,10 @@ impl Preparation<'_> {
                         .nodes
                         .get(*value)
                         .expression;
-                    let reference = validation::expression_result_type_reference(
-                        &self.checked.typed,
-                        machine,
-                        source,
-                        expression,
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "structural operand construction lost its type",
-                    ))?;
+                    let reference = self.checked.facts.resolved_types.result(expression);
+                    if !reference.is_valid() {
+                        return unsupported("structural operand construction lost its type");
+                    }
                     let prepared = prepare_value(
                         self.checked,
                         self.qualifications,

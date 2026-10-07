@@ -143,9 +143,11 @@ pub(super) fn source(
     let reference = if whole_source {
         reference
     } else {
-        validation::declared_place_type_raw(&checked.typed, caller, Some(state), named).ok_or(
-            LoweringError::Unsupported("borrowed projection lost its declared type"),
-        )?
+        let reference = checked.facts.resolved_types.place(named);
+        if !reference.is_valid() {
+            return unsupported("borrowed projection lost its declared type");
+        }
+        reference
     };
     let peeled = validation::peel_declared_constraints(&checked.typed, reference);
     if peeled != reference

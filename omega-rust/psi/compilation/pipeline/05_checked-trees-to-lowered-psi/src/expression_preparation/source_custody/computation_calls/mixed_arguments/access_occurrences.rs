@@ -81,7 +81,7 @@ pub(crate) fn replay(
             "computed shared borrow has a stale observation roster",
         ))?;
     let table = &checked.expression_table;
-    let (source_machine, source_state) = crate::declarations::state_declaration(checked, state)?;
+    let (_, source_state) = crate::declarations::state_declaration(checked, state)?;
     let plain_copy = |expression| {
         // The borrow roster records reads of captured places, not the type of
         // a newly produced range descriptor. Its dynamic Index projects the
@@ -106,39 +106,30 @@ pub(crate) fn replay(
             if fixed_start && fixed_end {
                 return false;
             }
-            return validation::expression_result_type_reference(
-                &checked.typed,
-                source_machine,
-                source_state,
-                indexed.collection,
-            )
-            .and_then(|reference| checked.typed.unwrapped_type_reference(reference))
-            .and_then(
-                |reference| match checked.type_reference_table.type_reference(reference) {
-                    checked_trees::types::TypeReferenceNode::Slice { element_type }
-                    | checked_trees::types::TypeReferenceNode::FixedArray {
-                        element_type, ..
-                    } => Some(*element_type),
-                    _ => None,
-                },
-            )
-            .is_some_and(|element| {
-                crate::content_classes::plain_owned_with_numeric_constraints(checked, element)
-                    && checked.type_multiplicity(element)
-                        == language_semantics::Multiplicity::Unrestricted
-            });
+            let reference = checked.facts.resolved_types.result(indexed.collection);
+            if !reference.is_valid() {
+                return false;
+            }
+            let reference = checked.facts.resolved_types.carrier(reference);
+            if !reference.is_valid() {
+                return false;
+            }
+            let element = match checked.type_reference_table.type_reference(reference) {
+                checked_trees::types::TypeReferenceNode::Slice { element_type }
+                | checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+                    *element_type
+                }
+                _ => return false,
+            };
+            return crate::content_classes::plain_owned_with_numeric_constraints(checked, element)
+                && checked.type_multiplicity(element)
+                    == language_semantics::Multiplicity::Unrestricted;
         }
-        validation::expression_result_type_reference(
-            &checked.typed,
-            source_machine,
-            source_state,
-            expression,
-        )
-        .is_some_and(|reference| {
-            crate::content_classes::plain_owned_with_numeric_constraints(checked, reference)
-                && checked.type_multiplicity(reference)
-                    == language_semantics::Multiplicity::Unrestricted
-        })
+        let reference = checked.facts.resolved_types.result(expression);
+        reference.is_valid()
+            && crate::content_classes::plain_owned_with_numeric_constraints(checked, reference)
+            && checked.type_multiplicity(reference)
+                == language_semantics::Multiplicity::Unrestricted
     };
     // Only the exact terminal occurrence observes payloads already extracted
     // by dispatch. Nested calls on the same statement keep their own schedule.
@@ -169,19 +160,17 @@ pub(crate) fn replay(
         {
             return None;
         }
-        validation::expression_result_type_reference(
-            &checked.typed,
-            source_machine,
-            source_state,
-            argument,
-        )
-        .and_then(|reference| validation::reference_shell(&checked.typed, reference))
-        .and_then(|_| validation::reference_shell(&checked.typed, formal))
-        .map(|reference| match reference.access {
-            language_core::ReferenceAccess::Shared => BorrowAccessKind::Read,
-            language_core::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
-            language_core::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
-        })
+        let reference = checked.facts.resolved_types.result(argument);
+        if !reference.is_valid() {
+            return None;
+        }
+        validation::reference_shell(&checked.typed, reference)
+            .and_then(|_| validation::reference_shell(&checked.typed, formal))
+            .map(|reference| match reference.access {
+                language_core::ReferenceAccess::Shared => BorrowAccessKind::Read,
+                language_core::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+                language_core::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
+            })
     };
     let mut position = 0;
     let signature = crate::declarations::target_signature(checked, machine, call.target_symbol)?;
