@@ -1,9 +1,8 @@
 use super::byte_sequence_operand_bytes;
 use crate::interpreter::evaluator::{
-    ArithmeticDomain, BTreeMap, BinaryOperator, Cell, DataMember, EvalResult, Evaluator,
-    ExpressionHandle, ExpressionNode, FloatMeaning, FloatPolicyTrap, FloatSemantics, Frame, Halt,
-    HashSet, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, SymbolHandle, Value, trap,
-    unsupported,
+    ArithmeticDomain, EvalResult, ExpressionHandle, ExpressionNode, FloatMeaning, FloatPolicyTrap,
+    FloatSemantics, Frame, Halt, PrimitiveType, SemanticFloatClass, SemanticFloatFormat,
+    SymbolHandle, Value, trap, unsupported,
 };
 use language_semantics::declaration_selection::{CollectionMeasure, CollectionViewOperation};
 use symbols::BuiltinFunction;
