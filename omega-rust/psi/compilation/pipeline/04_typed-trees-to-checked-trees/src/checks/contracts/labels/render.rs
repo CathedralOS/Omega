@@ -147,3 +147,45 @@ pub(super) fn unary_label(
 ) -> String {
     format!("{}{}", unary.operator.display_name(), render(unary.operand))
 }
+
+/// The full expression-label dispatcher the call-contract and domain renderers
+/// share: every arm renders identically except `Name` (whose binder rules
+/// differ by caller) and `StructLiteral`, which the caller closures supply.
+pub(super) fn expression_label(
+    program: &TypedTrees,
+    node: &typed_trees::expression::ExpressionNode,
+    render: &dyn Fn(ExpressionHandle) -> String,
+    name_label: &dyn Fn(&typed_trees::expression::TableNamePath) -> String,
+    struct_label: &dyn Fn(&typed_trees::expression::TableStructLiteral) -> String,
+) -> String {
+    match node {
+        typed_trees::expression::ExpressionNode::Match(dispatch) => {
+            match_label(program, dispatch, render)
+        }
+        typed_trees::expression::ExpressionNode::Atomic(atomic) => atomic_label(atomic, render),
+        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+            array_literal_label(program, *values, render)
+        }
+        typed_trees::expression::ExpressionNode::Binary(binary) => binary_label(binary, render),
+        typed_trees::expression::ExpressionNode::Boolean(value) => value.to_string(),
+        typed_trees::expression::ExpressionNode::Cast(cast) => cast_label(program, cast, render),
+        typed_trees::expression::ExpressionNode::Call(call) => call_label(program, call, render),
+        typed_trees::expression::ExpressionNode::Float(value) => value.to_string(),
+        typed_trees::expression::ExpressionNode::UndeterminedNaN(format) => {
+            format!("<{} NaN without payload>", format.name())
+        }
+        typed_trees::expression::ExpressionNode::Indexed(indexed) => indexed_label(indexed, render),
+        typed_trees::expression::ExpressionNode::Integer(value) => value.to_string(),
+        typed_trees::expression::ExpressionNode::Member(member) => member_label(member, render),
+        typed_trees::expression::ExpressionNode::Borrow(inner) => borrow_label(inner, render),
+        typed_trees::expression::ExpressionNode::Name(path) => name_label(path),
+        typed_trees::expression::ExpressionNode::Range(range) => range_label(range, render),
+        typed_trees::expression::ExpressionNode::StructLiteral(literal) => struct_label(literal),
+        typed_trees::expression::ExpressionNode::String(value) => format!("{value:?}"),
+        typed_trees::expression::ExpressionNode::Unary(unary) => unary_label(unary, render),
+        typed_trees::expression::ExpressionNode::ZeroValue(type_reference) => format!(
+            "zero_value<{}>()",
+            program.display_type_reference(*type_reference)
+        ),
+    }
+}

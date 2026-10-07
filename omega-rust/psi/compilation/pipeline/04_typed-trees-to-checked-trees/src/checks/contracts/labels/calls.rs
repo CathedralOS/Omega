@@ -103,137 +103,94 @@ pub(crate) fn instantiate_call_contract_expression_label(
             value,
         )
     };
-    match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::Match(dispatch) => {
-            super::render::match_label(program, dispatch, &render)
-        }
-        typed_trees::expression::ExpressionNode::Atomic(atomic) => {
-            super::render::atomic_label(atomic, &render)
-        }
-        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
-            super::render::array_literal_label(program, *values, &render)
-        }
-        typed_trees::expression::ExpressionNode::Binary(binary) => {
-            super::render::binary_label(binary, &render)
-        }
-        typed_trees::expression::ExpressionNode::Boolean(value) => value.to_string(),
-        typed_trees::expression::ExpressionNode::Cast(cast) => {
-            super::render::cast_label(program, cast, &render)
-        }
-        typed_trees::expression::ExpressionNode::Call(call) => {
-            super::render::call_label(program, call, &render)
-        }
-        typed_trees::expression::ExpressionNode::Float(value) => value.to_string(),
-        typed_trees::expression::ExpressionNode::UndeterminedNaN(format) => {
-            format!("<{} NaN without payload>", format.name())
-        }
-        typed_trees::expression::ExpressionNode::Indexed(indexed) => {
-            super::render::indexed_label(indexed, &render)
-        }
-        typed_trees::expression::ExpressionNode::Integer(value) => value.to_string(),
-        typed_trees::expression::ExpressionNode::Member(member) => {
-            super::render::member_label(member, &render)
-        }
-        typed_trees::expression::ExpressionNode::Borrow(inner) => {
-            super::render::borrow_label(inner, &render)
-        }
-        typed_trees::expression::ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
-            let first_member = members.first().map(|member| member.as_str());
+    let name_label = |path: &typed_trees::expression::TableNamePath| -> String {
+        let members = program.expression_table.name_path_members(path.members);
+        let first_member = members.first().map(|member| member.as_str());
 
-            // The `result` binder refers to the value the call produces, not to
-            // any parameter. An `ensures result in Domain` on the callee must
-            // flow the domain fact onto the call's result value at the call site,
-            // so substitute `result` with the call expression's own label. Only
-            // a single-segment `result` that does not shadow a real parameter is
-            // treated as the binder.
-            if first_member == Some(RESULT_BINDER)
-                && members.len() == 1
-                && !target_state
-                    .contract_parameters(program)
-                    .iter()
-                    .any(|parameter| parameter.name.as_str() == RESULT_BINDER)
-            {
-                return call_result_label(program, call_site);
+        // The `result` binder refers to the value the call produces, not to
+        // any parameter. An `ensures result in Domain` on the callee must
+        // flow the domain fact onto the call's result value at the call site,
+        // so substitute `result` with the call expression's own label. Only
+        // a single-segment `result` that does not shadow a real parameter is
+        // treated as the binder.
+        if first_member == Some(RESULT_BINDER)
+            && members.len() == 1
+            && !target_state
+                .contract_parameters(program)
+                .iter()
+                .any(|parameter| parameter.name.as_str() == RESULT_BINDER)
+        {
+            return call_result_label(program, call_site);
+        }
+
+        let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
+        let mut argument_index = 0usize;
+
+        for parameter in target_state.contract_parameters(program) {
+            let parameter_matches = first_member == Some(parameter.name.as_str())
+                || path.head_symbol == parameter.symbol
+                || path.symbol == parameter.symbol;
+
+            let argument = arguments.get(argument_index).copied();
+            argument_index = argument_index.saturating_add(1);
+            if parameter_matches {
+                return argument
+                    .map(|argument| {
+                        // A reference formal used as a predicate value reads
+                        // its referent. The borrow at the call site supplies
+                        // access, not an extra operator in that predicate.
+                        let argument = match (
+                            program
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            program.expression_table.expression(argument),
+                        ) {
+                            (
+                                typed_trees::types::TypeReferenceNode::Reference { .. },
+                                typed_trees::expression::ExpressionNode::Borrow(borrow),
+                            ) => borrow.target,
+                            _ => argument,
+                        };
+                        program.render_proof_expression(argument, ProofSubstitutions::None)
+                    })
+                    .unwrap_or_else(|| parameter.name.to_string());
             }
+        }
 
-            let arguments =
-                crate::semantic::calls::call_site_argument_expressions(program, call_site);
-            let mut argument_index = 0usize;
-
-            for parameter in target_state.contract_parameters(program) {
-                let parameter_matches = first_member == Some(parameter.name.as_str())
-                    || path.head_symbol == parameter.symbol
-                    || path.symbol == parameter.symbol;
-
-                let argument = arguments.get(argument_index).copied();
-                argument_index = argument_index.saturating_add(1);
-                if parameter_matches {
-                    return argument
-                        .map(|argument| {
-                            // A reference formal used as a predicate value reads
-                            // its referent. The borrow at the call site supplies
-                            // access, not an extra operator in that predicate.
-                            let argument = match (
-                                program
-                                    .type_reference_table
-                                    .type_reference(parameter.type_reference),
-                                program.expression_table.expression(argument),
-                            ) {
-                                (
-                                    typed_trees::types::TypeReferenceNode::Reference { .. },
-                                    typed_trees::expression::ExpressionNode::Borrow(borrow),
-                                ) => borrow.target,
-                                _ => argument,
-                            };
-                            program.render_proof_expression(argument, ProofSubstitutions::None)
-                        })
-                        .unwrap_or_else(|| parameter.name.to_string());
+        // A `const`/`Value` binder of the target names the machine argument
+        // this call supplies for it, positionally (`bounded<K>` turns the
+        // callee's `Count <= 10` into the caller's `K <= 10`). A generic
+        // caller forwarding its own binder still owes that fact, which its
+        // own requires contract establishes.
+        let machine_arguments = call_site_machine_arguments(call_site);
+        if members.len() == 1 && !machine_arguments.is_empty() {
+            let type_parameters = crate::semantic::calls::call_target_type_parameters(
+                program,
+                call_site_target_symbol(call_site),
+            );
+            for (position, parameter) in type_parameters.iter().enumerate() {
+                let binder_matches = matches!(
+                    &parameter.kind,
+                    typed_trees::data::TypeParameterKind::Const { .. }
+                        | typed_trees::data::TypeParameterKind::Value { .. }
+                ) && (path.head_symbol == parameter.symbol
+                    || path.symbol == parameter.symbol
+                    || first_member == Some(parameter.name.as_str()));
+                if binder_matches && let Some(argument) = machine_arguments.get(position) {
+                    return argument.display_name();
                 }
             }
+        }
 
-            // A `const`/`Value` binder of the target names the machine argument
-            // this call supplies for it, positionally (`bounded<K>` turns the
-            // callee's `Count <= 10` into the caller's `K <= 10`). A generic
-            // caller forwarding its own binder still owes that fact, which its
-            // own requires contract establishes.
-            let machine_arguments = call_site_machine_arguments(call_site);
-            if members.len() == 1 && !machine_arguments.is_empty() {
-                let type_parameters = crate::semantic::calls::call_target_type_parameters(
-                    program,
-                    call_site_target_symbol(call_site),
-                );
-                for (position, parameter) in type_parameters.iter().enumerate() {
-                    let binder_matches = matches!(
-                        &parameter.kind,
-                        typed_trees::data::TypeParameterKind::Const { .. }
-                            | typed_trees::data::TypeParameterKind::Value { .. }
-                    ) && (path.head_symbol == parameter.symbol
-                        || path.symbol == parameter.symbol
-                        || first_member == Some(parameter.name.as_str()));
-                    if binder_matches && let Some(argument) = machine_arguments.get(position) {
-                        return argument.display_name();
-                    }
-                }
-            }
-
-            program.render_proof_expression(expression, ProofSubstitutions::None)
-        }
-        typed_trees::expression::ExpressionNode::Range(range) => {
-            super::render::range_label(range, &render)
-        }
-        typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
-            program.render_proof_constructor_value(literal, |value| render(value))
-        }
-        typed_trees::expression::ExpressionNode::String(value) => format!("{value:?}"),
-        typed_trees::expression::ExpressionNode::Unary(unary) => {
-            super::render::unary_label(unary, &render)
-        }
-        typed_trees::expression::ExpressionNode::ZeroValue(type_reference) => format!(
-            "zero_value<{}>()",
-            program.display_type_reference(*type_reference)
-        ),
-    }
+        program.render_proof_expression(expression, ProofSubstitutions::None)
+    };
+    super::render::expression_label(
+        program,
+        program.expression_table.expression(expression),
+        &render,
+        &name_label,
+        &|literal| program.render_proof_constructor_value(literal, |value| render(value)),
+    )
 }
 
 /// The static generic arguments authored on the call (`bounded<K>`), empty
