@@ -9,8 +9,7 @@ use crate::monomorphization::body_rewriting::const_substitution::{
 use crate::monomorphization::body_rewriting::machine_arguments::substitute_machine_parameter_type_references;
 use crate::monomorphization::{
     Candidate, Diagnostic, ExpressionHandle, ExpressionNode, ProofFact, StatementNode,
-    SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    collect_expression_tree,
+    SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees, collect_expression_tree,
 };
 
 pub(crate) fn substitute_cloned_type_parameters(
@@ -232,47 +231,19 @@ fn rebind_range_endpoint_names(
     root: TypeReferenceHandle,
     realized: &[(SymbolHandle, SymbolHandle)],
 ) {
-    let mut pending = vec![root];
-    let mut visited = std::collections::HashSet::new();
-    while let Some(handle) = pending.pop() {
-        if !handle.is_valid() || !visited.insert(handle) {
-            continue;
-        }
-        match program.type_reference_table.type_reference(handle).clone() {
-            TypeReferenceNode::Reference { referee, .. } => pending.push(referee),
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                pending.push(base_type);
-                for constraint in program
-                    .type_reference_table
-                    .constraints(constraints)
-                    .to_vec()
-                {
-                    match constraint {
-                        TypeConstraintNode::Domain(domain) => {
-                            pending.extend(domain.arguments.iter().copied());
-                        }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            program.expression_table.remap_symbols_in(minimum, realized);
-                            program.expression_table.remap_symbols_in(maximum, realized);
-                        }
-                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
-                    }
-                }
-            }
-            TypeReferenceNode::FixedArray { element_type, .. } => pending.push(element_type),
-            TypeReferenceNode::Slice { element_type } => pending.push(element_type),
-            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
-                program
-                    .type_reference_table
-                    .type_reference_handles(arguments),
-            ),
-            _ => {}
-        }
+    let mut endpoints = Vec::new();
+    crate::monomorphization::for_each_type_reference(
+        program,
+        &[root],
+        |_, _| false,
+        |_, minimum, maximum| {
+            endpoints.push((minimum, maximum));
+            false
+        },
+    );
+    for (minimum, maximum) in endpoints {
+        program.expression_table.remap_symbols_in(minimum, realized);
+        program.expression_table.remap_symbols_in(maximum, realized);
     }
 }
 
@@ -391,71 +362,27 @@ pub(crate) fn runtime_bound_occurrence_in(
     roots: &[TypeReferenceHandle],
     parameter_symbol: SymbolHandle,
 ) -> bool {
-    let mut pending = roots.to_vec();
-    let mut visited = std::collections::HashSet::new();
-    while let Some(handle) = pending.pop() {
-        if !handle.is_valid() || !visited.insert(handle) {
-            continue;
-        }
-        match program.type_reference_table.type_reference(handle) {
+    crate::monomorphization::for_each_type_reference(
+        program,
+        roots,
+        |program, node| match node {
             TypeReferenceNode::Named { symbol, .. }
-            | TypeReferenceNode::DynamicTrait { symbol, .. }
-                if *symbol == parameter_symbol =>
-            {
-                return true;
-            }
-            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                pending.push(*base_type);
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    match constraint {
-                        TypeConstraintNode::Domain(domain) => {
-                            pending.extend(domain.arguments.iter().copied());
-                        }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            if name_mentions_symbol(program, *minimum, parameter_symbol)
-                                || name_mentions_symbol(program, *maximum, parameter_symbol)
-                            {
-                                return true;
-                            }
-                        }
-                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
-                    }
-                }
-            }
-            TypeReferenceNode::FixedArray {
-                element_type,
+            | TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol == parameter_symbol,
+            TypeReferenceNode::FixedArray { length, .. } => matches!(
                 length,
-            } => {
-                if let typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } = length
-                    && *symbol == parameter_symbol
-                {
-                    return true;
-                }
-                pending.push(*element_type);
+                typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }
+                    if *symbol == parameter_symbol
+            ),
+            TypeReferenceNode::ConstExpression(expression) => {
+                name_mentions_symbol(program, *expression, parameter_symbol)
             }
-            TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
-            TypeReferenceNode::Generic { arguments, .. } => {
-                pending.extend(
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
-                );
-            }
-            TypeReferenceNode::ConstExpression(expression)
-                if name_mentions_symbol(program, *expression, parameter_symbol) =>
-            {
-                return true;
-            }
-            _ => {}
-        }
-    }
-    false
+            _ => false,
+        },
+        |program, minimum, maximum| {
+            name_mentions_symbol(program, minimum, parameter_symbol)
+                || name_mentions_symbol(program, maximum, parameter_symbol)
+        },
+    )
 }
 
 fn collect_static_argument_type_roots(

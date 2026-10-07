@@ -5,7 +5,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::type_identity::TypeIdentityRequest;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn refresh_generic_call_results(
     program: &mut TypedTrees,
@@ -351,58 +351,26 @@ fn range_endpoints_name_parameters(
     root: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, ExpressionHandle)],
 ) -> bool {
-    let mut pending = vec![root];
-    let mut visited = std::collections::HashSet::new();
-    while let Some(handle) = pending.pop() {
-        if !handle.is_valid() || !visited.insert(handle) {
-            continue;
-        }
-        match program.type_reference_table.type_reference(handle) {
-            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                pending.push(*base_type);
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    match constraint {
-                        TypeConstraintNode::Domain(domain) => {
-                            pending.extend(domain.arguments.iter().copied());
-                        }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            if [*minimum, *maximum].into_iter().any(|endpoint| {
-                                let mut tree = Vec::new();
-                                super::collect_expression_tree(program, endpoint, &mut tree);
-                                tree.into_iter().any(|handle| {
-                                    matches!(
-                                        program.expression_table.expression(handle),
-                                        ExpressionNode::Name(path)
-                                            if substitutions
-                                                .iter()
-                                                .any(|(symbol, _)| *symbol == path.symbol)
-                                    )
-                                })
-                            }) {
-                                return true;
-                            }
-                        }
-                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
-                    }
-                }
-            }
-            TypeReferenceNode::FixedArray { element_type, .. } => pending.push(*element_type),
-            TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
-            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
-                program
-                    .type_reference_table
-                    .type_reference_handles(*arguments),
-            ),
-            _ => {}
-        }
-    }
-    false
+    crate::monomorphization::for_each_type_reference(
+        program,
+        &[root],
+        |_, _| false,
+        |program, minimum, maximum| {
+            [minimum, maximum].into_iter().any(|endpoint| {
+                let mut tree = Vec::new();
+                super::collect_expression_tree(program, endpoint, &mut tree);
+                tree.into_iter().any(|handle| {
+                    matches!(
+                        program.expression_table.expression(handle),
+                        ExpressionNode::Name(path)
+                            if substitutions
+                                .iter()
+                                .any(|(symbol, _)| *symbol == path.symbol)
+                    )
+                })
+            })
+        },
+    )
 }
 
 /// Replace every name leaf inside the copied type's range endpoints that
@@ -415,64 +383,34 @@ fn substitute_named_endpoints(
     root: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, ExpressionHandle)],
 ) {
-    let mut pending = vec![root];
-    let mut visited = std::collections::HashSet::new();
-    while let Some(handle) = pending.pop() {
-        if !handle.is_valid() || !visited.insert(handle) {
-            continue;
-        }
-        let node = program.type_reference_table.type_reference(handle).clone();
-        match node {
-            TypeReferenceNode::Reference { referee, .. } => pending.push(referee),
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                pending.push(base_type);
-                for constraint in program
-                    .type_reference_table
-                    .constraints(constraints)
-                    .to_vec()
-                {
-                    match constraint {
-                        TypeConstraintNode::Domain(domain) => {
-                            pending.extend(domain.arguments.iter().copied());
-                        }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            for endpoint in [minimum, maximum] {
-                                let mut tree = Vec::new();
-                                super::collect_expression_tree(program, endpoint, &mut tree);
-                                for member in tree {
-                                    let replacement =
-                                        match program.expression_table.expression(member) {
-                                            ExpressionNode::Name(path) => substitutions
-                                                .iter()
-                                                .find(|(symbol, _)| *symbol == path.symbol)
-                                                .map(|(_, argument)| *argument),
-                                            _ => None,
-                                        };
-                                    if let Some(argument) = replacement {
-                                        let payload =
-                                            program.expression_table.expression(argument).clone();
-                                        *program.expression_table.expression_mut(member) = payload;
-                                    }
-                                }
-                            }
-                        }
-                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
-                    }
-                }
+    let mut endpoints = Vec::new();
+    crate::monomorphization::for_each_type_reference(
+        program,
+        &[root],
+        |_, _| false,
+        |_, minimum, maximum| {
+            endpoints.push((minimum, maximum));
+            false
+        },
+    );
+    for endpoint in endpoints
+        .into_iter()
+        .flat_map(|(minimum, maximum)| [minimum, maximum])
+    {
+        let mut tree = Vec::new();
+        super::collect_expression_tree(program, endpoint, &mut tree);
+        for member in tree {
+            let replacement = match program.expression_table.expression(member) {
+                ExpressionNode::Name(path) => substitutions
+                    .iter()
+                    .find(|(symbol, _)| *symbol == path.symbol)
+                    .map(|(_, argument)| *argument),
+                _ => None,
+            };
+            if let Some(argument) = replacement {
+                let payload = program.expression_table.expression(argument).clone();
+                *program.expression_table.expression_mut(member) = payload;
             }
-            TypeReferenceNode::FixedArray { element_type, .. } => pending.push(element_type),
-            TypeReferenceNode::Slice { element_type } => pending.push(element_type),
-            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
-                program
-                    .type_reference_table
-                    .type_reference_handles(arguments),
-            ),
-            _ => {}
         }
     }
 }
