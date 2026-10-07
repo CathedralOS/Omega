@@ -253,25 +253,17 @@ pub(super) fn collect_reads<'a, 'b>(
                     expression,
                 ) && matches!(place.root, facts::PlaceRoot::Symbol(_))
                 {
-                    collect_selector_reads(
+                    descend_and_capture_symbol_place(
                         program,
                         machine,
                         state,
                         statement_index,
                         expression,
+                        place,
                         calls,
                         operators,
                         reads,
-                        depth + 1,
-                        bound_lookup,
-                    ) && capture_place_read(
-                        program,
-                        machine,
-                        state,
-                        statement_index,
-                        place,
-                        expression,
-                        reads,
+                        depth,
                         bound_lookup,
                     )
                 } else {
@@ -1259,25 +1251,17 @@ fn collect_member_reads<'a, 'b>(
         canonical_place_from_expression_in_state(program, state.symbol, statement_index, expression)
         && matches!(place.root, facts::PlaceRoot::Symbol(_))
     {
-        return collect_selector_reads(
+        return descend_and_capture_symbol_place(
             program,
             machine,
             state,
             statement_index,
             expression,
+            place,
             calls,
             operators,
             reads,
-            depth + 1,
-            bound_lookup,
-        ) && capture_place_read(
-            program,
-            machine,
-            state,
-            statement_index,
-            place,
-            expression,
-            reads,
+            depth,
             bound_lookup,
         );
     }
@@ -1510,6 +1494,43 @@ fn selected_operator_operands(
 /// Check typed identities before contextual spelling recovery, and collect the
 /// storage read to select this place. Do not read the whole collection merely
 /// to address one element: parent replacement overlaps its child path already.
+#[allow(clippy::too_many_arguments)]
+fn descend_and_capture_symbol_place<'a, 'b>(
+    program: &'a TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    place: CanonicalPlace,
+    calls: Option<&RangeCallContext<'_>>,
+    operators: Option<&CheckedOperatorFacts>,
+    reads: &mut Vec<CanonicalPlace>,
+    depth: usize,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
+) -> bool {
+    collect_selector_reads(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        calls,
+        operators,
+        reads,
+        depth + 1,
+        bound_lookup,
+    ) && capture_place_read(
+        program,
+        machine,
+        state,
+        statement_index,
+        place,
+        expression,
+        reads,
+        bound_lookup,
+    )
+}
+
 fn collect_selector_reads<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
