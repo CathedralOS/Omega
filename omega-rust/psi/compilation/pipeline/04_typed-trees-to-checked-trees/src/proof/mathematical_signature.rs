@@ -892,6 +892,31 @@ impl<'a> Elaborator<'a> {
         }
     }
 
+    /// The two-way carrier failure: the operand's carrier was determined
+    /// and differs, or it could not be determined at all.
+    fn unexpected_carrier_error(
+        &self,
+        determined: Option<ScalarCarrier>,
+        handle: ExpressionHandle,
+    ) -> Vec<diagnostics::Diagnostic> {
+        match determined {
+            Some(..) => self.refuse(format!(
+                "operand `{}` inhabits a different scalar carrier",
+                self.program.render_proof_expression(
+                    handle,
+                    typed_trees::proposition::ProofSubstitutions::None
+                )
+            )),
+            None => self.refuse(format!(
+                "cannot determine the scalar carrier of operand `{}`",
+                self.program.render_proof_expression(
+                    handle,
+                    typed_trees::proposition::ProofSubstitutions::None
+                )
+            )),
+        }
+    }
+
     /// The shared refusal for body forms that carry no kernel denotation.
     fn unsupported_expression(&self, handle: ExpressionHandle) -> Vec<diagnostics::Diagnostic> {
         self.refuse(format!(
@@ -1245,20 +1270,7 @@ impl<'a> Elaborator<'a> {
                         // A float-carried operation (`x * y` inside
                         // `x * y == z`) interns opaquely at it.
                         Some(determined) if determined == carrier => self.open_term(handle),
-                        Some(..) => Err(self.refuse(format!(
-                            "operand `{}` inhabits a different scalar carrier",
-                            self.program.render_proof_expression(
-                                handle,
-                                typed_trees::proposition::ProofSubstitutions::None
-                            )
-                        ))),
-                        None => Err(self.refuse(format!(
-                            "cannot determine the scalar carrier of operand `{}`",
-                            self.program.render_proof_expression(
-                                handle,
-                                typed_trees::proposition::ProofSubstitutions::None
-                            )
-                        ))),
+                        determined => Err(self.unexpected_carrier_error(determined, handle)),
                     },
                 }
             }
@@ -1270,20 +1282,7 @@ impl<'a> Elaborator<'a> {
             | ExpressionNode::StructLiteral(..)
             | ExpressionNode::Match(..) => match self.operand_carrier(handle) {
                 Some(determined) if determined == carrier => self.elaborate_expression(handle),
-                Some(..) => Err(self.refuse(format!(
-                    "operand `{}` inhabits a different scalar carrier",
-                    self.program.render_proof_expression(
-                        handle,
-                        typed_trees::proposition::ProofSubstitutions::None
-                    )
-                ))),
-                None => Err(self.refuse(format!(
-                    "cannot determine the scalar carrier of operand `{}`",
-                    self.program.render_proof_expression(
-                        handle,
-                        typed_trees::proposition::ProofSubstitutions::None
-                    )
-                ))),
+                determined => Err(self.unexpected_carrier_error(determined, handle)),
             },
             _ => Err(self.unsupported_expression(handle)),
         }
