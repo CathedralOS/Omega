@@ -200,10 +200,7 @@ fn rejects_unknown_or_duplicate_domain_classifications() {
             "at most one compiler-owned classification",
         ),
     ] {
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let error = parse_syntax_trees(&tokens).expect_err("classification must reject");
+        let error = super::parse_source_error(source, "tokenize should succeed", "classification must reject");
         assert!(error.message.contains(expected), "got: {}", error.message);
     }
 }
@@ -216,10 +213,7 @@ fn rejects_domain_classification_after_requires() {
         satisfies ProgressProfile
         established by SchedulerAdmission::grant;
         "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("classification order must reject");
+    let error = super::parse_source_error(source, "tokenize should succeed", "classification order must reject");
     assert!(
         error
             .message
@@ -237,10 +231,7 @@ fn rejects_legacy_domain_route_bodies_with_migration_guidance() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("route bodies must be retired");
+    let error = super::parse_source_error(source, "tokenize should succeed", "route bodies must be retired");
     assert!(
         error.message.contains("domain route bodies are retired"),
         "got: {}",
@@ -257,10 +248,7 @@ fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("body predicates must be retired");
+    let error = super::parse_source_error(source, "tokenize should succeed", "body predicates must be retired");
     assert!(
         error
             .message
@@ -279,10 +267,7 @@ fn rejects_nested_domain_operators_with_top_level_home_guidance() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("nested operators must be retired");
+    let error = super::parse_source_error(source, "tokenize should succeed", "nested operators must be retired");
     assert!(
         error
             .message
@@ -911,10 +896,7 @@ fn rejects_malformed_nominal_machine_parameter_requirements() {
 
     for (contract, expected) in cases {
         let source = format!("machine register<machine Selected>() {contract} {{ Selected() }}");
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let error = parse_syntax_trees(&tokens).expect_err("malformed nominal binder must reject");
+        let error = super::parse_source_error(&source, "tokenize should succeed", "malformed nominal binder must reject");
         assert!(
             error.message.contains(expected),
             "expected {expected:?}, got: {}",
@@ -934,11 +916,7 @@ fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens)
-        .expect_err("a one-off member requirement has no semantic carrier and must reject");
+    let error = super::parse_source_error(source, "tokenize should succeed", "a one-off member requirement has no semantic carrier and must reject");
     assert!(
         error
             .message
@@ -990,10 +968,7 @@ fn rejects_higher_order_parameter_without_nested_contract() {
         {
         }
         "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("missing nested contract must fail");
+    let error = super::parse_source_error(source, "tokenize should succeed", "missing nested contract must fail");
     assert!(
         error
             .message
@@ -1010,10 +985,7 @@ fn rejects_machine_parameter_without_authored_contract() {
             0
         }
         "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("missing contract must fail");
+    let error = super::parse_source_error(source, "tokenize should succeed", "missing contract must fail");
     assert!(
         error
             .message
@@ -1089,10 +1061,7 @@ fn parses_proof_quotient_data_declaration() {
 #[test]
 fn quotient_rejects_runtime_data_properties() {
     let source = "data Quotient [copy] = Carrier % equivalent;";
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("quotient properties must reject");
+    let error = super::parse_source_error(source, "tokenize should succeed", "quotient properties must reject");
     assert!(
         error
             .message
@@ -1317,8 +1286,7 @@ fn retired_generated_proof_package_has_directed_migration() {
         machine produce() ensures proof: true { proof = true; }
         machine consume() { let { proof: local } = produce(); }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let error = parse_syntax_trees(&tokens).expect_err("old package spelling must reject");
+    let error = super::parse_source_error(source, "tokenize", "old package spelling must reject");
     assert!(error.message.contains("proof-output packages are retired"));
     assert!(
         error

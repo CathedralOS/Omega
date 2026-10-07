@@ -338,8 +338,7 @@ fn named_proof_constraints_reject_in_scalar_and_slice_type_positions() {
         "i32 [Example::Fact]",
     ] {
         let source = format!("data Main {{ value: {type_reference}; }}");
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let error = parse_syntax_trees(&tokens).expect_err("named proof constraint must reject");
+        let error = super::parse_source_error(&source, "tokenize", "named proof constraint must reject");
         assert!(
             error
                 .message

@@ -69,3 +69,16 @@ fn root_machine_unwrap(parsed: &syntax_trees::SyntaxTrees) -> &syntax_trees::ite
         })
         .unwrap()
 }
+
+/// The expect_err counterpart of `parse_source_verbose`: lex, then return
+/// the parse error the site asserts on.
+fn parse_source_error(
+    source: &str,
+    tokenize_message: &str,
+    error_message: &str,
+) -> crate::diagnostics::parse_error::ParseError {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect(tokenize_message);
+    crate::parser::parse_syntax_trees(&tokens).expect_err(error_message)
+}

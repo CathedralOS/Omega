@@ -1,5 +1,3 @@
-use crate::parser::parse_syntax_trees;
-use source_files_to_tokens::Lexer;
 use syntax_trees::item::{DataMember, Item};
 
 #[test]
@@ -34,8 +32,7 @@ fn nested_version_blocks_reject_regardless_of_leading_member() {
         "retired #2; version v1 { #1 value: u32; } #1 value: u32;",
     ] {
         let declaration = format!("data Message {{ {members} }}");
-        let tokens = Lexer::new(&declaration).tokenize().expect("tokens");
-        let error = parse_syntax_trees(&tokens).expect_err("retired version syntax");
+        let error = super::parse_source_error(&declaration, "tokens", "retired version syntax");
         assert!(error.message.contains("data `version` blocks are retired"));
     }
 }
@@ -48,8 +45,7 @@ fn numbered_data_rejects_duplicate_and_retired_identity_reuse() {
         "#7 value: u32; retired #8; retired #8;",
     ] {
         let declaration = format!("data Message {{ {members} }}");
-        let tokens = Lexer::new(&declaration).tokenize().expect("tokens");
-        let error = parse_syntax_trees(&tokens).expect_err("identity collision");
+        let error = super::parse_source_error(&declaration, "tokens", "identity collision");
         assert!(error.message.contains("declared more than once"));
     }
 }

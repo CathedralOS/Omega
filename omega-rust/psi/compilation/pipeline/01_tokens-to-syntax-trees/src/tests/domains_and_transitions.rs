@@ -102,11 +102,7 @@ fn rejects_exit_contract_clauses_on_explicit_states() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens)
-        .expect_err("states admit arrival requires rather than exit contracts");
+    let error = super::parse_source_error(source, "tokenize should succeed", "states admit arrival requires rather than exit contracts");
     assert!(
         error
             .message
@@ -257,10 +253,7 @@ fn rejects_ranking_witness_on_trait_requirement() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("the witness must be rejected");
+    let error = super::parse_source_error(source, "tokenize should succeed", "the witness must be rejected");
     assert!(
         error
             .message
@@ -904,10 +897,7 @@ fn rejects_duplicate_and_noncase_outcome_proof_selectors() {
             "outcome proof selectors require an exact",
         ),
     ] {
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize rejected selector arm");
-        let error = parse_syntax_trees(&tokens).expect_err("invalid selector arm must reject");
+        let error = super::parse_source_error(source, "tokenize rejected selector arm", "invalid selector arm must reject");
         assert!(error.message.contains(expected), "got: {}", error.message);
     }
 }

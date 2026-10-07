@@ -159,11 +159,7 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
         satisfies Console::write_byte
         via ForeignBinding::CompilerIntrinsic("Console::write_byte");
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens)
-        .expect_err("compiler intrinsic identity is derived, never authored");
+    let error = super::parse_source_error(source, "tokenize should succeed", "compiler intrinsic identity is derived, never authored");
     assert!(
         error.message.contains("found punctuation `(`"),
         "{}",
@@ -182,10 +178,7 @@ fn retired_vtable_slot_rejects_before_consuming_its_payload() {
         satisfies Firmware::invoke
         via ForeignBinding::VtableSlot(not_an_integer_payload);
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize retired vtable slot");
-    let error = parse_syntax_trees(&tokens).expect_err("authored numeric vtable slots are retired");
+    let error = super::parse_source_error(source, "tokenize retired vtable slot", "authored numeric vtable slots are retired");
     assert_eq!(
         error.message,
         "`ForeignBinding::VtableSlot` is retired; declare the foreign table layout and use \
@@ -204,11 +197,7 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
         satisfies Contract::call
         via ForeignBinding::DllImport("legacy.dll", "call");
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize retired string-backed import");
-    let error = parse_syntax_trees(&tokens)
-        .expect_err("authored string-backed import bootstrap is retired");
+    let error = super::parse_source_error(source, "tokenize retired string-backed import", "authored string-backed import bootstrap is retired");
     assert_eq!(
         error.message,
         "`ForeignBinding::DllImport(\"module\", \"symbol\")` is retired; return the \
@@ -220,10 +209,7 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
 #[test]
 fn rejects_stable_identities_above_u64_max() {
     let source = "data TooLarge { #18446744073709551616 value: u8; }";
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("identity above u64::MAX must fail");
+    let error = super::parse_source_error(source, "tokenize should succeed", "identity above u64::MAX must fail");
     assert!(error.message.contains("nonnegative u64"));
 }
 
@@ -294,10 +280,7 @@ fn rejects_unknown_or_duplicate_field_relevance_properties() {
             "duplicate binding property `erased`",
         ),
     ] {
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let error = parse_syntax_trees(&tokens).expect_err("invalid field property must reject");
+        let error = super::parse_source_error(source, "tokenize should succeed", "invalid field property must reject");
         assert!(error.message.contains(expected), "{}", error.message);
     }
 }
@@ -367,10 +350,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
             "unknown local binding property `bogus`",
         ),
     ] {
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let error = parse_syntax_trees(&tokens).expect_err("invalid binding property must reject");
+        let error = super::parse_source_error(source, "tokenize should succeed", "invalid binding property must reject");
         assert!(error.message.contains(expected), "{}", error.message);
     }
 }
@@ -826,10 +806,7 @@ fn rejects_retired_where_conformance_test() {
         { }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("a where-satisfies test is retired");
+    let error = super::parse_source_error(source, "tokenize should succeed", "a where-satisfies test is retired");
     assert!(
         error
             .message
@@ -871,8 +848,7 @@ fn rejects_subject_spelled_evidence_binder() {
             values: &mut [Element]
         ) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let error = parse_syntax_trees(&tokens).expect_err("a conformance has no data subject");
+    let error = super::parse_source_error(source, "tokenize", "a conformance has no data subject");
     assert!(
         error.message.contains("a conformance has no data subject"),
         "unexpected diagnostic: {}",
@@ -1014,10 +990,7 @@ fn retired_spawn_forms_name_the_task_runtime_migration() {
         "machine run() { spawn { Worker::run(); } }",
         "machine run() { let task: i32 = spawn { Worker::run() }; }",
     ] {
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let error = parse_syntax_trees(&tokens).expect_err("spawn must be retired");
+        let error = super::parse_source_error(source, "tokenize should succeed", "spawn must be retired");
         let rendered = error.message;
         assert!(rendered.contains("spawn { ... }") && rendered.contains("Task<T>"));
     }
@@ -1031,10 +1004,7 @@ fn retired_provides_declarations_name_the_external_leaf_migration() {
     ] {
         let source =
             format!("boundary trait Flags {{ machine open_read() -> i32; }}\n{declaration}");
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let error = parse_syntax_trees(&tokens).expect_err("provides syntax must be retired");
+        let error = super::parse_source_error(&source, "tokenize should succeed", "provides syntax must be retired");
         assert!(
             error
                 .message
@@ -1055,10 +1025,7 @@ fn retired_library_block_names_the_boundary_provider_migration() {
                 boundary host
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize retired library block");
-    let error = parse_syntax_trees(&tokens).expect_err("library blocks must be retired");
+    let error = super::parse_source_error(source, "tokenize retired library block", "library blocks must be retired");
     assert!(
         error.message.contains("legacy `library")
             && error.message.contains("is retired")
