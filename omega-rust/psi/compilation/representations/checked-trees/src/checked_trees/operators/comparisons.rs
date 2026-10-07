@@ -7,16 +7,17 @@ use super::{
 impl CheckedOperatorFacts {
     /// Classify the exact selected source requirement, without granting any
     /// authority to execute its eventual provider realization.
-    pub fn selected_float_comparison(
-        &self,
-        program: &typed_trees::TypedTrees,
+    /// Resolve a use handle to its selected operator when the use is a
+    /// two-operand resolved binary boundary operator — the shared gate both
+    /// comparison classifiers apply.
+    fn resolved_boundary_binary_operator<'a>(
+        &'a self,
+        program: &'a typed_trees::TypedTrees,
         handle: Handle<CheckedOperatorUseFact>,
     ) -> Option<(
-        semantic_vocabulary::IeeeFloatComparisonOperation,
-        typed_trees::types::PrimitiveType,
+        &'a CheckedOperatorUseFact,
+        &'a typed_trees::operator::OperatorDefinition,
     )> {
-        use semantic_vocabulary::IeeeFloatComparisonOperation as Comparison;
-        use typed_trees::expression::BinaryOperator;
         if !self.uses.is_valid(handle) {
             return None;
         }
@@ -33,6 +34,20 @@ impl CheckedOperatorFacts {
         if !operator.is_boundary || !self.selected_candidate(selected)?.is_boundary {
             return None;
         }
+        Some((selected, operator))
+    }
+
+    pub fn selected_float_comparison(
+        &self,
+        program: &typed_trees::TypedTrees,
+        handle: Handle<CheckedOperatorUseFact>,
+    ) -> Option<(
+        semantic_vocabulary::IeeeFloatComparisonOperation,
+        typed_trees::types::PrimitiveType,
+    )> {
+        use semantic_vocabulary::IeeeFloatComparisonOperation as Comparison;
+        use typed_trees::expression::BinaryOperator;
+        let (selected, operator) = self.resolved_boundary_binary_operator(program, handle)?;
         let (operation, format) =
             typed_trees::operator::primitive_float_binary_semantics(program, operator)?;
         if operator.spelling != Some(selected.spelling) {
@@ -85,22 +100,7 @@ impl CheckedOperatorFacts {
     )> {
         use typed_trees::expression::BinaryOperator;
         use typed_trees::types::PrimitiveType;
-        if !self.uses.is_valid(handle) {
-            return None;
-        }
-        let selected = self.uses.get(handle);
-        if selected.status != CheckedOperatorResolutionStatus::Resolved
-            || selected.operands(program)?.len() != 2
-        {
-            return None;
-        }
-        let operator = typed_trees::operator::declaration_by_symbol(
-            program,
-            selected.selected_operator_symbol,
-        )?;
-        if !operator.is_boundary || !self.selected_candidate(selected)?.is_boundary {
-            return None;
-        }
+        let (selected, operator) = self.resolved_boundary_binary_operator(program, handle)?;
         if operator.spelling != Some(selected.spelling) {
             return None;
         }
