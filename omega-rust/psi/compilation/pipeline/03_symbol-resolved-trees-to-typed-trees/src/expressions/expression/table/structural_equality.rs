@@ -227,21 +227,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             let right_type = self
                 .classifier_reference_type(binary.right)
                 .or_else(|| self.operand_data_type_name(binary.right));
-            if let (Some(left_name), Some(right_name)) = (&left_type, &right_type)
-                && left_name != right_name
-                && data_definition_by_name_from(
-                    program,
-                    left_name,
-                    self.source.source_span(binary.left),
-                )
-                .is_some()
-                && data_definition_by_name_from(
-                    program,
-                    right_name,
-                    self.source.source_span(binary.right),
-                )
-                .is_some()
-            {
+            if let Some((left_name, right_name)) = Self::different_data_type_names(
+                program,
+                &left_type,
+                &right_type,
+                self.source.source_span(binary.left),
+                self.source.source_span(binary.right),
+            ) {
                 return Err(Diagnostic::error(format!(
                     "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands \
                      are different data types (a case belongs to its own type only)"
@@ -266,21 +258,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         // cross-class / text-operator checks with their own diagnostics. This gate
         // fires only on the data-type positional-expansion hole (`P == Q`, `Color ==
         // Direction`).
-        if let (Some(left_name), Some(right_name)) = (&left_type, &right_type)
-            && left_name != right_name
-            && data_definition_by_name_from(
-                program,
-                left_name,
-                self.source.source_span(binary.left),
-            )
-            .is_some()
-            && data_definition_by_name_from(
-                program,
-                right_name,
-                self.source.source_span(binary.right),
-            )
-            .is_some()
-        {
+        if let Some((left_name, right_name)) = Self::different_data_type_names(
+            program,
+            &left_type,
+            &right_type,
+            self.source.source_span(binary.left),
+            self.source.source_span(binary.right),
+        ) {
             return Err(Diagnostic::error(format!(
                 "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands are \
                  different data types (equality requires both operands to be the same type)"
@@ -503,6 +487,25 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     /// The base data-type name of an `==` operand, resolved through the
     /// state's typing scope. `None` for operands the scope cannot type;
     /// those compares lower unchanged.
+    /// `Some((left, right))` when both operands name real data types that differ —
+    /// the positional-expansion hazard each compare gate rejects with its own
+    /// message.
+    fn different_data_type_names<'a>(
+        program: &resolved::SymbolResolvedTrees,
+        left_type: &'a Option<String>,
+        right_type: &'a Option<String>,
+        left_span: source::SourceSpan,
+        right_span: source::SourceSpan,
+    ) -> Option<(&'a String, &'a String)> {
+        let (Some(left_name), Some(right_name)) = (left_type, right_type) else {
+            return None;
+        };
+        (left_name != right_name
+            && data_definition_by_name_from(program, left_name, left_span).is_some()
+            && data_definition_by_name_from(program, right_name, right_span).is_some())
+        .then_some((left_name, right_name))
+    }
+
     fn operand_data_type_name(
         &self,
         operand: resolved::expression::ExpressionHandle,
