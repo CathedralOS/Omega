@@ -841,18 +841,7 @@ fn construction_field_type(
             }
         }
     }
-    program
-        .data_members(data_definition)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == field_name => {
-                field
-                    .type_reference
-                    .is_valid()
-                    .then_some(field.type_reference)
-            }
-            _ => None,
-        })
+    crate::facts::field_domain::data_field_type_by_name(program, data_definition, field_name)
 }
 
 /// Retain the successful source judgment, not the field annotation. The walk

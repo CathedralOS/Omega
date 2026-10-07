@@ -170,27 +170,6 @@ pub(super) fn bind_contract_expression_evidence_arguments(
         .contract_expression_static_conformance_applications = static_conformance_applications;
 }
 
-||||||| parent of 4971bb56a8e (psi: share the proof-fact expression-roots traversal across evidence and monomorphization)
-fn proof_fact_expression_roots(
-    program: &typed_trees::TypedTrees,
-    fact: Handle<typed_trees::domain::ProofFact>,
-    expressions: &mut Vec<typed_trees::expression::ExpressionHandle>,
-) {
-    match program.proof_facts.get(fact) {
-        typed_trees::domain::ProofFact::Expression(expression) => expressions.push(*expression),
-        typed_trees::domain::ProofFact::Membership(membership) => {
-            expressions.push(membership.value)
-        }
-        typed_trees::domain::ProofFact::Proposition(application) => expressions.extend(
-            program
-                .expression_table
-                .expression_handles(application.arguments)
-                .iter()
-                .copied(),
-        ),
-    }
-}
-
 fn append_expression_children(
     program: &dyn ::validation::CheckingInput,
     expression: &typed_trees::expression::ExpressionNode,

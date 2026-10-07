@@ -238,7 +238,7 @@ fn self_field_path(
     }
 }
 
-fn data_field_type_by_name(
+pub(crate) fn data_field_type_by_name(
     program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     field_name: &str,
