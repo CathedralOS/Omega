@@ -581,7 +581,7 @@ fn boundary_written_argument_paths(
     parameters: Vec<&StateParameter>,
     arguments: &[ExpressionHandle],
     written: &mut Vec<String>,
-    bindings: &TypeBindings,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
     inference: &mut FrameInference,
 ) -> Option<()> {
     for (parameter, argument) in parameters.into_iter().zip(arguments) {
@@ -833,43 +833,17 @@ pub(super) fn signature_parameters_written_paths(
         return None;
     }
     let mut written = Vec::new();
-    for (parameter, argument) in paired.into_iter().zip(arguments) {
-        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
-        let TypeReferenceNode::Reference {
-            access, referee, ..
-        } = program.type_reference_table.type_reference(parameter_type)
-        else {
-            if !matches!(
-                program.type_reference_table.type_reference(parameter_type),
-                TypeReferenceNode::Unit
-            ) && !type_is_caller_isolated_local_in(program, parameter_type, &[])
-            {
-                // A by-value carrier can still contain mutable references.
-                // Without leaf-origin transport, omitting their writes would
-                // manufacture a complete receiver-only frame.
-                return None;
-            }
-            continue;
-        };
-        if !access.is_exclusive() {
-            continue;
-        }
-        if !referent_has_only_owned_storage_in(program, *referee, &[]) {
-            return None;
-        }
-        for origin in boundary_argument_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            symbols,
-            *argument,
-            inference,
-        )? {
-            if !written.contains(&origin.path) {
-                written.push(origin.path);
-            }
-        }
-    }
+    boundary_written_argument_paths(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        paired,
+        arguments,
+        &mut written,
+        &[],
+        inference,
+    )?;
     Some(written)
 }
 
