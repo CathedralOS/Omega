@@ -184,6 +184,32 @@ pub(super) fn validate<'a, 'p>(
         assignment,
         diagnostics,
     );
+    // A target's index operands are evaluated like any read: `items[top] = v`
+    // bounds `top` in the environment the store runs in, exactly as the read
+    // `items[top]` does. The value walk below sees only the right-hand side,
+    // so without this the range checker has no interval for a written index.
+    if let Some((projections, _)) =
+        crate::expression_traversal::projection_climb(program, assignment.target, usize::MAX)
+    {
+        for projection in projections {
+            if let typed_trees::expression::ExpressionNode::Indexed(indexed) =
+                program.expression_table.expression(projection)
+            {
+                arithmetic_domains::validate_value_range_retaining_decisions(
+                    program,
+                    machine,
+                    current_state,
+                    indexed.index,
+                    value_environment,
+                    None,
+                    numerics::arithmetic::ArithmeticDomain::Exact,
+                    &owner,
+                    diagnostics,
+                    arithmetic_decisions,
+                );
+            }
+        }
+    }
     let before = diagnostics.len();
     let assignment_target_domain = assignment_target_type
         .map(|handle| program.arithmetic_domain_for_type_reference(handle))

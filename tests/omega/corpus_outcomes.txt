@@ -688,6 +688,8 @@ fail/collections/array_child_membership_requires_issuance rejected 405ms expecte
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/collections/authored_index_guard_bound rejected 667ms expected @2d8ed253669f
 	cannot prove index `index` is within unknown slice length of `items` in read::entry
+fail/collections/bounded_local_index_write_overrun rejected 279ms expected @d6df54bb693c+wt
+	cannot prove index `top` is within length 4 in Stack::replace_top::write
 fail/collections/declared_range_index_too_wide rejected 291ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 5 in Main::main::read
 fail/collections/element_view_descendant_uses_selected_extent rejected 364ms expected @9b554b6a9397+wt
@@ -2490,6 +2492,7 @@ pass/collections/runtime_borrowed_element_float_guard_exit checked 6010ms check-
 pass/collections/runtime_borrowed_fixed_array_state_reads_exit checked 791ms check-target:macos_arm64 @e94b9f79576e+wt
 pass/collections/runtime_bounded_byte_reference_forward_exit checked 2738ms check-target:macos_arm64 @c86f2eca11a9
 pass/collections/runtime_bounded_byte_reference_read_exit checked 1463ms check-target:macos_arm64 @8351bf5ebf1b
+pass/collections/runtime_bounded_local_index_write_exit checked 1196ms check-target:macos_arm64 @d6df54bb693c+wt
 pass/collections/runtime_case_array_element_write_exit checked 2347ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_composed_element_view_reads_exit checked 1649ms check-target:macos_arm64 @9b554b6a9397+wt
 pass/collections/runtime_composed_owned_element_reads_exit checked 2161ms check-target:macos_arm64 @c267eef85dbe+wt
