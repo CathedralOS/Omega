@@ -663,54 +663,12 @@ pub fn matches_constant_kind(value: FoldedFieldValue, kind: ObservedFieldKind) -
 /// carrying its `result_case`, `Zeroed` for an `EstablishZeroedStructural`
 /// whose all-zero storage selects each admissible sum's first declared
 /// case, `None` for every other producer or place kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Establishment {
-    None,
-    Record(OperationId),
-    Variant(OperationId, StructuralCaseId),
-    Zeroed(OperationId),
-}
+pub type Establishment = RootProducer;
 
 /// The establishing producer `declaration`'s operation-result kind names,
 /// or `Establishment::None` when the place is not an operation result or
 /// its producer is not an `EstablishRecord`/`EstablishCase`/
 /// `EstablishZeroedStructural` in `function`.
-pub fn establishment_producer(
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-) -> Establishment {
-    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
-        return Establishment::None;
-    };
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
-        match &node.operation {
-            O::EstablishRecord {
-                psi_operation,
-                result,
-                ..
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return Establishment::Record(producer);
-            }
-            O::EstablishCase {
-                psi_operation,
-                result,
-                result_case,
-                ..
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return Establishment::Variant(producer, *result_case);
-            }
-            O::EstablishZeroedStructural {
-                psi_operation,
-                result,
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return Establishment::Zeroed(producer);
-            }
-            _ => {}
-        }
-    }
-    Establishment::None
-}
-
 pub fn dominators(
     entry: BlockId,
     block_ids: impl Iterator<Item = BlockId>,
@@ -1116,7 +1074,7 @@ pub fn descended_field_child(
     if declared_structural_type(function, declaration) != Some(next) || !visiting.insert(child) {
         return None;
     }
-    Some((child, establishment_producer(function, declaration)))
+    Some((child, root_producer(function, declaration)))
 }
 
 /// The `StructuralLeafCopy` that produces `place` — its source place and

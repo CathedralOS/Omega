@@ -14,7 +14,7 @@ use super::{
 use abstract_operations::StructuralCopyPath;
 use optimization_unit::{
     Establishment, canonicalize_ordinary_path, declared_structural_type, descended_field,
-    descended_field_child, descended_field_id, establishment_producer, leaf_copy_source,
+    descended_field_child, descended_field_id, root_producer, leaf_copy_source,
     resolved_sole_case, roster_first_case, shape, sole_case,
 };
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
@@ -166,7 +166,7 @@ fn established_case_at(
     path: &[StructuralPathSegment],
 ) -> Option<(OperationId, StructuralCaseId)> {
     let mut place = declaration.id;
-    let mut producer = establishment_producer(function, declaration);
+    let mut producer = root_producer(function, declaration);
     let mut declared = declared_structural_type(function, declaration);
     // Owned because a leaf copy prepends its own canonical projection —
     // case-qualified steps directly, ordinary field identities resolved to
@@ -302,7 +302,7 @@ fn established_case_at(
                         return None;
                     }
                     place = source;
-                    producer = establishment_producer(function, source_declaration);
+                    producer = root_producer(function, source_declaration);
                     declared = Some(source_type);
                     segments.splice(..0, copied.iter().copied().map(PathStep::Canonical));
                     continue;
@@ -324,7 +324,7 @@ fn established_case_at(
                     return None;
                 }
                 place = bound;
-                producer = establishment_producer(function, bound_declaration);
+                producer = root_producer(function, bound_declaration);
                 declared = bound_type;
             }
             _ => return None,

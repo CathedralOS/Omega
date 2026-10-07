@@ -207,7 +207,7 @@ pub use structural_places::{
     bound_value, canonicalize_ordinary_path, case_field_initializer, comparison_operands,
     constant_definition, declared_structural_type, descended_field, descended_field_child,
     descended_field_id, descended_field_matching, descended_type, dominators, establishment_fields,
-    establishment_producer, field_evidence, function_analysis, integer_comparison_condition,
+    field_evidence, function_analysis, integer_comparison_condition,
     leaf_copy_source, matches_constant_kind, matches_observed_kind, observed_field_declaration,
     reachable_blocks_after_conditional_fold, record_initializer, resolved_sole_case, root_producer,
     roster_cases, roster_first_case, roster_sole_case, scalar_value_definition, shape, sole_case,

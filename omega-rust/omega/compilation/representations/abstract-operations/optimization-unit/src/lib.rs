@@ -79,7 +79,7 @@ pub use optimization_unit::{
     case_field_initializer, comparison_operands, constant_definition, declared_structural_type,
     derived_sccp_scalar_constant_fact_identity, descended_field, descended_field_child,
     descended_field_id, descended_field_matching, descended_type, dominators,
-    encode_value_definition_site_identity, establishment_fields, establishment_producer,
+    encode_value_definition_site_identity, establishment_fields,
     extract_integer_intervals, field_evidence, function_analysis, integer_comparison_condition,
     leaf_copy_source, literal_scalar_constant_fact_identity, matches_constant_kind,
     matches_observed_kind, observed_field_declaration, ownership_frontier_fact_identity,
