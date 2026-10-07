@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
 
-use super::super::scheme_dsl::{self, Syntax, apps, id, pi, scheme_at, v};
+use super::super::scheme_dsl::{Syntax, apps, id, pi, scheme_at, v};
 use super::{BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -146,59 +146,57 @@ impl Denotation {
     }
 
     fn numeral_law(&mut self, law: Law) -> Result<u32, BoundedDenotationError> {
-        if let Some(&position) = self.binary_numerals.laws.get(&law) {
-            return Ok(position);
-        }
-        let integer = self.integer()?;
-        let less_than = self.integer_less_than()?;
-        let zero = self.numeral_zero()?;
-        let double = self.numeral_constructor(Constructor::Double)?;
-        let odd = self.numeral_constructor(Constructor::Odd)?;
-        let negate = self.numeral_constructor(Constructor::Negate)?;
-        let constant = |position| scheme_at(position, Vec::new());
-        let apply = |position, value: Syntax| apps(constant(position), [value]);
-        let lt = |left, right| apps(constant(less_than), [left, right]);
-        let carrier = || constant(integer);
-        let statement = match law {
-            Law::DoubleZero => id(carrier(), apply(double, constant(zero)), constant(zero)),
-            Law::NegateZero => id(carrier(), apply(negate, constant(zero)), constant(zero)),
-            Law::EvenBeforeOdd => pi(
-                "x",
-                carrier(),
-                lt(apply(double, v("x")), apply(odd, v("x"))),
-            ),
-            Law::OddBeforeNextEven => pi(
-                "x",
-                carrier(),
-                pi(
-                    "y",
-                    carrier(),
-                    pi(
-                        "_",
-                        lt(v("x"), v("y")),
-                        lt(apply(odd, v("x")), apply(double, v("y"))),
+        self.roster_law_position(
+            |this| &mut this.binary_numerals.laws,
+            law,
+            |this| -> Result<Syntax, BoundedDenotationError> {
+                let integer = this.integer()?;
+                let less_than = this.integer_less_than()?;
+                let zero = this.numeral_zero()?;
+                let double = this.numeral_constructor(Constructor::Double)?;
+                let odd = this.numeral_constructor(Constructor::Odd)?;
+                let negate = this.numeral_constructor(Constructor::Negate)?;
+                let constant = |position| scheme_at(position, Vec::new());
+                let apply = |position, value: Syntax| apps(constant(position), [value]);
+                let lt = |left, right| apps(constant(less_than), [left, right]);
+                let carrier = || constant(integer);
+                Ok(match law {
+                    Law::DoubleZero => id(carrier(), apply(double, constant(zero)), constant(zero)),
+                    Law::NegateZero => id(carrier(), apply(negate, constant(zero)), constant(zero)),
+                    Law::EvenBeforeOdd => pi(
+                        "x",
+                        carrier(),
+                        lt(apply(double, v("x")), apply(odd, v("x"))),
                     ),
-                ),
-            ),
-            Law::NegateOrder => pi(
-                "x",
-                carrier(),
-                pi(
-                    "y",
-                    carrier(),
-                    pi(
-                        "_",
-                        lt(v("x"), v("y")),
-                        lt(apply(negate, v("y")), apply(negate, v("x"))),
+                    Law::OddBeforeNextEven => pi(
+                        "x",
+                        carrier(),
+                        pi(
+                            "y",
+                            carrier(),
+                            pi(
+                                "_",
+                                lt(v("x"), v("y")),
+                                lt(apply(odd, v("x")), apply(double, v("y"))),
+                            ),
+                        ),
                     ),
-                ),
-            ),
-        };
-        let ty = scheme_dsl::build(&mut self.arena, &mut Vec::new(), &statement);
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.binary_numerals.laws.insert(law, position);
-        Ok(position)
+                    Law::NegateOrder => pi(
+                        "x",
+                        carrier(),
+                        pi(
+                            "y",
+                            carrier(),
+                            pi(
+                                "_",
+                                lt(v("x"), v("y")),
+                                lt(apply(negate, v("y")), apply(negate, v("x"))),
+                            ),
+                        ),
+                    ),
+                })
+            },
+        )
     }
 
     fn numeral_law_application(
@@ -207,11 +205,7 @@ impl Denotation {
         arguments: &[TermHandle],
     ) -> Result<TermHandle, BoundedDenotationError> {
         let position = self.numeral_law(law)?;
-        let mut function = self.constant(position);
-        for &argument in arguments {
-            function = self.arena.insert(Term::Apply { function, argument });
-        }
-        Ok(function)
+        Ok(self.constant_application(position, arguments))
     }
 
     /// Derive n < n+1 by the binary carry chain. Only an odd low digit

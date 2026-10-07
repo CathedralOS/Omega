@@ -114,95 +114,89 @@ impl Denotation {
         law: Law,
         arguments: &[TermHandle],
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = if let Some(&position) = self.multiplication.laws.get(&law) {
-            position
-        } else {
-            let integer = self.integer()?;
-            let operation = self.multiply_operation()?;
-            let less_or_equal = self.integer_less_or_equal()?;
-            let zero = self.binary_integer(false, 0)?;
-            let one = self.binary_integer(false, 1)?;
-            let negative_one = self.binary_integer(true, 1)?;
-            let constant = |position| scheme_at(position, Vec::new());
-            let carrier = || constant(integer);
-            let binders = |names: &[&'static str], body| {
-                names
-                    .iter()
-                    .rev()
-                    .fold(body, |inner, name| pi(name, carrier(), inner))
-            };
-            let le = |left, right| apps(constant(less_or_equal), [left, right]);
-            let mul = |left, right| apps(constant(operation), [left, right]);
-            let statement = match law {
-                Law::MonotonePositive => binders(
-                    &["a", "b", "r"],
-                    pi(
-                        "_",
-                        le(v("a"), v("b")),
+        self.roster_law_application(
+            |this| &mut this.multiplication.laws,
+            law,
+            |this| -> Result<scheme_dsl::Syntax, BoundedDenotationError> {
+                let integer = this.integer()?;
+                let operation = this.multiply_operation()?;
+                let less_or_equal = this.integer_less_or_equal()?;
+                let zero = this.binary_integer(false, 0)?;
+                let one = this.binary_integer(false, 1)?;
+                let negative_one = this.binary_integer(true, 1)?;
+                let constant = |position| scheme_at(position, Vec::new());
+                let carrier = || constant(integer);
+                let binders = |names: &[&'static str], body| {
+                    names
+                        .iter()
+                        .rev()
+                        .fold(body, |inner, name| pi(name, carrier(), inner))
+                };
+                let le = |left, right| apps(constant(less_or_equal), [left, right]);
+                let mul = |left, right| apps(constant(operation), [left, right]);
+                let statement = match law {
+                    Law::MonotonePositive => binders(
+                        &["a", "b", "r"],
                         pi(
                             "_",
-                            le(constant(one), v("r")),
-                            le(mul(v("a"), v("r")), mul(v("b"), v("r"))),
+                            le(v("a"), v("b")),
+                            pi(
+                                "_",
+                                le(constant(one), v("r")),
+                                le(mul(v("a"), v("r")), mul(v("b"), v("r"))),
+                            ),
                         ),
                     ),
-                ),
-                Law::AntitoneNegative => binders(
-                    &["a", "b", "r"],
-                    pi(
-                        "_",
-                        le(v("a"), v("b")),
+                    Law::AntitoneNegative => binders(
+                        &["a", "b", "r"],
                         pi(
                             "_",
-                            le(v("r"), constant(negative_one)),
-                            le(mul(v("b"), v("r")), mul(v("a"), v("r"))),
+                            le(v("a"), v("b")),
+                            pi(
+                                "_",
+                                le(v("r"), constant(negative_one)),
+                                le(mul(v("b"), v("r")), mul(v("a"), v("r"))),
+                            ),
                         ),
                     ),
-                ),
-                Law::DivideLowerPositive(scalar_type)
-                | Law::DivideLowerNegative(scalar_type)
-                | Law::DivideUpperPositive(scalar_type)
-                | Law::DivideUpperNegative(scalar_type) => {
-                    let divide =
-                        self.integer_operation(IntegerOperation::ExactDivide(scalar_type))?;
-                    let quotient = |left, right| apps(constant(divide), [left, right]);
-                    let lower_endpoint = matches!(
-                        law,
-                        Law::DivideLowerPositive(_) | Law::DivideLowerNegative(_)
-                    );
-                    let positive_divisor = matches!(
-                        law,
-                        Law::DivideLowerPositive(_) | Law::DivideUpperPositive(_)
-                    );
-                    let dividend = if lower_endpoint {
-                        le(v("n"), constant(zero))
-                    } else {
-                        le(constant(zero), v("n"))
-                    };
-                    let divisor = if positive_divisor {
-                        le(constant(one), v("d"))
-                    } else {
-                        le(v("d"), constant(negative_one))
-                    };
-                    let product = mul(quotient(v("n"), v("d")), v("d"));
-                    let residual = if lower_endpoint {
-                        le(v("n"), product)
-                    } else {
-                        le(product, v("n"))
-                    };
-                    binders(&["n", "d"], pi("_", dividend, pi("_", divisor, residual)))
-                }
-            };
-            let ty = scheme_dsl::build(&mut self.arena, &mut Vec::new(), &statement);
-            let position = self.position()?;
-            self.declarations.push(Declaration::assumption(0, ty));
-            self.multiplication.laws.insert(law, position);
-            position
-        };
-        let mut function = self.constant(position);
-        for &argument in arguments {
-            function = self.arena.insert(Term::Apply { function, argument });
-        }
-        Ok(function)
+                    Law::DivideLowerPositive(scalar_type)
+                    | Law::DivideLowerNegative(scalar_type)
+                    | Law::DivideUpperPositive(scalar_type)
+                    | Law::DivideUpperNegative(scalar_type) => {
+                        let divide =
+                            this.integer_operation(IntegerOperation::ExactDivide(scalar_type))?;
+                        let quotient = |left, right| apps(constant(divide), [left, right]);
+                        let lower_endpoint = matches!(
+                            law,
+                            Law::DivideLowerPositive(_) | Law::DivideLowerNegative(_)
+                        );
+                        let positive_divisor = matches!(
+                            law,
+                            Law::DivideLowerPositive(_) | Law::DivideUpperPositive(_)
+                        );
+                        let dividend = if lower_endpoint {
+                            le(v("n"), constant(zero))
+                        } else {
+                            le(constant(zero), v("n"))
+                        };
+                        let divisor = if positive_divisor {
+                            le(constant(one), v("d"))
+                        } else {
+                            le(v("d"), constant(negative_one))
+                        };
+                        let product = mul(quotient(v("n"), v("d")), v("d"));
+                        let residual = if lower_endpoint {
+                            le(v("n"), product)
+                        } else {
+                            le(product, v("n"))
+                        };
+                        binders(&["n", "d"], pi("_", dividend, pi("_", divisor, residual)))
+                    }
+                };
+                Ok(statement)
+            },
+            arguments,
+        )
     }
 
     /// `IntLe l' u'` evidence between two closed numerals: `refl` +

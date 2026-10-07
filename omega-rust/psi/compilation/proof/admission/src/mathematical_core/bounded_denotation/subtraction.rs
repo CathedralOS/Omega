@@ -109,100 +109,94 @@ impl Denotation {
         law: Law,
         arguments: &[TermHandle],
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = if let Some(&position) = self.subtraction.laws.get(&law) {
-            position
-        } else {
-            let integer = self.integer()?;
-            let operation = self.subtract_operation()?;
-            let less_than = self.integer_less_than()?;
-            let zero = self.binary_integer(false, 0)?;
-            let constant = |position| scheme_at(position, Vec::new());
-            let carrier = || constant(integer);
-            let binders = |names: &[&'static str], body| {
-                names
-                    .iter()
-                    .rev()
-                    .fold(body, |inner, name| pi(name, carrier(), inner))
-            };
-            let subtract = |left, right| apps(constant(operation), [left, right]);
-            let lt = |left, right| apps(constant(less_than), [left, right]);
-            let statement = match law {
-                Law::SelfZero => pi(
-                    "x",
-                    carrier(),
-                    id(carrier(), subtract(v("x"), v("x")), constant(zero)),
-                ),
-                Law::LessOrEqualAntitone => {
-                    let less_or_equal = self.integer_less_or_equal()?;
-                    let le = |left, right| apps(constant(less_or_equal), [left, right]);
-                    binders(
+        self.roster_law_application(
+            |this| &mut this.subtraction.laws,
+            law,
+            |this| -> Result<scheme_dsl::Syntax, BoundedDenotationError> {
+                let integer = this.integer()?;
+                let operation = this.subtract_operation()?;
+                let less_than = this.integer_less_than()?;
+                let zero = this.binary_integer(false, 0)?;
+                let constant = |position| scheme_at(position, Vec::new());
+                let carrier = || constant(integer);
+                let binders = |names: &[&'static str], body| {
+                    names
+                        .iter()
+                        .rev()
+                        .fold(body, |inner, name| pi(name, carrier(), inner))
+                };
+                let subtract = |left, right| apps(constant(operation), [left, right]);
+                let lt = |left, right| apps(constant(less_than), [left, right]);
+                let statement = match law {
+                    Law::SelfZero => pi(
+                        "x",
+                        carrier(),
+                        id(carrier(), subtract(v("x"), v("x")), constant(zero)),
+                    ),
+                    Law::LessOrEqualAntitone => {
+                        let less_or_equal = this.integer_less_or_equal()?;
+                        let le = |left, right| apps(constant(less_or_equal), [left, right]);
+                        binders(
+                            &["x", "a", "b"],
+                            pi(
+                                "_",
+                                le(v("a"), v("b")),
+                                le(subtract(v("x"), v("b")), subtract(v("x"), v("a"))),
+                            ),
+                        )
+                    }
+                    Law::MonotoneAntitone => {
+                        let less_or_equal = this.integer_less_or_equal()?;
+                        let le = |left, right| apps(constant(less_or_equal), [left, right]);
+                        binders(
+                            &["a", "b", "c", "d"],
+                            pi(
+                                "_",
+                                le(v("a"), v("b")),
+                                pi(
+                                    "_",
+                                    le(v("d"), v("c")),
+                                    le(subtract(v("a"), v("c")), subtract(v("b"), v("d"))),
+                                ),
+                            ),
+                        )
+                    }
+                    Law::CancelAddLeft | Law::CancelAddRight => {
+                        let less_or_equal = this.integer_less_or_equal()?;
+                        let add = this.add_operation()?;
+                        let le = |left, right| apps(constant(less_or_equal), [left, right]);
+                        let plus = |left, right| apps(constant(add), [left, right]);
+                        let (premise, conclusion) = if law == Law::CancelAddLeft {
+                            (
+                                le(plus(v("a"), v("c")), v("b")),
+                                le(v("a"), subtract(v("b"), v("c"))),
+                            )
+                        } else {
+                            (
+                                le(v("b"), plus(v("a"), v("c"))),
+                                le(subtract(v("b"), v("c")), v("a")),
+                            )
+                        };
+                        binders(&["a", "b", "c"], pi("_", premise, conclusion))
+                    }
+                    Law::Zero => pi(
+                        "x",
+                        carrier(),
+                        id(carrier(), subtract(v("x"), constant(zero)), v("x")),
+                    ),
+                    Law::Antitone => binders(
                         &["x", "a", "b"],
                         pi(
                             "_",
-                            le(v("a"), v("b")),
-                            le(subtract(v("x"), v("b")), subtract(v("x"), v("a"))),
+                            lt(v("a"), v("b")),
+                            lt(subtract(v("x"), v("b")), subtract(v("x"), v("a"))),
                         ),
-                    )
-                }
-                Law::MonotoneAntitone => {
-                    let less_or_equal = self.integer_less_or_equal()?;
-                    let le = |left, right| apps(constant(less_or_equal), [left, right]);
-                    binders(
-                        &["a", "b", "c", "d"],
-                        pi(
-                            "_",
-                            le(v("a"), v("b")),
-                            pi(
-                                "_",
-                                le(v("d"), v("c")),
-                                le(subtract(v("a"), v("c")), subtract(v("b"), v("d"))),
-                            ),
-                        ),
-                    )
-                }
-                Law::CancelAddLeft | Law::CancelAddRight => {
-                    let less_or_equal = self.integer_less_or_equal()?;
-                    let add = self.add_operation()?;
-                    let le = |left, right| apps(constant(less_or_equal), [left, right]);
-                    let plus = |left, right| apps(constant(add), [left, right]);
-                    let (premise, conclusion) = if law == Law::CancelAddLeft {
-                        (
-                            le(plus(v("a"), v("c")), v("b")),
-                            le(v("a"), subtract(v("b"), v("c"))),
-                        )
-                    } else {
-                        (
-                            le(v("b"), plus(v("a"), v("c"))),
-                            le(subtract(v("b"), v("c")), v("a")),
-                        )
-                    };
-                    binders(&["a", "b", "c"], pi("_", premise, conclusion))
-                }
-                Law::Zero => pi(
-                    "x",
-                    carrier(),
-                    id(carrier(), subtract(v("x"), constant(zero)), v("x")),
-                ),
-                Law::Antitone => binders(
-                    &["x", "a", "b"],
-                    pi(
-                        "_",
-                        lt(v("a"), v("b")),
-                        lt(subtract(v("x"), v("b")), subtract(v("x"), v("a"))),
                     ),
-                ),
-            };
-            let ty = scheme_dsl::build(&mut self.arena, &mut Vec::new(), &statement);
-            let position = self.position()?;
-            self.declarations.push(Declaration::assumption(0, ty));
-            self.subtraction.laws.insert(law, position);
-            position
-        };
-        let mut function = self.constant(position);
-        for &argument in arguments {
-            function = self.arena.insert(Term::Apply { function, argument });
-        }
-        Ok(function)
+                };
+                Ok(statement)
+            },
+            arguments,
+        )
     }
 
     /// `forall x : Int, IntLt x x -> Empty`. This is an explicit fixed

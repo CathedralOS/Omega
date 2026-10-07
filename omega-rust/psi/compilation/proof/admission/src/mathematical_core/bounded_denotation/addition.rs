@@ -96,72 +96,66 @@ impl Denotation {
         law: Law,
         arguments: &[TermHandle],
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = if let Some(&position) = self.addition.laws.get(&law) {
-            position
-        } else {
-            let integer = self.integer()?;
-            let operation = self.add_operation()?;
-            let constant = |position| scheme_at(position, Vec::new());
-            let carrier = || constant(integer);
-            let binders = |names: &[&'static str], body| {
-                names
-                    .iter()
-                    .rev()
-                    .fold(body, |inner, name| pi(name, carrier(), inner))
-            };
-            let add = |left, right| apps(constant(operation), [left, right]);
-            let statement = match law {
-                Law::Monotone => {
-                    let relation = self.integer_less_or_equal()?;
-                    let le = |left, right| apps(constant(relation), [left, right]);
-                    binders(
-                        &["a", "b", "c"],
-                        pi(
-                            "_",
-                            le(v("a"), v("b")),
-                            le(add(v("a"), v("c")), add(v("b"), v("c"))),
-                        ),
-                    )
-                }
-                Law::MonotoneBoth => {
-                    let relation = self.integer_less_or_equal()?;
-                    let le = |left, right| apps(constant(relation), [left, right]);
-                    binders(
-                        &["a", "b", "c", "d"],
-                        pi(
-                            "_",
-                            le(v("a"), v("b")),
+        self.roster_law_application(
+            |this| &mut this.addition.laws,
+            law,
+            |this| -> Result<scheme_dsl::Syntax, BoundedDenotationError> {
+                let integer = this.integer()?;
+                let operation = this.add_operation()?;
+                let constant = |position| scheme_at(position, Vec::new());
+                let carrier = || constant(integer);
+                let binders = |names: &[&'static str], body| {
+                    names
+                        .iter()
+                        .rev()
+                        .fold(body, |inner, name| pi(name, carrier(), inner))
+                };
+                let add = |left, right| apps(constant(operation), [left, right]);
+                let statement = match law {
+                    Law::Monotone => {
+                        let relation = this.integer_less_or_equal()?;
+                        let le = |left, right| apps(constant(relation), [left, right]);
+                        binders(
+                            &["a", "b", "c"],
                             pi(
                                 "_",
-                                le(v("c"), v("d")),
-                                le(add(v("a"), v("c")), add(v("b"), v("d"))),
+                                le(v("a"), v("b")),
+                                le(add(v("a"), v("c")), add(v("b"), v("c"))),
                             ),
-                        ),
-                    )
-                }
-                Law::CancelSubtract => {
-                    let subtract = self.subtract_operation()?;
-                    binders(
-                        &["b", "c"],
-                        id(
-                            carrier(),
-                            add(apps(constant(subtract), [v("b"), v("c")]), v("c")),
-                            v("b"),
-                        ),
-                    )
-                }
-            };
-            let ty = scheme_dsl::build(&mut self.arena, &mut Vec::new(), &statement);
-            let position = self.position()?;
-            self.declarations.push(Declaration::assumption(0, ty));
-            self.addition.laws.insert(law, position);
-            position
-        };
-        let mut function = self.constant(position);
-        for &argument in arguments {
-            function = self.arena.insert(Term::Apply { function, argument });
-        }
-        Ok(function)
+                        )
+                    }
+                    Law::MonotoneBoth => {
+                        let relation = this.integer_less_or_equal()?;
+                        let le = |left, right| apps(constant(relation), [left, right]);
+                        binders(
+                            &["a", "b", "c", "d"],
+                            pi(
+                                "_",
+                                le(v("a"), v("b")),
+                                pi(
+                                    "_",
+                                    le(v("c"), v("d")),
+                                    le(add(v("a"), v("c")), add(v("b"), v("d"))),
+                                ),
+                            ),
+                        )
+                    }
+                    Law::CancelSubtract => {
+                        let subtract = this.subtract_operation()?;
+                        binders(
+                            &["b", "c"],
+                            id(
+                                carrier(),
+                                add(apps(constant(subtract), [v("b"), v("c")]), v("c")),
+                                v("b"),
+                            ),
+                        )
+                    }
+                };
+                Ok(statement)
+            },
+            arguments,
+        )
     }
 
     /// `Id Int (add l r) s` — the numeral-operation equation bridging an

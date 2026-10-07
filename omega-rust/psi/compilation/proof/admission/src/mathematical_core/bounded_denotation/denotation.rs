@@ -529,21 +529,35 @@ impl Denotation {
     /// and both relation constants before it, so `check_signature`
     /// decides its exact `Π` statement under the roster prefix.
     pub(super) fn integer_law(&mut self, law: IntegerLaw) -> Result<u32, BoundedDenotationError> {
-        if let Some(&position) = self.integer_laws.get(&law) {
-            return Ok(position);
+        self.roster_law_position(
+            |this| &mut this.integer_laws,
+            law,
+            |this| -> Result<scheme_dsl::Syntax, BoundedDenotationError> {
+                let integer = this.integer()?;
+                let less_than = this.integer_less_than()?;
+                let less_or_equal = this.integer_less_or_equal()?;
+                Ok(integer_law_statement(
+                    law,
+                    integer,
+                    less_than,
+                    less_or_equal,
+                ))
+            },
+        )
+    }
+
+    /// `c a₁ … aₙ` — the declaration at `position` applied to each
+    /// argument in order.
+    pub(super) fn constant_application(
+        &mut self,
+        position: u32,
+        arguments: &[TermHandle],
+    ) -> TermHandle {
+        let mut function = self.constant(position);
+        for &argument in arguments {
+            function = self.arena.insert(Term::Apply { function, argument });
         }
-        let integer = self.integer()?;
-        let less_than = self.integer_less_than()?;
-        let less_or_equal = self.integer_less_or_equal()?;
-        let ty = scheme_dsl::build(
-            &mut self.arena,
-            &mut Vec::new(),
-            &integer_law_statement(law, integer, less_than, less_or_equal),
-        );
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.integer_laws.insert(law, position);
-        Ok(position)
+        function
     }
 
     /// `law a₁ … aₙ` — the roster constant applied to the denoted
@@ -554,14 +568,47 @@ impl Denotation {
         arguments: &[TermHandle],
     ) -> Result<TermHandle, BoundedDenotationError> {
         let position = self.integer_law(law)?;
-        let mut term = self.constant(position);
-        for &argument in arguments {
-            term = self.arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
+        Ok(self.constant_application(position, arguments))
+    }
+
+    /// One operation roster law's assumption position — interned once per
+    /// law; on a miss the operation's `statement` scripts the `Π`
+    /// declaration which is pushed as an assumption under the roster
+    /// prefix.
+    pub(super) fn roster_law_position<K>(
+        &mut self,
+        laws: impl Fn(&mut Self) -> &mut BTreeMap<K, u32>,
+        law: K,
+        statement: impl FnOnce(&mut Self) -> Result<scheme_dsl::Syntax, BoundedDenotationError>,
+    ) -> Result<u32, BoundedDenotationError>
+    where
+        K: Ord + Copy,
+    {
+        if let Some(&position) = laws(self).get(&law) {
+            return Ok(position);
         }
-        Ok(term)
+        let statement = statement(self)?;
+        let ty = scheme_dsl::build(&mut self.arena, &mut Vec::new(), &statement);
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        laws(self).insert(law, position);
+        Ok(position)
+    }
+
+    /// `law a₁ … aₙ` — one operation-roster constant applied to the
+    /// denoted endpoints and premise evidence, in statement order.
+    pub(super) fn roster_law_application<K>(
+        &mut self,
+        laws: impl Fn(&mut Self) -> &mut BTreeMap<K, u32>,
+        law: K,
+        statement: impl FnOnce(&mut Self) -> Result<scheme_dsl::Syntax, BoundedDenotationError>,
+        arguments: &[TermHandle],
+    ) -> Result<TermHandle, BoundedDenotationError>
+    where
+        K: Ord + Copy,
+    {
+        let position = self.roster_law_position(laws, law, statement)?;
+        Ok(self.constant_application(position, arguments))
     }
 
     /// The `Int`-typed declaration a mathematical term denotes —

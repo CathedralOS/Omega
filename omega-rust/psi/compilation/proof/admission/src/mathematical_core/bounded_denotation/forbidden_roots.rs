@@ -50,7 +50,7 @@ use super::super::scheme_dsl::{self, apps, case_two, id, lam, pi, scheme_at, sig
 use super::super::term::Level;
 use super::integer_operations::IntegerOperation;
 use super::{
-    BoundedDenotationError, Declaration, Denotation, IntegerLaw, IntegerRelation, Term, TermHandle,
+    BoundedDenotationError, Denotation, IntegerLaw, IntegerRelation, Term, TermHandle,
 };
 use crate::mathematical_core::substitution::shift;
 use crate::{
@@ -184,133 +184,132 @@ impl Denotation {
         law: Law,
         arguments: &[TermHandle],
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = if let Some(&position) = self.forbidden_roots.laws.get(&law) {
-            position
-        } else {
-            let integer = self.integer()?;
-            let add = self.add_operation()?;
-            let sub = self.subtract_operation()?;
-            let mul = self.multiply_operation()?;
-            let less_or_equal = self.integer_less_or_equal()?;
-            let zero = self.binary_integer(false, 0)?;
-            let one = self.binary_integer(false, 1)?;
-            let negative_one = self.binary_integer(true, 1)?;
-            let negative_two = self.binary_integer(true, 2)?;
-            let constant = |position| scheme_at(position, Vec::new());
-            let carrier = || constant(integer);
-            let binders = |names: &[&'static str], body| {
-                names
-                    .iter()
-                    .rev()
-                    .fold(body, |inner, name| pi(name, carrier(), inner))
-            };
-            let le = |left, right| apps(constant(less_or_equal), [left, right]);
-            let eq = |left, right| id(carrier(), left, right);
-            let add = |left, right| apps(constant(add), [left, right]);
-            let sub = |left, right| apps(constant(sub), [left, right]);
-            let mul = |left, right| apps(constant(mul), [left, right]);
-            let statement = match law {
-                Law::AddRightInverse => binders(
-                    &["a", "k", "m"],
-                    pi(
-                        "_",
-                        eq(add(v("a"), v("k")), v("m")),
-                        eq(v("a"), sub(v("m"), v("k"))),
-                    ),
-                ),
-                Law::SubtractRightInverse => binders(
-                    &["a", "k", "m"],
-                    pi(
-                        "_",
-                        eq(sub(v("a"), v("k")), v("m")),
-                        eq(v("a"), add(v("m"), v("k"))),
-                    ),
-                ),
-                Law::QuotientUpperPositive(scalar_type)
-                | Law::QuotientLowerPositive(scalar_type)
-                | Law::QuotientLowerNegative(scalar_type)
-                | Law::QuotientUpperNegative(scalar_type) => {
-                    let divide =
-                        self.integer_operation(IntegerOperation::ExactDivide(scalar_type))?;
-                    let quotient = |left, right| apps(constant(divide), [left, right]);
-                    let positive = matches!(
-                        law,
-                        Law::QuotientUpperPositive(_) | Law::QuotientLowerPositive(_)
-                    );
-                    let sign = if positive {
-                        le(constant(one), v("k"))
-                    } else {
-                        le(v("k"), constant(negative_one))
-                    };
-                    // `mul a k ≤ m` for the `Quotient{Upper,Lower}…`
-                    // variants that bound `a` through `mul a k ≤ m`;
-                    // `m ≤ mul a k` for the others.
-                    let bound = match law {
-                        Law::QuotientUpperPositive(_) | Law::QuotientLowerNegative(_) => {
-                            le(mul(v("a"), v("k")), v("m"))
-                        }
-                        _ => le(v("m"), mul(v("a"), v("k"))),
-                    };
-                    let residual = match law {
-                        Law::QuotientUpperPositive(_) | Law::QuotientUpperNegative(_) => {
-                            le(v("a"), quotient(v("m"), v("k")))
-                        }
-                        _ => le(quotient(v("m"), v("k")), v("a")),
-                    };
-                    binders(&["k", "m", "a"], pi("_", sign, pi("_", bound, residual)))
-                }
-                Law::LessOrEqualAntisymmetry => binders(
-                    &["a", "b"],
-                    pi(
-                        "_",
-                        le(v("a"), v("b")),
-                        pi("_", le(v("b"), v("a")), eq(v("a"), v("b"))),
-                    ),
-                ),
-                Law::DivisorCaseSplit => {
-                    let motive = || lam("_", two(), sort(Level::Constant(0)));
-                    let innermost = sigma(
-                        "t3",
-                        two(),
-                        case_two(
-                            motive(),
-                            eq(v("d"), constant(zero)),
-                            le(constant(one), v("d")),
-                            v("t3"),
+        self.roster_law_application(
+            |this| &mut this.forbidden_roots.laws,
+            law,
+            |this| -> Result<scheme_dsl::Syntax, BoundedDenotationError> {
+                let integer = this.integer()?;
+                let add = this.add_operation()?;
+                let sub = this.subtract_operation()?;
+                let mul = this.multiply_operation()?;
+                let less_or_equal = this.integer_less_or_equal()?;
+                let zero = this.binary_integer(false, 0)?;
+                let one = this.binary_integer(false, 1)?;
+                let negative_one = this.binary_integer(true, 1)?;
+                let negative_two = this.binary_integer(true, 2)?;
+                let constant = |position| scheme_at(position, Vec::new());
+                let carrier = || constant(integer);
+                let binders = |names: &[&'static str], body| {
+                    names
+                        .iter()
+                        .rev()
+                        .fold(body, |inner, name| pi(name, carrier(), inner))
+                };
+                let le = |left, right| apps(constant(less_or_equal), [left, right]);
+                let eq = |left, right| id(carrier(), left, right);
+                let add = |left, right| apps(constant(add), [left, right]);
+                let sub = |left, right| apps(constant(sub), [left, right]);
+                let mul = |left, right| apps(constant(mul), [left, right]);
+                let statement = match law {
+                    Law::AddRightInverse => binders(
+                        &["a", "k", "m"],
+                        pi(
+                            "_",
+                            eq(add(v("a"), v("k")), v("m")),
+                            eq(v("a"), sub(v("m"), v("k"))),
                         ),
-                    );
-                    let middle = sigma(
-                        "t2",
-                        two(),
-                        case_two(
-                            motive(),
-                            eq(v("d"), constant(negative_one)),
-                            innermost,
-                            v("t2"),
+                    ),
+                    Law::SubtractRightInverse => binders(
+                        &["a", "k", "m"],
+                        pi(
+                            "_",
+                            eq(sub(v("a"), v("k")), v("m")),
+                            eq(v("a"), add(v("m"), v("k"))),
                         ),
-                    );
-                    pi(
-                        "d",
-                        carrier(),
-                        sigma(
-                            "t",
+                    ),
+                    Law::QuotientUpperPositive(scalar_type)
+                    | Law::QuotientLowerPositive(scalar_type)
+                    | Law::QuotientLowerNegative(scalar_type)
+                    | Law::QuotientUpperNegative(scalar_type) => {
+                        let divide =
+                            this.integer_operation(IntegerOperation::ExactDivide(scalar_type))?;
+                        let quotient = |left, right| apps(constant(divide), [left, right]);
+                        let positive = matches!(
+                            law,
+                            Law::QuotientUpperPositive(_) | Law::QuotientLowerPositive(_)
+                        );
+                        let sign = if positive {
+                            le(constant(one), v("k"))
+                        } else {
+                            le(v("k"), constant(negative_one))
+                        };
+                        // `mul a k ≤ m` for the `Quotient{Upper,Lower}…`
+                        // variants that bound `a` through `mul a k ≤ m`;
+                        // `m ≤ mul a k` for the others.
+                        let bound = match law {
+                            Law::QuotientUpperPositive(_) | Law::QuotientLowerNegative(_) => {
+                                le(mul(v("a"), v("k")), v("m"))
+                            }
+                            _ => le(v("m"), mul(v("a"), v("k"))),
+                        };
+                        let residual = match law {
+                            Law::QuotientUpperPositive(_) | Law::QuotientUpperNegative(_) => {
+                                le(v("a"), quotient(v("m"), v("k")))
+                            }
+                            _ => le(quotient(v("m"), v("k")), v("a")),
+                        };
+                        binders(&["k", "m", "a"], pi("_", sign, pi("_", bound, residual)))
+                    }
+                    Law::LessOrEqualAntisymmetry => binders(
+                        &["a", "b"],
+                        pi(
+                            "_",
+                            le(v("a"), v("b")),
+                            pi("_", le(v("b"), v("a")), eq(v("a"), v("b"))),
+                        ),
+                    ),
+                    Law::DivisorCaseSplit => {
+                        let motive = || lam("_", two(), sort(Level::Constant(0)));
+                        let innermost = sigma(
+                            "t3",
                             two(),
-                            case_two(motive(), le(v("d"), constant(negative_two)), middle, v("t")),
-                        ),
-                    )
-                }
-            };
-            let ty = scheme_dsl::build(&mut self.arena, &mut Vec::new(), &statement);
-            let position = self.position()?;
-            self.declarations.push(Declaration::assumption(0, ty));
-            self.forbidden_roots.laws.insert(law, position);
-            position
-        };
-        let mut function = self.constant(position);
-        for &argument in arguments {
-            function = self.arena.insert(Term::Apply { function, argument });
-        }
-        Ok(function)
+                            case_two(
+                                motive(),
+                                eq(v("d"), constant(zero)),
+                                le(constant(one), v("d")),
+                                v("t3"),
+                            ),
+                        );
+                        let middle = sigma(
+                            "t2",
+                            two(),
+                            case_two(
+                                motive(),
+                                eq(v("d"), constant(negative_one)),
+                                innermost,
+                                v("t2"),
+                            ),
+                        );
+                        pi(
+                            "d",
+                            carrier(),
+                            sigma(
+                                "t",
+                                two(),
+                                case_two(
+                                    motive(),
+                                    le(v("d"), constant(negative_two)),
+                                    middle,
+                                    v("t"),
+                                ),
+                            ),
+                        )
+                    }
+                };
+                Ok(statement)
+            },
+            arguments,
+        )
     }
 
     /// `IntLe l' r'` — the non-strict order applied to two denoted `Int`
