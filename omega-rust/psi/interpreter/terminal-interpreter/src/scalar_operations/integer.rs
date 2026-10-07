@@ -6,7 +6,18 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ScalarType;
-use terminal_psi::OperationKind;
+use terminal_psi::{Operation, OperationKind};
+
+/// The integer scalar type the verified result declares, or malformed when it
+/// is not an integer.
+fn integer_scalar_type(
+    operation: &Operation,
+) -> Result<semantic_vocabulary::IntegerType, TerminalInterpretError> {
+    let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
+        return Err(malformed());
+    };
+    Ok(scalar_type)
+}
 
 impl TerminalExecution {
     pub(crate) fn execute_integer_constant(
@@ -16,9 +27,7 @@ impl TerminalExecution {
         let OperationKind::IntegerConstant { value } = operation.kind else {
             unreachable!("dispatched execute_integer_constant")
         };
-        let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let scalar_type = integer_scalar_type(operation)?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer { scalar_type, value },
@@ -108,9 +117,7 @@ impl TerminalExecution {
         let OperationKind::IntegerBitwiseNot { operand } = operation.kind else {
             unreachable!("dispatched execute_integer_bitwise_not")
         };
-        let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let scalar_type = integer_scalar_type(operation)?;
         let TerminalScalarValue::Integer {
             scalar_type: operand_type,
             value: operand,
@@ -199,9 +206,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_integer_bitwise_and")
         };
-        let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let scalar_type = integer_scalar_type(operation)?;
         let TerminalScalarValue::Integer {
             scalar_type: left_type,
             value: left_value,
@@ -315,9 +320,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_exact_integer_add")
         };
-        let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let scalar_type = integer_scalar_type(operation)?;
         let left = self.scalar_value(left)?;
         let right = self.scalar_value(right)?;
         let (
@@ -378,9 +381,7 @@ impl TerminalExecution {
         let OperationKind::SaturatingIntegerAdd { left, right } = operation.kind else {
             unreachable!("dispatched execute_saturating_integer_add")
         };
-        let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let scalar_type = integer_scalar_type(operation)?;
         let left = self.scalar_value(left)?;
         let right = self.scalar_value(right)?;
         let (
@@ -414,9 +415,7 @@ impl TerminalExecution {
         let OperationKind::SaturatingIntegerSubtract { left, right } = operation.kind else {
             unreachable!("dispatched execute_saturating_integer_subtract")
         };
-        let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let scalar_type = integer_scalar_type(operation)?;
         let left = self.scalar_value(left)?;
         let right = self.scalar_value(right)?;
         let (
@@ -450,9 +449,7 @@ impl TerminalExecution {
         let OperationKind::SaturatingIntegerMultiply { left, right } = operation.kind else {
             unreachable!("dispatched execute_saturating_integer_multiply")
         };
-        let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let scalar_type = integer_scalar_type(operation)?;
         let left = self.scalar_value(left)?;
         let right = self.scalar_value(right)?;
         let (
