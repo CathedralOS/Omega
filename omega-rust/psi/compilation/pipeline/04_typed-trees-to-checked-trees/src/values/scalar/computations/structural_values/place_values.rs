@@ -436,7 +436,20 @@ impl Builder<'_, '_> {
                 .program
                 .state_local_declaration(state, name.symbol)
                 .filter(|&(ordinal, local)| {
-                    ordinal < self.statement_index && local.initial_value.is_valid()
+                    // An uninitialized local of a zero-constructible shape is
+                    // established by its declaration (the ZeroedStructural root
+                    // minted at its statement) and filled by later stores; it
+                    // transfers as completely as an initialized one.
+                    ordinal < self.statement_index
+                        && (local.initial_value.is_valid()
+                            || (self
+                                .program
+                                .primitive_type_reference(local.type_reference)
+                                .is_none()
+                                && validation::zeroed_structural_parts(
+                                    self.program,
+                                    local.type_reference,
+                                )))
                 })?;
             (
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {

@@ -3361,6 +3361,7 @@ pass/structural/case_payload_record_member_read checked 3162ms check-target:maco
 pass/structural/composed_case_field_store_exit checked 1122ms check-target:macos_arm64 @ca8c127c90c5
 pass/structural/element_store checked 1287ms check-target:macos_arm64 @2d8ed253669f
 pass/structural/local_record_receivers checked 302ms @4e4bfed13aee+wt
+pass/structural/record_literal_moves_zeroed_local_array_exit checked 1471ms check-target:macos_arm64 @19c011821faa
 pass/structural/runtime_enum_equality_exit checked 8139ms check-target:macos_arm64 @cfe60a3a242
 pass/structural/runtime_mutable_record_copy_exit checked 1326ms check-target:macos_arm64 @ca8c127c90c5
 pass/structural/runtime_nested_constructor_payload_exit checked 1711ms check-target:macos_arm64 @6bf6ea6d1af9
