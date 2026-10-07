@@ -184,16 +184,9 @@ fn symbol_in_toolchain_source(
     symbol: symbols::SymbolHandle,
     relative: &std::path::Path,
 ) -> bool {
-    let Some(span) = program.symbols.symbol_source_span(symbol) else {
-        return false;
-    };
-    let Some(source) = program.symbols.source_file(span) else {
-        return false;
-    };
-    source.origin == source::SourceOrigin::Toolchain
-        && source
-            .path
-            .strip_prefix(&source.package_root)
-            .ok()
-            .is_some_and(|path| path == relative)
+    relative
+        .to_str()
+        .is_some_and(|relative| {
+            semantic_operations::symbol_is_declared_in_sealed_source(program, symbol, relative)
+        })
 }
