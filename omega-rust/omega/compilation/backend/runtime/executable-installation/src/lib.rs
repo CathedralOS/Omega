@@ -1,10 +1,11 @@
 //! Normalized executable-artifact admission and installation.
 //!
 //! Start at `executable_installation.rs`: it owns the authority-consuming
-//! ladder — admit, materialize and freeze, validate, install, seal an entry,
+//! ladder — admit, materialize and freeze, install, seal an entry,
 //! retire — and the one-call drives that run a provider operation through the
-//! transition consuming its receipt. Container decoding and materialization
-//! alone never establish execute authority.
+//! transition consuming its receipt. There is no final-certificate replay;
+//! installation tests construct producer output directly. Container decoding
+//! and materialization alone never establish execute authority.
 //!
 //! The domains beside it: `authority_digests` (domain-separated digests and
 //! report-only fingerprints), `artifacts` (artifacts, their container wire
@@ -63,7 +64,7 @@ pub use entry_references::{
 pub use executable_installation::{
     CallCodeError, InstallCodeError, QuarantineCodeError, ReplaceCodeError, RetireCodeError,
     SealCodeEntryError, UninstallCodeError, admit_executable, install_validated,
-    materialize_and_freeze, retire_installed, validate_final_placement,
+    materialize_and_freeze, retire_installed,
 };
 pub use installation::{
     InstallAuthority, InstallationDiagnostic, InstallationError, InstallationReceipt,
@@ -81,9 +82,8 @@ pub use owned_image_provider::{
 };
 pub use placement::materializer::{MaterializedArtifactBytes, materialize_admitted_artifact};
 pub use placement::{
-    CodePlacement, CodePlacementAuthority, FinalValidationCertificate, FrozenPlacement,
-    FrozenPlacementError, MaterializationError, MaterializationReceipt, PlacementClaimError,
-    ValidatedPlacement,
+    CodePlacement, CodePlacementAuthority, FrozenPlacement, MaterializationError,
+    MaterializationReceipt, PlacementClaimError, ValidatedPlacement,
 };
 pub use post_handoff_writer::{
     DestinationClaimError, DestinationPreparationReceipt, DestinationWriteError,

@@ -4,9 +4,8 @@
 use isa_aarch64::validate_aarch64_register_constraint_catalog;
 use isa_x86_64::validate_x86_64_register_constraint_catalog;
 use register_model::{
-    PhysicalRegisterModel, RegisterConstraintCatalog, RegisterReservationProfile,
-    target_register_environment_identity, validate_physical_register_model,
-    validate_register_reservation_profile,
+    RegisterConstraintCatalog, RegisterReservationProfile, ValidatedPhysicalRegisterModel,
+    target_register_environment_identity, validate_register_reservation_profile,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -15,12 +14,10 @@ use super::{TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnv
 
 pub(super) fn validate_target_register_environment_join(
     target: NativeTarget,
-    physical: PhysicalRegisterModel,
+    physical: ValidatedPhysicalRegisterModel,
     constraints: RegisterConstraintCatalog,
     reservations: RegisterReservationProfile,
 ) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
-    let physical = validate_physical_register_model(physical)
-        .map_err(TargetRegisterEnvironmentValidationError::Physical)?;
     if target.architecture != physical.model().architecture {
         return Err(
             TargetRegisterEnvironmentValidationError::TargetArchitectureMismatch {

@@ -6,8 +6,8 @@
 //! validated allocator environment. This is shared target setup, not a program
 //! transformation or a successor in the representation pipeline.
 //!
-//! `baseline_target_register_environment` and
-//! `validate_target_register_environment` in this file are the entries.
+//! `baseline_target_register_environment` is the setup entry. There is no
+//! decoded-environment replay API: allocation consumes the constructed model.
 //! `catalog` selects the target's physical register model, constraint catalog
 //! and baseline reservation profile; `validation` joins them into the
 //! `ValidatedTargetRegisterEnvironment` declared here; `abi_preservation`
@@ -25,10 +25,7 @@ pub use abi_preservation::{
 #[cfg(test)]
 mod tests;
 
-use register_model::{
-    PhysicalRegisterModel, RegisterConstraintCatalog, RegisterReservationProfile,
-    validate_physical_register_model,
-};
+use register_model::validate_physical_register_model;
 use target::NativeTarget;
 
 use catalog::selected_environment_keys;
@@ -47,8 +44,8 @@ use register_model::{
 use selected_instructions::SelectedConstraintKeys;
 use target::Architecture;
 
-/// Build the current target-owned baseline environment and pass it through the
-/// same independently callable join validator used for decoded/cached models.
+/// Construct the target-owned allocator environment from its ISA declarations.
+/// Decoded or cached register models have no separate replay entrance here.
 pub fn baseline_target_register_environment(
     target: NativeTarget,
 ) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
@@ -85,41 +82,7 @@ fn build_baseline_target_register_environment(
     let reservations = conservative_baseline_reservation_profile(target, &physical);
     validation::validate_target_register_environment_join(
         target,
-        physical,
-        constraints,
-        reservations,
-    )
-}
-
-/// Independently join raw physical and constraint declarations for one exact
-/// native target. The architecture-neutral structural validators run first;
-/// the selected clean ISA owner then checks every target-semantic row.
-pub fn validate_target_register_environment(
-    target: NativeTarget,
-    physical: PhysicalRegisterModel,
-    constraints: RegisterConstraintCatalog,
-) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
-    let reservations = conservative_baseline_reservation_profile(target, &physical);
-    validation::validate_target_register_environment_join(
-        target,
-        physical,
-        constraints,
-        reservations,
-    )
-}
-
-/// Join the exact raw artifacts and an explicit active reservation profile.
-/// This is the cache/decode validation boundary; no reservation declaration
-/// becomes active merely by appearing in the physical model.
-pub fn validate_target_register_environment_with_reservations(
-    target: NativeTarget,
-    physical: PhysicalRegisterModel,
-    constraints: RegisterConstraintCatalog,
-    reservations: RegisterReservationProfile,
-) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
-    validation::validate_target_register_environment_join(
-        target,
-        physical,
+        validated,
         constraints,
         reservations,
     )

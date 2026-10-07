@@ -7,7 +7,7 @@ mod service_establishment;
 
 pub use model::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntrySettlement,
+    ValidatedNativeProgramEntryCallingPlans, ValidatedNativeProgramEntrySettlement,
 };
 
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
@@ -28,7 +28,7 @@ pub fn validate_native_program_entry_settlement(
     program_entry
         .validate_fused_service_establishments_for_target()
         .map_err(|_| NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift)?;
-    program_entry
+    let admitted_calling_plans = program_entry
         .validate_for_target(target)
         .map_err(|_| NativeProgramEntrySettlementError::CallingPlanPairingDrift)?;
     if checked_entry.source_signature_identity() != program_entry.source.identity().bytes() {
@@ -76,6 +76,7 @@ pub fn validate_native_program_entry_settlement(
         target,
         source: program_entry.source.clone(),
         semantic_calling_application: program_entry.semantic_calling_application.cloned(),
+        admitted_calling_plans,
         physical_calling_application: program_entry.physical_calling_application.cloned(),
         storage_entry: program_entry.storage_entry.cloned(),
         fused_service_establishments: program_entry.fused_service_establishments.to_vec(),

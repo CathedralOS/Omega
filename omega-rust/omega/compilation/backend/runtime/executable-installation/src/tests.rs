@@ -1,17 +1,17 @@
 use crate::artifacts::container::{ArtifactRelocationKind, DecodedArtifactRelocation};
 use crate::artifacts::{Artifact, ArtifactAdmissionEvidence, ArtifactEntry, InstallationAudience};
+use crate::authority_digests::FinalValidationId;
 use crate::authority_digests::{
     AdmissionReceiptId, ArtifactId, CodePlacementId, EntryContractDigest, EntryReferenceFactDigest,
-    EntrySetId, FinalValidationId, InstallationFactDigest, InstallationScopeId, InstalledCodeId,
-    MachineContractSetId, MachineFootprintId, MappingQuarantineId, PlacementPlanId,
-    RelocationSetId, ReplacementFactDigest, RetirementFactDigest,
+    EntrySetId, InstallationFactDigest, InstallationScopeId, InstalledCodeId, MachineContractSetId,
+    MachineFootprintId, MappingQuarantineId, PlacementPlanId, RelocationSetId,
+    ReplacementFactDigest, RetirementFactDigest,
 };
 use crate::entry_references::{EntryReferenceAuthority, EntryReferenceReceipt};
 use crate::installation::{InstallAuthority, InstallationReceipt, InstalledCode, WxEnforcement};
 use crate::placement::materializer::materialize_admitted_artifact;
 use crate::placement::{
-    CodePlacement, CodePlacementAuthority, FinalValidationCertificate, MaterializationReceipt,
-    ValidatedPlacement,
+    CodePlacement, CodePlacementAuthority, MaterializationReceipt, ValidatedPlacement,
 };
 use crate::retirement::quarantine::{
     MappingQuarantineCause, MappingQuarantineReceipt, quarantine_installed,
@@ -20,10 +20,7 @@ use crate::retirement::replacement::{
     ReplacementAuthority, ReplacementOutcome, ReplacementReceipt, replace_installed,
 };
 use crate::retirement::{RetirementAuthority, RetirementReceipt};
-use crate::{
-    admit_executable, install_validated, materialize_and_freeze, retire_installed,
-    validate_final_placement,
-};
+use crate::{admit_executable, install_validated, materialize_and_freeze, retire_installed};
 use extents::{Extent, ExtentLineageId, ExtentRootGrant, MappingEraId};
 use layout_plans::{ArtifactInstallationScopeId, EntryStubId, PlacementPhase};
 use layout_plans::{PlacementConstraints, RelocationTarget};
@@ -86,12 +83,7 @@ fn canonical_materializer_patches_x86_relative_targets_and_binds_the_receipt() {
     assert_eq!(frozen.bytes(), materialized.bytes());
     assert_eq!(frozen.final_bytes(), materialized.final_bytes());
 
-    let certificate = FinalValidationCertificate::from_validator(
-        id(181, FinalValidationId::from_normalized_identity),
-        &frozen,
-        true,
-    );
-    let validated = validate_final_placement(frozen, &certificate).unwrap();
+    let validated = validated_placement(frozen, 181);
     let authority = InstallAuthority::from_admitted_provider(&validated);
     let receipt = InstallationReceipt::from_provider(
         id(281, InstalledCodeId::from_normalized_identity),
@@ -344,17 +336,6 @@ fn admitted_artifact_selects_only_its_canonical_entry_targets() {
     );
     let foreign = entry_id(1002);
     assert!(admitted.selected_entry_target(foreign).is_err());
-}
-
-#[test]
-fn final_certificate_is_bound_to_one_placement_and_final_bytes() {
-    let admitted = admit(&artifact(1));
-    let target = frozen(&admitted, 102, 0x3000);
-    let foreign = frozen(&admitted, 103, 0x3000);
-    let certificate = certificate(&foreign, 183);
-    let error =
-        validate_final_placement(target, &certificate).expect_err("certificate transplant rejects");
-    assert!(error.diagnostic().0.contains("does not match"));
 }
 
 #[test]
@@ -1161,12 +1142,7 @@ fn spec_validated(spec: &RealizationSpec) -> ValidatedPlacement {
         ),
     )
     .expect("spec frozen placement");
-    let certificate = FinalValidationCertificate::from_validator(
-        id(spec.validation, FinalValidationId::from_normalized_identity),
-        &frozen,
-        true,
-    );
-    validate_final_placement(frozen, &certificate).expect("spec validated placement")
+    validated_placement(frozen, spec.validation)
 }
 
 fn realize(spec: &RealizationSpec) -> InstalledCode {

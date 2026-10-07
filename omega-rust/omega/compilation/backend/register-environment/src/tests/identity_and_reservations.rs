@@ -1,6 +1,5 @@
 use super::super::{
     TargetRegisterEnvironmentValidationError, baseline_target_register_environment,
-    validate_target_register_environment_with_reservations,
 };
 use isa_x86_64::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
 use register_model::validate_physical_register_model;
@@ -41,9 +40,9 @@ fn baseline_profile_is_exact_conservative_and_platform_applicable() {
         conservative_baseline_reservation_profile(NativeTarget::macos_arm64(), &raw);
     inapplicable.name = "test.inapplicable-platform".into();
     assert_eq!(
-        validate_target_register_environment_with_reservations(
+        super::super::validation::validate_target_register_environment_join(
             NativeTarget::linux_arm64(),
-            raw,
+            physical,
             catalog,
             inapplicable,
         ),
@@ -78,9 +77,9 @@ fn environment_identity_binds_each_component_and_explicit_policy() {
     reduced
         .active_overlays
         .retain(|name| name != "omega.x86.metering");
-    let reduced = validate_target_register_environment_with_reservations(
+    let reduced = super::super::validation::validate_target_register_environment_join(
         target,
-        raw.clone(),
+        physical.clone(),
         catalog.clone(),
         reduced,
     )
@@ -95,9 +94,9 @@ fn environment_identity_binds_each_component_and_explicit_policy() {
         pointer_size: 4,
         ..target
     };
-    let changed_layout = validate_target_register_environment_with_reservations(
+    let changed_layout = super::super::validation::validate_target_register_environment_join(
         changed_layout_target,
-        raw.clone(),
+        physical,
         catalog.clone(),
         conservative_baseline_reservation_profile(changed_layout_target, &raw),
     )

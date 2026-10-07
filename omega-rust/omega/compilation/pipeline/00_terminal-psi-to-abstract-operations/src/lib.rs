@@ -71,7 +71,8 @@ pub use comparison_settlement::{
 };
 pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
+    ValidatedNativeProgramEntryCallingPlans, ValidatedNativeProgramEntrySettlement,
+    validate_native_program_entry_settlement,
 };
 pub use lowering::LoweringError;
 pub use optimization::{

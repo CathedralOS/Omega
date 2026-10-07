@@ -96,7 +96,11 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
     /// Check the target and calling-contract custody before native lowering.
     /// This validates declarations only; Terminal replay, storage provisioning,
     /// and installation authority remain independent requirements.
-    pub fn validate_for_target(self, target: target::NativeTarget) -> Result<(), String> {
+    /// Retain both admitted plans when the entry declares two surfaces.
+    pub fn validate_for_target(
+        self,
+        target: target::NativeTarget,
+    ) -> Result<Option<ValidatedNativeProgramEntryCallingPlans>, String> {
         let slot = self.source.target_slot();
         if slot.owner.native_target() != target {
             return Err(format!(
@@ -116,9 +120,9 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
             self.physical_calling_application,
             self.storage_entry,
         ) {
-            (false, None, None, None) => Ok(()),
+            (false, None, None, None) => Ok(None),
             (true, Some(semantic), Some(physical), Some(storage)) => {
-                validate_paired_calling_plans(self.source, semantic, physical, storage)
+                validate_paired_calling_plans(self.source, semantic, physical, storage).map(Some)
             }
             _ => Err(
                 "selected ProgramEntry lost its exact paired semantic/physical calling-plan custody"
@@ -154,6 +158,15 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
     }
 }
 
+/// The semantic and physical plans admitted together for one selected entry.
+/// Keeping the pair prevents downstream wrappers from reconstructing either
+/// contract from raw ABI placements.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedNativeProgramEntryCallingPlans {
+    pub(crate) semantic: calling_conventions::ValidatedBoundaryEntryPlan,
+    pub(crate) physical: calling_conventions::ValidatedBoundaryEntryPlan,
+}
+
 /// Owned, independently replayed source-entry settlement for one canonical
 /// Terminal artifact. It remains declaration and calling-contract custody;
 /// it grants no semantic wrapper, physical process entry, image installation,
@@ -164,6 +177,9 @@ pub struct ValidatedNativeProgramEntrySettlement {
     pub(crate) target: target::NativeTarget,
     pub(crate) source: program_entry_plan::SelectedProgramEntrySourceSignature,
     pub(crate) semantic_calling_application: Option<BoundaryCallingPlanRealization>,
+    /// Retain the plans admitted with the exact calling applications. Downstream
+    /// wrapper construction borrows this result instead of replaying admission.
+    pub(crate) admitted_calling_plans: Option<ValidatedNativeProgramEntryCallingPlans>,
     pub(crate) physical_calling_application: Option<BoundaryCallingPlanRealization>,
     pub(crate) storage_entry: Option<program_entry_plan::SelectedProgramStorageEntryPlan>,
     pub(crate) fused_service_establishments:
@@ -215,6 +231,24 @@ impl ValidatedNativeProgramEntrySettlement {
 
     pub const fn semantic_calling_application(&self) -> Option<&BoundaryCallingPlanRealization> {
         self.semantic_calling_application.as_ref()
+    }
+
+    pub const fn semantic_calling_plan(
+        &self,
+    ) -> Option<&calling_conventions::ValidatedBoundaryEntryPlan> {
+        match self.admitted_calling_plans.as_ref() {
+            Some(plans) => Some(&plans.semantic),
+            None => None,
+        }
+    }
+
+    pub const fn physical_calling_plan(
+        &self,
+    ) -> Option<&calling_conventions::ValidatedBoundaryEntryPlan> {
+        match self.admitted_calling_plans.as_ref() {
+            Some(plans) => Some(&plans.physical),
+            None => None,
+        }
     }
 
     pub const fn physical_calling_application(&self) -> Option<&BoundaryCallingPlanRealization> {

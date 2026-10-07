@@ -1,12 +1,11 @@
 use super::{
-    Architecture, NativeTarget, assert_target_semantic_error, baseline_target_register_environment,
-    row_mut, scalar_abi_cases, target_constraint_catalog, target_physical_register_model,
-    units_for_names, validate_target_register_environment,
+    Architecture, NativeTarget, baseline_target_register_environment, scalar_abi_cases,
+    units_for_names,
 };
 use register_model::RegisterOperandAccess;
 
 #[test]
-fn every_register_call_arity_retains_exact_target_abi_and_rejects_clobber_loss() {
+fn every_register_call_arity_retains_exact_target_abi() {
     for case in scalar_abi_cases() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let selected_keys = environment.selected_keys();
@@ -22,8 +21,6 @@ fn every_register_call_arity_retains_exact_target_abi_and_rejects_clobber_loss()
         assert_eq!(floating_keys, expected_floating_keys);
         assert_eq!(keys.len(), case.arguments.len() + 1);
         let generic = environment.constraint(case.call).unwrap();
-        let raw = target_physical_register_model(case.target);
-        let catalog = target_constraint_catalog(case.target, environment.physical());
         for (arity, key) in keys.iter().copied().enumerate() {
             let row = environment.constraint(key).unwrap();
             assert_eq!(row.operands.len(), arity + 1);
@@ -57,11 +54,6 @@ fn every_register_call_arity_retains_exact_target_abi_and_rejects_clobber_loss()
                     Some(environment.physical().model().view_named(name).unwrap().id)
                 );
             }
-            let mut corrupted = catalog.clone();
-            row_mut(&mut corrupted, key).clobbers.remove(0);
-            let error = validate_target_register_environment(case.target, raw.clone(), corrupted)
-                .expect_err("every arity must retain its exact ABI clobbers");
-            assert_target_semantic_error(case.target, key, error);
         }
         let float_name = match case.target.architecture {
             Architecture::X86_64 => "xmm0",
@@ -105,11 +97,6 @@ fn every_register_call_arity_retains_exact_target_abi_and_rejects_clobber_loss()
                 .filter(|unit| !result.write_units.contains(unit))
                 .collect::<Vec<_>>();
             assert_eq!(row.clobbers, expected_clobbers);
-            let mut corrupted = catalog.clone();
-            row_mut(&mut corrupted, key).clobbers.remove(0);
-            let error = validate_target_register_environment(case.target, raw.clone(), corrupted)
-                .expect_err("each mixed-bank scalar row retains exact remaining ABI clobbers");
-            assert_target_semantic_error(case.target, key, error);
         }
     }
 }

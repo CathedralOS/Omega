@@ -14,8 +14,8 @@
 //!    [`CodePlacement`], the materializer's [`MaterializedArtifactBytes`] and
 //!    the provider's [`MaterializationReceipt`] become a [`FrozenPlacement`];
 //!    every mismatch between placement, output, plan and byte length refuses.
-//! 3. [`validate_final_placement`] — a [`FinalValidationCertificate`] over the
-//!    exact frozen bytes becomes a [`ValidatedPlacement`].
+//! 3. [`ValidatedPlacement`] — the final-byte producer's retained placement
+//!    feeds installation without a compiler-owned certificate replay.
 //! 4. [`install_validated`] — the provider's [`InstallationReceipt`] under an
 //!    [`InstallAuthority`] becomes [`InstalledCode`]; fetch visibility and
 //!    W^X support are required facts.
@@ -66,9 +66,8 @@ use crate::installation::{
 use crate::owned_image_provider::{OwnedImageProvider, ResidentEntryCall};
 use crate::placement::materializer::MaterializedArtifactBytes;
 use crate::placement::{
-    CodePlacement, CodePlacementEvidence, FinalValidationCertificate, FrozenPlacement,
-    FrozenPlacementError, MaterializationError, MaterializationReceipt, ValidatedPlacement,
-    ValidatedPlacementEvidence,
+    CodePlacement, CodePlacementEvidence, FrozenPlacement, MaterializationError,
+    MaterializationReceipt, ValidatedPlacement, ValidatedPlacementEvidence,
 };
 use crate::retirement::quarantine::{
     MappingQuarantineCause, MappingQuarantineReceipt, QuarantinedInstallation, quarantine_installed,
@@ -147,31 +146,6 @@ pub fn materialize_and_freeze(
         placement,
         materialized,
         realized_footprint: receipt.realized_footprint,
-    })
-}
-
-pub fn validate_final_placement(
-    frozen: FrozenPlacement,
-    certificate: &FinalValidationCertificate,
-) -> Result<ValidatedPlacement, Box<FrozenPlacementError>> {
-    let matches = certificate.accepted
-        && certificate.artifact == frozen.artifact.artifact
-        && certificate.admission == frozen.artifact.admission
-        && certificate.placement == CodePlacementEvidence::from_placement(&frozen.placement)
-        && certificate.final_bytes_digest == frozen.materialized.final_bytes()
-        && certificate.final_bytes == frozen.materialized.bytes()
-        && certificate.realized_footprint == frozen.realized_footprint;
-    if !matches {
-        return Err(Box::new(FrozenPlacementError {
-            frozen,
-            diagnostic: InstallationDiagnostic(
-                "final validation certificate does not match frozen placement".into(),
-            ),
-        }));
-    }
-    Ok(ValidatedPlacement {
-        frozen,
-        validation: certificate.identity,
     })
 }
 

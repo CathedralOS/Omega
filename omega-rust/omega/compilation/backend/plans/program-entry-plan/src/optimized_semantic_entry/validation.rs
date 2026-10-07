@@ -1,9 +1,6 @@
 //! Admission checks for the selected semantic entry and its paired physical plan.
 
-use calling_conventions::{
-    CallSignature, CallingPolicy, ValidatedBoundaryEntryPlan, ValueShape,
-    validate_boundary_entry_plan,
-};
+use calling_conventions::{CallingPolicy, ValidatedBoundaryEntryPlan, ValueShape};
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
 };
@@ -89,22 +86,17 @@ pub(super) fn validate(
         1,
     )?;
 
-    let signature = CallSignature {
-        parameters: vec![image_source.value_shape(), storage_source.value_shape()],
-        result: None,
-    };
-    let boundary = validate_boundary_entry_plan(
-        semantic_application.boundary_entry_plan().clone(),
-        &signature,
-    )
-    .map_err(|diagnostic| {
-        ProgramStorageEntryDiagnostic(format!(
-            "optimized semantic ProgramStorage calling plan is invalid: {diagnostic}"
-        ))
-    })?;
+    let boundary = semantic_application.admitted_boundary_entry_plan();
     if boundary.plan().call.policy != CallingPolicy::MicrosoftX64
         || boundary.plan().call.parameters.len() != 2
         || boundary.plan().call.result.is_some()
+        || !boundary
+            .plan()
+            .call
+            .parameters
+            .iter()
+            .map(|placement| placement.shape)
+            .eq([image_source.value_shape(), storage_source.value_shape()])
     {
         return Err(ProgramStorageEntryDiagnostic(
             "optimized semantic ProgramStorage entry requires two Microsoft-x64 inputs and no result"
@@ -119,31 +111,9 @@ pub(super) fn validate(
             "optimized semantic ProgramStorage entry lost its paired physical plan".into(),
         )
     })?;
-    let physical_signature = CallSignature {
-        parameters: physical_contract
-            .boundary_entry_plan()
-            .call
-            .parameters
-            .iter()
-            .map(|placement| placement.shape)
-            .collect(),
-        result: physical_contract
-            .boundary_entry_plan()
-            .call
-            .result
-            .as_ref()
-            .map(|placement| placement.shape),
-    };
-    let validated_physical = validate_boundary_entry_plan(
-        physical_contract.boundary_entry_plan().clone(),
-        &physical_signature,
-    )
-    .map_err(|diagnostic| {
-        ProgramStorageEntryDiagnostic(format!(
-            "optimized semantic ProgramStorage physical plan is invalid: {diagnostic}"
-        ))
-    })?;
-    if physical_contract.target_slot() != slot
+    let validated_physical = semantic_application.admitted_physical_entry_plan();
+    if physical_contract.boundary_entry_plan() != validated_physical.plan()
+        || physical_contract.target_slot() != slot
         || physical_contract.requirement_identity() == method.requirement_identity
         || physical_contract.calling_plan_report_fingerprint()
             != validated_physical.contract_report_fingerprint()
@@ -165,7 +135,7 @@ pub(super) fn validate(
         target,
         slot,
         source: source.clone(),
-        boundary,
+        boundary: boundary.clone(),
         method: method.clone(),
         semantic_application_report_fingerprint: semantic_application.report_fingerprint(),
         semantic_application_commitment: semantic_application.commitment(),
@@ -217,7 +187,7 @@ fn validate_method(
     // signature, target, opaque representations, canonical plan), which is a
     // different identity namespace than the raw validated ABI plan. Exact
     // source-application custody therefore compares against the pair the
-    // native binder replayed for the plan above — never against the plan's own
+    // entry settlement admitted for the plan above — never against the plan's own
     // `contract_report_fingerprint`/`contract_commitment_digest`, which could
     // only match a fabricated schema row.
     if method.calling_plan_report_fingerprint != Some(semantic_application.report_fingerprint())

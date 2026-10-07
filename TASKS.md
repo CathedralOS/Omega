@@ -2995,34 +2995,6 @@ of a check the same flow already performed, not the check itself.
   the three functions (stage 05 source-scanning guard); check and native
   corpus unchanged.
 
-- **BACKEND-SELF-REPLAY-DELETED.** (new-scope) Stages 01 through 09 and the
-  native-artifact staging entries consume their fresh output with its
-  receipt instead of replaying it. Stage 01 publication seals the projection
-  receipt; stage 04's machine effects, literal fold and pressure
-  rematerialization admit what they computed; stage 03's uncalled
-  legalization replay is deleted. Judged and kept: stage 00
-  `validate_structural_block_bindings` (a capability fence on structural
-  shapes the backend cannot lower), `reconstruct_psi_optimization_unit_seed`
-  (construction, not replay), stage 01's commit-time candidate validation
-  (it decides whether a rewrite applies), stage 02's installed-provider and
-  settlement-roster joins (separate inputs; a missing settlement is a
-  capability refusal), and the ProgramStorage wrapper's
-  `validate_entry_shape` (the zero-valid receiver rule). Remaining:
-  - `bind_semantic_contract` in the ProgramStorage wrapper stage
-    (`native-artifact/src/optimized_semantic_wrapper_object/validation/entry_contract.rs`)
-    replays the semantic calling application to recover its validated plan;
-    the settlement should carry that plan;
-  - uncalled verifiers kept only because tests construct through them:
-    `validate_final_placement` (executable-installation),
-    the four calling-convention `validate_*_footprint` functions, and
-    `validate_target_register_environment` and `_with_reservations`. Give
-    those tests a constructor and delete the verifiers.
-
-  A verifier stays only where a retained-artifact reader calls it; one with no
-  caller is deleted with the replay. Acceptance: no producer calls a replay or
-  validator of its own fresh output, and the check and native corpus are
-  unchanged.
-
 - **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct and dynamic ELF image
   emission now each build their final image once. Only retained artifacts
   read back through `DynamicElfNativeArtifact::from_replayed_parts` and bytes

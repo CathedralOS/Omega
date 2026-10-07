@@ -254,56 +254,6 @@ impl FrozenPlacement {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FinalValidationCertificate {
-    pub(crate) identity: FinalValidationId,
-    pub(crate) artifact: Artifact,
-    pub(crate) admission: AdmissionReceiptId,
-    pub(crate) placement: CodePlacementEvidence,
-    pub(crate) final_bytes_digest: FinalBytesDigest,
-    pub(crate) final_bytes: Vec<u8>,
-    pub(crate) realized_footprint: MachineFootprintId,
-    pub(crate) accepted: bool,
-}
-
-impl FinalValidationCertificate {
-    /// Construct validation evidence from the exact frozen carrier inspected
-    /// by the validator. Compact normalized IDs remain useful report keys but
-    /// are not accepted as collision-resistant content evidence.
-    pub fn from_validator(
-        identity: FinalValidationId,
-        frozen: &FrozenPlacement,
-        accepted: bool,
-    ) -> Self {
-        Self {
-            identity,
-            artifact: frozen.artifact.artifact.clone(),
-            admission: frozen.artifact.admission,
-            placement: CodePlacementEvidence::from_placement(&frozen.placement),
-            final_bytes_digest: frozen.materialized.final_bytes(),
-            final_bytes: frozen.materialized.bytes().to_vec(),
-            realized_footprint: frozen.realized_footprint,
-            accepted,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct FrozenPlacementError {
-    pub(crate) frozen: FrozenPlacement,
-    pub(crate) diagnostic: InstallationDiagnostic,
-}
-
-impl FrozenPlacementError {
-    pub const fn diagnostic(&self) -> &InstallationDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_frozen(self) -> FrozenPlacement {
-        self.frozen
-    }
-}
-
 /// Linear R+NX placement bound to checked final bytes and footprint.
 #[derive(Debug)]
 pub struct ValidatedPlacement {

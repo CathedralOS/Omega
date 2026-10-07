@@ -12,12 +12,9 @@ use terminal_psi::{
 };
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
-/// Re-bind the semantic entry contract from the settlement's retained calling
-/// application. The schema commits to the application identity (requirement,
-/// target, source shape graph, ABI plan), never to the raw ABI plan, so the
-/// bind replays the retained application's validated plan and re-checks the
-/// recorded fingerprint, commitment, and boundary entry plan before the
-/// contract is derived.
+/// Derive the semantic entry contract from the settlement's admitted plan and
+/// exact calling application. Settlement owns their identity join; the wrapper
+/// consumes that result without running calling-plan admission again.
 pub fn bind_semantic_contract(
     settlement: &ValidatedNativeProgramEntrySettlement,
 ) -> Result<
@@ -30,19 +27,16 @@ pub fn bind_semantic_contract(
     let storage = settlement
         .storage_entry()
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::MissingPairedCallingPlans)?;
-    let (validated_plan, report_fingerprint, commitment) = semantic
-        .replayed_validated_application()
-        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)?;
-    if semantic.report_fingerprint != report_fingerprint
-        || semantic.commitment != commitment
-        || semantic.exact_boundary_entry_plan() != validated_plan.plan()
-    {
-        return Err(OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract);
-    }
+    let validated_plan = settlement
+        .semantic_calling_plan()
+        .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::MissingPairedCallingPlans)?;
     let application = OptimizedProgramStorageSemanticCallingApplication::new(
-        &validated_plan,
-        report_fingerprint,
-        commitment,
+        validated_plan,
+        settlement
+            .physical_calling_plan()
+            .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::MissingPairedCallingPlans)?,
+        semantic.report_fingerprint,
+        semantic.commitment,
     );
     bind_optimized_program_storage_semantic_entry_contract(
         settlement.target(),

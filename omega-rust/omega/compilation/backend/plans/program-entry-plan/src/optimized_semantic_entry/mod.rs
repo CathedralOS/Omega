@@ -24,7 +24,7 @@ use language_semantics::CarryPolicy;
 /// Bind the clean optimizer's declaration-only semantic ProgramStorage edge.
 ///
 /// `semantic_application` is the exact calling-plan application custody the
-/// native binder replayed for this entry: the schema commits to that
+/// entry settlement admitted for this entry: the schema commits to that
 /// application identity, not to the raw ABI plan, so the two must arrive
 /// together.
 pub fn bind_optimized_program_storage_semantic_entry_contract(
@@ -46,30 +46,33 @@ pub fn bind_optimized_program_storage_semantic_entry_contract(
 /// `BoundaryEntryPlan` selected by the `Calling<C>` relationship — never the
 /// raw ABI plan. Recomputing that application identity needs the build-side
 /// materialized signature, which this crate cannot name without an upward
-/// dependency, so the native binder replays its retained realization and hands
-/// this pair in beside the exact validated plan the commitment covers.
+/// dependency, so entry settlement retains its admitted realization and hands
+/// this pair in beside the exact validated plan the commitment covers. Native
+/// wrapper construction consumes that plan rather than replaying admission.
 /// Comparing the schema fields against the plan's own
 /// `contract_report_fingerprint`/`contract_commitment_digest` crosses identity
 /// namespaces and could only ever match a fabricated schema row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizedProgramStorageSemanticCallingApplication<'plan> {
     boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
+    physical_boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
     report_fingerprint: u64,
     commitment: BoundaryCallingPlanCommitment,
 }
 
 impl<'plan> OptimizedProgramStorageSemanticCallingApplication<'plan> {
-    /// Retain the binder's replayed application identity next to the exact
-    /// canonical plan the commitment covers. The pair is data here; the
-    /// binder's replay (`BoundaryCallingPlanRealization`'s validated
-    /// application) is what proves the commitment binds this plan.
+    /// Retain the settled application identity next to the exact canonical
+    /// plan the commitment covers. Entry settlement establishes their join;
+    /// this pair only transports the result to contract construction.
     pub const fn new(
         boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
+        physical_boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
         report_fingerprint: u64,
         commitment: BoundaryCallingPlanCommitment,
     ) -> Self {
         Self {
             boundary_entry_plan,
+            physical_boundary_entry_plan,
             report_fingerprint,
             commitment,
         }
@@ -78,6 +81,14 @@ impl<'plan> OptimizedProgramStorageSemanticCallingApplication<'plan> {
     /// The exact canonical ABI plan the retained application commits to.
     pub const fn boundary_entry_plan(&self) -> &'plan BoundaryEntryPlan {
         self.boundary_entry_plan.plan()
+    }
+
+    pub(super) const fn admitted_boundary_entry_plan(&self) -> &'plan ValidatedBoundaryEntryPlan {
+        self.boundary_entry_plan
+    }
+
+    pub(super) const fn admitted_physical_entry_plan(&self) -> &'plan ValidatedBoundaryEntryPlan {
+        self.physical_boundary_entry_plan
     }
 
     /// Compact report coordinate of the complete calling-plan application.

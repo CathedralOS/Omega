@@ -1,13 +1,13 @@
 use super::{integer_signature, strict_x86_entry};
+use crate::plans::compose_state_footprints;
 use crate::plans::{
     BoundaryPlanDiagnostic, BoundaryPlanResult, CallSignature, CallingPolicy,
     CallingPolicyRejection, EntryControl, EntryStack, MachineRegime, MachineRegister, MachineState,
     MachineStateSet, Preemption, ProviderExitRealization, RegisterSet, StateFootprintEvidence,
     StatePlan, SystemVEightbyteClass, ValueShape, encode_state_plan_identity,
     evaluate_freestanding_program_entry_plan, evaluate_ordinary_boundary_entry_plan,
-    validate_boundary_entry_plan, validate_boundary_plan_result, validate_composed_state_footprint,
-    validate_provider_exit_realization, validate_runtime_value_guard_footprint,
-    validate_state_footprint,
+    validate_boundary_entry_plan, validate_boundary_plan_result,
+    validate_provider_exit_realization,
 };
 
 #[test]
@@ -38,14 +38,6 @@ fn ordinary_firmware_entry_has_no_interrupted_state_obligation() {
             .permitted_transitive_use
             .contains_all(MachineStateSet::new([MachineState::Flags]))
     );
-    validate_state_footprint(
-        &validated,
-        &StateFootprintEvidence::new(
-            RegisterSet::default(),
-            MachineStateSet::new([MachineState::Flags]),
-        ),
-    )
-    .expect("ordinary caller-volatile condition flags fit the state ceiling");
 }
 
 #[test]
@@ -127,40 +119,6 @@ fn provider_exit_realization_must_match_the_complete_boundary_exit() {
 }
 
 #[test]
-fn runtime_value_guard_stack_scratch_is_not_admitted_for_interrupt_return() {
-    let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
-        .expect("strict interrupt boundary");
-    let evidence = StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86R10]),
-        MachineStateSet::new([MachineState::Flags, MachineState::StackPointer]),
-    );
-
-    let error = validate_runtime_value_guard_footprint(&validated, &evidence)
-        .expect_err("interrupt-return body must not borrow ordinary stack scratch");
-
-    assert!(error.0.contains("x86 call-return activation"));
-}
-
-#[test]
-fn runtime_value_guard_control_state_is_not_admitted_for_interrupt_return() {
-    let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
-        .expect("strict interrupt boundary");
-    let evidence = StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86R10]),
-        MachineStateSet::new([MachineState::Flags, MachineState::ControlState]),
-    );
-
-    let error = validate_runtime_value_guard_footprint(&validated, &evidence)
-        .expect_err("interrupt-return body must not change floating control state");
-
-    assert!(
-        error
-            .0
-            .contains("directed rounding requires a call-return activation")
-    );
-}
-
-#[test]
 fn boundary_entry_validation_rejects_unsaved_permitted_state() {
     let mut plan = strict_x86_entry();
     validate_boundary_entry_plan(plan.clone(), &integer_signature(1))
@@ -175,7 +133,7 @@ fn boundary_entry_validation_rejects_unsaved_permitted_state() {
 }
 
 #[test]
-fn evidence_is_validated_but_firewalled_from_contract_identity() {
+fn emitted_evidence_is_firewalled_from_contract_identity() {
     let plan = strict_x86_entry();
     let validated = validate_boundary_entry_plan(plan, &integer_signature(1)).expect("entry plan");
     let identity = validated.contract_report_fingerprint();
@@ -187,8 +145,6 @@ fn evidence_is_validated_but_firewalled_from_contract_identity() {
         RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86Rcx]),
         MachineStateSet::new([MachineState::GeneralRegisters, MachineState::Flags]),
     );
-    validate_state_footprint(&validated, &evidence_a).expect("first footprint");
-    validate_state_footprint(&validated, &evidence_b).expect("second footprint");
     assert_ne!(
         evidence_a.evidence_report_fingerprint(),
         evidence_b.evidence_report_fingerprint()
@@ -197,9 +153,7 @@ fn evidence_is_validated_but_firewalled_from_contract_identity() {
 }
 
 #[test]
-fn fragment_footprints_compose_deterministically_before_validation() {
-    let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
-        .expect("strict entry plan");
+fn fragment_footprints_compose_deterministically() {
     let entry = StateFootprintEvidence::new(
         RegisterSet::new([MachineRegister::X86R11, MachineRegister::X86Rax]),
         MachineStateSet::empty(),
@@ -209,10 +163,8 @@ fn fragment_footprints_compose_deterministically_before_validation() {
         MachineStateSet::new([MachineState::Flags]),
     );
 
-    let first = validate_composed_state_footprint(&validated, [&entry, &body, &entry])
-        .expect("whole-entry footprint");
-    let second = validate_composed_state_footprint(&validated, [&body, &entry])
-        .expect("reordered whole-entry footprint");
+    let first = compose_state_footprints([&entry, &body, &entry]);
+    let second = compose_state_footprints([&body, &entry]);
 
     assert_eq!(first, second);
     assert_eq!(
@@ -231,44 +183,6 @@ fn fragment_footprints_compose_deterministically_before_validation() {
         first.evidence_report_fingerprint(),
         second.evidence_report_fingerprint()
     );
-}
-
-#[test]
-fn composed_footprint_rejects_one_fragment_above_the_state_ceiling() {
-    let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
-        .expect("strict entry plan");
-    let entry = StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Rax]),
-        MachineStateSet::empty(),
-    );
-    let veneer = StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Xmm(0)]),
-        MachineStateSet::empty(),
-    );
-
-    let error = validate_composed_state_footprint(&validated, [&entry, &veneer])
-        .expect_err("one vector-using fragment must reject the aggregate");
-
-    assert!(error.0.contains("ceiling"));
-}
-
-#[test]
-fn composed_footprint_rejects_a_foreign_architecture_fragment() {
-    let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
-        .expect("strict entry plan");
-    let entry = StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Rax]),
-        MachineStateSet::empty(),
-    );
-    let foreign_thunk = StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::Aarch64X(16)]),
-        MachineStateSet::empty(),
-    );
-
-    let error = validate_composed_state_footprint(&validated, [&entry, &foreign_thunk])
-        .expect_err("foreign-architecture evidence must reject the aggregate");
-
-    assert!(error.0.contains("wrong architecture"));
 }
 
 #[test]

@@ -55,10 +55,7 @@ pub use plans::{
     evaluate_darwin_aapcs64_variadic_call_plan, evaluate_freestanding_program_entry_plan,
     evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
-    validate_call_plan, validate_call_return_mechanics_footprint,
-    validate_composed_state_footprint, validate_outbound_call_footprint,
-    validate_provider_exit_realization, validate_runtime_value_guard_footprint,
-    validate_state_footprint,
+    validate_call_plan, validate_provider_exit_realization,
 };
 pub use stack_realizations::{
     ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, EntryStackEpoch,

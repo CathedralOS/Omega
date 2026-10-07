@@ -11,19 +11,17 @@ mod return_effects;
 
 use isa_aarch64::{
     AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, Aarch64MachineEffectCatalogValidationError,
-    Aarch64RegisterConstraintCatalogValidationError, aarch64_machine_effect_catalog,
-    aarch64_preservation_convention_for_target, validate_aarch64_machine_effect_catalog,
+    aarch64_machine_effect_catalog, aarch64_preservation_convention_for_target,
+    validate_aarch64_machine_effect_catalog,
 };
 use isa_x86_64::{
     X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_SYSTEM_V_CALL,
-    X86_64MachineEffectCatalogValidationError, X86_64RegisterConstraintCatalogValidationError,
-    validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
-    x86_64_preservation_convention_for_target,
+    X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
+    x86_64_machine_effect_catalog, x86_64_preservation_convention_for_target,
 };
 use register_model::{
-    PhysicalRegisterModel, PreservationConvention, RegisterConstraintCatalog,
-    RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId,
-    ValidatedRegisterConstraintCatalog, validate_physical_register_model,
+    PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey, RegisterUnitId,
+    ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{
     MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
@@ -31,14 +29,8 @@ use selected_instructions::{
 };
 use target::{Architecture, NativeTarget};
 
-use super::super::catalog::{
-    conservative_baseline_reservation_profile, scalar_call_constraint_key,
-    target_constraint_catalog, target_physical_register_model,
-};
-use super::super::{
-    TargetRegisterEnvironmentValidationError, baseline_target_register_environment,
-    validate_target_register_environment, validate_target_register_environment_with_reservations,
-};
+use super::super::baseline_target_register_environment;
+use super::super::catalog::scalar_call_constraint_key;
 
 #[derive(Clone, Copy)]
 struct ScalarAbiCase {
@@ -176,58 +168,6 @@ fn units_for_names(model: &PhysicalRegisterModel, names: &[&str]) -> Vec<Registe
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
-}
-
-fn row_mut(
-    catalog: &mut RegisterConstraintCatalog,
-    key: RegisterConstraintKey,
-) -> &mut RegisterInstructionConstraint {
-    catalog
-        .constraints
-        .iter_mut()
-        .find(|row| row.key == key)
-        .unwrap_or_else(|| panic!("ABI matrix missing call row {key:?}"))
-}
-
-fn assert_target_semantic_error(
-    target: NativeTarget,
-    key: RegisterConstraintKey,
-    error: TargetRegisterEnvironmentValidationError,
-) {
-    match target.architecture {
-        Architecture::X86_64 => assert_eq!(
-            error,
-            TargetRegisterEnvironmentValidationError::X86_64(
-                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(key),
-            )
-        ),
-        Architecture::Aarch64 => assert_eq!(
-            error,
-            TargetRegisterEnvironmentValidationError::Aarch64(
-                Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(key),
-            )
-        ),
-    }
-}
-
-fn assert_noncanonical_model_error(
-    target: NativeTarget,
-    error: TargetRegisterEnvironmentValidationError,
-) {
-    match target.architecture {
-        Architecture::X86_64 => assert_eq!(
-            error,
-            TargetRegisterEnvironmentValidationError::X86_64(
-                X86_64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel,
-            )
-        ),
-        Architecture::Aarch64 => assert_eq!(
-            error,
-            TargetRegisterEnvironmentValidationError::Aarch64(
-                Aarch64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel,
-            )
-        ),
-    }
 }
 
 /// The produced effect catalog joined through the ISA's own independent
@@ -437,131 +377,7 @@ fn platform_abi_differences_are_explicit_call_clobber_facts() {
 }
 
 #[test]
-fn every_scalar_call_fact_rejects_one_field_corruption_on_every_target() {
-    for case in scalar_abi_cases() {
-        let raw = target_physical_register_model(case.target);
-        let physical = validate_physical_register_model(raw.clone()).unwrap();
-        let catalog = target_constraint_catalog(case.target, &physical);
-        let canonical = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == case.call)
-            .unwrap()
-            .clone();
-
-        for omitted in &canonical.clobbers {
-            let mut corrupted = catalog.clone();
-            row_mut(&mut corrupted, case.call)
-                .clobbers
-                .retain(|unit| unit != omitted);
-            let error = validate_target_register_environment(case.target, raw.clone(), corrupted)
-                .expect_err("every omitted caller-saved clobber must reject");
-            assert_target_semantic_error(case.target, case.call, error);
-        }
-
-        let convention = convention_for(case, &physical);
-        let preserved = convention.callee_saved[0];
-        let mut added_preserved = catalog.clone();
-        let clobbers = &mut row_mut(&mut added_preserved, case.call).clobbers;
-        clobbers.push(preserved);
-        clobbers.sort_unstable();
-        let error = validate_target_register_environment(case.target, raw.clone(), added_preserved)
-            .expect_err("a callee-saved call clobber must reject");
-        assert_target_semantic_error(case.target, case.call, error);
-
-        let mut wrong_argument = catalog.clone();
-        let row = row_mut(&mut wrong_argument, case.call);
-        row.operands[0].fixed_view = row.operands[1].fixed_view;
-        let error = validate_target_register_environment(case.target, raw.clone(), wrong_argument)
-            .expect_err("same-class argument substitution must reject");
-        assert_target_semantic_error(case.target, case.call, error);
-
-        let mut wrong_result = catalog.clone();
-        let row = row_mut(&mut wrong_result, case.call);
-        row.operands.last_mut().unwrap().fixed_view = row.operands[1].fixed_view;
-        let error = validate_target_register_environment(case.target, raw.clone(), wrong_result)
-            .expect_err("same-class result substitution must reject");
-        assert_target_semantic_error(case.target, case.call, error);
-
-        let mut missing_use = catalog.clone();
-        row_mut(&mut missing_use, case.call).implicit_uses.remove(0);
-        let error = validate_target_register_environment(case.target, raw.clone(), missing_use)
-            .expect_err("missing stack/control use must reject");
-        assert_target_semantic_error(case.target, case.call, error);
-
-        let mut missing_definition = catalog.clone();
-        row_mut(&mut missing_definition, case.call)
-            .implicit_defs
-            .remove(0);
-        let error =
-            validate_target_register_environment(case.target, raw.clone(), missing_definition)
-                .expect_err("missing control/link definition must reject");
-        assert_target_semantic_error(case.target, case.call, error);
-
-        let opposite = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == case.opposite_call)
-            .unwrap()
-            .clone();
-        let mut substituted = catalog.clone();
-        let row = row_mut(&mut substituted, case.call);
-        row.operands = opposite.operands;
-        row.implicit_uses = opposite.implicit_uses;
-        row.implicit_defs = opposite.implicit_defs;
-        row.clobbers = opposite.clobbers;
-        let error = validate_target_register_environment(case.target, raw, substituted)
-            .expect_err("copying the other platform ABI under this key must reject");
-        assert_target_semantic_error(case.target, case.call, error);
-    }
-}
-
-#[test]
-fn structurally_valid_preservation_convention_corruption_rejects_for_every_target() {
-    for case in scalar_abi_cases() {
-        let canonical_raw = target_physical_register_model(case.target);
-        let canonical_physical = validate_physical_register_model(canonical_raw.clone()).unwrap();
-        let canonical_catalog = target_constraint_catalog(case.target, &canonical_physical);
-        for corruption in 0..7 {
-            let mut raw = canonical_raw.clone();
-            let convention = raw
-                .conventions
-                .iter_mut()
-                .find(|row| row.name == case.convention)
-                .unwrap();
-            match corruption {
-                0 => convention.argument_views.swap(0, 1),
-                1 => convention.result_views[0] = convention.argument_views[1],
-                2 => {
-                    let unit = convention.caller_saved.remove(0);
-                    convention.callee_saved.push(unit);
-                    convention.callee_saved.sort_unstable();
-                }
-                3 => {
-                    let unit = convention.fixed.remove(0);
-                    convention.caller_saved.push(unit);
-                    convention.caller_saved.sort_unstable();
-                }
-                4 => convention.stack_alignment *= 2,
-                5 => convention.red_zone_bytes ^= 8,
-                6 => convention.name.push_str(".forged"),
-                _ => unreachable!(),
-            }
-            let reservations = conservative_baseline_reservation_profile(case.target, &raw);
-            let error = validate_target_register_environment_with_reservations(
-                case.target,
-                raw,
-                canonical_catalog.clone(),
-                reservations,
-            )
-            .expect_err("structurally valid ABI convention drift must reject");
-            assert_noncanonical_model_error(case.target, error);
-        }
-    }
-}
-
-#[test]
-fn microsoft_unit_call_clobbers_reject_corruption_for_every_coff_target() {
+fn microsoft_unit_call_clobbers_match_every_coff_target() {
     for target in [NativeTarget::windows_x64(), NativeTarget::uefi_x64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         let row = environment.constraint(X86_64_MICROSOFT_CALL_UNIT).unwrap();
@@ -584,18 +400,5 @@ fn microsoft_unit_call_clobbers_reject_corruption_for_every_coff_target() {
         let convention =
             x86_64_preservation_convention_for_target(environment.physical(), target).unwrap();
         assert_eq!(row.clobbers, convention.caller_saved);
-
-        let raw = target_physical_register_model(target);
-        let physical = validate_physical_register_model(raw.clone()).unwrap();
-        let catalog = target_constraint_catalog(target, &physical);
-        for omitted in &row.clobbers {
-            let mut corrupted = catalog.clone();
-            row_mut(&mut corrupted, X86_64_MICROSOFT_CALL_UNIT)
-                .clobbers
-                .retain(|unit| unit != omitted);
-            let error = validate_target_register_environment(target, raw.clone(), corrupted)
-                .expect_err("Unit call must retain every Microsoft caller clobber");
-            assert_target_semantic_error(target, X86_64_MICROSOFT_CALL_UNIT, error);
-        }
     }
 }

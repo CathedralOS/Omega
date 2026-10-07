@@ -7,6 +7,7 @@
 //! Slot spellings locate schema requirements; normalized overload identities
 //! join the retained applications. Those identity domains are not interchangeable.
 
+use super::model::ValidatedNativeProgramEntryCallingPlans;
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use effects::provider_plan::ServiceMethod;
 use program_entry_plan::{SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan};
@@ -19,7 +20,7 @@ pub fn validate_paired_calling_plans(
     semantic: &BoundaryCallingPlanRealization,
     physical: &BoundaryCallingPlanRealization,
     storage: &SelectedProgramStorageEntryPlan,
-) -> Result<(), String> {
+) -> Result<ValidatedNativeProgramEntryCallingPlans, String> {
     let slot = source.target_slot();
     let (Some(expected_semantic), Some(expected_physical), Some(physical_requirement)) = (
         slot.semantic_calling_convention,
@@ -120,7 +121,10 @@ pub fn validate_paired_calling_plans(
     {
         return Err("selected ProgramEntry physical plan drifted from its target contract".into());
     }
-    Ok(())
+    Ok(ValidatedNativeProgramEntryCallingPlans {
+        semantic: semantic_plan,
+        physical: physical_plan,
+    })
 }
 
 // ABI-sized scalars cannot substitute for the adapter's internal Extent records.

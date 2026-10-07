@@ -2,7 +2,6 @@ use crate::artifacts::InstallationAudience;
 use crate::authority_digests::{EntryContractDigest, InstallationFactDigest, InstalledCodeId};
 use crate::entry_references::EntryReferenceAuthority;
 use crate::executable_installation::CallCodeError;
-use crate::executable_installation::validate_final_placement;
 use crate::installation::{InstallAuthority, InstalledCode};
 use crate::owned_image_provider::OwnedImageProvider;
 use crate::placement::ValidatedPlacement;
@@ -11,8 +10,8 @@ use crate::retirement::quarantine::MappingQuarantineCause;
 use crate::retirement::replacement::{ReplacementAuthority, ReplacementOutcome};
 use crate::retirement::uninstall::UninstallOutcome;
 use crate::test_support::{
-    admit, artifact, certificate, entry_id, frozen_for_audience, installed_code,
-    relocatable_artifact,
+    admit, artifact, entry_id, frozen_for_audience, installed_code, relocatable_artifact,
+    validated_placement,
 };
 use target::Architecture;
 
@@ -30,8 +29,7 @@ fn valid_at(identity: u64, base: u64, audience: InstallationAudience) -> Validat
     let artifact = artifact(identity);
     let admitted = admit(&artifact);
     let frozen = frozen_for_audience(&admitted, identity, base, audience);
-    let certificate = certificate(&frozen, 500 + identity);
-    validate_final_placement(frozen, &certificate).expect("validated placement")
+    validated_placement(frozen, 500 + identity)
 }
 
 fn install(

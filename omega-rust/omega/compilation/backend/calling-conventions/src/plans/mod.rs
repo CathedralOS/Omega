@@ -31,9 +31,7 @@ pub use call_plan_evaluation::{
 pub use diagnostics::{BoundaryPlanDiagnostic, PlanDiagnostic};
 pub use state_footprints::{
     ProviderExitRealization, StateFootprintEvidence, compose_state_footprints,
-    validate_call_return_mechanics_footprint, validate_composed_state_footprint,
-    validate_outbound_call_footprint, validate_provider_exit_realization,
-    validate_runtime_value_guard_footprint, validate_state_footprint,
+    validate_provider_exit_realization,
 };
 pub use vocabulary::{
     CallPlan, CallSignature, CallingPolicy, ConcreteVariadicCallSignature, EntryControl,

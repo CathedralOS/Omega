@@ -15,10 +15,10 @@ use crate::retirement::quarantine::{MappingQuarantineCause, quarantine_installed
 use crate::retirement::replacement::ReplacementAuthority;
 use crate::retirement::{RetiredInstallation, RetirementAuthority};
 use crate::test_support::{
-    admit, artifact, artifact_placement_constraints, authority_commitments, certificate, entry_id,
-    frozen_for_audience, id, installed_code, relocatable_artifact,
+    admit, artifact, artifact_placement_constraints, authority_commitments, entry_id,
+    frozen_for_audience, id, installed_code, relocatable_artifact, validated_placement,
 };
-use crate::{install_validated, retire_installed, validate_final_placement};
+use crate::{install_validated, retire_installed};
 use layout_plans::{EntryStubId, RelocationTarget};
 use target::Architecture;
 
@@ -63,8 +63,7 @@ fn validated_for_audience(
     audience: InstallationAudience,
 ) -> ValidatedPlacement {
     let frozen = frozen_for_audience(admitted, placement, base, audience);
-    let certificate = certificate(&frozen, 500 + placement);
-    validate_final_placement(frozen, &certificate).expect("validated placement")
+    validated_placement(frozen, 500 + placement)
 }
 
 /// Drive the full contracted join through the provider: the receiver demands

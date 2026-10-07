@@ -1,12 +1,12 @@
 //! Machine-state footprints: the evidence a provider exit and a composed
-//! entry may touch, and the validators that hold each under its ceiling.
+//! entry may touch. Fragment composition retains the emitted facts without
+//! replaying compiler-owned plans against them.
 
 use crate::plans::plan_identity::Fnv1a;
 use crate::plans::{
     BoundaryEntryPlan, EntryControl, MachineRegister, MachineState, MachineStateSet,
-    PlanDiagnostic, RegisterSet, ValidatedBoundaryEntryPlan,
+    PlanDiagnostic, RegisterSet,
 };
-use target::Architecture;
 
 /// Implementation evidence. This is intentionally not a field of
 /// `BoundaryEntryPlan`: changing allocation or emitted code revalidates the
@@ -82,165 +82,6 @@ pub fn compose_state_footprints<'a>(
         machine_state = machine_state.union(fragment.machine_state());
     }
     StateFootprintEvidence::new(RegisterSet::new(registers), machine_state)
-}
-
-/// Compose fragment evidence and validate the whole transitive footprint
-/// against one already-validated boundary plan. Returning the normalized
-/// aggregate lets later object/final-image consumers retain exactly the
-/// evidence that was checked without publishing it as requirement identity.
-pub fn validate_composed_state_footprint<'a>(
-    validated: &ValidatedBoundaryEntryPlan,
-    fragments: impl IntoIterator<Item = &'a StateFootprintEvidence>,
-) -> Result<StateFootprintEvidence, PlanDiagnostic> {
-    let composed = compose_state_footprints(fragments);
-    validate_state_footprint(validated, &composed)?;
-    Ok(composed)
-}
-
-pub fn validate_state_footprint(
-    validated: &ValidatedBoundaryEntryPlan,
-    evidence: &StateFootprintEvidence,
-) -> Result<(), PlanDiagnostic> {
-    validate_state_footprint_under_ceiling(
-        validated,
-        evidence,
-        validated.plan().state.permitted_transitive_use,
-    )
-}
-
-/// Validate compiler-owned ordinary call-entry/return mechanics. Their
-/// stack-pointer, control-transfer, and canonical floating-control-state
-/// effects are prescribed by `CallReturn`; they are not handler-body
-/// transitive use and therefore sit outside that ceiling. All other machine
-/// state remains constrained by the ordinary transitive ceiling, and
-/// interrupted state still has to be saved.
-pub fn validate_call_return_mechanics_footprint(
-    validated: &ValidatedBoundaryEntryPlan,
-    evidence: &StateFootprintEvidence,
-) -> Result<(), PlanDiagnostic> {
-    if validated.plan().call.entry_control != EntryControl::CallReturn {
-        return Err(PlanDiagnostic(
-            "ordinary call-return footprint evidence requires CallReturn entry control".into(),
-        ));
-    }
-    let prescribed_control = MachineStateSet::new([
-        MachineState::InstructionPointer,
-        MachineState::StackPointer,
-        MachineState::ControlState,
-    ]);
-    validate_state_footprint_under_ceiling(
-        validated,
-        evidence,
-        validated
-            .plan()
-            .state
-            .permitted_transitive_use
-            .union(prescribed_control),
-    )
-}
-
-/// Validate one outbound call leaf inside an ordinary call-return activation.
-/// The callee or supervisor may consume the plan's complete volatile ceiling;
-/// control transfer is prescribed by the selected outbound entry mechanism,
-/// rather than being ordinary handler-body transitive use.
-pub fn validate_outbound_call_footprint(
-    validated: &ValidatedBoundaryEntryPlan,
-    evidence: &StateFootprintEvidence,
-) -> Result<(), PlanDiagnostic> {
-    if validated.plan().call.entry_control != EntryControl::CallReturn {
-        return Err(PlanDiagnostic(
-            "outbound call footprint evidence requires an enclosing CallReturn activation".into(),
-        ));
-    }
-    validate_state_footprint_under_ceiling(
-        validated,
-        evidence,
-        validated
-            .plan()
-            .state
-            .permitted_transitive_use
-            .union(MachineStateSet::new([
-                MachineState::InstructionPointer,
-                MachineState::StackPointer,
-                MachineState::ControlState,
-            ])),
-    )
-}
-
-/// Validate a recursive runtime-value evaluator used by guards or ordinary
-/// binary writes. Its x86 lowering may use balanced push/pop pairs while
-/// evaluating `Binary` operands; that stack effect is prescribed only for an
-/// ordinary call-return activation. Every other state class remains under the
-/// boundary's transitive ceiling.
-pub fn validate_runtime_value_guard_footprint(
-    validated: &ValidatedBoundaryEntryPlan,
-    evidence: &StateFootprintEvidence,
-) -> Result<(), PlanDiagnostic> {
-    let stack_use = MachineStateSet::new([MachineState::StackPointer]);
-    let control_use = MachineStateSet::new([MachineState::ControlState]);
-    let uses_stack = evidence.machine_state().contains_all(stack_use);
-    let uses_control = evidence.machine_state().contains_all(control_use);
-    if uses_stack
-        && (validated.plan().call.policy.architecture() != Architecture::X86_64
-            || validated.plan().call.entry_control != EntryControl::CallReturn)
-    {
-        return Err(PlanDiagnostic(
-            "runtime-value guard stack scratch requires an x86 call-return activation".into(),
-        ));
-    }
-    if uses_control && validated.plan().call.entry_control != EntryControl::CallReturn {
-        return Err(PlanDiagnostic(
-            "runtime-value guard directed rounding requires a call-return activation".into(),
-        ));
-    }
-    validate_state_footprint_under_ceiling(
-        validated,
-        evidence,
-        validated
-            .plan()
-            .state
-            .permitted_transitive_use
-            .union(if uses_stack {
-                stack_use
-            } else {
-                MachineStateSet::empty()
-            })
-            .union(if uses_control {
-                control_use
-            } else {
-                MachineStateSet::empty()
-            }),
-    )
-}
-
-fn validate_state_footprint_under_ceiling(
-    validated: &ValidatedBoundaryEntryPlan,
-    evidence: &StateFootprintEvidence,
-    permitted_state: MachineStateSet,
-) -> Result<(), PlanDiagnostic> {
-    let plan = validated.plan();
-    for register in evidence.registers().as_slice() {
-        if register.architecture() != plan.call.policy.architecture() {
-            return Err(PlanDiagnostic(format!(
-                "footprint register {register:?} belongs to the wrong architecture"
-            )));
-        }
-    }
-    if !permitted_state.contains_all(evidence.machine_state()) {
-        return Err(PlanDiagnostic(format!(
-            "emitted machine-state footprint {:?} exceeds the entry plan ceiling {:?}",
-            evidence.machine_state(),
-            permitted_state
-        )));
-    }
-    let unsaved =
-        MachineStateSet(plan.state.interrupted_state.bits() & !plan.state.saved_state.bits());
-    if !evidence.machine_state().intersection(unsaved).is_empty() {
-        return Err(PlanDiagnostic(
-            "emitted footprint clobbers interrupted machine state that is not saved".into(),
-        ));
-    }
-    Ok(())
 }
 
 impl StateFootprintEvidence {

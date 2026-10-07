@@ -13,12 +13,10 @@ use crate::installation::{
 };
 use crate::placement::materializer::materialize_admitted_artifact;
 use crate::placement::{
-    CodePlacementAuthority, FinalValidationCertificate, FrozenPlacement, MaterializationReceipt,
+    CodePlacementAuthority, FrozenPlacement, MaterializationReceipt, ValidatedPlacement,
 };
 use crate::post_handoff_writer::DestinationPreparationReceipt;
-use crate::{
-    admit_executable, install_validated, materialize_and_freeze, validate_final_placement,
-};
+use crate::{admit_executable, install_validated, materialize_and_freeze};
 use extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
 use extents::{
     ExtentDiagnostic, ExtentLineageId, ExtentRightId, ExtentRootGrant, MappedExtent, MappingEraId,
@@ -349,19 +347,6 @@ pub(super) fn relocatable_artifact(
     .expect("relocatable artifact")
 }
 
-pub(super) fn frozen(
-    admitted: &AdmittedArtifact,
-    placement_identity: u64,
-    base: u64,
-) -> FrozenPlacement {
-    frozen_for_audience(
-        admitted,
-        placement_identity,
-        base,
-        InstallationAudience::FutureFetcher,
-    )
-}
-
 pub(super) fn frozen_for_audience(
     admitted: &AdmittedArtifact,
     placement_identity: u64,
@@ -386,12 +371,12 @@ pub(super) fn frozen_for_audience(
     .expect("frozen placement")
 }
 
-pub(super) fn certificate(frozen: &FrozenPlacement, identity: u64) -> FinalValidationCertificate {
-    FinalValidationCertificate::from_validator(
-        id(identity, FinalValidationId::from_normalized_identity),
+/// Construct producer output for installation tests, not certificate replay.
+pub(super) fn validated_placement(frozen: FrozenPlacement, identity: u64) -> ValidatedPlacement {
+    ValidatedPlacement {
         frozen,
-        true,
-    )
+        validation: id(identity, FinalValidationId::from_normalized_identity),
+    }
 }
 
 pub(super) fn installed_code(
@@ -414,8 +399,7 @@ pub(super) fn installed_code_for_audience(
     audience: InstallationAudience,
 ) -> InstalledCode {
     let frozen = frozen_for_audience(admitted, placement, base, audience);
-    let certificate = certificate(&frozen, 80 + placement);
-    let validated = validate_final_placement(frozen, &certificate).expect("validated placement");
+    let validated = validated_placement(frozen, 80 + placement);
     let authority = InstallAuthority::from_admitted_provider(&validated);
     let receipt = InstallationReceipt::from_provider(
         id(200 + placement, InstalledCodeId::from_normalized_identity),
