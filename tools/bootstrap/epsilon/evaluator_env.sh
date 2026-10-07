@@ -104,24 +104,9 @@ require_epsilon_evaluator_identity() {
     "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" \
     "$EPSILON_EVALUATOR_MANIFEST_SIZE" "$EPSILON_EVALUATOR_MANIFEST_SHA256" \
     "bootstrap/4_epsilon/README.md" || return $?
-  command -v python3 >/dev/null 2>&1 || {
-    echo "bootstrap artifact: no python3 to repack the Epsilon source closure" >&2
-    return 2
-  }
-  EPSILON_IDENTITY_TMP=$(mktemp -d)
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON_IDENTITY_TMP/evaluator.delta" || {
-      EPSILON_IDENTITY_RC=$?
-      rm -rf -- "$EPSILON_IDENTITY_TMP"
-      return "$EPSILON_IDENTITY_RC"
-    }
-  require_bound_identity "canonical Epsilon evaluator closure" \
-    "$EPSILON_IDENTITY_TMP/evaluator.delta" \
+  require_packed_closure_identity "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" evaluator.delta \
     "$EPSILON_EVALUATOR_PACKED_SIZE" "$EPSILON_EVALUATOR_PACKED_SHA256" \
-    "bootstrap/4_epsilon/README.md"
-  EPSILON_IDENTITY_RC=$?
-  rm -rf -- "$EPSILON_IDENTITY_TMP"
-  return "$EPSILON_IDENTITY_RC"
+    "bootstrap/4_epsilon/README.md" "canonical Epsilon evaluator closure" "Epsilon source closure"
 }
 
 # require_epsilon_execution_driver_identity : the canonical slice driver
@@ -213,24 +198,9 @@ require_epsilon_controls_identity() {
     "$EPSILON_CONTROLS_SOURCES" \
     "$EPSILON_CONTROLS_MANIFEST_SIZE" "$EPSILON_CONTROLS_MANIFEST_SHA256" \
     "$EPSILON_CONTROLS_RECORD" || return $?
-  command -v python3 >/dev/null 2>&1 || {
-    echo "bootstrap artifact: no python3 to repack the $EPSILON_CONTROLS_LABEL controls" >&2
-    return 2
-  }
-  EPSILON_CONTROLS_TMP=$(mktemp -d)
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$EPSILON_CONTROLS_SOURCES" "$EPSILON_CONTROLS_TMP/controls.delta" || {
-      EPSILON_CONTROLS_RC=$?
-      rm -rf -- "$EPSILON_CONTROLS_TMP"
-      return "$EPSILON_CONTROLS_RC"
-    }
-  require_bound_identity "$EPSILON_CONTROLS_LABEL packed controls" \
-    "$EPSILON_CONTROLS_TMP/controls.delta" \
+  require_packed_closure_identity "$EPSILON_CONTROLS_SOURCES" controls.delta \
     "$EPSILON_CONTROLS_PACKED_SIZE" "$EPSILON_CONTROLS_PACKED_SHA256" \
-    "$EPSILON_CONTROLS_RECORD"
-  EPSILON_CONTROLS_RC=$?
-  rm -rf -- "$EPSILON_CONTROLS_TMP"
-  return "$EPSILON_CONTROLS_RC"
+    "$EPSILON_CONTROLS_RECORD" "$EPSILON_CONTROLS_LABEL packed controls" "$EPSILON_CONTROLS_LABEL controls"
 }
 
 # require_epsilon_checking_invariants_controls_identity : the

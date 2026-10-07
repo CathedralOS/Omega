@@ -198,24 +198,9 @@ require_delta_controls_identity() {
     "$DELTA_CONTROLS_SOURCES" \
     "$DELTA_CONTROLS_MANIFEST_SIZE" "$DELTA_CONTROLS_MANIFEST_SHA256" \
     "$DELTA_CONTROLS_RECORD" || return $?
-  command -v python3 >/dev/null 2>&1 || {
-    echo "bootstrap artifact: no python3 to repack the $DELTA_CONTROLS_LABEL controls" >&2
-    return 2
-  }
-  DELTA_CONTROLS_TMP=$(mktemp -d)
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$DELTA_CONTROLS_SOURCES" "$DELTA_CONTROLS_TMP/controls.gamma" || {
-      DELTA_CONTROLS_RC=$?
-      rm -rf -- "$DELTA_CONTROLS_TMP"
-      return "$DELTA_CONTROLS_RC"
-    }
-  require_bound_identity "$DELTA_CONTROLS_LABEL packed controls" \
-    "$DELTA_CONTROLS_TMP/controls.gamma" \
+  require_packed_closure_identity "$DELTA_CONTROLS_SOURCES" controls.gamma \
     "$DELTA_CONTROLS_PACKED_SIZE" "$DELTA_CONTROLS_PACKED_SHA256" \
-    "$DELTA_CONTROLS_RECORD"
-  DELTA_CONTROLS_RC=$?
-  rm -rf -- "$DELTA_CONTROLS_TMP"
-  return "$DELTA_CONTROLS_RC"
+    "$DELTA_CONTROLS_RECORD" "$DELTA_CONTROLS_LABEL packed controls" "$DELTA_CONTROLS_LABEL controls"
 }
 
 # require_delta_internal_boundary_controls_identity : the internal-boundary

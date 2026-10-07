@@ -106,22 +106,8 @@ DERIVATION_COMPARISON_ENTRY_WITNESS_SHA256=2ba9d62188b05e802231ab0da5be0add5751e
 # be established and the check refuses rather than skipping.
 require_bound_manifest_closure() {
   require_bound_identity "$1" "$2" "$3" "$4" "$7" || return $?
-  command -v python3 >/dev/null 2>&1 || {
-    echo "bootstrap artifact: no python3 to repack the $1 source closure" >&2
-    return 2
-  }
-  PROOF_IDENTITY_TMP=$(mktemp -d)
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$2" "$PROOF_IDENTITY_TMP/closure.gamma" || {
-      PROOF_IDENTITY_RC=$?
-      rm -rf -- "$PROOF_IDENTITY_TMP"
-      return "$PROOF_IDENTITY_RC"
-    }
-  require_bound_identity "canonical $1 closure" \
-    "$PROOF_IDENTITY_TMP/closure.gamma" "$5" "$6" "$7"
-  PROOF_IDENTITY_RC=$?
-  rm -rf -- "$PROOF_IDENTITY_TMP"
-  return "$PROOF_IDENTITY_RC"
+  require_packed_closure_identity "$2" closure.gamma "$5" "$6" "$7" \
+    "canonical $1 closure" "$1 source closure"
 }
 
 # require_derivation_checker_identity / require_beta_encoding_theory_identity /

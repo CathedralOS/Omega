@@ -135,6 +135,28 @@ require_bound_identity() {
   }
 }
 
+# require_packed_closure_identity MANIFEST BASENAME SIZE SHA256 RECORD
+# PACKED_LABEL PYTHON_LABEL : repack and check every member on each call.
+# Callers check the manifest first. Preserve the repack status through cleanup.
+require_packed_closure_identity() {
+  command -v python3 >/dev/null 2>&1 || {
+    echo "bootstrap artifact: no python3 to repack the $7" >&2
+    return 2
+  }
+  BOOTSTRAP_PACKED_CLOSURE_TMP=$(mktemp -d)
+  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$1" "$BOOTSTRAP_PACKED_CLOSURE_TMP/$2" || {
+      BOOTSTRAP_PACKED_CLOSURE_RC=$?
+      rm -rf -- "$BOOTSTRAP_PACKED_CLOSURE_TMP"
+      return "$BOOTSTRAP_PACKED_CLOSURE_RC"
+    }
+  require_bound_identity "$6" \
+    "$BOOTSTRAP_PACKED_CLOSURE_TMP/$2" "$3" "$4" "$5"
+  BOOTSTRAP_PACKED_CLOSURE_RC=$?
+  rm -rf -- "$BOOTSTRAP_PACKED_CLOSURE_TMP"
+  return "$BOOTSTRAP_PACKED_CLOSURE_RC"
+}
+
 # require_alpha_seed_identity SEED_BINARY : the container is exactly the
 # audited seed selected above. stamp_seed runs it on every stamp, so every
 # materialized artifact carries the audited VM rather than an assumed one.

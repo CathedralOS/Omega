@@ -89,24 +89,9 @@ require_omega_compiler_identity() {
     "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" \
     "$OMEGA_COMPILER_MANIFEST_SIZE" "$OMEGA_COMPILER_MANIFEST_SHA256" \
     "bootstrap/5_omega/README.md" || return $?
-  command -v python3 >/dev/null 2>&1 || {
-    echo "bootstrap artifact: no python3 to repack the Omega D source closure" >&2
-    return 2
-  }
-  OMEGA_IDENTITY_TMP=$(mktemp -d)
-  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" "$OMEGA_IDENTITY_TMP/compiler.epsilon" || {
-      OMEGA_IDENTITY_RC=$?
-      rm -rf -- "$OMEGA_IDENTITY_TMP"
-      return "$OMEGA_IDENTITY_RC"
-    }
-  require_bound_identity "canonical Omega D closure" \
-    "$OMEGA_IDENTITY_TMP/compiler.epsilon" \
+  require_packed_closure_identity "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" compiler.epsilon \
     "$OMEGA_COMPILER_PACKED_SIZE" "$OMEGA_COMPILER_PACKED_SHA256" \
-    "bootstrap/5_omega/README.md"
-  OMEGA_IDENTITY_RC=$?
-  rm -rf -- "$OMEGA_IDENTITY_TMP"
-  return "$OMEGA_IDENTITY_RC"
+    "bootstrap/5_omega/README.md" "canonical Omega D closure" "Omega D source closure"
 }
 
 # materialize_omega_compiler DEST : write the canonical packed compiler D
