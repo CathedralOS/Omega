@@ -7,7 +7,9 @@ use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 /// A domain constraint `T in Name` is satisfied by a declared `domain <T>::Name`:
 /// the name component (after the final `::`) must match AND the domain's TARGET
@@ -152,98 +154,110 @@ pub(super) fn validate_type_constraints_node(
                     )));
                     continue;
                 }
-                match (
-                    crate::closed_integer_range_bound(program, *minimum),
-                    crate::closed_integer_range_maximum(program, *maximum, *end_inclusive),
-                ) {
-                    // Empty integer intervals are legal types, not value
-                    // establishment. Delivery and representation readers retain
-                    // bottom before bounded conversion and reject every value;
-                    // a predecessor below i64::MIN must never become no range.
-                    (Some(_), Some(_)) => {}
-                    // An INTEGER range whose bound does not const-evaluate (a place
-                    // read, a call): the range would silently behave UNBOUNDED --
-                    // every store "passes" a constraint the declaration claims.
-                    // Constant expressions (`[0 - 1..=40]`) fold above; anything
-                    // else is rejected rather than lied about. FLOAT ranges use
-                    // their own literal proof path, so integer endpoint
-                    // evaluation does not decide their validity here.
-                    //
-                    // EXCEPTION (R1a, dependent ranges): a STATE PARAMETER may
-                    // carry a literal minimum with a `self.<field> [+/- k]`
-                    // maximum (`i: u32 [0..=self.count]`) -- the caller-side
-                    // proof plan mints a relational atom for it (checked at
-                    // every transition into the state) and the index prover
-                    // substitutes through the field's own enforced range, so
-                    // the bound is DISCHARGED, never silently unbounded. The
-                    // named field must exist on the machine's attached data and
-                    // itself carry an enforced literal integer range -- checked
-                    // here so an unranged/mistyped field name refuses at the
-                    // declaration instead of unproving every call site.
-                    _ if primitive_type.accepts_integer_literal() => {
-                        // A still-authored endpoint call whose const
-                        // evaluation deferred to selected execution is a
-                        // PENDING CONSTANT, not a dependent or non-constant
-                        // bound: the owning pre-check continuation lands the
-                        // integer literal here before final checked lowering,
-                        // the same position the `(Some, Some)` arm accepts
-                        // for an already evaluated endpoint. Marks are set
-                        // only by the build-time evaluation owner when its
-                        // continuation defers, so an unmarked call still
-                        // refuses below. The gate requires at least one real
-                        // mark: a bound whose leaves happen to be integers
-                        // but whose whole does not fold (`0..=5 / 2` keeps a
-                        // fractional landing) is still the non-constant arm
-                        // below, not a pending constant. This gate is
-                        // deliberately owner-independent: the
-                        // immediate-evaluation route folds the same call to
-                        // a literal before any owner distinction applies.
-                        let mut found_pending = false;
-                        if [*minimum, *maximum].into_iter().all(|bound| {
-                            let (closed, pending) =
-                                range_bound_pending_evaluation_shape(program, bound);
-                            found_pending |= pending;
-                            closed
-                        }) && found_pending
-                        {
-                            continue;
-                        }
-                        if matches!(
-                            owner,
-                            TypeReferenceOwner::StateReturn {
-                                owner: StateSignatureOwner::Machine(_),
-                                generic_depth: 0,
-                                ..
-                            } | TypeReferenceOwner::StateParameter {
-                                owner: StateSignatureOwner::Machine(_),
-                                generic_depth: 0,
-                                ..
-                            } | TypeReferenceOwner::StateLocalData {
-                                generic_depth: 0,
-                                ..
-                            }
-                        ) && [*minimum, *maximum].into_iter().all(|bound| {
-                            crate::proof_contracts::contract_entailment::const_range_bound_is_supported(
-                                program,
-                                type_parameter_scope.type_parameters,
-                                bound,
-                            )
-                        }) {
-                            // Returns, stores and exact call delivery independently
-                            // prove these bounds in their current const namespace.
-                            continue;
-                        }
-                        if let Some(message) = dependent_state_parameter_range_error(
-                            program,
-                            &owner,
-                            *minimum,
-                            *maximum,
-                            *end_inclusive,
-                        ) {
-                            diagnostics.push(Diagnostic::error(message));
-                        }
+                // Empty integer intervals are legal types, not value
+                // establishment. Delivery and representation readers retain
+                // bottom before bounded conversion and reject every value; a
+                // predecessor below i64::MIN must never become no range.
+                if [*minimum, *maximum]
+                    .into_iter()
+                    .all(|endpoint| range_endpoint_closes(program, primitive_type, endpoint))
+                {
+                    continue;
+                }
+                // A range whose endpoint does not close (a place read, a
+                // call, a value name): the range would silently behave
+                // UNBOUNDED -- every store "passes" a constraint the
+                // declaration claims. Constant expressions (`[0 - 1..=40]`)
+                // close above; anything else is rejected rather than lied
+                // about, unless it is a pending constant or an admitted
+                // dependent class below.
+                //
+                // A still-authored endpoint call whose const evaluation
+                // deferred to selected execution is a PENDING CONSTANT, not a
+                // dependent or non-constant bound: the owning pre-check
+                // continuation lands the integer literal here before final
+                // checked lowering, the same position the closed check above
+                // accepts for an already evaluated endpoint. Marks are set
+                // only by the build-time evaluation owner when its
+                // continuation defers, so an unmarked call still refuses
+                // below. The gate requires at least one real mark: a bound
+                // whose leaves happen to close but whose whole does not
+                // (`0..=5 / 2` keeps a fractional landing) is still the
+                // non-constant arm below, not a pending constant. This gate
+                // is deliberately owner-independent: the immediate-evaluation
+                // route folds the same call to a literal before any owner
+                // distinction applies.
+                let mut found_pending = false;
+                if [*minimum, *maximum].into_iter().all(|bound| {
+                    let (closed, pending) =
+                        range_bound_pending_evaluation_shape(program, primitive_type, bound);
+                    found_pending |= pending;
+                    closed
+                }) && found_pending
+                {
+                    continue;
+                }
+                // Every non-constant class below is discharged by the strict
+                // integer arithmetic engine. A floating range retains only
+                // closed IEEE endpoints (`closed_float_range_endpoint`), so a
+                // floating bound that names a value or computes one has
+                // nothing that could enforce it.
+                if !primitive_type.accepts_integer_literal() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} declares a `{}` range whose bound is not a float literal or \
+                         closed integer constant; a floating range retains only those \
+                         endpoints, so any other bound cannot be enforced (it would silently \
+                         behave unbounded)",
+                        primitive_type.name(),
+                    )));
+                    continue;
+                }
+                // Const binder endpoints of a machine signature or local
+                // name exact binders of the owner's namespace.
+                if matches!(
+                    owner,
+                    TypeReferenceOwner::StateReturn {
+                        owner: StateSignatureOwner::Machine(_),
+                        generic_depth: 0,
+                        ..
+                    } | TypeReferenceOwner::StateParameter {
+                        owner: StateSignatureOwner::Machine(_),
+                        generic_depth: 0,
+                        ..
+                    } | TypeReferenceOwner::StateLocalData {
+                        generic_depth: 0,
+                        ..
                     }
-                    _ => {}
+                ) && [*minimum, *maximum].into_iter().all(|bound| {
+                    crate::proof_contracts::contract_entailment::const_range_bound_is_supported(
+                        program,
+                        type_parameter_scope.type_parameters,
+                        bound,
+                    )
+                }) {
+                    // Returns, stores and exact call delivery independently
+                    // prove these bounds in their current const namespace.
+                    continue;
+                }
+                // EXCEPTION (R1a, dependent ranges): a STATE PARAMETER may
+                // carry a literal minimum with a `self.<field> [+/- k]`
+                // maximum (`i: u32 [0..=self.count]`) -- the caller-side
+                // proof plan mints a relational atom for it (checked at
+                // every transition into the state) and the index prover
+                // substitutes through the field's own enforced range, so
+                // the bound is DISCHARGED, never silently unbounded. The
+                // named field must exist on the machine's attached data and
+                // itself carry an enforced literal integer range -- checked
+                // here so an unranged/mistyped field name refuses at the
+                // declaration instead of unproving every call site.
+                if let Some(message) = dependent_state_parameter_range_error(
+                    program,
+                    &owner,
+                    *minimum,
+                    *maximum,
+                    *end_inclusive,
+                ) {
+                    diagnostics.push(Diagnostic::error(message));
                 }
             }
             // Arithmetic policy domains (`Wrapping`/`Saturating`/`Trapping`).
@@ -429,32 +443,52 @@ fn validate_layout_domain_constraint(
 
 /// The pending-evaluation shape of one range bound:
 /// `(closed_or_pending, contains_pending_mark)`. A marked endpoint call admits
-/// as the pending constant the owning continuation still folds; a closed
-/// integer admits as already evaluated. The evaluator's pending scan descends
-/// the same binary composition this walks, so a bound with any other unclosed
-/// leaf (a place read, an unmarked call) refuses. `contains_pending_mark`
-/// stays false for a bound that merely has integer leaves without a mark --
+/// as the pending constant the owning continuation still folds; an endpoint
+/// that closes at the range's carrier admits as already evaluated. The
+/// evaluator's pending scan descends the same binary composition this walks,
+/// so a bound with any other unclosed leaf (a place read, an unmarked call)
+/// refuses. `contains_pending_mark` stays false for a bound that merely has
+/// closed leaves without a mark --
 /// whole-expression folding, not leaf shape, decides those bounds, so
 /// `0..=5 / 2` still reaches the non-constant arm below.
 pub(super) fn range_bound_pending_evaluation_shape(
     program: &TypedTrees,
+    primitive_type: PrimitiveType,
     expression: ExpressionHandle,
 ) -> (bool, bool) {
     if program.pending_const_range_endpoints.contains(&expression) {
         return (true, true);
     }
-    if crate::closed_integer_range_bound(program, expression).is_some() {
+    if range_endpoint_closes(program, primitive_type, expression) {
         return (true, false);
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
             let (left_closed, left_pending) =
-                range_bound_pending_evaluation_shape(program, binary.left);
+                range_bound_pending_evaluation_shape(program, primitive_type, binary.left);
             let (right_closed, right_pending) =
-                range_bound_pending_evaluation_shape(program, binary.right);
+                range_bound_pending_evaluation_shape(program, primitive_type, binary.right);
             (left_closed && right_closed, left_pending || right_pending)
         }
         _ => (false, false),
+    }
+}
+
+/// Whether one authored range endpoint is a closed value at the range's
+/// carrier. An integer carrier folds the endpoint to an exact integer. A
+/// floating carrier keeps the IEEE value its retained requirement and proof
+/// window read (`closed_float_range_endpoint`): a float literal at the
+/// declared format, or an integer literal or closed integer constant
+/// converted once.
+fn range_endpoint_closes(
+    program: &TypedTrees,
+    primitive_type: PrimitiveType,
+    endpoint: ExpressionHandle,
+) -> bool {
+    if primitive_type.accepts_float_literal() {
+        crate::closed_float_range_endpoint(program, endpoint, primitive_type).is_some()
+    } else {
+        crate::closed_integer_range_bound(program, endpoint).is_some()
     }
 }
 

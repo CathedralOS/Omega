@@ -1,0 +1,23 @@
+// A floating range retains only closed IEEE endpoints: a float literal, or
+// an integer literal or closed integer constant converted once. The integer
+// dependent classes (`[0..=limit]`) have no floating discharger, so a bound
+// naming a parameter, a local or a sibling field declares a window nothing
+// enforces. `scale(1.0, 20.0)` and `settle(20.0)` were admitted against a
+// maximum of 1.0; each declaration is now refused.
+data Gauge {
+    limit: f64;
+    level: f64 [0.0..=limit];
+}
+
+machine scale(limit: f64, value: f64 [0.0..=limit]) -> f64 [0.0..=limit] { value }
+
+machine settle(value: f64) -> f64 {
+    let limit: f64 = 1.0;
+    let bounded: f64 [0.0..=limit] = value;
+    bounded
+}
+
+machine main() {
+    _ = scale(1.0, 20.0);
+    _ = settle(20.0);
+}

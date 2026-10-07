@@ -14,8 +14,9 @@ use typed_trees::types::PrimitiveType;
 /// literal authored with a narrower landing keeps that value and widens
 /// exactly, while a wider-authored literal cannot narrow through the f32
 /// read. Integer endpoints keep their exact completed value converted once
-/// into the carrier. Anything else cannot be retained and must fail closed
-/// upstream.
+/// into the carrier. Anything else cannot be retained, so range formation
+/// (`constraint_validation`) refuses a floating range whose endpoint this
+/// reader does not close.
 pub fn closed_float_range_endpoint(
     program: &TypedTrees,
     expression: ExpressionHandle,

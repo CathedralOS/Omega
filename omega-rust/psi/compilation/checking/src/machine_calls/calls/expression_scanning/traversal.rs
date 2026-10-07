@@ -1007,6 +1007,13 @@ fn scan_expression_calls_at_position(
             );
         }
         ExpressionNode::Indexed(indexed) => {
+            crate::value_custody::expression_types::report_non_integer_index(
+                program,
+                machine,
+                state,
+                indexed,
+                diagnostics,
+            );
             // Reading a nested array element with a RUNTIME COLUMN index (`grid[..][j]`)
             // silently reads 0 (the backend cannot lower it yet); the sibling WRITE is
             // already fenced, this fences the READ to match.

@@ -926,13 +926,13 @@ pub(crate) fn validate_const_binder_carriers(
         else {
             continue;
         };
-        if !program
+        let Some(primitive_type) = program
             .type_reference_table
             .primitive_type(carrier)
-            .is_some_and(PrimitiveType::accepts_integer_literal)
-        {
+            .filter(|primitive_type| primitive_type.accepts_integer_literal())
+        else {
             continue;
-        }
+        };
         while let TypeReferenceNode::Constrained {
             base_type,
             constraints,
@@ -956,7 +956,9 @@ pub(crate) fn validate_const_binder_carriers(
                 let pending = [*minimum, *maximum].into_iter().all(|endpoint| {
                     let (closed, marked) =
                         super::constraint_validation::range_bound_pending_evaluation_shape(
-                            program, endpoint,
+                            program,
+                            primitive_type,
+                            endpoint,
                         );
                     found_pending |= marked;
                     closed

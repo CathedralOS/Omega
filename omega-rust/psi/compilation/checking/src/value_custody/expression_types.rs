@@ -21,8 +21,9 @@
 //! - The expression walk in `machine_calls::calls::expression_scanning` runs
 //!   the per-expression checks: `match_dispatch` (`validate_match_dispatch`,
 //!   which build-time evaluation also calls), `operator_validation`
-//!   (`validate_binary_operand_types` and the unary logical-not and
-//!   bitwise-not reports) and `cast_validation` (`validate_cast_types`).
+//!   (`validate_binary_operand_types`, the unary logical-not and
+//!   bitwise-not reports, and the non-integer index report) and
+//!   `cast_validation` (`validate_cast_types`).
 //! - The statement validators in `program_validation::statements`, call
 //!   validation and struct-literal field obligations run the store checks on a
 //!   value they store or pass: `shape_validation` (array, scalar, data and
@@ -81,7 +82,8 @@ pub(crate) use result_type::domain_expression_result_type_reference;
 pub(crate) use cast_validation::validate_cast_types;
 
 pub(crate) use operator_validation::{
-    report_non_bool_logical_not, report_non_integer_bitwise_not, validate_binary_operand_types,
+    report_non_bool_logical_not, report_non_integer_bitwise_not, report_non_integer_index,
+    validate_binary_operand_types,
 };
 
 pub(crate) use shape_validation::{

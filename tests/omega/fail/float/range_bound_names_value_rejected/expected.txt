@@ -1,0 +1,1 @@
+parameter `value` declares a `f64` range whose bound is not a float literal or closed integer constant

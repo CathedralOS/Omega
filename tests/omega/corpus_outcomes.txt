@@ -624,6 +624,11 @@ fail/collections/guarded_computed_index_overrun rejected 375ms expected @98f5422
 	cannot prove index `position + 1` is within length 6 in rises::entry
 fail/collections/nested_read_index_uses_selected_extent rejected 376ms expected @c267eef85dbe+wt
 	cannot prove index `index` is within length 2
+fail/collections/non_integer_index_rejected rejected 292ms expected @ada91cf0bd16+wt
+	machine `pick` state `entry` indexes `values` with `position` of type `f64`, but an index or range endpoint must be an integer
+	machine `store` state `entry` indexes `values` with `position` of type `f32`, but an index or range endpoint must be an integer
+	machine `choose` state `entry` indexes `values` with `flag` of type `bool`, but an index or range endpoint must be an integer
+	machine `window` state `entry` indexes `values` with `start` of type `f64`, but an index or range endpoint must be an integer
 fail/collections/vec_duplicate_cleanup rejected 842ms expected @41c7c3df5137+wt
 	cannot use `vec` in machine `Main::main` state `main` (statement 2) after `vec` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `vec` first
 fail/collections/vec_invalidated_loan_after_growth rejected 315ms expected @c08960bee2b1+wt
@@ -1060,6 +1065,11 @@ fail/float/named_nan_runtime_materialization rejected 4324ms expected @2d8ed2536
 	constant initializer: undetermined NaN has no representation for a raw-bit recast
 fail/float/negated_ordered_guard_cast rejected 191ms expected @7f4f399bb74b+wt
 	machine `Guarded::convert` state `bounded` cannot prove unqualified `I32::from_f64` operand `guarded.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/range_bound_names_value_rejected rejected 295ms expected @ada91cf0bd16+wt
+	machine `scale` state `entry` parameter `value` declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
+	machine `scale` state `entry` return type declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
+	data `Gauge` field `level` declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
+	machine `settle` state `entry` local data `bounded` declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
 fail/float/record_window_transition_unrepaired rejected 348ms expected @ca8c127c90c5
 	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
@@ -2193,6 +2203,7 @@ pass/collections/element_view_whole_write checked 1833ms check-target:macos_arm6
 pass/collections/element_view_write_transition checked 1201ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/empty_record_array_borrow_exit checked 479ms check-target:macos_arm64 @3e847a410959+wt
 pass/collections/indexed_row_array_literal_store checked 1151ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/integer_index_every_width checked 498ms @ada91cf0bd16+wt
 pass/collections/mutable_slice_view_edge_release checked 1248ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/mutable_slice_view_establishment checked 1329ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/named_transition_completion checked 1468ms check-target:macos_arm64 @ca8c127c90c5

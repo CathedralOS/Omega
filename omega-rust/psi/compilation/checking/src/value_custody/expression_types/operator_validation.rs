@@ -327,6 +327,82 @@ pub(crate) fn report_non_integer_bitwise_not(
     true
 }
 
+/// Reject a non-integer index operand of `[]` or `[..]`. Builtin indexing
+/// selects positions in fixed-array or slice geometry, and an index is "any
+/// integer operand whose use proves the collection's bounds"
+/// (`wiki/spec/language/counts_and_addresses.md`, separate roles). A `bool`,
+/// `f32` or `f64` operand therefore has no builtin meaning as an index or a
+/// range endpoint; it used to reach the bounds checker, which reported an
+/// unprovable bound instead of the type error. A declared index machine or
+/// selected trait meaning for the complete operand tuple owns its own
+/// parameter types, and an operand whose type is unresolved stays with the
+/// checked selection.
+pub(crate) fn report_non_integer_index(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    indexed: &typed_trees::expression::TableIndexedExpression,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    use language_core::operator_spelling::OperatorSpelling;
+    let (spelling, index_operands) = match program.expression_table.expression(indexed.index) {
+        ExpressionNode::Range(range) => (OperatorSpelling::Range, vec![range.start, range.end]),
+        _ => (OperatorSpelling::Index, vec![indexed.index]),
+    };
+    let operand_type = |operand: ExpressionHandle| {
+        super::result_type::expression_result_type_reference(program, machine, state, operand)
+    };
+    let index_types = index_operands
+        .iter()
+        .map(|operand| operand_type(*operand))
+        .collect::<Vec<_>>();
+    let non_integer = index_operands
+        .iter()
+        .zip(&index_types)
+        .filter_map(|(operand, index_type)| {
+            let primitive =
+                crate::value_custody::places::unwrapped_type_reference(program, (*index_type)?)
+                    .and_then(|unwrapped| program.primitive_type_reference(unwrapped))?;
+            (!primitive.accepts_integer_literal()).then_some((*operand, primitive))
+        })
+        .collect::<Vec<_>>();
+    if non_integer.is_empty() {
+        return false;
+    }
+    let operand_types = std::iter::once(operand_type(indexed.collection))
+        .chain(index_types)
+        .collect::<Vec<_>>();
+    if !typed_trees::operator::resolve_indexed_spelling_for_operands(
+        program,
+        spelling,
+        &operand_types,
+        program.expression_table.source_span(indexed.index),
+    )
+    .is_empty()
+        || !typed_trees::operator::selected_trait_operator_meanings(
+            program,
+            machine.symbol,
+            spelling,
+            &operand_types,
+        )
+        .is_empty()
+    {
+        return false;
+    }
+    for (operand, primitive) in non_integer {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` indexes `{}` with `{}` of type `{}`, but an index or range \
+             endpoint must be an integer",
+            machine.name.as_str(),
+            state.name.as_str(),
+            program.expression_table.display_name(indexed.collection),
+            program.expression_table.display_name(operand),
+            primitive.name(),
+        )));
+    }
+    true
+}
+
 /// Map a binary operator to its overloadable spelling, or `None` for operators
 /// that cannot carry a domain meaning here: `==`/`!=` (the structural-equality /
 /// Equatable path owns those), the logical `&&`/`||`, and bitwise/shift (which
