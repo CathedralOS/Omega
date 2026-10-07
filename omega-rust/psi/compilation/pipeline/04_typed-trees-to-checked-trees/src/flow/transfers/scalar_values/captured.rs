@@ -22,6 +22,18 @@ pub(super) struct LiveValues<'a, 'plans> {
     pub active: HandleSpan<FlowSemanticContextRef>,
 }
 
+impl LiveValues<'_, '_> {
+    /// Each active semantic context, resolved against the plan's arena.
+    fn active_contexts(&self) -> impl Iterator<Item = &facts::FactContext> + '_ {
+        self.context
+            .contexts
+            .semantic_context_refs
+            .span_or_empty(self.active)
+            .iter()
+            .map(|reference| self.semantic.contexts.get(reference.context))
+    }
+}
+
 pub(super) trait CapturedValue: Sized {
     const REQUIRES_SELECTED_ARGUMENTS: bool;
     fn literal(expression: &ExpressionNode) -> Option<Self>;
@@ -43,6 +55,21 @@ pub(super) trait CapturedValue: Sized {
         _parameter: &typed_trees::signature::StateParameter,
     ) -> Option<Self> {
         None
+    }
+    /// The value held at the place `expression` names in `live`'s state.
+    fn value_at_expression(
+        program: &typed_trees::TypedTrees,
+        live: &LiveValues<'_, '_>,
+        statement_index: usize,
+        expression: ExpressionHandle,
+    ) -> Option<Self> {
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            live.state,
+            statement_index,
+            expression,
+        )?;
+        Self::at_place(&place, live)
     }
     /// Evaluate a non-call operand below authored conversions: a literal or a
     /// caller place with a live snapshot or declared storage invariant. Never
@@ -75,12 +102,7 @@ impl CapturedValue for ScalarValue {
         crate::values::scalar_value_at_place(
             live.program,
             live.semantic,
-            live.context
-                .contexts
-                .semantic_context_refs
-                .span_or_empty(live.active)
-                .iter()
-                .map(|reference| live.semantic.contexts.get(reference.context)),
+            live.active_contexts(),
             place,
         )
     }
@@ -122,13 +144,7 @@ impl CapturedValue for ScalarValue {
         if let Some(value) = Self::literal(program.expression_table.expression(expression)) {
             return Some(value);
         }
-        let place = crate::flow::canonical_place_from_expression_in_state(
-            program,
-            live.state,
-            statement_index,
-            expression,
-        )?;
-        Self::at_place(&place, live)
+        Self::value_at_expression(program, live, statement_index, expression)
     }
 
     fn convert(self, conversion: &SelectedConversion) -> Option<Self> {
@@ -186,12 +202,7 @@ impl CapturedValue for IntegerRange {
         crate::values::integer_bounds_at_place(
             live.program,
             live.semantic,
-            live.context
-                .contexts
-                .semantic_context_refs
-                .span_or_empty(live.active)
-                .iter()
-                .map(|reference| live.semantic.contexts.get(reference.context)),
+            live.active_contexts(),
             place,
         )
     }
