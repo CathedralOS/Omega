@@ -18,7 +18,7 @@
 //! following them as normal provider calls. This keeps independent transport
 //! limitations visible regardless of when an external call is encountered.
 
-use crate::effects::AdmittedProviderInstallation;
+use crate::effects::{AdmittedBoundarySupply, AdmittedProviderInstallation};
 use crate::errors::TerminalInterpretError;
 use crate::program::AdmittedTerminalProgram;
 use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind, MachineId};
@@ -154,17 +154,24 @@ pub(crate) fn check(
                         // An admitted assumed binding may also resolve a
                         // required boundary to a checked provider. Follow the
                         // exact installation map, not only direct candidates.
-                        if let Some(selected) = installation
-                            .and_then(|installation| installation.installed.get(boundary))
-                            .copied()
+                        match installation
+                            .and_then(|installation| installation.supplies.get(boundary))
                         {
-                            Some(selected)
-                        } else if program.provider_candidates.contains(boundary) {
-                            missing_providers.insert(*boundary);
-                            None
-                        } else {
-                            imports.insert(*boundary);
-                            None
+                            Some(AdmittedBoundarySupply::CheckedProvider(selected)) => {
+                                Some(*selected)
+                            }
+                            Some(AdmittedBoundarySupply::HostImport) => {
+                                imports.insert(*boundary);
+                                None
+                            }
+                            None if program.provider_candidates.contains(boundary) => {
+                                missing_providers.insert(*boundary);
+                                None
+                            }
+                            None => {
+                                imports.insert(*boundary);
+                                None
+                            }
                         }
                     }
                     _ => None,
@@ -561,7 +568,10 @@ mod tests {
             .insert(provider, machine(0, vec![boundary_call(provider_import)]));
         let installation = AdmittedProviderInstallation {
             terminal_psi: program.identity,
-            installed: BTreeMap::from([(boundary, provider)]),
+            supplies: BTreeMap::from([(
+                boundary,
+                AdmittedBoundarySupply::CheckedProvider(provider),
+            )]),
             assumed_bindings: Vec::new(),
         };
         assert_eq!(
@@ -784,7 +794,7 @@ mod tests {
         program.machines.insert(target, machine(2, Vec::new()));
         let mut installation = AdmittedProviderInstallation {
             terminal_psi: program.identity,
-            installed: BTreeMap::from([(boundary, target)]),
+            supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),
         };
         assert!(matches!(

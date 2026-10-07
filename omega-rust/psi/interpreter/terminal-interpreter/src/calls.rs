@@ -287,7 +287,12 @@ impl TerminalExecution {
             })
             .collect::<Result<Vec<_>, _>>()?;
         bind_boundary_arguments(&boundary_declaration.scalar_parameters, &scalar_arguments)?;
-        if self.program.provider_candidates.contains(&boundary) {
+        let supply = self.boundary_supplies.get(&boundary).copied();
+        if matches!(
+            supply,
+            Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(_))
+        ) || (supply.is_none() && self.program.provider_candidates.contains(&boundary))
+        {
             let boundary_arguments = self.prepare_boundary_arguments(
                 &boundary_declaration.structural_parameters,
                 structural_arguments,
@@ -328,9 +333,12 @@ impl TerminalExecution {
             if !supported_result {
                 return Err(malformed());
             }
-            let callee_id = self.provider_installation.get(&boundary).copied().ok_or(
-                TerminalInterpretError::ProviderInstallationMissing(boundary),
-            )?;
+            let Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(callee_id)) = supply
+            else {
+                return Err(TerminalInterpretError::ProviderInstallationMissing(
+                    boundary,
+                ));
+            };
             let callee = self
                 .program
                 .machines

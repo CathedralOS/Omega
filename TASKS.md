@@ -1753,11 +1753,6 @@ then independent claimed restoration slices -> final closure.
   signatures. Remaining arrivals include scalar arguments, placed host loans,
   non-hosted roots and required receiver qualifications. General host bindings
   still need stdin/read-byte, virtual clocks, float imports and stderr support.
-  Retained foreign checked alternatives also misclassify selected host imports
-  as missing provider installations. `process_exit_preserves_scalar_contract`
-  runs natively at 70 but Terminal preflight refuses slot 22. Carry the exact
-  selected import-versus-checked supply into preflight, binding and dispatch;
-  retain inactive candidates and reject genuinely missing selections.
   Selected-reference backing retains its separate capability attribution.
   CLI comparison consumes the exact native report before publication; missing
   imports decline without reinterpreting trees or rerunning source/Build.

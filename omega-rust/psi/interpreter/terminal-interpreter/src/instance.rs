@@ -223,6 +223,19 @@ impl<'host> TerminalInstance<'host> {
         &self.program
     }
 
+    /// Exact demanded import under this instance's admitted supply choices.
+    /// A retained checked alternative does not suppress an explicitly selected
+    /// host crossing. Description alone still grants no adapter or authority.
+    pub fn import(
+        &self,
+        slot: BoundaryMachineId,
+    ) -> Option<&terminal_psi::BoundaryMachineDeclaration> {
+        if self.closed || !self.required_imports.contains(&slot) {
+            return None;
+        }
+        self.program.program.boundary_machines.get(&slot)
+    }
+
     /// Establish one demanded import slot's checked host adapter.
     ///
     /// Checks run before the roster changes: the slot must be a boundary this
@@ -255,18 +268,20 @@ impl<'host> TerminalInstance<'host> {
                 },
             );
         }
-        let Some(declaration) = self.program.import(slot) else {
-            return if self.program.program.boundary_machines.contains_key(&slot) {
-                // A declared boundary a provider candidate realizes — the
-                // admitted installation answers it, never a host adapter.
+        let Some(declaration) = self.import(slot) else {
+            return if self.execution.as_ref().is_some_and(|execution| {
+                matches!(
+                    execution.boundary_supplies.get(&slot),
+                    Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(_))
+                )
+            }) {
                 Err(TerminalBindingRejection::ProviderRealized { boundary: slot })
+            } else if self.program.program.boundary_machines.contains_key(&slot) {
+                Err(TerminalBindingRejection::NotRequiredImport { boundary: slot })
             } else {
                 Err(TerminalBindingRejection::UnknownImport { boundary: slot })
             };
         };
-        if !self.required_imports.contains(&slot) {
-            return Err(TerminalBindingRejection::NotRequiredImport { boundary: slot });
-        }
         if self.bindings.contains_key(&slot) {
             return Err(TerminalBindingRejection::DuplicateBinding { boundary: slot });
         }

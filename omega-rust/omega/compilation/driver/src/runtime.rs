@@ -16,6 +16,7 @@ use compilation_products::TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalBindingRejection, TerminalExecutionStatus,
     TerminalInstanceError, TerminalInterpretError, TerminalProcessExitAdmission, TerminalProgram,
+    TerminalRuntimeSupplyRequest,
 };
 
 pub struct TerminalRuntimeRequest<'program> {
@@ -94,11 +95,31 @@ pub fn execute(
             "runtime provisions name another Terminal program or entry",
         ));
     }
-    let installation = request
+    let checked_installation = request
         .provisions
         .and_then(TerminalRuntimeProvisions::installation);
+    // These are this native request's admitted external settlements, not every
+    // boundary with a retained checked alternative. Completion authority is
+    // established separately below, never selected as a normal import.
+    let mut host_imports = Vec::new();
+    if let Some(provisions) = request.provisions {
+        for provision in provisions.host() {
+            if program
+                .external_completion_requirement(provision.boundary)
+                .is_none()
+            {
+                host_imports.push(provision.boundary);
+            }
+        }
+    }
+    let installation = program
+        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            installation: checked_installation,
+            host_imports: &host_imports,
+        })
+        .map_err(TerminalRuntimeError::Requirements)?;
     let requirements = program
-        .execution_requirements(installation)
+        .execution_requirements(Some(&installation))
         .map_err(TerminalRuntimeError::Requirements)?;
     if !requirements.missing_providers.is_empty() {
         return Err(TerminalRuntimeError::missing(
@@ -111,17 +132,11 @@ pub fn execute(
     }
     let arrival = entry::establish(&program, request.provisions)?;
     let inputs = arrival.inputs();
-    let mut instance = match installation {
-        Some(installation) => program.instantiate_installed(&[], inputs, installation),
-        None => program.instantiate(&[], inputs),
-    }
-    .map_err(TerminalRuntimeError::Artifact)?;
-    let output_slots = host_imports::bind(
-        &program,
-        &mut instance,
-        request.provisions,
-        &requirements.imports,
-    )?;
+    let mut instance = program
+        .instantiate_installed(&[], inputs, &installation)
+        .map_err(TerminalRuntimeError::Artifact)?;
+    let output_slots =
+        host_imports::bind(&mut instance, request.provisions, &requirements.imports)?;
     // Each Binding occurrence is established for this containing domain by
     // this host, never by merely selecting the native exit implementation.
     for demand in &requirements.external_completions {

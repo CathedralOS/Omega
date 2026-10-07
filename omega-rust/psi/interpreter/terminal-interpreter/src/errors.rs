@@ -115,6 +115,10 @@ pub enum TerminalInterpretError {
     ClaimTransferMismatch,
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
+    RuntimeSupplySelectionRejected {
+        boundary: BoundaryMachineId,
+        reason: &'static str,
+    },
     ProviderInstallationMissing(BoundaryMachineId),
     VerifiedEntryMachineMissing,
     VerifiedCallTargetMissing(MachineId),

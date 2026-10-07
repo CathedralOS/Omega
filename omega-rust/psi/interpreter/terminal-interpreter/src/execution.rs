@@ -73,11 +73,14 @@ pub struct TerminalExecution {
     // storage; frames retain only machine identity. There is no per-machine
     // or per-operation Arc allocation.
     pub(crate) program: std::sync::Arc<crate::program::AdmittedTerminalProgram>,
-    pub(crate) provider_installation: BTreeMap<BoundaryMachineId, MachineId>,
+    /// One immutable selected route per boundary. Catalog alternatives are
+    /// never a substitute for a checked installation or explicit host choice.
+    pub(crate) boundary_supplies:
+        BTreeMap<BoundaryMachineId, crate::effects::AdmittedBoundarySupply>,
     /// Root-authorized assumed binding contracts admitted with the provider
     /// installation. They are conditional evidence on this execution, not
     /// checked redirects: call custody keeps consulting only
-    /// `provider_candidates` and `provider_installation`, so a direct call of
+    /// `provider_candidates` and `boundary_supplies`, so a direct call of
     /// either requirement gains no assumed facts.
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
@@ -291,8 +294,8 @@ impl TerminalExecution {
         )?;
         let mut execution = Self {
             program: std::sync::Arc::clone(&program),
-            provider_installation: installation
-                .map(|installation| installation.installed.clone())
+            boundary_supplies: installation
+                .map(|installation| installation.supplies.clone())
                 .unwrap_or_default(),
             assumed_bindings: installation
                 .map(|installation| installation.assumed_bindings.clone())

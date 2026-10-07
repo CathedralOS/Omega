@@ -7,7 +7,7 @@ use semantic_vocabulary::{BoundaryMachineId, IntegerSign, IntegerType, IntegerVa
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalImportAdapter,
-    TerminalImportSignature, TerminalInstance, TerminalProgram, TerminalScalarValue,
+    TerminalImportSignature, TerminalInstance, TerminalScalarValue,
 };
 use terminal_psi::BoundaryCompletion;
 
@@ -19,7 +19,6 @@ pub(super) enum OutputKind {
 }
 
 pub(super) fn bind(
-    program: &TerminalProgram,
     instance: &mut TerminalInstance<'_>,
     provisions: Option<&TerminalRuntimeProvisions>,
     imports: &[BoundaryMachineId],
@@ -56,7 +55,7 @@ pub(super) fn bind(
                 ));
             }
         };
-        let declaration = program
+        let declaration = instance
             .import(*slot)
             .ok_or(TerminalRuntimeError::InvalidProvision(
                 "host provision names no demanded import declaration",

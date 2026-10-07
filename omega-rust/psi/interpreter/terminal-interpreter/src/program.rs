@@ -51,9 +51,9 @@ pub(crate) struct AdmittedTerminalProgram {
     pub(crate) machines: BTreeMap<MachineId, ExecutableMachine>,
     pub(crate) structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     pub(crate) boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
-    /// Boundaries with a checked provider candidate in this artifact. They
-    /// dispatch to the installed provider machine and are never host imports:
-    /// a host binding cannot substitute for a checked provider.
+    /// Availability, not deployment choice. Without explicit receiving-host
+    /// selection, a demanded candidate-bearing slot requires installation.
+    /// Selecting a host import does not remove its retained checked alternatives.
     pub(crate) provider_candidates: BTreeSet<BoundaryMachineId>,
 }
 
@@ -140,9 +140,9 @@ impl AdmittedTerminalProgram {
 /// `load` is the whole authority here — admission replays the canonical
 /// decode and the interpreter's verification once, then keeps the result.
 /// Cloning shares the same admitted program; it does not re-verify.
-/// `imports` describes the bindable catalog; `execution_requirements` selects
-/// demanded slots for each provider installation. Each instance establishes
-/// its selected slots through `TerminalInstance::bind_import`.
+/// `imports` describes the default catalog; `execution_requirements` selects
+/// demanded slots for each admitted supply selection. Each instance describes
+/// its selected imports and establishes adapters through `TerminalInstance::bind_import`.
 #[derive(Clone)]
 pub struct TerminalProgram {
     pub(crate) program: std::sync::Arc<AdmittedTerminalProgram>,
@@ -219,11 +219,70 @@ impl TerminalProgram {
         self.program.identity
     }
 
-    /// The host-bindable import catalog: each declared boundary machine with no
-    /// checked provider candidate. `execution_requirements` narrows the catalog
-    /// to the actual entry and installed provider closure. Provider-realized
-    /// boundaries satisfy their requirement through an admitted installation instead and never appear
-    /// here. The declaration returned is the exact contract — signature,
+    /// Admit receiving-host supply choices against this immutable program.
+    /// This reuses admitted content and checked installation custody, without
+    /// decoding bytes or checking source again. Duplicate or competing choices,
+    /// unknown slots and external-completion imports reject atomically.
+    /// A selected import still needs its exact adapter and actual authority
+    /// established on each fresh instance before any guest effect.
+    pub fn admit_runtime_supplies(
+        &self,
+        request: crate::effects::TerminalRuntimeSupplyRequest<'_>,
+    ) -> Result<crate::effects::AdmittedProviderInstallation, TerminalInterpretError> {
+        use crate::effects::{AdmittedBoundarySupply, AdmittedProviderInstallation};
+
+        if request
+            .installation
+            .is_some_and(|installation| installation.terminal_psi != self.program.identity)
+        {
+            return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
+        }
+        let mut installation =
+            request
+                .installation
+                .cloned()
+                .unwrap_or_else(|| AdmittedProviderInstallation {
+                    terminal_psi: self.program.identity,
+                    supplies: BTreeMap::new(),
+                    assumed_bindings: Vec::new(),
+                });
+        for &boundary in request.host_imports {
+            let rejected = |reason| TerminalInterpretError::RuntimeSupplySelectionRejected {
+                boundary,
+                reason,
+            };
+            let declaration = self
+                .program
+                .boundary_machines
+                .get(&boundary)
+                .ok_or_else(|| rejected("host import names no declared boundary"))?;
+            if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
+                return Err(rejected(
+                    "external completion requires separate domain admission",
+                ));
+            }
+            if installation.supplies.contains_key(&boundary)
+                || installation
+                    .assumed_bindings
+                    .iter()
+                    .any(|binding| binding.required == boundary)
+            {
+                return Err(rejected(
+                    "host import duplicates or competes with a selected supply",
+                ));
+            }
+            installation
+                .supplies
+                .insert(boundary, AdmittedBoundarySupply::HostImport);
+        }
+        Ok(installation)
+    }
+
+    /// Default host-import descriptions without a receiving-host supply choice:
+    /// candidate-bearing slots require installation by default. Explicit host
+    /// choices are visible through `TerminalInstance::import` after admission,
+    /// never by mutating this canonical catalog. The declaration returned is
+    /// the exact contract — signature,
     /// requirements, crash routes and guarantees — not a display summary.
     pub fn imports(&self) -> impl Iterator<Item = &BoundaryMachineDeclaration> {
         let candidates = &self.program.provider_candidates;
@@ -281,7 +340,7 @@ impl TerminalProgram {
         self.instantiate_with(scalar_arguments, structural_inputs, None)
     }
 
-    /// Start one instance under a provider installation previously admitted
+    /// Start one instance under a supply selection previously admitted
     /// against this exact program identity.
     pub fn instantiate_installed<'host>(
         &self,

@@ -182,7 +182,15 @@ pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
     Ok(AdmittedProviderInstallation {
         terminal_psi: terminal_codec::terminal_psi_identity(&module)
             .map_err(ProviderInstallationError::SemanticDecode)?,
-        installed,
+        supplies: installed
+            .into_iter()
+            .map(|(boundary, machine)| {
+                (
+                    boundary,
+                    crate::effects::AdmittedBoundarySupply::CheckedProvider(machine),
+                )
+            })
+            .collect(),
         assumed_bindings,
     })
 }

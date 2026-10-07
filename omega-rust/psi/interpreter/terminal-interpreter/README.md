@@ -37,9 +37,18 @@ provider-realized, duplicate, or signature-mismatched supply rejects without
 effects — and `close` releases the instance's runtime state once the activation
 settles. `TerminalImportAdapter` is the contract a host object declares;
 `TerminalScalarImport` and `TerminalUnitImport` wrap the common leaf signatures.
-[embedding_surface.rs](tests/unit/embedding_surface.rs) covers admission reuse,
-exact-slot binding checks, per-slot dispatch to different hosts, and close
-semantics.
+
+Retained checked-provider candidates describe availability, not the receiving
+host's selection. `TerminalProgram::admit_runtime_supplies` joins explicit normal
+host-import choices with an existing sealed checked installation. The returned
+program-bound selection is shared by preflight, instance construction and core
+dispatch. Duplicate or competing choices, unknown slots, wrong program identity
+and external-completion imports reject before effects; selection grants no
+adapter or ProcessExit authority. `TerminalInstance::import` describes the
+instance's actual demanded imports, including explicitly selected slots with
+retained checked alternatives. `TerminalProgram::imports` remains the default
+catalog without those explicit choices. Unselected candidate-bearing demands
+still require a checked installation rather than falling back to a host import.
 
 Remaining gaps toward the full contract: an instance exposes only the module's
 entry invocation (no exported secondary operations yet), adapters above the

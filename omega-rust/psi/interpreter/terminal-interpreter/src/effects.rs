@@ -152,14 +152,32 @@ pub struct AdmittedAssumedBinding {
     pub supply_path: Vec<BoundaryMachineId>,
 }
 
-/// Validated provider installation bound to one exact terminal-Psi identity.
-/// Private fields prevent callers from manufacturing a boundary-to-machine
-/// redirect without replaying terminal decoding and verification.
+/// Admitted supply selection bound to one exact Terminal-Psi identity.
+/// Private fields preserve checked-provider custody; receiving hosts may add
+/// normal import choices through `TerminalProgram::admit_runtime_supplies`.
+/// Neither selection route establishes adapters or external-completion authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedProviderInstallation {
     pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
-    pub(crate) installed: BTreeMap<BoundaryMachineId, MachineId>,
+    pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
+}
+
+/// One receiving host's selected execution route, never catalog availability.
+/// HostImport selects a crossing but establishes no host adapter or authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AdmittedBoundarySupply {
+    CheckedProvider(MachineId),
+    HostImport,
+}
+
+/// Select host crossings alongside an existing sealed checked installation.
+/// The receiving host owns this policy input; artifact possession cannot
+/// choose imports on its behalf. Actual adapters remain instance-bound.
+#[derive(Debug, Clone, Copy)]
+pub struct TerminalRuntimeSupplyRequest<'installation> {
+    pub installation: Option<&'installation AdmittedProviderInstallation>,
+    pub host_imports: &'installation [BoundaryMachineId],
 }
 
 impl AdmittedProviderInstallation {

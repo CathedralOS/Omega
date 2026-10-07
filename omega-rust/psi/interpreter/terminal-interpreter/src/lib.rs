@@ -69,7 +69,7 @@ pub use effects::results::TerminalEffectResult;
 pub use effects::{
     AcceptTerminalEffects, AdmittedAssumedBinding, AdmittedProviderInstallation,
     AssumedBindingSelection, ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler,
-    TerminalEffectRejection,
+    TerminalEffectRejection, TerminalRuntimeSupplyRequest,
 };
 pub use errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
