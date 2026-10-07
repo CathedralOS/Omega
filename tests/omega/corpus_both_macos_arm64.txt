@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 6.0, "load1_start": 6.0, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 17.46, "load1_start": 17.46, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -187,6 +187,7 @@ pass/drops/runtime_local_nominal_return_exit built 3142ms exit:0 stdout:match in
 pass/drops/runtime_mixed_temporary_effects_continuation_exit built 3904ms exit:0 interpreter-exit:0 interpreter:agrees @e28fa01a1e73+wt
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @8611f9d5adf1
 pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit built 1715ms exit:0 interpreter-exit:0 interpreter:agrees @ac7aca8a5050+wt
+pass/drops/runtime_nested_cleanup_postcondition_exit built 2217ms exit:0 interpreter-exit:0 interpreter:agrees @e0e325f7052d+wt
 pass/drops/runtime_nested_nominal_producer_loans_exit built 1496ms exit:0 interpreter-exit:0 interpreter:agrees @f0ed096e2456+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit built 1731ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
 pass/drops/runtime_nominal_cleanup_compound_contract_exit built 1721ms exit:0 interpreter-exit:0 interpreter:agrees @4cc11cbadf31+wt
@@ -195,6 +196,7 @@ pass/drops/runtime_nominal_temporary_helper_closure_exit built 1603ms exit:0 int
 pass/drops/runtime_owned_nominal_replacement_exit built 1703ms exit:0 interpreter-exit:0 interpreter:agrees @04d0fbe9d97c
 pass/drops/runtime_owned_record_replacement_exit built 1703ms exit:0 interpreter-exit:0 interpreter:agrees @04d0fbe9d97c
 pass/drops/runtime_owned_replacement_composition_exit built 1704ms exit:0 interpreter-exit:0 interpreter:agrees @04d0fbe9d97c
+pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 2239ms exit:0 interpreter-exit:0 interpreter:agrees @e0e325f7052d+wt
 pass/drops/runtime_projected_nominal_core_exit built 1736ms exit:0 interpreter-exit:0 interpreter:agrees @40cf22348cf8+wt
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 3659ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @792abb82ccd2
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit built 1723ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt

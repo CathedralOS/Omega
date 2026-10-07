@@ -719,34 +719,26 @@ defines the complete product bar.
     Keep `pass/drops/runtime_cleanup_helper_normal_guarantee_exit` as the
     pre-cleanup scalar-capture and surviving call-contract control when
     extending these edges.
-    The construction-order witness
-    `pass/drops/runtime_record_construction_cleanup_order_exit` still fails
-    `omega run --both` with `BorrowedStorageRepairMismatch` on macOS ARM64.
-    `runtime_abandoned_record_construction_prefix_exit` and
-    `runtime_generic_reserved_construction_exit` reach the same retiring
-    replay; `runtime_empty_array_owner_cleanup_exit` reaches
-    `ZeroedStructuralResultMismatch` in the old receiver replay. Reproduce the
-    current frontier before changing this item.
-    The nested-guarantee witness
-    `pass/drops/runtime_nested_cleanup_postcondition_exit` passes source
-    checking but reaches retiring `InvalidNominalAffineCleanup` during native
-    production. Preserve ordinary hook guarantees and surviving captured
-    sibling values as runtime consumers acquire the same parent-first sequence.
-    Borrowed whole-root and field replacement still reaches
-    `OperationProofUnavailable` in
-    `pass/drops/runtime_borrowed_nominal_replacement_exit` on macOS ARM64.
-    The old undischarged site was `ContractEnsures`, not a primitive operation;
-    late reconstruction is gone, so reproduce the current frontier. Keep
+    The abandoned-prefix witness
+    `pass/drops/runtime_abandoned_record_construction_prefix_exit` exits 0
+    natively but Terminal execution reaches `AffineFrontierMismatch` on macOS
+    ARM64. `runtime_empty_array_owner_cleanup_exit` still fails Terminal
+    production with `Optimization(InvalidSemantic(MalformedStructuralFoundation(
+    "zeroed structural establishment has an invalid result shape")))`.
+    Keep `runtime_record_construction_cleanup_order_exit` as the authored-output
+    corpus native control. Its public `omega run` still fails selected-provider
+    admission: `Console::write_byte` has no closed native catalog identity.
+    **PROVIDER-SELECTION-AFTER-TERMINAL** owns that boundary; Terminal entry provision belongs to
+    **TERMINAL-RUNTIME-DRIVERS**. Keep
+    `runtime_nested_cleanup_postcondition_exit` and
+    `runtime_generic_reserved_construction_exit` as parent-first guarantee and
+    construction controls, and `runtime_borrowed_nominal_replacement_exit` with
     `fail/drops/borrowed_replacement_old_hook_prerequisite` as the old-value
     prerequisite control. Preserve exact source-window call occurrences until
     cleanup effects finish; an incomplete effect table cannot decide whether
     a call may cross an open window. While one is open, preserve the exact
     vacant-place repair authority from the ownership contract.
-    Re-establishment after an owned transfer still reaches
-    `EdgeAffineDiscardsInvalid` at edge 10 in
-    `pass/drops/runtime_owned_replacement_reestablishment_exit` on macOS ARM64:
-    the retired verifier sorted homes by producer order rather than the
-    source-declaration-order action stream. Reproduce the current frontier. Keep
+    Keep `runtime_owned_replacement_reestablishment_exit` and
     `runtime_owned_{record_replacement,nominal_replacement,replacement_composition}_exit`
     and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
     as value-home, occurrence and invalid-custody controls.
@@ -773,6 +765,11 @@ defines the complete product bar.
     `pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit` as native
     and Terminal controls for conditional establishment, descendant identity
     transport, disjoint affine complements and exact linear hook disposition.
+    Keep `runtime_parent_hook_preserves_linear_descendants_exit` as the intact
+    nominal receiver and retained child-claim control. Apply parent hook
+    guarantees before checking linear descendants' cleanup prerequisites:
+    a computed temporary whose parent ensures both child values equal 9 still
+    rejects `Receipt::drop requires receipt.value == 9` during source checking.
     Scalar materialization
     of moved linear places and claim-bearing call results remains unfinished;
     an anonymous returned owner without a unique conserved claim map must

@@ -7,12 +7,9 @@ use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
 };
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
-use std::collections::BTreeSet;
 use target_operations::{TargetBooleanExpression, TargetScalarExpression, TerminalPsiProvenance};
 use target_operations::{TargetControlSuccessor, TargetControlTerminator};
-use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, TerminalAffineCleanupAction,
-};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction};
 
 /// A materialized descriptor owns its affine carrier, not the borrowed backing.
 /// The live definition is installed only after view/access reconstruction; rejoin
@@ -111,7 +108,7 @@ fn owned_root_type(
 
 /// A nominal disposition uses the exact established owner's storage. Unlike
 /// a no-code affine discard, its claim authority remains on the cleanup action
-/// and is checked by semantic replay; geometry grants no consumption rights.
+/// and was selected by source checking; geometry grants no consumption rights.
 fn nominal_owner_type(
     live: &LiveDefinitions,
     function: &AbstractFunction,
@@ -148,13 +145,13 @@ fn residual_cleanup(
     structural_types: &StructuralTypeLookup<'_>,
     discard: &terminal_psi::StructuralAffineDiscard,
 ) -> bool {
-    // A residual is a strictly projected subtree of a live root; the verifier
+    // A residual is a strictly projected subtree of a live root; source checking
     // names maximal complements of moved paths, never a whole root.
     if discard.path.is_empty() {
         return false;
     }
-    // Custody replay disposes the exact remaining subtree separately from its
-    // declaration and overlap checks here. No executable destructor is needed.
+    // Type and backing checks locate the selected storage, not permission to
+    // dispose it. No executable destructor is needed for this plain subtree.
     owned_root_type(live, function, discard.place).is_some_and(|root| {
         structural_types.subtree(root, &discard.path) == Some(discard.structural_type)
     }) && !super::references::is_suspended_storage_region(
@@ -172,24 +169,12 @@ pub(super) fn plain_home_cleanup(
     structural_types: &StructuralTypeLookup<'_>,
     actions: &[TerminalAffineCleanupAction],
 ) -> Result<bool, LoweringError> {
-    let mut disposed: BTreeSet<(PlaceId, Vec<StructuralPathSegment>)> = BTreeSet::new();
+    // The checked action stream owns semantic disposition and ordering. A
+    // nominal hook retires its own obligation before descendant hooks run;
+    // invoking it is not destruction of every field in its receiver region.
+    // Resolve each selected receiver against live storage instead of imposing
+    // a disjoint-region admission rule on this already checked sequence.
     for action in actions {
-        let (place, path) = match action {
-            TerminalAffineCleanupAction::DiscardRoot(place) => (*place, &[][..]),
-            TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                (discard.place, discard.path.as_slice())
-            }
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                (cleanup.place, cleanup.path.as_slice())
-            }
-        };
-        if disposed.iter().any(|(previous_place, previous_path)| {
-            *previous_place == place
-                && (previous_path.starts_with(path) || path.starts_with(previous_path))
-        }) {
-            return Ok(false);
-        }
-        disposed.insert((place, path.to_vec()));
         match action {
             TerminalAffineCleanupAction::DiscardRoot(place) => {
                 if live.views.contains_key(place) {
@@ -290,7 +275,7 @@ pub(super) fn lower_terminator(
         ));
     }
     // Plain aggregate homes need no executable destructor, but their exact
-    // edge-local disposition remains part of the independently replayed plan.
+    // edge-local disposition remains in the source-selected action stream.
     // A constructor temporary can die before a join, not only at function exit.
     // Owned parameters owe the same no-code disposition after observation;
     // current ownership validation, not their physical home kind, establishes

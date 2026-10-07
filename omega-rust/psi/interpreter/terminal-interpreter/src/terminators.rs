@@ -95,23 +95,33 @@ impl TerminalExecution {
                 argument,
             )?;
         }
-        for (place, path, structural_type) in actions.iter().filter_map(|action| match action {
-            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => Some((
-                discard.place,
-                discard.path.as_slice(),
-                discard.structural_type,
-            )),
-            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                if !cleanup.path.is_empty() && cleanup.consumed_claims.is_empty() =>
-            {
-                Some((
-                    cleanup.place,
-                    cleanup.path.as_slice(),
-                    cleanup.structural_type,
-                ))
-            }
-            _ => None,
-        }) {
+        for (place, path, structural_type) in
+            actions
+                .iter()
+                .enumerate()
+                .filter_map(|(position, action)| match action {
+                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => Some((
+                        discard.place,
+                        discard.path.as_slice(),
+                        discard.structural_type,
+                    )),
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        if !cleanup.path.is_empty()
+                            && cleanup.consumed_claims.is_empty()
+                            && !crate::custody::cleanup_retains_descendants(
+                                cleanup,
+                                actions.get(position + 1),
+                            ) =>
+                    {
+                        Some((
+                            cleanup.place,
+                            cleanup.path.as_slice(),
+                            cleanup.structural_type,
+                        ))
+                    }
+                    _ => None,
+                })
+        {
             // Linear hooks consume their exact claims, not an affine residual.
             // Their disposition is staged with the selected cleanup action.
             let root = self.structural_values.get(&place).ok_or(

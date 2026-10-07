@@ -49,6 +49,15 @@ pub enum TerminalAffineCleanupAction {
 }
 
 impl TerminalAffineCleanupAction {
+    /// Exact selected region; a whole-root discard has the empty path.
+    pub fn path(&self) -> &[StructuralPathSegment] {
+        match self {
+            Self::DiscardRoot(_) => &[],
+            Self::DiscardResidual(discard) => &discard.path,
+            Self::InvokeNominal(cleanup) => &cleanup.path,
+        }
+    }
+
     /// The owned root affected by this ordered cleanup action.
     pub fn place(&self) -> PlaceId {
         match self {

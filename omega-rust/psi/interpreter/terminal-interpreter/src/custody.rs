@@ -1,3 +1,8 @@
+//! Runtime custody operates on the source-selected cleanup schedule. A nominal
+//! hook borrows its receiver; it does not dispose the receiver's descendants.
+//! Recursive actions are contiguous, so the following action determines when
+//! storage can retire without inventing runtime liveness or a second plan.
+
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::ExecutableMachine;
 use crate::execution::LiveClaim;
@@ -20,6 +25,20 @@ use terminal_psi::{
     TerminalAffineCleanupAction,
 };
 
+/// Checked cleanup is recursive: a parent hook precedes its contiguous
+/// descendant cleanup. Its receiver storage remains live while those actions
+/// execute. This reads the authored schedule, not runtime value liveness.
+pub(crate) fn cleanup_retains_descendants(
+    cleanup: &NominalAffineCleanup,
+    next: Option<&TerminalAffineCleanupAction>,
+) -> bool {
+    next.is_some_and(|action| {
+        action.place() == cleanup.place
+            && action.path().len() > cleanup.path.len()
+            && action.path().starts_with(&cleanup.path)
+    })
+}
+
 pub(crate) fn commit_cleanup_action(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     machines: &BTreeMap<MachineId, ExecutableMachine>,
@@ -30,6 +49,7 @@ pub(crate) fn commit_cleanup_action(
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
     action: &TerminalAffineCleanupAction,
+    next: Option<&TerminalAffineCleanupAction>,
 ) -> Result<Option<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
     match action {
         TerminalAffineCleanupAction::DiscardRoot(place) => {
@@ -98,6 +118,7 @@ pub(crate) fn commit_cleanup_action(
                 frontier,
                 live_claims,
                 cleanup,
+                next,
             )?;
             let root = structural_values.get(&cleanup.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
@@ -116,7 +137,7 @@ pub(crate) fn commit_cleanup_action(
             }) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            if cleanup.consumed_claims.is_empty() {
+            if cleanup.consumed_claims.is_empty() && !cleanup_retains_descendants(cleanup, next) {
                 consume_affine_projection(
                     structural_types,
                     structural_values,
@@ -154,65 +175,84 @@ pub(crate) fn validate_nominal_cleanup_action(
     frontier: &BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     cleanup: &NominalAffineCleanup,
+    next: Option<&TerminalAffineCleanupAction>,
 ) -> Result<(), TerminalInterpretError> {
     let invalid = || TerminalInterpretError::AffineFrontierMismatch;
     let root = values.get(&cleanup.place).ok_or_else(invalid)?;
     let value = project_structural_value(structural_types, root, &cleanup.path)?;
     let target = machines.get(&cleanup.cleanup_machine).ok_or_else(invalid)?;
-    let Some(StructuralTypeShape::Record { fields }) = structural_types
-        .get(&cleanup.structural_type)
-        .map(|declaration| &declaration.shape)
-    else {
+    if !structural_types.contains_key(&cleanup.structural_type) {
         return Err(invalid());
-    };
+    }
+    let retains_descendants = cleanup_retains_descendants(cleanup, next);
     let source_claims = claims
         .iter()
-        .filter(|(_, claim)| {
+        .filter(|(identity, claim)| {
             claim.place == Some(cleanup.place)
-                && terminal_semantics::structural_paths_may_overlap(&claim.path, &cleanup.path)
+                && if retains_descendants {
+                    cleanup.consumed_claims.contains(identity)
+                } else {
+                    terminal_semantics::structural_paths_may_overlap(&claim.path, &cleanup.path)
+                }
         })
         .collect::<Vec<_>>();
-    let mut remaining = frontier.clone();
-    let affine_subject = consume_affine_projection(
-        structural_types,
-        values,
-        &mut remaining,
-        &StructuralArgument {
-            place: cleanup.place,
-            path: cleanup.path.clone(),
-            access: StructuralAccess::Owned,
-        },
-    );
     if value.structural_type != cleanup.structural_type
         || target.attachment != Some(cleanup.structural_type)
         || target.nominal_cleanup_subject != Some(cleanup.structural_type)
-        || machines.values().filter(|candidate| candidate.nominal_cleanup_subject == Some(cleanup.structural_type)).count() != 1
+        || machines
+            .values()
+            .filter(|candidate| candidate.nominal_cleanup_subject == Some(cleanup.structural_type))
+            .count()
+            != 1
         || target.result != terminal_psi::TerminalMachineResult::Unit
         || !target.parameters.is_empty()
         || !target.entry_claims.is_empty()
         || !target.content_entry_claims.is_empty()
         || target.structural_parameters.len() > 1
         || target.structural_parameters.iter().any(|parameter| {
-            parameter.position != 0 || parameter.structural_type != cleanup.structural_type
+            parameter.position != 0
+                || parameter.structural_type != cleanup.structural_type
                 || cleanup.cleanup_receiver != Some(parameter.place)
-                || !matches!(parameter.access, StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow)
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
         })
-        || fields.iter().any(|field| field.relevance.is_erased() || !matches!(&field.field_type,
-            terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean)
-                | terminal_psi::StructuralFieldType::Atomic(ScalarType::Boolean))
-            && !matches!(&field.field_type,
-                terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer))
-                    | terminal_psi::StructuralFieldType::Atomic(ScalarType::Integer(integer))
-                    if matches!(integer.bits(), 8 | 16 | 32 | 64) && (!integer.is_address() || integer.bits() == 64)))
-        || cleanup.consumed_claims != source_claims.iter().map(|(identity, _)| **identity).collect::<Vec<_>>()
-        || source_claims.iter().any(|(_, claim)| claim.path != cleanup.path || claim.multiplicity != Some(StructuralMultiplicity::Linear))
-        || if source_claims.is_empty() {
-            affine_subject.is_err()
-        } else {
-            source_claims.len() != 1 || frontier.iter().any(|entry| entry.place == cleanup.place
-                && terminal_semantics::structural_paths_may_overlap(&entry.path, &cleanup.path))
+        || cleanup.consumed_claims
+            != source_claims
+                .iter()
+                .map(|(identity, _)| **identity)
+                .collect::<Vec<_>>()
+        || source_claims.iter().any(|(_, claim)| {
+            !claim.path.starts_with(&cleanup.path)
+                || claim.multiplicity != Some(StructuralMultiplicity::Linear)
+        })
+    {
+        return Err(invalid());
+    }
+    // Only a leaf action disposes a region. A parent hook borrows its intact
+    // receiver and leaves descendant obligations for the following actions.
+    if !retains_descendants {
+        if source_claims.is_empty() {
+            let mut remaining = frontier.clone();
+            consume_affine_projection(
+                structural_types,
+                values,
+                &mut remaining,
+                &StructuralArgument {
+                    place: cleanup.place,
+                    path: cleanup.path.clone(),
+                    access: StructuralAccess::Owned,
+                },
+            )
+            .map_err(|_| invalid())?;
+        } else if frontier.iter().any(|entry| {
+            entry.place == cleanup.place
+                && terminal_semantics::structural_paths_may_overlap(&entry.path, &cleanup.path)
+        }) {
+            return Err(invalid());
         }
-    { return Err(invalid()); }
+    }
     Ok(())
 }
 
@@ -223,7 +263,11 @@ pub(crate) fn complete_nominal_cleanup(
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     cleanup: &NominalAffineCleanup,
+    next: Option<&TerminalAffineCleanupAction>,
 ) -> Result<(), TerminalInterpretError> {
+    if cleanup_retains_descendants(cleanup, next) {
+        return Ok(());
+    }
     if if cleanup.consumed_claims.is_empty() {
         !frontier.remove(&StructuralAffineDiscard {
             place: cleanup.place,

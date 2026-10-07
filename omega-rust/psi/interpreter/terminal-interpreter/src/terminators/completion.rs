@@ -22,6 +22,7 @@ impl TerminalExecution {
                 &mut self.live_affine_frontier,
                 &mut self.live_claims,
                 &action,
+                remaining.as_slice().first(),
             )?;
             if let Some(completed) = nominal {
                 return self.start_nominal_cleanup(completed, remaining, continuation);
@@ -139,6 +140,7 @@ impl TerminalExecution {
                     &mut self.live_affine_frontier,
                     &self.live_claims,
                     &cleanup.0,
+                    remaining.as_slice().first(),
                 )?;
                 self.continue_cleanup_actions(remaining, continuation)
             }

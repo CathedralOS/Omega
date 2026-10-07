@@ -109,26 +109,16 @@ impl BlockBindings {
     ) -> Result<(), TerminalInterpretError> {
         use terminal_psi::TerminalAffineCleanupAction;
         let mut discarded = BTreeSet::new();
-        let mut subjects: Vec<(PlaceId, &[terminal_psi::StructuralPathSegment])> = Vec::new();
-        for action in actions {
-            let (place, path) = match action {
-                TerminalAffineCleanupAction::DiscardRoot(place) => (*place, &[][..]),
-                TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                    (cleanup.place, cleanup.path.as_slice())
-                }
-                TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                    (discard.place, discard.path.as_slice())
-                }
-            };
-            if subjects.iter().any(|(previous, previous_path)| {
-                *previous == place
-                    && terminal_semantics::structural_paths_may_overlap(previous_path, path)
-            }) || self.owned_sources.contains(&place)
+        // Source checking owns the recursive parent-before-child schedule;
+        // overlapping hook receivers are not overlapping region destruction.
+        for (position, action) in actions.iter().enumerate() {
+            let place = action.place();
+            let path = action.path();
+            if self.owned_sources.contains(&place)
                 || (path.is_empty() && self.projected_sources.contains(&place))
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            subjects.push((place, path));
             discarded.insert(place);
             match action {
                 TerminalAffineCleanupAction::DiscardRoot(_) => {
@@ -170,6 +160,7 @@ impl BlockBindings {
                         &execution.live_affine_frontier,
                         &execution.live_claims,
                         cleanup,
+                        actions.get(position + 1),
                     )?;
                 }
                 TerminalAffineCleanupAction::DiscardResidual(_) => {}

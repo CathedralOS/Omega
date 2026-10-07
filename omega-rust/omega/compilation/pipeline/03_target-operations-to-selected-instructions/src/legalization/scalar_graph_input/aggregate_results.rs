@@ -134,10 +134,6 @@ pub(super) fn cleanup(
     actions: &[terminal_psi::TerminalAffineCleanupAction],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    let mut disposed: std::collections::BTreeSet<(
-        semantic_vocabulary::PlaceId,
-        Vec<terminal_psi::StructuralPathSegment>,
-    )> = std::collections::BTreeSet::new();
     // This reconstructs the retained owner declaration, not permission to
     // dispose it. Source checking selects the exact claim dispositions and
     // nominal hook; claims do not change the retained storage declaration.
@@ -184,22 +180,10 @@ pub(super) fn cleanup(
         owner(place).is_some_and(|(_, multiplicity)| multiplicity == StructuralMultiplicity::Affine)
     };
     actions.iter().all(|action| {
-        let (place, path) = match action {
-            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => (*place, &[][..]),
-            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                (discard.place, discard.path.as_slice())
-            }
-            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                (cleanup.place, cleanup.path.as_slice())
-            }
-        };
-        if disposed.iter().any(|(previous_place, previous_path)| {
-            *previous_place == place
-                && (previous_path.starts_with(path) || path.starts_with(previous_path))
-        }) {
-            return false;
-        }
-        disposed.insert((place, path.to_vec()));
+        let path = action.path();
+        // Parent hooks precede descendant hooks in the checked action stream.
+        // Their receiver regions overlap by design; storage geometry cannot
+        // replace the source checker's obligation and ordering decisions.
         let selected_type = |root| {
             terminal_semantics::canonical_static_projection(structural_types.iter(), root, path)
                 .map(|(_, declaration)| declaration.id)
@@ -208,8 +192,8 @@ pub(super) fn cleanup(
             terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => discardable(*place),
             terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
                 // A residual is a strictly projected plain subtree of a still
-                // eligible root; overlapping boundaries or a discarded root
-                // cannot be replayed twice.
+                // eligible root. Its source-selected position in the action
+                // stream owns when it dies.
                 !discard.path.is_empty()
                     && discardable(discard.place)
                     && owner(discard.place).and_then(|(root, _)| selected_type(root))
