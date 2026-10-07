@@ -213,6 +213,36 @@ pub(crate) fn derive_cleanup_effect_dependencies(
     Ok(dependencies)
 }
 
+/// Descend into one field child under its `Field` path segment, then
+/// restore the path.
+#[allow(clippy::too_many_arguments)]
+fn visit_field_child(
+    program: &TypedTrees,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    child: &[&[PlaceSegment]],
+    active: &mut Vec<TypeReferenceHandle>,
+    path: &mut Vec<PlaceSegment>,
+    leaves: &mut Vec<CleanupLeaf>,
+    has_erased_members: &mut bool,
+    field: &typed_trees::data::DataField,
+) -> Option<()> {
+    path.push(PlaceSegment::Field {
+        symbol: field.symbol,
+    });
+    visit(
+        program,
+        field.type_reference,
+        substitutions,
+        child,
+        active,
+        path,
+        leaves,
+        has_erased_members,
+    )?;
+    path.pop();
+    Some(())
+}
+
 fn visit(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
@@ -381,20 +411,16 @@ fn visit_owner(
                     },
                 );
                 matched += child.len();
-                path.push(PlaceSegment::Field {
-                    symbol: field.symbol,
-                });
-                visit(
+                visit_field_child(
                     program,
-                    field.type_reference,
                     substitutions,
                     &child,
                     active,
                     path,
                     leaves,
                     has_erased_members,
+                    field,
                 )?;
-                path.pop();
             }
             DataMember::Variant(variant) => {
                 let case = selected(
@@ -427,20 +453,16 @@ fn visit_owner(
                         },
                     );
                     case_matched += child.len();
-                    path.push(PlaceSegment::Field {
-                        symbol: field.symbol,
-                    });
-                    visit(
+                    visit_field_child(
                         program,
-                        field.type_reference,
                         substitutions,
                         &child,
                         active,
                         path,
                         leaves,
                         has_erased_members,
+                        field,
                     )?;
-                    path.pop();
                 }
                 path.pop();
                 if case_matched != case.len() {
