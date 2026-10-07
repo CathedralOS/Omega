@@ -314,6 +314,14 @@ impl IntegerType {
         }
     }
 
+    fn signed_minimum(self) -> i128 {
+        let IntegerValue::Signed(minimum) = self.minimum_value() else {
+            unreachable!("signed type has a signed minimum")
+        };
+        minimum
+    }
+
+
     /// Add two admitted values modulo this exact integer width.
     ///
     /// Signed results use two's-complement interpretation of the reduced bit
@@ -413,9 +421,7 @@ impl IntegerType {
             |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
             |left, right| {
                 Some({
-                    let IntegerValue::Signed(minimum) = self.minimum_value() else {
-                        unreachable!("signed type has a signed minimum")
-                    };
+                    let minimum = self.signed_minimum();
                     if left == minimum && right == -1 {
                         return None;
                     }
@@ -437,9 +443,7 @@ impl IntegerType {
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_div(right)?)),
             |left, right| {
-                let IntegerValue::Signed(minimum) = self.minimum_value() else {
-                    unreachable!("signed type has a signed minimum")
-                };
+                let minimum = self.signed_minimum();
                 if left == minimum && right == -1 {
                     Some(IntegerValue::Signed(minimum))
                 } else {
@@ -461,9 +465,7 @@ impl IntegerType {
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
             |left, right| {
-                let IntegerValue::Signed(minimum) = self.minimum_value() else {
-                    unreachable!("signed type has a signed minimum")
-                };
+                let minimum = self.signed_minimum();
                 if left == minimum && right == -1 {
                     Some(IntegerValue::Signed(0))
                 } else {
@@ -485,9 +487,7 @@ impl IntegerType {
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_div(right)?)),
             |left, right| {
-                let IntegerValue::Signed(minimum) = self.minimum_value() else {
-                    unreachable!("signed type has a signed minimum")
-                };
+                let minimum = self.signed_minimum();
                 if left == minimum && right == -1 {
                     Some(self.maximum_value())
                 } else {
@@ -509,9 +509,7 @@ impl IntegerType {
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
             |left, right| {
-                let IntegerValue::Signed(minimum) = self.minimum_value() else {
-                    unreachable!("signed type has a signed minimum")
-                };
+                let minimum = self.signed_minimum();
                 if left == minimum && right == -1 {
                     Some(IntegerValue::Signed(0))
                 } else {
