@@ -421,71 +421,40 @@ machine Lexer::span_equals(
 
 machine Lexer::classify_keyword(lexer: &mut Lexer) {
     Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "as"); let matched: bool = lexer.predicate_result;
-    transition matched { true -> as_kw(lexer) _ -> calling_convention_kw(lexer) }
-    state calling_convention_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "calling_convention"); let matched: bool = lexer.predicate_result; transition matched { true -> calling_convention_yes(lexer) _ -> capability_kw(lexer) } }
-    state capability_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "capability"); let matched: bool = lexer.predicate_result; transition matched { true -> capability_yes(lexer) _ -> contains_kw(lexer) } }
-    state contains_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "contains"); let matched: bool = lexer.predicate_result; transition matched { true -> contains_yes(lexer) _ -> data_kw(lexer) } }
-    state data_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "data"); let matched: bool = lexer.predicate_result; transition matched { true -> data_yes(lexer) _ -> else_kw(lexer) } }
-    state else_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "else"); let matched: bool = lexer.predicate_result; transition matched { true -> else_yes(lexer) _ -> false_kw(lexer) } }
-    state false_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "false"); let matched: bool = lexer.predicate_result; transition matched { true -> false_yes(lexer) _ -> foreign_kw(lexer) } }
-    state foreign_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "foreign"); let matched: bool = lexer.predicate_result; transition matched { true -> foreign_yes(lexer) _ -> host_kw(lexer) } }
-    state host_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "host"); let matched: bool = lexer.predicate_result; transition matched { true -> host_yes(lexer) _ -> if_kw(lexer) } }
-    state if_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "if"); let matched: bool = lexer.predicate_result; transition matched { true -> if_yes(lexer) _ -> let_kw(lexer) } }
-    state let_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "let"); let matched: bool = lexer.predicate_result; transition matched { true -> let_yes(lexer) _ -> library_kw(lexer) } }
-    state library_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "library"); let matched: bool = lexer.predicate_result; transition matched { true -> library_yes(lexer) _ -> loop_kw(lexer) } }
-    state loop_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "loop"); let matched: bool = lexer.predicate_result; transition matched { true -> loop_yes(lexer) _ -> machine_kw(lexer) } }
-    state machine_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "machine"); let matched: bool = lexer.predicate_result; transition matched { true -> machine_yes(lexer) _ -> match_kw(lexer) } }
-    state match_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "match"); let matched: bool = lexer.predicate_result; transition matched { true -> match_yes(lexer) _ -> owns_kw(lexer) } }
-    state owns_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "owns"); let matched: bool = lexer.predicate_result; transition matched { true -> owns_yes(lexer) _ -> platform_kw(lexer) } }
-    state platform_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "platform"); let matched: bool = lexer.predicate_result; transition matched { true -> platform_yes(lexer) _ -> pub_kw(lexer) } }
-    state pub_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "pub"); let matched: bool = lexer.predicate_result; transition matched { true -> pub_yes(lexer) _ -> return_kw(lexer) } }
-    state return_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "return"); let matched: bool = lexer.predicate_result; transition matched { true -> return_yes(lexer) _ -> self_type_kw(lexer) } }
-    state self_type_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "Self"); let matched: bool = lexer.predicate_result; transition matched { true -> self_type_yes(lexer) _ -> self_value_kw(lexer) } }
-    state self_value_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "lexer"); let matched: bool = lexer.predicate_result; transition matched { true -> self_value_yes(lexer) _ -> state_kw(lexer) } }
-    state state_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "state"); let matched: bool = lexer.predicate_result; transition matched { true -> state_yes(lexer) _ -> struct_kw(lexer) } }
-    state struct_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "struct"); let matched: bool = lexer.predicate_result; transition matched { true -> struct_yes(lexer) _ -> target_kw(lexer) } }
-    state target_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "target"); let matched: bool = lexer.predicate_result; transition matched { true -> target_yes(lexer) _ -> transition_kw(lexer) } }
-    state transition_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "transition"); let matched: bool = lexer.predicate_result; transition matched { true -> transition_yes(lexer) _ -> true_kw(lexer) } }
-    state true_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "true"); let matched: bool = lexer.predicate_result; transition matched { true -> true_yes(lexer) _ -> use_kw(lexer) } }
-    state use_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "use"); let matched: bool = lexer.predicate_result; transition matched { true -> use_yes(lexer) _ -> when_kw(lexer) } }
-    state when_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "when"); let matched: bool = lexer.predicate_result; transition matched { true -> when_yes(lexer) _ -> while_kw(lexer) } }
-    state while_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "while"); let matched: bool = lexer.predicate_result; transition matched { true -> while_yes(lexer) _ -> case_kw(lexer) } }
-    state case_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "case"); let matched: bool = lexer.predicate_result; transition matched { true -> case_yes(lexer) _ -> copy_kw(lexer) } }
-    state copy_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "copy"); let matched: bool = lexer.predicate_result; transition matched { true -> copy_yes(lexer) _ -> linear_kw(lexer) } }
-    state linear_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "linear"); let matched: bool = lexer.predicate_result; transition matched { true -> linear_yes(lexer) _ -> identifier(lexer) } }
+    transition matched { true -> yes(lexer, KeywordKind::As) _ -> calling_convention_kw(lexer) }
+    state calling_convention_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "calling_convention"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::CallingConvention) _ -> capability_kw(lexer) } }
+    state capability_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "capability"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Capability) _ -> contains_kw(lexer) } }
+    state contains_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "contains"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Contains) _ -> data_kw(lexer) } }
+    state data_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "data"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Data) _ -> else_kw(lexer) } }
+    state else_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "else"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Else) _ -> false_kw(lexer) } }
+    state false_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "false"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::False) _ -> foreign_kw(lexer) } }
+    state foreign_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "foreign"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Foreign) _ -> host_kw(lexer) } }
+    state host_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "host"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Host) _ -> if_kw(lexer) } }
+    state if_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "if"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::If) _ -> let_kw(lexer) } }
+    state let_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "let"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Let) _ -> library_kw(lexer) } }
+    state library_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "library"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Library) _ -> loop_kw(lexer) } }
+    state loop_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "loop"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Loop) _ -> machine_kw(lexer) } }
+    state machine_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "machine"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Machine) _ -> match_kw(lexer) } }
+    state match_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "match"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Match) _ -> owns_kw(lexer) } }
+    state owns_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "owns"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Owns) _ -> platform_kw(lexer) } }
+    state platform_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "platform"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Platform) _ -> pub_kw(lexer) } }
+    state pub_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "pub"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Pub) _ -> return_kw(lexer) } }
+    state return_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "return"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Return) _ -> self_type_kw(lexer) } }
+    state self_type_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "Self"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::SelfType) _ -> self_value_kw(lexer) } }
+    state self_value_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "lexer"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::SelfValue) _ -> state_kw(lexer) } }
+    state state_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "state"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::State) _ -> struct_kw(lexer) } }
+    state struct_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "struct"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Struct) _ -> target_kw(lexer) } }
+    state target_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "target"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Target) _ -> transition_kw(lexer) } }
+    state transition_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "transition"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Transition) _ -> true_kw(lexer) } }
+    state true_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "true"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::True) _ -> use_kw(lexer) } }
+    state use_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "use"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Use) _ -> when_kw(lexer) } }
+    state when_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "when"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::When) _ -> while_kw(lexer) } }
+    state while_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "while"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::While) _ -> case_kw(lexer) } }
+    state case_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "case"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Case) _ -> copy_kw(lexer) } }
+    state copy_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "copy"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Copy) _ -> linear_kw(lexer) } }
+    state linear_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "linear"); let matched: bool = lexer.predicate_result; transition matched { true -> yes(lexer, KeywordKind::Linear) _ -> identifier(lexer) } }
 
-    state as_kw(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::As }); }
-    state calling_convention_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::CallingConvention }); }
-    state capability_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Capability }); }
-    state contains_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Contains }); }
-    state data_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Data }); }
-    state else_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Else }); }
-    state false_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::False }); }
-    state foreign_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Foreign }); }
-    state host_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Host }); }
-    state if_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::If }); }
-    state let_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Let }); }
-    state library_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Library }); }
-    state loop_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Loop }); }
-    state machine_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Machine }); }
-    state match_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Match }); }
-    state owns_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Owns }); }
-    state platform_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Platform }); }
-    state pub_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Pub }); }
-    state return_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Return }); }
-    state self_type_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::SelfType }); }
-    state self_value_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::SelfValue }); }
-    state state_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::State }); }
-    state struct_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Struct }); }
-    state target_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Target }); }
-    state transition_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Transition }); }
-    state true_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::True }); }
-    state use_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Use }); }
-    state when_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::When }); }
-    state while_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::While }); }
-    state case_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Case }); }
-    state copy_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Copy }); }
-    state linear_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Linear }); }
+    state yes(lexer: &mut Lexer, keyword: KeywordKind) { Lexer::push_token(lexer, Token::Keyword { keyword: keyword }); }
     state identifier(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Identifier); }
 }
 
