@@ -190,9 +190,8 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 return Err(input.error_here("duplicate `suspends;` operational clause"));
             }
             suspends = true;
-            input = take_operational_signature_clause(
-                input,
-                "suspends",
+            input = take_invokes_signature_clause(
+                input.take_contextual("suspends")?,
                 allow_clauses_after_operational_separator,
             )?;
             continue;
@@ -204,9 +203,8 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 return Err(input.error_here("duplicate `blocks;` operational clause"));
             }
             blocks = true;
-            input = take_operational_signature_clause(
-                input,
-                "blocks",
+            input = take_invokes_signature_clause(
+                input.take_contextual("blocks")?,
                 allow_clauses_after_operational_separator,
             )?;
             continue;
@@ -368,34 +366,8 @@ fn take_invokes_signature_clause<'tokens, 'source>(
     {
         Ok(after_semicolon)
     } else {
-        Ok(input)
-    }
-}
-
-fn take_operational_signature_clause<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-    name: &str,
-    allow_following_contract_clauses: bool,
-) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
-    let after_name = input.take_contextual(name)?;
-    let after_semicolon = after_name.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)
-        || after_semicolon.at_contextual("reaches")
-        || after_semicolon.at_contextual("effects")
-        || after_semicolon.at_contextual("invokes")
-        || after_semicolon.at_contextual("suspends")
-        || after_semicolon.at_contextual("blocks")
-        || after_semicolon.at_contextual("crashes")
-        || after_semicolon.at_contextual("terminates")
-        || (allow_following_contract_clauses
-            && (after_semicolon.at_contextual("requires")
-                || after_semicolon.at_contextual("ensures")
-                || after_semicolon.at_contextual("where")))
-    {
-        Ok(after_semicolon)
-    } else {
         // A bodyless requirement shares its final clause semicolon with the
         // signature terminator; leave it for the owning parser.
-        Ok(after_name)
+        Ok(input)
     }
 }

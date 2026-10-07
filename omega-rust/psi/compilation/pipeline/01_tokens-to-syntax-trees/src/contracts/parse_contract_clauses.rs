@@ -207,7 +207,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 return Err(input.error_here("duplicate `suspends;` operational clause"));
             }
             suspends = true;
-            input = take_operational_clause(input, "suspends")?;
+            input = take_invokes_clause_terminator(input.take_contextual("suspends")?)?;
             continue;
         }
 
@@ -217,7 +217,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 return Err(input.error_here("duplicate `blocks;` operational clause"));
             }
             blocks = true;
-            input = take_operational_clause(input, "blocks")?;
+            input = take_invokes_clause_terminator(input.take_contextual("blocks")?)?;
             continue;
         }
 
@@ -236,23 +236,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                             // machine and the fact list is empty, exactly as the
                             // `operator` head already allowed.
                             || input.at_punctuation(PunctuationKind::Semicolon)
-                            || input.at_keyword(KeywordKind::Machine)
-                            || input.at_keyword(KeywordKind::Data)
-                            || input.at_keyword(KeywordKind::Use)
-                            || input.at_contextual("requires")
-                            || input.at_contextual("ensures")
-                            || input.at_contextual("terminates")
-                            || input.at_contextual("decreases")
-                            || input.at_contextual("reaches")
-                            || input.at_contextual("effects")
-                            || input.at_contextual("invokes")
-                            || input.at_contextual("suspends")
-                            || input.at_contextual("blocks")
-                            || input.at_contextual("crashes")
-                            || input.at_contextual("boundary")
-                            || input.at_contextual("where")
-                            || input.at_contextual("satisfies")
-                            || input.tokens.is_empty()
+                            || machine_contract_fact_boundary(input)
                     },
                     true,
                 )?;
@@ -349,27 +333,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     fact_input,
                     |input| {
                         input.at_punctuation(PunctuationKind::LeftBrace)
-                        // CH10 bodyless machines (`ensures <fact>;` then the
-                        // next item): a HARD item keyword after the facts
-                        // terminates the list -- a fact expression can never
-                        // begin with one.
-                        || input.at_keyword(KeywordKind::Machine)
-                        || input.at_keyword(KeywordKind::Data)
-                        || input.at_keyword(KeywordKind::Use)
-                        || input.at_contextual("requires")
-                        || input.at_contextual("ensures")
-                        || input.at_contextual("terminates")
-                        || input.at_contextual("decreases")
-                        || input.at_contextual("reaches")
-                        || input.at_contextual("effects")
-                        || input.at_contextual("invokes")
-                        || input.at_contextual("suspends")
-                        || input.at_contextual("blocks")
-                        || input.at_contextual("crashes")
-                        || input.at_contextual("boundary")
-                        || input.at_contextual("where")
-                        || input.at_contextual("satisfies")
-                        || input.tokens.is_empty()
+                            || machine_contract_fact_boundary(input)
                     },
                     true,
                 )?;
@@ -521,6 +485,29 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     ))
 }
 
+// Bodyless machines end their fact list before a hard item keyword: a fact
+// expression cannot begin with one. Callers keep their punctuation boundaries
+// explicit because a crash clause additionally admits an empty `crashes Trap;`.
+fn machine_contract_fact_boundary(input: Input<'_, '_>) -> bool {
+    input.at_keyword(KeywordKind::Machine)
+        || input.at_keyword(KeywordKind::Data)
+        || input.at_keyword(KeywordKind::Use)
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("terminates")
+        || input.at_contextual("decreases")
+        || input.at_contextual("reaches")
+        || input.at_contextual("effects")
+        || input.at_contextual("invokes")
+        || input.at_contextual("suspends")
+        || input.at_contextual("blocks")
+        || input.at_contextual("crashes")
+        || input.at_contextual("boundary")
+        || input.at_contextual("where")
+        || input.at_contextual("satisfies")
+        || input.tokens.is_empty()
+}
+
 fn outcome_case_path_followed_by_arrow(
     input: Input<'_, '_>,
 ) -> Result<bool, crate::diagnostics::parse_error::ParseError> {
@@ -669,23 +656,9 @@ fn take_invokes_clause_terminator<'tokens, 'source>(
     if continues_after_operational_clause(after_semicolon) {
         Ok(after_semicolon)
     } else {
-        // On a bodyless machine this is also the item terminator.
-        Ok(input)
-    }
-}
-
-fn take_operational_clause<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-    name: &str,
-) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
-    let after_name = input.take_contextual(name)?;
-    let after_semicolon = after_name.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if continues_after_operational_clause(after_semicolon) {
-        Ok(after_semicolon)
-    } else {
         // On a bodyless machine this semicolon is both the operational-clause
         // terminator and the item terminator. Leave it for `parse_machine`.
-        Ok(after_name)
+        Ok(input)
     }
 }
 
