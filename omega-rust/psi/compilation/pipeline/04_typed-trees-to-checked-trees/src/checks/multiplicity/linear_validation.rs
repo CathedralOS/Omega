@@ -332,7 +332,8 @@ fn append_unresolved_state_result_mapping_diagnostics(
         else {
             continue;
         };
-        let Some(target_state) = crate::semantic::calls::find_state(program, call.target_symbol)
+        let Some(target_state) =
+            crate::semantic::calls::call_target_state(program, call.target_symbol)
         else {
             continue;
         };

@@ -170,8 +170,10 @@ fn state_frontiers(
                             TransitionTargetNode::Named {
                                 path, arguments, ..
                             } => {
-                                let target_state =
-                                    crate::semantic::calls::find_state(program, path.symbol)?;
+                                let target_state = crate::semantic::calls::call_target_state(
+                                    program,
+                                    path.symbol,
+                                )?;
                                 let mut children = state_frontiers(
                                     program,
                                     target_state,
@@ -278,7 +280,7 @@ fn expression_frontiers(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
+    let target = crate::semantic::calls::call_target_state(program, call.target_symbol)?;
     let mut frontiers = state_frontiers(program, target, ownership, events, maps, active)?;
     for frontier in &mut frontiers {
         for entry in &mut frontier.entries {
@@ -367,7 +369,7 @@ fn expand_joined_frontier(
     if call.target_symbol != target_symbol {
         return None;
     }
-    let target = crate::semantic::calls::find_state(program, target_symbol)?;
+    let target = crate::semantic::calls::call_target_state(program, target_symbol)?;
     let children = state_frontiers(program, target, ownership, events, maps, active)?;
     let mut expanded = Vec::new();
     for child in children {
@@ -676,7 +678,8 @@ fn derive_receipts(
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
             continue;
         };
-        let Some(target) = crate::semantic::calls::find_state(program, call.target_symbol) else {
+        let Some(target) = crate::semantic::calls::call_target_state(program, call.target_symbol)
+        else {
             continue;
         };
         let mut ordinal = 0;

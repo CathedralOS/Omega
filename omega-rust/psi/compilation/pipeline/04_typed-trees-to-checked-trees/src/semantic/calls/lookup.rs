@@ -98,6 +98,19 @@ pub(crate) fn find_machine_head(
         .then_some((machine, state))
 }
 
+/// The state a call or terminal transition target enters: a machine head
+/// (the machine itself or its entry state) or an exact named state. A free
+/// machine call names the machine, an attached one its entry state; both
+/// enter the same body.
+pub(crate) fn call_target_state(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&typed_trees::state::State> {
+    find_machine_head(program, symbol)
+        .map(|(_, state)| state)
+        .or_else(|| find_state(program, symbol))
+}
+
 /// Resolve one exact call destination and its result contract. A stored
 /// body contributes its executable state; a requirement contributes its
 /// declaration. States owned by this activation remain internal control edges,
