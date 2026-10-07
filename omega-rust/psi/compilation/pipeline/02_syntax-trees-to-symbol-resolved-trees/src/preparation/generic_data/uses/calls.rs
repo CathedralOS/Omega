@@ -88,23 +88,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
         }
     }
 
-    let concrete_states = declarations
-        .iter()
-        .map(|declaration| syntax.root_item(*declaration))
-        .filter_map(|item| match item {
-            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
-            _ => None,
-        })
-        .flat_map(|machine| {
-            syntax
-                .tables
-                .items
-                .state_handles(machine.states)
-                .iter()
-                .copied()
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
+    let concrete_states = super::concrete_state_handles(syntax, declarations);
     for state_handle in concrete_states {
         let state = syntax.tables.items.state(state_handle).clone();
         let statements = syntax.tables.items.statements(state.statements).to_vec();

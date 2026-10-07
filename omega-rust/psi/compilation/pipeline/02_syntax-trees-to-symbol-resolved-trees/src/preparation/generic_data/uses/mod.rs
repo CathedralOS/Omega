@@ -27,22 +27,18 @@ pub(super) use patterns::{
     relabel_unique_closed_sum_paths,
 };
 
-/// Concrete machine states and their declared parameter/local types — the
-/// shared prelude every local-typed relabel pass walks before its own scan.
-pub(super) fn concrete_state_local_types(
+
+/// State handles of every generic-free machine in `declarations` — the
+/// prelude the local-type scans share.
+fn concrete_state_handles(
     syntax: &super::SyntaxTrees,
     declarations: &[syntax_trees::item::ItemHandle],
-) -> Vec<(
-    syntax_trees::item::StateNode,
-    super::HashMap<String, super::TypeReferenceHandle>,
-    Vec<syntax_trees::statement::StatementHandle>,
-)> {
-    use super::{Item, StatementNode};
-    let concrete_states = declarations
+) -> Vec<syntax_trees::item::StateHandle> {
+    declarations
         .iter()
         .map(|declaration| syntax.root_item(*declaration))
         .filter_map(|item| match item {
-            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
+            super::Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
             _ => None,
         })
         .flat_map(|machine| {
@@ -54,7 +50,21 @@ pub(super) fn concrete_state_local_types(
                 .copied()
                 .collect::<Vec<_>>()
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>()
+}
+
+/// Concrete machine states and their declared parameter/local types — the
+/// shared prelude every local-typed relabel pass walks before its own scan.
+pub(super) fn concrete_state_local_types(
+    syntax: &super::SyntaxTrees,
+    declarations: &[syntax_trees::item::ItemHandle],
+) -> Vec<(
+    syntax_trees::item::StateNode,
+    super::HashMap<String, super::TypeReferenceHandle>,
+    Vec<syntax_trees::statement::StatementHandle>,
+)> {
+    use super::StatementNode;
+    let concrete_states = concrete_state_handles(syntax, declarations);
 
     let mut states = Vec::with_capacity(concrete_states.len());
     for state_handle in concrete_states {
