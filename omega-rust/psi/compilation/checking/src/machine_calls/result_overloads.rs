@@ -323,6 +323,31 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
     Ok(())
 }
 
+/// The boundary-operator overloads in `candidates` sharing
+/// `provisional_identity`'s family, restricted to candidates `source_span`
+/// may see.
+fn family_boundary_overloads<'program>(
+    program: &'program TypedTrees,
+    candidates: impl Iterator<Item = &'program typed_trees::operator::OperatorDefinition>,
+    source_span: SourceSpan,
+    provisional_identity: CallableIdentityId,
+) -> Vec<(SymbolHandle, CallableIdentityId)> {
+    candidates
+        .filter(|operator| operator.is_boundary && operator.spelling.is_none())
+        .filter(|operator| {
+            program
+                .symbols
+                .source_reference_can_see_symbol(source_span, operator.symbol)
+        })
+        .filter_map(|operator| {
+            let identity = program.operator_callable_identity(operator);
+            program
+                .callable_identities_share_family(identity, provisional_identity)
+                .then_some((operator.symbol, identity))
+        })
+        .collect()
+}
+
 fn selected_named_statement_callable_symbol(
     program: &TypedTrees,
     machine_overloads: &MachineOverloadIndex,
@@ -358,22 +383,8 @@ fn selected_named_statement_callable_symbol(
         operator.symbol == call.target_symbol && operator.is_boundary && operator.spelling.is_none()
     }) {
         let provisional_identity = program.operator_callable_identity(provisional);
-        let overloads = program
-            .operators()
-            .iter()
-            .filter(|operator| operator.is_boundary && operator.spelling.is_none())
-            .filter(|operator| {
-                program
-                    .symbols
-                    .source_reference_can_see_symbol(source_span, operator.symbol)
-            })
-            .filter_map(|operator| {
-                let identity = program.operator_callable_identity(operator);
-                program
-                    .callable_identities_share_family(identity, provisional_identity)
-                    .then_some((operator.symbol, identity))
-            })
-            .collect::<Vec<_>>();
+        let overloads =
+            family_boundary_overloads(program, program.operators().iter(), source_span, provisional_identity);
         if overloads.len() == 1 {
             return Some(provisional.symbol);
         }
@@ -398,21 +409,12 @@ fn selected_named_statement_callable_symbol(
                     .source_reference_can_see_symbol(source_span, operator.symbol)
             })
             .count();
-        let overloads = candidates
-            .iter()
-            .filter(|operator| operator.is_boundary && operator.spelling.is_none())
-            .filter(|operator| {
-                program
-                    .symbols
-                    .source_reference_can_see_symbol(source_span, operator.symbol)
-            })
-            .filter_map(|operator| {
-                let identity = program.operator_callable_identity(operator);
-                program
-                    .callable_identities_share_family(identity, provisional_identity)
-                    .then_some((operator.symbol, identity))
-            })
-            .collect::<Vec<_>>();
+        let overloads = family_boundary_overloads(
+                program,
+                candidates.iter().copied(),
+                source_span,
+                provisional_identity,
+            );
         if overloads.len() == visible_candidate_count {
             if let [(symbol, _)] = overloads.as_slice() {
                 return Some(*symbol);
@@ -502,21 +504,12 @@ fn selected_named_expression_callable_symbol(
                 .source_reference_can_see_symbol(source_span, operator.symbol)
         })
         .count();
-    let overloads = candidates
-        .iter()
-        .filter(|operator| operator.is_boundary && operator.spelling.is_none())
-        .filter(|operator| {
-            program
-                .symbols
-                .source_reference_can_see_symbol(source_span, operator.symbol)
-        })
-        .filter_map(|operator| {
-            let identity = program.operator_callable_identity(operator);
-            program
-                .callable_identities_share_family(identity, provisional_identity)
-                .then_some((operator.symbol, identity))
-        })
-        .collect::<Vec<_>>();
+    let overloads = family_boundary_overloads(
+        program,
+        candidates.iter().copied(),
+        source_span,
+        provisional_identity,
+    );
     if overloads.len() != visible_candidate_count {
         // Path/arity alone still spans distinct parameter overload groups.
         // Leave those calls to ordinary operand-directed resolution.
@@ -586,22 +579,8 @@ fn selected_named_callable_symbol(
         operator.symbol == provisional_target && operator.is_boundary && operator.spelling.is_none()
     }) {
         let provisional_identity = program.operator_callable_identity(provisional_operator);
-        let overloads = program
-            .operators()
-            .iter()
-            .filter(|operator| operator.is_boundary && operator.spelling.is_none())
-            .filter(|operator| {
-                program
-                    .symbols
-                    .source_reference_can_see_symbol(source_span, operator.symbol)
-            })
-            .filter_map(|operator| {
-                let identity = program.operator_callable_identity(operator);
-                program
-                    .callable_identities_share_family(identity, provisional_identity)
-                    .then_some((operator.symbol, identity))
-            })
-            .collect::<Vec<_>>();
+        let overloads =
+            family_boundary_overloads(program, program.operators().iter(), source_span, provisional_identity);
         return select_overload_symbol(
             program,
             provisional_identity,
