@@ -3,7 +3,8 @@
 //! [`PRE_ALLOCATION_RULE_CATALOG`] is the only enable/order declaration for
 //! this phase. Catalog rows compose their exact payloads; the copy-removal
 //! and redundant-extension families own candidate admission and independent
-//! validation, and the executor sweeps them to one joint fixed point.
+//! validation; the ordered candidate frontier reaches their joint fixed point
+//! without restarting discovery after each commit.
 
 mod catalog;
 mod execution;

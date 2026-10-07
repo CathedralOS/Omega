@@ -1,12 +1,19 @@
-//! Joint pre-allocation execution, fixed-point iteration, and independent
-//! replay.
+//! Ordered incremental pre-allocation execution and independent boundary replay.
 //!
-//! One sweep walks [`PRE_ALLOCATION_RULE_CATALOG`] in canonical descriptor
-//! order, running each enabled family's discovery pass over the current
-//! program. The first admissible candidate commits and the whole sweep
-//! restarts over the transformed plan: an extension removal publishes a
-//! `CopyI64` the copy-removal pass then owns, so families share the joint
-//! fixed point rather than each converging alone.
+//! Discover enabled candidate sites once, in catalog/function/block/body order.
+//! Each attempt reads the current plan; a commit remaps positions and invalidates
+//! eligibility in its function, not every unrelated function. New instruction
+//! kinds enter the same ordered frontier immediately. Earlier families keep
+//! priority: draining load forwarding first can erase a copy's last use before
+//! copy removal runs and leave a different fixed point.
+//!
+//! All current families preserve function/block rosters and change family
+//! membership only at the committed site. Their eligibility depends on their
+//! own function and unchanged target facts. A future cross-function admission or
+//! structural edit must extend this invalidation domain before joining the
+//! catalog. Budget/overflow failures are never cached as legality declines.
+//! Iterations count discovery sweeps; evaluation and commit axes charge actual
+//! work. Independent replay remains available at untrusted/test boundaries.
 use crate::{StoredLoadForwardingError, forward_selected_stored_load};
 use std::collections::BTreeSet;
 
@@ -61,9 +68,9 @@ use selected_instructions::{
 
 use super::PRE_ALLOCATION_RULE_CATALOG;
 
-/// One discovery pass's outcome: either the first admissible candidate
-/// committed, or every candidate in the plan declined.
-enum PreAllocationPass {
+/// One fresh site's admission. Most families evaluate one proposal; a copied
+/// call may try several current producers before committing or declining.
+enum CandidateAttempt {
     Clean {
         candidates: usize,
         declined: usize,
@@ -75,6 +82,253 @@ enum PreAllocationPass {
         evaluated: usize,
         validation_steps: u64,
     },
+}
+
+/// Sites describe construction scratch, not durable instruction identities.
+/// Deletion renumbers those identities; body positions are remapped at commit.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum CandidatePosition {
+    Body(usize),
+    Terminator,
+}
+
+#[derive(Clone, Copy)]
+struct CandidateSite {
+    function_index: usize,
+    block_index: usize,
+    position: CandidatePosition,
+}
+
+impl CandidateSite {
+    fn instruction(
+        self,
+        plan: &SelectedInstructionPlan,
+    ) -> Result<&SelectedInstruction, OptimizedPreAllocationCustodyError> {
+        let block = plan
+            .functions
+            .get(self.function_index)
+            .and_then(|function| function.blocks.get(self.block_index))
+            .ok_or(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch)?;
+        match self.position {
+            CandidatePosition::Body(position) => block
+                .instructions
+                .get(position)
+                .ok_or(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch),
+            CandidatePosition::Terminator => Ok(terminator_instruction(&block.terminator)),
+        }
+    }
+}
+
+enum CandidateDisposition {
+    Ready,
+    Declined {
+        revision: usize,
+        candidates: usize,
+        declined: usize,
+    },
+    Retired,
+}
+
+struct PendingCandidate {
+    family_index: usize,
+    site: CandidateSite,
+    disposition: CandidateDisposition,
+}
+
+impl PendingCandidate {
+    fn order(&self) -> (usize, usize, usize, CandidatePosition) {
+        (
+            self.family_index,
+            self.site.function_index,
+            self.site.block_index,
+            self.site.position,
+        )
+    }
+}
+
+/// One ordered discovery frontier owns every enabled family's candidate sites.
+/// A commit invalidates failed eligibility only in the changed function and
+/// publishes any new family membership at its instruction. Earlier families
+/// retain priority: forwarding a later load must not erase a copy's last reader
+/// before copy removal can act. No accepted proposal or dense id is reused.
+struct CandidateFrontier {
+    pending: Vec<PendingCandidate>,
+    function_revisions: Vec<usize>,
+    policy: PreAllocationPolicy,
+}
+
+impl CandidateFrontier {
+    fn new(policy: PreAllocationPolicy, plan: &SelectedInstructionPlan) -> Self {
+        let mut frontier = Self {
+            pending: Vec::new(),
+            function_revisions: vec![1; plan.functions.len()],
+            policy,
+        };
+        for (family_index, row) in PRE_ALLOCATION_RULE_CATALOG.iter().enumerate() {
+            if !policy.contains(row.payload().policy()) {
+                continue;
+            }
+            for (function_index, function) in plan.functions.iter().enumerate() {
+                for (block_index, block) in function.blocks.iter().enumerate() {
+                    for (position, instruction) in block.instructions.iter().enumerate() {
+                        let site = CandidateSite {
+                            function_index,
+                            block_index,
+                            position: CandidatePosition::Body(position),
+                        };
+                        if is_family_candidate(row.optimization(), site.position, instruction) {
+                            frontier.pending.push(PendingCandidate {
+                                family_index,
+                                site,
+                                disposition: CandidateDisposition::Ready,
+                            });
+                        }
+                    }
+                    let site = CandidateSite {
+                        function_index,
+                        block_index,
+                        position: CandidatePosition::Terminator,
+                    };
+                    if is_family_candidate(
+                        row.optimization(),
+                        site.position,
+                        terminator_instruction(&block.terminator),
+                    ) {
+                        frontier.pending.push(PendingCandidate {
+                            family_index,
+                            site,
+                            disposition: CandidateDisposition::Ready,
+                        });
+                    }
+                }
+            }
+        }
+        frontier
+    }
+
+    fn next(&self) -> Option<usize> {
+        self.pending
+            .iter()
+            .position(|candidate| match candidate.disposition {
+                CandidateDisposition::Ready => true,
+                CandidateDisposition::Declined { revision, .. } => {
+                    revision != self.function_revisions[candidate.site.function_index]
+                }
+                CandidateDisposition::Retired => false,
+            })
+    }
+
+    fn committed(
+        &mut self,
+        site: CandidateSite,
+        previous_body_count: usize,
+        plan: &SelectedInstructionPlan,
+    ) -> Result<(), OptimizedPreAllocationCustodyError> {
+        let function = plan
+            .functions
+            .get(site.function_index)
+            .ok_or(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch)?;
+        let block = function
+            .blocks
+            .get(site.block_index)
+            .ok_or(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch)?;
+        let removed = previous_body_count
+            .checked_sub(block.instructions.len())
+            .filter(|removed| *removed <= 1)
+            .ok_or(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch)?;
+        let revision = &mut self.function_revisions[site.function_index];
+        *revision = revision
+            .checked_add(1)
+            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+        for candidate in &mut self.pending {
+            if candidate.site.function_index != site.function_index {
+                continue;
+            }
+            if removed != 0 && candidate.site.block_index == site.block_index {
+                let CandidatePosition::Body(removed_position) = site.position else {
+                    return Err(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch);
+                };
+                if let CandidatePosition::Body(position) = &mut candidate.site.position {
+                    if *position == removed_position {
+                        candidate.disposition = CandidateDisposition::Retired;
+                        continue;
+                    }
+                    if *position > removed_position {
+                        *position -= removed;
+                    }
+                }
+            }
+            if !is_family_candidate(
+                PRE_ALLOCATION_RULE_CATALOG[candidate.family_index].optimization(),
+                candidate.site.position,
+                candidate.site.instruction(plan)?,
+            ) {
+                candidate.disposition = CandidateDisposition::Retired;
+            }
+        }
+        self.pending
+            .retain(|candidate| !matches!(candidate.disposition, CandidateDisposition::Retired));
+        // Only in-place replacements introduce a new kind. Removal preserves
+        // every surviving site's kind while changing its dense ordinal.
+        if removed == 0 {
+            let instruction = site.instruction(plan)?;
+            for (family_index, row) in PRE_ALLOCATION_RULE_CATALOG.iter().enumerate() {
+                if !self.policy.contains(row.payload().policy())
+                    || !is_family_candidate(row.optimization(), site.position, instruction)
+                {
+                    continue;
+                }
+                let candidate = PendingCandidate {
+                    family_index,
+                    site,
+                    disposition: CandidateDisposition::Ready,
+                };
+                if let Err(position) = self
+                    .pending
+                    .binary_search_by_key(&candidate.order(), PendingCandidate::order)
+                {
+                    self.pending.insert(position, candidate);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn is_family_candidate(
+    optimization: Optimization,
+    position: CandidatePosition,
+    instruction: &SelectedInstruction,
+) -> bool {
+    if matches!(position, CandidatePosition::Terminator) {
+        return optimization == Optimization::SelectedConstantBranchFoldV1
+            && is_branch_reader(instruction.kind);
+    }
+    match optimization {
+        Optimization::SelectedSameBlockCopyI64RemovalV1 => {
+            instruction.kind == SelectedInstructionKind::CopyI64
+        }
+        Optimization::SelectedRedundantExtensionRemovalV1 => {
+            is_extension_candidate(instruction.kind)
+        }
+        Optimization::SelectedAddressOffsetFoldV1 => is_fold_consumer(instruction.kind),
+        Optimization::SelectedConstantBooleanFoldV1 => is_boolean_reader(instruction.kind),
+        Optimization::SelectedDeadCompareRemovalV1
+        | Optimization::SelectedRedundantCompareRemovalV1
+        | Optimization::SelectedEquivalentCompareRemovalV1 => {
+            is_compare_publisher(instruction.kind)
+        }
+        Optimization::SelectedCopiedCallOperandFoldV1 => is_call_consumer(instruction),
+        Optimization::SelectedStoredLoadForwardingV1 => matches!(
+            instruction.kind,
+            SelectedInstructionKind::Load64 { .. }
+                | SelectedInstructionKind::Load32 { .. }
+                | SelectedInstructionKind::Load16 { .. }
+                | SelectedInstructionKind::Load8 { .. }
+                | SelectedInstructionKind::Load8Indexed { .. }
+        ),
+        _ => false,
+    }
 }
 
 /// Whether the instruction kind is one of the carrier extensions the
@@ -276,206 +530,181 @@ fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
     total
 }
 
-/// Source-bound candidate discovery: every `CopyI64` instruction in the
-/// current validated plan, in function/block/instruction order, evaluated
-/// until the first admissible one commits. A declined candidate is the
-/// admission's legality refusal and the scan continues; budget exhaustion,
-/// identity arithmetic failure, or a producer/validator disagreement fails
-/// the pass — none is permission to publish a partial candidate.
-///
-/// The pass meters `validation_steps` in the family's published measured-step
-/// contract: each evaluated candidate costs one audit scan of the current
-/// plan, and a committed candidate costs a second scan for the independent
-/// validation.
-fn copy_removal_pass(
+/// Admit the current copy. Ordinary legality refusals decline the site; budget,
+/// identity and validator failures abort the run. Published measured-step costs
+/// charge the admission audit and, on commit, its independent validation.
+fn copy_removal_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let instruction = site.instruction(current.selected_plan())?;
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        let audit_cost = copy_removal_measured_steps(current.selected_plan(), function)
-            .map_err(OptimizedPreAllocationCustodyError::CopyRemoval)?;
-        for block in &function.blocks {
-            for instruction in &block.instructions {
-                if instruction.kind != SelectedInstructionKind::CopyI64 {
-                    continue;
-                }
-                evaluated += 1;
-                validation_steps = charge(validation_steps, audit_cost)?;
-                match remove_selected_copy(
-                    &current,
-                    function_index,
-                    instruction.id,
-                    environment,
-                    budget,
-                ) {
-                    Ok(removal) => {
-                        validation_steps = charge(validation_steps, audit_cost)?;
-                        return Ok(PreAllocationPass::Applied {
-                            transformation: ValidatedPreAllocationTransformation::CopyRemoval(
-                                removal,
-                            ),
-                            declined,
-                            evaluated,
-                            validation_steps,
-                        });
-                    }
-                    Err(
-                        error @ (CopyRemovalError::WorkBudgetExceeded
-                        | CopyRemovalError::IdentityOverflow
-                        | CopyRemovalError::ReplayMismatch),
-                    ) => {
-                        return Err(OptimizedPreAllocationCustodyError::CopyRemoval(error));
-                    }
-                    Err(_) => declined += 1,
-                }
-            }
+
+    let audit_cost = copy_removal_measured_steps(current.selected_plan(), function)
+        .map_err(OptimizedPreAllocationCustodyError::CopyRemoval)?;
+
+    evaluated += 1;
+    validation_steps = charge(validation_steps, audit_cost)?;
+    match remove_selected_copy(
+        &current,
+        function_index,
+        instruction.id,
+        environment,
+        budget,
+    ) {
+        Ok(removal) => {
+            validation_steps = charge(validation_steps, audit_cost)?;
+            return Ok(CandidateAttempt::Applied {
+                transformation: ValidatedPreAllocationTransformation::CopyRemoval(removal),
+                declined,
+                evaluated,
+                validation_steps,
+            });
         }
+        Err(
+            error @ (CopyRemovalError::WorkBudgetExceeded
+            | CopyRemovalError::IdentityOverflow
+            | CopyRemovalError::ReplayMismatch),
+        ) => {
+            return Err(OptimizedPreAllocationCustodyError::CopyRemoval(error));
+        }
+        Err(_) => declined += 1,
     }
-    Ok(PreAllocationPass::Clean {
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
     })
 }
 
-/// Source-bound candidate discovery for the redundant-extension family:
-/// every `ZeroExtend*`/`SignExtend*` in the current validated plan, in
-/// function/block/instruction order, evaluated until the first admissible
-/// one commits. Declines and hard failures follow the copy pass's contract
-/// exactly, and the measured-step contract is the extension family's own.
-fn extension_removal_pass(
+/// Admit the current extension under its own measured-step contract.
+fn extension_removal_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let instruction = site.instruction(current.selected_plan())?;
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        let audit_cost = redundant_extension_measured_steps(current.selected_plan(), function)
-            .map_err(OptimizedPreAllocationCustodyError::RedundantExtension)?;
-        for block in &function.blocks {
-            for instruction in &block.instructions {
-                if !is_extension_candidate(instruction.kind) {
-                    continue;
-                }
-                evaluated += 1;
-                validation_steps = charge(validation_steps, audit_cost)?;
-                match remove_selected_redundant_extension(
-                    &current,
-                    function_index,
-                    instruction.id,
-                    environment,
-                    budget,
-                ) {
-                    Ok(removal) => {
-                        validation_steps = charge(validation_steps, audit_cost)?;
-                        return Ok(PreAllocationPass::Applied {
-                            transformation:
-                                ValidatedPreAllocationTransformation::RedundantExtension(removal),
-                            declined,
-                            evaluated,
-                            validation_steps,
-                        });
-                    }
-                    Err(
-                        error @ (RedundantExtensionError::WorkBudgetExceeded
-                        | RedundantExtensionError::IdentityOverflow
-                        | RedundantExtensionError::ReplayMismatch),
-                    ) => {
-                        return Err(OptimizedPreAllocationCustodyError::RedundantExtension(
-                            error,
-                        ));
-                    }
-                    Err(_) => declined += 1,
-                }
-            }
+
+    let audit_cost = redundant_extension_measured_steps(current.selected_plan(), function)
+        .map_err(OptimizedPreAllocationCustodyError::RedundantExtension)?;
+
+    evaluated += 1;
+    validation_steps = charge(validation_steps, audit_cost)?;
+    match remove_selected_redundant_extension(
+        &current,
+        function_index,
+        instruction.id,
+        environment,
+        budget,
+    ) {
+        Ok(removal) => {
+            validation_steps = charge(validation_steps, audit_cost)?;
+            return Ok(CandidateAttempt::Applied {
+                transformation: ValidatedPreAllocationTransformation::RedundantExtension(removal),
+                declined,
+                evaluated,
+                validation_steps,
+            });
         }
+        Err(
+            error @ (RedundantExtensionError::WorkBudgetExceeded
+            | RedundantExtensionError::IdentityOverflow
+            | RedundantExtensionError::ReplayMismatch),
+        ) => {
+            return Err(OptimizedPreAllocationCustodyError::RedundantExtension(
+                error,
+            ));
+        }
+        Err(_) => declined += 1,
     }
-    Ok(PreAllocationPass::Clean {
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
     })
 }
 
-/// Source-bound candidate discovery for the address-fold family: every
-/// displacement-carrying consumer — `Load8`/`Load16`/`Load32`/`Load64`,
-/// the byte-addressable referent `Store` widths, and `AddressOffset` — in
-/// the current validated plan, in function/block/instruction order,
-/// evaluated until the first admissible one commits. Declines and hard
-/// failures follow the copy pass's contract exactly, and the measured-step
-/// contract is the fold family's own.
-fn address_fold_pass(
+/// Admit the current displacement-carrying consumer.
+fn address_fold_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let instruction = site.instruction(current.selected_plan())?;
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        let audit_cost = address_fold_measured_steps(current.selected_plan(), function)
-            .map_err(OptimizedPreAllocationCustodyError::AddressFold)?;
-        for block in &function.blocks {
-            for instruction in &block.instructions {
-                if !is_fold_consumer(instruction.kind) {
-                    continue;
-                }
-                evaluated += 1;
-                validation_steps = charge(validation_steps, audit_cost)?;
-                match fold_selected_address(
-                    &current,
-                    function_index,
-                    instruction.id,
-                    environment,
-                    budget,
-                ) {
-                    Ok(fold) => {
-                        validation_steps = charge(validation_steps, audit_cost)?;
-                        return Ok(PreAllocationPass::Applied {
-                            transformation: ValidatedPreAllocationTransformation::AddressFold(fold),
-                            declined,
-                            evaluated,
-                            validation_steps,
-                        });
-                    }
-                    Err(
-                        error @ (AddressFoldError::WorkBudgetExceeded
-                        | AddressFoldError::IdentityOverflow
-                        | AddressFoldError::ReplayMismatch),
-                    ) => {
-                        return Err(OptimizedPreAllocationCustodyError::AddressFold(error));
-                    }
-                    Err(_) => declined += 1,
-                }
-            }
+
+    let audit_cost = address_fold_measured_steps(current.selected_plan(), function)
+        .map_err(OptimizedPreAllocationCustodyError::AddressFold)?;
+
+    evaluated += 1;
+    validation_steps = charge(validation_steps, audit_cost)?;
+    match fold_selected_address(
+        &current,
+        function_index,
+        instruction.id,
+        environment,
+        budget,
+    ) {
+        Ok(fold) => {
+            validation_steps = charge(validation_steps, audit_cost)?;
+            return Ok(CandidateAttempt::Applied {
+                transformation: ValidatedPreAllocationTransformation::AddressFold(fold),
+                declined,
+                evaluated,
+                validation_steps,
+            });
         }
+        Err(
+            error @ (AddressFoldError::WorkBudgetExceeded
+            | AddressFoldError::IdentityOverflow
+            | AddressFoldError::ReplayMismatch),
+        ) => {
+            return Err(OptimizedPreAllocationCustodyError::AddressFold(error));
+        }
+        Err(_) => declined += 1,
     }
-    Ok(PreAllocationPass::Clean {
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
     })
 }
 
-/// Source-bound candidate discovery for the constant-boolean family: every
-/// flag-reading `MaterializeBoolean*` in the current validated plan, in
-/// function/block/instruction order, evaluated until the first admissible
-/// one commits. Declines and hard failures follow the copy pass's contract
-/// exactly, and the measured-step contract is the fold family's own — the
-/// flag-universe and materialize-surface sizes are charged once per pass
-/// from the target's rows, and the reached compare's published definitions
-/// stay bounded by the flag universe, so the pre-admission charge uses it.
-fn constant_boolean_pass(
+/// Admit the current flag reader. The target flag universe bounds the reached
+/// compare's definitions in the pre-admission work charge.
+fn constant_boolean_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let instruction = site.instruction(current.selected_plan())?;
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
@@ -488,76 +717,66 @@ fn constant_boolean_pass(
     let effect_catalog =
         validated_machine_effect_catalog(environment.target(), environment.constraints())
             .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        let (successors, _) = adjacency(function);
-        for block in &function.blocks {
-            for instruction in &block.instructions {
-                if !is_boolean_reader(instruction.kind) {
-                    continue;
-                }
-                evaluated += 1;
-                let audit_cost = constant_boolean_measured_steps(
-                    current.selected_plan(),
-                    function,
-                    &successors,
-                    instruction.implicit_uses.len(),
-                    flag_universe,
-                    materialize_surface,
-                    flag_universe,
-                )
-                .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
-                validation_steps = charge(validation_steps, audit_cost)?;
-                match fold_selected_constant_boolean(
-                    &current,
-                    function_index,
-                    instruction.id,
-                    environment,
-                    &effect_catalog,
-                    budget,
-                ) {
-                    Ok(fold) => {
-                        validation_steps = charge(validation_steps, audit_cost)?;
-                        return Ok(PreAllocationPass::Applied {
-                            transformation: ValidatedPreAllocationTransformation::ConstantBoolean(
-                                fold,
-                            ),
-                            declined,
-                            evaluated,
-                            validation_steps,
-                        });
-                    }
-                    Err(
-                        error @ (ConstantBooleanError::WorkBudgetExceeded
-                        | ConstantBooleanError::IdentityOverflow
-                        | ConstantBooleanError::ReplayMismatch),
-                    ) => {
-                        return Err(OptimizedPreAllocationCustodyError::ConstantBoolean(error));
-                    }
-                    Err(_) => declined += 1,
-                }
-            }
+
+    let (successors, _) = adjacency(function);
+
+    evaluated += 1;
+    let audit_cost = constant_boolean_measured_steps(
+        current.selected_plan(),
+        function,
+        &successors,
+        instruction.implicit_uses.len(),
+        flag_universe,
+        materialize_surface,
+        flag_universe,
+    )
+    .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
+    validation_steps = charge(validation_steps, audit_cost)?;
+    match fold_selected_constant_boolean(
+        &current,
+        function_index,
+        instruction.id,
+        environment,
+        &effect_catalog,
+        budget,
+    ) {
+        Ok(fold) => {
+            validation_steps = charge(validation_steps, audit_cost)?;
+            return Ok(CandidateAttempt::Applied {
+                transformation: ValidatedPreAllocationTransformation::ConstantBoolean(fold),
+                declined,
+                evaluated,
+                validation_steps,
+            });
         }
+        Err(
+            error @ (ConstantBooleanError::WorkBudgetExceeded
+            | ConstantBooleanError::IdentityOverflow
+            | ConstantBooleanError::ReplayMismatch),
+        ) => {
+            return Err(OptimizedPreAllocationCustodyError::ConstantBoolean(error));
+        }
+        Err(_) => declined += 1,
     }
-    Ok(PreAllocationPass::Clean {
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
     })
 }
 
-/// Source-bound candidate discovery for the constant-branch family: every
-/// flag-reading `ConditionalBranch*` terminator in the current validated
-/// plan, in function/block order, evaluated until the first admissible one
-/// commits. Declines and hard failures follow the copy pass's contract
-/// exactly, and the measured-step contract is the fold family's own — the
-/// flag-universe and jump-surface sizes are charged once per pass from the
-/// target's rows, and the reached compare's published definitions stay
-/// bounded by the flag universe, so the pre-admission charge uses it.
-fn constant_branch_pass(
+/// Admit the current branch terminator with the target flag-universe bound.
+fn constant_branch_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let instruction = site.instruction(current.selected_plan())?;
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
@@ -570,258 +789,223 @@ fn constant_branch_pass(
     let effect_catalog =
         validated_machine_effect_catalog(environment.target(), environment.constraints())
             .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        let (successors, _) = adjacency(function);
-        for block in &function.blocks {
-            let instruction = terminator_instruction(&block.terminator);
-            if !is_branch_reader(instruction.kind) {
-                continue;
-            }
-            evaluated += 1;
-            let audit_cost = constant_branch_measured_steps(
-                current.selected_plan(),
-                function,
-                &successors,
-                instruction.implicit_uses.len(),
-                flag_universe,
-                jump_surface,
-                flag_universe,
-            )
-            .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
+
+    let (successors, _) = adjacency(function);
+
+    evaluated += 1;
+    let audit_cost = constant_branch_measured_steps(
+        current.selected_plan(),
+        function,
+        &successors,
+        instruction.implicit_uses.len(),
+        flag_universe,
+        jump_surface,
+        flag_universe,
+    )
+    .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
+    validation_steps = charge(validation_steps, audit_cost)?;
+    match fold_selected_constant_branch(
+        &current,
+        function_index,
+        instruction.id,
+        environment,
+        &effect_catalog,
+        budget,
+    ) {
+        Ok(fold) => {
             validation_steps = charge(validation_steps, audit_cost)?;
-            match fold_selected_constant_branch(
-                &current,
-                function_index,
-                instruction.id,
-                environment,
-                &effect_catalog,
-                budget,
-            ) {
-                Ok(fold) => {
-                    validation_steps = charge(validation_steps, audit_cost)?;
-                    return Ok(PreAllocationPass::Applied {
-                        transformation: ValidatedPreAllocationTransformation::ConstantBranch(fold),
-                        declined,
-                        evaluated,
-                        validation_steps,
-                    });
-                }
-                Err(
-                    error @ (ConstantBranchError::WorkBudgetExceeded
-                    | ConstantBranchError::IdentityOverflow
-                    | ConstantBranchError::ReplayMismatch),
-                ) => {
-                    return Err(OptimizedPreAllocationCustodyError::ConstantBranch(error));
-                }
-                Err(_) => declined += 1,
-            }
+            return Ok(CandidateAttempt::Applied {
+                transformation: ValidatedPreAllocationTransformation::ConstantBranch(fold),
+                declined,
+                evaluated,
+                validation_steps,
+            });
         }
+        Err(
+            error @ (ConstantBranchError::WorkBudgetExceeded
+            | ConstantBranchError::IdentityOverflow
+            | ConstantBranchError::ReplayMismatch),
+        ) => {
+            return Err(OptimizedPreAllocationCustodyError::ConstantBranch(error));
+        }
+        Err(_) => declined += 1,
     }
-    Ok(PreAllocationPass::Clean {
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
     })
 }
 
-/// Source-bound candidate discovery for the dead-compare family: every
-/// `CompareI64`/`CompareI64Immediate`/`CompareI64Zero` in the current
-/// validated plan, in function/block/instruction order, evaluated until
-/// the first admissible one commits. Declines and hard failures follow the
-/// copy pass's contract exactly, and the measured-step contract is the
-/// removal family's own — its per-candidate cost includes the published
-/// unit count, so the audit charge is computed per evaluated instruction.
-fn dead_compare_pass(
+/// Admit the current dead-compare proposal, charging its published flag units.
+fn dead_compare_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let instruction = site.instruction(current.selected_plan())?;
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        for block in &function.blocks {
-            for instruction in &block.instructions {
-                if !is_compare_publisher(instruction.kind) {
-                    continue;
-                }
-                evaluated += 1;
-                let audit_cost = dead_compare_measured_steps(
-                    current.selected_plan(),
-                    function,
-                    published_flag_units(instruction),
-                )
-                .map_err(OptimizedPreAllocationCustodyError::DeadCompare)?;
-                validation_steps = charge(validation_steps, audit_cost)?;
-                match remove_dead_compare(
-                    &current,
-                    function_index,
-                    instruction.id,
-                    environment,
-                    budget,
-                ) {
-                    Ok(removal) => {
-                        validation_steps = charge(validation_steps, audit_cost)?;
-                        return Ok(PreAllocationPass::Applied {
-                            transformation: ValidatedPreAllocationTransformation::DeadCompare(
-                                removal,
-                            ),
-                            declined,
-                            evaluated,
-                            validation_steps,
-                        });
-                    }
-                    Err(
-                        error @ (DeadCompareError::WorkBudgetExceeded
-                        | DeadCompareError::IdentityOverflow
-                        | DeadCompareError::ReplayMismatch),
-                    ) => {
-                        return Err(OptimizedPreAllocationCustodyError::DeadCompare(error));
-                    }
-                    Err(_) => declined += 1,
-                }
-            }
+
+    evaluated += 1;
+    let audit_cost = dead_compare_measured_steps(
+        current.selected_plan(),
+        function,
+        published_flag_units(instruction),
+    )
+    .map_err(OptimizedPreAllocationCustodyError::DeadCompare)?;
+    validation_steps = charge(validation_steps, audit_cost)?;
+    match remove_dead_compare(
+        &current,
+        function_index,
+        instruction.id,
+        environment,
+        budget,
+    ) {
+        Ok(removal) => {
+            validation_steps = charge(validation_steps, audit_cost)?;
+            return Ok(CandidateAttempt::Applied {
+                transformation: ValidatedPreAllocationTransformation::DeadCompare(removal),
+                declined,
+                evaluated,
+                validation_steps,
+            });
         }
+        Err(
+            error @ (DeadCompareError::WorkBudgetExceeded
+            | DeadCompareError::IdentityOverflow
+            | DeadCompareError::ReplayMismatch),
+        ) => {
+            return Err(OptimizedPreAllocationCustodyError::DeadCompare(error));
+        }
+        Err(_) => declined += 1,
     }
-    Ok(PreAllocationPass::Clean {
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
     })
 }
 
-/// Source-bound candidate discovery for the redundant-compare family:
-/// every flag-publisher compare in the current validated plan, in
-/// function/block/instruction order, evaluated until the first admissible
-/// one commits. Declines and hard failures follow the copy pass's contract
-/// exactly, and the measured-step contract is the family's own — its
-/// per-candidate cost includes the published unit count over the
-/// function's successor adjacency, so the audit charge is computed per
-/// evaluated instruction.
-fn redundant_compare_pass(
+/// Admit the current redundant-compare proposal.
+fn redundant_compare_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let instruction = site.instruction(current.selected_plan())?;
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        let (successors, _) = adjacency(function);
-        for block in &function.blocks {
-            for instruction in &block.instructions {
-                if !is_compare_publisher(instruction.kind) {
-                    continue;
-                }
-                evaluated += 1;
-                let audit_cost = redundant_compare_measured_steps(
-                    current.selected_plan(),
-                    function,
-                    &successors,
-                    published_flag_units(instruction),
-                )
-                .map_err(OptimizedPreAllocationCustodyError::RedundantCompare)?;
-                validation_steps = charge(validation_steps, audit_cost)?;
-                match remove_redundant_compare(
-                    &current,
-                    function_index,
-                    instruction.id,
-                    environment,
-                    budget,
-                ) {
-                    Ok(removal) => {
-                        validation_steps = charge(validation_steps, audit_cost)?;
-                        return Ok(PreAllocationPass::Applied {
-                            transformation: ValidatedPreAllocationTransformation::RedundantCompare(
-                                removal,
-                            ),
-                            declined,
-                            evaluated,
-                            validation_steps,
-                        });
-                    }
-                    Err(
-                        error @ (RedundantCompareError::WorkBudgetExceeded
-                        | RedundantCompareError::IdentityOverflow
-                        | RedundantCompareError::ReplayMismatch),
-                    ) => {
-                        return Err(OptimizedPreAllocationCustodyError::RedundantCompare(error));
-                    }
-                    Err(_) => declined += 1,
-                }
-            }
+
+    let (successors, _) = adjacency(function);
+
+    evaluated += 1;
+    let audit_cost = redundant_compare_measured_steps(
+        current.selected_plan(),
+        function,
+        &successors,
+        published_flag_units(instruction),
+    )
+    .map_err(OptimizedPreAllocationCustodyError::RedundantCompare)?;
+    validation_steps = charge(validation_steps, audit_cost)?;
+    match remove_redundant_compare(
+        &current,
+        function_index,
+        instruction.id,
+        environment,
+        budget,
+    ) {
+        Ok(removal) => {
+            validation_steps = charge(validation_steps, audit_cost)?;
+            return Ok(CandidateAttempt::Applied {
+                transformation: ValidatedPreAllocationTransformation::RedundantCompare(removal),
+                declined,
+                evaluated,
+                validation_steps,
+            });
         }
+        Err(
+            error @ (RedundantCompareError::WorkBudgetExceeded
+            | RedundantCompareError::IdentityOverflow
+            | RedundantCompareError::ReplayMismatch),
+        ) => {
+            return Err(OptimizedPreAllocationCustodyError::RedundantCompare(error));
+        }
+        Err(_) => declined += 1,
     }
-    Ok(PreAllocationPass::Clean {
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
     })
 }
 
-/// Source-bound candidate discovery for the equivalent-compare family:
-/// every flag-publisher compare in the current validated plan, in
-/// function/block/instruction order, evaluated until the first admissible
-/// one commits. Declines and hard failures follow the copy pass's contract
-/// exactly, and the measured-step contract is the family's own — its
-/// per-candidate cost includes the published unit count over the
-/// function's successor adjacency, so the audit charge is computed per
-/// evaluated instruction.
-fn equivalent_compare_pass(
+/// Admit the current equivalent-compare proposal.
+fn equivalent_compare_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let instruction = site.instruction(current.selected_plan())?;
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        let (successors, _) = adjacency(function);
-        for block in &function.blocks {
-            for instruction in &block.instructions {
-                if !is_compare_publisher(instruction.kind) {
-                    continue;
-                }
-                evaluated += 1;
-                let audit_cost = equivalent_compare_measured_steps(
-                    current.selected_plan(),
-                    function,
-                    &successors,
-                    published_flag_units(instruction),
-                )
-                .map_err(OptimizedPreAllocationCustodyError::EquivalentCompare)?;
-                validation_steps = charge(validation_steps, audit_cost)?;
-                match remove_equivalent_compare(
-                    &current,
-                    function_index,
-                    instruction.id,
-                    environment,
-                    budget,
-                ) {
-                    Ok(removal) => {
-                        validation_steps = charge(validation_steps, audit_cost)?;
-                        return Ok(PreAllocationPass::Applied {
-                            transformation: ValidatedPreAllocationTransformation::EquivalentCompare(
-                                removal,
-                            ),
-                            declined,
-                            evaluated,
-                            validation_steps,
-                        });
-                    }
-                    Err(
-                        error @ (EquivalentCompareError::WorkBudgetExceeded
-                        | EquivalentCompareError::IdentityOverflow
-                        | EquivalentCompareError::ReplayMismatch),
-                    ) => {
-                        return Err(OptimizedPreAllocationCustodyError::EquivalentCompare(error));
-                    }
-                    Err(_) => declined += 1,
-                }
-            }
+
+    let (successors, _) = adjacency(function);
+
+    evaluated += 1;
+    let audit_cost = equivalent_compare_measured_steps(
+        current.selected_plan(),
+        function,
+        &successors,
+        published_flag_units(instruction),
+    )
+    .map_err(OptimizedPreAllocationCustodyError::EquivalentCompare)?;
+    validation_steps = charge(validation_steps, audit_cost)?;
+    match remove_equivalent_compare(
+        &current,
+        function_index,
+        instruction.id,
+        environment,
+        budget,
+    ) {
+        Ok(removal) => {
+            validation_steps = charge(validation_steps, audit_cost)?;
+            return Ok(CandidateAttempt::Applied {
+                transformation: ValidatedPreAllocationTransformation::EquivalentCompare(removal),
+                declined,
+                evaluated,
+                validation_steps,
+            });
         }
+        Err(
+            error @ (EquivalentCompareError::WorkBudgetExceeded
+            | EquivalentCompareError::IdentityOverflow
+            | EquivalentCompareError::ReplayMismatch),
+        ) => {
+            return Err(OptimizedPreAllocationCustodyError::EquivalentCompare(error));
+        }
+        Err(_) => declined += 1,
     }
-    Ok(PreAllocationPass::Clean {
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
@@ -853,7 +1037,7 @@ fn pass_usage(
         candidates: count(candidates)?,
         validation_steps,
         commits: count(commits)?,
-        iterations: 1,
+        iterations: 0,
     })
 }
 
@@ -941,14 +1125,17 @@ fn last_definition_before(
     })
 }
 
-/// Nominate memory reads through the ordinary catalog sweep and analysis
-/// restaging. The surface bound covers both independent walks, including
-/// predecessor joins and register transport scans. Unknown aliases refuse.
-fn stored_load_forwarding_pass(
+/// Admit the current load. Memory-audit work remains charged against the current
+/// plan; no accepted proposal survives a commit.
+fn stored_load_forwarding_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let instruction = site.instruction(current.selected_plan())?;
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
@@ -973,86 +1160,66 @@ fn stored_load_forwarding_pass(
         .and_then(|value| value.checked_mul(surface))
         .and_then(|value| value.checked_mul(2))
         .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        for block in &function.blocks {
-            for instruction in &block.instructions {
-                if !matches!(
-                    instruction.kind,
-                    SelectedInstructionKind::Load64 { .. }
-                        | SelectedInstructionKind::Load32 { .. }
-                        | SelectedInstructionKind::Load16 { .. }
-                        | SelectedInstructionKind::Load8 { .. }
-                        | SelectedInstructionKind::Load8Indexed { .. }
-                ) {
-                    continue;
-                }
-                evaluated += 1;
-                validation_steps = charge(validation_steps, audit_cost)?;
-                if validation_steps > budget.validation_steps() {
-                    return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
-                        StoredLoadForwardingError::WorkBudgetExceeded,
-                    ));
-                }
-                match forward_selected_stored_load(
-                    &current,
-                    function_index,
-                    instruction.id,
-                    environment,
-                    budget,
-                ) {
-                    Ok(forwarding) => {
-                        return Ok(PreAllocationPass::Applied {
-                            transformation:
-                                ValidatedPreAllocationTransformation::StoredLoadForwarding(
-                                    forwarding,
-                                ),
-                            declined,
-                            evaluated,
-                            validation_steps,
-                        });
-                    }
-                    Err(
-                        error @ (StoredLoadForwardingError::WorkBudgetExceeded
-                        | StoredLoadForwardingError::IdentityOverflow
-                        | StoredLoadForwardingError::ReplayMismatch),
-                    ) => {
-                        return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
-                            error,
-                        ));
-                    }
-                    Err(_) => declined += 1,
-                }
-            }
-        }
+
+    evaluated += 1;
+    validation_steps = charge(validation_steps, audit_cost)?;
+    if validation_steps > budget.validation_steps() {
+        return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
+            StoredLoadForwardingError::WorkBudgetExceeded,
+        ));
     }
-    Ok(PreAllocationPass::Clean {
+    match forward_selected_stored_load(
+        &current,
+        function_index,
+        instruction.id,
+        environment,
+        budget,
+    ) {
+        Ok(forwarding) => {
+            return Ok(CandidateAttempt::Applied {
+                transformation: ValidatedPreAllocationTransformation::StoredLoadForwarding(
+                    forwarding,
+                ),
+                declined,
+                evaluated,
+                validation_steps,
+            });
+        }
+        Err(
+            error @ (StoredLoadForwardingError::WorkBudgetExceeded
+            | StoredLoadForwardingError::IdentityOverflow
+            | StoredLoadForwardingError::ReplayMismatch),
+        ) => {
+            return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
+                error,
+            ));
+        }
+        Err(_) => declined += 1,
+    }
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
     })
 }
 
-/// Source-bound candidate discovery for the copied-call-operand family:
-/// every direct internal call — `CallUnit`, `CallScalar`, or
-/// `CallAggregate` — in the current validated plan, in
-/// function/block/instruction order, each `Use` argument operand naming
-/// the instruction whose last definition produced it; a producer that is
-/// a `CopyI64` is a candidate pair, evaluated in operand order until the
-/// first admissible one commits. A call can reach several copies — one
-/// per argument — and each producer id is evaluated once per call.
-/// Declines and hard failures follow the copy pass's contract exactly,
-/// and the measured-step contract is the family's own: the
-/// whole-function scan, the producer scan, the last-definition walk,
-/// and the interval audit charged per evaluated pair and again on a
-/// commit's independent validation. The retained-call surface binds the
-/// environment's validated effect catalog the same way the
-/// constant-branch family binds it.
-
-fn copied_call_operand_pass(
+/// Try current producer/call pairs in operand order, once per distinct producer.
+/// Renumbered dense identities are obtained from this attempt's plan only.
+fn copied_call_operand_candidate(
     current: SelectedProgramRef<'_>,
+    site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let block = &function.blocks[site.block_index];
+    let instruction = site.instruction(current.selected_plan())?;
+    let CandidatePosition::Body(position) = site.position else {
+        return Err(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch);
+    };
+
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
@@ -1063,81 +1230,69 @@ fn copied_call_operand_pass(
     let effect_catalog =
         validated_machine_effect_catalog(environment.target(), environment.constraints())
             .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
-    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        for block in &function.blocks {
-            let audit_cost = copied_call_operand_measured_steps(current.selected_plan(), block)
-                .map_err(OptimizedPreAllocationCustodyError::CopiedCallOperand)?;
-            for (position, instruction) in block.instructions.iter().enumerate() {
-                if !is_call_consumer(instruction) {
-                    continue;
-                }
-                let mut tried = BTreeSet::new();
-                for operand in instruction
-                    .operands
-                    .iter()
-                    .filter(|operand| operand.access == RegisterOperandAccess::Use)
-                {
-                    let Some(producer_index) = last_definition_before(
-                        &block.instructions,
-                        position,
-                        operand.virtual_register,
-                    ) else {
-                        continue;
-                    };
-                    let producer = &block.instructions[producer_index];
-                    if producer.kind != SelectedInstructionKind::CopyI64
-                        || !tried.insert(producer.id)
-                    {
-                        continue;
-                    }
-                    evaluated += 1;
-                    validation_steps = charge(validation_steps, audit_cost)?;
-                    match fold_selected_copied_call_operand(
-                        &current,
-                        function_index,
-                        producer.id,
-                        instruction.id,
-                        environment,
-                        &effect_catalog,
-                        budget,
-                    ) {
-                        Ok(reroute) => {
-                            validation_steps = charge(validation_steps, audit_cost)?;
-                            return Ok(PreAllocationPass::Applied {
-                                transformation:
-                                    ValidatedPreAllocationTransformation::CopiedCallOperand(reroute),
-                                declined,
-                                evaluated,
-                                validation_steps,
-                            });
-                        }
-                        Err(
-                            error @ (CopiedCallOperandError::WorkBudgetExceeded
-                            | CopiedCallOperandError::IdentityOverflow
-                            | CopiedCallOperandError::ReplayMismatch),
-                        ) => {
-                            return Err(OptimizedPreAllocationCustodyError::CopiedCallOperand(
-                                error,
-                            ));
-                        }
-                        Err(_) => {
-                            declined += 1;
-                        }
-                    }
-                }
+
+    let audit_cost = copied_call_operand_measured_steps(current.selected_plan(), block)
+        .map_err(OptimizedPreAllocationCustodyError::CopiedCallOperand)?;
+
+    let mut tried = BTreeSet::new();
+    for operand in instruction
+        .operands
+        .iter()
+        .filter(|operand| operand.access == RegisterOperandAccess::Use)
+    {
+        let Some(producer_index) =
+            last_definition_before(&block.instructions, position, operand.virtual_register)
+        else {
+            continue;
+        };
+        let producer = &block.instructions[producer_index];
+        if producer.kind != SelectedInstructionKind::CopyI64 || !tried.insert(producer.id) {
+            continue;
+        }
+        evaluated += 1;
+        validation_steps = charge(validation_steps, audit_cost)?;
+        match fold_selected_copied_call_operand(
+            &current,
+            function_index,
+            producer.id,
+            instruction.id,
+            environment,
+            &effect_catalog,
+            budget,
+        ) {
+            Ok(reroute) => {
+                validation_steps = charge(validation_steps, audit_cost)?;
+                return Ok(CandidateAttempt::Applied {
+                    transformation: ValidatedPreAllocationTransformation::CopiedCallOperand(
+                        reroute,
+                    ),
+                    declined,
+                    evaluated,
+                    validation_steps,
+                });
+            }
+            Err(
+                error @ (CopiedCallOperandError::WorkBudgetExceeded
+                | CopiedCallOperandError::IdentityOverflow
+                | CopiedCallOperandError::ReplayMismatch),
+            ) => {
+                return Err(OptimizedPreAllocationCustodyError::CopiedCallOperand(error));
+            }
+            Err(_) => {
+                declined += 1;
             }
         }
     }
-    Ok(PreAllocationPass::Clean {
+
+    Ok(CandidateAttempt::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
     })
 }
 
-/// Run discovery sweeps to the joint fixed point over `source`'s admitted
-/// plan. Both the executor and the custody replay call this; neither accepts
-/// the other's steps as authority.
+/// Reach the canonical joint fixed point from one discovery frontier. Executor
+/// and independent boundary replay each own their frontier and admission work.
 fn run_passes(
     source: &StagedOptimizedAllocationLegality,
     policy: PreAllocationPolicy,
@@ -1152,122 +1307,155 @@ fn run_passes(
 > {
     let budget = source.budget_per_pass();
     let environment = source.register_environment();
-    let mut usage = OptimizationWorkUsage::default();
+    // Iterations meter discovery sweeps. Candidate evaluation and commit work
+    // have their own axes; changing a site does not rediscover the whole plan.
+    let mut usage = OptimizationWorkUsage {
+        iterations: 1,
+        ..OptimizationWorkUsage::default()
+    };
+    ensure_pre_allocation_budget(usage, budget)?;
     let mut steps = Vec::new();
     let mut previous_measure = iteration_bound;
     let mut current = SelectedProgramRef::new(source.selected());
-    let attempt = loop {
-        // The terminal attempt records only the final complete sweep's
-        // totals; a mid-sweep commit discards the partial scan and restarts.
-        let mut sweep_candidates = 0usize;
-        let mut sweep_declined = 0usize;
-        let mut committed = false;
-        for row in PRE_ALLOCATION_RULE_CATALOG {
-            if !policy.contains(row.payload().policy()) {
-                continue;
+    let mut frontier = CandidateFrontier::new(policy, current.selected_plan());
+    while let Some(position) = frontier.next() {
+        let pending = &frontier.pending[position];
+        let site = pending.site;
+        let optimization = PRE_ALLOCATION_RULE_CATALOG[pending.family_index].optimization();
+        let previous_body_count = current.selected_plan().functions[site.function_index].blocks
+            [site.block_index]
+            .instructions
+            .len();
+        let attempt = match optimization {
+            Optimization::SelectedSameBlockCopyI64RemovalV1 => {
+                copy_removal_candidate(current, site, environment, budget)?
             }
-            let pass = match row.optimization() {
-                Optimization::SelectedSameBlockCopyI64RemovalV1 => {
-                    copy_removal_pass(current, environment, budget)?
-                }
-                Optimization::SelectedRedundantExtensionRemovalV1 => {
-                    extension_removal_pass(current, environment, budget)?
-                }
-                Optimization::SelectedAddressOffsetFoldV1 => {
-                    address_fold_pass(current, environment, budget)?
-                }
-                Optimization::SelectedConstantBooleanFoldV1 => {
-                    constant_boolean_pass(current, environment, budget)?
-                }
-                Optimization::SelectedConstantBranchFoldV1 => {
-                    constant_branch_pass(current, environment, budget)?
-                }
-                Optimization::SelectedDeadCompareRemovalV1 => {
-                    dead_compare_pass(current, environment, budget)?
-                }
-                Optimization::SelectedRedundantCompareRemovalV1 => {
-                    redundant_compare_pass(current, environment, budget)?
-                }
-                Optimization::SelectedEquivalentCompareRemovalV1 => {
-                    equivalent_compare_pass(current, environment, budget)?
-                }
-                Optimization::SelectedCopiedCallOperandFoldV1 => {
-                    copied_call_operand_pass(current, environment, budget)?
-                }
-                Optimization::SelectedStoredLoadForwardingV1 => {
-                    stored_load_forwarding_pass(current, environment, budget)?
-                }
-                // The catalog is closed over this phase's owned rules.
-                _ => continue,
-            };
-            match pass {
-                PreAllocationPass::Clean {
+            Optimization::SelectedRedundantExtensionRemovalV1 => {
+                extension_removal_candidate(current, site, environment, budget)?
+            }
+            Optimization::SelectedAddressOffsetFoldV1 => {
+                address_fold_candidate(current, site, environment, budget)?
+            }
+            Optimization::SelectedConstantBooleanFoldV1 => {
+                constant_boolean_candidate(current, site, environment, budget)?
+            }
+            Optimization::SelectedConstantBranchFoldV1 => {
+                constant_branch_candidate(current, site, environment, budget)?
+            }
+            Optimization::SelectedDeadCompareRemovalV1 => {
+                dead_compare_candidate(current, site, environment, budget)?
+            }
+            Optimization::SelectedRedundantCompareRemovalV1 => {
+                redundant_compare_candidate(current, site, environment, budget)?
+            }
+            Optimization::SelectedEquivalentCompareRemovalV1 => {
+                equivalent_compare_candidate(current, site, environment, budget)?
+            }
+            Optimization::SelectedCopiedCallOperandFoldV1 => {
+                copied_call_operand_candidate(current, site, environment, budget)?
+            }
+            Optimization::SelectedStoredLoadForwardingV1 => {
+                stored_load_forwarding_candidate(current, site, environment, budget)?
+            }
+            _ => {
+                return Err(
+                    OptimizedPreAllocationCustodyError::UnsupportedPreAllocationOptimization(
+                        optimization,
+                    ),
+                );
+            }
+        };
+        match attempt {
+            CandidateAttempt::Clean {
+                candidates,
+                declined,
+                validation_steps,
+            } => {
+                usage = add_usage(
+                    usage,
+                    pass_usage(candidates, candidates, validation_steps, 0)?,
+                )?;
+                ensure_pre_allocation_budget(usage, budget)?;
+                frontier.pending[position].disposition = CandidateDisposition::Declined {
+                    revision: frontier.function_revisions[site.function_index],
                     candidates,
                     declined,
-                    validation_steps,
-                } => {
-                    usage = add_usage(usage, pass_usage(candidates, 0, validation_steps, 0)?)?;
-                    ensure_pre_allocation_budget(usage, budget)?;
-                    sweep_candidates += candidates;
-                    sweep_declined += declined;
-                }
-                PreAllocationPass::Applied {
-                    transformation,
-                    declined,
-                    evaluated,
-                    validation_steps,
-                } => {
-                    if steps.len() >= iteration_bound {
-                        return Err(
-                            OptimizedPreAllocationCustodyError::PreAllocationIterationBoundExceeded {
-                                bound: iteration_bound,
-                            },
-                        );
-                    }
-                    usage = add_usage(
-                        usage,
-                        pass_usage(evaluated, evaluated, validation_steps, 1)?,
-                    )?;
-                    ensure_pre_allocation_budget(usage, budget)?;
-                    let step =
-                        complete_transformation(transformation, declined, evaluated, source)?;
-                    // The joint measure must strictly drop: a copy and its
-                    // destination's roster row leave together and rebound
-                    // chains shorten, one extension retires into a copy, a
-                    // fold skips a producer node in its consumer's operand-0
-                    // definition chain, or a folded boolean drops the flag
-                    // uses it carried.
-                    let current_measure = measure(
-                        step.transformation.transformed(),
-                        step.legality.receipt().virtual_register_count(),
+                };
+            }
+            CandidateAttempt::Applied {
+                transformation,
+                declined,
+                evaluated,
+                validation_steps,
+            } => {
+                if steps.len() >= iteration_bound {
+                    return Err(
+                        OptimizedPreAllocationCustodyError::PreAllocationIterationBoundExceeded {
+                            bound: iteration_bound,
+                        },
                     );
-                    if current_measure >= previous_measure {
-                        return Err(
-                            OptimizedPreAllocationCustodyError::PreAllocationMeasureMismatch {
-                                previous: previous_measure,
-                                current: current_measure,
-                            },
-                        );
-                    }
-                    previous_measure = current_measure;
-                    steps.push(step);
-                    current = SelectedProgramRef::new(
-                        &steps.last().expect("applied step").transformation,
-                    );
-                    committed = true;
-                    break;
                 }
+                usage = add_usage(
+                    usage,
+                    pass_usage(evaluated, evaluated, validation_steps, 1)?,
+                )?;
+                ensure_pre_allocation_budget(usage, budget)?;
+                let step = complete_transformation(transformation, declined, evaluated, source)?;
+                let current_measure = measure(
+                    step.transformation.transformed(),
+                    step.legality.receipt().virtual_register_count(),
+                );
+                if current_measure >= previous_measure {
+                    return Err(
+                        OptimizedPreAllocationCustodyError::PreAllocationMeasureMismatch {
+                            previous: previous_measure,
+                            current: current_measure,
+                        },
+                    );
+                }
+                previous_measure = current_measure;
+                frontier.committed(site, previous_body_count, step.transformation.transformed())?;
+                steps.push(step);
+                current = SelectedProgramRef::new(
+                    &steps
+                        .last()
+                        .ok_or(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch)?
+                        .transformation,
+                );
             }
         }
-        if !committed {
-            break StagedOptimizedPreAllocationAttempt {
-                source_selected: current.selected_identity(),
-                candidates: sweep_candidates,
-                declined: sweep_declined,
-            };
+    }
+    let mut candidates = 0usize;
+    let mut declined = 0usize;
+    for pending in &frontier.pending {
+        let CandidateDisposition::Declined {
+            revision,
+            candidates: remaining,
+            declined: refusals,
+        } = pending.disposition
+        else {
+            return Err(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch);
+        };
+        if revision != frontier.function_revisions[pending.site.function_index] {
+            return Err(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch);
         }
-    };
-    Ok((steps, attempt, usage))
+        candidates = candidates
+            .checked_add(remaining)
+            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+        declined = declined
+            .checked_add(refusals)
+            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+    }
+    let source_selected = current.selected_identity();
+    Ok((
+        steps,
+        StagedOptimizedPreAllocationAttempt {
+            source_selected,
+            candidates,
+            declined,
+        },
+        usage,
+    ))
 }
 
 pub(super) fn execute_pre_allocation_optimizations(

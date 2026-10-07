@@ -177,8 +177,8 @@ impl PreAllocationPolicy {
 
 /// One committed pre-allocation step's validated transformation, by exact
 /// rewrite family. Every variant implements `ValidatedSelectedAnalysis`, so
-/// the step's transformed program re-enters discovery as the next sweep's
-/// source — an extension removal publishes a `CopyI64` the copy-removal
+/// the next candidate reads the step's transformed program. An extension
+/// removal publishes a `CopyI64` the copy-removal
 /// pass then owns, any family may expose the next fold's base chain, and a
 /// folded boolean or branch leaves its compare in place for the other
 /// readers, a compare removal frees the readers' reaching set for the
@@ -436,10 +436,9 @@ pub struct StagedOptimizedPreAllocationStep {
     pub(super) liveness: ValidatedLiveness,
     pub(super) ranges: ValidatedLiveRanges,
     pub(super) legality: ValidatedAllocationLegality,
-    /// Candidates the owning pass evaluated and declined before this
-    /// transformation committed, in the pass's deterministic scan order.
+    /// Proposals this fresh site attempt declined before committing.
     pub(super) declined: usize,
-    /// Candidates the pass evaluated in total, this commit included.
+    /// Proposals this site attempt evaluated, this commit included.
     pub(super) evaluated: usize,
 }
 
@@ -464,9 +463,9 @@ impl StagedOptimizedPreAllocationStep {
     }
 }
 
-/// The terminal no-change discovery sweep: every enabled family pass
-/// evaluated its remaining candidates and declined them, proving the run
-/// reached the joint admission fixed point on the final program.
+/// The exhausted frontier: every remaining candidate declined under its
+/// current function revision, establishing the joint admission fixed point
+/// without a final whole-plan discovery sweep.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedPreAllocationAttempt {
     pub(super) source_selected: SelectedInstructionPlanIdentity,
@@ -487,8 +486,8 @@ impl StagedOptimizedPreAllocationAttempt {
 }
 
 /// Completed execution of the pre-allocation projection of one exact
-/// source-visible suite. Applied steps are followed by one clean discovery
-/// sweep, so an empty `steps` vector is still an evidenced successful run.
+/// source-visible suite. The terminal attempt records the exhausted frontier,
+/// so an empty `steps` vector is still an evidenced successful run.
 #[derive(Debug)]
 pub struct StagedPreAllocationOptimizationRun {
     pub(super) source: StagedOptimizedAllocationLegality,
@@ -699,6 +698,7 @@ impl StagedOptimizedPreAllocationAttemptReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPreAllocationCustodyError {
+    CandidateFrontierMismatch,
     CopyRemoval(CopyRemovalError),
     RedundantExtension(RedundantExtensionError),
     AddressFold(AddressFoldError),

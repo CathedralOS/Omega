@@ -23,15 +23,9 @@ impl PreAllocationRuleCatalogPayload {
 pub type PreAllocationRuleCatalogEntry =
     OptimizationCatalogDescriptor<PreAllocationRuleCatalogPayload>;
 
-/// The single pre-allocation enable/order catalog. Descriptor order is the
-/// deterministic discovery order inside one joint fixed-point sweep: the
-/// copy-removal pass scans first, then the extension pass, then the
-/// address-fold pass, then the constant-boolean pass, then the
-/// constant-branch pass, then the dead-, redundant-, and
-/// equivalent-compare passes, then the copied-call-operand and stored-load
-/// forwarding passes, and a
-/// commit by any of them restarts the whole sweep over the transformed
-/// program.
+/// The single pre-allocation enable/order catalog. Descriptor order determines
+/// priority in the incremental candidate frontier, including newly enabled
+/// earlier families after a commit; it does not require whole-plan rediscovery.
 pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 10] = [
     PreAllocationRuleCatalogEntry::new(
         Optimization::SelectedSameBlockCopyI64RemovalV1,
