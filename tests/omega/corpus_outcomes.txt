@@ -412,9 +412,9 @@ fail/build/captured_named_input_missing_slot rejected 933ms expected published:n
 	build-time evaluation of `build` failed: named build input `absent` is not assigned to this activation
 fail/build/captured_source_write_grant_refused rejected 882ms expected published:none @a7d5ff53f2ca
 	required output `admitted.txt` of `build` failed: captured source write grant denied
-fail/build/crash_exclusion_trapping_provider rejected 2041ms expected @5c302dd6d305
+fail/build/crash_exclusion_trapping_provider rejected 2456ms expected @23bb0328519a
 	1 authored behavior exclusion(s) could not be satisfied
-	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 4, reached through machine `CheckingAssert::check` (Terminal machine 2) at crash terminator in block 12884901891
+	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 4, reached through machine `CheckingAssert::check` (Terminal machine 2) at crash terminator in block 6
 	the selected composition retains crash cause Trap through Terminal machine 4, reached through machine `CheckingAssert::check` (Terminal machine 2) declared here
 fail/build/duplicate_program_entry_binding rejected 831ms expected @2d8ed253669f
 	root slot `windows_x86_64::ProgramEntry` is already bound to `Main::main`; it cannot also bind `Main::main`

@@ -2489,11 +2489,7 @@ code and preserve check/native behavior for the named customer slices.
   - `operation_emission/calls.rs::emit_direct_call_operation` and
     `operation_emission/boundary_calls.rs` for scalar-graph bindings and
     computation calls;
-  - `scalar_graph_effects.rs` `LoweredScalarEffect::Call`;
-  - the boundary-scalar return's own boundary call
-    (`returns/boundary_scalar_return/emission.rs`), also embedded from
-    `scalar_callees.rs`, which duplicates `boundary_operands`, completion
-    receipts and `BoundaryResultPolicy` from `operation_frame/boundary_calls.rs`.
+  - `scalar_graph_effects.rs` `LoweredScalarEffect::Call`.
 
   These routes duplicate erased lanes, requirement obligations, crash-route
   root substitution (only `ordinary_calls::prepare` substitutes structural
@@ -2505,11 +2501,10 @@ code and preserve check/native behavior for the named customer slices.
   `ScalarBindings`/`scalar_computations/structural_arguments.rs`; the path
   step (`prepare_structural_argument_path`) is already shared. Stage 04
   builds every `CheckedUnitCallPlan` through `build_call_operation`; the
-  scalar graph (`terminal_scalar/mod.rs` `DirectCall` bindings), scalar
-  computations (`CheckedScalarComputationKind::Call`) and
-  `returns/guarded_call_returns.rs` keep their own call records. Make one
-  argument preparation and one call emitter, keeping the real boundary
-  versus machine and result-kind distinctions.
+  scalar graph (`terminal_scalar/mod.rs` `DirectCall` bindings) and scalar
+  computations (`CheckedScalarComputationKind::Call`) keep their own call
+  records. Make one argument preparation and one call emitter, keeping the
+  real boundary versus machine and result-kind distinctions.
   `ClaimBindings::Fixed` still cannot mint a result claim.
 
   Acceptance: a source-scanning guard finds one call emitter and one
@@ -2542,15 +2537,28 @@ code and preserve check/native behavior for the named customer slices.
 - **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Lower scalar machines through
   the same body route as Unit machines and delete
   `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (18.6k lines) and
-  the plan-presence matrix in `machine_lowering/machine_dispatch.rs`. Account
-  for:
-  - continuation-arm custody (`CheckedStructuralControlSuccessorPlan` lacks
-    continuation identity);
-  - later-state mutable scalar stores;
-  - crash predicates, float prefix initializers and debug maps;
+  the plan-presence matrix in `machine_lowering/machine_dispatch.rs`. Stage 04
+  now plans a Unit body for a graph-owned scalar machine, and
+  `CheckedScalarCallee::find_for_unit_call` lowers that body whenever it
+  exists; the graph is only the fallback. A census over the full checked
+  corpus (2026-10-07) found 16,307 scalar callee lowerings through a Unit body
+  and 109 still through a graph, for three planning gaps:
+  - qualified scalar results and formals (`-> f64 in Measured`,
+    `value: f64 in Measured`): the sequence route's "result contract" check
+    and the state graph's "state signature: contract shape unadmitted";
+  - "state graph: natural ranks" (for example `Main::count` in
+    `pass/calls/runtime_value_call_statement_recursive_walk_exit`): a machine
+    with an implementation witness and no proven natural ranks;
   - ranked loops through the general rank plans, retiring the
     `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne` special
     case, with a fixture for resumable (fuel-suspended) ranked execution.
+
+  Also account for continuation-arm custody
+  (`CheckedStructuralControlSuccessorPlan` lacks continuation identity),
+  later-state mutable scalar stores, crash predicates, float prefix
+  initializers and debug maps. The scalar computation and contract helpers in
+  `scalar_graph/` that Unit bodies call (`scalar_computations`,
+  `scalar_contracts`) move to a shared owner rather than being deleted.
 
   Acceptance: `machine_dispatch.rs` selects no route by plan presence; distinct
   exits returning 20 and 30 under `ensures result >= 20` still hold;

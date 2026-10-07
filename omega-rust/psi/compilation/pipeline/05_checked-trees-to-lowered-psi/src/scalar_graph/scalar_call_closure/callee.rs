@@ -8,9 +8,11 @@ use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_graph_lowering::ScalarContractMode;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
 
-/// The checked body a scalar call lowers: its scalar graph, else the Unit
-/// body that owns its scalar completion. A machine with a boundary-scalar or
-/// structural-scalar return plan always also owns such a body, which lowers
+/// The checked body a scalar call lowers: the Unit body that owns its scalar
+/// completion, else its scalar graph. Stage 04 plans a Unit body for a
+/// graph-owned machine too, so the graph is only the fallback for a body the
+/// Unit planner cannot express yet. A machine with a boundary-scalar or
+/// structural-scalar return plan always also owns a Unit body, which lowers
 /// its boundary call or structural frontier through the shared Unit
 /// assembler; those plans only describe the callee to call admission.
 pub(crate) enum CheckedScalarCallee<'checked> {
@@ -70,43 +72,39 @@ impl<'checked> CheckedScalarCallee<'checked> {
         {
             return unsupported("scalar callee has duplicate checked body ownership");
         }
+        if let Some(plan) = graph_body.filter(|plan| {
+            matches!(
+                plan.result,
+                checked_trees::CheckedControlResultPlan::Scalar { .. }
+            )
+        }) {
+            return Ok(Self::Operations(
+                crate::unit::attached_unit::bodies::UnitBody::Composed(plan),
+            ));
+        }
+        if let Some(plan) = operation_body
+            .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
+        {
+            if plan.structural_result.is_none() {
+                return Ok(Self::Operations(
+                    crate::unit::attached_unit::bodies::UnitBody::Ordinary(plan),
+                ));
+            }
+            if graph.is_none() {
+                return unsupported("scalar callee has conflicting checked result ownership");
+            }
+        }
         match graph {
             Some(graph) => Ok(Self::Graph(graph)),
-            None => {
-                // Existing scalar owners retain precedence, including their
-                // contract lowering. A Unit body is borrowed only when it
-                // owns a real scalar completion; the shared Unit assembler
-                // validates its authored result, contracts and refinements.
-                if let Some(plan) = graph_body.filter(|plan| {
-                    matches!(
-                        plan.result,
-                        checked_trees::CheckedControlResultPlan::Scalar { .. }
-                    )
-                }) {
-                    return Ok(Self::Operations(
-                        crate::unit::attached_unit::bodies::UnitBody::Composed(plan),
-                    ));
-                }
-                let Some(plan) = operation_body
-                    .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
-                else {
-                    return Err(LoweringError::InvalidUnitMachinePlan {
-                        machine: checked.symbols.display_path(source, "::"),
-                        reason: "scalar callee has no checked executable body",
-                        gap: checked
-                            .facts
-                            .flow
-                            .terminal_unit_effects
-                            .gap_diagnostic(source, &checked.symbols),
-                    });
-                };
-                if plan.structural_result.is_some() {
-                    return unsupported("scalar callee has conflicting checked result ownership");
-                }
-                Ok(Self::Operations(
-                    crate::unit::attached_unit::bodies::UnitBody::Ordinary(plan),
-                ))
-            }
+            None => Err(LoweringError::InvalidUnitMachinePlan {
+                machine: checked.symbols.display_path(source, "::"),
+                reason: "scalar callee has no checked executable body",
+                gap: checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .gap_diagnostic(source, &checked.symbols),
+            }),
         }
     }
 

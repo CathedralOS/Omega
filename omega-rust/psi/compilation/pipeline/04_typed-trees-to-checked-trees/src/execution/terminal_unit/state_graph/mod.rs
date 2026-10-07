@@ -101,17 +101,12 @@ pub(super) fn build_traced(
     // actions. Plan its graph here; the shared candidate selection keeps one
     // body when the ordinary sequence also supplies a complete implementation.
     if let checked_trees::CheckedControlResultPlan::Scalar { .. } = result {
-        // Producer ownership, not state count, chooses the body. One authored
-        // state can still have a ranked backedge or selected return arms that
-        // require the graph's terminator and proof machinery. Keep any existing
-        // scalar producer; otherwise sequence and complete the body here.
+        // A scalar graph does not own the body: stage 05 lowers this Unit body
+        // whenever it exists and falls back to the graph only without one.
+        // A machine in the structural-scalar or boundary-scalar callee roster
+        // keeps that roster's ordinary body instead.
         trace.phase("state graph: result signature: scalar owner precedence");
-        if facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(machine.symbol)
-            .is_some()
-            || scalar_callees
+        if scalar_callees
                 .structural_returns
                 .for_machine(machine.symbol)
                 .is_some()
