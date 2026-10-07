@@ -143,6 +143,10 @@ struct RequirementRoute {
     requirement: SymbolHandle,
     requirement_name: DiagnosticName,
     realization_state: SymbolHandle,
+    /// The requirement's authored formals. A call passing one operand more
+    /// is a selector call (`Trait::member(selector, data...)`), which
+    /// dispatches at runtime instead of naming this block's row.
+    parameter_count: usize,
 }
 
 #[derive(Clone)]
@@ -286,6 +290,13 @@ pub(crate) fn route_conformance_requirement_calls(
         let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
             continue;
         };
+        let parameter_count = |requirement: SymbolHandle| {
+            trait_catalog
+                .iter()
+                .flat_map(|entry| &entry.requirements)
+                .find(|entry| entry.requirement == requirement)
+                .map_or(0, |entry| entry.signature.parameters.len())
+        };
         let routes = rows
             .iter()
             .filter(|row| row.realization_state.is_valid())
@@ -293,6 +304,7 @@ pub(crate) fn route_conformance_requirement_calls(
                 requirement: row.requirement,
                 requirement_name: row.requirement_name.clone(),
                 realization_state: row.realization_state,
+                parameter_count: parameter_count(row.requirement),
             })
             .collect::<Vec<_>>();
         let subject_states = match &conformance.subject {
@@ -369,6 +381,7 @@ pub(crate) fn route_conformance_requirement_calls(
                     )?,
                     requirement: requirement.requirement,
                     requirement_name: requirement.requirement_name,
+                    parameter_count: requirement.signature.parameters.len(),
                 })
             })
             .collect();
@@ -404,6 +417,7 @@ pub(crate) fn route_conformance_requirement_calls(
                 let routed = routed_target(
                     site.target_symbol,
                     site.target,
+                    site.argument_count,
                     plan.routes_by_name && site.local_receiver,
                     &plan.routes,
                 );
@@ -505,20 +519,27 @@ fn attached_requirement_realization(
 fn routed_target(
     current: SymbolHandle,
     target_name: &DiagnosticName,
+    argument_count: usize,
     routes_by_name: bool,
     routes: &[RequirementRoute],
 ) -> Option<SymbolHandle> {
+    // A selector call passes its selector before the requirement's operands;
+    // it reaches whichever implementation the selector names, not this row.
+    let static_routes = || {
+        routes
+            .iter()
+            .filter(move |route| argument_count != route.parameter_count + 1)
+    };
     if current.is_valid()
-        && let Some(route) = routes.iter().find(|route| route.requirement == current)
+        && let Some(route) = static_routes().find(|route| route.requirement == current)
     {
         return Some(route.realization_state);
     }
     if !routes_by_name {
         return None;
     }
-    let mut matching = routes
-        .iter()
-        .filter(|route| route.requirement_name.as_str() == target_name.as_str());
+    let mut matching =
+        static_routes().filter(|route| route.requirement_name.as_str() == target_name.as_str());
     let route = matching.next()?;
     matching.next().is_none().then_some(route.realization_state)
 }

@@ -1786,6 +1786,8 @@ fail/traits/dyn_selector_receiver_call rejected 254ms expected @7f068b5c82b8
 	a `dyn Shape` selector is a dispatch operand, not a receiver; call `Shape::code(selector, ...)`
 fail/traits/dyn_selector_reentry_unranked rejected 267ms expected @8ca28fbfc657
 	machine call cycle: `Loop::walk`, `rewalk` -- a member lacks a supported exact ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/traits/dyn_selector_self_reentry_unranked rejected 348ms expected @e83cb166de5f+wt
+	machine call cycle: `Loop::walk` can re-enter itself through a selector call; termination across runtime implementation selection is not yet ranked
 fail/traits/dyn_selector_wrong_application rejected 317ms expected @7f068b5c82b8
 	`Primary` implements `Shape<Item>`, not `dyn Shape<Other>`; a selector names exactly the trait application its implementation satisfies
 fail/traits/equatable_field_not_equatable rejected 17ms expected @e3131e3bcd65+wt

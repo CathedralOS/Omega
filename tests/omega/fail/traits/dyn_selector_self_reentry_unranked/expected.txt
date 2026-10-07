@@ -1,0 +1,1 @@
+can re-enter itself through a selector call

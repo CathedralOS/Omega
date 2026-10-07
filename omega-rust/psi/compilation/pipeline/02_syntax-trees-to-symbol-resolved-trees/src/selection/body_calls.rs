@@ -20,6 +20,8 @@ pub(crate) struct CallSite<'a> {
     /// receiver or a target already among the subject's
     /// states.
     pub(crate) local_receiver: bool,
+    /// Authored operands, excluding any receiver.
+    pub(crate) argument_count: usize,
 }
 
 /// Visit every call site reachable from `machine`'s states, contracts and `via`
@@ -131,6 +133,12 @@ fn retarget_statement_span(
                     receiver_symbol: call.receiver_symbol,
                     local_receiver: call.receiver.is_empty()
                         || subject_states.contains(&call.target_symbol),
+                    argument_count: program
+                        .tables
+                        .bodies
+                        .statements
+                        .expression_handles(call.arguments)
+                        .len(),
                 };
                 if let Some(target) = decide(&site)
                     && let symbol_resolved_trees::statement::StatementNode::Call(call) =
@@ -261,6 +269,12 @@ fn retarget_expression(
                 receiver_symbol,
                 local_receiver: !call.receiver.is_valid()
                     || subject_states.contains(&call.target_symbol),
+                argument_count: program
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression_handles(call.arguments)
+                    .len(),
             };
             if let Some(target) = decide(&site)
                 && let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
