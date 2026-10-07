@@ -1630,7 +1630,8 @@ fn resolve_storage_place(
         ) else {
             break;
         };
-        let Some(source) = reference_source_place(program, state.symbol, statement_index, source)
+        let Some(source) =
+            crate::flow::reference_source_place(program, state.symbol, statement_index, source)
         else {
             break;
         };
@@ -1651,31 +1652,6 @@ fn resolve_storage_place(
         segments = rebased_place.segments;
     }
     (root, segments)
-}
-
-/// The referent place a reference initializer captures: explicit borrows and
-/// whole-place recasts unwrap to their target, and a plain place expression
-/// names the place the new local aliases.
-fn reference_source_place(
-    program: &typed_trees::TypedTrees,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    initializer: ExpressionHandle,
-) -> Option<CanonicalPlace> {
-    let mut expression = initializer;
-    loop {
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Borrow(borrow) => expression = borrow.target,
-            ExpressionNode::Cast(cast) if cast.form.is_recast() => expression = cast.value,
-            _ => break,
-        }
-    }
-    crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    )
 }
 
 /// The access of a possibly-constrained reference type.

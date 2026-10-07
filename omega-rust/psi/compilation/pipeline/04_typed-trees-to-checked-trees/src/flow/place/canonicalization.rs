@@ -289,3 +289,57 @@ pub(crate) fn source_independent_place(
     }
     Some(place)
 }
+
+/// The referent place a reference initializer captures: explicit borrows and
+/// whole-place recasts unwrap to their target, and a plain place expression
+/// names the place the new local aliases.
+pub(crate) fn reference_source_place(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    initializer: ExpressionHandle,
+) -> Option<CanonicalPlace> {
+    reference_source_place_shaped(program, state_symbol, statement_index, initializer, false)
+}
+
+/// The same referent place through collection-view locals: a
+/// `let v = xs.as_mut_slice()` alias refers to the receiver collection's
+/// storage — writes through `v` name the same place as the receiver's own.
+pub(crate) fn reference_source_place_through_collection_views(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    initializer: ExpressionHandle,
+) -> Option<CanonicalPlace> {
+    reference_source_place_shaped(program, state_symbol, statement_index, initializer, true)
+}
+
+fn reference_source_place_shaped(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    initializer: ExpressionHandle,
+    through_collection_views: bool,
+) -> Option<CanonicalPlace> {
+    let mut expression = initializer;
+    loop {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => expression = cast.value,
+            ExpressionNode::Call(call)
+                if through_collection_views
+                    && matches!(
+                        crate::semantic::calls::collection_view_call(program, call),
+                        Some(
+                            language_semantics::declaration_selection::CollectionViewOperation::SharedSlice
+                                | language_semantics::declaration_selection::CollectionViewOperation::MutableSlice
+                        )
+                    ) =>
+            {
+                expression = call.receiver;
+            }
+            _ => break,
+        }
+    }
+    canonical_place_from_expression_in_state(program, state_symbol, statement_index, expression)
+}

@@ -22,7 +22,7 @@ use crate::execution::terminal_unit::types::terminal_field_identity;
 use crate::flow::CanonicalPlace;
 use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 
 /// The exact field chain beneath an exclusive borrowed structural parameter.
 /// Whole-root moves and referent segments open no pinned window; a fixed or
@@ -175,8 +175,12 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
         ) else {
             break;
         };
-        let Some(source) = reference_source_place(program, state.symbol, statement_index, source)
-        else {
+        let Some(source) = crate::flow::reference_source_place_through_collection_views(
+            program,
+            state.symbol,
+            statement_index,
+            source,
+        ) else {
             break;
         };
         let PlaceRoot::Symbol(..) = source.root else {
@@ -194,45 +198,6 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
         segments = rebased_place.segments;
     }
     (root, segments)
-}
-
-/// The referent place a reference initializer captures: explicit borrows and
-/// whole-place recasts unwrap to their target, and a plain place expression
-/// names the place the new local aliases.
-fn reference_source_place(
-    program: &TypedTrees,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    initializer: ExpressionHandle,
-) -> Option<CanonicalPlace> {
-    let mut expression = initializer;
-    loop {
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Borrow(borrow) => expression = borrow.target,
-            ExpressionNode::Cast(cast) if cast.form.is_recast() => expression = cast.value,
-            // A collection-view local (`let v = xs.as_mut_slice()`) refers to
-            // the receiver collection's storage: writes through `v` name the
-            // same absent subtree as the receiver's own place.
-            ExpressionNode::Call(call)
-                if matches!(
-                    crate::semantic::calls::collection_view_call(program, call),
-                    Some(
-                        language_semantics::declaration_selection::CollectionViewOperation::SharedSlice
-                            | language_semantics::declaration_selection::CollectionViewOperation::MutableSlice
-                    )
-                ) =>
-            {
-                expression = call.receiver;
-            }
-            _ => break,
-        }
-    }
-    crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    )
 }
 
 /// Exact places a statement sequence has opened and not yet repaired.

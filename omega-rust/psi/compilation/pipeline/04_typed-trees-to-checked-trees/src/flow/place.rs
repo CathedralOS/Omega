@@ -13,6 +13,7 @@ pub(crate) use canonicalization::{
     canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_from_semantic_place, canonical_place_from_symbol, index_place_segment,
     narrow_pinned_index_segments, projected_leaf_place, push_field_place_segments,
+    reference_source_place, reference_source_place_through_collection_views,
     source_independent_place,
 };
 pub(crate) use case_access::{
