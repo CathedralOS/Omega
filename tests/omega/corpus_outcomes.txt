@@ -2022,6 +2022,7 @@ pass/borrows/case_payload_shared_transition_exit checked 2612ms check-target:mac
 pass/borrows/case_payload_state_loan_exit checked 2340ms check-target:macos_arm64 @e8505b71528
 pass/borrows/constructor_reference_access checked 537ms @69d297ae3ee5
 pass/borrows/enum_selected_view_reference_exit checked 6317ms check-target:macos_arm64 @cfe60a3a242
+pass/borrows/exclusive_array_parameter_shared_lend_exit checked 1170ms check-target:macos_arm64 @74a78aefec94+wt
 pass/borrows/indexed_record_field_replacement_exit checked 1447ms check-target:macos_arm64 @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/local_reference_record_transfer_exit checked 1259ms check-target:macos_arm64 @82ec69a91ceb+wt

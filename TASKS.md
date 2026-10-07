@@ -418,9 +418,7 @@ helper that passes does not close an item.
     positions; remove remaining attachment-driven discovery without changing
     provider or storage authority.
   - Scratch fields become ordinary locals; pass only live values across
-    states. The glider sample now keeps only bindings and its grid in Main;
-    its native frontier is under **SAMPLE-CORPUS**. Temporary-scoping design
-    is deferred and not a prerequisite.
+    states. Temporary-scoping design is deferred and not a prerequisite.
     Validate `samples/cli/algorithms/maze_flood` with `omega run --both`:
     exit 0 and its documented 235-byte output. Keep search and row/input
     storage local, with only the Console binding in Main. Preserve the
@@ -842,13 +840,6 @@ defines the complete product bar.
     natively (`pass/borrows/runtime_shared_qualified_view_cycle_exit`).
     Result custody and nested-field initialization stay with
     **STATE-LOCAL-VALUE-FRONTIER**.
-  - `simulation/game_of_life_glider`: Psi lowers every machine, including
-    `Main::render`'s `line: &mut [u8; 24] in Utf8` state loan. A verbatim
-    corpus copy now stops in Omega selection: legalization refuses a
-    structural call argument with `SourceCustodyMismatch`
-    (`legalization/scalar_graph_input/structural_call.rs`) on the
-    `advance_generation(&mut main.grid)` path. Removing that one call builds
-    and exits 0. **STATIC-MACHINE-MIGRATION** records the glider shape.
   - `arithmetic/vector_distance`: its named `I32::from_f64` saturating
     conversion (the explicit form `as` no longer provides) stops in stage 05
     at "scalar graph integer guard parameter type does not match": the

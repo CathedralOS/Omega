@@ -246,11 +246,12 @@ pub(in crate::legalization) fn argument_at(
             plan,
         );
     }
-    // A shared argument may still project a field or element of its source:
-    // nested records, stored byte views, and bounded inline byte fields all
-    // reconstruct through the same exclusive-argument custody checks.
+    // A shared argument lends its arrival's storage at a static projection:
+    // the whole root (a `&mut [T; N]` parameter lent as `&[T; N]`) or a field
+    // or element of it. Nested records, stored byte views, and bounded inline
+    // byte fields all reconstruct through the same exclusive-argument custody
+    // checks.
     if semantic.access == StructuralAccess::SharedBorrow
-        && !semantic.path.is_empty()
         && semantic.path.iter().all(|segment| {
             matches!(
                 segment,
