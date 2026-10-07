@@ -1488,6 +1488,28 @@ fn integer_bindings(
     Some(bindings)
 }
 
+
+/// The `ProofFact::Expression` bodies every `Requires` contract on `machine`
+/// carries — the premise vocabulary a view's read surface always includes.
+pub(super) fn required_contract_expressions(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Vec<ExpressionHandle> {
+    let mut expressions = Vec::new();
+    for contract in program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+    {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            if let ProofFact::Expression(expression) = fact {
+                expressions.push(*expression);
+            }
+        }
+    }
+    expressions
+}
+
 fn exact_integer_parameter(
     program: &TypedTrees,
     mut reference: typed_trees::types::TypeReferenceHandle,

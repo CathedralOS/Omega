@@ -7,8 +7,8 @@
 //! the set may be stored to before an edge or a call site without invalidating
 //! the entry-relative ranking.
 use super::{
-    ExpressionHandle, ExpressionNode, Machine, ProofFact, RankingRangeMeasure,
-    RankingRangePremises, SignatureContractKind, TypedTrees,
+    ExpressionHandle, ExpressionNode, Machine, RankingRangeMeasure, RankingRangePremises,
+    TypedTrees,
     exact_integer_parameter,
 };
 use symbols::SymbolHandle;
@@ -67,17 +67,7 @@ pub(super) fn premise_symbols(
         } => expressions.extend([lower, upper]),
     }
     if entry_facts {
-        for contract in program
-            .machine_contracts(machine)
-            .iter()
-            .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        {
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                if let ProofFact::Expression(expression) = fact {
-                    expressions.push(*expression);
-                }
-            }
-        }
+        expressions.extend(super::required_contract_expressions(program, machine));
         super::constrained_parameter_bound_expressions(
             program,
             root,

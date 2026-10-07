@@ -1,7 +1,6 @@
 //! Expressions whose exact metadata/field coordinates enter one range judgment.
 use super::{
-    ExpressionHandle, Machine, ProofFact, RankingRangeMeasure, RankingRangePremises,
-    SignatureContractKind, State, TypedTrees,
+    ExpressionHandle, Machine, RankingRangeMeasure, RankingRangePremises, State, TypedTrees,
 };
 use typed_trees::expression::{ExpressionNode, TableRangeExpression};
 
@@ -90,18 +89,8 @@ pub(super) fn entry_expressions(
     machine: &Machine,
     root: &State,
 ) -> Vec<ExpressionHandle> {
-    let mut expressions = Vec::new();
-    for contract in program
-        .machine_contracts(machine)
-        .iter()
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-    {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(expression) = fact {
-                expressions.push(*expression);
-            }
-        }
-    }
+    let mut expressions =
+        super::required_contract_expressions(program, machine);
     crate::proof_contracts::contract_entailment::ranking_range::constrained_parameter_bound_expressions(
         program,
         root,
