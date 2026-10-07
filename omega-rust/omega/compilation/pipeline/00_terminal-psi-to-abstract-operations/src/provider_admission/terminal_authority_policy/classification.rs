@@ -3,7 +3,7 @@
 use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, TerminalAuthorityClass,
-    TerminalAuthorityDisposition,
+    TerminalAuthorityDisposition, numeric_type_tag, primitive_float_operation_tag,
 };
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
 use symbols::BuiltinFunction;
@@ -216,21 +216,6 @@ fn empty_disposition() -> TerminalAuthorityDisposition {
     disposition([])
 }
 
-const fn primitive_float_operation_tag(operation: CompilerPrimitiveFloatBinaryOperation) -> u8 {
-    match operation {
-        CompilerPrimitiveFloatBinaryOperation::Add => 0,
-        CompilerPrimitiveFloatBinaryOperation::Subtract => 1,
-        CompilerPrimitiveFloatBinaryOperation::Multiply => 2,
-        CompilerPrimitiveFloatBinaryOperation::Divide => 3,
-        CompilerPrimitiveFloatBinaryOperation::Equal => 4,
-        CompilerPrimitiveFloatBinaryOperation::NotEqual => 5,
-        CompilerPrimitiveFloatBinaryOperation::Less => 6,
-        CompilerPrimitiveFloatBinaryOperation::LessOrEqual => 7,
-        CompilerPrimitiveFloatBinaryOperation::Greater => 8,
-        CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual => 9,
-    }
-}
-
 const fn primitive_integer_comparison_operation_tag(
     operation: CompilerPrimitiveIntegerComparisonOperation,
 ) -> u8 {
@@ -241,21 +226,6 @@ const fn primitive_integer_comparison_operation_tag(
         CompilerPrimitiveIntegerComparisonOperation::LessOrEqual => 3,
         CompilerPrimitiveIntegerComparisonOperation::Greater => 4,
         CompilerPrimitiveIntegerComparisonOperation::GreaterOrEqual => 5,
-    }
-}
-
-const fn numeric_type_tag(numeric_type: CompilerNumericType) -> u8 {
-    match numeric_type {
-        CompilerNumericType::I8 => 0,
-        CompilerNumericType::I16 => 1,
-        CompilerNumericType::I32 => 2,
-        CompilerNumericType::I64 => 3,
-        CompilerNumericType::U8 => 4,
-        CompilerNumericType::U16 => 5,
-        CompilerNumericType::U32 => 6,
-        CompilerNumericType::U64 => 7,
-        CompilerNumericType::F32 => 8,
-        CompilerNumericType::F64 => 9,
     }
 }
 

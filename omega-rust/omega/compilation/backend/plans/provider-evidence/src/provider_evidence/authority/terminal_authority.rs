@@ -384,7 +384,7 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
     }
 }
 
-const fn primitive_float_operation_tag(operation: CompilerPrimitiveFloatBinaryOperation) -> u8 {
+pub const fn primitive_float_operation_tag(operation: CompilerPrimitiveFloatBinaryOperation) -> u8 {
     match operation {
         CompilerPrimitiveFloatBinaryOperation::Add => 0,
         CompilerPrimitiveFloatBinaryOperation::Subtract => 1,
@@ -412,7 +412,7 @@ const fn primitive_integer_comparison_operation_tag(
     }
 }
 
-const fn numeric_type_tag(numeric_type: CompilerNumericType) -> u8 {
+pub const fn numeric_type_tag(numeric_type: CompilerNumericType) -> u8 {
     match numeric_type {
         CompilerNumericType::I8 => 0,
         CompilerNumericType::I16 => 1,
