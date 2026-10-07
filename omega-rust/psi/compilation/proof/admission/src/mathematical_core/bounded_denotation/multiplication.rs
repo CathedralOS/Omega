@@ -36,7 +36,10 @@ use semantic_vocabulary::{
 
 use super::super::scheme_dsl::{self, apps, pi, scheme_at, v};
 use super::integer_operations::IntegerOperation;
-use super::{BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle};
+use super::{
+    BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
+    affine_equality_for, affine_witness_root_expression,
+};
 
 #[cfg(test)]
 mod tests;
@@ -446,31 +449,11 @@ impl Denotation {
         if bound_evidence != &expected_bound {
             return Ok(None);
         }
-        let equality_for = |subject: &ScalarTerm| {
-            definitions.iter().find_map(|(proposition, proof)| {
-                let Proposition::Equal(first, second) = proposition else {
-                    return None;
-                };
-                if first == subject {
-                    Some((second, *proof, proposition))
-                } else if second == subject {
-                    Some((first, *proof, proposition))
-                } else {
-                    None
-                }
-            })
+        let Some((expression, definition)) =
+            affine_witness_root_expression(witness, definitions)
+        else {
+            return Ok(None);
         };
-        let (expression, definition) =
-            if witness.definition_axioms.is_empty() && witness.literal_axioms.is_empty() {
-                (&witness.root, None)
-            } else if witness.definition_axioms.len() == 1 {
-                let Some((expression, proof, proposition)) = equality_for(&witness.root) else {
-                    return Ok(None);
-                };
-                (expression, Some((proof, proposition)))
-            } else {
-                return Ok(None);
-            };
         let ScalarTerm::ExactIntegerDivide {
             scalar_type: divide_type,
             left: endpoint,
@@ -488,7 +471,8 @@ impl Denotation {
         {
             None
         } else {
-            let Some((literal, proof, proposition)) = equality_for(endpoint) else {
+            let Some((literal, proof, proposition)) = affine_equality_for(definitions, endpoint)
+            else {
                 return Ok(None);
             };
             if literal.integer_value() != Some((*scalar_type, endpoint_value)) {
@@ -519,29 +503,18 @@ impl Denotation {
         let mut bound = self.arena.insert(Term::Snd { pair: evidence });
         // Transport `root'` to the denoted quotient through the cited
         // definition when the root is a separate value.
-        if let Some((equality, proposition)) = definition {
-            let root_term = self.fixed_scalar_term(&witness.root)?;
-            let denoted = self.denote(proposition)?;
-            let Some((_, from, to)) = self.identity_parts(denoted) else {
-                return Ok(None);
-            };
-            let Some(equality) =
-                self.directed_equality(from, to, root_term, expression_term, equality)
-            else {
-                return Ok(None);
-            };
-            bound = if lower == positive {
-                self.integer_law_application(
-                    IntegerLaw::LessOrEqualSubstituteLeft,
-                    &[root_term, expression_term, left_term, equality, bound],
-                )?
-            } else {
-                self.integer_law_application(
-                    IntegerLaw::LessOrEqualSubstituteRight,
-                    &[left_term, root_term, expression_term, equality, bound],
-                )?
-            };
-        }
+        let Some(stepped) = self.affine_root_equality_step(
+            lower == positive,
+            witness,
+            left_term,
+            expression_term,
+            definition,
+            bound,
+        )?
+        else {
+            return Ok(None);
+        };
+        bound = stepped;
         let zero = {
             let position = self.binary_integer(false, 0)?;
             self.constant(position)
