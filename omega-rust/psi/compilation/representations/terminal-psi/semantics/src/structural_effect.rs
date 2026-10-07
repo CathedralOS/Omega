@@ -53,6 +53,33 @@ pub(crate) fn byte_sequence_field_path(
     Some((source.place, path))
 }
 
+/// The `u64` count-equality a measured extent read yields: `result = n`.
+pub(crate) fn u64_extent_proposition(
+    result: ValueId,
+    count: u128,
+) -> Result<Option<Proposition>, OperationSemanticError> {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
+    let count = ScalarTerm::integer(integer_type, semantic_vocabulary::IntegerValue::Unsigned(count))
+        .map_err(OperationSemanticError::InvalidProposition)?;
+    Ok(Some(Proposition::Equal(
+        ScalarTerm::value(result, ScalarType::Integer(integer_type)),
+        count,
+    )))
+}
+
+/// The `u64` subtraction a bounded extent read yields: `result = end - start`.
+pub(crate) fn u64_extent_difference_proposition(
+    result: ValueId,
+    end: ValueId,
+    start: ValueId,
+) -> Result<Option<Proposition>, OperationSemanticError> {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
+    let value = |identity| ScalarTerm::value(identity, ScalarType::Integer(integer_type));
+    let difference = ScalarTerm::exact_integer_subtract(integer_type, value(end), value(start))
+        .map_err(OperationSemanticError::InvalidProposition)?;
+    Ok(Some(Proposition::Equal(value(result), difference)))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectResultShape {
     Scalar,

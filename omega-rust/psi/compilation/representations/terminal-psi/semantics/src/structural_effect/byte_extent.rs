@@ -1,8 +1,6 @@
 //! Exact extent observations of established immutable byte producers.
 
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
-};
+use semantic_vocabulary::Proposition;
 use terminal_psi::{Operation, OperationKind};
 
 use super::StructuralEffectObservation;
@@ -30,13 +28,7 @@ pub fn literal_length_equation(
     // Reuse the leaf schema's result-shape check rather than accepting bytes
     // attached to a malformed producer operation.
     super::structural_effect_leaf_observation(producer)?;
-    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
-    let count = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(bytes.len() as u128))
-        .map_err(OperationSemanticError::InvalidProposition)?;
-    Ok(Some(Proposition::Equal(
-        ScalarTerm::value(*result, ScalarType::Integer(integer_type)),
-        count,
-    )))
+    super::u64_extent_proposition(*result, bytes.len() as u128)
 }
 
 /// Returns the subslice's direct extent denotation at a matching length read.
@@ -62,9 +54,5 @@ pub fn subslice_length_equation(
     if source != destination {
         return Ok(None);
     }
-    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
-    let value = |identity| ScalarTerm::value(identity, ScalarType::Integer(integer_type));
-    let difference = ScalarTerm::exact_integer_subtract(integer_type, value(*end), value(*start))
-        .map_err(OperationSemanticError::InvalidProposition)?;
-    Ok(Some(Proposition::Equal(value(*result), difference)))
+    super::u64_extent_difference_proposition(*result, *end, *start)
 }

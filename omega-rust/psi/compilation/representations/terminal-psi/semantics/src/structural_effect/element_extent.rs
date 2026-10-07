@@ -2,7 +2,7 @@
 //! and the scalar leaf an element read yields.
 
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType, StructuralTypeId,
+    IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, StructuralTypeId,
 };
 use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
 
@@ -33,11 +33,7 @@ pub fn element_subslice_length_equation(
     if source != destination {
         return Ok(None);
     }
-    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
-    let value = |identity| ScalarTerm::value(identity, ScalarType::Integer(integer_type));
-    let difference = ScalarTerm::exact_integer_subtract(integer_type, value(*end), value(*start))
-        .map_err(OperationSemanticError::InvalidProposition)?;
-    Ok(Some(Proposition::Equal(value(*result), difference)))
+    super::u64_extent_difference_proposition(*result, *end, *start)
 }
 
 /// Relate a measured element view to its whole collection's declared extent:
@@ -67,16 +63,7 @@ pub fn element_establishment_length_equation(
     if source != destination {
         return Ok(None);
     }
-    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
-    let count = ScalarTerm::integer(
-        integer_type,
-        IntegerValue::Unsigned(u128::from(collection_length)),
-    )
-    .map_err(OperationSemanticError::InvalidProposition)?;
-    Ok(Some(Proposition::Equal(
-        ScalarTerm::value(*result, ScalarType::Integer(integer_type)),
-        count,
-    )))
+    super::u64_extent_proposition(*result, u128::from(collection_length))
 }
 
 /// The scalar an `ElementViewRead` yields at `path` below one element of type
