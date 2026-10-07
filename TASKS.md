@@ -2061,8 +2061,13 @@ crash and native exit behavior.
   float conversion casts (`validation::bind_float_conversion_casts`) execute.
   Remaining:
   - **Float/receiver signatures.** Complete call composition for the
-    remaining signatures. Semantic-domain-qualified carrier conversions still
-    need lowering that keeps the qualification; a rounding
+    remaining signatures. Predicate-qualified computed conversion results still
+    need ordinary membership proofs: `3.0f64 as i32 in Three` with
+    `domain i32::Three(value) requires value == 3` remains refused by the
+    immutable qualification-bound query. Retain
+    `float/runtime_qualified_carrier_conversion_exit` (0) and
+    `float/qualified_conversion_requires_operand_proof` for selected exact
+    conversions beneath declared tags, aliases and inline arguments; a rounding
     conversion cannot stand in for an exact cast. Integer policy-qualified
     carrier changes still take legacy conversion semantics: enforce unchanged
     denotation for `as`, leaving policy-bearing conversions on the named-call
@@ -3210,6 +3215,10 @@ deletions, which the commit lists.
   snapshots, field reads and future arithmetic policies;
   `float/integer_to_float_coercion_requires_denotation` must reject rounded,
   unknown, non-singleton and stale-write operands independently.
+  `float/runtime_qualified_carrier_conversion_exit` (0) constrains preserved
+  scalar qualification through exact conversion, copies, returns, parameters
+  and inline alias arguments; `float/qualified_conversion_requires_operand_proof`
+  must reject unproved predicates, unauthorized provenance and lossy operands.
   `calls/runtime_anonymous_result_local_namespace_exit` (70) and
   `float/float_to_int_trapping_nan_traps` (trap) constrain authored local
   identity after anonymous operation results in ordinary bodies.

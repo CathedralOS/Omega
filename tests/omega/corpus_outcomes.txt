@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.14, "load1_start": 6.14, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 3.69, "load1_start": 3.92, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1172,6 +1172,11 @@ fail/float/policy_cast_requires_unchanged_denotation rejected 512ms expected @87
 	machine `lossy_format` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove Exact float-to-`u8` cast operand `300.0` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove unqualified `U8::from_f64` operand `300.0` is finite and truncates into `u8`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `u8 in Trapping` or `u8 in Saturating`
+fail/float/qualified_conversion_requires_operand_proof rejected 453ms expected @f66070cc72a5+wt
+	`as ... in Four` mints LITERAL values, or names whose DECLARED RANGE entails the domain facts, in this rung; other values route through a validating call or guard until full flow integration lands
+	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 fail/float/range_bound_names_value_rejected rejected 295ms expected @ada91cf0bd16+wt
 	machine `scale` state `entry` parameter `value` declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
 	machine `scale` state `entry` return type declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
@@ -2867,6 +2872,7 @@ pass/float/runtime_named_fma_sequence_exit checked 16819ms check-target:macos_ar
 pass/float/runtime_named_format_conversion_exit checked 6217ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_named_policy_conversion_composition_exit checked 4769ms check-target:macos_arm64 @8794607e5caa+wt
 pass/float/runtime_named_policy_result_exit checked 5484ms check-target:macos_arm64 @fa2336e35cbc
+pass/float/runtime_qualified_carrier_conversion_exit checked 4549ms check-target:macos_arm64 @f66070cc72a5+wt
 pass/float/runtime_refined_conversion_target_exit checked 4693ms check-target:macos_arm64 @4c0f436bf3b8+wt
 pass/float/runtime_std_is_finite_exit checked 5045ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_total_order_satisfiers_exit checked 33742ms check-target:macos_arm64 @e8239f945e8

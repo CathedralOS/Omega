@@ -108,23 +108,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     plan: &'a CheckedComposedUnitControlMachinePlan,
 ) -> Result<AdmittedGraph<'a>, LoweringError> {
     super::super::admission::validate_contract(checked, plan)?;
-    if plan.states.is_empty()
-        || !plan.body_qualifications.is_empty()
-        || checked
-            .facts
-            .qualifications
-            .for_machine(plan.machine)
-            .is_some_and(|fact| {
-                fact.body_committed.iter().any(|domain| {
-                    !matches!(
-                        *domain,
-                        language_semantics::SemanticDomainTable::WRAPPING
-                            | language_semantics::SemanticDomainTable::SATURATING
-                            | language_semantics::SemanticDomainTable::TRAPPING
-                    )
-                })
-            })
-    {
+    // The producer assigns scalar qualifications to scalar computations and
+    // retains only structural requests here. Reclassifying every committed
+    // domain as structural would reject those supported scalar operations.
+    if plan.states.is_empty() || !plan.body_qualifications.is_empty() {
         return unsupported("Unit graph has unsupported qualification or provider custody");
     }
     let machine = checked

@@ -1,6 +1,9 @@
 //! Retained scalar values share selective evaluation, whether they establish
 //! a source local or one array leaf. Completed values survive later control
 //! joins; the fixed source prefix excludes private argument and leaf slots.
+//! Completion carries the produced value's full qualified type. Projecting
+//! only its primitive here would discard an authored qualification after the
+//! computation established it, or reject a correctly qualified call result.
 use super::{
     CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedTrees, Evaluation,
     LoweringError, ScalarType, ValueDeclaration, direct_expression_contains_short_circuit,
@@ -237,17 +240,36 @@ impl Evaluation {
             .iter()
             .map(|value| value.value_type())
             .collect::<Vec<_>>();
-        if let CheckedCallScalarArgument::Pure(value) = value {
-            let lowered = bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
-            let expression = lowered;
-            if !direct_expression_contains_short_circuit(&expression) {
-                validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
-                return Ok(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: emit_direct_expression(&expression, values, next_value, operations),
-                    scalar_type,
-                });
+        let (pure_expression, result_type) = match value {
+            CheckedCallScalarArgument::Pure(value) => {
+                let expression =
+                    bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
+                let result_type = expression.value_type(&source_types)?;
+                (Some(expression), result_type)
             }
+            CheckedCallScalarArgument::Computation(handle) => (
+                None,
+                crate::scalar_graph::scalar_computations::computation_value_type(
+                    checked,
+                    qualifications,
+                    *handle,
+                    &bindings,
+                    &source_types,
+                )?,
+            ),
+        };
+        if result_type.scalar_type != scalar_type {
+            return unsupported("scalar source value disagrees with its retained carrier");
+        }
+        if let Some(expression) = pure_expression
+            && !direct_expression_contains_short_circuit(&expression)
+        {
+            validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
+            return Ok(ValueDeclaration {
+                qualifications: result_type.qualifications,
+                id: emit_direct_expression(&expression, values, next_value, operations),
+                scalar_type,
+            });
         }
         let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
             checked,
@@ -270,7 +292,7 @@ impl Evaluation {
                 role,
                 &bindings,
                 &source_types,
-                scalar_type.into(),
+                result_type,
                 0,
             )?,
             CheckedCallScalarArgument::Computation(_) => expansion.retained_value(
@@ -279,7 +301,7 @@ impl Evaluation {
                 role,
                 &bindings,
                 &source_types,
-                scalar_type.into(),
+                result_type,
                 0,
             )?,
         };
@@ -287,7 +309,7 @@ impl Evaluation {
         let completed = self.complete_expansion(
             &states,
             entry,
-            &[scalar_type.into()],
+            &[result_type],
             values,
             next_value,
             next_block,

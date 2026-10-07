@@ -212,7 +212,10 @@ fn selected_conversion(
     expression: ExpressionHandle,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> Option<(SymbolHandle, Identifier)> {
-    if cast.form.is_recast() || !cast.semantic_domain.is_empty() || !cast.result_type.is_valid() {
+    // Qualification is the outer cast's obligation, not an alternative
+    // carrier operation. Select the same unqualified conversion beneath it;
+    // the authored cast retains its normalized domain and exact use identity.
+    if cast.form.is_recast() || !cast.result_type.is_valid() {
         return None;
     }
     let destination = program.primitive_type_reference(cast.target_type)?;

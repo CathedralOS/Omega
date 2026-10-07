@@ -36,6 +36,8 @@ mod successor_edge;
 pub(super) struct StateGraphEmission<'a, 'c> {
     checked: &'a CheckedTrees,
     plan: &'a CheckedComposedUnitControlMachinePlan,
+    /// Fused source states emit into this one Terminal machine namespace.
+    terminal_machine: MachineId,
     admitted: AdmittedGraph<'a>,
     parameters: Vec<StructuralParameterDeclaration>,
     scalar_parameters: Vec<ValueDeclaration>,
@@ -63,6 +65,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     structural_places: Vec<StructuralPlaceDeclaration>,
     blocks: Vec<Block>,
     scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
+    qualification_coercions: Vec<terminal_psi::ScalarQualificationCoercion>,
     loaned_local_homes: BTreeMap<u32, semantic_vocabulary::PlaceId>,
     /// Exclusive loan chains a later state's local backs.
     loan_chains: loan_chains::LoanChains,
@@ -85,6 +88,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         TerminalMachine,
         super::super::ComposedOccurrences,
         Vec<terminal_psi::ScalarBlockInvariant>,
+        Vec<terminal_psi::ScalarQualificationCoercion>,
     ),
     LoweringError,
 > {
@@ -392,6 +396,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     let mut emission = StateGraphEmission {
         checked,
         plan,
+        terminal_machine,
         admitted,
         parameters,
         scalar_parameters,
@@ -414,6 +419,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         loan_chains,
         occurrences,
         scalar_block_invariants: Vec::new(),
+        qualification_coercions: Vec::new(),
         block_ranks,
         rank_edges,
     };
@@ -442,6 +448,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         mut structural_places,
         mut blocks,
         mut scalar_block_invariants,
+        qualification_coercions,
         loaned_local_homes,
         loan_chains,
         mut occurrences,
@@ -658,5 +665,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     machine.contract.crash_routes =
         lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
-    Ok((machine, occurrences, scalar_block_invariants))
+    Ok((
+        machine,
+        occurrences,
+        scalar_block_invariants,
+        qualification_coercions,
+    ))
 }

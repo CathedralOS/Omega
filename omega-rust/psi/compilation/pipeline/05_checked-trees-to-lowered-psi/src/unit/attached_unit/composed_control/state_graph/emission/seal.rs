@@ -252,6 +252,10 @@ impl StateGraphEmission<'_, '_> {
             &mut self.catalogs.next_place,
             &mut self.structural_places,
         )?;
+        // Qualification edges name the emitted machine, not a fused source
+        // owner. Publish their exact edge/value correspondence with its body.
+        self.qualification_coercions
+            .append(&mut evaluation.qualification_coercions);
         self.blocks.extend(evaluation.blocks);
         self.catalogs.next_value = next_value;
         self.catalogs.next_block = next_block;

@@ -94,7 +94,7 @@ impl StateGraphEmission<'_, '_> {
                 .unwrap_or_else(
                 crate::expression_preparation::qualifications::PreparedScalarQualifications::empty,
             ),
-            machine: None,
+            machine: Some(self.terminal_machine),
             qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),

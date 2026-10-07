@@ -74,6 +74,7 @@ pub(in crate::unit::attached_unit) fn emit(
         TerminalMachine,
         super::ComposedOccurrences,
         Vec<terminal_psi::ScalarBlockInvariant>,
+        Vec<terminal_psi::ScalarQualificationCoercion>,
     ),
     LoweringError,
 > {
@@ -124,16 +125,17 @@ pub(in crate::unit::attached_unit) fn emit(
     let entry_erased_formals = signatures::find(shared.signatures, plan.machine)?
         .erased_scalar_parameters
         .clone();
-    let (mut machine, occurrences, scalar_block_invariants) = state_graph::emit(
-        checked,
-        plan,
-        admitted,
-        identity,
-        parameters,
-        scalar_parameters,
-        entry_erased_formals,
-        &mut catalogs,
-    )?;
+    let (mut machine, occurrences, scalar_block_invariants, qualification_coercions) =
+        state_graph::emit(
+            checked,
+            plan,
+            admitted,
+            identity,
+            parameters,
+            scalar_parameters,
+            entry_erased_formals,
+            &mut catalogs,
+        )?;
     // `requires` already carries the merged closed clause proposition ahead
     // of the runtime requirements in published contract order.
     let signature = signatures::find(shared.signatures, plan.machine)?;
@@ -173,5 +175,10 @@ pub(in crate::unit::attached_unit) fn emit(
     *counters.operation = catalogs.next_operation;
     *counters.edge = catalogs.next_edge;
     *counters.call_obligation = catalogs.scalar_calls.next_call_obligation;
-    Ok((machine, occurrences, scalar_block_invariants))
+    Ok((
+        machine,
+        occurrences,
+        scalar_block_invariants,
+        qualification_coercions,
+    ))
 }

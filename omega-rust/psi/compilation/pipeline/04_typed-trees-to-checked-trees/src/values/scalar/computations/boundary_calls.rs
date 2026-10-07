@@ -102,10 +102,11 @@ impl Builder<'_, '_> {
             }
             match self.program.expression_table.expression(expression) {
                 ExpressionNode::Atomic(atomic) => expression = atomic.value,
-                ExpressionNode::Cast(_) if self.same_carrier_cast_operand(expression).is_some() => {
-                    return false;
-                }
-                ExpressionNode::Cast(cast) => expression = cast.value,
+                // A statement owns only a whole call. Every enclosing cast
+                // belongs to the computation graph, which sequences the call
+                // once and then retains its conversion or qualification edge.
+                // Peeling a semantic cast here drops that outer operation.
+                ExpressionNode::Cast(_) => return false,
                 ExpressionNode::Call(call) => break call,
                 _ => return false,
             }

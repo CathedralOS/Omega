@@ -494,10 +494,11 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
     })
 }
 
-/// Body commitments whose theory belongs to structural carriers. Numeric
-/// interval mints retain their authored scalar computation and range proof;
-/// requesting a structural carrier for them would duplicate the scalar owner.
-/// Nominal, routed, open, and non-interval domains remain structural requests.
+/// Body commitments whose theory belongs to structural carriers. Classify
+/// normalized domain instances by their carrier, not by their predicates or
+/// the arrangement of an authored cast. Scalar computations retain scalar
+/// membership and its proof; a structural request would duplicate that owner.
+/// This query assigns ownership only and establishes no membership evidence.
 pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -524,20 +525,26 @@ pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
     if domains.is_empty() {
         return domains;
     }
-    let interval_casts = program.expression_table.iter_expressions().filter_map(|(_, expression)| {
-        let ExpressionNode::Cast(cast) = expression else { return None; };
-        if !domains.contains(&cast.semantic_domain_id) { return None; }
-        let primitive = program.primitive_type_reference(cast.result_type)?;
-        let TypeReferenceNode::Constrained { constraints, .. } = program.type_reference_table.type_reference(cast.result_type) else { return None; };
-        program.type_reference_table.constraints(*constraints).iter().any(|constraint| {
-            matches!(constraint, TypeConstraintNode::Domain(domain)
-                if domain.semantic_id == cast.semantic_domain_id
-                    && domain.symbol == cast.semantic_domain_symbol
-                    && validation::exact_declared_domain_carrier_interval(program, primitive, domain)
-                        .is_some_and(|(minimum, maximum)| minimum <= maximum))
-        }).then_some(cast.semantic_domain_id.0)
-    }).collect::<BTreeSet<_>>();
-    domains.retain(|domain| !interval_casts.contains(&domain.0));
+    let scalar_domains = program
+        .type_reference_table
+        .constrained_type_references()
+        .into_iter()
+        .filter(|(carrier, _)| program.primitive_type_reference(*carrier).is_some())
+        .flat_map(|(_, constraints)| program.type_reference_table.constraints(constraints))
+        .filter_map(|constraint| match constraint {
+            TypeConstraintNode::Domain(domain) => Some(domain.semantic_id.0),
+            _ => None,
+        })
+        // A transparent alias's own declaration identity may no longer be
+        // a normalized type atom. Its declared carrier still owns it; closed
+        // indexed instances above retain their concrete carrier independently.
+        .chain(program.domain_definitions().iter().filter_map(|domain| {
+            program
+                .primitive_type_reference(domain.target_type)
+                .map(|_| domain.semantic_id.0)
+        }))
+        .collect::<BTreeSet<_>>();
+    domains.retain(|domain| !scalar_domains.contains(&domain.0));
     domains.sort_by_key(|domain| domain.0);
     domains.dedup();
     domains

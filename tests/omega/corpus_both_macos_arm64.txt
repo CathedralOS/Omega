@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 2.93, "load1_start": 2.93, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 2.39, "load1_start": 2.33, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_field_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -233,6 +233,7 @@ pass/float/admitted_numeric_imports_preserve_semantics built 8261ms exit:70 inte
 pass/float/computed_comparison_literal_landing_exit built 10426ms exit:0 interpreter-exit:0 interpreter:agrees @6ef30fb818e6
 pass/float/runtime_exact_integer_to_float_coercion_exit built 4652ms exit:0 interpreter-exit:0 interpreter:agrees @0c442545c79e
 pass/float/runtime_float_call_same_carrier_cast_exit built 8755ms exit:0 interpreter-exit:0 interpreter:agrees @4f590536f488+wt
+pass/float/runtime_qualified_carrier_conversion_exit built 4391ms exit:0 interpreter-exit:0 interpreter:agrees @f66070cc72a5+wt
 pass/float/runtime_total_order_satisfiers_exit built 19626ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/generics/closed_generic_local_field_observation_exit built 3226ms exit:0 interpreter-exit:0 interpreter:agrees @c9b4ecc7551a
 pass/host/console_exit_process_exit built 1352ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @2424b17e715c

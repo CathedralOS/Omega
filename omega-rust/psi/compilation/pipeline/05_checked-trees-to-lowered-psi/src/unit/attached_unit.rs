@@ -465,35 +465,36 @@ pub(crate) fn lower_unit_closure(
             body: admitted,
         } = admitted
         {
-            let (machine, composed, mut invariants) = composed_control::callable::emit(
-                checked,
-                source_plan,
-                admitted,
-                parameters.clone(),
-                scalar_parameters,
-                composed_control::callable::SharedCatalog {
-                    structural_types: &structural_types,
-                    type_ids: &type_ids,
-                    domain_ids: &domain_ids,
-                    service_ids: &service_ids,
-                    boundary_parameters: &lowered_boundary_parameters,
-                    machine_ids: &machine_ids,
-                    signatures: &machine_signatures,
-                    scalar_requirement_counts: &scalar_requirement_counts,
-                    closure: &closure,
-                    prepared_scalar_machines: &prepared_scalar_callees.machines,
-                    prepared_scalar_qualifications: &prepared_scalar_callees
-                        .prepared_qualifications,
-                },
-                composed_control::callable::EmissionCounters {
-                    place: &mut next_place,
-                    value: &mut next_value,
-                    block: &mut next_block,
-                    operation: &mut next_operation,
-                    edge: &mut next_edge,
-                    call_obligation: &mut next_call_obligation,
-                },
-            )?;
+            let (machine, composed, mut invariants, mut coercions) =
+                composed_control::callable::emit(
+                    checked,
+                    source_plan,
+                    admitted,
+                    parameters.clone(),
+                    scalar_parameters,
+                    composed_control::callable::SharedCatalog {
+                        structural_types: &structural_types,
+                        type_ids: &type_ids,
+                        domain_ids: &domain_ids,
+                        service_ids: &service_ids,
+                        boundary_parameters: &lowered_boundary_parameters,
+                        machine_ids: &machine_ids,
+                        signatures: &machine_signatures,
+                        scalar_requirement_counts: &scalar_requirement_counts,
+                        closure: &closure,
+                        prepared_scalar_machines: &prepared_scalar_callees.machines,
+                        prepared_scalar_qualifications: &prepared_scalar_callees
+                            .prepared_qualifications,
+                    },
+                    composed_control::callable::EmissionCounters {
+                        place: &mut next_place,
+                        value: &mut next_value,
+                        block: &mut next_block,
+                        operation: &mut next_operation,
+                        edge: &mut next_edge,
+                        call_obligation: &mut next_call_obligation,
+                    },
+                )?;
             machines.push(machine);
             occurrences.retain(
                 composed.source_calls,
@@ -504,6 +505,7 @@ pub(crate) fn lower_unit_closure(
                 .source_checked_obligations
                 .extend(composed.source_checked_obligations);
             scalar_block_invariants.append(&mut invariants);
+            scalar_qualification_coercions.append(&mut coercions);
             continue;
         }
         let plan = body.ordinary()?;
