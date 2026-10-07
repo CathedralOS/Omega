@@ -295,6 +295,30 @@ fn validate_call_selection(
     nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
     specializations: &mut Vec<ValidatedRequirementCallSpecialization>,
 ) {
+
+/// Split a type-parameter signature into its `Machine`-kind contract
+/// requirements and its `Type`-kind generic slots, in declaration order.
+fn contract_and_type_parameters<'p>(
+    parameters: &'p [TypeParameter],
+) -> (
+    Vec<(&'p TypeParameter, &'p MachineParameterContract)>,
+    Vec<&'p TypeParameter>,
+) {
+    (
+        parameters
+            .iter()
+            .filter_map(|parameter| match &parameter.kind {
+                TypeParameterKind::Machine { contract } => Some((parameter, contract)),
+                _ => None,
+            })
+            .collect(),
+        parameters
+            .iter()
+            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            .collect(),
+    )
+}
+
     // The build operations whose static operands name declarations, not
     // machine requirements, carry no requirement calls to validate.
     if !target_symbol.is_valid()
@@ -314,38 +338,13 @@ fn validate_call_selection(
     let (requirements, generic_types): (Vec<_>, Vec<_>) = if let Some((callee, _)) =
         machine_and_state(program, index, target_symbol)
     {
-        (
-            program
-                .machine_type_parameters(callee)
-                .iter()
-                .filter_map(|parameter| match &parameter.kind {
-                    TypeParameterKind::Machine { contract } => Some((parameter, contract)),
-                    _ => None,
-                })
-                .collect(),
-            program
-                .machine_type_parameters(callee)
-                .iter()
-                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-                .collect(),
-        )
+        contract_and_type_parameters(program.machine_type_parameters(callee))
     } else if let Some((declaring_machine, signature)) =
         program.machine_parameter_signature(target_symbol)
     {
         (
-            program
-                .state_signature_type_parameters(signature)
-                .iter()
-                .filter_map(|parameter| match &parameter.kind {
-                    TypeParameterKind::Machine { contract } => Some((parameter, contract)),
-                    _ => None,
-                })
-                .collect(),
-            program
-                .machine_type_parameters(declaring_machine)
-                .iter()
-                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-                .collect(),
+            contract_and_type_parameters(program.state_signature_type_parameters(signature)).0,
+            contract_and_type_parameters(program.machine_type_parameters(declaring_machine)).1,
         )
     } else if let Some(signature) = program
         .traits()
@@ -353,21 +352,7 @@ fn validate_call_selection(
         .flat_map(|definition| program.trait_machine_signatures(definition))
         .find(|signature| signature.symbol == target_symbol)
     {
-        (
-            program
-                .state_signature_type_parameters(signature)
-                .iter()
-                .filter_map(|parameter| match &parameter.kind {
-                    TypeParameterKind::Machine { contract } => Some((parameter, contract)),
-                    _ => None,
-                })
-                .collect(),
-            program
-                .state_signature_type_parameters(signature)
-                .iter()
-                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-                .collect(),
-        )
+        contract_and_type_parameters(program.state_signature_type_parameters(signature))
     } else {
         if !arguments.is_empty() {
             diagnostics.push(Diagnostic::error(format!(
