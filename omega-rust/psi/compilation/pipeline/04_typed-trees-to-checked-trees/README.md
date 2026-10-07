@@ -168,12 +168,11 @@ arenas and restore the complete semantic baseline with allocation-reusing
 `clone_from`, including its context links and lookup index. Baseline contents
 still copy; this is whole-output replacement, not a partial rollback that keeps
 old scratch handles valid. The builder and context document the lifetime boundary.
-The manual `checking_allocations` example measures complete checking without
-test-only reference replay; run it with
-`cargo run -p typed-trees-to-checked-trees --example checking_allocations`.
-It reports allocation requests and requested bytes, not peak memory. Its
-contract-bearing fixtures exercise a nonempty semantic baseline; a chain alone
-does not establish the cost of copying declaration facts.
+The ordinary compiler corpus owns source-to-checking qualification. This
+transform does not fabricate source programs or orchestrate the preceding
+frontend stages for a separate synthetic measurement route. Measurements of
+semantic-baseline copying need real contract-bearing programs; a state chain
+alone does not establish that cost.
 
 Flow context and constraint snapshots retain validated arena spans. Unchanged
 and contiguous filtered selections reuse their rows; fragmented selections
