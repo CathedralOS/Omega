@@ -189,6 +189,7 @@ pub data Expression [copy] {
     flag: bool;
     name: IdentifierSpan;
     type_reference: u64 in Trapping;
+    first_row: u64 in Trapping;
     source_span: SourceSpan;
 }
 

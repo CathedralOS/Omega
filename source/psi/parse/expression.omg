@@ -232,6 +232,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, parser.token_start, parser.token_end),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, parser.token_start, parser.token_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -253,6 +254,7 @@ crashes Trap
             flag: value,
             name: Parser::identifier_span(parser, parser.token_start, parser.token_end),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, parser.token_start, parser.token_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -317,6 +319,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, parser.path_start, parser.token_end),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, parser.path_start, parser.token_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -337,6 +340,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, parser.token_start, parser.token_end),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, parser.path_start, parser.token_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -477,6 +481,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, 0, 0),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, callee_expression.source_span.span.start, parser.token_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -523,6 +528,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, parser.name_start, parser.name_end),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, base_expression.source_span.span.start, parser.name_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -556,6 +562,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, 0, 0),
             type_reference: parser.type_result,
+            first_row: 0,
             source_span: Parser::source_span(parser, value_expression.source_span.span.start, parser.type_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -729,6 +736,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, 0, 0),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, base_expression.source_span.span.start, parser.token_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -791,6 +799,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, 0, 0),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, callee_expression.source_span.span.start, parser.token_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -853,6 +862,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, 0, 0),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, path_expression.source_span.span.start, parser.token_end)
         };
         Parser::emit_expression(parser, input, node);
@@ -887,9 +897,45 @@ crashes Trap
         _ -> full(parser, input)
     }
 
+    // Children precede their parent, so an expression's subtree is the
+    // contiguous run from its first child's first row to itself.
     state store(parser: &mut Parser, input: &TokenStream, node: Expression) {
         let handle: u64 in Trapping = parser.output.expression_count as u64 in Trapping;
-        parser.output.expressions[parser.output.expression_count] = node;
+        transition node.kind {
+            ExpressionKind::Name -> stored(parser, input, node, handle, handle)
+            ExpressionKind::Path -> stored(parser, input, node, handle, handle)
+            ExpressionKind::Integer -> stored(parser, input, node, handle, handle)
+            ExpressionKind::Boolean -> stored(parser, input, node, handle, handle)
+            ExpressionKind::String -> stored(parser, input, node, handle, handle)
+            _ -> composite(parser, input, node, handle)
+        }
+    }
+
+    state composite(parser: &mut Parser, input: &TokenStream, node: Expression, handle: u64 in Trapping) {
+        let first_child: Expression = SyntaxTrees::expression(&parser.output, node.left);
+        transition { _ -> stored(parser, input, node, handle, first_child.first_row) }
+    }
+
+    state stored(
+        parser: &mut Parser,
+        input: &TokenStream,
+        node: Expression,
+        handle: u64 in Trapping,
+        first_row: u64 in Trapping
+    ) {
+        parser.output.expressions[parser.output.expression_count] = Expression {
+            kind: node.kind,
+            operator: node.operator,
+            left: node.left,
+            right: node.right,
+            first: node.first,
+            count: node.count,
+            flag: node.flag,
+            name: node.name,
+            type_reference: node.type_reference,
+            first_row: first_row,
+            source_span: node.source_span
+        };
         parser.output.expression_count = parser.output.expression_count + 1;
         Parser::push_operand(parser, input, handle);
     }
@@ -1084,6 +1130,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, 0, 0),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, pending.start, operand_expression.source_span.span.end)
         };
         Parser::emit_expression(parser, input, node);
@@ -1104,6 +1151,7 @@ crashes Trap
             flag: false,
             name: Parser::identifier_span(parser, 0, 0),
             type_reference: 0,
+            first_row: 0,
             source_span: Parser::source_span(parser, left_expression.source_span.span.start,
                 right_expression.source_span.span.end)
         };
