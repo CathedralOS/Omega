@@ -1,7 +1,5 @@
 """Invoke the selected Gamma program and compare complete diagnostic bytes."""
 
-import csv
-import hashlib
 import struct
 import subprocess
 import sys
@@ -9,22 +7,16 @@ from pathlib import Path
 
 from fixtures import cases
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import derivation_gate  # noqa: E402
+
 
 def main():
     temporary = Path(sys.argv[1])
     gate = Path(__file__).resolve().parent
     source = (temporary / "diagnostic.gamma").read_bytes()
-    with (gate / "source.tsv").open(encoding="ascii", newline="") as stream:
-        reader = csv.DictReader(stream, delimiter="\t")
-        if reader.fieldnames != ["lines", "bytes", "sha256"]:
-            raise SystemExit("Derivation admission: wrong identity header")
-        identities = list(reader)
-    if len(identities) != 1:
-        raise SystemExit("Derivation admission: expected one diagnostic source identity")
-    expected = identities[0]
-    actual = (len(source.splitlines()), len(source), hashlib.sha256(source).hexdigest())
-    if actual != (int(expected["lines"]), int(expected["bytes"]), expected["sha256"]):
-        raise SystemExit(f"Derivation admission: source identity changed: {actual}")
+    derivation_gate.read_source_identity(
+        "Derivation admission", source, gate)
 
     fixtures = 0
     for name, request, output in cases():
