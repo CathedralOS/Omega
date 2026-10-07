@@ -750,16 +750,7 @@ fn exact_realization_contracts(
     if !expect_unconditional_trap {
         return contracts.is_empty();
     }
-    let [contract] = contracts else {
-        return false;
-    };
-    matches!(
-        contract.kind,
-        typed_trees::signature::SignatureContractKind::Crashes {
-            cause: typed_trees::signature::CrashCause::Trap,
-        }
-    ) && contract.facts.is_empty()
-        && contract.binding.is_none()
+    sole_unconditional_trap(contracts)
 }
 
 /// The hosted byte-input failure contract is exactly one `crashes Trap` clause
@@ -769,17 +760,7 @@ fn exact_unconditional_trap_crash_contract(
     typed: &typed_trees::TypedTrees,
     signature: &typed_trees::signature::StateSignature,
 ) -> bool {
-    let contracts = typed.state_signature_contracts(signature);
-    let [contract] = contracts else {
-        return false;
-    };
-    matches!(
-        contract.kind,
-        typed_trees::signature::SignatureContractKind::Crashes {
-            cause: typed_trees::signature::CrashCause::Trap,
-        }
-    ) && contract.facts.is_empty()
-        && contract.binding.is_none()
+    sole_unconditional_trap(typed.state_signature_contracts(signature))
 }
 
 fn exact_console_state(
@@ -845,4 +826,19 @@ fn exact_i32_parameter(
         return false;
     };
     typed.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::I32) && name.as_str() == "i32"
+}
+
+/// Whether `contracts` is exactly one unconditional `crashes Trap` clause:
+/// a single contract, Trap cause, no facts, no binding.
+fn sole_unconditional_trap(contracts: &[typed_trees::signature::SignatureContract]) -> bool {
+    let [contract] = contracts else {
+        return false;
+    };
+    matches!(
+        contract.kind,
+        typed_trees::signature::SignatureContractKind::Crashes {
+            cause: typed_trees::signature::CrashCause::Trap,
+        }
+    ) && contract.facts.is_empty()
+        && contract.binding.is_none()
 }
