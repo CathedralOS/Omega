@@ -912,32 +912,7 @@ pub(super) fn repeat_representation(
     element: &MutableRecordRepresentation,
     count: usize,
 ) -> Option<MutableRecordRepresentation> {
-    let size = element.size.checked_mul(count)?;
-    let leaf_count = element.leaves.len().checked_mul(count)?;
-    let mut leaves = Vec::new();
-    leaves.try_reserve_exact(leaf_count).ok()?;
-    for index in 0..count {
-        let base = element.size.checked_mul(index)?;
-        for leaf in &element.leaves {
-            let mut projected = leaf.clone();
-            projected.arrays.push(NormalizedArrayStep {
-                suffix_length: projected.path.len(),
-                stride: element.size,
-                extent: count,
-            });
-            projected
-                .path
-                .insert(0, RepresentationSegment::Element(index));
-            projected.offset = base.checked_add(leaf.offset)?;
-            leaves.push(projected);
-        }
-    }
-    Some(MutableRecordRepresentation {
-        size,
-        align: element.align,
-        leaves,
-        has_stored_integer_projection: element.has_stored_integer_projection,
-    })
+    repeat_representation_with_stride(element, count, element.size)
 }
 
 fn repeat_representation_with_stride(
