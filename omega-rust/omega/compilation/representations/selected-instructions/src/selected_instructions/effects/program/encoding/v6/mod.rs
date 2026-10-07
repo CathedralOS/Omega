@@ -62,6 +62,7 @@ use instruction::decode_instruction;
 pub use instruction::{
     decode_alternative, decode_alternative_legacy, decode_alternative_without_jump,
     decode_alternative_without_scalar_call, decode_local_storage_slot, decode_provenance,
+    saturating_kind,
 };
 pub use ownership::decode_effect_link;
 pub use ownership::decode_ownership;

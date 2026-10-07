@@ -936,7 +936,7 @@ fn trapping_form(tag: u8) -> Option<TrappingForm> {
 
 /// The saturating operation and carrier a tag encodes, inverting
 /// [`saturating_family_tag`] over every realized carrier.
-fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> {
+pub fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> {
     [
         SaturatingOperation::Add,
         SaturatingOperation::Subtract,

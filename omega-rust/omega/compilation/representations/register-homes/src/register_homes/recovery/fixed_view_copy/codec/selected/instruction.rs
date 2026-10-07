@@ -1,7 +1,7 @@
 use register_model::{RegisterClassId, RegisterUnitId, RegisterViewId};
+use selected_instructions::effects::program::encoding::saturating_kind;
 use selected_instructions::{
-    SaturatingCarrier, SaturatingOperation, TrappingForm, saturating_family_tag,
-    trapping_family_tag,
+    SaturatingOperation, TrappingForm, saturating_family_tag, trapping_family_tag,
 };
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,
@@ -1037,25 +1037,6 @@ fn trapping_form(tag: u8) -> Option<TrappingForm> {
     TrappingForm::ALL
         .into_iter()
         .find(|form| trapping_family_tag(*form) == tag)
-}
-
-/// The saturating operation and carrier a tag names, inverting the shared
-/// family tag table over every realized carrier.
-fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> {
-    [
-        SaturatingOperation::Add,
-        SaturatingOperation::Subtract,
-        SaturatingOperation::Divide,
-        SaturatingOperation::Remainder,
-        SaturatingOperation::Multiply,
-    ]
-    .into_iter()
-    .flat_map(|operation| {
-        SaturatingCarrier::ALL
-            .into_iter()
-            .map(move |carrier| (operation, carrier))
-    })
-    .find(|(operation, carrier)| saturating_family_tag(*operation, *carrier) == tag)
 }
 
 fn decode_call_target(
