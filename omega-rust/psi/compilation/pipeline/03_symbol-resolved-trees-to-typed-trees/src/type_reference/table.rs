@@ -7,6 +7,35 @@ use typed_trees as typed;
 use crate::type_reference::constraints::lower_type_constraint_node_span_from_table;
 use crate::type_reference::direct::lower_fixed_array_type;
 
+/// Lower a type's argument list into the shared table, preserving order.
+fn lower_type_argument_handles(
+    source_trees: &SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    arguments: HandleSpan<resolved::types::TypeReferenceHandle>,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+) -> Result<HandleSpan<typed::types::TypeReferenceHandle>, Diagnostic> {
+    let mut lowered_arguments = HandleSpan::empty();
+    for argument in source_trees
+        .tables
+        .types
+        .references
+        .type_reference_handles(arguments)
+    {
+        let argument = lower_type_reference_handle_from_table_with_context(
+            source_trees,
+            typed_trees,
+            *argument,
+            exposure,
+        )?;
+        typed_trees
+            .type_reference_table
+            .push_type_reference_handle(&mut lowered_arguments, argument);
+    }
+    Ok(lowered_arguments)
+}
+
 pub(super) fn lower_type_reference_handle_from_table_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
@@ -93,23 +122,8 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             lifetime_arguments,
             arguments,
         } => {
-            let mut lowered_arguments = HandleSpan::empty();
-            for argument in source_trees
-                .tables
-                .types
-                .references
-                .type_reference_handles(*arguments)
-            {
-                let argument = lower_type_reference_handle_from_table_with_context(
-                    source_trees,
-                    typed_trees,
-                    *argument,
-                    exposure,
-                )?;
-                typed_trees
-                    .type_reference_table
-                    .push_type_reference_handle(&mut lowered_arguments, argument);
-            }
+            let lowered_arguments =
+                lower_type_argument_handles(source_trees, typed_trees, *arguments, exposure)?;
 
             super::retain_type_reference_selection(
                 source_trees,
@@ -146,23 +160,8 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             name,
             arguments,
         } => {
-            let mut lowered_arguments = HandleSpan::empty();
-            for argument in source_trees
-                .tables
-                .types
-                .references
-                .type_reference_handles(*arguments)
-            {
-                let argument = lower_type_reference_handle_from_table_with_context(
-                    source_trees,
-                    typed_trees,
-                    *argument,
-                    exposure,
-                )?;
-                typed_trees
-                    .type_reference_table
-                    .push_type_reference_handle(&mut lowered_arguments, argument);
-            }
+            let lowered_arguments =
+                lower_type_argument_handles(source_trees, typed_trees, *arguments, exposure)?;
             super::lower_dynamic_trait_type_reference(
                 source_trees,
                 typed_trees,
@@ -173,13 +172,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             )
         }
         resolved::types::TypeReferenceNode::Named { symbol, name } => {
-            super::lower_named_type_reference(
-                source_trees,
-                typed_trees,
-                *symbol,
-                name,
-                exposure,
-            )
+            super::lower_named_type_reference(source_trees, typed_trees, *symbol, name, exposure)
         }
         resolved::types::TypeReferenceNode::Unit => Ok(typed_trees
             .type_reference_table
