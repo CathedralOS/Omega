@@ -299,7 +299,340 @@ pub(super) fn exact_definition_bound_target<'a>(
     })
 }
 
+/// The operation-specific plugs of the two binary arithmetic bound
+/// chains: which `ScalarTerm::ExactInteger*` target the chain accepts,
+/// which math term the conclusion's operation side must be, whether the
+/// right operand is antitone — subtraction's `l − r` spends `r`'s upper
+/// endpoint on its lower bound — the denoted application, the roster
+/// monotonicity law, and the checked numeral-operation equation.
+pub(super) struct BinaryBoundOperation {
+    pub(super) target: TermMatcher,
+    pub(super) is_target_operation: fn(&IntegerMathTerm) -> bool,
+    pub(super) right_antitone: bool,
+    pub(super) terms:
+        fn(&mut Denotation, TermHandle, TermHandle) -> Result<TermHandle, BoundedDenotationError>,
+    pub(super) monotone:
+        fn(&mut Denotation, &[TermHandle]) -> Result<TermHandle, BoundedDenotationError>,
+    pub(super) numeral_equation: fn(
+        &mut Denotation,
+        IntegerValue,
+        IntegerValue,
+        IntegerValue,
+        TermHandle,
+        TermHandle,
+        TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError>,
+}
+
 impl Denotation {
+    /// Denote the checked direct binary-operation bound: a `Conjunction`
+    /// of the two operand bounds proves `k ≤ op l r` or `op l r ≤ k`,
+    /// where `k` is the checked value of the two endpoint literals —
+    /// the direct form names the `op` target itself with no endpoint
+    /// steps or cited axioms. The mapped bound is a canonical math
+    /// literal; when its magnitude leaves the representable numeral
+    /// range the denoted endpoint is an opaque `Int` constant no checked
+    /// `op lb rb = k` equation can name — keep the instance fallback.
+    pub(super) fn direct_binary_bound_evidence(
+        &mut self,
+        operation: &BinaryBoundOperation,
+        premise: &Proposition,
+        evidence: TermHandle,
+        witness: &crate::IntegerAffineWitness,
+        conclusion: &Proposition,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Proposition::Conjunction(bounds) = premise else {
+            return Ok(None);
+        };
+        let [left_bound, right_bound] = bounds.as_slice() else {
+            return Ok(None);
+        };
+        let Some((scalar_type, left, right)) = (operation.target)(&witness.target) else {
+            return Ok(None);
+        };
+        if scalar_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
+            || witness.root != *left
+            || !witness.definition_axioms.is_empty()
+            || !witness.literal_axioms.is_empty()
+        {
+            return Ok(None);
+        }
+        let Some((lower, bound, result)) =
+            math_less_or_equal_sides(conclusion, operation.is_target_operation)
+        else {
+            return Ok(None);
+        };
+        let IntegerMathTerm::IntegerLiteral(bound_literal) = bound else {
+            return Ok(None);
+        };
+        let Some(bound_value) = math_literal_value(*bound_literal) else {
+            return Ok(None);
+        };
+        // The conjunction denotes to a `Σ` pair: the first conjunct is
+        // `fst`, the second — last — conjunct is `snd`.
+        let left_evidence = self.arena.insert(Term::Fst { pair: evidence });
+        let right_evidence = self.arena.insert(Term::Snd { pair: evidence });
+        let Some(chain) = binary_bound_chain(
+            self,
+            OperandBound {
+                operand: left,
+                bound: left_bound,
+                evidence: left_evidence,
+            },
+            OperandBound {
+                operand: right,
+                bound: right_bound,
+                evidence: right_evidence,
+            },
+            lower,
+            operation.right_antitone,
+            scalar_type,
+            operation.terms,
+        )?
+        else {
+            return Ok(None);
+        };
+        // The conclusion's operation math term must denote the same
+        // application as the target's operands — the shared relation
+        // already equated them, so this is the defensive shape check.
+        let result_term = self.math_term(result)?;
+        if !self
+            .arena
+            .structurally_equal(result_term, chain.operand_operation)
+        {
+            return Ok(None);
+        }
+        let order = binary_bound_order(self, lower, &chain, operation.monotone)?;
+        let (Some((_, left_value)), Some((_, right_value))) = (
+            chain.left_endpoint.integer_value(),
+            chain.right_endpoint.integer_value(),
+        ) else {
+            return Ok(None);
+        };
+        let bound_term = self.math_term(bound)?;
+        let Some(equality) = (operation.numeral_equation)(
+            self,
+            left_value,
+            right_value,
+            bound_value,
+            chain.left_endpoint_term,
+            chain.right_endpoint_term,
+            bound_term,
+        )?
+        else {
+            return Ok(None);
+        };
+        if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[
+                    chain.bound_operation,
+                    bound_term,
+                    chain.operand_operation,
+                    equality,
+                    order,
+                ],
+            )
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[
+                    chain.operand_operation,
+                    chain.bound_operation,
+                    bound_term,
+                    equality,
+                    order,
+                ],
+            )
+        }
+        .map(Some)
+    }
+
+    /// Denote the checked exact-definition binary-operation bound:
+    /// `lb ∧ rb` over the operation's two operands plus the cited
+    /// `output = op l r` definition prove `k ≤ output` or `output ≤ k`,
+    /// where `k` is the checked value of the two endpoint literals.
+    /// Two-sided monotonicity combines the operand bounds; the cited
+    /// definition equality — bridged by the checked `op l r = n`
+    /// numeral equation when the definition's result is closed — moves
+    /// the bound onto `output`, and a second interned equation
+    /// `op lb rb = k` lands the literal.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn exact_binary_definition_bound_evidence(
+        &mut self,
+        operation: &BinaryBoundOperation,
+        left_bound: &Proposition,
+        left_evidence: TermHandle,
+        right_bound: &Proposition,
+        right_evidence: TermHandle,
+        definition: &Proposition,
+        definition_evidence: TermHandle,
+        conclusion: &Proposition,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Some(ExactDefinitionBoundTarget {
+            literal,
+            output,
+            lower,
+            scalar_type,
+            expression,
+            left,
+            right,
+        }) = exact_definition_bound_target(conclusion, definition, operation.target)
+        else {
+            return Ok(None);
+        };
+        let Some(chain) = binary_bound_chain(
+            self,
+            OperandBound {
+                operand: left,
+                bound: left_bound,
+                evidence: left_evidence,
+            },
+            OperandBound {
+                operand: right,
+                bound: right_bound,
+                evidence: right_evidence,
+            },
+            lower,
+            operation.right_antitone,
+            scalar_type,
+            operation.terms,
+        )?
+        else {
+            return Ok(None);
+        };
+        let order = binary_bound_order(self, lower, &chain, operation.monotone)?;
+        // `Id Int (op l' r') output'` — directly the cited definition when
+        // the expression stays applicative, or the numeral-operation
+        // equation `op l r = n` composed with the definition when the
+        // closed result denotes to its numeral `n`.
+        let output_term = self.fixed_scalar_term(output)?;
+        let expression_term = self.fixed_scalar_term(expression)?;
+        let denoted = self.denote(definition)?;
+        let Some((_, from, to)) = self.identity_parts(denoted) else {
+            return Ok(None);
+        };
+        let result_equality = if self
+            .arena
+            .structurally_equal(expression_term, chain.operand_operation)
+        {
+            let Some(equality) = self.directed_equality(
+                from,
+                to,
+                chain.operand_operation,
+                output_term,
+                definition_evidence,
+            ) else {
+                return Ok(None);
+            };
+            equality
+        } else {
+            let (Some((_, left_value)), Some((_, right_value)), Some((_, result_value))) = (
+                left.integer_value(),
+                right.integer_value(),
+                expression.integer_value(),
+            ) else {
+                return Ok(None);
+            };
+            let Some(bridge) = (operation.numeral_equation)(
+                self,
+                left_value,
+                right_value,
+                result_value,
+                chain.left_term,
+                chain.right_term,
+                expression_term,
+            )?
+            else {
+                return Ok(None);
+            };
+            let Some(forward) =
+                self.directed_equality(from, to, expression_term, output_term, definition_evidence)
+            else {
+                return Ok(None);
+            };
+            let integer = self.integer_constant()?;
+            self.transitivity(
+                integer,
+                chain.operand_operation,
+                expression_term,
+                output_term,
+                bridge,
+                forward,
+            )
+        };
+        // `op lb' rb' ≤ output'` (lower) or `output' ≤ op lb' rb'` (upper).
+        let order = if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[
+                    chain.bound_operation,
+                    chain.operand_operation,
+                    output_term,
+                    result_equality,
+                    order,
+                ],
+            )?
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[
+                    chain.operand_operation,
+                    output_term,
+                    chain.bound_operation,
+                    result_equality,
+                    order,
+                ],
+            )?
+        };
+        // The bound side is an `op` over two endpoint numerals; the
+        // checked equation `op lb rb = k` lands the conclusion's literal.
+        let (Some((_, left_value)), Some((_, right_value)), Some((_, bound_value))) = (
+            chain.left_endpoint.integer_value(),
+            chain.right_endpoint.integer_value(),
+            literal.integer_value(),
+        ) else {
+            return Ok(None);
+        };
+        let literal_term = self.fixed_scalar_term(literal)?;
+        let Some(equality) = (operation.numeral_equation)(
+            self,
+            left_value,
+            right_value,
+            bound_value,
+            chain.left_endpoint_term,
+            chain.right_endpoint_term,
+            literal_term,
+        )?
+        else {
+            return Ok(None);
+        };
+        if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[
+                    chain.bound_operation,
+                    literal_term,
+                    output_term,
+                    equality,
+                    order,
+                ],
+            )
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[
+                    output_term,
+                    chain.bound_operation,
+                    literal_term,
+                    equality,
+                    order,
+                ],
+            )
+        }
+        .map(Some)
+    }
+
     pub(super) fn new() -> Self {
         let mut arena = TermArena::new();
         let type_zero = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));

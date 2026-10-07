@@ -45,10 +45,7 @@ use semantic_vocabulary::{
 };
 
 use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
-use super::denotation::{
-    ExactDefinitionBoundTarget, OperandBound, binary_bound_chain, binary_bound_order,
-    exact_definition_bound_target, math_less_or_equal_sides,
-};
+use super::denotation::{BinaryBoundOperation, math_less_or_equal_sides};
 use super::{
     BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
     affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
@@ -726,127 +723,22 @@ impl Denotation {
         witness: &crate::IntegerAffineWitness,
         conclusion: &Proposition,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let Proposition::Conjunction(bounds) = premise else {
-            return Ok(None);
-        };
-        let [left_bound, right_bound] = bounds.as_slice() else {
-            return Ok(None);
-        };
-        let ScalarTerm::ExactIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-        } = &witness.target
-        else {
-            return Ok(None);
-        };
-        if scalar_type.carrier() != IntegerCarrier::Fixed
-            || witness.root != **left
-            || !witness.definition_axioms.is_empty()
-            || !witness.literal_axioms.is_empty()
-        {
-            return Ok(None);
-        }
-        let Some((lower, bound, difference)) =
-            math_less_or_equal_sides(conclusion, crate::term_matchers::is_math_subtract)
-        else {
-            return Ok(None);
-        };
-
-        // The mapped bound is a canonical math literal; when its
-        // magnitude leaves the representable numeral range the denoted
-        // endpoint is an opaque `Int` constant no checked
-        // `sub lb rb = k` equation can name — keep the instance fallback.
-        let IntegerMathTerm::IntegerLiteral(bound_literal) = bound else {
-            return Ok(None);
-        };
-        let Some(bound_value) = super::math_literal_value(*bound_literal) else {
-            return Ok(None);
-        };
-        // The conjunction denotes to a `Σ` pair: the first conjunct is
-        // `fst`, the second — last — conjunct is `snd`.
-        let left_evidence = self.arena.insert(Term::Fst { pair: evidence });
-        let right_evidence = self.arena.insert(Term::Snd { pair: evidence });
-        // The left operand is monotone — its endpoint direction is the
-        // conclusion's; the right operand is antitone — `l − r`'s lower
-        // bound spends `r`'s upper endpoint, so the direction flips.
-        let Some(chain) = binary_bound_chain(
-            self,
-            OperandBound {
-                operand: left,
-                bound: left_bound,
-                evidence: left_evidence,
+        self.direct_binary_bound_evidence(
+            &BinaryBoundOperation {
+                target: crate::term_matchers::exact_integer_subtract,
+                is_target_operation: crate::term_matchers::is_math_subtract,
+                right_antitone: true,
+                terms: Self::subtract_terms,
+                monotone: |denotation, arguments| {
+                    denotation.subtract_law_application(Law::MonotoneAntitone, arguments)
+                },
+                numeral_equation: Self::numeral_difference,
             },
-            OperandBound {
-                operand: right,
-                bound: right_bound,
-                evidence: right_evidence,
-            },
-            lower,
-            true,
-            scalar_type,
-            Self::subtract_terms,
-        )?
-        else {
-            return Ok(None);
-        };
-        // The conclusion's `Subtract` math term must denote the same
-        // application as the target's operands — the shared relation
-        // already equated them, so this is the defensive shape check.
-        let difference_term = self.math_term(difference)?;
-        if !self
-            .arena
-            .structurally_equal(difference_term, chain.operand_operation)
-        {
-            return Ok(None);
-        }
-        // `sub lb_l rb_r ≤ sub l r` (lower) or
-        // `sub l r ≤ sub ub_l lb_r` (upper).
-        let order = binary_bound_order(self, lower, &chain, |denotation, arguments| {
-            denotation.subtract_law_application(Law::MonotoneAntitone, arguments)
-        })?;
-        let (Some((_, left_value)), Some((_, right_value))) = (
-            chain.left_endpoint.integer_value(),
-            chain.right_endpoint.integer_value(),
-        ) else {
-            return Ok(None);
-        };
-        let bound_term = self.math_term(bound)?;
-        let Some(equality) = self.numeral_difference(
-            left_value,
-            right_value,
-            bound_value,
-            chain.left_endpoint_term,
-            chain.right_endpoint_term,
-            bound_term,
-        )?
-        else {
-            return Ok(None);
-        };
-        if lower {
-            self.integer_law_application(
-                IntegerLaw::LessOrEqualSubstituteLeft,
-                &[
-                    chain.bound_operation,
-                    bound_term,
-                    chain.operand_operation,
-                    equality,
-                    order,
-                ],
-            )
-        } else {
-            self.integer_law_application(
-                IntegerLaw::LessOrEqualSubstituteRight,
-                &[
-                    chain.operand_operation,
-                    chain.bound_operation,
-                    bound_term,
-                    equality,
-                    order,
-                ],
-            )
-        }
-        .map(Some)
+            premise,
+            evidence,
+            witness,
+            conclusion,
+        )
     }
 
     /// Denote the checked exact-subtract definition bound: two operand
@@ -871,172 +763,24 @@ impl Denotation {
         definition_evidence: TermHandle,
         conclusion: &Proposition,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let Some(ExactDefinitionBoundTarget {
-            literal,
-            output,
-            lower,
-            scalar_type,
-            expression,
-            left,
-            right,
-        }) = exact_definition_bound_target(
-            conclusion,
+        self.exact_binary_definition_bound_evidence(
+            &BinaryBoundOperation {
+                target: crate::term_matchers::exact_integer_subtract,
+                is_target_operation: crate::term_matchers::is_math_subtract,
+                right_antitone: true,
+                terms: Self::subtract_terms,
+                monotone: |denotation, arguments| {
+                    denotation.subtract_law_application(Law::MonotoneAntitone, arguments)
+                },
+                numeral_equation: Self::numeral_difference,
+            },
+            left_bound,
+            left_evidence,
+            right_bound,
+            right_evidence,
             definition,
-            crate::term_matchers::exact_integer_subtract,
+            definition_evidence,
+            conclusion,
         )
-        else {
-            return Ok(None);
-        };
-        let Some(chain) = binary_bound_chain(
-            self,
-            OperandBound {
-                operand: left,
-                bound: left_bound,
-                evidence: left_evidence,
-            },
-            OperandBound {
-                operand: right,
-                bound: right_bound,
-                evidence: right_evidence,
-            },
-            lower,
-            true,
-            scalar_type,
-            Self::subtract_terms,
-        )?
-        else {
-            return Ok(None);
-        };
-        // `sub lb_l rb_r ≤ sub l r` (lower) or `sub l r ≤ sub ub_l lb_r`
-        // (upper).
-        let order = binary_bound_order(self, lower, &chain, |denotation, arguments| {
-            denotation.subtract_law_application(Law::MonotoneAntitone, arguments)
-        })?;
-        // `Id Int (sub l' r') output'` — the cited definition while the
-        // expression stays applicative, or `sub l r = n` composed with it
-        // when the closed difference denotes to its numeral `n`.
-        let output_term = self.fixed_scalar_term(output)?;
-        let expression_term = self.fixed_scalar_term(expression)?;
-        let denoted = self.denote(definition)?;
-        let Some((_, from, to)) = self.identity_parts(denoted) else {
-            return Ok(None);
-        };
-        let difference_equality = if self
-            .arena
-            .structurally_equal(expression_term, chain.operand_operation)
-        {
-            let Some(equality) = self.directed_equality(
-                from,
-                to,
-                chain.operand_operation,
-                output_term,
-                definition_evidence,
-            ) else {
-                return Ok(None);
-            };
-            equality
-        } else {
-            let (Some((_, left_value)), Some((_, right_value)), Some((_, difference_value))) = (
-                left.integer_value(),
-                right.integer_value(),
-                expression.integer_value(),
-            ) else {
-                return Ok(None);
-            };
-            let Some(bridge) = self.numeral_difference(
-                left_value,
-                right_value,
-                difference_value,
-                chain.left_term,
-                chain.right_term,
-                expression_term,
-            )?
-            else {
-                return Ok(None);
-            };
-            let Some(forward) =
-                self.directed_equality(from, to, expression_term, output_term, definition_evidence)
-            else {
-                return Ok(None);
-            };
-            let integer = self.integer_constant()?;
-            self.transitivity(
-                integer,
-                chain.operand_operation,
-                expression_term,
-                output_term,
-                bridge,
-                forward,
-            )
-        };
-        // `sub lb' rb' ≤ output'` (lower) or `output' ≤ sub ub' lb'` (upper).
-        let order = if lower {
-            self.integer_law_application(
-                IntegerLaw::LessOrEqualSubstituteRight,
-                &[
-                    chain.bound_operation,
-                    chain.operand_operation,
-                    output_term,
-                    difference_equality,
-                    order,
-                ],
-            )?
-        } else {
-            self.integer_law_application(
-                IntegerLaw::LessOrEqualSubstituteLeft,
-                &[
-                    chain.operand_operation,
-                    output_term,
-                    chain.bound_operation,
-                    difference_equality,
-                    order,
-                ],
-            )?
-        };
-        // The bound side is a `sub` over two endpoint numerals; the checked
-        // equation `sub lb rb = k` lands the conclusion's literal.
-        let (Some((_, left_value)), Some((_, right_value)), Some((_, bound_value))) = (
-            chain.left_endpoint.integer_value(),
-            chain.right_endpoint.integer_value(),
-            literal.integer_value(),
-        ) else {
-            return Ok(None);
-        };
-        let literal_term = self.fixed_scalar_term(literal)?;
-        let Some(equality) = self.numeral_difference(
-            left_value,
-            right_value,
-            bound_value,
-            chain.left_endpoint_term,
-            chain.right_endpoint_term,
-            literal_term,
-        )?
-        else {
-            return Ok(None);
-        };
-        if lower {
-            self.integer_law_application(
-                IntegerLaw::LessOrEqualSubstituteLeft,
-                &[
-                    chain.bound_operation,
-                    literal_term,
-                    output_term,
-                    equality,
-                    order,
-                ],
-            )
-        } else {
-            self.integer_law_application(
-                IntegerLaw::LessOrEqualSubstituteRight,
-                &[
-                    output_term,
-                    chain.bound_operation,
-                    literal_term,
-                    equality,
-                    order,
-                ],
-            )
-        }
-        .map(Some)
     }
 }
