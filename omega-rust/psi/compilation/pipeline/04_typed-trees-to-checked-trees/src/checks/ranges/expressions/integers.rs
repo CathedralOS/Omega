@@ -91,7 +91,7 @@ pub(in crate::checks::ranges) fn expression_name(
     ))
 }
 
-pub(in crate::checks::ranges) fn folded_integer_binary(
+pub(in crate::checks) fn folded_integer_binary(
     left: i64,
     operator: BinaryOperator,
     right: i64,

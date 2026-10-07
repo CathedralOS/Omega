@@ -52,31 +52,7 @@ impl ContractExpressionEvaluator<'_, '_> {
             ExpressionNode::Binary(binary) => {
                 let left = self.integer_value(binary.left)?;
                 let right = self.integer_value(binary.right)?;
-                match binary.operator {
-                    BinaryOperator::Add => left.checked_add(right),
-                    BinaryOperator::Divide => {
-                        (right != 0).then(|| left.checked_div(right)).flatten()
-                    }
-                    BinaryOperator::Modulo => {
-                        (right != 0).then(|| left.checked_rem(right)).flatten()
-                    }
-                    BinaryOperator::Multiply => left.checked_mul(right),
-                    BinaryOperator::Subtract => left.checked_sub(right),
-                    BinaryOperator::And
-                    | BinaryOperator::BitwiseAnd
-                    | BinaryOperator::BitwiseOr
-                    | BinaryOperator::BitwiseXor
-                    | BinaryOperator::Equal
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Or
-                    | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight
-                    | BinaryOperator::CaseMembership => None,
-                }
+                crate::checks::ranges::folded_integer_binary(left, binary.operator, right)
             }
             ExpressionNode::Integer(value) => value.value_i64(),
             ExpressionNode::Member(member)
