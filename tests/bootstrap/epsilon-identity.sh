@@ -220,118 +220,26 @@ require_epsilon_source_views_controls_identity ||
   fail "bound source-views controls check refused the canonical closure"
 echo "controls: bound gate-owned closures repack exactly"
 
-cp -R "$OMEGA_REPO_ROOT/tests/epsilon/checking-invariants" "$TMP/checking-invariants"
-head -c $((EPSILON_CHECKING_INVARIANTS_CONTROLS_MANIFEST_SIZE - 1)) \
-  "$OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES" \
-  > "$TMP/checking-invariants/checking_invariants.delta.sources"
-rc=0
-(
-  export OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES=$TMP/checking-invariants/checking_invariants.delta.sources
-  require_epsilon_checking_invariants_controls_identity
-) 2>/dev/null || rc=$?
-[ "$rc" = 3 ] ||
-  fail "truncated checking-invariants manifest: expected exit 3, got $rc"
-cp "$OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES" \
-  "$TMP/checking-invariants/checking_invariants.delta.sources"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/checking-invariants/observations.delta" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/checking-invariants/observations.delta" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/checking-invariants/observations.delta" bs=1 seek=100 conv=notrunc status=none
-fi
-rc=0
-(
-  export OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES=$TMP/checking-invariants/checking_invariants.delta.sources
-  require_epsilon_checking_invariants_controls_identity
-) 2>"$TMP/corrupt-ci-member.err" || rc=$?
-[ "$rc" != 0 ] ||
-  fail "corrupted checking-invariants member: repack unexpectedly succeeded"
-grep -q 'digest' "$TMP/corrupt-ci-member.err" ||
-  fail "corrupted checking-invariants member: refusal did not name the member digest"
+check_controls_corruption checking-invariants "$OMEGA_REPO_ROOT/tests/epsilon/checking-invariants" \
+  "$OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES" checking_invariants.delta.sources observations.delta \
+  "$EPSILON_CHECKING_INVARIANTS_CONTROLS_MANIFEST_SIZE" OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES \
+  require_epsilon_checking_invariants_controls_identity corrupt-ci-member.err
 echo "controls: a truncated manifest or changed checking-invariants member refuses"
 
-cp -R "$OMEGA_REPO_ROOT/tests/epsilon/runtime-invariants" "$TMP/runtime-invariants"
-head -c $((EPSILON_RUNTIME_INVARIANTS_CONTROLS_MANIFEST_SIZE - 1)) \
-  "$OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES" \
-  > "$TMP/runtime-invariants/runtime_invariants.delta.sources"
-rc=0
-(
-  export OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES=$TMP/runtime-invariants/runtime_invariants.delta.sources
-  require_epsilon_runtime_invariants_controls_identity
-) 2>/dev/null || rc=$?
-[ "$rc" = 3 ] ||
-  fail "truncated runtime-invariants manifest: expected exit 3, got $rc"
-cp "$OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES" \
-  "$TMP/runtime-invariants/runtime_invariants.delta.sources"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/runtime-invariants/observations.delta" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/runtime-invariants/observations.delta" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/runtime-invariants/observations.delta" bs=1 seek=100 conv=notrunc status=none
-fi
-rc=0
-(
-  export OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES=$TMP/runtime-invariants/runtime_invariants.delta.sources
-  require_epsilon_runtime_invariants_controls_identity
-) 2>"$TMP/corrupt-ri-member.err" || rc=$?
-[ "$rc" != 0 ] ||
-  fail "corrupted runtime-invariants member: repack unexpectedly succeeded"
-grep -q 'digest' "$TMP/corrupt-ri-member.err" ||
-  fail "corrupted runtime-invariants member: refusal did not name the member digest"
+check_controls_corruption runtime-invariants "$OMEGA_REPO_ROOT/tests/epsilon/runtime-invariants" \
+  "$OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES" runtime_invariants.delta.sources observations.delta \
+  "$EPSILON_RUNTIME_INVARIANTS_CONTROLS_MANIFEST_SIZE" OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES \
+  require_epsilon_runtime_invariants_controls_identity corrupt-ri-member.err
 
-cp -R "$OMEGA_REPO_ROOT/tests/epsilon/runtime-references" "$TMP/runtime-references"
-head -c $((EPSILON_RUNTIME_REFERENCES_CONTROLS_MANIFEST_SIZE - 1)) \
-  "$OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES" \
-  > "$TMP/runtime-references/runtime_references.delta.sources"
-rc=0
-(
-  export OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES=$TMP/runtime-references/runtime_references.delta.sources
-  require_epsilon_runtime_references_controls_identity
-) 2>/dev/null || rc=$?
-[ "$rc" = 3 ] ||
-  fail "truncated runtime-references manifest: expected exit 3, got $rc"
-cp "$OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES" \
-  "$TMP/runtime-references/runtime_references.delta.sources"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/runtime-references/states.delta" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/runtime-references/states.delta" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/runtime-references/states.delta" bs=1 seek=100 conv=notrunc status=none
-fi
-rc=0
-(
-  export OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES=$TMP/runtime-references/runtime_references.delta.sources
-  require_epsilon_runtime_references_controls_identity
-) 2>"$TMP/corrupt-rr-member.err" || rc=$?
-[ "$rc" != 0 ] ||
-  fail "corrupted runtime-references member: repack unexpectedly succeeded"
-grep -q 'digest' "$TMP/corrupt-rr-member.err" ||
-  fail "corrupted runtime-references member: refusal did not name the member digest"
+check_controls_corruption runtime-references "$OMEGA_REPO_ROOT/tests/epsilon/runtime-references" \
+  "$OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES" runtime_references.delta.sources states.delta \
+  "$EPSILON_RUNTIME_REFERENCES_CONTROLS_MANIFEST_SIZE" OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES \
+  require_epsilon_runtime_references_controls_identity corrupt-rr-member.err
 
-cp -R "$OMEGA_REPO_ROOT/tests/epsilon/source-views" "$TMP/source-views"
-head -c $((EPSILON_SOURCE_VIEWS_CONTROLS_MANIFEST_SIZE - 1)) \
-  "$OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES" \
-  > "$TMP/source-views/controls/source_views.delta.sources"
-rc=0
-(
-  export OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES=$TMP/source-views/controls/source_views.delta.sources
-  require_epsilon_source_views_controls_identity
-) 2>/dev/null || rc=$?
-[ "$rc" = 3 ] ||
-  fail "truncated source-views manifest: expected exit 3, got $rc"
-cp "$OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES" \
-  "$TMP/source-views/controls/source_views.delta.sources"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/source-views/controls/extents.delta" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/source-views/controls/extents.delta" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/source-views/controls/extents.delta" bs=1 seek=100 conv=notrunc status=none
-fi
-rc=0
-(
-  export OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES=$TMP/source-views/controls/source_views.delta.sources
-  require_epsilon_source_views_controls_identity
-) 2>"$TMP/corrupt-sv-member.err" || rc=$?
-[ "$rc" != 0 ] ||
-  fail "corrupted source-views member: repack unexpectedly succeeded"
-grep -q 'digest' "$TMP/corrupt-sv-member.err" ||
-  fail "corrupted source-views member: refusal did not name the member digest"
+check_controls_corruption source-views "$OMEGA_REPO_ROOT/tests/epsilon/source-views" \
+  "$OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES" controls/source_views.delta.sources controls/extents.delta \
+  "$EPSILON_SOURCE_VIEWS_CONTROLS_MANIFEST_SIZE" OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES \
+  require_epsilon_source_views_controls_identity corrupt-sv-member.err
 echo "controls: a truncated manifest or changed member refuses for each remaining controls closure"
 
 for needle in "$EPSILON_CHECKING_DRIVER_SIZE" "$EPSILON_CHECKING_DRIVER_SHA256"
