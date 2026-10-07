@@ -62,6 +62,7 @@ use source::SourceSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DataMember;
 use syntax_trees::item::Item;
 use syntax_trees::item::Machine;
@@ -891,30 +892,20 @@ fn render_argument_types(
         };
         let target = syntax_trees.tables.expressions.expression(borrow.target);
         let base_type = match target {
-            ExpressionNode::Name(path) => {
-                let members = syntax_trees
-                    .tables
-                    .expressions
-                    .identifier_path_members(*path);
-                if members.len() != 1 {
-                    return None;
-                }
-                local_type(syntax_trees, machine, members[0].as_str())?
-            }
+            ExpressionNode::Name(path) => local_type(
+                syntax_trees,
+                machine,
+                sole_member_name(syntax_trees, *path)?,
+            )?,
             ExpressionNode::Member(member) => {
                 // A named `&mut Data` parameter (`main.buffer` in
                 // `main: &mut Main`) carries the field's declaration.
                 let data_name = match syntax_trees.tables.expressions.expression(member.receiver) {
-                    ExpressionNode::Name(path) => {
-                        let members = syntax_trees
-                            .tables
-                            .expressions
-                            .identifier_path_members(*path);
-                        if members.len() != 1 {
-                            return None;
-                        }
-                        parameter_data_name(syntax_trees, machine, members[0].as_str())?
-                    }
+                    ExpressionNode::Name(path) => parameter_data_name(
+                        syntax_trees,
+                        machine,
+                        sole_member_name(syntax_trees, *path)?,
+                    )?,
                     _ => return None,
                 };
                 let fields = data_fields.get(data_name.as_str())?;
@@ -946,6 +937,19 @@ fn buffer_view(rendered: &str) -> Option<String> {
 /// reference (`main: &mut Main` -> `Main`) or a bare named data (`m: Main` ->
 /// `Main`). Anything else — a scalar, slice, generic, or absent name — has no
 /// field map to render against and declines.
+/// The sole member of a single-segment identifier path — `None` for an
+/// empty or multi-segment path.
+fn sole_member_name<'a>(
+    syntax_trees: &'a SyntaxTrees,
+    path: HandleSpan<Identifier>,
+) -> Option<&'a str> {
+    let members = syntax_trees
+        .tables
+        .expressions
+        .identifier_path_members(path);
+    (members.len() == 1).then(|| members[0].as_str())
+}
+
 fn parameter_data_name(
     syntax_trees: &SyntaxTrees,
     machine: &Machine,
