@@ -69,23 +69,12 @@ impl RetainedStorageRoot {
 
     pub(crate) fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
         verify_git_cache_root_custody(&self.path)?;
-        let retained = self
-            .directory
-            .dir_metadata()
-            .map_err(|error| io_error(&self.path, error))?;
-        let named_directory = open_absolute_directory_nofollow(&self.path)
-            .map_err(|error| io_error(&self.path, error))?;
-        let named = named_directory
-            .dir_metadata()
-            .map_err(|error| io_error(&self.path, error))?;
-        if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
-            return Err(cache_custody_invalid(
-                CacheCustodyKind::Git,
-                &self.path,
-                "private resolver root pathname no longer identifies its retained directory",
-            ));
-        }
-        Ok(())
+        verify_retained_directory_identity(
+            &self.path,
+            &self.directory,
+            CacheCustodyKind::Git,
+            "private resolver root pathname no longer identifies its retained directory",
+        )
     }
 }
 
@@ -137,23 +126,12 @@ impl RetainedStorageLane {
 
     pub fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
         verify_cache_custody_root(&self.path, self.kind)?;
-        let retained = self
-            .directory
-            .dir_metadata()
-            .map_err(|error| io_error(&self.path, error))?;
-        let named_directory = open_absolute_directory_nofollow(&self.path)
-            .map_err(|error| io_error(&self.path, error))?;
-        let named = named_directory
-            .dir_metadata()
-            .map_err(|error| io_error(&self.path, error))?;
-        if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
-            return Err(cache_custody_invalid(
-                self.kind,
-                &self.path,
-                "private resolver lane pathname no longer identifies its retained directory",
-            ));
-        }
-        Ok(())
+        verify_retained_directory_identity(
+            &self.path,
+            &self.directory,
+            self.kind,
+            "private resolver lane pathname no longer identifies its retained directory",
+        )
     }
 }
 
@@ -202,4 +180,26 @@ fn absolute_path_from_environment(
             message: format!("host location `{name}` is not absolute"),
         })
     }
+}
+
+/// The pathname's live metadata must still identify the directory its custody
+/// grant retained; the error names whichever lane owns the grant.
+fn verify_retained_directory_identity(
+    path: &Path,
+    directory: &CapabilityDirectory,
+    kind: CacheCustodyKind,
+    message: &'static str,
+) -> Result<(), SourceResolveError> {
+    let retained = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    let named_directory = open_absolute_directory_nofollow(path)
+        .map_err(|error| io_error(path, error))?;
+    let named = named_directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
+        return Err(cache_custody_invalid(kind, path, message));
+    }
+    Ok(())
 }
