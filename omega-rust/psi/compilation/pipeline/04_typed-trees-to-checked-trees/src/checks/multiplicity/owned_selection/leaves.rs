@@ -1,0 +1,507 @@
+//! leaves slice of owned_selection.
+
+use super::operands::*;
+use super::unsupported;
+use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
+use crate::checks::type_multiplicity;
+use arena::Handle;
+use diagnostics::Diagnostic;
+use language_semantics::Multiplicity;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern, TableMatchArm};
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
+
+pub(super) fn has_owned_leaf(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => reachable_arms(program, dispatch.arms)
+            .iter()
+            .any(|(_, arm)| has_owned_leaf(program, machine, state, statement_index, arm.value)),
+        ExpressionNode::Name(_) => {
+            validation::expression_result_type_reference(program, machine, state, expression)
+                .is_some_and(|reference| {
+                    program.type_multiplicity(reference) != Multiplicity::Unrestricted
+                        && (validation::affine_owned_value_source(program, expression, reference)
+                            .is_some()
+                            || validation::linear_owned_value_source(
+                                program, expression, reference,
+                            )
+                            .is_some())
+                })
+        }
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            projected_leaf_source(program, machine, state, statement_index, expression).is_some()
+        }
+        // A record arm moving existing children carries its leaves inside the
+        // constructor: a projected field is the same moved-child leaf the
+        // arm-level rule admits, so the roster has to engage for it too.
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| has_owned_leaf(program, machine, state, statement_index, field.value)),
+        _ => false,
+    }
+}
+
+/// The exact canonical projection for one `member`/`indexed` leaf, when the
+/// leaf selects a plain affine child of a live plain affine owner. A borrowed
+/// prefix would escape the root's custody, so any reference at or below the
+/// root rejects the projection instead of guessing referent ownership. The
+/// root may be a whole local or a call's structural product; the product is
+/// its own once-evaluated owner and carries no roster source.
+pub(super) fn projected_leaf_source(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+    ) {
+        return None;
+    }
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        expression,
+    )?;
+    if place.segments.is_empty()
+        || !place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+            )
+        })
+    {
+        return None;
+    }
+    match place.root {
+        facts::PlaceRoot::Symbol(symbol) => {
+            if symbol == machine.symbol
+                || !matches!(
+                    program.symbols.get(symbol).kind,
+                    symbols::SymbolKind::Local | symbols::SymbolKind::Parameter
+                )
+            {
+                return None;
+            }
+        }
+        facts::PlaceRoot::Expression(root)
+            if matches!(
+                program.expression_table.expression(root),
+                ExpressionNode::Call(_)
+            ) => {}
+        _ => return None,
+    }
+    // The leaf admits either an affine plain-owned child (the original rule)
+    // or a linear child under an affine root: the moved claim then keeps its
+    // exact path while the root's residual frontier stays live on every edge.
+    // A linear root would put the claim at the whole place, which a projected
+    // path cannot split, so the root itself must be affine.
+    let leaf_reference = crate::flow::canonical_place_type_reference(
+        program,
+        state.symbol,
+        statement_index,
+        &place,
+    )?;
+    let leaf_multiplicity = type_multiplicity(program, leaf_reference);
+    if !matches!(
+        leaf_multiplicity,
+        Multiplicity::Affine | Multiplicity::Linear
+    ) {
+        return None;
+    }
+    let linear_leaf = leaf_multiplicity == Multiplicity::Linear;
+    // A temporary root (a call's structural product) can drop an affine
+    // residual sibling, but a linear residual has no surviving owner place;
+    // a projected linear child may only leave a named local or parameter.
+    if linear_leaf && !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
+        return None;
+    }
+    let contents_ok = |type_reference| {
+        if linear_leaf {
+            validation::has_contents(
+                program,
+                type_reference,
+                validation::ContentsRequirement::LinearOwned,
+            )
+        } else {
+            validation::has_contents(
+                program,
+                type_reference,
+                validation::ContentsRequirement::PlainOwned,
+            )
+        }
+    };
+    let place_type_ok = |segments: &[facts::PlaceSegment], expected: Multiplicity| {
+        crate::flow::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: segments.to_vec(),
+            },
+        )
+        .is_some_and(|type_reference| {
+            matches!(
+                program.type_reference_table.type_reference(type_reference),
+                TypeReferenceNode::Named { .. }
+                    | TypeReferenceNode::Generic { .. }
+                    | TypeReferenceNode::FixedArray { .. }
+            ) && type_multiplicity(program, type_reference) == expected
+                && contents_ok(type_reference)
+        })
+    };
+    if !place_type_ok(&place.segments, leaf_multiplicity)
+        || !place_type_ok(&[], Multiplicity::Affine)
+    {
+        return None;
+    }
+    // Root and every proper prefix must be owned, never a reference: moving a
+    // projected child through a borrow would imply referent custody.
+    if (0..place.segments.len()).any(|length| {
+        crate::flow::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: place.segments[..length].to_vec(),
+            },
+        )
+        .is_some_and(|reference| type_reference_is_reference(program, reference))
+    }) {
+        return None;
+    }
+    Some((place.root, place.segments))
+}
+
+pub(super) fn collect_leaves(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+    source_arm: Handle<TableMatchArm>,
+    leaves: &mut Vec<(
+        ExpressionHandle,
+        Handle<TableMatchArm>,
+        facts::PlaceRoot,
+        Vec<facts::PlaceSegment>,
+        TypeReferenceHandle,
+    )>,
+) -> Result<(), Diagnostic> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) if source_arm.is_valid() => {
+            match validation::affine_owned_value_source(program, expression, type_reference)
+                .or_else(|| {
+                    validation::linear_owned_value_source(program, expression, type_reference)
+                }) {
+                Some(symbol) => {
+                    leaves.push((
+                        expression,
+                        source_arm,
+                        facts::PlaceRoot::Symbol(symbol),
+                        Vec::new(),
+                        type_reference,
+                    ));
+                    Ok(())
+                }
+                None => fresh_leaf(program, machine, state, expression, type_reference),
+            }
+        }
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) if source_arm.is_valid() => {
+            match projected_leaf_source(program, machine, state, statement_index, expression) {
+                Some((root, path)) => {
+                    let leaf_type = crate::flow::canonical_place_type_reference(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        &crate::flow::CanonicalPlace {
+                            root,
+                            segments: path.clone(),
+                        },
+                    )
+                    .ok_or_else(unsupported)?;
+                    if program.normalized_type_identity(leaf_type)
+                        != program.normalized_type_identity(type_reference)
+                    {
+                        return Err(unsupported());
+                    }
+                    leaves.push((expression, source_arm, root, path, leaf_type));
+                    Ok(())
+                }
+                _ => Err(unsupported()),
+            }
+        }
+        ExpressionNode::StructLiteral(_) if source_arm.is_valid() => {
+            // A record arm is fresh construction whose fields may each move
+            // an exact owned child leaf. Moved fields join the roster so the
+            // edge residual schedule names the precise complement; every
+            // other field keeps the unrestricted-operand rule.
+            let fields = fresh_leaf_shape(program, machine, state, expression, type_reference)?;
+            for field in fields {
+                collect_field_leaves(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    field,
+                    source_arm,
+                    leaves,
+                )?;
+            }
+            Ok(())
+        }
+        ExpressionNode::Call(call) if source_arm.is_valid() => {
+            // A call's structural product is a fresh arm value: it carries no
+            // roster leaf and no transfer, but its argument operands obey the
+            // same hidden-ownership rules as fresh construction fields, and a
+            // receiver or non-unrestricted parameter would move custody the
+            // receipt cannot name.
+            if call.receiver.is_valid() || !call_moves_no_ownership(program, call) {
+                return Err(unsupported());
+            }
+            let operands = program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .flat_map(|argument| expression_nodes(program, *argument))
+                .collect::<Vec<_>>();
+            hidden_ownership_operands(
+                program,
+                machine,
+                state,
+                &operands,
+                "owned match call arguments require unrestricted operands without hidden ownership transfers",
+            )
+        }
+        ExpressionNode::Match(dispatch) => {
+            // Selection predicates cannot introduce ownership effects hidden
+            // outside the selected value graph. Scalar calls need their own
+            // captured effect/loan sequence before joining this route, so a
+            // predicate call stays rejected even when its arguments move no
+            // ownership.
+            let mut operands = expression_nodes(program, dispatch.subject);
+            for (_, arm) in reachable_arms(program, dispatch.arms) {
+                if let MatchPattern::Value(pattern) = arm.pattern {
+                    operands.extend(expression_nodes(program, pattern));
+                }
+            }
+            if operands.iter().any(|operand| {
+                matches!(
+                    program.expression_table.expression(*operand),
+                    ExpressionNode::Call(_) | ExpressionNode::Borrow(_) | ExpressionNode::Atomic(_)
+                )
+            }) {
+                return Err(unsupported());
+            }
+            let tag_operands = case_tag_operands(program, machine, state, &operands);
+            if operands.iter().any(|operand| {
+                matches!(
+                    program.expression_table.expression(*operand),
+                    ExpressionNode::Name(_)
+                ) && !tag_operands.contains(operand)
+                    && validation::expression_result_type_reference(
+                        program, machine, state, *operand,
+                    )
+                    .is_none_or(|reference| {
+                        program.type_multiplicity(reference) != Multiplicity::Unrestricted
+                    })
+            }) {
+                return Err(Diagnostic::error(
+                    "owned match predicates require unrestricted operands without hidden ownership transfers",
+                ));
+            }
+            for (source_arm, arm) in reachable_arms(program, dispatch.arms) {
+                collect_leaves(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    arm.value,
+                    type_reference,
+                    source_arm,
+                    leaves,
+                )?;
+            }
+            Ok(())
+        }
+        _ => Err(unsupported()),
+    }
+}
+
+/// One record field's contribution to the roster: an exact projected child
+/// moves as a leaf, while every other field shape stays on the fresh-construction
+/// operand rules. Whole names are not field leaves: a field's carrier is its
+/// declared member type, not the source root's whole-place type, so a whole
+/// name at field position cannot name the moved custody the roster records.
+pub(super) fn collect_field_leaves(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    field: ExpressionHandle,
+    source_arm: Handle<TableMatchArm>,
+    leaves: &mut Vec<(
+        ExpressionHandle,
+        Handle<TableMatchArm>,
+        facts::PlaceRoot,
+        Vec<facts::PlaceSegment>,
+        TypeReferenceHandle,
+    )>,
+) -> Result<(), Diagnostic> {
+    let fresh = |field| {
+        hidden_ownership_operands(
+            program,
+            machine,
+            state,
+            &expression_nodes(program, field),
+            "owned match record field operands require unrestricted operands without hidden ownership transfers",
+        )
+    };
+    match program.expression_table.expression(field) {
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            match projected_leaf_source(program, machine, state, statement_index, field) {
+                Some((root, path)) => {
+                    let leaf_type = crate::flow::canonical_place_type_reference(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        &crate::flow::CanonicalPlace {
+                            root,
+                            segments: path.clone(),
+                        },
+                    )
+                    .ok_or_else(unsupported)?;
+                    if Some(leaf_type)
+                        != validation::expression_result_type_reference(
+                            program, machine, state, field,
+                        )
+                    {
+                        return Err(unsupported());
+                    }
+                    leaves.push((field, source_arm, root, path, leaf_type));
+                    Ok(())
+                }
+                None => fresh(field),
+            }
+        }
+        ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none() => {
+            let reference =
+                validation::expression_result_type_reference(program, machine, state, field)
+                    .ok_or_else(unsupported)?;
+            let fields = fresh_leaf_shape(program, machine, state, field, reference)?;
+            for nested in fields {
+                collect_field_leaves(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    nested,
+                    source_arm,
+                    leaves,
+                )?;
+            }
+            Ok(())
+        }
+        _ => fresh(field),
+    }
+}
+
+/// A fresh arm constructs the exact result type and contributes no source and
+/// no transfer; its field operands obey the same no-hidden-ownership rules as
+/// selection predicates.
+pub(super) fn fresh_leaf(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+) -> Result<(), Diagnostic> {
+    let fields = fresh_leaf_shape(program, machine, state, expression, type_reference)?;
+    let operands = fields
+        .into_iter()
+        .flat_map(|value| expression_nodes(program, value))
+        .collect::<Vec<_>>();
+    hidden_ownership_operands(
+        program,
+        machine,
+        state,
+        &operands,
+        "owned match fresh fields require unrestricted operands without hidden ownership transfers",
+    )
+}
+
+/// The fresh-construction shape every literal or case arm must keep: the
+/// authored expression declares the exact result type, its contents satisfy
+/// the multiplicity's owned-storage walls, and the field value list is handed
+/// back for the caller's per-field disposition.
+pub(super) fn fresh_leaf_shape(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+) -> Result<Vec<ExpressionHandle>, Diagnostic> {
+    let (reference, fields) =
+        if let Some(constructor) = validation::scalar_case_constructor(program, expression) {
+            (
+                constructor.type_reference,
+                constructor
+                    .fields
+                    .into_iter()
+                    .map(|(_, value, _)| value)
+                    .collect::<Vec<_>>(),
+            )
+        } else if let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(expression)
+            && literal.case_symbol.is_none()
+        {
+            let reference =
+                validation::expression_result_type_reference(program, machine, state, expression)
+                    .ok_or_else(unsupported)?;
+            (
+                reference,
+                program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| field.value)
+                    .collect(),
+            )
+        } else {
+            return Err(unsupported());
+        };
+    let contents_ok = if program.type_multiplicity(type_reference) == Multiplicity::Linear {
+        validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::LinearOwned,
+        )
+    } else {
+        validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::PlainOwned,
+        )
+    };
+    if !contents_ok
+        || program.normalized_type_identity(reference)
+            != program.normalized_type_identity(type_reference)
+    {
+        return Err(unsupported());
+    }
+    Ok(fields)
+}
