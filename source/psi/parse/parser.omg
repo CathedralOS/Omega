@@ -68,6 +68,26 @@ pub machine Parser::initialize(
     parser.source_length = source_length;
 }
 
+// Every stored span anchors to the parser's own source; the two constructors
+// keep the three-level SourceSpan/IdentifierSpan literals out of grammar states.
+machine Parser::source_span(
+    parser: &Parser,
+    start: u64 in Trapping,
+    end: u64 in Trapping
+) -> SourceSpan {
+    Parser::source_span(parser, start, end)
+}
+
+machine Parser::identifier_span(
+    parser: &Parser,
+    start: u64 in Trapping,
+    end: u64 in Trapping
+) -> IdentifierSpan {
+    IdentifierSpan {
+        source_span: Parser::source_span(parser, start, end)
+    }
+}
+
 // Whole-file sequencing and use-item grammar. Data declarations are delegated
 // to data.omg; input.omg remains the only token/cursor behavior owner.
 // Bounded array reads carry their collection's Trapping policy, so parsing
@@ -253,12 +273,7 @@ crashes Trap
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        parser.output.members[parser.output.member_count] = IdentifierSpan {
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: start, end: end }
-            }
-        };
+        parser.output.members[parser.output.member_count] = Parser::identifier_span(parser, start, end);
         parser.output.member_count = parser.output.member_count + 1;
         parser.cursor = parser.cursor + 1;
         Parser::skip_trivia(parser, input);
@@ -340,10 +355,7 @@ crashes Trap
         parser.output.uses[parser.output.use_count] = UseItem {
             first_member: parser.use_first_member,
             member_count: parser.output.member_count - parser.use_first_member,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.item_start, end: item_end }
-            }
+            source_span: Parser::source_span(parser, parser.item_start, item_end)
         };
         parser.output.use_count = parser.output.use_count + 1;
         transition { _ -> retain_root(parser, input, item_end, use_index) }
@@ -370,10 +382,7 @@ crashes Trap
         parser.output.roots[parser.output.root_count] = RootItem {
             kind: RootItemKind::Use,
             item_index: use_index,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.item_start, end: item_end }
-            }
+            source_span: Parser::source_span(parser, parser.item_start, item_end)
         };
         parser.output.root_count = parser.output.root_count + 1;
         parser.cursor = parser.cursor + 1;

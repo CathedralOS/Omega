@@ -734,22 +734,9 @@ machine Parser::parse_data(
         let type_index: u64 in Trapping = parser.output.type_reference_count as u64 in Trapping;
         parser.output.type_references[parser.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Qualified,
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.payload_type_name_start, end: parser.payload_type_name_end }
-                }
-            },
-            domain: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.type_domain_start, end: parser.type_domain_end }
-                }
-            },
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.payload_type_name_start, end: parser.type_domain_end }
-            }
+            name: Parser::identifier_span(parser, parser.payload_type_name_start, parser.payload_type_name_end),
+            domain: Parser::identifier_span(parser, parser.type_domain_start, parser.type_domain_end),
+            source_span: Parser::source_span(parser, parser.payload_type_name_start, parser.type_domain_end)
         };
         parser.output.type_reference_count = parser.output.type_reference_count + 1;
         transition { _ -> retain_payload_field(parser, input, field_end, type_index, has_more) }
@@ -764,28 +751,9 @@ machine Parser::parse_data(
         let type_index: u64 in Trapping = parser.output.type_reference_count as u64 in Trapping;
         parser.output.type_references[parser.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Named,
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span {
-                        start: parser.payload_type_name_start,
-                        end: parser.payload_type_name_end
-                    }
-                }
-            },
-            domain: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: 0, end: 0 }
-                }
-            },
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span {
-                    start: parser.payload_type_name_start,
-                    end: parser.payload_type_name_end
-                }
-            }
+            name: Parser::identifier_span(parser, parser.payload_type_name_start, parser.payload_type_name_end),
+            domain: Parser::identifier_span(parser, 0, 0),
+            source_span: Parser::source_span(parser, parser.payload_type_name_start, parser.payload_type_name_end)
         };
         parser.output.type_reference_count = parser.output.type_reference_count + 1;
         transition { _ -> retain_payload_field(parser, input, field_end, type_index, has_more) }
@@ -812,20 +780,9 @@ machine Parser::parse_data(
         has_more: bool
     ) {
         parser.output.payload_fields[parser.output.payload_field_count] = DataField {
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span {
-                        start: parser.payload_field_name_start,
-                        end: parser.payload_field_name_end
-                    }
-                }
-            },
+            name: Parser::identifier_span(parser, parser.payload_field_name_start, parser.payload_field_name_end),
             type_reference: type_index,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.payload_field_start, end: field_end }
-            }
+            source_span: Parser::source_span(parser, parser.payload_field_start, field_end)
         };
         parser.output.payload_field_count = parser.output.payload_field_count + 1;
         transition has_more {
@@ -862,18 +819,10 @@ machine Parser::parse_data(
     state retain_case_bounded(parser: &mut Parser, input: &TokenStream, case_end: u64 in Trapping) {
         let case_index: u64 in Trapping = parser.output.case_count as u64 in Trapping;
         parser.output.cases[parser.output.case_count] = DataCase {
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.case_name_start, end: parser.case_name_end }
-                }
-            },
+            name: Parser::identifier_span(parser, parser.case_name_start, parser.case_name_end),
             first_payload_field: parser.case_first_payload_field,
             payload_field_count: parser.output.payload_field_count - parser.case_first_payload_field,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.case_start, end: case_end }
-            }
+            source_span: Parser::source_span(parser, parser.case_start, case_end)
         };
         parser.output.case_count = parser.output.case_count + 1;
         transition { _ -> retain_case_member(parser, input, case_end, case_index) }
@@ -900,10 +849,7 @@ machine Parser::parse_data(
         parser.output.data_members[parser.output.data_member_count] = DataMember {
             kind: DataMemberKind::Case,
             item_index: case_index,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.case_start, end: case_end }
-            }
+            source_span: Parser::source_span(parser, parser.case_start, case_end)
         };
         parser.output.data_member_count = parser.output.data_member_count + 1;
         parser.cursor = parser.cursor + 1;
@@ -1271,22 +1217,9 @@ machine Parser::parse_data(
         let type_index: u64 in Trapping = parser.output.type_reference_count as u64 in Trapping;
         parser.output.type_references[parser.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Qualified,
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.type_name_start, end: parser.type_name_end }
-                }
-            },
-            domain: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.type_domain_start, end: parser.type_domain_end }
-                }
-            },
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.type_name_start, end: parser.type_domain_end }
-            }
+            name: Parser::identifier_span(parser, parser.type_name_start, parser.type_name_end),
+            domain: Parser::identifier_span(parser, parser.type_domain_start, parser.type_domain_end),
+            source_span: Parser::source_span(parser, parser.type_name_start, parser.type_domain_end)
         };
         parser.output.type_reference_count = parser.output.type_reference_count + 1;
         transition { _ -> retain_field(parser, input, field_end, type_index) }
@@ -1296,22 +1229,9 @@ machine Parser::parse_data(
         let type_index: u64 in Trapping = parser.output.type_reference_count as u64 in Trapping;
         parser.output.type_references[parser.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Named,
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.type_name_start, end: parser.type_name_end }
-                }
-            },
-            domain: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: 0, end: 0 }
-                }
-            },
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.type_name_start, end: parser.type_name_end }
-            }
+            name: Parser::identifier_span(parser, parser.type_name_start, parser.type_name_end),
+            domain: Parser::identifier_span(parser, 0, 0),
+            source_span: Parser::source_span(parser, parser.type_name_start, parser.type_name_end)
         };
         parser.output.type_reference_count = parser.output.type_reference_count + 1;
         transition { _ -> retain_field(parser, input, field_end, type_index) }
@@ -1337,17 +1257,9 @@ machine Parser::parse_data(
     ) {
         let field_index: u64 in Trapping = parser.output.field_count as u64 in Trapping;
         parser.output.fields[parser.output.field_count] = DataField {
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.field_name_start, end: parser.field_name_end }
-                }
-            },
+            name: Parser::identifier_span(parser, parser.field_name_start, parser.field_name_end),
             type_reference: type_index,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.field_start, end: field_end }
-            }
+            source_span: Parser::source_span(parser, parser.field_start, field_end)
         };
         parser.output.field_count = parser.output.field_count + 1;
         transition { _ -> retain_field_member(parser, input, field_end, field_index) }
@@ -1374,10 +1286,7 @@ machine Parser::parse_data(
         parser.output.data_members[parser.output.data_member_count] = DataMember {
             kind: DataMemberKind::Field,
             item_index: field_index,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.field_start, end: field_end }
-            }
+            source_span: Parser::source_span(parser, parser.field_start, field_end)
         };
         parser.output.data_member_count = parser.output.data_member_count + 1;
         parser.cursor = parser.cursor + 1;
@@ -1964,22 +1873,9 @@ machine Parser::parse_data(
         parser.generic_type_index = parser.output.type_reference_count as u64 in Trapping;
         parser.output.type_references[parser.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Qualified,
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.type_name_start, end: parser.type_name_end }
-                }
-            },
-            domain: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.type_domain_start, end: parser.type_domain_end }
-                }
-            },
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.type_name_start, end: parser.type_domain_end }
-            }
+            name: Parser::identifier_span(parser, parser.type_name_start, parser.type_name_end),
+            domain: Parser::identifier_span(parser, parser.type_domain_start, parser.type_domain_end),
+            source_span: Parser::source_span(parser, parser.type_name_start, parser.type_domain_end)
         };
         parser.output.type_reference_count = parser.output.type_reference_count + 1;
         transition { _ -> generic_after_typeref(parser, input, parser.type_domain_end) }
@@ -1989,22 +1885,9 @@ machine Parser::parse_data(
         parser.generic_type_index = parser.output.type_reference_count as u64 in Trapping;
         parser.output.type_references[parser.output.type_reference_count] = TypeReference {
             kind: TypeReferenceKind::Named,
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.type_name_start, end: parser.type_name_end }
-                }
-            },
-            domain: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: 0, end: 0 }
-                }
-            },
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.type_name_start, end: parser.type_name_end }
-            }
+            name: Parser::identifier_span(parser, parser.type_name_start, parser.type_name_end),
+            domain: Parser::identifier_span(parser, 0, 0),
+            source_span: Parser::source_span(parser, parser.type_name_start, parser.type_name_end)
         };
         parser.output.type_reference_count = parser.output.type_reference_count + 1;
         transition { _ -> generic_after_typeref(parser, input, parser.type_name_end) }
@@ -2059,21 +1942,13 @@ machine Parser::parse_data(
     state generic_retain_typed(parser: &mut Parser, input: &TokenStream, param_end: u64 in Trapping) {
         parser.output.generic_parameters[parser.output.generic_parameter_count] = GenericParameter {
             kind: parser.generic_pending_kind,
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.generic_name_start, end: parser.generic_name_end }
-                }
-            },
+            name: Parser::identifier_span(parser, parser.generic_name_start, parser.generic_name_end),
             name_decoded_start: parser.generic_decoded_start,
             name_decoded_length: parser.generic_decoded_length,
             has_type_reference: true,
             type_reference: parser.generic_type_index,
             bounds: parser.generic_bounds,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.generic_param_start, end: param_end }
-            }
+            source_span: Parser::source_span(parser, parser.generic_param_start, param_end)
         };
         parser.output.generic_parameter_count = parser.output.generic_parameter_count + 1;
         transition { _ -> generic_mark_runtime(parser, input) }
@@ -2082,21 +1957,13 @@ machine Parser::parse_data(
     state generic_retain_untyped(parser: &mut Parser, input: &TokenStream, param_end: u64 in Trapping) {
         parser.output.generic_parameters[parser.output.generic_parameter_count] = GenericParameter {
             kind: parser.generic_pending_kind,
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.generic_name_start, end: parser.generic_name_end }
-                }
-            },
+            name: Parser::identifier_span(parser, parser.generic_name_start, parser.generic_name_end),
             name_decoded_start: parser.generic_decoded_start,
             name_decoded_length: parser.generic_decoded_length,
             has_type_reference: false,
             type_reference: 0,
             bounds: parser.generic_bounds,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.generic_param_start, end: param_end }
-            }
+            source_span: Parser::source_span(parser, parser.generic_param_start, param_end)
         };
         parser.output.generic_parameter_count = parser.output.generic_parameter_count + 1;
         transition parser.generic_pending_kind {
@@ -2249,12 +2116,7 @@ machine Parser::parse_data(
     state retain_data_bounded(parser: &mut Parser, item_end: u64 in Trapping) {
         let data_index: u64 in Trapping = parser.output.data_count as u64 in Trapping;
         parser.output.data_items[parser.output.data_count] = DataItem {
-            name: IdentifierSpan {
-                source_span: SourceSpan {
-                    source: parser.source,
-                    span: Span { start: parser.data_name_start, end: parser.data_name_end }
-                }
-            },
+            name: Parser::identifier_span(parser, parser.data_name_start, parser.data_name_end),
             first_generic_parameter: parser.data_first_generic,
             generic_parameter_count: parser.output.generic_parameter_count - parser.data_first_generic,
             first_member: parser.data_first_member,
@@ -2265,10 +2127,7 @@ machine Parser::parse_data(
             case_count: parser.output.case_count - parser.data_first_case,
             multiplicity: parser.data_multiplicity,
             is_public: parser.data_is_public,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.data_item_start, end: item_end }
-            }
+            source_span: Parser::source_span(parser, parser.data_item_start, item_end)
         };
         parser.output.data_count = parser.output.data_count + 1;
         transition { _ -> retain_data_root(parser, item_end, data_index) }
@@ -2293,10 +2152,7 @@ machine Parser::parse_data(
         parser.output.roots[parser.output.root_count] = RootItem {
             kind: RootItemKind::Data,
             item_index: data_index,
-            source_span: SourceSpan {
-                source: parser.source,
-                span: Span { start: parser.data_item_start, end: item_end }
-            }
+            source_span: Parser::source_span(parser, parser.data_item_start, item_end)
         };
         parser.output.root_count = parser.output.root_count + 1;
         parser.cursor = parser.cursor + 1;
