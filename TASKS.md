@@ -2508,10 +2508,11 @@ code and preserve check/native behavior for the named customer slices.
   single state without transitions into its own recursive component, state
   contracts or non-linear nominal-drop owners, whose result is Unit, a
   scalar, or a structural value outside the graph's result vocabulary, is a
-  sequence; everything else is a graph) leaves 7 corpus fixtures needing the
-  other builder's capability. The graph cannot yet take a tail call to an
-  acyclic machine in a transition (`pass/collections/named_transition_completion`,
-  `Filesystem::create_dir_all` in `pass/filesystem/dir_walk_wrappers_exit`),
+  sequence; everything else is a graph) loses 7 passing corpus fixtures, each
+  needing the other builder's capability. The graph cannot yet take a tail
+  call to an acyclic machine in a transition (`pass/collections/named_transition_completion`;
+  `Filesystem::create_dir_all` also gaps in `pass/filesystem/dir_walk_wrappers_exit`,
+  which already fails on its Fused provider),
   owned record state parameters of the specialized containers in
   `pass/generics/runtime_{const_container_methods,container_setter_matrix}_exit`,
   or copy locals consumed by calls nested in a returned literal
