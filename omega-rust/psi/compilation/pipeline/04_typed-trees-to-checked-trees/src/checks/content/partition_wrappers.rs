@@ -22,6 +22,7 @@ use typed_trees::signature::StateParameter;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 #[derive(Debug, Clone)]
+
 pub(crate) struct ReturnedPartitionInvocation {
     statement_index: usize,
     pub(crate) target_symbol: SymbolHandle,
@@ -387,6 +388,31 @@ fn instantiate_partition_term(
     }
 }
 
+/// Whether `event` belongs to `caller_state` and was emitted at this
+/// invocation site (the call edge itself or its containing statement).
+fn permission_event_at_invocation(
+    event: &checked_trees::FlowPermissionEventFact,
+    caller_state_symbol: SymbolHandle,
+    invocation: &ReturnedPartitionInvocation,
+    call_ordinal: usize,
+) -> bool {
+    let source_matches = matches!(
+        event.source,
+        PermissionEventSource::Call {
+            statement_index,
+            call_ordinal: event_call_ordinal,
+            target_symbol,
+            ..
+        } if statement_index == invocation.statement_index
+            && event_call_ordinal == call_ordinal
+            && target_symbol == invocation.target_symbol
+    ) || event.source
+        == PermissionEventSource::Statement {
+            statement_index: invocation.statement_index,
+        };
+    event.state_symbol == caller_state_symbol && source_matches
+}
+
 #[allow(clippy::too_many_arguments)]
 fn instantiate_partition_subject(
     program: &TypedTrees,
@@ -457,23 +483,12 @@ fn instantiate_partition_subject(
             let call_ordinal = evidence.call_ordinal?;
             let transferred_to_invocation =
                 facts.flow.ownership.permissions.iter().any(|(_, event)| {
-                    let source_matches = matches!(
-                        event.source,
-                        PermissionEventSource::Call {
-                            statement_index,
-                            call_ordinal: event_call_ordinal,
-                            target_symbol,
-                            ..
-                        } if statement_index == invocation.statement_index
-                            && event_call_ordinal == call_ordinal
-                            && target_symbol == invocation.target_symbol
-                    ) || event.source
-                        == PermissionEventSource::Statement {
-                            statement_index: invocation.statement_index,
-                        };
-                    event.state_symbol == caller_state.symbol
-                        && source_matches
-                        && event.kind == PermissionEventKind::Transfer
+                    permission_event_at_invocation(
+                        event,
+                        caller_state.symbol,
+                        invocation,
+                        call_ordinal,
+                    ) && event.kind == PermissionEventKind::Transfer
                         && event.access == PermissionAccess::Owned
                         && event.obligation_live
                         && event.claim_identity == claim_identity
@@ -541,22 +556,7 @@ fn instantiate_partition_result_subject(
         .permissions
         .iter()
         .filter(|(_, event)| {
-            let source_matches = matches!(
-                event.source,
-                PermissionEventSource::Call {
-                    statement_index,
-                    call_ordinal: event_call_ordinal,
-                    target_symbol,
-                    ..
-                } if statement_index == invocation.statement_index
-                    && event_call_ordinal == call_ordinal
-                    && target_symbol == invocation.target_symbol
-            ) || event.source
-                == PermissionEventSource::Statement {
-                    statement_index: invocation.statement_index,
-                };
-            event.state_symbol == caller_state.symbol
-                && source_matches
+            permission_event_at_invocation(event, caller_state.symbol, invocation, call_ordinal)
                 && event.kind == PermissionEventKind::Establish
                 && event.access == PermissionAccess::Owned
                 && event.obligation_live
