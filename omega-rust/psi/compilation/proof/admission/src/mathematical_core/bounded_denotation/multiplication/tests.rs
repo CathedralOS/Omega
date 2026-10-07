@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use super::super::test_utilities::mathematical;
 use super::super::Elaboration;
 use super::Law;
 use crate::proof::assumption_proof;
@@ -9,19 +10,6 @@ use semantic_vocabulary::{
     ScalarTerm, ScalarType, ValueId,
 };
 
-fn mathematical(term: &ScalarTerm) -> IntegerMathTerm {
-    match term {
-        ScalarTerm::Value {
-            id,
-            scalar_type: ScalarType::Integer(source_type),
-        } => IntegerMathTerm::MathValue {
-            source_type: *source_type,
-            value: *id,
-        },
-        ScalarTerm::Integer { value, .. } => IntegerMathTerm::literal(*value),
-        _ => unreachable!(),
-    }
-}
 
 /// One checked correlated-multiply bound certificate: the quotient
 /// `root = endpoint / right` correlates `left · right` with the carrier

@@ -4611,3 +4611,82 @@ mod tests {
         );
     }
 }
+
+/// Test-only helpers shared by the operation suites below — fixture,
+/// affine-bound proof, and scalar-to-math-term conversion used to be
+/// redefined verbatim under `addition/`, `multiplication/` and
+/// `subtraction/`.
+#[cfg(test)]
+mod test_utilities {
+    use super::{Denotation, Elaboration};
+    use crate::proof::assumption_proof;
+    use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
+    use semantic_vocabulary::{
+        IntegerMathTerm, IntegerType, Proposition, PropositionContext, PropositionError, ScalarTerm,
+        ScalarType,
+    };
+    use std::collections::BTreeSet;
+
+    pub(crate) fn mathematical(term: &ScalarTerm) -> IntegerMathTerm {
+        match term {
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(source_type),
+            } => IntegerMathTerm::MathValue {
+                source_type: *source_type,
+                value: *id,
+            },
+            ScalarTerm::Integer { value, .. } => IntegerMathTerm::literal(*value),
+            _ => unreachable!(),
+        }
+    }
+
+    pub(crate) fn direct_fixture(
+        context: &PropositionContext,
+        goal: &Proposition,
+        premise: &Proposition,
+        proof: &ProofNode,
+    ) -> Denotation {
+        verify_bounded_certificate(
+            context,
+            goal,
+            std::slice::from_ref(premise),
+            &[],
+            proof,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        let parameters = BTreeSet::new();
+        let assumptions = [premise.clone()];
+        let mut elaboration =
+            Elaboration::new(context, goal, &assumptions, &[], &parameters).unwrap();
+        elaboration.node(proof).unwrap();
+        elaboration.denotation
+    }
+
+    pub(crate) fn direct_affine_proof(
+        integer: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+        premise: &Proposition,
+        goal: &Proposition,
+        operation: fn(
+            IntegerType,
+            ScalarTerm,
+            ScalarTerm,
+        ) -> Result<ScalarTerm, PropositionError>,
+    ) -> ProofNode {
+        ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::IntegerAffineBound {
+                root_bound: Box::new(assumption_proof(premise.clone(), 0)),
+                witness: IntegerAffineWitness {
+                    root: left.clone(),
+                    target: operation(integer, left, right).unwrap(),
+                    definition_axioms: Vec::new(),
+                    literal_axioms: Vec::new(),
+                },
+            },
+        }
+    }
+}

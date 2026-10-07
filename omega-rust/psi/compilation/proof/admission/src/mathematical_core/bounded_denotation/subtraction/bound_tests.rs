@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use super::super::test_utilities::{direct_affine_proof, direct_fixture, mathematical};
 use super::super::Elaboration;
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
@@ -8,19 +9,6 @@ use semantic_vocabulary::{
     ScalarTerm, ScalarType, ValueId,
 };
 
-fn mathematical(term: &ScalarTerm) -> IntegerMathTerm {
-    match term {
-        ScalarTerm::Value {
-            id,
-            scalar_type: ScalarType::Integer(source_type),
-        } => IntegerMathTerm::MathValue {
-            source_type: *source_type,
-            value: *id,
-        },
-        ScalarTerm::Integer { value, .. } => IntegerMathTerm::literal(*value),
-        _ => unreachable!(),
-    }
-}
 
 fn check(left: ScalarTerm, right: ScalarTerm) {
     let ScalarType::Integer(integer) = left.scalar_type() else {
@@ -446,48 +434,7 @@ fn open_subtraction_preserves_previously_skipped_numeric_resource_refusals() {
 /// the two operand bounds proves `k ≤ sub l r` or `sub l r ≤ k` for the
 /// checked endpoint difference `k`. Returns the elaboration's denotation
 /// state after the shared checker and kernel have both accepted.
-fn direct_subtract_fixture(
-    context: &PropositionContext,
-    goal: &Proposition,
-    premise: &Proposition,
-    proof: &ProofNode,
-) -> super::super::Denotation {
-    verify_bounded_certificate(
-        context,
-        goal,
-        std::slice::from_ref(premise),
-        &[],
-        proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
-    let parameters = BTreeSet::new();
-    let assumptions = [premise.clone()];
-    let mut elaboration = Elaboration::new(context, goal, &assumptions, &[], &parameters).unwrap();
-    elaboration.node(proof).unwrap();
-    elaboration.denotation
-}
 
-fn direct_subtract_proof(
-    integer: IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    premise: &Proposition,
-    goal: &Proposition,
-) -> ProofNode {
-    ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
-            witness: IntegerAffineWitness {
-                root: left.clone(),
-                target: ScalarTerm::exact_integer_subtract(integer, left, right).unwrap(),
-                definition_axioms: Vec::new(),
-                literal_axioms: Vec::new(),
-            },
-        },
-    }
-}
 
 #[test]
 fn direct_subtract_bound_exact_carrier_boundary_cases() {
@@ -522,8 +469,15 @@ fn direct_subtract_bound_exact_carrier_boundary_cases() {
         } else {
             Proposition::IntegerMathLessOrEqual(difference.clone(), bound)
         };
-        let proof = direct_subtract_proof(integer, value(1), value(2), &premise, &goal);
-        let denotation = direct_subtract_fixture(&context, &goal, &premise, &proof);
+        let proof = direct_affine_proof(
+            integer,
+            value(1),
+            value(2),
+            &premise,
+            &goal,
+            ScalarTerm::exact_integer_subtract,
+        );
+        let denotation = direct_fixture(&context, &goal, &premise, &proof);
         assert!(
             denotation.rule_axioms.is_empty(),
             "the boundary case derives through the same antitone law"
@@ -564,8 +518,15 @@ fn direct_subtract_bound_out_of_numeral_range_keeps_instance_fallback() {
             Box::new(mathematical(&value(2))),
         ),
     );
-    let proof = direct_subtract_proof(integer, value(1), value(2), &premise, &goal);
-    let denotation = direct_subtract_fixture(&context, &goal, &premise, &proof);
+    let proof = direct_affine_proof(
+            integer,
+            value(1),
+            value(2),
+            &premise,
+            &goal,
+            ScalarTerm::exact_integer_subtract,
+        );
+    let denotation = direct_fixture(&context, &goal, &premise, &proof);
     assert_eq!(
         denotation.rule_axioms.len(),
         1,
@@ -596,7 +557,14 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
         IntegerMathTerm::literal(IntegerValue::Unsigned(2)),
         difference.clone(),
     );
-    let proof = direct_subtract_proof(integer, value(1), value(2), &premise, &goal);
+    let proof = direct_affine_proof(
+            integer,
+            value(1),
+            value(2),
+            &premise,
+            &goal,
+            ScalarTerm::exact_integer_subtract,
+        );
     let assumptions = [premise];
     // A wrong bound literal, a difference over different operands, and a
     // bound on the wrong direction all fail the shared relation check

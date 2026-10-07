@@ -1,3 +1,4 @@
+use super::super::test_utilities::{direct_affine_proof, direct_fixture, mathematical};
 use super::super::Elaboration;
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
@@ -7,19 +8,6 @@ use semantic_vocabulary::{
 };
 use std::collections::BTreeSet;
 
-fn mathematical(term: &ScalarTerm) -> IntegerMathTerm {
-    match term {
-        ScalarTerm::Value {
-            id,
-            scalar_type: ScalarType::Integer(source_type),
-        } => IntegerMathTerm::MathValue {
-            source_type: *source_type,
-            value: *id,
-        },
-        ScalarTerm::Integer { value, .. } => IntegerMathTerm::literal(*value),
-        _ => unreachable!(),
-    }
-}
 
 #[test]
 fn open_addition_preserves_previously_skipped_numeric_resource_refusals() {
@@ -691,48 +679,7 @@ fn exact_add_definition_bound_rejects_mismatched_certificates() {
 /// two operand bounds proves `k ≤ add l r` or `add l r ≤ k` for the
 /// checked endpoint sum `k`. Returns the elaboration's denotation state
 /// after the shared checker and kernel have both accepted.
-fn direct_add_fixture(
-    context: &PropositionContext,
-    goal: &Proposition,
-    premise: &Proposition,
-    proof: &ProofNode,
-) -> super::super::Denotation {
-    verify_bounded_certificate(
-        context,
-        goal,
-        std::slice::from_ref(premise),
-        &[],
-        proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
-    let parameters = BTreeSet::new();
-    let assumptions = [premise.clone()];
-    let mut elaboration = Elaboration::new(context, goal, &assumptions, &[], &parameters).unwrap();
-    elaboration.node(proof).unwrap();
-    elaboration.denotation
-}
 
-fn direct_add_proof(
-    integer: IntegerType,
-    left: ScalarTerm,
-    right: ScalarTerm,
-    premise: &Proposition,
-    goal: &Proposition,
-) -> ProofNode {
-    ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
-            witness: IntegerAffineWitness {
-                root: left.clone(),
-                target: ScalarTerm::exact_integer_add(integer, left, right).unwrap(),
-                definition_axioms: Vec::new(),
-                literal_axioms: Vec::new(),
-            },
-        },
-    }
-}
 
 #[test]
 fn direct_add_bound_out_of_numeral_range_keeps_instance_fallback() {
@@ -764,8 +711,15 @@ fn direct_add_bound_out_of_numeral_range_keeps_instance_fallback() {
             Box::new(mathematical(&value(2))),
         ),
     );
-    let proof = direct_add_proof(integer, value(1), value(2), &premise, &goal);
-    let denotation = direct_add_fixture(&context, &goal, &premise, &proof);
+    let proof = direct_affine_proof(
+        integer,
+        value(1),
+        value(2),
+        &premise,
+        &goal,
+        ScalarTerm::exact_integer_add,
+    );
+    let denotation = direct_fixture(&context, &goal, &premise, &proof);
     assert_eq!(
         denotation.rule_axioms.len(),
         1,
@@ -796,7 +750,14 @@ fn direct_add_bound_rejects_mismatched_certificates() {
         IntegerMathTerm::literal(IntegerValue::Unsigned(5)),
         sum,
     );
-    let proof = direct_add_proof(integer, value(1), value(2), &premise, &goal);
+    let proof = direct_affine_proof(
+        integer,
+        value(1),
+        value(2),
+        &premise,
+        &goal,
+        ScalarTerm::exact_integer_add,
+    );
     let assumptions = [premise];
     // A wrong bound literal, a sum over different operands, and a bound
     // on the wrong direction all fail the shared relation check before
