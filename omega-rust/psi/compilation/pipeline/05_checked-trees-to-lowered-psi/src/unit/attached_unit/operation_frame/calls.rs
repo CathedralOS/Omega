@@ -1,6 +1,7 @@
 //! Calls into the closure's own bodies: internal Unit and structural calls,
-//! the member calls a structural-value construction makes, claim-free affine
-//! leaf calls and scalar calls. `emit_call` is the one entry both routes use;
+//! the member calls a structural-value construction makes, and scalar calls.
+//! Every module call with a Unit or structural result targets a Unit body of
+//! the closure. `emit_call` is the one entry both routes use;
 //! boundary calls continue in `boundary_calls`.
 //!
 //! Every call publishes its result through the frame's representations:
@@ -10,10 +11,7 @@
 //! composed catalog and operation-buffer registry).
 
 use super::super::parameters::{self, emitted_claim_transfers, lower_structural_arguments};
-use super::super::{
-    argument_evaluation, bodies::UnitBody, ordinary_calls, signatures, structural_calls,
-    structural_values,
-};
+use super::super::{argument_evaluation, ordinary_calls, signatures, structural_values};
 use super::{OperationFrame, StructuralResults};
 use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -51,14 +49,6 @@ impl OperationFrame<'_, '_> {
             return unsupported("operation frame call entry received a non-call operation");
         };
         match (call.route(), call.result()) {
-            // A structural call whose target is not a Unit body is a legacy
-            // claim-free affine leaf with its own checked return plan.
-            (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Structural { .. })
-                if !UnitBody::contains(self.callees.plans, call.target.machine) =>
-            {
-                self.claim_free_structural_call(operation, &inputs)?;
-                Ok(())
-            }
             (
                 CheckedUnitCallRoute::Module { .. },
                 CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
@@ -406,46 +396,6 @@ impl OperationFrame<'_, '_> {
                 .into_operation_kind(),
         });
         Ok(())
-    }
-
-    /// A structural call to a claim-free affine leaf that is not a Unit body
-    /// of the closure (`structural_calls::emit`). The leaf's result is not a
-    /// completed claim frontier, so the dense route does not register it.
-    fn claim_free_structural_call(
-        &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
-        inputs: &CallInputs<'_>,
-    ) -> Result<(), LoweringError> {
-        let Some((call, result)) = operation
-            .call()
-            .filter(|call| call.is_module())
-            .and_then(|call| Some((call, call.structural_result()?)))
-        else {
-            return unsupported("claim-free structural call custody drifted before emission");
-        };
-        let earlier =
-            self.results
-                .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
-        let (declaration, discard_on_return) = structural_calls::emit(
-            self.checked,
-            self.state,
-            operation,
-            self.parameters,
-            inputs.evaluated_scalar_arguments,
-            self.structural_types.declarations(),
-            self.type_ids,
-            self.calls.machine_ids,
-            &earlier,
-            &self.evaluation.structural_locals,
-            self.next_place,
-            self.operations,
-            Some(self.values),
-            &self.evaluation.structural_fields,
-            self.next_value,
-            Some(&mut *self.calls),
-        )?;
-        drop(earlier);
-        self.publish_result(operation, result, declaration, discard_on_return)
     }
 
     /// Establish one fresh structural value. Its member operands that are

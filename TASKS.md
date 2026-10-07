@@ -600,9 +600,9 @@ defines the complete product bar.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.
   - **Patterns and dispatch.** Record/case destructuring executes bind-all,
     `as _` waivers, `__` field names, renamed fields and rest opt-out, with
-    non-place subjects evaluated once. Unverified: native exit of
-    `pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit`
-    now that it passes its context explicitly. Execute a consumer of a
+    non-place subjects evaluated once
+    (`pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit`
+    exits 70 natively and in Terminal). Execute a consumer of a
     selected case payload transferred on an edge
     (`.../state_graph/emission/successor_edge.rs`). Keep
     `pass/data/record_pattern_let_exit`,
@@ -2493,24 +2493,35 @@ code and preserve check/native behavior for the named customer slices.
   of successor transfers; corpus `--filter control_flow/,transitions,termination/,calls/`
   is unchanged in check and native.
 
-- **ONE-CALL-LOWERING.** (new-scope) Calls are emitted by about ten routes:
-  - `unit/attached_unit/operation_frame/calls.rs`, plus its ordinary,
-    structural and scalar-structural call modules;
-  - `composed_control` `emit_call_operations` and `emit_call_leaf`;
-  - `scalar_graph_lowering/call_lowering.rs`;
-  - `scalar_computations/calls.rs`;
-  - both `boundary_calls.rs`;
-  - the return routes.
+- **ONE-CALL-LOWERING.** (new-scope) Composed graphs, ordinary bodies and
+  structural-value members all reach `OperationFrame::emit_call`
+  (`unit/attached_unit/operation_frame/calls.rs`), and `DirectCall` selects
+  every direct Terminal call kind. Separate call emitters remain:
+  - `operation_emission/calls.rs::emit_direct_call_operation` and
+    `operation_emission/boundary_calls.rs` for scalar-graph bindings and
+    computation calls;
+  - `scalar_graph_effects.rs` `LoweredScalarEffect::Call`;
+  - the boundary-scalar return's own boundary call
+    (`returns/boundary_scalar_return/emission.rs`), also embedded from
+    `scalar_callees.rs`, which duplicates `boundary_operands`, completion
+    receipts and `BoundaryResultPolicy` from `operation_frame/boundary_calls.rs`.
 
-  Structural arguments are assembled in 24 files. Stage 04 shares
-  `calls/call_operations.rs::build_call_operation` at 9 sites but keeps
-  separate builders in `terminal_scalar` and `returns/guarded_call_returns`. Make one argument preparation and one call
-  emitter, fed by `build_call_operation` alone. Include the claim-transfer
-  parity the ordinary route lacks:
-  - `ClaimBindings::Fixed` (`operation_frame/calls.rs`) cannot mint a result
-    claim;
-  - `establish_structural_result` (`argument_evaluation.rs`) accepts linear
-    locals only from ordinary structural-call producers.
+  These routes duplicate erased lanes, requirement obligations, crash-route
+  root substitution (only `ordinary_calls::prepare` substitutes structural
+  roots) and result claims (path-based in `receive_call_result_claim`, a
+  permission-event scan for boundary results, none for scalar-graph
+  effects). Source-call rows name a state symbol in some routes and a machine
+  symbol in others. Call-argument homes are resolved by
+  `parameters::lower_structural_arguments` and again by
+  `ScalarBindings`/`scalar_computations/structural_arguments.rs`; the path
+  step (`prepare_structural_argument_path`) is already shared. Stage 04
+  builds every `CheckedUnitCallPlan` through `build_call_operation`; the
+  scalar graph (`terminal_scalar/mod.rs` `DirectCall` bindings), scalar
+  computations (`CheckedScalarComputationKind::Call`) and
+  `returns/guarded_call_returns.rs` keep their own call records. Make one
+  argument preparation and one call emitter, keeping the real boundary
+  versus machine and result-kind distinctions.
+  `ClaimBindings::Fixed` still cannot mint a result claim.
 
   Acceptance: a source-scanning guard finds one call emitter and one
   `StructuralArgument` constructor in stage 05; corpus
@@ -2522,7 +2533,16 @@ code and preserve check/native behavior for the named customer slices.
   `.../05_checked-trees-to-lowered-psi/src/returns/` (structural-scalar,
   boundary-scalar, structural, claim-free affine, trait-operator and guarded
   payloadless) with ordinary body operations plus result completion, keeping
-  outcome-selected evidence and proof-only tail arguments. Coordinate operator
+  outcome-selected evidence and proof-only tail arguments. A route census over
+  the full checked corpus (2026-10-07) found no machine selected through any
+  return route at top level: entries lower as composed graphs or Unit
+  closures, and only `omega inspect-terminal --machine` or a callback thunk
+  can select a return-plan machine. Inside closures, boundary-scalar returns
+  serve as scalar callees (and are embedded from `scalar_callees.rs`), and
+  structural-scalar returns as scalar callees. The claim-free affine roster's
+  in-closure leaf call route was never taken and is deleted; in-closure use of
+  the structural, trait-operator and payloadless guarded rosters was not
+  measured. Coordinate operator
   returns with **OPERATOR-BOUNDARY-CALLS**.
   `pass/providers/specialized_structural_fixed_operator_terminal_custody` has
   an unused `exercise` beside an empty entry, so its build proves nothing:

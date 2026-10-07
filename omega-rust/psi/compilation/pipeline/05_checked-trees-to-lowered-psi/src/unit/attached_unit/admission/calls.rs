@@ -35,7 +35,7 @@ use super::super::{
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan, CheckedUnitCallResult,
-    CheckedUnitCallRoute, CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitCallRoute, CheckedUnitStructuralParameterPlan,
 };
 use symbols::SymbolHandle;
 
@@ -49,8 +49,6 @@ pub(in crate::unit::attached_unit) struct CallerView<'a> {
     pub(in crate::unit::attached_unit) operations: &'a [CheckedUnitEffectOperationPlan],
     pub(in crate::unit::attached_unit) structural_parameters:
         &'a [CheckedUnitStructuralParameterPlan],
-    /// The claims the body (ordinary) or the state (composed) holds on entry.
-    pub(in crate::unit::attached_unit) entry_claims: &'a [CheckedUnitEntryClaimPlan],
 }
 
 impl<'a> CallerView<'a> {
@@ -60,7 +58,6 @@ impl<'a> CallerView<'a> {
             state: plan.state,
             operations: &plan.operations,
             structural_parameters: &plan.structural_parameters,
-            entry_claims: &plan.entry_claims,
         }
     }
 
@@ -73,7 +70,6 @@ impl<'a> CallerView<'a> {
             state: state.state,
             operations: &state.operations,
             structural_parameters: &state.structural_parameters,
-            entry_claims: &state.entry_claims,
         }
     }
 }
@@ -158,13 +154,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
         return Ok(());
     };
     match (planned.route(), planned.result()) {
-        // A structural call whose target is not a Unit body is a claim-free
-        // affine leaf with its own checked return plan.
-        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Structural { .. })
-            if !UnitBody::contains(plans, planned.target.machine) =>
-        {
-            structural_calls::validate(checked, caller, operation)
-        }
         (
             CheckedUnitCallRoute::Module { .. },
             CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },

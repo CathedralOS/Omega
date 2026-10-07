@@ -382,32 +382,6 @@ pub(super) fn lower_unit_structural_types_including(
                             .map(|parameter| parameter.type_identity.clone()),
                     );
                 }
-                // Any other ordinary structural call is a claim-free
-                // realization owned by its structural return catalog.
-                CheckedUnitEffectOperationPlan::Call(call)
-                    if call.is_module() && call.structural_result().is_some() =>
-                {
-                    let realization_machine = &call.target.machine;
-                    let realization_state = &call.target.state;
-                    let realizations = checked
-                        .facts
-                        .flow
-                        .terminal_structural_returns
-                        .claim_free_affine_machines
-                        .iter()
-                        .filter(|plan| {
-                            plan.machine == *realization_machine && plan.state == *realization_state
-                        })
-                        .collect::<Vec<_>>();
-                    let [realization] = realizations.as_slice() else {
-                        return unsupported(
-                            "selected structural-result Unit operation has no exact type catalog owner",
-                        );
-                    };
-                    roots.extend(realization.attachment_type_identity.iter().cloned());
-                    roots.push(realization.structural_parameter.type_identity.clone());
-                    roots.push(realization.result.type_identity.clone());
-                }
                 CheckedUnitEffectOperationPlan::Call(call)
                     if let Some(result) = call.structural_result()
                         && call.is_boundary() =>
