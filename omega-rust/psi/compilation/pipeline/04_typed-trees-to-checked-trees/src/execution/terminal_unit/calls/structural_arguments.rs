@@ -11,8 +11,7 @@ use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::calls::view_subslice;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, is_unit, parameter_is_root,
-    structural_access_for_type_reference,
+    ShapeCollector, base_type_identity, is_unit, structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedTrivialAffineStructuralLocalPlan,
@@ -339,23 +338,19 @@ pub(crate) fn structural_call_arguments(
             continue;
         }
         arm("call operation: structural arguments: borrowed local");
-        // A `&local`/`&mut local` argument loans the caller's own structural
-        // local through the same borrowed-storage join the scalar-computation
-        // lane plans. Parameter-rooted places keep the parameter arms below.
-        if !source_parameters
-            .iter()
-            .any(|parameter| parameter_is_root(parameter, source_symbol))
-            && let Some(plan) = computation_arguments::borrowed_storage_argument(
-                program,
-                &facts.borrow,
-                caller_machine.symbol,
-                caller_state,
-                call,
-                &place,
-                target,
-                None,
-            )
-        {
+        // Formal and local roots share the same exact borrowed endpoint join.
+        // A projected descriptor must cross its stored reference boundary in
+        // both coordinates; type-only parameter presentation loses that hop.
+        if let Some(plan) = computation_arguments::borrowed_storage_argument(
+            program,
+            &facts.borrow,
+            caller_machine.symbol,
+            caller_state,
+            call,
+            &place,
+            target,
+            None,
+        ) {
             output.push(plan);
             continue;
         }

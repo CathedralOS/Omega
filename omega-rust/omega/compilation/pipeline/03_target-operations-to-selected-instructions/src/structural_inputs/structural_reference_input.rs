@@ -502,6 +502,16 @@ pub(crate) fn owned_storage_shape(
                     )
             )
         })?;
+    stored_value_shape(structural_type, declarations)
+}
+
+/// Complete stored-carrier geometry, including bare reference descriptors.
+/// This describes storage only: owned aggregate/copy eligibility and exact
+/// edge custody remain separate judgments at their respective consumers.
+pub(crate) fn stored_value_shape(
+    structural_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ValueShape> {
     primitive_array_shape(structural_type, declarations)
         .or_else(|| shape(structural_type, declarations))
 }

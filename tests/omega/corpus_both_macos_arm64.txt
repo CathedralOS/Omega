@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 5.67, "load1_start": 5.82, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 2.75, "load1_start": 2.75, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_field_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -150,6 +150,7 @@ pass/calls/runtime_state_reference_field_result_exit built 4327ms exit:0 interpr
 pass/calls/runtime_static_entry_context_exit built 1440ms exit:0 interpreter-exit:0 interpreter:agrees @2424b17e715c
 pass/calls/runtime_stored_constructor_snapshots_exit built 1611ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
 pass/calls/runtime_stored_equal_observations_exit built 1476ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
+pass/calls/runtime_stored_reference_computation_argument_exit built 1923ms exit:0 interpreter-exit:0 interpreter:agrees @472cfc2f9777+wt
 pass/calls/runtime_terminal_requirement_projected_context_exit built 946ms exit:0 interpreter-exit:0 interpreter:agrees @560687158d28
 pass/calls/runtime_value_call_return_types_exit built 2072ms exit:70 interpreter-exit:70 interpreter:agrees @70f761d06258
 pass/calls/scalar_local_record_view_call_exit built 1263ms exit:70 interpreter-exit:70 interpreter:agrees @d16744b4f8fb

@@ -18,8 +18,8 @@ use super::{
     ScalarCalleePlans, ShapeCollector, StatementNode, StatementSequence, SymbolHandle,
     append_exit_reference_releases, append_reference_releases, consume_value_places,
     parameter_qualifications, retain_selected_sources, returned_byte_sequence_literal,
-    returned_mutable_view, returned_named_view, returned_parameter, returned_reference_leaf,
-    returned_subslice, structural_operands,
+    returned_mutable_view, returned_named_view, returned_parameter, returned_subslice,
+    structural_operands,
 };
 use checked_trees::CheckedUnitCallPlan;
 
@@ -202,38 +202,12 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         // value describes possible materialization, not a requirement to create
         // a second binding and bypass the exact parameter-return custody owner.
         Some(result)
-    } else if let Some(result) =
-        returned_named_view(program, shapes, state, structural_parameters, binders)
-    {
-        Some(result)
-    } else if let Some(result) = returned_reference_leaf(program, state, structural_parameters) {
-        Some(result)
-    } else if let Some((result, operation)) = returned_subslice(
-        program,
-        facts,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
-        &mut structural_count,
-    ) {
-        operations.push(operation);
-        Some(result)
-    } else if let Some((result, operation)) = returned_mutable_view(
-        program,
-        facts,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
-        &mut structural_count,
-    ) {
-        operations.push(operation);
-        Some(result)
-    } else if let Some(result) = returned_byte_sequence_literal(program, state) {
-        trace.phase("statement sequence: structural result: byte sequence literal");
-        Some(result)
     } else if let Some(root) = returned_value {
+        // The checked expression owns its value operation. In particular,
+        // selecting an owned reference field transfers that descriptor through
+        // the ordinary projection receipt; it does not reborrow its referent.
+        // Reconstructing a leaf return before this graph loses that distinction
+        // and makes cleanup disagree with the established reference operation.
         trace.phase("statement sequence: structural result: returned value");
         if root.machine != machine.symbol || root.type_reference != state.return_type {
             return None;
@@ -271,15 +245,17 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             consume_value_places(facts, root.root, &structural_results, &mut operations)?;
         }
         super::consume_value_call_sources(facts, &structural_results, &mut operations, &calls)?;
-        let result = CheckedUnitStructuralResultBindingPlan {
-            statement_index: root.statement_ordinal,
-            binding_ordinal: u32::try_from(structural_count).ok()?,
-            type_identity: shapes.add_type(state.return_type, binders, &[])?,
-            multiplicity: validation::reference_result_custody::binding_multiplicity(
-                program,
-                state.return_type,
-            ),
-        };
+        // Completion owns the same stored result carrier as an ordinary
+        // returning call, including reference shells. Argument presentation
+        // (`add_type`) may name its referent and cannot classify this value.
+        let mut result = super::super::call_results::checked_structural_result_type(
+            program,
+            shapes,
+            state.return_type,
+            binders,
+        )?;
+        result.statement_index = root.statement_ordinal;
+        result.binding_ordinal = u32::try_from(structural_count).ok()?;
         let establishment = structural_operands::establish_value(
             facts,
             result.clone(),
@@ -291,6 +267,35 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         )?;
         operations.push(establishment);
         Some(result.into())
+    } else if let Some(result) =
+        returned_named_view(program, shapes, state, structural_parameters, binders)
+    {
+        Some(result)
+    } else if let Some((result, operation)) = returned_subslice(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        &mut structural_count,
+    ) {
+        operations.push(operation);
+        Some(result)
+    } else if let Some((result, operation)) = returned_mutable_view(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        &mut structural_count,
+    ) {
+        operations.push(operation);
+        Some(result)
+    } else if let Some(result) = returned_byte_sequence_literal(program, state) {
+        trace.phase("statement sequence: structural result: byte sequence literal");
+        Some(result)
     } else if let Some(binding) = returned_call {
         // A call result forwarded straight to the machine's structural return
         // is consumed by that return; it must not also carry disposal debt.

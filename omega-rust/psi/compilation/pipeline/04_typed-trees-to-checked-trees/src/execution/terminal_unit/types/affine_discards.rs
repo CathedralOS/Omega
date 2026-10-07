@@ -3,38 +3,10 @@
 
 use super::*;
 
-/// Whole-root discards plus the residual complement of at most one partially
-/// moved owned parameter on the ordinary Unit return edge. A projected owned
-/// actual transfers only the selected subtree into the callee, so the
-/// parameter's untouched remainder still dies on this return and must
-/// publish residual rows rather than disappear from cleanup. Result/local
-/// lifetimes are scheduled by their establishment and consuming continuation.
-/// Stage 05 completes their scheduled disposal from the emitted transfer
-/// frontier; this parameter roster must not reject those projections based on
-/// whether their producer was a call, construction, named local or temporary.
-/// Parameters a projected reference establishment consumes. It moves its
-/// carrier's leaf into the result and consumes the carrier whole, so the
-/// carrier owes no exit discard, although the permission ledger still records
-/// a whole-root exit drop for it. The whole-ingress lane keeps an empty path
-/// and leaves the borrowed parameter on the ordinary roster. Both the ordinary
-/// return and the composed state graph's normal exits subtract these.
-pub(in crate::execution::terminal_unit) fn reference_consumed_parameters(
-    operations: &[CheckedUnitEffectOperationPlan],
-) -> BTreeSet<u32> {
-    operations
-        .iter()
-        .flat_map(|operation| operation.with_value_calls())
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
-                if !source.path.is_empty() =>
-            {
-                source.source_parameter_index()
-            }
-            _ => None,
-        })
-        .collect()
-}
-
+/// Whole-root discards plus the residual complement of a partially moved
+/// owned parameter. Only owned transfers consume that custody. Establishing a
+/// reference, projected or whole, borrows backing and leaves its source owner
+/// on the checked cleanup roster; a returned descriptor carries its own loan.
 pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -71,7 +43,6 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
             }
         }
     }
-    transferred_parameters.extend(reference_consumed_parameters(operations));
     let mut residual_roots = BTreeSet::new();
     let mut residual_affine_discards = Vec::new();
     for (parameter_index, moved_paths) in &moved_parameter_paths {

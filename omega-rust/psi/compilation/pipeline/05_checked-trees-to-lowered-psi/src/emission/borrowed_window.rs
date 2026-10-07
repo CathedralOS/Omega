@@ -504,7 +504,10 @@ fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
             format!("parameter#{parameter_index}")
         }
         CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-        | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. } => "local".to_owned(),
+        | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. } => {
+            "local".to_owned()
+        }
         CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. } => {
             "computed expression".to_owned()
         }

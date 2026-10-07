@@ -1,3 +1,10 @@
+//! Prepare address geometry against the carrier actually published by its
+//! dominating operation. Logical local loans retain their checked root; stored
+//! values retain physical paths. A reference descriptor and a referent-presented
+//! alias can therefore supply the same loan without replaying initializer syntax.
+//! Geometry does not grant permission: source occurrence, access and live-loan
+//! checks still precede this join, and Terminal validates its concrete endpoint.
+
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::lowering_error::LoweringError;
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralPathSegment};
@@ -14,6 +21,25 @@ pub(crate) fn terminal_access(access: CheckedStructuralAccess) -> StructuralAcce
         CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
         CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
         CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
+    }
+}
+
+/// Address presentation can attenuate an established loan, never widen it.
+/// This does not establish ownership, live backing, bounds or qualifications.
+pub(crate) fn structural_access_can_supply(
+    source: StructuralAccess,
+    presented: StructuralAccess,
+) -> bool {
+    match source {
+        StructuralAccess::Owned => true,
+        StructuralAccess::SharedBorrow => presented == StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow => matches!(
+            presented,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        ),
+        StructuralAccess::WriteOnlyBorrow => presented == StructuralAccess::WriteOnlyBorrow,
     }
 }
 
@@ -75,6 +101,61 @@ enum PreparedArgumentTip<'a> {
     Inline(&'a terminal_psi::StructuralFieldType),
     ByteElement,
     ByteWindow,
+}
+
+/// Join a logical loan root to its exact published selected carrier, preserving
+/// any physical prefix retained by the binding's caller. Physical argument paths
+/// use the strict walker unchanged; it must never implicitly dereference a
+/// descriptor value or a nested reference field.
+pub(crate) fn prepare_structural_argument_path(
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    published_root: semantic_vocabulary::StructuralTypeId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
+    let Some(identity) = argument.borrowed_root_type_identity() else {
+        return prepare_argument_path(&argument.path, published_root, types);
+    };
+    let mut roots = types.iter().filter(|row| row.identity == identity);
+    let logical_root = roots.next().ok_or(LoweringError::Unsupported(
+        "borrowed argument lost its checked logical root",
+    ))?;
+    if identity.is_empty() || roots.next().is_some() {
+        return Err(LoweringError::Unsupported(
+            "borrowed argument logical root is empty or ambiguous",
+        ));
+    }
+    let requested = terminal_access(argument.access);
+    if requested == StructuralAccess::Owned {
+        return Err(LoweringError::Unsupported(
+            "logical borrowed argument cannot transfer its carrier",
+        ));
+    }
+    let mut prepared = Vec::new();
+    if published_root != logical_root.id {
+        let mut carriers = types.iter().filter(|row| row.id == published_root);
+        let carrier = carriers.next().ok_or(LoweringError::Unsupported(
+            "borrowed argument lost its published carrier",
+        ))?;
+        if carriers.next().is_some()
+            || !matches!(carrier.shape,
+                terminal_psi::StructuralTypeShape::Reference { referent, access }
+                    if referent == logical_root.id
+                        && structural_access_can_supply(access, requested))
+        {
+            return Err(LoweringError::Unsupported(
+                "borrowed argument changes its published root or reference access",
+            ));
+        }
+        prepared.push(PreparedStructuralPathSegment::Static(
+            StructuralPathSegment::Referent,
+        ));
+    }
+    prepared.extend(prepare_argument_path(
+        &argument.path,
+        logical_root.id,
+        types,
+    )?);
+    Ok(prepared)
 }
 
 /// Resolve the path against its original source declaration. Only runtime

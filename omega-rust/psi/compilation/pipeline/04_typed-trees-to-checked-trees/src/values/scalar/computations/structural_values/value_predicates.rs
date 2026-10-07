@@ -448,6 +448,7 @@ pub(super) fn argument_needs_establishment(kind: &CheckedStructuralValueKind) ->
         | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
         | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
         | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
         | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. } => false,

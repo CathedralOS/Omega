@@ -40,6 +40,7 @@ pub(super) fn source(
     let (caller, _) = crate::declarations::state_declaration(checked, state.symbol)?;
     let source = match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
         | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => {
             crate::emission::call_source_custody::projected_receivers::source(
@@ -74,7 +75,8 @@ pub(super) fn source(
             local.type_reference
         }
 
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+        | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { symbol, .. } => {
             let local = super::preceding_local(
                 checked,
                 state,
@@ -132,6 +134,12 @@ pub(super) fn source(
         }
         _ => return unsupported("borrowed operand has no supported source owner"),
     };
+    if let Some(identity) = argument.borrowed_root_type_identity()
+        && validation::structural_type_identity(&checked.typed, reference, &[], &[]).as_str()
+            != identity
+    {
+        return unsupported("borrowed operand substitutes its checked logical root");
+    }
     let reference = if whole_source {
         reference
     } else {

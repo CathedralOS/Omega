@@ -553,10 +553,24 @@ pub(super) fn plan(
         }
         super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
         local_phase("statement sequence: local data: structural value: type shape");
+        // A stored loan retains its reference shell, unlike argument
+        // presentation of its referent. Slice views are different carriers:
+        // they retain their element-view descriptor, not a reference to an
+        // unsized slice. Classify storage here, not function-result admission.
+        let type_identity = if validation::reference_result_custody::stored_loan_parts(
+            program,
+            local.type_reference,
+        )
+        .is_some()
+        {
+            shapes.add_reference_type(local.type_reference, binders)?
+        } else {
+            shapes.add_type(local.type_reference, binders, &[])?
+        };
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,
-            type_identity: shapes.add_type(local.type_reference, binders, &[])?,
+            type_identity,
             multiplicity: validation::reference_result_custody::binding_multiplicity(
                 program,
                 local.type_reference,

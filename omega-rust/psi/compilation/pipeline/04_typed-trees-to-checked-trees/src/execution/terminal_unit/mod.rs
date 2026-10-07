@@ -525,7 +525,10 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                             let mut seeded: Vec<&str> = operation
                                 .call_structural_arguments()
                                 .iter()
-                                .map(|argument| argument.type_identity.as_str())
+                                .flat_map(|argument| {
+                                    std::iter::once(argument.type_identity.as_str())
+                                        .chain(argument.borrowed_root_type_identity())
+                                })
                                 .collect();
                             match operation {
                                 CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
@@ -632,6 +635,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         // identity, which no record field spelling ever reaches.
         for argument in operation.call_structural_arguments() {
             retained_type_identities.insert(argument.type_identity.as_str());
+            retained_type_identities.extend(argument.borrowed_root_type_identity());
             if let Some(storage_type_identity) = argument.subslice_storage_type_identity() {
                 retained_type_identities.insert(storage_type_identity);
             }

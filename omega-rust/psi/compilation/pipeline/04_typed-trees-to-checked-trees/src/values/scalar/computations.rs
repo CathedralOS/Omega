@@ -157,9 +157,10 @@ pub(crate) fn build_checked_value_computation_plans(
                 //
                 // What narrows this admission is the destination's owning
                 // lane, not the shape of the place expression: a scalar
-                // destination belongs to the primitive-local route, and a
-                // whole returned reference to reference completion's affine
-                // establishment and exact ingress map. Every other
+                // destination belongs to the primitive-local route. A
+                // reference-valued place is still a structural value: its
+                // checked operation distinguishes a stored descriptor move
+                // from a borrowed formal's referent. Every structural
                 // destination is a structural carrier, and `structural_value`
                 // remains the authority over which operation the read becomes
                 // -- a copy, a borrow, or the projected selection transfer a
@@ -171,9 +172,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 // reference-completion owner.
                 if let Some((expression, expected)) = construction_destination
                     && (validation::is_scalar_case_value(program, expression, expected)
-                        || (validation::reference_result_custody::parts(program, expected)
-                            .is_none()
-                            && program.primitive_type_reference(expected).is_none()
+                        || (program.primitive_type_reference(expected).is_none()
                             && matches!(
                                 program.expression_table.expression(expression),
                                 ExpressionNode::Name(_)

@@ -40,7 +40,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let zero: i32 = block receive(&mut main.cell, 0);
     let first: i32 = block receive(&mut main.cell, 1);
     let local_zero: i32 = block receive(&mut local[1], 0);
-    let local_count: i32 = block receive(&mut local[1], 1);
+    let stored: &mut i32 = &mut local[1];
+    let local_count: i32 = block receive(stored, 1);
     let second: i32 = block receive(&mut main.cells[1], 4);
     let empty: i32 = block receive(&mut main.cell, 1);
     // Foreign and checked Console output share one ordered private sink.

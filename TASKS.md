@@ -1728,11 +1728,6 @@ then independent claimed restoration slices -> final closure.
   non-hosted roots and required receiver qualifications. Hosted byte input uses
   an explicit finite replay stream shared by selected input slots; CLI and
   corpus give each engine the same authored bytes with independent positions.
-  Stored local-array primitive references passed to returning helpers still
-  fail Terminal production with `structural argument has the wrong concrete
-  type`: stage 04's `calls/computation_arguments/` peels the Reference but
-  omits its descriptor crossing. Preserve that crossing independently of the
-  initializer shape; do not relax Terminal's concrete-type validation.
   Virtual clocks and stderr support remain. The original
   `runtime_float_integer_conversion_boundaries_exit` has no exact established
   root ProcessExit Binding occurrence and declines before effects; resolve its

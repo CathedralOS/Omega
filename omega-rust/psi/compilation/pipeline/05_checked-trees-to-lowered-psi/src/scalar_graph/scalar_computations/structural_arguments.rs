@@ -132,8 +132,8 @@ pub(super) fn lower(
                 let mut path = source.path.into_iter().map(
                     crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
                 ).collect::<Vec<_>>();
-                path.extend(crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
-                    &argument.path, root_type, structural_types,
+                path.extend(crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+                    argument, root_type, structural_types,
                 )?);
                 return Ok(PreparedStructuralArgument {
                     selector_positions: Vec::new(),

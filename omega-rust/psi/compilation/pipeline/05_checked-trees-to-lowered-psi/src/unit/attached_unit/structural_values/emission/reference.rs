@@ -31,6 +31,7 @@ impl Emission<'_, '_, '_> {
         let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_structural_parameters(&self.evaluation.structural_parameters)
             .with_structural_locals(&locals)
+            .with_structural_observations(self.structural_types)
             .with_primitive_storage(&self.evaluation.primitive_storage);
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
         let referent = self

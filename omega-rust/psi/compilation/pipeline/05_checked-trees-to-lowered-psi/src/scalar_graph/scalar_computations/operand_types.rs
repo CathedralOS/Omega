@@ -34,6 +34,7 @@ pub(crate) fn type_roots(
                 {
                     if let Argument::Place(subject) = argument {
                         types.push(subject.type_identity.clone());
+                        types.extend(subject.borrowed_root_type_identity().map(str::to_owned));
                     }
                 }
             }

@@ -30,8 +30,8 @@ impl StateGraphEmission<'_, '_> {
             dispatches,
             body_end,
             next_value,
-            next_block,
-            next_edge,
+            mut next_block,
+            mut next_edge,
         } = frame;
         let checked = self.checked;
         let plan = self.plan;
@@ -123,6 +123,40 @@ impl StateGraphEmission<'_, '_> {
                         "owned selection residuals crossing authored states require retained cleanup transfer correspondence",
                     );
                 }
+            }
+        }
+        if let CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
+            &state.terminator
+            && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } = result.source
+        {
+            let binding = super::super::case_emission::result(state, binding_ordinal, &operations)?;
+            let source = evaluation.current_structural_place(binding.place());
+            let (completion, arrival) = super::super::returns::projected::materialize(
+                &binding,
+                source,
+                terminator,
+                self.catalogs,
+                &mut next_block,
+                &mut next_edge,
+            )?;
+            terminator = completion;
+            if let Some(arrival) = arrival {
+                if let Some(rank) = current_rank {
+                    // This private transport is inside the authored state;
+                    // returning a projection does not prove a rank decrease.
+                    self.rank_edges.extend(terminator.edges().map(|edge| {
+                        (
+                            edge,
+                            (
+                                rank,
+                                terminal_psi::TerminalNaturalRankComparison::Preserving,
+                            ),
+                        )
+                    }));
+                }
+                evaluation.blocks.push(arrival);
             }
         }
         if let Some(rank) = current_rank {

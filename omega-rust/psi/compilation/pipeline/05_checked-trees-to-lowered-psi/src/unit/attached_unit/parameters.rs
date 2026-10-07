@@ -16,7 +16,7 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::bindings::structural_paths::{
-    lower_structural_path, terminal_access,
+    lower_structural_path, structural_access_can_supply, terminal_access,
 };
 use crate::expression_preparation::bindings::{
     StructuralLocalBinding, StructuralScalarFieldBinding,
@@ -626,26 +626,6 @@ pub(crate) fn emitted_claim_transfers(
     Ok(emitted)
 }
 
-/// Resolve every borrowed operand against its established home, regardless of
-/// whether a parameter or a completed operation introduced that home. The path
-/// preparation used by emission supplies the exact endpoint and every explicit
-/// reference or view crossing. This checks presentation, not establishment, live-loan
-/// authority, runtime bounds, or qualification implication; those retain their
-/// independent source and Terminal replay.
-fn structural_access_can_supply(source: StructuralAccess, presented: StructuralAccess) -> bool {
-    match source {
-        StructuralAccess::Owned => true,
-        StructuralAccess::SharedBorrow => presented == StructuralAccess::SharedBorrow,
-        StructuralAccess::MutableBorrow => matches!(
-            presented,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        ),
-        StructuralAccess::WriteOnlyBorrow => presented == StructuralAccess::WriteOnlyBorrow,
-    }
-}
-
 pub(crate) fn literal_argument_places(
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     literals: &[StructuralPlaceDeclaration],
@@ -735,13 +715,13 @@ pub(crate) fn lower_structural_arguments(
     mut calls: Option<&mut CallEmissionContext<'_>>,
     mut emission: Option<(&mut u64, &mut OperationBuffer)>,
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
-    let mut lower_path = |path: &[CheckedUnitStructuralPathSegment],
+    let mut lower_path = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
                           root,
                           place,
                           prefix: &[terminal_psi::StructuralPathSegment]| {
         let suffix =
-            crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
-                path,
+            crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+                argument,
                 root,
                 structural_types,
             )?;
@@ -774,7 +754,7 @@ pub(crate) fn lower_structural_arguments(
                 }
                 // A published local may own a projected subtree without a
                 // separate place. Continue from its retained path and type.
-                let path = lower_path(&argument.path, binding.structural_type, binding.argument.place, &binding.argument.path)?;
+                let path = lower_path(argument, binding.structural_type, binding.argument.place, &binding.argument.path)?;
                 return Ok(StructuralArgument {
                     place: binding.argument.place,
                     path,
@@ -831,7 +811,7 @@ pub(crate) fn lower_structural_arguments(
                 // projection continues from there. This is the operation
                 // lane Terminal Psi admits for a partial move.
                 if let Some(projected_alias) = projected_alias(completed_results, binding_ordinal) {
-                    let path = lower_path(&argument.path, projected_alias.structural_type, projected_alias.place, projected_alias.path)?;
+                    let path = lower_path(argument, projected_alias.structural_type, projected_alias.place, projected_alias.path)?;
                     return Ok(StructuralArgument {
                         place: projected_alias.place,
                         path,
@@ -855,7 +835,7 @@ pub(crate) fn lower_structural_arguments(
                 };
                 return Ok(StructuralArgument {
                     place: source.id,
-                    path: lower_path(&argument.path, structural_type, source.id, &[])?,
+                    path: lower_path(argument, structural_type, source.id, &[])?,
                     access: terminal_access(argument.access),
                 });
             }
@@ -874,7 +854,7 @@ pub(crate) fn lower_structural_arguments(
                 ))?;
             Ok(StructuralArgument {
                 place: parameter.place,
-                path: lower_path(&argument.path, parameter.structural_type, parameter.place, &[])?,
+                path: lower_path(argument, parameter.structural_type, parameter.place, &[])?,
                 access: terminal_access(argument.access),
             })
         })

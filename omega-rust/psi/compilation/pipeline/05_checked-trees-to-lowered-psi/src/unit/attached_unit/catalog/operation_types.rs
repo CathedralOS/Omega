@@ -11,6 +11,7 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
 ) -> Result<(), LoweringError> {
     for argument in operation.call_structural_arguments() {
         roots.push(argument.type_identity.clone());
+        roots.extend(argument.borrowed_root_type_identity().map(str::to_owned));
         if let Some(storage) = argument.subslice_storage_type_identity()
             && !storage.is_empty()
         {

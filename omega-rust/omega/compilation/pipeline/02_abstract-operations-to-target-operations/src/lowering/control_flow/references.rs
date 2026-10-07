@@ -1551,24 +1551,17 @@ pub(super) fn establish(
     }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    // An owned ingress record containing exactly this loan moves that loan
-    // into the new descriptor. Other establishments reborrow and retain the
-    // parent. Physical pointer formation is identical; custody is not.
-    let transferred = transferred_ingress_leaf(function, live, types, source);
-    let custody = if let Some(key) = transferred {
-        live.references
-            .remove(&key)
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-    } else {
-        let (root, parent) = normalized_source(function, live, types, source)?;
-        ReferenceCustody {
-            identity: (result.place, Vec::new()),
-            root,
-            parent,
-            operation: Some(*psi_operation),
-            result: result.clone(),
-            referent,
-        }
+    // EstablishReference always borrows, including a projection through an
+    // owned record. Moving a stored descriptor uses the checked owned-value
+    // projection/transfer operation, not an ingress-shape reinterpretation.
+    let (root, parent) = normalized_source(function, live, types, source)?;
+    let custody = ReferenceCustody {
+        identity: (result.place, Vec::new()),
+        root,
+        parent,
+        operation: Some(*psi_operation),
+        result: result.clone(),
+        referent,
     };
     live.references.insert((result.place, Vec::new()), custody);
     // A reference owns descriptor storage just like every other structural
@@ -1583,46 +1576,6 @@ pub(super) fn establish(
     });
     provenance.operations.push(*psi_operation);
     Ok(())
-}
-
-/// Retain the exact single-leaf ingress move already checked at the portable
-/// boundary. A local or reference-typed carrier still establishes a child loan.
-fn transferred_ingress_leaf(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    source: &StructuralArgument,
-) -> Option<(PlaceId, Vec<StructuralPathSegment>)> {
-    let parameter = function.structural_parameters.iter().find(|parameter| {
-        parameter.place == source.place && parameter.access == StructuralAccess::Owned
-    })?;
-    if matches!(
-        types.get(&parameter.structural_type)?.shape,
-        StructuralTypeShape::Reference { .. }
-    ) {
-        return None;
-    }
-    let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
-        return None;
-    };
-    let paths = leaf_paths(types, parameter.structural_type, live.references.len())?;
-    if paths.as_slice() != [path.to_vec()] {
-        return None;
-    }
-    let key = (source.place, path.to_vec());
-    let leaf = live.references.get(&key)?;
-    (leaf.parent.is_none()
-        && live
-            .references
-            .keys()
-            .filter(|(carrier, _)| *carrier == source.place)
-            .count()
-            == 1
-        && !live
-            .references
-            .values()
-            .any(|child| child.parent.as_ref() == Some(&leaf.identity)))
-    .then_some(key)
 }
 
 /// Close the exact stored carrier; path and stable loan identity survive

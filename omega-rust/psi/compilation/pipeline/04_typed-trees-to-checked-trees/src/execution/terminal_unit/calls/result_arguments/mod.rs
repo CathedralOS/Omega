@@ -317,10 +317,10 @@ pub(super) fn argument(
                 access,
             });
         }
-        // A stored reference instead lends its Referent. Reuse the common
-        // storage plan, then translate its authenticated local into this
-        // sequence's result namespace without changing access or projection.
-        let mut argument = super::computation_arguments::borrowed_storage_argument(
+        // Keep the common loan's logical root coordinate. Replacing its source
+        // with a physical result ordinal would lose the carrier join needed
+        // when publication retains a reference descriptor.
+        let argument = super::computation_arguments::borrowed_storage_argument(
             program,
             &facts.borrow,
             machine,
@@ -330,17 +330,13 @@ pub(super) fn argument(
             parameter,
             None,
         )?;
-        if argument.source
-            != (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                symbol: view_symbol,
-            })
+        if !matches!(argument.source,
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { symbol, .. }
+                if symbol == view_symbol)
             || argument.type_identity != target_identity
         {
             return None;
         }
-        argument.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal: result.binding_ordinal,
-        };
         return Some(argument);
     }
     // A borrowed-view value forwards its established descriptor, not an owned

@@ -56,7 +56,7 @@ pub(in crate::execution::terminal_unit) use result_consumption::{
 };
 pub(in crate::execution::terminal_unit) use returned_values::{
     returned_byte_sequence_literal, returned_mutable_view, returned_named_view, returned_parameter,
-    returned_reference_leaf, returned_subslice,
+    returned_subslice,
 };
 
 pub(in crate::execution::terminal_unit) struct StatementSequence {

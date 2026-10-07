@@ -1,6 +1,7 @@
-//! What a unit sequence returns: parameter pass-through, reference leaves,
-//! named and mutable views, subslice windows, and byte-sequence literals —
-//! each classifier selects one result spelling the completion emits.
+//! Completion of existing parameter custody and borrowed-view construction.
+//! Checked structural values own ordinary expression completion, including
+//! owned reference-field projections; these remaining routes retain direct
+//! formal forwarding and view-specific geometry.
 
 use super::super::super::{
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
@@ -142,49 +143,10 @@ pub(in crate::execution::terminal_unit) fn returned_parameter(
     })
 }
 
-/// A `value.body`-style completion selects one borrowed carrier leaf of an
-/// owned record formal rather than forwarding the whole parameter. The leaf
-/// argument already carries its exact ingress path; the shared
-/// reference-result block emits its establishment and rewrites the result
-/// source to that binding. The establishment consumes the carrier whole, so
-/// `source_leaf` only admits a record whose declared reference roster is
-/// exactly the selected leaf.
-pub(in crate::execution::terminal_unit) fn returned_reference_leaf(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
-) -> Option<CheckedUnitStructuralReturnPlan> {
-    let (_, source) = validation::reference_result_custody::source_leaf(program, state)?;
-    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
-    else {
-        return None;
-    };
-    let parameter = parameters.get(parameter_index as usize)?;
-    if parameter.access != CheckedStructuralAccess::Owned
-        || parameter.multiplicity != Multiplicity::Affine
-        || !parameter.qualifications.is_empty()
-        || parameter.fused_service_erasure.is_some()
-    {
-        return None;
-    }
-    Some(CheckedUnitStructuralReturnPlan {
-        source: source.source.clone(),
-        type_identity: program
-            .normalized_type_identity(state.return_type)
-            .into_string(),
-        multiplicity: Multiplicity::Affine,
-        reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
-            path: Vec::new(),
-            source,
-        }],
-    })
-}
-
 /// A `&'a V` named-result completion borrows the referent it names from one
 /// readable structural carrier, either directly or through a field. The borrow is the
 /// result — there are no subslice endpoints and no separate slice length.
-/// Unlike `returned_reference_leaf`'s `&mut` record rosters the carrier may
-/// itself be borrowed. A mutable input can lend shared observation; its
+/// The carrier may itself be borrowed. A mutable input can lend shared observation; its
 /// exclusivity does not require the output to remain mutable.
 pub(in crate::execution::terminal_unit) fn returned_named_view(
     program: &dyn ::validation::CheckingInput,

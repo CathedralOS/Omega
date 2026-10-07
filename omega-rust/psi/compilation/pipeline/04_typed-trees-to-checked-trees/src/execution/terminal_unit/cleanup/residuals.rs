@@ -56,6 +56,12 @@ fn validate_type(
                 validate_type(types, element_type_identity, active, complete)?;
             }
         }
+        // A residual loan ends its stored descriptor, never its referent.
+        CheckedUnitStructuralTypeShape::Reference {
+            referent_identity,
+            access,
+        } if *access != checked_trees::CheckedStructuralAccess::Owned
+            && types.contains_key(referent_identity) => {}
         _ => return None,
     }
     active.pop();

@@ -411,9 +411,22 @@ impl ScalarBindings {
             _ => return unsupported("computed argument requires readable borrowed access"),
         };
         let mut source = self.borrowed_structural_home(argument, machine, parameters)?;
-        source
-            .path
-            .extend(structural_paths::lower_structural_path(&argument.path)?);
+        let root = self
+            .structural_argument_type(&source)
+            .ok_or(LoweringError::Unsupported(
+                "borrowed argument lost its published selected type",
+            ))?;
+        let prepared = structural_paths::prepare_structural_argument_path(
+            argument,
+            root,
+            self.structural_declarations(),
+        )?;
+        source.path.extend(structural_paths::emit_argument_path(
+            &prepared,
+            None,
+            &mut std::iter::empty(),
+            None,
+        )?);
         source.access = access;
         Ok(source)
     }
@@ -884,7 +897,7 @@ impl ScalarBindings {
         if access == StructuralAccess::Owned {
             return unsupported("computed primitive argument cannot transfer ownership");
         }
-        let (place, root_type) = match argument.source {
+        let (source, root_type) = match argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
                 if !argument.path.is_empty() {
                     return unsupported(
@@ -909,12 +922,13 @@ impl ScalarBindings {
                 ))?;
                 if !valid_structural_root(root)
                     || locals.next().is_some()
-                    || !source.argument.path.is_empty()
                     || !permits(source.argument.access, access)
+                    || self.structural_argument_type(&source.argument)
+                        != Some(source.structural_type)
                 {
                     return unsupported("computed primitive borrow changes its local custody");
                 }
-                (source.argument.place, source.structural_type)
+                (source.argument.clone(), source.structural_type)
             }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
@@ -933,18 +947,30 @@ impl ScalarBindings {
                 {
                     return unsupported("computed primitive borrow widens parameter custody");
                 }
-                (parameter.place, parameter.structural_type)
+                (
+                    StructuralArgument {
+                        place: parameter.place,
+                        path: Vec::new(),
+                        access: parameter.access,
+                    },
+                    parameter.structural_type,
+                )
             }
             _ => return unsupported("computed primitive borrow has no supported source place"),
         };
         Ok(
             crate::emission::operation_emission::calls::PreparedStructuralArgument {
-                place,
-                path: structural_paths::prepare_argument_path(
-                    &argument.path,
-                    root_type,
-                    structural_types,
-                )?,
+                place: source.place,
+                path: source
+                    .path
+                    .into_iter()
+                    .map(structural_paths::PreparedStructuralPathSegment::Static)
+                    .chain(structural_paths::prepare_structural_argument_path(
+                        argument,
+                        root_type,
+                        structural_types,
+                    )?)
+                    .collect(),
                 selector_positions: Vec::new(),
                 access,
             },

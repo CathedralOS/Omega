@@ -47,6 +47,13 @@ fn validate_type(
         } if *length > 0 => {
             validate_type(types, element_type_identity, active, complete)?;
         }
+        // Disposal owns the descriptor, not its borrowed backing. The normal
+        // reference-custody checks still require all descendants to end first.
+        CheckedUnitStructuralTypeShape::Reference {
+            referent_identity,
+            access,
+        } if *access != checked_trees::CheckedStructuralAccess::Owned
+            && types.iter().any(|row| row.identity == *referent_identity) => {}
         _ => return None,
     }
     active.pop();

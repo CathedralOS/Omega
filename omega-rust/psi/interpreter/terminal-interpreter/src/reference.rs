@@ -430,16 +430,20 @@ impl TerminalExecution {
                 "host reference results require an explicit loan carrier interface",
             ));
         }
-        if !carrier.path.is_empty()
-            || self
-                .reference_referents
-                .keys()
-                .filter(|key| {
-                    key.opaque_identity == carrier.opaque_identity
-                        && key.path.starts_with(&carrier.path)
-                })
-                .count()
-                != signature.reference_sources.len()
+        // The returned place owns its whole logical carrier. A projected
+        // transfer may retain that carrier at a nonempty backing path under
+        // its original runtime identity; moving it does not require copying
+        // descriptor storage. Count only this exact stored subtree, then
+        // compare every captured referent with the admitted ingress below.
+        if self
+            .reference_referents
+            .keys()
+            .filter(|key| {
+                key.opaque_identity == carrier.opaque_identity
+                    && key.path.starts_with(&carrier.path)
+            })
+            .count()
+            != signature.reference_sources.len()
         {
             return Err(malformed());
         }

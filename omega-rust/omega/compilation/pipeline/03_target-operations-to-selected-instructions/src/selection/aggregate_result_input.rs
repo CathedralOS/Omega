@@ -976,12 +976,12 @@ pub(super) fn block_parameter_shape(
     {
         return None;
     }
-    // A successor carries the complete owned payload: nested aggregate fields,
-    // or a bounded owner's live length word and inline byte backing. Predicate
+    // A successor carries the complete owned payload, including a transferred
+    // reference descriptor or an aggregate's nested fields. Predicate
     // qualifications change no geometry and remain in the semantic contract.
     // Storage transport preserves established contents; it does not grant
     // call-copy permission to nested descriptors or erased declarations.
-    crate::structural_inputs::structural_reference_input::owned_storage_shape(
+    crate::structural_inputs::structural_reference_input::stored_value_shape(
         parameter.structural_type,
         &signature.structural_types,
     )
@@ -1019,7 +1019,7 @@ pub(super) fn block_parameter_transport(
         if selected != parameter.structural_type {
             return None;
         }
-        let root_shape = crate::structural_inputs::structural_reference_input::owned_storage_shape(
+        let root_shape = crate::structural_inputs::structural_reference_input::stored_value_shape(
             root,
             declarations,
         )?;

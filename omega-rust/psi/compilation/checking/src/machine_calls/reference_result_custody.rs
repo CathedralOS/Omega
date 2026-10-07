@@ -455,6 +455,16 @@ fn nominal_member_owner_type<'p>(
                     program, *symbol,
                 );
             }
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if arguments.count() == 0 => {
+                return crate::program_scope::data_definitions::data_definition_by_symbol(
+                    program,
+                    *base_symbol,
+                );
+            }
             _ => return None,
         }
     }
@@ -1853,10 +1863,16 @@ pub(crate) fn declared_field_path<'a>(
 )> {
     let mut path = Vec::new();
     for member in members {
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(selected)
-        else {
-            return None;
+        let symbol = match program.type_reference_table.type_reference(selected) {
+            TypeReferenceNode::Named { symbol, .. } => symbol,
+            // Lifetimes do not substitute stored field types. Real type
+            // arguments still require an instantiated field declaration.
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if arguments.count() == 0 => base_symbol,
+            _ => return None,
         };
         let data =
             crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
@@ -2422,51 +2438,21 @@ pub fn source_parameter(
         .position(|parameter| parameter.symbol == symbol && !parameter.is_const)
 }
 
-/// A bare reference result may also name one projected leaf of an owned
-/// record formal: `value.body` selects the carrier leaf without minting a
-/// fresh source. The returned position indexes the callee's authored
-/// parameters (call arguments share that order); the argument plan is the
-/// leaf's borrowed-referent ingress exactly as `formal_record_sources`
-/// encodes it. Only declared `Member` projections through reference records
-/// qualify — indexes, case payloads, and non-record receivers stay opaque.
+/// An owned formal's returned descriptor retains its exact ingress origin
+/// through both direct projections and local aliases. Consume the complete
+/// result relation, not the final expression's spelling. This correspondence
+/// does not create a loan or discharge the carrier's residual cleanup.
 pub fn source_leaf(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<(usize, checked_trees::CheckedUnitStructuralArgumentPlan)> {
     parts(program, state.return_type)?;
-    let StatementNode::Expression(expression) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .last()?
-    else {
+    let sources = whole_reference_sources(program, state)?;
+    let [source] = sources.as_slice() else {
         return None;
     };
-    expression_source_leaf(program, state, *expression, state.return_type)
-}
-
-/// Reconstruct a stored permission selected from an exact formal declaration.
-/// Completion admission and ordinary result-origin substitution share the same
-/// projection and whole-carrier transfer checks.
-fn expression_source_leaf(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-    reference: TypeReferenceHandle,
-) -> Option<(usize, checked_trees::CheckedUnitStructuralArgumentPlan)> {
-    stored_loan_parts(program, reference)?;
-    let mut members = Vec::new();
-    let mut current = expression;
-    while let ExpressionNode::Member(member) = program.expression_table.expression(current) {
-        if member.case_variant.is_some() {
-            return None;
-        }
-        members.push(member);
-        current = member.receiver;
-    }
-    if members.is_empty() {
-        return None;
-    }
-    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, current)
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        source.value.source.source
     else {
         return None;
     };
@@ -2474,74 +2460,27 @@ fn expression_source_leaf(
         .state_parameters(state)
         .iter()
         .enumerate()
-        .find(|(_, parameter)| parameter.symbol == symbol)?;
-    if parameter.is_const
-        || program
-            .primitive_type_reference(parameter.type_reference)
-            .is_some()
-    {
-        return None;
-    }
-    // Every projection must stay inside a checked reference record and the
-    // selected leaf must be the declared reference result itself.
-    let mut selected = parameter.type_reference;
-    let mut leaf_path = Vec::new();
-    for member in members.iter().rev() {
-        if !is_reference_record(program, selected) {
-            return None;
-        }
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(selected)
-        else {
-            return None;
-        };
-        let data =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
-        let member_symbol = member.member_symbol;
-        let field = program
-            .data_members(data)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == member_symbol => {
-                    Some(field)
-                }
-                _ => None,
-            })?;
-        leaf_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            field.path_identity(),
-        ));
-        selected = field.type_reference;
-    }
-    if program.normalized_type_identity(selected) != program.normalized_type_identity(reference) {
-        return None;
-    }
-    let (ordinal, _) = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| {
+        .filter(|(_, parameter)| {
             !parameter.is_const
                 && program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()
         })
-        .enumerate()
-        .find(|(_, candidate)| candidate.symbol == parameter.symbol)?;
-    let sources = formal_record_sources(
-        program,
-        parameter.type_reference,
-        u32::try_from(ordinal).ok()?,
-    )?;
-    // The establishment moves the carrier's leaf into the bare reference
-    // result and consumes the carrier whole, so the selected leaf must be the
-    // record's entire declared reference roster. A sibling leaf would strand
-    // live custody under a consumed place.
-    if sources.len() != 1 {
+        .nth(parameter_index as usize)?;
+    if stored_loan_parts(program, parameter.type_reference).is_some()
+        || !is_reference_record(program, parameter.type_reference)
+        || !matches!(
+            source.value.source.path.as_slice(),
+            [
+                _,
+                ..,
+                checked_trees::CheckedUnitStructuralPathSegment::Referent
+            ]
+        )
+    {
         return None;
     }
-    sources
-        .into_iter()
-        .find(|source| source.path == leaf_path)
-        .map(|source| (position, source.source))
+    Some((position, source.value.source.clone()))
 }
 
 /// Every normal completion must retain the same caller ingress at the declared

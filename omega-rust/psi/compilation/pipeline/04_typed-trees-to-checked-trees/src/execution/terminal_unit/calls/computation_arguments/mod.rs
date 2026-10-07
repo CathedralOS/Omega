@@ -332,7 +332,7 @@ pub(crate) fn borrowed_storage_argument(
     // the qualification its carrier is registered under.
     let target_identity = base_type_identity(program, target_shell.referee, &[])?;
     let parameters = program.state_parameters(state);
-    let (reference, source) = if let Some(position) = parameters
+    let (reference, mut source) = if let Some(position) = parameters
         .iter()
         .position(|parameter| parameter.symbol == symbol)
     {
@@ -356,12 +356,7 @@ pub(crate) fn borrowed_storage_argument(
             }
             TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::FixedArray { .. }
-                if target_access == CheckedStructuralAccess::SharedBorrow
-                    || parameter.is_mutable =>
-            {
-                parameter.type_reference
-            }
+            | TypeReferenceNode::FixedArray { .. } => parameter.type_reference,
             _ => return None,
         };
         let parameter_index = dense_structural_index(program, parameters, position)?;
@@ -403,11 +398,7 @@ pub(crate) fn borrowed_storage_argument(
             }
             TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::FixedArray { .. }
-                if target_access == CheckedStructuralAccess::SharedBorrow || local.is_mutable =>
-            {
-                local.type_reference
-            }
+            | TypeReferenceNode::FixedArray { .. } => local.type_reference,
             _ => return None,
         };
         (
@@ -434,6 +425,17 @@ pub(crate) fn borrowed_storage_argument(
         ))
     {
         return None;
+    }
+    // The logical root is checked here, while its physical carrier is only
+    // known after the dominating operation publishes storage. Keep the root
+    // with every local loan; initializer spelling cannot decide whether that
+    // carrier needs a pointer crossing (ordinary call results need it too).
+    let mut shapes = ShapeCollector::new(program);
+    if let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = source {
+        source = CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+            symbol,
+            root_type_identity: shapes.add_type(reference, &[], &[])?,
+        };
     }
     let (mut reference, mut path) = if place.segments.is_empty() {
         (reference, Vec::new())
@@ -462,6 +464,10 @@ pub(crate) fn borrowed_storage_argument(
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
         reference = shell.referee;
     }
+    // Access belongs to the exact checked loan below, not just the root's
+    // mutability. An immutable aggregate can own a mutable descriptor whose
+    // backing is loaned by this call; borrowing that descriptor's storage or
+    // the aggregate itself still needs its separate checked permission.
     // Eligibility belongs to the borrowed endpoint, not its unrelated siblings.
     // Root membership/access and the exact authored receiver loan are retained
     // independently; this never constructs or copies the enclosing record.
@@ -473,7 +479,6 @@ pub(crate) fn borrowed_storage_argument(
     {
         return None;
     }
-    let mut shapes = ShapeCollector::new(program);
     let identity = shapes.add_type(reference, &[], &[])?;
     // Borrow the established endpoint in place, including its shared view and
     // provider members. Contents are classified recursively from authored types:
@@ -508,8 +513,7 @@ pub(crate) fn borrowed_storage_argument(
         );
     // Primitive and aggregate endpoints borrow their established home using
     // the same exact root/path/access join. No scalar snapshot is constructed.
-    let primitive_scalar = shapes.types.len() == 1
-        && program.type_multiplicity(reference) == Multiplicity::Unrestricted
+    let primitive_scalar = program.type_multiplicity(reference) == Multiplicity::Unrestricted
         && shapes.types.get(&identity).is_some_and(|shape| {
             matches!(
                 shape.shape,
@@ -549,13 +553,6 @@ pub(crate) fn borrowed_storage_argument(
     // do: a fixed byte array loan uses a bounded byte view, while its owned
     // backing remains a fixed array.
     let presentation_identity = shapes.add_type(target.type_reference, &[], &[])?;
-    if let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = source
-        && let Some((ordinal, _)) = program.state_local_declaration(state, symbol)
-        && validation::reference_result_custody::primitive_local_source(program, state, ordinal)
-            .is_some()
-    {
-        path.insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
-    }
     Some(CheckedUnitStructuralArgumentPlan {
         source,
         path,

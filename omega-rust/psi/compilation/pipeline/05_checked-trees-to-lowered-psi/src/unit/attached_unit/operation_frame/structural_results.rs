@@ -270,9 +270,9 @@ impl StructuralResults<'_> {
                         }
                         Ok((Some(declaration), false))
                     }
-                    StructuralBinding::ProjectedAlias { .. } => unsupported(
-                        "composed call result binding is a projected alias",
-                    ),
+                    // Alias geometry stays in the same registry both routes
+                    // use to prepare operands; it declares no new place.
+                    StructuralBinding::ProjectedAlias { .. } => Ok((None, false)),
                     StructuralBinding::OperationResult(result) => {
                         let mut declarations = places.iter().filter(|place| place.id == result.place);
                         let declaration = declarations.next().ok_or(LoweringError::Unsupported(
@@ -319,11 +319,9 @@ impl StructuralResults<'_> {
                 roster.push((None, false));
                 Ok(())
             }
-            // A composed state resolves operands through the operation
-            // buffer's registry alone, and its catalog has no slotless row.
-            Self::StateGraph { .. } => {
-                unsupported("composed state cannot bind a projected owned alias")
-            }
+            // The graph registry already retains the exact path-bearing
+            // binding; its place catalog contains only actual storage.
+            Self::StateGraph { .. } => Ok(()),
         }
     }
 }

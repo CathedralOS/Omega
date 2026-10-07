@@ -52,6 +52,15 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     PrimitiveLocal { symbol: SymbolHandle },
     /// Exact immutable structural declaration; the operation sequence owns its slot.
     StructuralLocal { symbol: SymbolHandle },
+    /// A loan whose path starts at the checked logical referent of a local.
+    /// Publication may retain a reference descriptor or present its referent
+    /// directly. Lowering joins this exact root identity to the published
+    /// carrier before interpreting the unchanged projection suffix. This is
+    /// distinct from a physical stored-value path, not an initializer mode.
+    StructuralLocalBorrow {
+        symbol: SymbolHandle,
+        root_type_identity: String,
+    },
     /// An already evaluated structural expression. The enclosing operation
     /// sequence establishes its storage before a consumer observes it; this
     /// identity never authorizes evaluating the expression again.
@@ -166,7 +175,8 @@ impl CheckedUnitStructuralArgumentPlan {
     /// Result ordinals remain the operation sequence's independent namespace.
     pub fn structural_storage_root(&self) -> Option<facts::PlaceRoot> {
         match self.source {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { symbol, .. } => {
                 Some(facts::PlaceRoot::Symbol(symbol))
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
@@ -184,6 +194,7 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -201,6 +212,7 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -218,6 +230,7 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
@@ -243,12 +256,25 @@ impl CheckedUnitStructuralArgumentPlan {
         }
     }
 
+    /// The logical root before a borrowed local's projection, not its final
+    /// argument type or the possibly reference-shaped published home.
+    pub fn borrowed_root_type_identity(&self) -> Option<&str> {
+        match &self.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+                root_type_identity,
+                ..
+            } => Some(root_type_identity),
+            _ => None,
+        }
+    }
+
     pub fn byte_sequence_literal(&self) -> Option<&[u8]> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
             CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }

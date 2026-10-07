@@ -431,14 +431,11 @@ pub(in crate::legalization) fn block_home_layout(
     {
         return Err(LegalizationError::custody());
     }
-    // An edge changes the owning declaration, not the carrier's geometry.
-    // Share the aggregate storage judgment with other arrivals without
-    // imposing call-copy eligibility on already-established nested contents.
-    crate::structural_inputs::structural_reference_input::owned_storage_shape(
-        parameter.structural_type,
-        &plan.structural_types,
-    )
-    .ok_or(LegalizationError::custody())?;
+    // Arrival changes the owning declaration, not the stored value's geometry.
+    // In particular a transferred reference owns its descriptor, not the
+    // referent aggregate. Use the same layout judgment as operation results;
+    // aggregate call-copy eligibility cannot decide an edge's storage. The
+    // callers independently replay exact transfer and origin availability.
     home_layout(
         &StructuralOperationResult {
             qualification_establishments: Vec::new(),

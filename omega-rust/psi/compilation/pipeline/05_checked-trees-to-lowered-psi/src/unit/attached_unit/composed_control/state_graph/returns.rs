@@ -20,6 +20,8 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedControlResultPlan;
 
+pub(super) mod projected;
+
 pub(super) fn signature_matches(
     checked: &CheckedTrees,
     source: &checked_trees::state::State,
