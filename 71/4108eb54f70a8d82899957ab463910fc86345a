@@ -1,0 +1,4 @@
+owner: leaf/referee-scalar-read-regression
+provenance: psi/foundation semantic pass: scalar_terms+table splits, shared-constructor/guard/dispatch folds
+ticket: a0122c2d367446ea89fe2a9dc5f581a9
+published_utc: 2026-10-07T07:19:58.238438+00:00
