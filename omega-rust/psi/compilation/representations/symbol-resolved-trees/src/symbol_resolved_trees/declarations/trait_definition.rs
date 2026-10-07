@@ -117,7 +117,7 @@ impl ConformanceRowSource {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -128,17 +128,6 @@ pub struct TraitRequirement {
     /// Generic arguments authored on a header parent (`Policy<C>`). Empty for
     /// the body-level `requires Policy;` form.
     pub arguments: HandleSpan<crate::types::TypeReference>,
-}
-
-impl Default for TraitRequirement {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: DiagnosticName::default(),
-            lifetime_arguments: Vec::new(),
-            arguments: HandleSpan::empty(),
-        }
-    }
 }
 
 deref_to_storage!(TraitDefinition => TraitStorage);

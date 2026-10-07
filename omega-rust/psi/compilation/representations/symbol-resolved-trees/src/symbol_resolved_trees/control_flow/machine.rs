@@ -177,7 +177,7 @@ pub struct GenericConformanceBound {
 
 deref_to_storage!(Machine => MachineStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct OwnedData {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -185,7 +185,7 @@ pub struct OwnedData {
     pub initial_value: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -209,33 +209,6 @@ pub struct TraitConformance {
     /// Exact authored `via` keyword occurrence retained separately from the
     /// semantic binding identity for package-review source custody.
     pub external_binding_source_span: Option<source::SourceSpan>,
-}
-
-impl Default for TraitConformance {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: DiagnosticName::default(),
-            lifetime_arguments: Vec::new(),
-            arguments: HandleSpan::empty(),
-            requirement: None,
-            alias: None,
-            external_binding: None,
-            via_expression: ExpressionHandle::invalid(),
-            external_binding_source_span: None,
-        }
-    }
-}
-
-impl Default for OwnedData {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: DiagnosticName::default(),
-            type_reference: TypeReference::Unit,
-            initial_value: ExpressionHandle::invalid(),
-        }
-    }
 }
 
 #[cfg(test)]

@@ -48,19 +48,10 @@ pub struct DomainAliasDefinition {
     pub constituents: Vec<DomainAliasConstituent>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct DomainAliasConstituent {
     pub domain: HandleSpan<DiagnosticName>,
     pub domain_symbol: SymbolHandle,
-}
-
-impl Default for DomainAliasConstituent {
-    fn default() -> Self {
-        Self {
-            domain: HandleSpan::empty(),
-            domain_symbol: SymbolHandle::invalid(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,7 +66,7 @@ impl Default for ProofFact {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<DiagnosticName>,
@@ -87,16 +78,4 @@ pub struct ProofMembershipFact {
     pub domain_arguments: HandleSpan<TypeReference>,
     pub authored_domain_selection:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
-}
-
-impl Default for ProofMembershipFact {
-    fn default() -> Self {
-        Self {
-            value: crate::expression::ExpressionHandle::invalid(),
-            domain: HandleSpan::empty(),
-            domain_symbol: SymbolHandle::invalid(),
-            domain_arguments: HandleSpan::empty(),
-            authored_domain_selection: None,
-        }
-    }
 }

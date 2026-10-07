@@ -53,7 +53,7 @@ pub struct ReferenceTypeReference {
     pub storage: ReferenceTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ReferenceTypeReferenceStorage {
     pub referee: Handle<TypeReference>,
     pub access: language_core::ReferenceAccess,
@@ -63,16 +63,6 @@ pub struct ReferenceTypeReferenceStorage {
     pub lifetime: Option<DiagnosticName>,
 }
 
-impl Default for ReferenceTypeReferenceStorage {
-    fn default() -> Self {
-        Self {
-            referee: Handle::invalid(),
-            access: language_core::ReferenceAccess::Shared,
-            lifetime: None,
-        }
-    }
-}
-
 deref_to_storage!(ReferenceTypeReference => ReferenceTypeReferenceStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,19 +70,10 @@ pub struct ConstrainedTypeReference {
     pub storage: ConstrainedTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ConstrainedTypeReferenceStorage {
     pub base_type: Handle<TypeReference>,
     pub constraints: HandleSpan<TypeConstraint>,
-}
-
-impl Default for ConstrainedTypeReferenceStorage {
-    fn default() -> Self {
-        Self {
-            base_type: Handle::invalid(),
-            constraints: HandleSpan::empty(),
-        }
-    }
 }
 
 deref_to_storage!(ConstrainedTypeReference => ConstrainedTypeReferenceStorage);
@@ -102,19 +83,10 @@ pub struct FixedArrayTypeReference {
     pub storage: FixedArrayTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FixedArrayTypeReferenceStorage {
     pub element_type: Handle<TypeReference>,
     pub length: FixedArrayLength,
-}
-
-impl Default for FixedArrayTypeReferenceStorage {
-    fn default() -> Self {
-        Self {
-            element_type: Handle::invalid(),
-            length: FixedArrayLength::Literal(0),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,17 +133,9 @@ pub struct SliceTypeReference {
     pub storage: SliceTypeReferenceStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SliceTypeReferenceStorage {
     pub element_type: Handle<TypeReference>,
-}
-
-impl Default for SliceTypeReferenceStorage {
-    fn default() -> Self {
-        Self {
-            element_type: Handle::invalid(),
-        }
-    }
 }
 
 deref_to_storage!(SliceTypeReference => SliceTypeReferenceStorage);

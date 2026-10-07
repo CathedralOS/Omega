@@ -218,25 +218,13 @@ pub struct PropositionParameterSignature {
     pub parameters: HandleSpan<crate::signature::StateParameter>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DataField {
     pub identity: Option<u64>,
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub relevance: language_core::BindingRelevance,
     pub type_reference: TypeReference,
-}
-
-impl Default for DataField {
-    fn default() -> Self {
-        Self {
-            identity: None,
-            symbol: SymbolHandle::invalid(),
-            name: DiagnosticName::default(),
-            relevance: language_core::BindingRelevance::default(),
-            type_reference: TypeReference::Unit,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

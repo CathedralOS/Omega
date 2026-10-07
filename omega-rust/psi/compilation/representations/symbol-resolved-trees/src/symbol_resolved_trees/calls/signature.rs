@@ -75,7 +75,7 @@ deref_to_storage!(StateSignature => StateSignatureStorage);
 
 /// A named parameter with ordinary declared type and binding modes. Machine
 /// qualification does not insert or distinguish an implicit receiver.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct StateParameter {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -84,19 +84,6 @@ pub struct StateParameter {
     pub is_mutable: bool,
     /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
     pub relevance: language_core::BindingRelevance,
-}
-
-impl Default for StateParameter {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: DiagnosticName::default(),
-            type_reference: TypeReference::Unit,
-            is_const: false,
-            is_mutable: false,
-            relevance: language_core::BindingRelevance::Relevant,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

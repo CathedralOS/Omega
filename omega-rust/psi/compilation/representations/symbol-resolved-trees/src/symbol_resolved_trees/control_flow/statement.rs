@@ -116,7 +116,7 @@ pub struct LocalData {
     pub storage: LocalDataStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LocalDataStorage {
     pub type_reference: crate::types::TypeReference,
     pub initial_value: crate::expression::ExpressionHandle,
@@ -126,18 +126,6 @@ pub struct LocalDataStorage {
     pub type_is_inferred: bool,
     /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
     pub relevance: language_core::BindingRelevance,
-}
-
-impl Default for LocalDataStorage {
-    fn default() -> Self {
-        Self {
-            type_reference: crate::types::TypeReference::Unit,
-            initial_value: crate::expression::ExpressionHandle::invalid(),
-            is_mutable: false,
-            type_is_inferred: false,
-            relevance: language_core::BindingRelevance::Relevant,
-        }
-    }
 }
 
 deref_to_storage!(LocalData => LocalDataStorage);
@@ -741,7 +729,7 @@ pub struct TableAssignment {
     pub value: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TableCall {
     pub receiver_root_symbol: SymbolHandle,
     pub receiver_symbol: SymbolHandle,
@@ -758,25 +746,7 @@ pub struct TableCall {
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
 }
 
-impl Default for TableCall {
-    fn default() -> Self {
-        Self {
-            receiver_root_symbol: SymbolHandle::invalid(),
-            receiver_symbol: SymbolHandle::invalid(),
-            target_symbol: SymbolHandle::invalid(),
-            receiver: HandleSpan::empty(),
-            target: DiagnosticName::default(),
-            machine_arguments: Box::default(),
-            arguments: HandleSpan::empty(),
-            evidence_arguments: Box::default(),
-            operational_acknowledgement: Default::default(),
-            discards_result: false,
-            authored_call_selection: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TableLocalData {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -788,20 +758,6 @@ pub struct TableLocalData {
     pub type_is_inferred: bool,
     /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
     pub relevance: language_core::BindingRelevance,
-}
-
-impl Default for TableLocalData {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: DiagnosticName::default(),
-            type_reference: crate::types::TypeReferenceHandle::invalid(),
-            initial_value: crate::expression::ExpressionHandle::invalid(),
-            is_mutable: false,
-            type_is_inferred: false,
-            relevance: language_core::BindingRelevance::Relevant,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
