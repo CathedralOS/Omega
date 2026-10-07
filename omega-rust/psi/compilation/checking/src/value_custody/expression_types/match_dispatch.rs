@@ -297,6 +297,59 @@ fn plain_local_owner_selection(
     }
 }
 
+/// Walk an exact projection chain to its whole root; `root` judges the
+/// terminal arm and answers `None` for a root it does not admit. Only
+/// record fields and constant fixed indexes keep exact path identity; any
+/// other receiver shape rejects the chain instead of guessing custody.
+fn projected_leaf_chain_walk(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    mut root: impl FnMut(&TypedTrees, &Machine, &State, ExpressionHandle) -> Option<bool>,
+) -> bool {
+    let mut cursor = expression;
+    loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                if !constant_fixed_index(program, indexed.index) {
+                    return false;
+                }
+                cursor = indexed.collection;
+            }
+            _ => return root(program, machine, state, cursor).unwrap_or(false),
+        }
+    }
+}
+
+/// The shared Name-root admission of both projected owned sources: an
+/// affine declared root carrying the source's contents class, `source`
+/// resolving the cursor to the path's own symbol, and the root an
+/// immutable initialized local or a non-const non-mutable parameter.
+fn projected_owned_name_root(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    cursor: ExpressionHandle,
+    path: &typed_trees::expression::TableNamePath,
+    contents: crate::value_custody::storage_contents::ContentsRequirement,
+    source: impl Fn(&TypedTrees, ExpressionHandle, TypeReferenceHandle) -> Option<symbols::SymbolHandle>,
+) -> bool {
+    let Some(root_reference) = declared_value_type(program, machine, state, cursor) else {
+        return false;
+    };
+    program.type_multiplicity(root_reference) == language_semantics::Multiplicity::Affine
+        && crate::has_contents(program, root_reference, contents)
+        && source(program, cursor, root_reference) == Some(path.symbol)
+        && (program
+            .state_local_declaration(state, path.symbol)
+            .is_some_and(|(_, local)| !local.is_mutable && local.initial_value.is_valid())
+            || program.state_parameters(state).iter().any(|parameter| {
+                parameter.symbol == path.symbol && !parameter.is_const && !parameter.is_mutable
+            }))
+}
+
 /// An exact projection selecting a moved owned child of an immutable local or
 /// parameter, wherever a selection leaf is admitted: an arm value or a record
 /// field inside one. The projection guard lives here: a bare name satisfies
@@ -341,51 +394,30 @@ fn projected_linear_owned_source(
     {
         return false;
     }
-    let mut cursor = expression;
-    loop {
-        match program.expression_table.expression(cursor) {
-            ExpressionNode::Member(member) => cursor = member.receiver,
-            ExpressionNode::Indexed(indexed) => {
-                if !constant_fixed_index(program, indexed.index) {
-                    return false;
-                }
-                cursor = indexed.collection;
-            }
-            ExpressionNode::Name(path) => {
-                let Some(root_reference) = declared_value_type(program, machine, state, cursor)
-                else {
-                    return false;
-                };
-                return program.type_multiplicity(root_reference)
-                    == language_semantics::Multiplicity::Affine
-                    && crate::has_contents(
-                        program,
-                        root_reference,
-                        crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
-                    )
-                    && crate::value_custody::owned_value_source::whole_owned_value_source(
-                        program,
-                        cursor,
-                        root_reference,
-                    ) == Some(path.symbol)
-                    && (program
-                        .state_local_declaration(state, path.symbol)
-                        .is_some_and(|(_, local)| {
-                            !local.is_mutable && local.initial_value.is_valid()
-                        })
-                        || program.state_parameters(state).iter().any(|parameter| {
-                            parameter.symbol == path.symbol
-                                && !parameter.is_const
-                                && !parameter.is_mutable
-                        }));
-            }
+    projected_leaf_chain_walk(program, machine, state, expression, |program, machine, state, cursor| {
+        let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
             // A call's structural product is a temporary: an affine residual
             // may die with it, but a linear residual sibling has no named
             // place to preserve its claim, so no projected linear child may
             // leave a temporary root.
-            _ => return false,
-        }
-    }
+            return None;
+        };
+        Some(projected_owned_name_root(
+            program,
+            machine,
+            state,
+            cursor,
+            path,
+            crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+            |program, cursor, root_reference| {
+                crate::value_custody::owned_value_source::whole_owned_value_source(
+                    program,
+                    cursor,
+                    root_reference,
+                )
+            },
+        ))
+    })
 }
 
 /// Walk an exact projection chain to its whole local root. Only record fields
@@ -409,46 +441,23 @@ fn projected_plain_owned_source(
     {
         return false;
     }
-    let mut cursor = expression;
-    loop {
+    projected_leaf_chain_walk(program, machine, state, expression, |program, machine, state, cursor| {
         match program.expression_table.expression(cursor) {
-            ExpressionNode::Member(member) => cursor = member.receiver,
-            ExpressionNode::Indexed(indexed) => {
-                if !constant_fixed_index(program, indexed.index) {
-                    return false;
-                }
-                cursor = indexed.collection;
-            }
-            ExpressionNode::Name(path) => {
-                let Some(root_reference) = declared_value_type(program, machine, state, cursor)
-                else {
-                    return false;
-                };
-                return program.type_multiplicity(root_reference)
-                    == language_semantics::Multiplicity::Affine
-                    && crate::plain_owned_value_source(program, cursor, root_reference)
-                        == Some(path.symbol)
-                    && crate::has_contents(
-                        program,
-                        root_reference,
-                        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-                    )
-                    && (program
-                        .state_local_declaration(state, path.symbol)
-                        .is_some_and(|(_, local)| {
-                            !local.is_mutable && local.initial_value.is_valid()
-                        })
-                        || program.state_parameters(state).iter().any(|parameter| {
-                            // An immutable owned parameter is a live root
-                            // established at state entry: the moved child keeps
-                            // its exact path on the transfer while the residual
-                            // complement dies on the selected edge, exactly as a
-                            // local root does.
-                            parameter.symbol == path.symbol
-                                && !parameter.is_const
-                                && !parameter.is_mutable
-                        }));
-            }
+            ExpressionNode::Name(path) => Some(projected_owned_name_root(
+                program,
+                machine,
+                state,
+                cursor,
+                path,
+                crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+                |program, cursor, root_reference| {
+                    // An immutable owned parameter is a live root established
+                    // at state entry: the moved child keeps its exact path on
+                    // the transfer while the residual complement dies on the
+                    // selected edge, exactly as a local root does.
+                    crate::plain_owned_value_source(program, cursor, root_reference)
+                },
+            )),
             // A call's structural product is its own once-evaluated owned
             // root: the declared return type carries the affine custody whose
             // projected child moves on the selected edge while the untouched
@@ -456,19 +465,21 @@ fn projected_plain_owned_source(
             ExpressionNode::Call(_) => {
                 let Some(root_reference) = declared_value_type(program, machine, state, cursor)
                 else {
-                    return false;
+                    return Some(false);
                 };
-                return program.type_multiplicity(root_reference)
-                    == language_semantics::Multiplicity::Affine
-                    && crate::has_contents(
-                        program,
-                        root_reference,
-                        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-                    );
+                Some(
+                    program.type_multiplicity(root_reference)
+                        == language_semantics::Multiplicity::Affine
+                        && crate::has_contents(
+                            program,
+                            root_reference,
+                            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+                        ),
+                )
             }
-            _ => return false,
+            _ => None,
         }
-    }
+    })
 }
 
 /// A shared borrow of an exact place joins borrowed custody at the selected
