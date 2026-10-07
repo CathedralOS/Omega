@@ -1768,7 +1768,8 @@ then independent claimed restoration slices -> final closure.
   Unit completion and typed Trap outcomes execute. Exact entry arrival values,
   provider installation and general host bindings remain unimplemented. Bound
   normal imports execute once across fuel pauses; unsupported external completion
-  is refused before callbacks, and normal adapters cannot accept its signature.
+  is refused before callbacks, including demands through possible dynamic-call
+  rows, and normal adapters cannot accept its signature.
   The unchanged selector-call store canary is reviewed as
   `external-completion-invocation`, not an interpreted exit 70. Selected-reference
   backing retains its separate capability attribution. CLI comparison still

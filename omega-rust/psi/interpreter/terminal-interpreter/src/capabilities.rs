@@ -9,6 +9,10 @@
 //! already authenticated these signatures. Walk possible executable calls from
 //! the chosen entry, preserving installed providers, so unrelated retained
 //! declarations do not impose runtime capabilities.
+//! A dynamic call contributes every executable row for its exact interface
+//! slot. The selector's runtime value is not available during preflight; neither
+//! one representative implementation nor every slot of every table describes
+//! this call's possible execution. Empty rows trap without a callee demand.
 //! The existing selected-backing refusal takes priority over external completion:
 //! collect external demands while inspecting the rest of the closure, without
 //! following them as normal provider calls. This keeps independent transport
@@ -100,6 +104,30 @@ pub(crate) fn check(
                     | OperationKind::CallStructural { callee, .. }
                     | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
                         Some(*callee)
+                    }
+                    OperationKind::CallDynamic {
+                        interface, slot, ..
+                    } => {
+                        let catalog = &program.catalogs.dynamic_dispatch;
+                        let slot_index = usize::try_from(*slot)
+                            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+                        if catalog
+                            .interface(*interface)
+                            .and_then(|interface| interface.slots.get(slot_index))
+                            .is_none()
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        for table in &catalog.tables {
+                            if table.interface == *interface {
+                                let row = table
+                                    .rows
+                                    .get(slot_index)
+                                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                                pending.extend(*row);
+                            }
+                        }
+                        None
                     }
                     OperationKind::BoundaryCall { boundary, .. } => {
                         let declaration = program.boundary_machines.get(boundary).ok_or(
@@ -421,6 +449,149 @@ mod tests {
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         }
+    }
+
+    fn dynamic_call(interface: u32, slot: u32) -> OperationKind {
+        OperationKind::CallDynamic {
+            selector: semantic_vocabulary::ValueId::new(1).unwrap(),
+            interface,
+            slot,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        }
+    }
+
+    fn dynamic_program() -> AdmittedTerminalProgram {
+        let mut program = program();
+        let slot = |slot| terminal_psi::TerminalDynamicSlot {
+            slot,
+            declaring_trait_identity: "graph interface".into(),
+            requirement_identity: format!("requirement {slot}"),
+            family_tuple: Vec::new(),
+            scalar_parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: None,
+        };
+        program.catalogs.dynamic_dispatch.interfaces = (0..2)
+            .map(|id| terminal_psi::TerminalDynamicInterface {
+                id,
+                identity: format!("interface {id}"),
+                slots: vec![slot(0), slot(1)],
+            })
+            .collect();
+        program.catalogs.dynamic_dispatch.tables = vec![
+            terminal_psi::TerminalDynamicTable {
+                id: 0,
+                interface: 0,
+                implementation_identity: "first implementation".into(),
+                rows: vec![None, Some(MachineId::new(3).unwrap())],
+            },
+            terminal_psi::TerminalDynamicTable {
+                id: 1,
+                interface: 0,
+                implementation_identity: "second implementation".into(),
+                rows: vec![Some(MachineId::new(2).unwrap()), None],
+            },
+            terminal_psi::TerminalDynamicTable {
+                id: 2,
+                interface: 1,
+                implementation_identity: "unrelated implementation".into(),
+                rows: vec![Some(MachineId::new(3).unwrap()), None],
+            },
+        ];
+        program
+            .machines
+            .insert(program.catalogs.entry, machine(0, vec![dynamic_call(0, 0)]));
+        // A recursive row must terminate the closure walk. Missing declarations
+        // in an unused slot or another interface must not become demands.
+        program.machines.insert(
+            MachineId::new(2).unwrap(),
+            machine(0, vec![dynamic_call(0, 0)]),
+        );
+        program.machines.insert(
+            MachineId::new(3).unwrap(),
+            machine(0, vec![boundary_call(BoundaryMachineId::new(2).unwrap())]),
+        );
+        program
+    }
+
+    #[test]
+    fn capability_graph_dynamic_call_demands_exact_slot_imports_and_providers() {
+        let mut program = dynamic_program();
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        program.machines.insert(
+            MachineId::new(2).unwrap(),
+            machine(0, vec![dynamic_call(0, 0), boundary_call(boundary)]),
+        );
+        assert_eq!(check(&program, None).unwrap().imports, vec![boundary]);
+        program.provider_candidates.insert(boundary);
+        assert_eq!(
+            check(&program, None).unwrap().missing_providers,
+            vec![boundary]
+        );
+        let provider = MachineId::new(4).unwrap();
+        let provider_import = BoundaryMachineId::new(2).unwrap();
+        program
+            .boundary_machines
+            .insert(provider_import, boundary_declaration(provider_import));
+        program
+            .machines
+            .insert(provider, machine(0, vec![boundary_call(provider_import)]));
+        let installation = AdmittedProviderInstallation {
+            terminal_psi: program.identity,
+            installed: BTreeMap::from([(boundary, provider)]),
+            assumed_bindings: Vec::new(),
+        };
+        assert_eq!(
+            check(&program, Some(&installation)),
+            Ok(TerminalExecutionRequirements {
+                imports: vec![provider_import],
+                missing_providers: Vec::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn capability_graph_dynamic_call_refuses_external_completion_in_later_table() {
+        let mut program = dynamic_program();
+        program.catalogs.dynamic_dispatch.tables[0].rows[0] = Some(program.catalogs.entry);
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        program
+            .boundary_machines
+            .get_mut(&boundary)
+            .unwrap()
+            .completion =
+            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        program.machines.insert(
+            MachineId::new(2).unwrap(),
+            machine(0, vec![boundary_call(boundary)]),
+        );
+        assert_eq!(
+            check(&program, None),
+            Err(TerminalInterpretError::UnsupportedCapability(
+                TerminalUnsupportedCapability::ExternalCompletionInvocation {
+                    boundary,
+                    kind: ExternalCompletionKind::ProcessExit,
+                },
+            ))
+        );
+    }
+
+    #[test]
+    fn capability_graph_dynamic_call_ignores_trap_and_unreachable_rows() {
+        let program = dynamic_program();
+        assert_eq!(
+            check(&program, None),
+            Ok(TerminalExecutionRequirements {
+                imports: Vec::new(),
+                missing_providers: Vec::new(),
+            })
+        );
     }
 
     fn import_cleanup_program() -> (AdmittedTerminalProgram, TerminalAffineCleanupAction) {
