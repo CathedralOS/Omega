@@ -2543,12 +2543,14 @@ code and preserve check/native behavior for the named customer slices.
   the full checked corpus (2026-10-07) found no machine selected through any
   return route at top level: entries lower as composed graphs or Unit
   closures, and only `omega inspect-terminal --machine` or a callback thunk
-  can select a return-plan machine. Inside closures, boundary-scalar returns
-  serve as scalar callees (and are embedded from `scalar_callees.rs`), and
-  structural-scalar returns as scalar callees. The claim-free affine roster's
-  in-closure leaf call route was never taken and is deleted; in-closure use of
-  the structural, trait-operator and payloadless guarded rosters was not
-  measured. Coordinate operator
+  can select a return-plan machine. No return plan has an in-closure
+  consumer any more: every boundary-scalar or structural-scalar return
+  machine also owns an ordinary Unit body with a scalar completion, so scalar
+  callees resolve to that body, and the claim-free affine leaf call route is
+  deleted. What remains is the top-level route set in `returns/` and the
+  checked rosters that feed it (plus the domain and parameter catalogs that
+  still read `terminal_boundary_scalar_returns` and
+  `terminal_structural_scalar_returns`). Coordinate operator
   returns with **OPERATOR-BOUNDARY-CALLS**.
   `pass/providers/specialized_structural_fixed_operator_terminal_custody` has
   an unused `exercise` beside an empty entry, so its build proves nothing:

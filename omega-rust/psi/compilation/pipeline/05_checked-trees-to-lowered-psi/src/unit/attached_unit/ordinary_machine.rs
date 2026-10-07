@@ -70,7 +70,7 @@ pub(super) struct ClosureCatalog<'a> {
     pub(super) plans: UnitPlans<'a>,
     pub(super) closure: &'a [symbols::SymbolHandle],
     pub(super) provider_candidate_plans: &'a [CheckedUnitProviderCandidate],
-    pub(super) prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
+    pub(super) prepared_scalar_machines: &'a [PreparedScalarCallee],
     /// The closure's scalar qualification namespace; a call's emitted
     /// result republishes the callee's qualified result through it.
     pub(super) prepared_scalar_qualifications:
@@ -100,7 +100,7 @@ pub(super) struct MachineEmission<'a> {
     lowered_boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
     machine_signatures: &'a [MachineSignature],
     closure: &'a [symbols::SymbolHandle],
-    prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
+    prepared_scalar_machines: &'a [PreparedScalarCallee],
     next_place: u64,
     next_value_identity: u64,
     next_block: u64,

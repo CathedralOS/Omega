@@ -8,10 +8,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
-    CheckedBooleanExpression, CheckedBoundaryScalarReturnMachinePlan, CheckedIntegerComparisonKind,
-    CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
-    CheckedScalarSuccessor, CheckedStructuralScalarReturnMachinePlan,
+    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarBindingValue,
+    CheckedScalarBranchDestination, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedScalarMachineGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
     CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitStructuralParameterPlan,
     ClosedScalarContractValue, ClosedScalarValueContractPlan,
 };

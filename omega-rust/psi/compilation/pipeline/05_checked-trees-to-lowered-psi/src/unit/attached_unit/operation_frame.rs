@@ -160,7 +160,7 @@ pub(super) struct Callees<'f> {
     /// The closure's Unit bodies: a scalar call may name one that completes
     /// with a scalar instead of a prepared scalar callee.
     pub(super) closure: &'f [symbols::SymbolHandle],
-    pub(super) prepared_scalar_machines: &'f [PreparedScalarCallee<'f>],
+    pub(super) prepared_scalar_machines: &'f [PreparedScalarCallee],
 }
 
 /// What the calling body itself contributes to a call's custody.

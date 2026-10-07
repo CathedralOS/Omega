@@ -820,13 +820,12 @@ pub(crate) fn lower_unit_structural_type_roots(
     Ok((declarations, type_ids))
 }
 
-pub(super) fn lower_unit_structural_domains_including(
+pub(super) fn lower_unit_structural_domains(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     type_ids: &[(String, StructuralTypeId)],
-    additional_domains: &[SemanticDomainId],
 ) -> Result<
     (
         Vec<StructuralDomainDeclaration>,
@@ -835,11 +834,6 @@ pub(super) fn lower_unit_structural_domains_including(
     LoweringError,
 > {
     let mut selected = Vec::new();
-    for domain in additional_domains {
-        if !selected.contains(domain) {
-            selected.push(*domain);
-        }
-    }
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
         for operation in body.operations() {
@@ -907,50 +901,27 @@ pub(super) fn lower_unit_structural_domains_including(
     let mut selected_plans: Vec<&checked_trees::CheckedUnitStructuralDomainPlan> = Vec::new();
     for domain in selected {
         let mut found = false;
-        let wrappers = if additional_domains.contains(&domain) {
-            checked
-                .facts
-                .flow
-                .terminal_boundary_scalar_returns
-                .structural_domains
-                .as_slice()
-        } else {
-            &[]
-        };
-        for catalog in [plans.structural_domains(), wrappers] {
-            let mut carriers = Vec::new();
-            for plan in catalog.iter().filter(|plan| {
-                plan.domain == domain
-                    && type_ids
-                        .iter()
-                        .any(|(identity, _)| *identity == plan.carrier_type_identity)
-            }) {
-                found = true;
-                if carriers.contains(&plan.carrier_type_identity.as_str()) {
-                    return unsupported("Unit closure has duplicate structural domain ownership");
-                }
-                carriers.push(plan.carrier_type_identity.as_str());
-                if !domain.is_valid()
-                    || plan.identity.is_empty()
-                    || plan.carrier_type_identity.is_empty()
-                {
-                    return Err(LoweringError::Unsupported(
-                        "Unit structural domain is duplicate, null, or incomplete",
-                    ));
-                }
-                if let Some(existing) = selected_plans.iter().find(|existing| {
-                    existing.domain == domain
-                        && existing.carrier_type_identity == plan.carrier_type_identity
-                }) {
-                    if *existing != plan {
-                        return unsupported(
-                            "Unit and boundary-wrapper structural domains disagree",
-                        );
-                    }
-                    continue;
-                }
-                selected_plans.push(plan);
+        let mut carriers = Vec::new();
+        for plan in plans.structural_domains().iter().filter(|plan| {
+            plan.domain == domain
+                && type_ids
+                    .iter()
+                    .any(|(identity, _)| *identity == plan.carrier_type_identity)
+        }) {
+            found = true;
+            if carriers.contains(&plan.carrier_type_identity.as_str()) {
+                return unsupported("Unit closure has duplicate structural domain ownership");
             }
+            carriers.push(plan.carrier_type_identity.as_str());
+            if !domain.is_valid()
+                || plan.identity.is_empty()
+                || plan.carrier_type_identity.is_empty()
+            {
+                return Err(LoweringError::Unsupported(
+                    "Unit structural domain is duplicate, null, or incomplete",
+                ));
+            }
+            selected_plans.push(plan);
         }
         if !found {
             return unsupported("Unit closure references a missing structural domain carrier");

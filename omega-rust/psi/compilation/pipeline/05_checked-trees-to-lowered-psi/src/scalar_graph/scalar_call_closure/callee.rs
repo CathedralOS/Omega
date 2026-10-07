@@ -1,6 +1,5 @@
 //! Exact scalar-call signatures retain the kind of checked body that owns them.
 use super::super::{
-    CheckedBoundaryScalarReturnMachinePlan, CheckedStructuralScalarReturnMachinePlan,
     CheckedUnitStructuralParameterPlan, ScalarType, StructuralParameterDeclaration,
     StructuralTypeDeclaration, terminal_scalar_type,
 };
@@ -9,10 +8,13 @@ use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_graph_lowering::ScalarContractMode;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
 
+/// The checked body a scalar call lowers: its scalar graph, else the Unit
+/// body that owns its scalar completion. A machine with a boundary-scalar or
+/// structural-scalar return plan always also owns such a body, which lowers
+/// its boundary call or structural frontier through the shared Unit
+/// assembler; those return plans serve only top-level return routes.
 pub(crate) enum CheckedScalarCallee<'checked> {
     Graph(&'checked checked_trees::CheckedScalarMachineGraph),
-    Boundary(&'checked CheckedBoundaryScalarReturnMachinePlan),
-    Structural(&'checked CheckedStructuralScalarReturnMachinePlan),
     /// A Unit-closure body that owns a scalar completion: an ordinary
     /// single-state body's scalar result or control, or a state graph's
     /// scalar result. The shared Unit assembler emits it with the closure.
@@ -44,21 +46,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
             .machines
             .iter()
             .filter(|plan| plan.machine == source);
-        let mut boundaries = checked
-            .facts
-            .flow
-            .terminal_boundary_scalar_returns
-            .machines
-            .iter()
-            .filter(|plan| plan.machine == source);
-        let mut structural = checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .machines
-            .iter()
-            .filter(|plan| plan.machine == source);
-        let selected = (graphs.next(), boundaries.next(), structural.next());
+        let graph = graphs.next();
         let mut operation_bodies = checked
             .facts
             .flow
@@ -76,24 +64,15 @@ impl<'checked> CheckedScalarCallee<'checked> {
             .filter(|plan| plan.machine == source);
         let graph_body = graph_bodies.next();
         if graphs.next().is_some()
-            || boundaries.next().is_some()
-            || structural.next().is_some()
             || operation_bodies.next().is_some()
             || graph_bodies.next().is_some()
             || (operation_body.is_some() && graph_body.is_some())
         {
             return unsupported("scalar callee has duplicate checked body ownership");
         }
-        match selected {
-            (Some(graph), None, None) => Ok(Self::Graph(graph)),
-            (None, Some(boundary), None) => {
-                crate::returns::boundary_scalar_return::validate_boundary_scalar_return(
-                    checked, boundary,
-                )?;
-                Ok(Self::Boundary(boundary))
-            }
-            (None, None, Some(plan)) => Ok(Self::Structural(plan)),
-            (None, None, None) => {
+        match graph {
+            Some(graph) => Ok(Self::Graph(graph)),
+            None => {
                 // Existing scalar owners retain precedence, including their
                 // contract lowering. A Unit body is borrowed only when it
                 // owns a real scalar completion; the shared Unit assembler
@@ -128,7 +107,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
                     crate::unit::attached_unit::bodies::UnitBody::Ordinary(plan),
                 ))
             }
-            _ => unsupported("scalar callee has ambiguous checked body ownership"),
         }
     }
 
@@ -138,8 +116,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .states
                 .first()
                 .map_or(&[], |state| &state.structural_parameters),
-            Self::Boundary(plan) => &plan.structural_parameters,
-            Self::Structural(plan) => &plan.structural_parameters,
             Self::Operations(body) => body
                 .entry()
                 .map_or(&[][..], |entry| entry.structural_parameters),
@@ -149,8 +125,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
     pub(crate) fn source_machine(&self) -> symbols::SymbolHandle {
         match self {
             Self::Graph(plan) => plan.machine,
-            Self::Boundary(plan) => plan.machine,
-            Self::Structural(plan) => plan.machine,
             Self::Operations(body) => body.machine(),
         }
     }
@@ -163,9 +137,8 @@ impl<'checked> CheckedScalarCallee<'checked> {
 
     pub(crate) fn entry_claims(&self) -> &[checked_trees::CheckedUnitEntryClaimPlan] {
         match self {
-            Self::Boundary(plan) => &plan.entry_claims,
             Self::Operations(body) => body.entry().map_or(&[][..], |entry| entry.entry_claims),
-            Self::Graph(_) | Self::Structural(_) => &[],
+            Self::Graph(_) => &[],
         }
     }
 
@@ -180,8 +153,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
                         "scalar callee has no checked entry state",
                     ))
             }
-            Self::Boundary(boundary) => Ok(boundary.state),
-            Self::Structural(plan) => Ok(plan.state),
             Self::Operations(body) => Ok(body.entry()?.state),
         }
     }
@@ -195,16 +166,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .ok_or(LoweringError::Unsupported(
                     "scalar callee has no checked entry state",
                 )),
-            Self::Boundary(plan) => Ok(plan
-                .scalar_parameters
-                .iter()
-                .map(|parameter| parameter.primitive_type)
-                .collect()),
-            Self::Structural(plan) => Ok(plan
-                .scalar_parameters
-                .iter()
-                .map(|parameter| parameter.primitive_type)
-                .collect()),
             Self::Operations(body) => Ok(body
                 .entry()?
                 .scalar_parameters
@@ -231,8 +192,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .first()
                 .map(|state| erased(&state.erased_scalar_parameters))
                 .unwrap_or_default(),
-            Self::Boundary(plan) => erased(&plan.erased_scalar_parameters),
-            Self::Structural(plan) => erased(&plan.erased_scalar_parameters),
             Self::Operations(body) => body
                 .entry()
                 .map(|entry| erased(entry.erased_scalar_parameters))
@@ -251,8 +210,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .first()
                 .map(|state| state.erased_proof_parameters.iter().collect())
                 .unwrap_or_default(),
-            Self::Boundary(plan) => plan.erased_proof_parameters.iter().collect(),
-            Self::Structural(plan) => plan.erased_proof_parameters.iter().collect(),
             Self::Operations(body) => body
                 .entry()
                 .map(|entry| entry.erased_proof_parameters.iter().collect())
@@ -279,8 +236,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
                         ))
                         .and_then(terminal_scalar_type)
                 }),
-            Self::Boundary(boundary) => terminal_scalar_type(boundary.result_type),
-            Self::Structural(plan) => terminal_scalar_type(plan.result_type),
             Self::Operations(body) => body
                 .scalar_result_type()
                 .ok_or(LoweringError::Unsupported(
@@ -299,7 +254,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
         primitive_locals: &[crate::scalar_graph::scalar_graph_lowering::primitive_locals::PrimitiveLocal],
         structural_types: &[StructuralTypeDeclaration],
         next_place: &mut u64,
-    ) -> Result<PreparedScalarCallee<'checked>, LoweringError> {
+    ) -> Result<PreparedScalarCallee, LoweringError> {
         match self {
             Self::Operations(_) => unsupported(
                 "scalar operation bodies require shared Unit assembly before scalar preparation",
@@ -329,59 +284,24 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 }
                 Ok(PreparedScalarCallee::Graph(prepared))
             }
-            Self::Boundary(plan) => Ok(PreparedScalarCallee::Boundary {
-                result_type: terminal_scalar_type(plan.result_type)?,
-                requirement_count: usize::from(
-                    !crate::returns::boundary_scalar_return::checked_requirements(checked, plan)?
-                        .is_empty(),
-                ),
-                plan,
-            }),
-            Self::Structural(plan) => Ok(PreparedScalarCallee::Structural {
-                plan,
-                result_type: terminal_scalar_type(plan.result_type)?,
-            }),
         }
     }
 }
 
-pub(crate) enum PreparedScalarCallee<'checked> {
+pub(crate) enum PreparedScalarCallee {
     Graph(PreparedScalarMachine),
-    Boundary {
-        plan: &'checked CheckedBoundaryScalarReturnMachinePlan,
-        result_type: ScalarType,
-        requirement_count: usize,
-    },
-    Structural {
-        plan: &'checked CheckedStructuralScalarReturnMachinePlan,
-        result_type: ScalarType,
-    },
 }
 
-impl PreparedScalarCallee<'_> {
+impl PreparedScalarCallee {
     pub(crate) fn source_machine(&self) -> symbols::SymbolHandle {
         match self {
             Self::Graph(graph) => graph.source_machine,
-            Self::Boundary { plan, .. } => plan.machine,
-            Self::Structural { plan, .. } => plan.machine,
-        }
-    }
-
-    pub(crate) fn result_type(&self) -> ScalarType {
-        match self {
-            Self::Graph(graph) => graph.result_type.scalar_type,
-            Self::Boundary { result_type, .. } => *result_type,
-            Self::Structural { result_type, .. } => *result_type,
         }
     }
 
     pub(crate) fn requirement_count(&self) -> usize {
         match self {
             Self::Graph(graph) => graph.requirement_count(),
-            Self::Boundary {
-                requirement_count, ..
-            } => *requirement_count,
-            Self::Structural { .. } => 0,
         }
     }
 }

@@ -305,9 +305,7 @@ fn scalar_call(
         .map(|(_, state)| state.service_reach)
         .collect::<Vec<_>>();
     let reach_matches = match &target {
-        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_) => {
-            target_reaches.as_slice() == [*service_reach]
-        }
+        CheckedScalarCallee::Graph(_) => target_reaches.as_slice() == [*service_reach],
         CheckedScalarCallee::Operations(body) => {
             let contract_service_reach = body.entry()?.contract_service_reach;
             // The body owns its direct effects; an ordinary call contributes
@@ -323,10 +321,6 @@ fn scalar_call(
                     == Some(contract_service_reach)
                 && checked_unit_target_reach_matches(*service_reach, contract_service_reach)
         }
-        CheckedScalarCallee::Boundary(plan) => {
-            target_reaches.as_slice() == [plan.service_reach]
-                && checked_unit_target_reach_matches(*service_reach, plan.contract_service_reach)
-        }
     };
     if target.entry_state()? != *target_state
         || target.parameter_types()?.len() != scalar_arguments.len()
@@ -339,21 +333,19 @@ fn scalar_call(
             "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach",
         );
     }
-    if matches!(
-        target,
-        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_)
-    ) && (!checked
-        .facts
-        .service_reaches
-        .rows
-        .services(service_reach.direct)
-        .is_empty()
-        || !checked
+    if matches!(target, CheckedScalarCallee::Graph(_))
+        && (!checked
             .facts
             .service_reaches
             .rows
-            .services(service_reach.transitive)
-            .is_empty())
+            .services(service_reach.direct)
+            .is_empty()
+            || !checked
+                .facts
+                .service_reaches
+                .rows
+                .services(service_reach.transitive)
+                .is_empty())
     {
         return unsupported(
             "ordinary Unit scalar call with services requires scalar service lowering",

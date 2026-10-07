@@ -1,10 +1,11 @@
-//! Scalar callees of a Unit closure: graph, structural-return, and
-//! boundary-wrapper machines that Unit bodies call for a scalar result.
+//! Scalar callees of a Unit closure: the scalar graph machines that Unit bodies
+//! call for a scalar result. A callee without a scalar graph is an ordinary
+//! Unit body with a scalar completion and lowers with the closure itself.
 //!
 //! They belong to the same module as their Unit callers. Their catalog roots
-//! join the closure's shared namespaces (`retain_catalog_roots`,
-//! `wrapper_domains`), each is prepared against those namespaces (`prepare`),
-//! and each is emitted after the Unit bodies that call it (`emit`).
+//! join the closure's shared namespaces (`retain_catalog_roots`), each is
+//! prepared against those namespaces (`prepare`), and each is emitted after
+//! the Unit bodies that call it (`emit`).
 
 use super::super::{
     ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -12,12 +13,11 @@ use super::super::{
 };
 use super::operation_frame::BoundaryParameters;
 use super::{
-    CallEmissionContext, CheckedBoundaryMachinePlan, CheckedScalarCallee, CheckedTrees,
-    ClosureOccurrences, LoweringError, MachineId, PreparedScalarCallee, SemanticDomainId,
-    ServiceReachSummary, StructuralTypeId, TERMINAL_MACHINE_IDENTITY_STRIDE,
-    checked_unit_boundary_identity, collect_installation_machine_contract_services,
-    collect_service_summary, contract_id, lookup_machine_id, lower_declared_service_reach,
-    lower_installation_machine_service_ceiling, lower_unit_parameters, unsupported,
+    CheckedScalarCallee, CheckedTrees, ClosureOccurrences, LoweringError, MachineId,
+    PreparedScalarCallee, ServiceReachSummary, StructuralTypeId, TERMINAL_MACHINE_IDENTITY_STRIDE,
+    collect_installation_machine_contract_services, lookup_machine_id,
+    lower_declared_service_reach, lower_installation_machine_service_ceiling,
+    lower_unit_parameters, unsupported,
 };
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_graph_lowering::ScalarContractMode;
@@ -26,7 +26,6 @@ use terminal_psi::{ScalarBlockInvariant, ScalarQualificationCatalog};
 pub(super) fn retain_catalog_roots<'checked>(
     checked: &'checked CheckedTrees,
     callees: &[CheckedScalarCallee<'checked>],
-    boundaries: &mut Vec<(&'checked CheckedBoundaryMachinePlan, String)>,
     type_roots: &mut Vec<String>,
     service_roots: &mut Vec<ServiceReachId>,
 ) -> Result<(), LoweringError> {
@@ -80,86 +79,14 @@ pub(super) fn retain_catalog_roots<'checked>(
                     .flat_map(|state| &state.structural_parameters)
                     .map(|parameter| parameter.type_identity.clone()),
             );
-            continue;
         }
-        if let CheckedScalarCallee::Structural(plan) = callee {
-            type_roots.extend(plan.attachment_type_identity.iter().cloned());
-            type_roots.extend(
-                plan.structural_parameters
-                    .iter()
-                    .map(|parameter| parameter.type_identity.clone()),
-            );
-            continue;
-        }
-        let CheckedScalarCallee::Boundary(plan) = callee else {
-            continue;
-        };
-        let boundary =
-            crate::returns::boundary_scalar_return::validate_boundary_scalar_return(checked, plan)?;
-        if let Some((existing, _)) = boundaries
-            .iter()
-            .find(|(candidate, _)| candidate.machine == boundary.machine)
-        {
-            if *existing != boundary {
-                return unsupported("scalar wrapper and Unit boundary declarations disagree");
-            }
-        } else {
-            boundaries.push((
-                boundary,
-                checked_unit_boundary_identity(checked, boundary.machine)?,
-            ));
-        }
-        type_roots.extend(plan.attachment_type_identity.iter().cloned());
-        type_roots.extend(
-            plan.structural_parameters
-                .iter()
-                .map(|parameter| parameter.type_identity.clone()),
-        );
-        collect_installation_machine_contract_services(
-            checked,
-            plan.machine,
-            plan.contract_service_reach,
-            plan.service_reach,
-            service_roots,
-        )?;
-        let call = crate::returns::boundary_scalar_return::retained_boundary_call(
-            plan,
-            "scalar wrapper lost its boundary operation",
-        )?;
-        collect_service_summary(
-            &checked.facts.service_reaches.rows,
-            call.target.service_reach,
-            service_roots,
-        )?;
     }
     Ok(())
 }
 
-/// The semantic domains boundary-wrapper callees qualify their structural
-/// parameters with; the closure's domain catalog must include them.
-pub(super) fn wrapper_domains(callees: &[CheckedScalarCallee<'_>]) -> Vec<SemanticDomainId> {
-    callees
-        .iter()
-        .filter_map(|callee| match callee {
-            CheckedScalarCallee::Boundary(plan) => Some(plan),
-            _ => None,
-        })
-        .flat_map(|plan| &plan.structural_parameters)
-        .flat_map(|parameter| {
-            parameter.qualifications.iter().chain(
-                parameter
-                    .projected_qualifications
-                    .iter()
-                    .map(|row| &row.domain),
-            )
-        })
-        .copied()
-        .collect()
-}
-
 /// Scalar callees prepared against the closure's shared catalogs.
-pub(super) struct PreparedScalarCallees<'checked> {
-    pub(super) machines: Vec<PreparedScalarCallee<'checked>>,
+pub(super) struct PreparedScalarCallees {
+    pub(super) machines: Vec<PreparedScalarCallee>,
     qualifications: ScalarQualificationCatalog,
     /// The closure's canonical scalar qualification namespace: a call's
     /// emitted result republishes the callee's qualified result through it.
@@ -184,7 +111,7 @@ pub(super) fn prepare<'checked>(
     domain_ids: &[StructuralDomainBinding],
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
-) -> Result<PreparedScalarCallees<'checked>, LoweringError> {
+) -> Result<PreparedScalarCallees, LoweringError> {
     let sources = callees
         .iter()
         .map(CheckedScalarCallee::source_machine)
@@ -263,7 +190,6 @@ pub(super) struct EmissionCatalog<'a> {
     pub(super) requirement_counts: &'a [(symbols::SymbolHandle, usize)],
     pub(super) boundary_parameters: &'a [BoundaryParameters],
     pub(super) structural_types: &'a [StructuralTypeDeclaration],
-    pub(super) type_ids: &'a [(String, StructuralTypeId)],
     pub(super) domain_ids: &'a [StructuralDomainBinding],
     pub(super) service_ids: &'a [(ServiceReachId, ServiceId)],
     /// Roster index of the first scalar callee; each callee's identity range
@@ -280,14 +206,12 @@ pub(super) struct EmittedScalarCallees {
     pub(super) qualifications: ScalarQualificationCatalog,
 }
 
-/// Emit each prepared scalar callee in its own identity range: a structural
-/// return, a boundary wrapper, or a scalar graph.
+/// Emit each prepared scalar graph callee in its own identity range.
 pub(super) fn emit(
     checked: &CheckedTrees,
-    prepared: PreparedScalarCallees<'_>,
+    prepared: PreparedScalarCallees,
     catalog: EmissionCatalog<'_>,
     next_place: &mut u64,
-    next_call_obligation: &mut u64,
     machines: &mut Vec<TerminalMachine>,
     occurrences: &mut ClosureOccurrences,
 ) -> Result<EmittedScalarCallees, LoweringError> {
@@ -312,76 +236,7 @@ pub(super) fn emit(
             .ok_or(LoweringError::Unsupported(
                 "selected scalar closure identity range overflows",
             ))?;
-        if let PreparedScalarCallee::Structural { plan, .. } = &machine {
-            let mut lowered = crate::returns::structural_scalar_return::lower_structural_scalar_return_machine_in_namespace(
-                checked, plan, terminal_machine, identity_base, Some(catalog.structural_types),
-            )?;
-            machines.append(&mut lowered.semantic_module.machines);
-            output
-                .scalar_block_invariants
-                .append(&mut lowered.semantic_module.scalar_block_invariants);
-            occurrences.retain_lowered(&mut lowered);
-            continue;
-        }
-        let PreparedScalarCallee::Graph(machine) = machine else {
-            let PreparedScalarCallee::Boundary { plan, .. } = machine else {
-                unreachable!("scalar callee has exactly one checked body owner")
-            };
-            let target_machine = crate::returns::boundary_scalar_return::retained_boundary_call(
-                plan,
-                "scalar wrapper lost its boundary operation",
-            )?
-            .target
-            .machine;
-            let boundary = catalog
-                .boundary_parameters
-                .iter()
-                .find_map(|boundary| (boundary.source == target_machine).then_some(boundary.id))
-                .ok_or(LoweringError::Unsupported(
-                    "scalar wrapper boundary is absent from the shared catalog",
-                ))?;
-            let mut context = CallEmissionContext {
-                domain_ids: catalog.domain_ids,
-                claims: crate::emission::claim_bindings::ClaimBindings::new(Vec::new(), 1),
-                cleanup_receivers: &[],
-                machine_ids: catalog.machine_ids,
-                requirement_counts: catalog.requirement_counts,
-                boundaries: &[],
-                next_obligation_identity: *next_call_obligation,
-                obligation_limit: u64::MAX,
-            };
-            let emitted = crate::returns::boundary_scalar_return::emit_boundary_scalar_return(
-                checked,
-                plan,
-                lower_unit_parameters(
-                    &plan.structural_parameters,
-                    catalog.type_ids,
-                    catalog.structural_types,
-                    catalog.domain_ids,
-                    next_place,
-                )?,
-                crate::returns::boundary_scalar_return::BoundaryScalarReturnCatalogs {
-                    structural_types: catalog.structural_types,
-                    type_ids: catalog.type_ids,
-                    service_ids: catalog.service_ids,
-                },
-                crate::returns::boundary_scalar_return::BoundaryScalarReturnIdentities {
-                    machine: terminal_machine,
-                    contract: contract_id(terminal_machine.get()),
-                    boundary,
-                    identity_base,
-                },
-                &mut context,
-            )?;
-            *next_call_obligation = context.next_obligation_identity;
-            machines.push(emitted.machine);
-            occurrences.retain(
-                emitted.source_call_occurrences,
-                emitted.selected_ieee_float_comparison_occurrences,
-                emitted.selected_integer_comparison_occurrences,
-            );
-            continue;
-        };
+        let PreparedScalarCallee::Graph(machine) = machine;
         let graph_parameters = prepared
             .graph_parameters
             .iter()

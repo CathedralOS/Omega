@@ -101,12 +101,6 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
                     })
                     .collect::<Vec<_>>()
             }
-            crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::Boundary(_) => {
-                Vec::new()
-            }
-            crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::Structural(
-                _,
-            ) => Vec::new(),
             crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::Operations(
                 _,
             ) => Vec::new(),

@@ -45,7 +45,7 @@ pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     /// The closure's Unit bodies and prepared scalar callees, which a
     /// state's scalar calls resolve against exactly as an ordinary body's do.
     pub closure: &'a [symbols::SymbolHandle],
-    pub prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
+    pub prepared_scalar_machines: &'a [PreparedScalarCallee],
     /// The closure's scalar qualification namespace; a call's emitted
     /// result republishes the callee's qualified result through it.
     pub prepared_scalar_qualifications:

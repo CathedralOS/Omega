@@ -44,7 +44,6 @@ use super::{
     lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
-use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call;
 use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
@@ -252,7 +251,6 @@ pub(crate) fn lower_unit_closure(
     scalar_callees::retain_catalog_roots(
         checked,
         &checked_scalar_callees,
-        &mut boundaries,
         &mut additional_type_roots,
         &mut additional_service_roots,
     )?;
@@ -318,15 +316,8 @@ pub(crate) fn lower_unit_closure(
             }
         }
     }
-    let wrapper_domains = scalar_callees::wrapper_domains(&checked_scalar_callees);
-    let (structural_domains, domain_ids) = catalog::lower_unit_structural_domains_including(
-        checked,
-        plans,
-        &closure,
-        &boundaries,
-        &type_ids,
-        &wrapper_domains,
-    )?;
+    let (structural_domains, domain_ids) =
+        catalog::lower_unit_structural_domains(checked, plans, &closure, &boundaries, &type_ids)?;
     let (services, service_ids) = if !additional_service_roots.is_empty() {
         catalog::lower_unit_services_including(
             checked,
@@ -577,13 +568,11 @@ pub(crate) fn lower_unit_closure(
             requirement_counts: &scalar_requirement_counts,
             boundary_parameters: &lowered_boundary_parameters,
             structural_types: &structural_types,
-            type_ids: &type_ids,
             domain_ids: &domain_ids,
             service_ids: &service_ids,
             first_machine_index: first_scalar_callee_index,
         },
         &mut next_place,
-        &mut next_call_obligation,
         &mut machines,
         &mut occurrences,
     )?;

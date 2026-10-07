@@ -27,7 +27,7 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(in crate::unit::attached_unit) signatures: Cow<'a, [MachineSignature]>,
     /// The closure's Unit bodies and prepared scalar callees.
     pub(in crate::unit::attached_unit) closure: &'a [symbols::SymbolHandle],
-    pub(in crate::unit::attached_unit) prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
+    pub(in crate::unit::attached_unit) prepared_scalar_machines: &'a [PreparedScalarCallee],
     /// The closure's scalar qualification namespace; a call's emitted
     /// result republishes the callee's qualified result through it.
     pub(in crate::unit::attached_unit) prepared_scalar_qualifications:

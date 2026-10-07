@@ -635,7 +635,6 @@ impl OperationFrame<'_, '_> {
                 graph.result_type.scalar_type,
                 graph.result_type.qualifications,
             ),
-            Some(prepared) => (prepared.result_type(), ScalarQualificationSetId::ZERO),
             None if self.callees.closure.contains(realization_machine)
                 && matches!(target, CheckedScalarCallee::Operations(_)) =>
             {
