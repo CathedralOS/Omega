@@ -6,8 +6,9 @@
 
 use semantic_vocabulary::{ScalarType, StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathQualification, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
+    StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathQualification, TerminalDynamicSlot,
+    TerminalDynamicStructuralFormal,
 };
 
 use crate::AbstractFunction;
@@ -110,4 +111,22 @@ impl<'declaration> AbstractCallSignature<'declaration> {
             Self::Requirement(requirement) => requirement.result,
         }
     }
+}
+
+/// The caller-side source a structural call parameter binds: match the
+/// parameter's place against the callee's structural parameter roster, take
+/// the argument at that position, and re-root it at the formal's path and
+/// access.
+pub fn call_source(
+    structural_parameters: &[StructuralParameterDeclaration],
+    arguments: &[StructuralArgument],
+    formal: &StructuralArgument,
+) -> Option<StructuralArgument> {
+    let position = structural_parameters
+        .iter()
+        .position(|parameter| parameter.place == formal.place)?;
+    let mut source = arguments.get(position)?.clone();
+    source.path.extend(formal.path.iter().cloned());
+    source.access = formal.access;
+    Some(source)
 }

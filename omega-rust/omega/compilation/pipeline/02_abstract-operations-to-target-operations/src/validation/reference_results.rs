@@ -15,6 +15,7 @@
 //! at which carrier path and which root it suspends.
 
 use std::collections::{BTreeMap, BTreeSet};
+use abstract_operations::call_source;
 
 use abstract_operations::{
     AbstractBoundaryResult, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
@@ -728,20 +729,6 @@ fn normalized_direct_source(
 
 /// Substitute a callee's formal result-source mapping into the caller's actual
 /// argument at the same structural-parameter position.
-fn call_source(
-    callee: &AbstractFunction,
-    arguments: &[StructuralArgument],
-    formal: &StructuralArgument,
-) -> Option<StructuralArgument> {
-    let position = callee
-        .structural_parameters
-        .iter()
-        .position(|parameter| parameter.place == formal.place)?;
-    let mut source = arguments.get(position)?.clone();
-    source.path.extend(formal.path.iter().cloned());
-    source.access = formal.access;
-    Some(source)
-}
 
 /// The formal origin a callee result mapping names: a borrowed primitive
 /// parameter or an ingress leaf path under an owned or shared carrier.
@@ -976,7 +963,7 @@ fn call_result_leaves(
             {
                 return None;
             }
-            let source = call_source(callee, structural_arguments, formal)?;
+            let source = call_source(&callee.structural_parameters, structural_arguments, formal)?;
             let leaf = if matches!(
                 formal_origin(callee, declarations, formal),
                 Some(Root::Ingress(..))

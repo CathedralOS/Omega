@@ -12,6 +12,7 @@ use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
 };
 use crate::LegalizationError;
+use abstract_operations::call_source;
 use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -895,20 +896,6 @@ fn normalized_direct_source(
 
 /// Substitute a callee's formal result-source mapping into the caller's actual
 /// argument at the same structural-parameter position.
-fn call_source(
-    callee: &PsiOptimizationFunction,
-    arguments: &[StructuralArgument],
-    formal: &StructuralArgument,
-) -> Option<StructuralArgument> {
-    let position = callee
-        .structural_parameters
-        .iter()
-        .position(|parameter| parameter.place == formal.place)?;
-    let mut source = arguments.get(position)?.clone();
-    source.path.extend(formal.path.iter().cloned());
-    source.access = formal.access;
-    Some(source)
-}
 
 /// The formal origin a callee result mapping names: a borrowed primitive
 /// parameter or an ingress leaf path under an owned or shared carrier.
@@ -1256,7 +1243,7 @@ fn call_results(
             validate_alternatives(mapping, result.structural_type, expected, types)?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
-            let source = call_source(callee_function, structural_arguments, formal)
+            let source = call_source(&callee_function.structural_parameters, structural_arguments, formal)
                 .ok_or_else(|| invalid())?;
             if reference_source_type(function, custody, types, &source) != Some(expected) {
                 return Err(invalid());
@@ -2545,7 +2532,7 @@ pub(in crate::legalization) fn reference_results(
         let result_access = validate_alternatives(mapping, result_type, expected_referent, types)?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
-            let source = call_source(callee, arguments, formal).ok_or(invalid())?;
+            let source = call_source(&callee.structural_parameters, arguments, formal).ok_or(invalid())?;
             if reference_source_type(caller, custody, types, &source) != Some(expected_referent) {
                 return Err(invalid());
             }

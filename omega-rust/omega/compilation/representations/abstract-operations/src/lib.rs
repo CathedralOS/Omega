@@ -16,7 +16,7 @@ pub use abstract_operations::{
     AtomicModificationAfter, AtomicModificationAfterViolation, AtomicReadsFrom,
     AtomicReadsFromViolation, CompletionClaimSource, IntegerArithmetic, IntegerArithmeticOperator,
     IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy, StructuralCallFormal,
-    StructuralTypeCatalog, ValueBinding, atomic, calls, control_flow,
+    StructuralTypeCatalog, ValueBinding, atomic, call_source, calls, control_flow,
     happens_before_atomic_coherence_violation, operations, ownership, values,
 };
 pub use abstract_operations::{

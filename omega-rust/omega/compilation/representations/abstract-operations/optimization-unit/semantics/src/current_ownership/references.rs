@@ -17,6 +17,7 @@ use crate::unit_validation::references::{
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
+use abstract_operations::call_source;
 use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclaration};
@@ -895,20 +896,6 @@ fn establish_constructor<'a>(
 
 /// Substitute a callee's formal result-source mapping into the caller's actual
 /// argument at the same structural-parameter position.
-fn call_source(
-    callee: &PsiOptimizationFunction,
-    arguments: &[StructuralArgument],
-    formal: &StructuralArgument,
-) -> Option<StructuralArgument> {
-    let position = callee
-        .structural_parameters
-        .iter()
-        .position(|parameter| parameter.place == formal.place)?;
-    let mut source = arguments.get(position)?.clone();
-    source.path.extend(formal.path.iter().cloned());
-    source.access = formal.access;
-    Some(source)
-}
 
 /// Replay one operation against the live loan set. This runs inside the same
 /// operation transaction as the owning frontier: reads and writes cannot touch
@@ -1610,7 +1597,7 @@ pub(super) fn apply_operation(
                         .sources
                         .iter()
                         .map(|formal| {
-                            call_source(callee, structural_arguments, formal)
+                            call_source(&callee.structural_parameters, structural_arguments, formal)
                         .map(|source| {
                             (
                                 source,

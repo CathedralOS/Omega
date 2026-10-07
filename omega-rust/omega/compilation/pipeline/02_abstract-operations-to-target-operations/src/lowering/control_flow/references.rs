@@ -2,6 +2,7 @@
 //! loan permission, never its referent's storage; every origin and parent is
 //! reconstructed from operations and signatures, never from pointer bits.
 use super::LiveDefinitions;
+use abstract_operations::call_source;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -1016,20 +1017,6 @@ fn normalized_direct_source(
 
 /// Substitute a callee's formal result-source mapping into the caller's actual
 /// argument at the same structural-parameter position.
-fn call_source(
-    callee: &AbstractFunction,
-    arguments: &[StructuralArgument],
-    formal: &StructuralArgument,
-) -> Option<StructuralArgument> {
-    let position = callee
-        .structural_parameters
-        .iter()
-        .position(|parameter| parameter.place == formal.place)?;
-    let mut source = arguments.get(position)?.clone();
-    source.path.extend(formal.path.iter().cloned());
-    source.access = formal.access;
-    Some(source)
-}
 
 /// The formal origin a callee result mapping names: a borrowed primitive
 /// parameter or an ingress leaf path under an owned or shared carrier.
@@ -1880,7 +1867,7 @@ pub(super) fn call_results(
             if !access_covers(formal.access, result_access) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let source = call_source(callee_function, structural_arguments, formal)
+            let source = call_source(&callee_function.structural_parameters, structural_arguments, formal)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if reference_source_type(function, live, types, &source) != Some(expected) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
