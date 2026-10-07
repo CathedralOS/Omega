@@ -68,11 +68,15 @@ omega run [--both] [--keep] [--target <name>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
 omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
-omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
-omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
+omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]
+omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]
 omega <install|update> <--resume|--discard-review> [--project <dir>] [--offline]
 omega refresh-samples [samples-dir]
 ```
+
+`--dangerously-accept-all` accepts every pending review decision without
+reading it, resumes, and publishes. `omega.lock` records each acceptance exactly
+as a hand edit of the review document would.
 
 `--offline` restricts package acquisition to local sources and cached recorded
 Git pins. It does not refresh selectors or sandbox later program execution.

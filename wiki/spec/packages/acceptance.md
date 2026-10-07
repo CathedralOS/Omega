@@ -252,8 +252,12 @@ comparison identity. A decision for another comparison cannot authorize this one
 
 The editable document permits only `pending` to `accept`/`reject` changes. On
 resume, regenerate findings and verify exact display, framing, and complete
-decision coverage. There is no blanket approval, audit receipt, or package-prose
-channel. Rejection prevents acceptance of that candidate; complete accepting
+decision coverage. There is no audit receipt or package-prose channel. The one
+blanket approval is the explicit `--dangerously-accept-all` invocation flag: it
+makes exactly the reviewer's edit, `pending` to `accept`, on every decision of
+the generated document, then resumes through the same regeneration and checks,
+so `omega.lock` records the same acceptance a hand edit would. It never arises
+by default, from configuration, or from package content. Rejection prevents acceptance of that candidate; complete accepting
 choices still require fresh source/project checks before publication.
 
 Stage proposed build bytes in an immutable candidate while retaining the original

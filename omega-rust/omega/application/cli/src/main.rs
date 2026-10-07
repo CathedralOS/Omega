@@ -61,7 +61,11 @@ fn dispatch(invocation: Invocation) {
         Invocation::Compile(request) => compilation::compile_project_command(request),
         Invocation::Run(request) => execution::run(request),
         Invocation::InspectTerminal(request) => inspection::run(request),
-        Invocation::Package { command, options } => packages::run(command, options),
+        Invocation::Package {
+            command,
+            options,
+            accept_all,
+        } => packages::run(command, options, accept_all),
         Invocation::AuditSource(request) => packages::source::run(request),
         Invocation::AuditPackages(request) => packages::audit::run(request),
         Invocation::RefreshSamples(root) => cli::samples::refresh(&root),

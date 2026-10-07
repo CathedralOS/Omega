@@ -7,10 +7,10 @@ use target::TargetProfile;
 pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {
         PackageCommandKind::Install => {
-            "usage: omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install --resume [--project <dir>] [--offline]\n       omega install --discard-review [--project <dir>] [--offline]\n       omega install --help\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery."
+            "usage: omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega install --resume [--project <dir>] [--offline]\n       omega install --discard-review [--project <dir>] [--offline]\n       omega install --help\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
         }
         PackageCommandKind::Update => {
-            "usage: omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update --resume [--project <dir>] [--offline]\n       omega update --discard-review [--project <dir>] [--offline]\n       omega update --help\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery."
+            "usage: omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega update --resume [--project <dir>] [--offline]\n       omega update --discard-review [--project <dir>] [--offline]\n       omega update --help\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
         }
     }
 }
@@ -18,7 +18,7 @@ pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
 pub(super) fn parse_arguments(
     kind: PackageCommandKind,
     mut arguments: impl Iterator<Item = OsString>,
-) -> Result<Option<(PackageCommand, PackageCommandOptions)>, String> {
+) -> Result<Option<(PackageCommand, PackageCommandOptions, bool)>, String> {
     let mut positionals = Vec::new();
     let mut revision = None;
     let mut alias = None;
@@ -27,6 +27,7 @@ pub(super) fn parse_arguments(
     let mut targets = Vec::new();
     let mut resume = false;
     let mut discard_review = false;
+    let mut accept_all = false;
     let mut help = false;
     let mut offline = false;
     let mut build_inputs = Vec::new();
@@ -39,6 +40,7 @@ pub(super) fn parse_arguments(
             "--offline" => set_flag(&mut offline, &argument)?,
             "--resume" => set_flag(&mut resume, &argument)?,
             "--discard-review" => set_flag(&mut discard_review, &argument)?,
+            "--dangerously-accept-all" => set_flag(&mut accept_all, &argument)?,
             "--build-input" | "--optional-build-input" => {
                 let path = super::option_value(&mut arguments)
                     .ok_or_else(|| format!("{argument} requires a canonical relative path"))?
@@ -116,6 +118,9 @@ pub(super) fn parse_arguments(
     if resume && discard_review {
         return Err("--resume and --discard-review cannot be combined".to_owned());
     }
+    if discard_review && accept_all {
+        return Err("--discard-review and --dangerously-accept-all cannot be combined".to_owned());
+    }
     if (resume || discard_review)
         && (!positionals.is_empty()
             || revision.is_some()
@@ -162,6 +167,7 @@ pub(super) fn parse_arguments(
             offline,
             build_inputs,
         },
+        accept_all,
     )))
 }
 

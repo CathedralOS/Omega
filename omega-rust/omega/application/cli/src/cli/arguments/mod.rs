@@ -31,6 +31,7 @@ pub(crate) enum Invocation {
     Package {
         command: PackageCommand,
         options: PackageCommandOptions,
+        accept_all: bool,
     },
     AuditSource(SourceArguments),
     AuditPackages(PackageInspectionOptions),
@@ -84,7 +85,11 @@ fn parse_package(
 ) -> Result<Invocation, String> {
     let usage = packages::usage(&kind);
     match packages::parse_arguments(kind, arguments) {
-        Ok(Some((command, options))) => Ok(Invocation::Package { command, options }),
+        Ok(Some((command, options, accept_all))) => Ok(Invocation::Package {
+            command,
+            options,
+            accept_all,
+        }),
         Ok(None) => Ok(Invocation::Help(usage)),
         Err(error) => Err(format!("{error}\n{usage}")),
     }
