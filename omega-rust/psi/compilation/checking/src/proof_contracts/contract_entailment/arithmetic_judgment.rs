@@ -153,6 +153,8 @@ impl Polynomial {
     }
 
     /// `(single-unit-atom, coefficient-sign, constant)` for bounds like
+    /// `(single-unit-atom, coefficient-sign, constant)` for bounds like
+    /// `a + c >= 0` / `-a + c >= 0`.
     /// `a + c >= 0` / `-a + c >= 0`.
     fn as_single_atom(&self) -> Option<(String, i64, BigInt)> {
         let mut atom = None;
@@ -377,6 +379,19 @@ impl<'program> Engine<'program> {
         self.close_matrix();
     }
 
+    /// Both operands mapped through the argument map together — `None` when
+    /// either substitution declines.
+    fn mapped_polynomials(
+        a: &Polynomial,
+        b: &Polynomial,
+        argument_map: &mut BTreeMap<String, Polynomial>,
+    ) -> Option<(Polynomial, Polynomial)> {
+        Some((
+            super::inductive_judgment::apply_argument_map(a, argument_map)?,
+            super::inductive_judgment::apply_argument_map(b, argument_map)?,
+        ))
+    }
+
     /// Extend a simultaneous argument map across this engine's opaque atoms:
     /// a remainder, quotient, or shift atom whose operands substitute
     /// completely is re-minted under the transported inputs and mapped to
@@ -397,13 +412,8 @@ impl<'program> Engine<'program> {
                     modulus,
                     tight_interval,
                 } => {
-                    let Some(operand) =
-                        super::inductive_judgment::apply_argument_map(&operand, argument_map)
-                    else {
-                        continue;
-                    };
-                    let Some(modulus) =
-                        super::inductive_judgment::apply_argument_map(&modulus, argument_map)
+                    let Some((operand, modulus)) =
+                        Self::mapped_polynomials(&operand, &modulus, argument_map)
                     else {
                         continue;
                     };
@@ -414,13 +424,8 @@ impl<'program> Engine<'program> {
                     )
                 }
                 OpaqueTerm::Quotient { dividend, divisor } => {
-                    let Some(dividend) =
-                        super::inductive_judgment::apply_argument_map(&dividend, argument_map)
-                    else {
-                        continue;
-                    };
-                    let Some(divisor) =
-                        super::inductive_judgment::apply_argument_map(&divisor, argument_map)
+                    let Some((dividend, divisor)) =
+                        Self::mapped_polynomials(&dividend, &divisor, argument_map)
                     else {
                         continue;
                     };
@@ -434,13 +439,8 @@ impl<'program> Engine<'program> {
                     count,
                     count_bits,
                 } => {
-                    let Some(value) =
-                        super::inductive_judgment::apply_argument_map(&value, argument_map)
-                    else {
-                        continue;
-                    };
-                    let Some(count) =
-                        super::inductive_judgment::apply_argument_map(&count, argument_map)
+                    let Some((value, count)) =
+                        Self::mapped_polynomials(&value, &count, argument_map)
                     else {
                         continue;
                     };
@@ -454,13 +454,8 @@ impl<'program> Engine<'program> {
                     count,
                     count_bits,
                 } => {
-                    let Some(value) =
-                        super::inductive_judgment::apply_argument_map(&value, argument_map)
-                    else {
-                        continue;
-                    };
-                    let Some(count) =
-                        super::inductive_judgment::apply_argument_map(&count, argument_map)
+                    let Some((value, count)) =
+                        Self::mapped_polynomials(&value, &count, argument_map)
                     else {
                         continue;
                     };
