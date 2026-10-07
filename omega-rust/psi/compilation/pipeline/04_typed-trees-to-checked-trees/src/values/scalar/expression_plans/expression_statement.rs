@@ -3,8 +3,7 @@
 //! or the returned scalar itself (`Return`).
 
 use super::{
-    CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-    ExpressionHandle, ExpressionNode, StatementPlanner, located_binding_symbols,
+    CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, StatementPlanner,
     lower_call_arguments, lower_return_expression, retain_call_arguments,
 };
 
@@ -70,22 +69,19 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
                 continue;
             };
             let role = CheckedScalarExpressionRole::ReturnCaseField { field_ordinal };
-            source_bindings.append(CheckedScalarExpressionBindings {
-                destination: symbols::SymbolHandle::invalid(),
-                state: state.symbol,
+            super::record_scalar_value_pair(
+                source_bindings,
+                expressions,
+                binding_symbols,
+                scalar_parameters,
+                locals,
+                state.symbol,
                 statement_ordinal,
                 role,
-                expression: field.value,
-                symbols: binding_symbols.insert_many(
-                    located_binding_symbols(scalar_parameters, locals),
-                ),
-            });
-            expressions.push(CheckedLocatedScalarExpression {
-                state: state.symbol,
-                statement_ordinal,
-                role,
-                expression: value,
-            });
+                 symbols::SymbolHandle::invalid(),
+                field.value,
+                value,
+            );
         }
     }
     let unit_statement =
@@ -129,20 +125,18 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
             exact_integer_casts,
         )
     {
-        source_bindings.append(CheckedScalarExpressionBindings {
-            destination: symbols::SymbolHandle::invalid(),
-            state: state.symbol,
+        super::record_scalar_value_pair(
+            source_bindings,
+            expressions,
+            binding_symbols,
+            scalar_parameters,
+            locals,
+            state.symbol,
             statement_ordinal,
-            role: CheckedScalarExpressionRole::Return,
+            CheckedScalarExpressionRole::Return,
+            symbols::SymbolHandle::invalid(),
             expression,
-            symbols: binding_symbols
-                .insert_many(located_binding_symbols(scalar_parameters, locals)),
-        });
-        expressions.push(CheckedLocatedScalarExpression {
-            state: state.symbol,
-            statement_ordinal,
-            role: CheckedScalarExpressionRole::Return,
-            expression: return_expression,
-        });
+            return_expression,
+        );
     }
 }

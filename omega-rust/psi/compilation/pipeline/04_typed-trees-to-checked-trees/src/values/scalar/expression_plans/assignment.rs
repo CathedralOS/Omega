@@ -2,10 +2,10 @@
 //! target place (`AssignmentIndex`) and the stored value (`AssignmentValue`).
 
 use super::{
-    CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-    ExpressionNode, StatementPlanner, assignment_target_primitive_type, located_binding_symbols,
-    lower_call_arguments, lower_index_expression, lower_return_expression, retain_call_arguments,
-    retain_subslice_endpoints, scalar_qualified_call_expression,
+    CheckedScalarExpressionRole, ExpressionNode, StatementPlanner,
+    assignment_target_primitive_type, lower_call_arguments, lower_index_expression,
+    lower_return_expression, retain_call_arguments, retain_subslice_endpoints,
+    scalar_qualified_call_expression,
 };
 
 pub(super) fn plan(
@@ -77,21 +77,19 @@ pub(super) fn plan(
         ) else {
             continue;
         };
-        source_bindings.append(CheckedScalarExpressionBindings {
-            destination: symbols::SymbolHandle::invalid(),
-            state: state.symbol,
+        super::record_scalar_value_pair(
+            source_bindings,
+            expressions,
+            binding_symbols,
+            scalar_parameters,
+            locals,
+            state.symbol,
             statement_ordinal,
-            role: CheckedScalarExpressionRole::AssignmentIndex { depth },
-            expression: index,
-            symbols: binding_symbols
-                .insert_many(located_binding_symbols(scalar_parameters, locals)),
-        });
-        expressions.push(CheckedLocatedScalarExpression {
-            state: state.symbol,
-            statement_ordinal,
-            role: CheckedScalarExpressionRole::AssignmentIndex { depth },
+            CheckedScalarExpressionRole::AssignmentIndex { depth },
+            symbols::SymbolHandle::invalid(),
+            index,
             expression,
-        });
+        );
     }
     // A call delivering its result to an assignment target
     // needs the same scalar-argument custody rows as one
@@ -159,21 +157,20 @@ pub(super) fn plan(
     ) else {
         return;
     };
-    source_bindings.append(CheckedScalarExpressionBindings {
-        destination: match program.expression_table.expression(assignment.target) {
+    super::record_scalar_value_pair(
+        source_bindings,
+        expressions,
+        binding_symbols,
+        scalar_parameters,
+        locals,
+        state.symbol,
+        statement_ordinal,
+        CheckedScalarExpressionRole::AssignmentValue,
+        match program.expression_table.expression(assignment.target) {
             ExpressionNode::Name(path) => path.symbol,
             _ => symbols::SymbolHandle::invalid(),
         },
-        state: state.symbol,
-        statement_ordinal,
-        role: CheckedScalarExpressionRole::AssignmentValue,
-        expression: assignment.value,
-        symbols: binding_symbols.insert_many(located_binding_symbols(scalar_parameters, locals)),
-    });
-    expressions.push(CheckedLocatedScalarExpression {
-        state: state.symbol,
-        statement_ordinal,
-        role: CheckedScalarExpressionRole::AssignmentValue,
+        assignment.value,
         expression,
-    });
+    );
 }

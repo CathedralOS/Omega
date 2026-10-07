@@ -3,8 +3,7 @@
 //! element as a scalar expression under its `ArrayElement` role.
 
 use super::{
-    CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-    StatementNode, StatementPlanner, located_binding_symbols, lower_return_expression,
+    CheckedScalarExpressionRole, StatementNode, StatementPlanner, lower_return_expression,
 };
 
 pub(super) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode) {
@@ -66,21 +65,19 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
                 source: checked_trees::CheckedArrayConstructionSource::Statement,
                 element_ordinal,
             };
-            source_bindings.append(CheckedScalarExpressionBindings {
+            super::record_scalar_value_pair(
+                source_bindings,
+                expressions,
+                binding_symbols,
+                scalar_parameters,
+                locals,
+                state.symbol,
+                statement_ordinal,
+                role,
                 destination,
-                state: state.symbol,
-                statement_ordinal,
-                role,
-                expression: element,
-                symbols: binding_symbols
-                    .insert_many(located_binding_symbols(scalar_parameters, locals)),
-            });
-            expressions.push(CheckedLocatedScalarExpression {
-                state: state.symbol,
-                statement_ordinal,
-                role,
-                expression: value,
-            });
+                element,
+                value,
+            );
         }
     }
 }

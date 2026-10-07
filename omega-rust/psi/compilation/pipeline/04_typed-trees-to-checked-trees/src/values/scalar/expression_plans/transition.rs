@@ -3,9 +3,8 @@
 //! expression, a subslice endpoint or an erased proof term.
 
 use super::{
-    CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionRole, StatementPlanner, TransitionGuardNode, TransitionTargetNode,
-    located_binding_symbols, lower_boolean_guard, lower_return_expression,
+    CheckedScalarExpression, CheckedScalarExpressionRole, StatementPlanner, TransitionGuardNode,
+    TransitionTargetNode, lower_boolean_guard, lower_return_expression,
 };
 
 pub(super) fn plan(
@@ -44,21 +43,19 @@ pub(super) fn plan(
             exact_integer_casts,
         )
     {
-        source_bindings.append(CheckedScalarExpressionBindings {
-            destination: symbols::SymbolHandle::invalid(),
-            state: state.symbol,
+        super::record_scalar_value_pair(
+            source_bindings,
+            expressions,
+            binding_symbols,
+            scalar_parameters,
+            locals,
+            state.symbol,
             statement_ordinal,
-            role: CheckedScalarExpressionRole::Guard,
-            expression: authored_guard,
-            symbols: binding_symbols
-                .insert_many(located_binding_symbols(scalar_parameters, locals)),
-        });
-        expressions.push(CheckedLocatedScalarExpression {
-            state: state.symbol,
-            statement_ordinal,
-            role: CheckedScalarExpressionRole::Guard,
-            expression: CheckedScalarExpression::Boolean(Box::new(guard)),
-        });
+            CheckedScalarExpressionRole::Guard,
+            symbols::SymbolHandle::invalid(),
+            authored_guard,
+            CheckedScalarExpression::Boolean(Box::new(guard)),
+        );
     }
     for (target, continuation) in [(transition.target, false), (transition.continuation, true)] {
         if !target.is_valid() {
@@ -85,21 +82,19 @@ pub(super) fn plan(
             } else {
                 CheckedScalarExpressionRole::Return
             };
-            source_bindings.append(CheckedScalarExpressionBindings {
-                destination: symbols::SymbolHandle::invalid(),
-                state: state.symbol,
+            super::record_scalar_value_pair(
+                source_bindings,
+                expressions,
+                binding_symbols,
+                scalar_parameters,
+                locals,
+                state.symbol,
                 statement_ordinal,
                 role,
-                expression: *expression,
-                symbols: binding_symbols
-                    .insert_many(located_binding_symbols(scalar_parameters, locals)),
-            });
-            expressions.push(CheckedLocatedScalarExpression {
-                state: state.symbol,
-                statement_ordinal,
-                role,
-                expression: return_expression,
-            });
+                symbols::SymbolHandle::invalid(),
+                *expression,
+                return_expression,
+            );
         }
         let TransitionTargetNode::Named {
             path, arguments, ..
@@ -197,21 +192,19 @@ pub(super) fn plan(
             } else {
                 CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
             };
-            source_bindings.append(CheckedScalarExpressionBindings {
-                destination: target_parameter.symbol,
-                state: state.symbol,
+            super::record_scalar_value_pair(
+                source_bindings,
+                expressions,
+                binding_symbols,
+                scalar_parameters,
+                locals,
+                state.symbol,
                 statement_ordinal,
                 role,
-                expression: *argument,
-                symbols: binding_symbols
-                    .insert_many(located_binding_symbols(scalar_parameters, locals)),
-            });
-            expressions.push(CheckedLocatedScalarExpression {
-                state: state.symbol,
-                statement_ordinal,
-                role,
+                target_parameter.symbol,
+                *argument,
                 expression,
-            });
+            );
         }
     }
 }

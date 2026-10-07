@@ -317,3 +317,35 @@ pub(crate) fn assignment_target_primitive_type(
         }
     }
 }
+
+/// Records the source-binding and located-expression rows one bound scalar
+/// value contributes to its plan.
+#[allow(clippy::too_many_arguments)]
+fn record_scalar_value_pair(
+    source_bindings: &mut arena::Arena<CheckedScalarExpressionBindings>,
+    expressions: &mut Vec<CheckedLocatedScalarExpression>,
+    binding_symbols: &mut arena::Arena<symbols::SymbolHandle>,
+    scalar_parameters: &[typed_trees::signature::StateParameter],
+    locals: &[ScalarLocal],
+    state: symbols::SymbolHandle,
+    statement_ordinal: u32,
+    role: CheckedScalarExpressionRole,
+    destination: symbols::SymbolHandle,
+    bound_expression: ExpressionHandle,
+    located_expression: CheckedScalarExpression,
+) {
+    source_bindings.append(CheckedScalarExpressionBindings {
+        destination,
+        state,
+        statement_ordinal,
+        role,
+        expression: bound_expression,
+        symbols: binding_symbols.insert_many(located_binding_symbols(scalar_parameters, locals)),
+    });
+    expressions.push(CheckedLocatedScalarExpression {
+        state,
+        statement_ordinal,
+        role,
+        expression: located_expression,
+    });
+}

@@ -64,13 +64,13 @@ use ::diagnostics::Diagnostic;
 use arrays::fixed_array_field_lengths;
 pub(in crate::checks) use arrays::fixed_array_type_length;
 use dependent_params::seed_dependent_param_orderings;
+pub(in crate::checks) use expressions::folded_integer_binary;
 use facts::RangeFacts;
 use incoming_guards::{IncomingGuardIndex, seed_incoming_guard_facts};
 use loop_invariants::{collect_loop_invariant_facts, seed_loop_invariant_facts};
 use requirements::seed_state_requires;
 use state_arguments::{collect_state_argument_facts, seed_state_argument_facts};
 use statements::check_statement;
-pub(in crate::checks) use expressions::folded_integer_binary;
 pub(in crate::checks) use types::expression_enforced_declared_range;
 
 pub(crate) fn check_indexed_accesses(

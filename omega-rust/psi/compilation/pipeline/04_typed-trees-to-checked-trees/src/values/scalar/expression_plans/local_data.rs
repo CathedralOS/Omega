@@ -7,10 +7,10 @@
 //! suppress the ordinary computation builder that owns runtime evaluation.
 
 use super::{
-    CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-    ExpressionNode, LoweredCallArguments, ScalarLocal, StatementPlanner, located_binding_symbols,
-    lower_call_arguments, lower_direct_call_binding_arguments, lower_return_expression,
-    lower_selected_operator_operands, retain_call_arguments, scalar_qualified_call_expression,
+    CheckedScalarExpressionRole, ExpressionNode, LoweredCallArguments, ScalarLocal,
+    StatementPlanner, lower_call_arguments, lower_direct_call_binding_arguments,
+    lower_return_expression, lower_selected_operator_operands, retain_call_arguments,
+    scalar_qualified_call_expression,
 };
 
 pub(super) fn plan(
@@ -179,21 +179,19 @@ pub(super) fn plan(
                 )
             })
         {
-            source_bindings.append(CheckedScalarExpressionBindings {
-                destination: local.symbol,
-                state: state.symbol,
+            super::record_scalar_value_pair(
+                source_bindings,
+                expressions,
+                binding_symbols,
+                scalar_parameters,
+                locals,
+                state.symbol,
                 statement_ordinal,
                 role,
-                expression: local.initial_value,
-                symbols: binding_symbols
-                    .insert_many(located_binding_symbols(scalar_parameters, locals)),
-            });
-            expressions.push(CheckedLocatedScalarExpression {
-                state: state.symbol,
-                statement_ordinal,
-                role,
-                expression: initializer,
-            });
+                local.symbol,
+                local.initial_value,
+                initializer,
+            );
         }
     }
     locals.push(ScalarLocal {
