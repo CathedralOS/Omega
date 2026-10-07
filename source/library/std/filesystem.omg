@@ -554,20 +554,25 @@ pub data Filesystem {
 // (`_creat`) row stays for raw-seam callers, but the wrapper composes flags so
 // windows writes are byte-exact (Rust File::create is binary; msvcrt `_creat`
 // is TEXT mode).
+/// The creating sites (`create`, `write_all`, `copy`) share one flag set;
+/// named so the literal is stated once.
+machine Filesystem::creation_open_options() -> OpenOptions {
+    (OpenOptions { read: false, write: true, append: false, truncate: true, create: true, create_new: false })
+}
+
+/// The read/inspect sites start from the empty set and keep the encoded
+/// flags as `read_flags`.
+machine Filesystem::empty_open_options() -> OpenOptions {
+    (OpenOptions { read: false, write: false, append: false, truncate: false, create: false, create_new: false })
+}
+
 pub machine Filesystem::create(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    filesystem.open_options = OpenOptions {
-        read: false,
-        write: true,
-        append: false,
-        truncate: true,
-        create: true,
-        create_new: false,
-    };
+    filesystem.open_options = Filesystem::creation_open_options();
     Filesystem::encode_open_options(filesystem);
     // Mode is a LITERAL (438 = 0o666, Rust's create mode; the umask trims it):
     // the darwin arm64 variadic encoder marshals the trailing mode on the
@@ -612,14 +617,7 @@ reaches
 invokes
     FilesystemHost;
 {
-    filesystem.open_options = OpenOptions {
-        read: false,
-        write: false,
-        append: false,
-        truncate: false,
-        create: false,
-        create_new: false,
-    };
+    filesystem.open_options = Filesystem::empty_open_options();
     Filesystem::encode_open_options(filesystem);
     filesystem.read_flags = filesystem.open_flags;
     let fd: i32 = filesystem.host.open(path, filesystem.read_flags);
@@ -739,14 +737,7 @@ invokes
     FilesystemHost;
 {
     // `open_create` with the selected target's checked create/truncate format.
-    filesystem.open_options = OpenOptions {
-        read: false,
-        write: true,
-        append: false,
-        truncate: true,
-        create: true,
-        create_new: false,
-    };
+    filesystem.open_options = Filesystem::creation_open_options();
     Filesystem::encode_open_options(filesystem);
     let fd: i32 = filesystem.host.open_create(path, filesystem.open_flags, 438);
     let n: i64 = filesystem.host.write(fd, bytes);
@@ -773,14 +764,7 @@ reaches
 invokes
     FilesystemHost;
 {
-    filesystem.open_options = OpenOptions {
-        read: false,
-        write: false,
-        append: false,
-        truncate: false,
-        create: false,
-        create_new: false,
-    };
+    filesystem.open_options = Filesystem::empty_open_options();
     Filesystem::encode_open_options(filesystem);
     filesystem.read_flags = filesystem.open_flags;
     let fd: i32 = filesystem.host.open(path, filesystem.read_flags);
@@ -820,27 +804,13 @@ invokes
     // BINARY-SAFE on windows: the selected target encoder prevents msvcrt
     // CRLF/^Z translation on both source read and destination write. The
     // destination uses the same checked create/truncate encoding as `create`.
-    filesystem.open_options = OpenOptions {
-        read: false,
-        write: false,
-        append: false,
-        truncate: false,
-        create: false,
-        create_new: false,
-    };
+    filesystem.open_options = Filesystem::empty_open_options();
     Filesystem::encode_open_options(filesystem);
     filesystem.read_flags = filesystem.open_flags;
     let src: i32 = filesystem.host.open(from, filesystem.read_flags);
     let n: i64 = filesystem.host.read(src, buffer, cap);
     let closed_src: i32 = filesystem.host.close(src);
-    filesystem.open_options = OpenOptions {
-        read: false,
-        write: true,
-        append: false,
-        truncate: true,
-        create: true,
-        create_new: false,
-    };
+    filesystem.open_options = Filesystem::creation_open_options();
     Filesystem::encode_open_options(filesystem);
     let dst: i32 = filesystem.host.open_create(to, filesystem.open_flags, 438);
     let written: i64 = filesystem.host.write(dst, buffer);
