@@ -83,11 +83,18 @@ crashes Trap
             Token::StringLiteral -> literal(parser, input, ExpressionKind::String)
             Token::Keyword { keyword: KeywordKind::True } -> boolean(parser, input, true)
             Token::Keyword { keyword: KeywordKind::False } -> boolean(parser, input, false)
-            Token::Keyword { keyword: KeywordKind::Case } -> path(parser, input)
-            Token::Keyword { keyword: KeywordKind::Copy } -> path(parser, input)
-            Token::Keyword { keyword: KeywordKind::Linear } -> path(parser, input)
+            Token::Keyword { keyword } -> keyword_operand(parser, input, code, keyword)
             Token::Identifier -> path(parser, input)
             _ -> reject(parser, input, code)
+        }
+    }
+
+    // As in every name position, a keyword other than `self` is an ordinary
+    // name here (`data(...)` targets a state named `data`).
+    state keyword_operand(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode, keyword: KeywordKind) {
+        transition keyword {
+            KeywordKind::SelfValue -> reject(parser, input, code)
+            _ -> path(parser, input)
         }
     }
 

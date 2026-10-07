@@ -235,6 +235,8 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
         )
         for _ in range(reader.u64())
     )
@@ -1235,6 +1237,7 @@ def main() -> None:
         return_type: int = -1,
         first_statement: int = 0,
         statement_count: int = 0,
+        clause_range: tuple[int, int] = (0, 0),
     ) -> tuple[int, ...]:
         return (
             *at(source, name),
@@ -1242,6 +1245,7 @@ def main() -> None:
             parameter_count,
             0 if return_type < 0 else 1,
             max(return_type, 0),
+            *clause_range,
             first_statement,
             statement_count,
             1,
@@ -1295,8 +1299,8 @@ def main() -> None:
         machines=((0, 1, 0, 0, 1, 8, 11, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 64),),
         parameters=((1, 12, 13, 0, 1, 12, 18), (1, 33, 34, 1, 1, 33, 38)),
         states=(
-            (1, 28, 32, 1, 1, 1, 2, 0, 0, 1, 22, 48),
-            (1, 55, 59, 2, 0, 0, 0, 0, 0, 1, 49, 62),
+            (1, 28, 32, 1, 1, 1, 2, 0, 0, 0, 0, 1, 22, 48),
+            (1, 55, 59, 2, 0, 0, 0, 0, 0, 0, 0, 1, 49, 62),
         ),
     )
     source = b"machine wrap(x: u64 in Wrapping) {}"
@@ -1731,6 +1735,40 @@ def main() -> None:
     )
     for name, source, diagnostic, span, counts in clause_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
+
+    # A state's arrival `requires` facts share the clause table; a state
+    # admits no other clause and a machine admits no `where`.
+    source = b"machine f(n: u64) { state s(n: u64) requires n < 9 requires n > 0 {} }"
+    status, payload = run(program, source)
+    assert status == 0, f"state-requires: status {status}"
+    actual = decode(payload)
+    first_requires = source.index(b"requires")
+    second_requires = source.index(b"requires", first_requires + 1)
+    assert actual.clauses == (
+        (6, 0, 0, 1, 2, 1, first_requires, source.index(b"9") + 1),
+        (6, 0, 0, 1, 5, 1, second_requires, source.index(b"0 {") + 1),
+    ), f"state-requires:\n{actual.clauses}"
+    assert actual.states[0][7:9] == (0, 2), f"state-requires:\n{actual.states}"
+    assert actual.machines[0][11:13] == (0, 0), f"state-requires:\n{actual.machines}"
+    admission_rejections = (
+        ("state-ensures", b"machine f() { state s ensures 1 {} }", 105, (22, 29), {}),
+        ("state-reaches", b"machine f() { state s reaches A {} }", 105, (22, 29), {}),
+        ("machine-where", b"machine f() where 1 {}", 105, (12, 17), {}),
+    )
+    for name, source, diagnostic, span, counts in admission_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    # Every keyword but `self` is a name in an expression, as in every other
+    # name position.
+    source = b"machine f() { g(target, data); transition { _ -> data(target) } state data(target: u8) {} }"
+    status, payload = run(program, source)
+    assert status == 0, f"keyword-names: status {status}"
+    actual = decode(payload)
+    assert [source[span[1]:span[2]] for span in actual.members] == [b"g", b"target", b"data", b"data", b"target"], (
+        f"keyword-names:\n{actual.members}"
+    )
+    rejected(program, "self-is-not-a-name", b"machine f() { g(self); }", 60, (16, 20),
+             member_count=1, expression_count=1)
 
     # Body rejections keep the nodes completed before the rejected token.
     body_rejections = (

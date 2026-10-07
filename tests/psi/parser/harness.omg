@@ -234,6 +234,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedStaticArgumentEnd -> parse_diagnostic(parser_harness, output, 102)
             ParseDiagnosticCode::TypeNestingCapacityExceeded -> parse_diagnostic(parser_harness, output, 103)
             ParseDiagnosticCode::TypeArgumentCapacityExceeded -> parse_diagnostic(parser_harness, output, 104)
+            ParseDiagnosticCode::ClauseNotAdmitted -> parse_diagnostic(parser_harness, output, 105)
         }
     }
 
@@ -898,6 +899,8 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.parameter_count);
         ParserHarness::write_flag(parser_harness, item.has_return_type);
         ParserHarness::write_u64(parser_harness, item.return_type);
+        ParserHarness::write_u64(parser_harness, item.first_clause);
+        ParserHarness::write_u64(parser_harness, item.clause_count);
         ParserHarness::write_u64(parser_harness, item.first_statement);
         ParserHarness::write_u64(parser_harness, item.statement_count);
         ParserHarness::write_source_span(parser_harness, item.source_span);
@@ -1164,7 +1167,7 @@ crashes Trap
     }
 
     state write_clause(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
-        let clause: MachineClause = SyntaxTrees::clause(output, index);
+        let clause: Clause = SyntaxTrees::clause(output, index);
         transition clause.kind {
             ClauseKind::Reaches -> clause_kind(parser_harness, output, index, clause, 1)
             ClauseKind::Invokes -> clause_kind(parser_harness, output, index, clause, 2)
@@ -1173,6 +1176,7 @@ crashes Trap
             ClauseKind::Crashes -> clause_kind(parser_harness, output, index, clause, 5)
             ClauseKind::Requires -> clause_kind(parser_harness, output, index, clause, 6)
             ClauseKind::Ensures -> clause_kind(parser_harness, output, index, clause, 7)
+            ClauseKind::Where -> clause_kind(parser_harness, output, index, clause, 8)
         }
     }
 
@@ -1180,7 +1184,7 @@ crashes Trap
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
-        clause: MachineClause,
+        clause: Clause,
         tag: u8
     ) {
         ParserHarness::write_byte(parser_harness, tag);
@@ -1196,7 +1200,7 @@ crashes Trap
         parser_harness: &mut ParserHarness,
         output: &SyntaxTrees,
         index: u64 in Trapping,
-        clause: MachineClause,
+        clause: Clause,
         tag: u8
     ) {
         ParserHarness::write_byte(parser_harness, tag);

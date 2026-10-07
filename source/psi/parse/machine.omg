@@ -84,7 +84,7 @@ crashes Trap
         parser.machine_parameter_count = parser.signature_parameter_count;
         parser.machine_has_return_type = parser.signature_has_return_type;
         parser.machine_return_type = parser.signature_return_type;
-        Parser::parse_machine_clauses(parser, input);
+        Parser::parse_clauses(parser, input, ClauseOwner::Machine);
         transition parser.output.accepted {
             true -> body(parser, input)
             _ -> done()
@@ -201,8 +201,8 @@ crashes Trap
     state done() {}
 }
 
-// `state name [(parameters)] [-> Type] { statements }`, entered at the
-// `state` keyword.
+// `state name [(parameters)] [-> Type] [requires fact]* { statements }`,
+// entered at the `state` keyword.
 machine Parser::parse_state_member(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
@@ -230,12 +230,22 @@ crashes Trap
         parser.state_name_end = parser.name_end;
         Parser::parse_signature(parser, input);
         transition parser.output.accepted {
+            true -> clauses(parser, input)
+            _ -> done()
+        }
+    }
+
+    state clauses(parser: &mut Parser, input: &TokenStream) {
+        Parser::parse_clauses(parser, input, ClauseOwner::State);
+        transition parser.output.accepted {
             true -> body(parser, input)
             _ -> done()
         }
     }
 
     state body(parser: &mut Parser, input: &TokenStream) {
+        parser.state_first_clause = parser.clause_first;
+        parser.state_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
         Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace,
             ParseDiagnosticCode::ExpectedStateBody
         );
@@ -277,6 +287,8 @@ crashes Trap
             parameter_count: parser.signature_parameter_count,
             has_return_type: parser.signature_has_return_type,
             return_type: parser.signature_return_type,
+            first_clause: parser.state_first_clause,
+            clause_count: parser.state_clause_count,
             first_statement: parser.body_first_statement,
             statement_count: (parser.output.statement_count as u64 in Trapping) - parser.body_first_statement,
             source_span: Parser::source_span(parser, parser.state_start, parser.token_end)

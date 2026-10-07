@@ -260,10 +260,11 @@ pub data Statement [copy] {
     source_span: SourceSpan;
 }
 
-// One machine clause between the signature and the body. `Reaches` names
+// One clause between a declaration's head and its body. `Reaches` names
 // services and `Invokes` a binding, both in `SyntaxTrees::members`; `Crashes`
-// records its cause; `Requires` and `Ensures` hold a fact expression;
-// `Suspends` and `Blocks` carry nothing more.
+// records its cause; `Requires`, `Ensures` and each `Where` fact hold a fact
+// expression; `Suspends` and `Blocks` carry nothing more. Machines, states,
+// data declarations and cases each own a contiguous range of clauses.
 pub data ClauseKind [copy] {
     case Reaches;
     case Invokes;
@@ -272,9 +273,17 @@ pub data ClauseKind [copy] {
     case Crashes;
     case Requires;
     case Ensures;
+    case Where;
 }
 
-pub data MachineClause [copy] {
+pub data ClauseOwner [copy] {
+    case Machine;
+    case State;
+    case Data;
+    case DataCase;
+}
+
+pub data Clause [copy] {
     kind: ClauseKind;
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
@@ -291,6 +300,8 @@ pub data StateItem [copy] {
     parameter_count: u64 in Trapping;
     has_return_type: bool;
     return_type: u64 in Trapping;
+    first_clause: u64 in Trapping;
+    clause_count: u64 in Trapping;
     first_statement: u64 in Trapping;
     statement_count: u64 in Trapping;
     source_span: SourceSpan;
@@ -437,6 +448,7 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedStaticArgumentEnd;
     case TypeNestingCapacityExceeded;
     case TypeArgumentCapacityExceeded;
+    case ClauseNotAdmitted;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -508,7 +520,7 @@ where
     arm_count: u64;
     pattern_fields: [PatternField; 512] in Trapping;
     pattern_field_count: u64;
-    clauses: [MachineClause; 512] in Trapping;
+    clauses: [Clause; 512] in Trapping;
     clause_count: u64;
     diagnostic: ParseDiagnostic;
     accepted: bool;
@@ -850,7 +862,7 @@ crashes Trap
     }
 }
 
-pub machine SyntaxTrees::clause(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> MachineClause
+pub machine SyntaxTrees::clause(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Clause
 crashes Trap
 {
     transition handle < syntax_trees.clause_count {
@@ -862,7 +874,7 @@ crashes Trap
         syntax_trees.clauses[handle]
     }
 
-    state invalid() -> MachineClause {
+    state invalid() -> Clause {
         crash Trap;
     }
 }
