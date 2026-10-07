@@ -206,6 +206,18 @@ impl<'a> ReviewContext<'a> {
                 format!("reachable internal call names absent machine {machine:?}")
             })?;
             for operation in &function.operations {
+                // Cleanup is executable work on this edge, not a declaration
+                // marker. Its hook's mechanisms belong to the same authority
+                // closure as ordinary calls from the entry.
+                for (_, actions) in operation.cleanup_rosters() {
+                    for action in actions {
+                        if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
+                            action
+                        {
+                            pending.push(cleanup.cleanup_machine);
+                        }
+                    }
+                }
                 match authority_edge(operation) {
                     AuthorityEdge::None => {}
                     AuthorityEdge::Internal(callee) => pending.push(callee),

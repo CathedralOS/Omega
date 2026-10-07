@@ -21,8 +21,8 @@ use compilation_products::NativeRealizationRequest;
 use diagnostics::Diagnostic;
 use machine_code::CompilerPrivateMachineCodeFunction;
 
-/// Realize every settled callback thunk into its compiler-private machine-code
-/// record, preserving the request's placement order.
+/// Realize the executable scope's callback thunks into compiler-private code,
+/// preserving original placement identities and relative request order.
 ///
 /// A thunk is a self-contained module: it carries no boundary settlements,
 /// provider installations or callback arguments of its own, so
@@ -31,10 +31,18 @@ use machine_code::CompilerPrivateMachineCodeFunction;
 /// diagnostic rather than surfacing as an unrelated program-stage failure.
 pub(crate) fn lower_callback_thunks(
     request: &NativeRealizationRequest<'_>,
+    native_callbacks: &[terminal_psi_to_abstract_operations::AdmittedNativeCallbackArgument],
 ) -> Result<Vec<CompilerPrivateMachineCodeFunction>, Vec<Diagnostic>> {
     request
         .callback_thunks
         .iter()
+        .filter(|settlement| {
+            native_callbacks.iter().any(|callback| {
+                callback.terminal_operation == settlement.terminal_operation
+                    && callback.placement_index == settlement.placement_index
+                    && callback.callback_function == settlement.callback_function
+            })
+        })
         .map(|settlement| lower_callback_thunk(request, settlement))
         .collect()
 }
@@ -49,7 +57,18 @@ fn lower_callback_thunk(
         .map_err(|error| realization_error("callback thunk artifact replay", error))?;
     let input =
         terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(artifact, &[])
-            .map_err(artifact_lowering_error)?;
+            .map_err(artifact_lowering_error)?
+            .select_target_execution(
+                request
+                    .admission
+                    .providers
+                    .program_entry
+                    .source()
+                    .target_slot()
+                    .owner,
+                &[],
+            )
+            .map_err(|error| realization_error("callback thunk execution scope", error))?;
     let selections = request.optimization_selections.selections();
     let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
         input.into_optimization_input(),

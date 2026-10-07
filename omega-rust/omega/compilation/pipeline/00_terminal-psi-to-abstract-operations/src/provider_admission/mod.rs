@@ -12,6 +12,7 @@
 //! preparation never replaces independent native admission.
 
 mod adapters;
+pub(crate) use adapters::project_selected_provider_adapters;
 mod callback_arguments;
 mod compiler_builtins;
 mod diagnostics;
@@ -72,6 +73,9 @@ pub use model::{
 
 pub struct AdmittedNativeProviders<'execution> {
     pub settlements: Vec<AdmittedBoundarySettlement<'execution>>,
+    /// Callback arguments for the same executable occurrence scope as the
+    /// settlements and checked installation, never the full retained catalog.
+    pub native_callbacks: Vec<AdmittedNativeCallbackArgument>,
     pub executions: Vec<&'execution dyn ProviderExecutionEvidence>,
     pub terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
     /// `Some` only when a receiving permission policy was explicitly supplied;
@@ -91,7 +95,7 @@ pub struct AdmittedTerminalMechanism {
 pub fn admit_native_providers<'request>(
     input: &NativeRealizationInput,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    request: &ProviderAdmissionRequest<'request>,
+    request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
     let (settlements, executions, mut mechanisms, cohort_rows) =
@@ -153,6 +157,7 @@ pub fn admit_native_providers<'request>(
         })?;
     Ok(AdmittedNativeProviders {
         settlements,
+        native_callbacks: request.native_callbacks.to_vec(),
         executions,
         terminal_authority_policy_identity: effective_policy.identity(),
         terminal_authority_permission_policy_identity: request

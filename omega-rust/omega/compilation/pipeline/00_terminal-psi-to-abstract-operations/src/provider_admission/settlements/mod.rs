@@ -20,7 +20,7 @@ use source_imports::derive_source_evaluated_mechanisms;
 
 pub fn settle_provider_executions<'request>(
     input: &NativeRealizationInput,
-    request: &ProviderAdmissionRequest<'request>,
+    request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,

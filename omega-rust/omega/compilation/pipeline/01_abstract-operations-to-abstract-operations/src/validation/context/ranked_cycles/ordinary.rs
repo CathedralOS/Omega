@@ -6,11 +6,24 @@ use super::{
 };
 pub(super) fn rederive_components(
     module: &terminal_psi::TerminalModule,
+    seed_functions: &[abstract_operations::AbstractFunction],
     unit: &PsiOptimizationUnit,
     terminal_psi: terminal_psi::TerminalPsiIdentity,
 ) -> Result<OptimizerCycleComponentSnapshot, OptimizationUnitValidationError> {
     let mut components = Vec::new();
-    for machine in &module.machines {
+    // The admitted seed is the immutable invocation scope. Canonical Terminal
+    // may retain other cyclic bodies, but a later revision must not silently
+    // discard a cyclic body that this invocation admitted into its seed.
+    for seed in seed_functions {
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == seed.machine)
+            .ok_or(
+                OptimizationUnitValidationError::RankedCycleTopologyMismatch {
+                    machine: seed.machine,
+                },
+            )?;
         let invalid = || OptimizationUnitValidationError::RankedCycleTopologyMismatch {
             machine: machine.id,
         };

@@ -3,8 +3,11 @@
 //! Terminal Psi to abstract operations: the first Omega program stage.
 //!
 //! Native production enters `admit_native_realization` (`native_admission`):
-//! canonical input preparation, provider settlement and installation, and
-//! authority review produce one complete admitted input for stage 01.
+//! canonical input preparation, deployment execution scope, provider settlement
+//! and installation, and authority review produce one input for stage 01.
+//! `native_execution_scope` selects the actual call/cleanup/provider closure
+//! without erasing canonical storage. Private callback artifacts use the same
+//! selection before their physical stages; portable consumers stay complete.
 //! Portable consumers use `lower_artifact` (`artifact_admission`). It replays
 //! and verifies a Terminal artifact's semantic and proof sections, then lowers
 //! each machine (`lowering`) into source-independent abstract operations.
@@ -37,6 +40,7 @@ mod comparison_settlement;
 mod entry_settlement;
 mod lowering;
 mod native_admission;
+mod native_execution_scope;
 mod optimization;
 pub mod provider_admission;
 mod provider_installation;
@@ -56,6 +60,7 @@ pub use retained_terminal::{
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
 };
+pub use native_execution_scope::NativeExecutionScopeError;
 pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
 };

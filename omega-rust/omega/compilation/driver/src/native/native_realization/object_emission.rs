@@ -22,6 +22,7 @@ pub(crate) fn emit_realization_object(
     input: VerifiedNativeArtifactInput,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
+    native_callbacks: &[terminal_psi_to_abstract_operations::AdmittedNativeCallbackArgument],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
     hosted_receiver: Option<
         &terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement,
@@ -41,14 +42,14 @@ pub(crate) fn emit_realization_object(
     // request's callback custody has been admitted, under the same effective
     // selection as the entry. Target lowering rejoins the exact callback
     // roster; physical and installation replay preserve its private addresses.
-    let private_functions = lower_callback_thunks(request)?;
+    let private_functions = lower_callback_thunks(request, native_callbacks)?;
     let target = lower_optimized_to_target_operations(
         abstract_stage,
         OptimizedTargetLoweringRequest {
             target: request.admission.providers.target,
             settlements,
             installation: provider_installation,
-            native_callbacks: request.admission.providers.native_callbacks,
+            native_callbacks,
         },
     )
     .map_err(|error| realization_error("target lowering", error))?;

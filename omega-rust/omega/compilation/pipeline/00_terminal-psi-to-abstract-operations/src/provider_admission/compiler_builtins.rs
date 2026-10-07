@@ -44,7 +44,7 @@ use target_operations::{
 /// classification and target support are decided here and nowhere else.
 pub(super) fn settle_compiler_builtins<'request>(
     input: &NativeRealizationInput,
-    request: &ProviderAdmissionRequest<'request>,
+    request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,

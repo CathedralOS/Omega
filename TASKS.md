@@ -2137,7 +2137,9 @@ crash and native exit behavior.
     rows; inspection exposes tags and exact callable ids. Product pruning
     preserves those roots. Typed provider-default programs have an explicit
     declaration purpose; final Build admission retains every target's effects.
-    Native admission narrows physical bodies without changing canonical storage.
+    Entry and private-callback realization share one executable scope for
+    bodies, boundary contracts, selected candidates and call occurrences;
+    canonical Terminal storage stays complete.
   - The frontier: `select_product_target` still swaps roles and retargets
     portable source calls before checking. Replace that selection with explicit
     portable family-call custody, carry complete per-member conformances, and

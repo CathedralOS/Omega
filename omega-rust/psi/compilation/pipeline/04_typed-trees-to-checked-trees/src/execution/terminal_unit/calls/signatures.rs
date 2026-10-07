@@ -389,9 +389,10 @@ pub(crate) fn free_structural_scalar_signature_traced(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    if !binders.is_empty() {
-        return None;
-    }
+    // Static binders do not themselves occupy runtime slots. Classify the
+    // actual formals: an unresolved carrier still declines in the shape
+    // collector, while a concrete telescope stays concrete even when the
+    // declaration also binds an implementation or an unused type argument.
     scalar_and_structural_parameters(program, shapes, state, binders, trace)
 }
 

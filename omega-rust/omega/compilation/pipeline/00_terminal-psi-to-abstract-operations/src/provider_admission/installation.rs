@@ -8,7 +8,7 @@ use super::adapters::project_selected_provider_adapters;
 pub fn admit_checked_provider_installation(
     input: &NativeRealizationInput,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    request: &ProviderAdmissionRequest<'_>,
+    request: &ProviderAdmissionRequest<'_, '_>,
 ) -> Result<Option<AdmittedProviderInstallation>, Vec<Diagnostic>> {
     let plan = input.plan();
     if plan.provider_candidates.is_empty() {

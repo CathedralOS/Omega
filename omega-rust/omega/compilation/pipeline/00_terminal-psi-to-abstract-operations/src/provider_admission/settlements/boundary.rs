@@ -12,7 +12,7 @@ use installation_evidence::ProviderExecutionEvidence;
 
 pub(super) fn settle_boundary<'request>(
     input: &NativeRealizationInput,
-    request: &ProviderAdmissionRequest<'request>,
+    request: &ProviderAdmissionRequest<'_, 'request>,
     settlement: &NativeProviderSettlement<'request>,
 ) -> Result<
     (

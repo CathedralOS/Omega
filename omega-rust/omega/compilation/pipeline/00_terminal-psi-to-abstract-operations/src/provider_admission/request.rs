@@ -65,12 +65,14 @@ pub struct NativeCompilerBuiltinSettlement<'execution> {
 /// target, entry settlement, selected plans, external bindings, supplied
 /// settlements and builtins, callback arguments and the receiving
 /// terminal-authority policies.
-pub struct ProviderAdmissionRequest<'request> {
+// The request borrows invocation-local selections; executions keep their
+// provider-owned lifetime when those selections are projected into a roster.
+pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub target: target::NativeTarget,
     pub program_entry: crate::NativeProgramEntrySettlement<'request>,
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
-    pub settlements: &'request [NativeProviderSettlement<'request>],
+    pub settlements: &'request [NativeProviderSettlement<'execution>],
     pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
     pub native_callbacks: &'request [crate::AdmittedNativeCallbackArgument],
     pub terminal_authority_policy: &'request TerminalAuthorityPolicy,

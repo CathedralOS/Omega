@@ -36,11 +36,10 @@ pub(crate) fn build_boundary_machine(
     {
         return None;
     }
-    // A qualified top-level requirement need not name a data attachment:
-    // Float::multiply, for example, owns a semantic namespace, not a receiver.
-    // Its explicit parameter telescope already supplies the whole runtime
-    // signature. Do not fabricate a data type merely to form its call plan.
-    // Actual data attachments retain their existing identity and custody.
+    // An opaque callable need not name a data attachment. A free foreign leaf
+    // and a namespace-qualified requirement both get their runtime signature
+    // from explicit parameters. Supply mode does not invent an owner; actual
+    // data attachments retain their existing identity and custody.
     let has_data_attachment = machine.attached_data.as_ref().is_some_and(|name| {
         program
             .data_definitions()
@@ -48,9 +47,7 @@ pub(crate) fn build_boundary_machine(
             .any(|data| data.name == *name)
     });
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        if machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-            && !has_data_attachment
-        {
+        if !has_data_attachment {
             let (structural, scalar) =
                 free_structural_scalar_signature(program, shapes, state, &binders)?;
             (None, structural, scalar)

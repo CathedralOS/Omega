@@ -50,7 +50,18 @@ pub(super) fn discover(
                     "target-family body is absent from checked input",
                 ))?;
         if !machine.supplies_checked_body() {
-            super::unique_unit_boundary(plans, member.machine)?;
+            super::unique_unit_boundary(plans, member.machine).map_err(|error| match error {
+                LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
+                    machine: machine.name.as_str().to_owned(),
+                    reason,
+                    gap: checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .gap_diagnostic(member.machine, &checked.symbols),
+                },
+                error => error,
+            })?;
             family_boundary_roots.push(member.machine);
             continue;
         }

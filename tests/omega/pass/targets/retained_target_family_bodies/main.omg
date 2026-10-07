@@ -30,4 +30,13 @@ reserved_target machine Helper::unrealized(helper: &Helper) -> u32 {
     transition { _ -> 23 }
 }
 
+// An unrequested cyclic body is checked and retained too. It must not become
+// execution demand or require a current optimizer body in another deployment.
+archive_target machine Helper::cycle(helper: &Helper) -> u32 {
+    transition { _ -> step(helper) }
+    state step(helper: &Helper) -> u32 {
+        transition { _ -> step(helper) }
+    }
+}
+
 machine main() { }

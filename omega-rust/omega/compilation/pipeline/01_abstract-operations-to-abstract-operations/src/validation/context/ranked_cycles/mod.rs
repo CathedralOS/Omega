@@ -26,7 +26,8 @@ pub(super) fn validate_exact_ranked_cycles(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
 ) -> Result<RankedCycleAdmission, OptimizationUnitValidationError> {
-    let snapshot = replay::rederive_exact_components(input.context().module(), unit)?;
+    let snapshot =
+        replay::rederive_exact_components(input.context().module(), &input.plan().functions, unit)?;
     let rankings =
         countdown_ranking::rederive_exact_certificates(input.context().module(), unit, &snapshot)?;
     Ok(RankedCycleAdmission { snapshot, rankings })

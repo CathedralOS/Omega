@@ -42,13 +42,30 @@ impl VerifiedNativeArtifactInput {
         self.optimization_input.plan()
     }
 
+    /// Select one deployment's executable closure before physical work.
+    /// Entry artifacts and private callback artifacts use this same projection;
+    /// canonical storage and actual callable IDs never change. Selection grants
+    /// no provider installation authority. A self-contained callback supplies
+    /// an empty adapter roster and still requires ordinary target lowering.
+    pub fn select_target_execution(
+        self,
+        profile: target::TargetProfile,
+        selected: &[crate::SelectedProviderAdapter],
+    ) -> Result<Self, crate::NativeExecutionScopeError> {
+        let mut input = self.select_target_families(profile);
+        let scope =
+            crate::native_execution_scope::NativeExecutionScope::derive(input.plan(), selected)?;
+        input.retain_execution_scope(&scope);
+        Ok(input)
+    }
+
     /// Restrict physical work to this deployment's retained implementations.
     /// Canonical Terminal storage and actual member identities remain intact;
     /// this does not redirect calls or substitute a body at a family head.
     /// A surviving call to an excluded member still fails ordinary closure
     /// admission. Portable family-call binding is a separate pending producer
     /// change: the current source continuation already selected those calls.
-    pub(crate) fn select_target_families(mut self, profile: target::TargetProfile) -> Self {
+    fn select_target_families(mut self, profile: target::TargetProfile) -> Self {
         let members = self
             .optimization_input
             .context
@@ -70,6 +87,31 @@ impl VerifiedNativeArtifactInput {
                 .is_none_or(|(_, selected)| *selected)
         });
         self
+    }
+
+    /// Narrow only the invocation's executable projection. The immutable
+    /// canonical module remains available to every contract/evidence consumer.
+    fn retain_execution_scope(
+        &mut self,
+        scope: &crate::native_execution_scope::NativeExecutionScope,
+    ) {
+        self.optimization_input
+            .plan
+            .functions
+            .retain(|function| scope.contains_machine(function.machine));
+        self.optimization_input
+            .plan
+            .boundary_machines
+            .retain(|boundary| scope.contains_boundary(boundary.id));
+        let mut candidate_position = 0;
+        self.optimization_input
+            .plan
+            .provider_candidates
+            .retain(|_| {
+                let retained = scope.contains_candidate_position(candidate_position);
+                candidate_position += 1;
+                retained
+            });
     }
 
     pub const fn context(&self) -> &VerifiedPsiOptimizationContext {

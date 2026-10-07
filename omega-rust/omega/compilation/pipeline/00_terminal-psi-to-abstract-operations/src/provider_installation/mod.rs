@@ -1,6 +1,9 @@
 //! Optimizer module role: executable entrance.
-//! Provider installation admits only an exactly replayed abstract plan.
-//! Optimization selection does not change the Terminal-to-abstract projection.
+//! Provider installation joins exact canonical candidates and occurrences
+//! inside the invocation's selected abstract scope. Canonical Terminal keeps
+//! the complete catalog; scope selection precedes installation so no later
+//! consumer must discard orphaned call receipts. Optimizations do not select
+//! providers or redirect family heads.
 
 mod admission;
 mod error;

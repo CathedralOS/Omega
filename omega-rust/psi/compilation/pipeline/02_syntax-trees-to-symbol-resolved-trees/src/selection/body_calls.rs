@@ -159,18 +159,11 @@ fn retarget_statement_span(
                 {
                     expressions.push(guard);
                 }
-                retarget_transition_target(
-                    program,
-                    transition.target,
-                    subject_states,
-                    decide,
-                    &mut expressions,
-                );
+                retarget_transition_target(program, transition.target, decide, &mut expressions);
                 if transition.continuation.is_valid() {
                     retarget_transition_target(
                         program,
                         transition.continuation,
-                        subject_states,
                         decide,
                         &mut expressions,
                     );
@@ -187,7 +180,6 @@ fn retarget_statement_span(
 fn retarget_transition_target(
     program: &mut SymbolResolvedTrees,
     target: symbol_resolved_trees::statement::TransitionTargetHandle,
-    subject_states: &[SymbolHandle],
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
     expressions: &mut Vec<symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
@@ -221,7 +213,13 @@ fn retarget_transition_target(
                 target_symbol: path.symbol,
                 target: &spelling,
                 receiver_symbol: path.head_symbol,
-                local_receiver: members.len() == 1 || subject_states.contains(&path.symbol),
+                local_receiver: members.len() == 1,
+                argument_count: program
+                    .tables
+                    .bodies
+                    .statements
+                    .expression_handles(arguments)
+                    .len(),
             };
             if let Some(replacement) = decide(&site)
                 && let symbol_resolved_trees::statement::TransitionTargetNode::Named {
