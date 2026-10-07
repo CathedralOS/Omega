@@ -15,7 +15,7 @@ use crate::representation_specialization::admission::{bound_place, leaf_copy_pro
 use optimization_unit::{
     FieldEvidence, ForwardedFieldValue, OptimizationBlock, OptimizationNode, RootProducer,
     ValueDefinition, ValueDefinitionSite, declared_structural_type, establishment_fields,
-    root_producer, structural_child,
+    root_producer, shape, structural_child,
 };
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, StructuralFieldId, StructuralTypeId, ValueId,
@@ -373,15 +373,6 @@ impl<'a> Position<'a> {
         };
         fields.iter().find(|declaration| declaration.id == field)
     }
-}
-
-/// The declared structural shape of `type_id` in `unit`.
-fn shape(unit: &PsiOptimizationUnit, type_id: StructuralTypeId) -> Option<&StructuralTypeShape> {
-    unit.structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)
-        .map(|entry| &entry.shape)
 }
 
 /// Whether the resolved field declaration's scalar carrier matches the

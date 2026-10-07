@@ -12,15 +12,15 @@ use super::{
     PsiOptimizationUnit, ScalarType, StructuralPlaceKind,
 };
 use abstract_operations::StructuralCopyPath;
-use optimization_unit::{declared_structural_type, structural_child};
-use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, StructuralCaseId, StructuralFieldId, StructuralTypeId,
+use optimization_unit::{
+    canonicalize_ordinary_path, declared_structural_type, descended_field, descended_field_id,
+    shape, structural_child,
 };
+use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use std::collections::BTreeSet;
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralArgument, StructuralCaseDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeShape,
+    StructuralFieldType, StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
 };
 
 /// The evidence every membership observing `place` resolves against: the
@@ -467,59 +467,6 @@ impl<'a> Position<'a> {
     }
 }
 
-/// The declared structural shape of `type_id` in `unit`.
-fn shape(unit: &PsiOptimizationUnit, type_id: StructuralTypeId) -> Option<&StructuralTypeShape> {
-    unit.structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)
-        .map(|entry| &entry.shape)
-}
-
-/// The field `identity` names inside `current`'s `Record`/`Mixed`
-/// common-field roster, with the structural type the field declares.
-/// `None` when the shape has no common-field roster, the name is absent, or
-/// the field's declared type is not structural.
-fn descended_field(
-    unit: &PsiOptimizationUnit,
-    current: StructuralTypeId,
-    identity: &str,
-) -> Option<(StructuralFieldId, StructuralTypeId)> {
-    descended_field_matching(unit, current, |field| field.identity == identity)
-}
-
-/// The same common-field descent by verifier field handle, for the
-/// canonical steps a spliced copy projection carries.
-fn descended_field_id(
-    unit: &PsiOptimizationUnit,
-    current: StructuralTypeId,
-    identity: StructuralFieldId,
-) -> Option<(StructuralFieldId, StructuralTypeId)> {
-    descended_field_matching(unit, current, |field| field.id == identity)
-}
-
-/// The `Record`/`Mixed` common-field entry `matching` selects inside
-/// `current`, with the structural type the field declares. `None` when the
-/// shape has no common-field roster, no field matches, or the field's
-/// declared type is not structural.
-fn descended_field_matching(
-    unit: &PsiOptimizationUnit,
-    current: StructuralTypeId,
-    matching: impl Fn(&StructuralFieldDeclaration) -> bool,
-) -> Option<(StructuralFieldId, StructuralTypeId)> {
-    let fields = match shape(unit, current)? {
-        StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
-            fields
-        }
-        _ => return None,
-    };
-    let field = fields.iter().find(|field| matching(field))?;
-    match field.field_type {
-        StructuralFieldType::Structural(next) => Some((field.id, next)),
-        _ => None,
-    }
-}
-
 /// The source place and canonical projection of the `StructuralLeafCopy`
 /// that produces `place`, or `None` when `place` is not that copy's
 /// operation result or the copy's projection cannot be spelled in the
@@ -569,53 +516,6 @@ pub(crate) fn leaf_copy_projection(
             canonicalize_ordinary_path(unit, source_type, path).map(|canonical| (source, canonical))
         }
     }
-}
-
-/// The verifier-handle spelling of one ordinary leaf-copy projection
-/// beneath `root`: a `Field` step resolves its source-level identity to the
-/// reached `Record`/`Mixed` common-field roster's `StructuralFieldId`,
-/// keeping only a `Structural` carrier — a scalar, byte-sequence, or erased
-/// leaf mints a carrier this walk cannot follow into stored contents — and
-/// a `FixedIndex` step keeps its element descent inside an in-bounds fixed
-/// array. `None` when the roster lacks the name, the index leaves a fixed
-/// array, or the segment has no canonical step.
-fn canonicalize_ordinary_path(
-    unit: &PsiOptimizationUnit,
-    mut current: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<Vec<CanonicalStructuralPathSegment>> {
-    let mut canonical = Vec::with_capacity(path.len());
-    for segment in path {
-        match segment {
-            StructuralPathSegment::Field(identity) => {
-                let fields = match shape(unit, current)? {
-                    StructuralTypeShape::Record { fields }
-                    | StructuralTypeShape::Mixed { fields, .. } => fields,
-                    _ => return None,
-                };
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
-                canonical.push(CanonicalStructuralPathSegment::Field(field.id));
-                current = next;
-            }
-            StructuralPathSegment::FixedIndex(index) => match shape(unit, current)? {
-                StructuralTypeShape::FixedArray { element, length } if index < length => {
-                    canonical.push(CanonicalStructuralPathSegment::FixedIndex(*index));
-                    current = *element;
-                }
-                _ => return None,
-            },
-            StructuralPathSegment::Case(_)
-            | StructuralPathSegment::RuntimeIndex { .. }
-            | StructuralPathSegment::Referent
-            | StructuralPathSegment::FixedByteRange { .. } => return None,
-        }
-    }
-    Some(canonical)
 }
 
 /// The one place `place` is bound to by every incoming edge when `place` is

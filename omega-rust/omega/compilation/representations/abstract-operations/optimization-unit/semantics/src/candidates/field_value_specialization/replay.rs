@@ -27,7 +27,7 @@ use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
-use crate::candidates::structural_copies::{canonicalize_ordinary_path, leaf_copy_source};
+use crate::candidates::structural_copies::leaf_copy_source;
 use crate::unit_validation::derived_metadata::{
     dominators, expected_definitions, expected_ownership, expected_uses,
     reconstruct_declared_places,
@@ -41,9 +41,9 @@ use optimization_unit::{
     FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue,
     OptimizationNode, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RootProducer,
-    ScalarSubstitution, ValueDefinition, ValueDefinitionSite, declared_structural_type,
-    establishment_fields, field_evidence, recompute_psi_optimization_unit_identity, root_producer,
-    structural_child,
+    ScalarSubstitution, ValueDefinition, ValueDefinitionSite, canonicalize_ordinary_path,
+    declared_structural_type, establishment_fields, field_evidence,
+    recompute_psi_optimization_unit_identity, root_producer, shape, structural_child,
 };
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, ScalarType, StructuralFieldId,
@@ -362,15 +362,6 @@ impl<'a> Position<'a> {
         };
         fields.iter().find(|declaration| declaration.id == field)
     }
-}
-
-/// The declared structural shape of `type_id` in `unit`.
-fn shape(unit: &PsiOptimizationUnit, type_id: StructuralTypeId) -> Option<&StructuralTypeShape> {
-    unit.structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)
-        .map(|entry| &entry.shape)
 }
 
 /// Whether the resolved field declaration's scalar carrier matches the

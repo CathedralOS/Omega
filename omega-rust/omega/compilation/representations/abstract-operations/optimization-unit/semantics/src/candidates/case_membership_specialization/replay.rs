@@ -20,7 +20,7 @@
 
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
-use crate::candidates::structural_copies::{canonicalize_ordinary_path, leaf_copy_source};
+use crate::candidates::structural_copies::leaf_copy_source;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::StructuralCopyPath;
@@ -28,8 +28,9 @@ use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     FoldedCaseMembershipRow, OptimizationFact, OptimizationNode, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, declared_structural_type,
-    recompute_psi_optimization_unit_identity, structural_child,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, canonicalize_ordinary_path,
+    declared_structural_type, descended_field, descended_field_id,
+    recompute_psi_optimization_unit_identity, shape, structural_child,
 };
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, MachineId, OperationId, PlaceId, ScalarType,
@@ -37,8 +38,8 @@ use semantic_vocabulary::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
+    StructuralCaseDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeShape,
 };
 
 /// The evidence every membership observing `place` resolves against: the
@@ -422,59 +423,6 @@ impl<'a> Position<'a> {
             },
             (Self::CasePayload(_), _) => None,
         }
-    }
-}
-
-/// The declared structural shape of `type_id` in `unit`.
-fn shape(unit: &PsiOptimizationUnit, type_id: StructuralTypeId) -> Option<&StructuralTypeShape> {
-    unit.structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)
-        .map(|entry| &entry.shape)
-}
-
-/// The field `identity` names inside `current`'s `Record`/`Mixed`
-/// common-field roster, with the structural type the field declares.
-/// `None` when the shape has no common-field roster, the name is absent, or
-/// the field's declared type is not structural.
-fn descended_field(
-    unit: &PsiOptimizationUnit,
-    current: StructuralTypeId,
-    identity: &str,
-) -> Option<(StructuralFieldId, StructuralTypeId)> {
-    descended_field_matching(unit, current, |field| field.identity == identity)
-}
-
-/// The same common-field descent by verifier field handle, for the
-/// canonical steps a spliced copy projection carries.
-fn descended_field_id(
-    unit: &PsiOptimizationUnit,
-    current: StructuralTypeId,
-    identity: StructuralFieldId,
-) -> Option<(StructuralFieldId, StructuralTypeId)> {
-    descended_field_matching(unit, current, |field| field.id == identity)
-}
-
-/// The `Record`/`Mixed` common-field entry `matching` selects inside
-/// `current`, with the structural type the field declares. `None` when the
-/// shape has no common-field roster, no field matches, or the field's
-/// declared type is not structural.
-fn descended_field_matching(
-    unit: &PsiOptimizationUnit,
-    current: StructuralTypeId,
-    matching: impl Fn(&StructuralFieldDeclaration) -> bool,
-) -> Option<(StructuralFieldId, StructuralTypeId)> {
-    let fields = match shape(unit, current)? {
-        StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
-            fields
-        }
-        _ => return None,
-    };
-    let field = fields.iter().find(|field| matching(field))?;
-    match field.field_type {
-        StructuralFieldType::Structural(next) => Some((field.id, next)),
-        _ => None,
     }
 }
 

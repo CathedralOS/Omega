@@ -201,6 +201,7 @@ impl PsiOptimizationUnit {
     }
 }
 pub use structural_places::{
-    FieldEvidence, RootProducer, declared_structural_type, establishment_fields, field_evidence,
-    root_producer, structural_child,
+    FieldEvidence, RootProducer, canonicalize_ordinary_path, declared_structural_type,
+    descended_field, descended_field_id, descended_field_matching, establishment_fields,
+    field_evidence, root_producer, shape, structural_child,
 };
