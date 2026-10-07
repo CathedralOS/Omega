@@ -8,7 +8,8 @@
 //! publication reads in place of the wording; `PhaseSnapshot` records what one
 //! phase observed for later reports; and `format_diagnostics` renders a batch
 //! for the command line. Producers decide severity, wording and provision.
-//! This crate only carries and prints them.
+//! This crate only carries and prints them; bracketed names keep each
+//! producer's naming policy in its callback.
 
 mod diagnostic;
 mod phase_snapshot;
@@ -16,4 +17,4 @@ mod reporter;
 
 pub use diagnostic::{CoverageForm, Diagnostic, DiagnosticSeverity, ExceededProvision};
 pub use phase_snapshot::PhaseSnapshot;
-pub use reporter::format_diagnostics;
+pub use reporter::{bracketed_display_names, format_diagnostics};

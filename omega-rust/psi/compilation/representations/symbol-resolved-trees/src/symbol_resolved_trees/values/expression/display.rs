@@ -1,3 +1,5 @@
+use diagnostics::bracketed_display_names;
+
 use crate::expression::{
     BinaryOperator, ExpressionNode, ExpressionTable, StaticMachineArgument, TableBinaryExpression,
     TableCallExpression, TableCastExpression, TableUnaryExpression, UnaryOperator,
@@ -227,29 +229,4 @@ impl UnaryOperator {
             Self::LogicalNot => "!",
         }
     }
-}
-
-fn bracketed_display_names<'item, I, T>(
-    values: I,
-    mut display_name: impl FnMut(&'item T) -> String,
-) -> String
-where
-    I: IntoIterator<Item = &'item T>,
-    T: 'item,
-{
-    let mut output = String::from("[");
-    let mut first = true;
-
-    for value in values {
-        if first {
-            first = false;
-        } else {
-            output.push_str(", ");
-        }
-
-        output.push_str(&display_name(value));
-    }
-
-    output.push(']');
-    output
 }
