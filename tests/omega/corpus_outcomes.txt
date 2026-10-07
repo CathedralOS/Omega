@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 16, "jobs": null, "load1_end": 6.22, "load1_start": 5.81, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 16, "jobs": null, "load1_end": 9.06, "load1_start": 9.06, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1586,8 +1586,6 @@ fail/proofs/zero_value_executable_rejected rejected 249ms expected @2d8ed253669f
 	machine `Main::main` state `main` uses `zero_value<Choice>()` in executable code; `zero_value<T>()` is a proof-only representation observation and may appear only in contracts
 fail/proofs/zero_value_gated_home_rejected rejected 256ms expected @2d8ed253669f
 	machine `zero_is_none` cannot establish zero-value representation obligation `zero_value<type>() == Gated::None` for `Gated`: all-zero storage is gated, has no payload-free authored home case, or is not a cased data representation
-fail/providers/boundary_requirement_direct_call_unselected rejected 771ms expected @2d8ed253669f
-	direct call `offset_zero` names public boundary requirement `CheckedMath::offset_zero`, which has no selected provider; select an admitted provider whose checked machine `satisfies CheckedMath::offset_zero` before calling it
 fail/providers/checked_boundary_operator_const_application_unselected rejected 951ms expected @2d8ed253669f
 	const-generic application: const evaluation failed: machine `limit` is not build-time admissible: build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/providers/checked_boundary_operator_missing_contract rejected 259ms expected @2d8ed253669f
@@ -2647,9 +2645,7 @@ pass/core/content_conservation_contract incomplete 1854ms check-target:macos_arm
 pass/core/content_retained_custody_round_trip checked 387ms check-target:macos_arm64 @2d8ed253669f
 pass/core/extent_core_surface checked 283ms @2d8ed253669f
 pass/core/extent_root_provider_adapter checked 679ms check-target:macos_arm64 @2d8ed253669f
-pass/core/interrupt_obligations_surface rejected 264ms @e68154c271d8+wt
-	direct call `restore` names public boundary requirement `InterruptMaskGuard::restore`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptMaskGuard::restore` before calling it
-	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
+pass/core/interrupt_obligations_surface checked 427ms @9a54cbcf1d68+wt
 pass/core/numeric_cross_signed_conversion_surface checked 23922ms check-target:macos_arm64 @2d8ed253669f
 pass/core/numeric_signed_narrowing_policies checked 24471ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_signed_to_unsigned_policies checked 21009ms check-target:macos_arm64 @5a7ed5b57d00+wt
@@ -3063,8 +3059,7 @@ pass/locals/runtime_local_record_array_element_field_reads_exit checked 1924ms c
 pass/locals/runtime_local_view_member_element_read_exit checked 4020ms check-target:macos_arm64 @cfe60a3a242
 pass/locals/static_local_field_names_exit checked 1406ms check-target:macos_arm64 @cfe60a3a242
 pass/machines/static_namespace_constant_exit checked 3435ms check-target:macos_arm64 @0bb2f2c02dae+wt
-pass/memory/address_translation_canary rejected 992ms @cfe60a3a242
-	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
+pass/memory/address_translation_canary checked 435ms @9a54cbcf1d68+wt
 pass/memory/bump_allocator_canary checked 1011ms check-target:linux_x86_64 @2d8ed253669f
 pass/memory/interrupt_table_canary rejected 952ms @693920652f41
 	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization

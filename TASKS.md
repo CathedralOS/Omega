@@ -215,8 +215,6 @@ helper that passes does not close an item.
   traits and checked implementations whose asm proves LAPIC/PIC completion and
   the startup handshake. Preserve `Pending` domain preconditions, exact
   installation/token identity, bounded reach and linear consumption.
-  `pass/memory/address_translation_canary` remains separately owned by
-  **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED**.
 
   Acceptance: labeled straight-line, diamond and loop bodies execute identically
   through Terminal and native paths; wrong-edge invariants, unmodeled memory,
@@ -2306,40 +2304,15 @@ crash and native exit behavior.
   subjects, passed to a successor and compared there, run natively; a read
   without a dominating case still rejects.
 
-- **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
-  `pass/core/interrupt_obligations_surface` has one blocking line, proved by
-  measurement. `reject_unselected_direct_requirement_calls`
-  (`realization/selected-dispatch/src/boundary_dispatch.rs:512`) refuses it
-  through `is_directly_callable_top_level_requirement` (~line 428), which now
-  admits every top-level requirement although its surrounding comments still
-  say “without a `self` receiver” and “Receiver-bearing requirements keep their
-  existing routes”. `StateParameter::is_self` no longer exists, so the former
-  carve-out must be replaced rather than restored.
-
-  **The gate is load-bearing; narrow it, do not delete it.** With its call site
-  disabled, `interrupt_obligations_surface` and
-  `pass/memory/address_translation_canary` both reach `checked`, and
-  `fail/providers/boundary_requirement_direct_call_unselected` stops rejecting
-  for its authored reason.
-
-  Blocked on the owner question `unselected-requirement-carve-out` in
-  `OWNER_QUESTIONS.md`. Note the cost if reachability is chosen: the only
-  fixture pinning this rule has no `build.omg`, so nothing in it is reachable
-  either and it would stop pinning its authored reason -- closing this needs the
-  rule plus a real entry selection for that fail fixture.
-
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the remaining `regressed-from:` rows in
   `tests/omega/corpus_native_macos_arm64.txt`. Read the live roster with
   `python3 tools/corpus_scoreboard.py`; reproduce unchanged programs on current
   main and route failures by cause, not by the revision that recorded them.
 
-  - `pass/core/interrupt_obligations_surface` and
-    `pass/memory/address_translation_canary` have no selected completion
-    provider: **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED** owns the open
-    selection decision. `interrupt_table_canary` and
-    `secondary_processor_canary` now select providers but lack an executable
-    intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that dependency.
+  - `interrupt_table_canary` and `secondary_processor_canary` now select
+    providers but lack an executable intrinsic:
+    **CHECKED-ASM-LABEL-CONTRACTS** owns that dependency.
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded
