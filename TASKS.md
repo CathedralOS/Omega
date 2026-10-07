@@ -451,15 +451,6 @@ defines the complete product bar.
   edges, and declares a qualified local's byte domains:
   `pass/text/runtime_view_local_*_exit` (8 fixtures) exit 70 natively, and the
   `fail/borrows/view_local_*` and `fail/domains/view_local_*` controls reject.
-  - Customers: `pass/text/runtime_string_stored_suffix_exit` (exit 193) and
-    `pass/text/runtime_local_struct_string_field_concat_exit` (exit 188) now
-    stop at stage 04 `structural field store: borrowed view field: descriptor
-    source`: `byte_operands::plan` has no descriptor source for
-    `"== " + room.label`. Resolve concatenation backing and lifetime under
-    ordinary bounded storage rules. The operation materializes an owned result
-    while these customers declare only a borrowed view. `Utf8` grants no
-    storage; neither an arbitrary maximum nor a literal-flow exception
-    supplies it.
   - A call-initialized mutable view local (`let mut v: &[u8] = f(..);`) still
     binds the call as a place loan: checked flow records no call row for that
     initializer, so stage 04 has no call to sequence before a home store
@@ -471,9 +462,11 @@ defines the complete product bar.
     `pass/wire/runtime_wire_utf8_edge_verdicts_exit`, and
     `pass/domains/runtime_qualified_view_field_parameter_store_exit` (exit 70).
     Do not revive Terminal verification scheduled for deletion by the PCC work.
-  Acceptance: `python tools/corpus_gate.py --both --filter text/runtime_string_stored_suffix_exit,text/runtime_local_struct_string_field_concat_exit,text/runtime_view_local_,text/declared_record_view_field_fill_exit,domains/runtime_qualified_view_field_parameter_store_exit`
-  shows the two authored exits in native and Terminal interpretation. The
-  closure must preserve backing through surviving copies.
+  Acceptance: a call-initialized mutable view local is stored, reassigned and
+  read in a new `pass/text/runtime_view_local_*_exit` fixture, and
+  `python tools/corpus_gate.py --both --filter text/runtime_view_local_,text/declared_record_view_field_fill_exit,domains/runtime_qualified_view_field_parameter_store_exit`
+  keeps native and Terminal interpretation in agreement. The closure must
+  preserve backing through surviving copies.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans and native execution, preserving
@@ -965,11 +958,7 @@ defines the complete product bar.
     `pass/proofs/proof_inductive_climbing_sum` and its unbounded negative.
 
   Native customers (under `tests/omega/pass`):
-  - `text/runtime_local_struct_string_field_concat_exit` (188),
-    `text/runtime_string_stored_suffix_exit` (193): rejected on all hosts;
-    remeasure on the verifier-free pipeline, then continue
-    **REFERENCE-BEARING-RECORD-LOCAL-FILL**. Keep
-    `traits/equatable_string_field_equality_exit` and
+  - Keep `traits/equatable_string_field_equality_exit` and
     `text/runtime_mixed_byte_field_equality_exit` (exit 70 on macOS ARM64).
   - `host/runtime_console_bounded_line_exit` and its
     `_{lf,full,partial_eof,middle_window}_exit` siblings: exits 20/13/34/22/70

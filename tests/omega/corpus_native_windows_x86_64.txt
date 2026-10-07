@@ -970,8 +970,6 @@ pass/text/runtime_bounded_carrier_write_read_exit built 1450ms exit:70 @0484de10
 pass/text/runtime_carrier_indexed_read_exit built 1411ms exit:70 @0484de104502
 pass/text/runtime_chained_string_append_exit rejected 1376ms @7fc7a3a06d34
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
-pass/text/runtime_local_struct_string_field_concat_exit rejected 943ms @0484de104502
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 982ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: parameter qualifications` (state 1)
 pass/text/runtime_number_to_decimal_exit built 2337ms @7fc7a3a06d34
@@ -986,8 +984,6 @@ pass/text/runtime_stdin_command_branch_exit rejected 3000ms @a23a13432354+wt
 pass/text/runtime_stdin_line_buffering_exit built 3126ms exit:0 stdout:match @f493df928d32+wt
 pass/text/runtime_string_concat_two_fields_exit rejected 1474ms @7fc7a3a06d34
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
-pass/text/runtime_string_stored_suffix_exit rejected 1060ms @0484de104502
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/text/runtime_text_builder rejected 1281ms @7fc7a3a06d34
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 pass/text/runtime_text_not_equals_exit rejected 1048ms @0484de104502

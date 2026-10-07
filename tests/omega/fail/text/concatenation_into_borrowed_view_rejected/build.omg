@@ -1,7 +1,5 @@
-// Deployable native canary: every hosted target selects its exact entry.
-
 machine build(builder: &mut Build) {
-    Build::application(builder, "runtime_string_stored_suffix_exit");
+    Build::application(builder, "concatenation_into_borrowed_view_rejected");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);

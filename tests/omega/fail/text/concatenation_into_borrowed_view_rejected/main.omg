@@ -1,3 +1,11 @@
+// A concatenation establishes owned bytes in fresh activation storage. That
+// result may replace a bounded owner or field, but it never becomes a borrowed
+// view (wiki/spec/terminal-psi/structural_access.md,
+// `EstablishByteSequenceConcatenation`): `out_line` is a `&[u8] in Utf8` view
+// with no capacity to bound the operands and no storage to hold the result.
+// Checking rejects the store. The valid spelling stores the concatenation into
+// a bounded `[u8; N] in Utf8` carrier whose capacity bounds both operands, as
+// `pass/text/runtime_text_builder` does.
 domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);

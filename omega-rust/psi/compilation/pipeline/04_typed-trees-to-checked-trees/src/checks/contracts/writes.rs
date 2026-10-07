@@ -216,6 +216,53 @@ pub(super) fn check_domain_field_writes(
             }
         }
 
+        // (1c) A concatenation establishes owned bytes in fresh activation
+        // storage, which may replace a bounded owner or field but never
+        // becomes a borrowed view (wiki/spec/terminal-psi/structural_access.md,
+        // `EstablishByteSequenceConcatenation`). A `&[u8]` destination has no
+        // capacity to bound the operands and no storage the result could live
+        // in, so storing one there names bytes no declaration owns.
+        let view_destination = match statement {
+            StatementNode::Assignment(assignment) => {
+                crate::facts::field_domain::assignment_target_type_reference(
+                    program,
+                    machine,
+                    state,
+                    assignment.target,
+                )
+                .map(|target| {
+                    (
+                        program.expression_table.display_name(assignment.target),
+                        target,
+                        assignment.value,
+                    )
+                })
+            }
+            StatementNode::LocalData(local) if local.initial_value.is_valid() => Some((
+                local.name.to_string(),
+                local.type_reference,
+                local.initial_value,
+            )),
+            _ => None,
+        };
+        if let Some((target_label, target, value)) = view_destination
+            && program.is_borrowed_byte_slice(target)
+            && matches!(
+                program.expression_table.expression(value),
+                ExpressionNode::Binary(binary)
+                    if binary.operator == typed_trees::expression::BinaryOperator::Add
+            )
+            && crate::values::operator_is_builtin(&facts.operators, value)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "the concatenation stored into `{target_label}` in {} establishes owned bytes, \
+                 but `{target_label}` is a borrowed `&[u8]` view that cannot hold them; store \
+                 the concatenation into a bounded `[u8; N]` carrier whose capacity bounds both \
+                 operands",
+                machine_name(program, state_flow.machine_symbol),
+            )));
+        }
+
         // (2) Brace CONSTRUCTION `T { f: X }` of a domain-refined field (the
         // #60-1c parallel for domains): every constructed domain field must be
         // established too, else a later read trusting the field is unsound.
