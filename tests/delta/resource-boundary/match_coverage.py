@@ -1,14 +1,6 @@
 """Full per-match coverage sets, diagnostic precedence, and nested isolation."""
 
-import struct
-
-
-def rejection(code, coordinate):
-    return 1, struct.pack(
-        "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", 1, 1, 0, code,
-        coordinate, 0, 0,
-    )
-
+from outcome_row import rejection
 
 def fixtures():
     names = tuple(f"C{index:05d}".encode("ascii") for index in range(65536))

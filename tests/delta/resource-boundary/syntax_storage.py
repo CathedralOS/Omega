@@ -2,20 +2,13 @@
 
 import struct
 
-
-def rejection(code, coordinate):
-    return 1, struct.pack(
-        "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", 1, 1, 0, code,
-        coordinate, 0, 0,
-    )
-
+from outcome_row import rejection
 
 def incomplete(coordinate, requested):
     return 2, struct.pack(
         "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", 2, 1, 0, 7,
         coordinate, 114294752, requested,
     )
-
 
 def fixtures():
     # A balanced program with L lists and A atoms allocates 8L + 5A + 1
