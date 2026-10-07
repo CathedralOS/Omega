@@ -173,11 +173,7 @@ impl GraphEmission<'_> {
                         .map(|parameter| parameter.id)
                         .collect::<Vec<_>>();
                     arguments.push(value);
-                    let edge = edge_id(self.next_edge_identity);
-                    self.next_edge_identity = self
-                        .next_edge_identity
-                        .checked_add(1)
-                        .expect("staged direct-local edge identity advances");
+                    let edge = self.allocate_edge("staged direct-local edge identity advances");
                     let block = Block {
                         structural_parameters: Vec::new(),
                         id: stage_block,
@@ -381,11 +377,7 @@ impl GraphEmission<'_> {
                     &mut self.next_value_identity,
                     &mut self.all_operations,
                 );
-                let edge = edge_id(self.next_edge_identity);
-                self.next_edge_identity = self
-                    .next_edge_identity
-                    .checked_add(1)
-                    .expect("carried Boolean return edge identity advances");
+                let edge = self.allocate_edge("carried Boolean return edge identity advances");
                 Terminator::Return {
                     cleanup_actions: Vec::new(),
                     edge,
@@ -426,16 +418,10 @@ impl GraphEmission<'_> {
                     &mut self.pending_blocks,
                     self.identity_base,
                 )?;
-                let when_true_edge = edge_id(self.next_edge_identity);
-                self.next_edge_identity = self
-                    .next_edge_identity
-                    .checked_add(1)
-                    .expect("carried Boolean true edge identity advances");
-                let when_false_edge = edge_id(self.next_edge_identity);
-                self.next_edge_identity = self
-                    .next_edge_identity
-                    .checked_add(1)
-                    .expect("carried Boolean false edge identity advances");
+                let when_true_edge =
+                    self.allocate_edge("carried Boolean true edge identity advances");
+                let when_false_edge =
+                    self.allocate_edge("carried Boolean false edge identity advances");
                 Terminator::Conditional {
                     condition,
                     when_true: SuccessorEdge {
@@ -474,11 +460,7 @@ impl GraphEmission<'_> {
                         "structural state transfer requires completed scalar operands",
                     );
                 }
-                let edge = edge_id(self.next_edge_identity);
-                self.next_edge_identity = self
-                    .next_edge_identity
-                    .checked_add(1)
-                    .expect("staged local jump edge identity advances");
+                let edge = self.allocate_edge("staged local jump edge identity advances");
                 if arguments
                     .iter()
                     .any(direct_expression_contains_short_circuit)
@@ -529,11 +511,7 @@ impl GraphEmission<'_> {
                 }
             }
             LoweredScalarBranchTerminator::Crash(crash) => {
-                let edge = edge_id(self.next_edge_identity);
-                self.next_edge_identity = self
-                    .next_edge_identity
-                    .checked_add(1)
-                    .expect("staged local crash edge identity advances");
+                let edge = self.allocate_edge("staged local crash edge identity advances");
                 Terminator::Crash {
                     edge,
                     cause: crash.cause,

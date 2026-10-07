@@ -3,10 +3,10 @@
 
 use super::super::{
     Block, LoweringError, Terminator, block_id, boolean_decision_block_count,
-    contains_short_circuit, edge_id, emit_direct_expression,
-    emit_reserved_boolean_tuple_stage_blocks, lower_boolean_value_decision,
+    contains_short_circuit, emit_direct_expression, emit_reserved_boolean_tuple_stage_blocks,
+    lower_boolean_value_decision,
 };
-use super::GraphEmission;
+use super::{GraphEmission, scalar_jump_terminator};
 use crate::emission::boolean_control::PendingNestedBlockGroup;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 
@@ -33,11 +33,8 @@ impl GraphEmission<'_> {
                             )
                         })
                         .collect();
-                    let edge = edge_id(self.next_edge_identity);
-                    self.next_edge_identity = self
-                        .next_edge_identity
-                        .checked_add(1)
-                        .expect("conditional binding jump edge identities advance");
+                    let edge =
+                        self.allocate_edge("conditional binding jump edge identities advance");
                     self.blocks.push(Block {
                         structural_parameters: Vec::new(),
                         id: pending.id,
@@ -45,15 +42,13 @@ impl GraphEmission<'_> {
                         erased_scalar_formals: Vec::new(),
                         erased_proof_formals: Vec::new(),
                         operations: self.all_operations[operation_start..].to_vec(),
-                        terminator: Terminator::Jump {
-                            structural_arguments: Vec::new(),
+                        terminator: scalar_jump_terminator(
                             edge,
-                            target: pending.target,
+                            pending.target,
                             arguments,
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            cleanup_actions: Vec::new(),
-                        },
+                            Vec::new(),
+                            Vec::new(),
+                        ),
                     });
                 }
                 PendingNestedBlockGroup::TupleBinding(pending) => {
@@ -109,11 +104,8 @@ impl GraphEmission<'_> {
                                     .checked_add(1)
                                     .expect("mixed tuple stage block identity advances"),
                             );
-                            let edge = edge_id(self.next_edge_identity);
-                            self.next_edge_identity = self
-                                .next_edge_identity
-                                .checked_add(1)
-                                .expect("mixed tuple stage edge identity advances");
+                            let edge =
+                                self.allocate_edge("mixed tuple stage edge identity advances");
                             pending_stage_blocks.push(Some(Block {
                                 structural_parameters: Vec::new(),
                                 id: block_id(next_stage_identity),
@@ -138,11 +130,7 @@ impl GraphEmission<'_> {
                         .stage_parameters
                         .last()
                         .expect("mixed tuple has a convergence parameter set");
-                    let edge = edge_id(self.next_edge_identity);
-                    self.next_edge_identity = self
-                        .next_edge_identity
-                        .checked_add(1)
-                        .expect("mixed tuple convergence edge identity advances");
+                    let edge = self.allocate_edge("mixed tuple convergence edge identity advances");
                     pending_stage_blocks.push(Some(Block {
                         structural_parameters: Vec::new(),
                         id: block_id(next_stage_identity),

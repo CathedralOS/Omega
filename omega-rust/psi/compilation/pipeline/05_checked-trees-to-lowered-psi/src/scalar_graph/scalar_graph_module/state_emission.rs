@@ -13,7 +13,7 @@ use super::super::{
     unsupported, value_id,
 };
 use super::qualifications;
-use super::{GraphEmission, StateFrame, scalar_jump_terminator};
+use super::{GraphEmission, StateFrame, empty_case_block, scalar_jump_terminator};
 use crate::emission::boolean_control::{LoweredBooleanDecision, LoweredBooleanDecisionExit};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -219,11 +219,7 @@ impl GraphEmission<'_> {
                         &mut self.pending_blocks,
                         self.identity_base,
                     )?;
-                    let edge = edge_id(self.next_edge_identity);
-                    self.next_edge_identity = self
-                        .next_edge_identity
-                        .checked_add(1)
-                        .expect("mixed tuple entry edge identity advances");
+                    let edge = self.allocate_edge("mixed tuple entry edge identity advances");
                     scalar_jump_terminator(
                         edge,
                         target.block,
@@ -263,11 +259,7 @@ impl GraphEmission<'_> {
                             )
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    let edge = edge_id(self.next_edge_identity);
-                    self.next_edge_identity = self
-                        .next_edge_identity
-                        .checked_add(1)
-                        .expect("scalar graph jump edge identities advance");
+                    let edge = self.allocate_edge("scalar graph jump edge identities advance");
                     Terminator::Jump {
                         structural_arguments: structural_arguments.clone(),
                         edge,
@@ -378,16 +370,9 @@ impl GraphEmission<'_> {
                         &mut self.next_value_identity,
                         &mut self.all_operations,
                     );
-                    let when_true_edge = edge_id(self.next_edge_identity);
-                    self.next_edge_identity = self
-                        .next_edge_identity
-                        .checked_add(1)
-                        .expect("scalar graph edge identities advance");
-                    let when_false_edge = edge_id(self.next_edge_identity);
-                    self.next_edge_identity = self
-                        .next_edge_identity
-                        .checked_add(1)
-                        .expect("scalar graph edge identities advance");
+                    let when_true_edge = self.allocate_edge("scalar graph edge identities advance");
+                    let when_false_edge =
+                        self.allocate_edge("scalar graph edge identities advance");
                     let when_true = build_scalar_conditional_target(
                         *when_true_target,
                         when_true_arguments,
@@ -632,37 +617,29 @@ impl GraphEmission<'_> {
                 } else {
                     (Vec::new(), Vec::new())
                 };
-                self.blocks.push(Block {
-                    id: selected_block,
-                    parameters: payload_parameters,
-                    erased_scalar_formals: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    structural_parameters: Vec::new(),
-                    operations: Vec::new(),
-                    terminator: scalar_jump_terminator(
+                self.blocks.push(empty_case_block(
+                    selected_block,
+                    payload_parameters,
+                    scalar_jump_terminator(
                         fresh_edge(&mut self.next_edge_identity),
                         when_true.block,
                         when_true.arguments,
                         when_true_erased,
                         when_true_proof,
                     ),
-                });
+                ));
                 if let Some((fallback_block, when_false)) = fallback_block.zip(when_false) {
-                    self.blocks.push(Block {
-                        id: fallback_block,
-                        parameters: Vec::new(),
-                        erased_scalar_formals: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        structural_parameters: Vec::new(),
-                        operations: Vec::new(),
-                        terminator: scalar_jump_terminator(
+                    self.blocks.push(empty_case_block(
+                        fallback_block,
+                        Vec::new(),
+                        scalar_jump_terminator(
                             fresh_edge(&mut self.next_edge_identity),
                             when_false.block,
                             when_false.arguments,
                             when_false_erased,
                             when_false_proof,
                         ),
-                    });
+                    ));
                 }
                 Terminator::StructuralCase {
                     source: *source,
@@ -729,11 +706,7 @@ impl GraphEmission<'_> {
                         &mut self.next_value_identity,
                         &mut self.all_operations,
                     );
-                    let edge = edge_id(self.next_edge_identity);
-                    self.next_edge_identity = self
-                        .next_edge_identity
-                        .checked_add(1)
-                        .expect("scalar graph return edge identities advance");
+                    let edge = self.allocate_edge("scalar graph return edge identities advance");
                     Terminator::Return {
                         cleanup_actions: Vec::new(),
                         edge,
@@ -742,11 +715,7 @@ impl GraphEmission<'_> {
                 }
             }
             LoweredScalarBranchTerminator::Crash(crash) => {
-                let edge = edge_id(self.next_edge_identity);
-                self.next_edge_identity = self
-                    .next_edge_identity
-                    .checked_add(1)
-                    .expect("nested crash edge identities advance");
+                let edge = self.allocate_edge("nested crash edge identities advance");
                 Terminator::Crash {
                     edge,
                     cause: crash.cause,
@@ -809,21 +778,17 @@ impl GraphEmission<'_> {
                                     )
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
-                            self.blocks.push(Block {
-                                id: block,
-                                parameters: Vec::new(),
-                                erased_scalar_formals: Vec::new(),
-                                erased_proof_formals: Vec::new(),
-                                structural_parameters: Vec::new(),
-                                operations: Vec::new(),
-                                terminator: scalar_jump_terminator(
+                            self.blocks.push(empty_case_block(
+                                block,
+                                Vec::new(),
+                                scalar_jump_terminator(
                                     fresh_edge(&mut self.next_edge_identity),
                                     fallback_staged.block,
                                     fallback_staged.arguments,
                                     fallback_erased,
                                     fallback_proof,
                                 ),
-                            });
+                            ));
                             fallback_block = Some(block);
                         }
                         case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
@@ -892,21 +857,17 @@ impl GraphEmission<'_> {
                             )
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    self.blocks.push(Block {
-                        id: arm_block,
-                        parameters: payload_parameters,
-                        erased_scalar_formals: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        structural_parameters: Vec::new(),
-                        operations: Vec::new(),
-                        terminator: scalar_jump_terminator(
+                    self.blocks.push(empty_case_block(
+                        arm_block,
+                        payload_parameters,
+                        scalar_jump_terminator(
                             fresh_edge(&mut self.next_edge_identity),
                             staged.block,
                             staged.arguments,
                             erased_arguments,
                             erased_proof_arguments,
                         ),
-                    });
+                    ));
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
                         edge: fresh_edge(&mut self.next_edge_identity),
                         target: arm_block,
@@ -989,5 +950,13 @@ impl GraphEmission<'_> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
+    }
+
+    /// Allocate the next successor edge identity; `context` names the
+    /// construction in the overflow diagnostic.
+    pub(super) fn allocate_edge(&mut self, context: &'static str) -> semantic_vocabulary::EdgeId {
+        let edge = edge_id(self.next_edge_identity);
+        self.next_edge_identity = self.next_edge_identity.checked_add(1).expect(context);
+        edge
     }
 }

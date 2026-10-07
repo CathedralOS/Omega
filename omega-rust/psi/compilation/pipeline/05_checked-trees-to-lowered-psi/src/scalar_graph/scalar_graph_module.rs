@@ -86,6 +86,24 @@ pub(super) fn scalar_jump_terminator(
     }
 }
 
+/// An arm block with no formals, operations or structural parameters —
+/// case-dispatch arms and conditional splits carry only their terminator.
+pub(super) fn empty_case_block(
+    id: BlockId,
+    parameters: Vec<ValueDeclaration>,
+    terminator: Terminator,
+) -> Block {
+    Block {
+        structural_parameters: Vec::new(),
+        id,
+        parameters,
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        operations: Vec::new(),
+        terminator,
+    }
+}
+
 /// One graph state as its emitter sees it before the body is emitted.
 pub(super) struct StateFrame<'s> {
     pub(super) state: &'s LoweredScalarBranchState,
