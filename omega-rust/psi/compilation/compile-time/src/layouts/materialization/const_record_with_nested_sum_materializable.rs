@@ -116,13 +116,13 @@ impl ValidatedConstRecordArrayElementSelection {
 /// selection keeps its own literal index and recursive materialization
 /// coordinate beside the field's shared compact row.
 #[derive(Debug)]
-pub struct ValidatedConstRecordArrayFieldMaterialization {
+pub struct ValidatedConstRecordArrayFieldMaterialization<E = ValidatedConstRecordArrayElementSelection> {
     pub(crate) field: String,
     pub(crate) field_identity: Option<u64>,
-    pub(crate) elements: Vec<ValidatedConstRecordArrayElementSelection>,
+    pub(crate) elements: Vec<E>,
 }
 
-impl ValidatedConstRecordArrayFieldMaterialization {
+impl<E> ValidatedConstRecordArrayFieldMaterialization<E> {
     pub fn field(&self) -> &str {
         &self.field
     }
@@ -131,7 +131,7 @@ impl ValidatedConstRecordArrayFieldMaterialization {
         self.field_identity
     }
 
-    pub fn elements(&self) -> &[ValidatedConstRecordArrayElementSelection] {
+    pub fn elements(&self) -> &[E] {
         &self.elements
     }
 }

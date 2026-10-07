@@ -5,7 +5,7 @@ use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{DataDefinition, DataMember, DataProperties, Item};
-use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use syntax_trees::types::TypeReferenceNode;
 
 use super::PlanLaidRecord;
 

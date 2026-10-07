@@ -17,7 +17,10 @@ use crate::layouts::materialization::const_record_with_sum_materializable::repor
     non_authoritative_record_with_sum_arrays_materialization_fingerprint,
     non_authoritative_record_with_sum_materialization_report_fingerprint,
 };
-use crate::layouts::materialization::{BuildTimeValue, ValidatedConstSumMaterialization};
+use crate::layouts::materialization::{
+    BuildTimeValue, ValidatedConstRecordArrayFieldMaterialization,
+    ValidatedConstSumMaterialization,
+};
 use layout_plans::{
     ByteOrder, ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport,
     ConventionalSumLayoutReport, LayoutPlanReport, MaterializationDiagnostic,
@@ -231,27 +234,10 @@ impl ValidatedConstRecordWithSumArrayMaterialization {
 }
 
 /// Value-sensitive custody for one direct fixed-array-of-sums field in the
-/// complete authored-order occurrence set.
-#[derive(Debug)]
-pub struct ValidatedConstRecordSumArrayFieldMaterialization {
-    pub(crate) field: String,
-    pub(crate) field_identity: Option<u64>,
-    pub(crate) elements: Vec<ValidatedConstRecordSumArrayElementSelection>,
-}
-
-impl ValidatedConstRecordSumArrayFieldMaterialization {
-    pub fn field(&self) -> &str {
-        &self.field
-    }
-
-    pub const fn field_identity(&self) -> Option<u64> {
-        self.field_identity
-    }
-
-    pub fn elements(&self) -> &[ValidatedConstRecordSumArrayElementSelection] {
-        &self.elements
-    }
-}
+/// complete authored-order occurrence set — the shared field-materialization
+/// row over sum-element selections.
+pub type ValidatedConstRecordSumArrayFieldMaterialization =
+    ValidatedConstRecordArrayFieldMaterialization<ValidatedConstRecordSumArrayElementSelection>;
 
 /// Exact custody for the complete nonempty authored-order set of direct
 /// nonzero literal fixed arrays of conventional pure sums.
