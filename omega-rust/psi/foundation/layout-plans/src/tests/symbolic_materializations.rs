@@ -10,6 +10,23 @@ use crate::{
     derive_symbolic_materialization_with_inner_layouts,
 };
 
+fn reject_inner_layout_materialization(
+    layout: &LayoutPlanReport,
+    inner_layouts: &[SymbolicFieldInnerLayout],
+    symbolic_fields: &[SymbolicFieldValue],
+    expectation: &str,
+) -> String {
+    derive_symbolic_materialization_with_inner_layouts(
+        layout,
+        inner_layouts,
+        symbolic_fields,
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err(expectation)
+    .0
+}
+
 #[test]
 fn placement_range_must_fit_the_materialization() {
     let constraints = PlacementConstraints::new(
@@ -141,53 +158,43 @@ fn symbolic_inner_materialization_requires_a_bound_traversed_carrier() {
     );
 
     let flat = SymbolicFieldValue::new("header", 64, entry()).expect("flat field");
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         &[flat],
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a carrier no symbolic path traverses must reject");
+        "a carrier no symbolic path traverses must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("no symbolic field path traverses the supplied inner layout for `slot`"),
+        error.contains("no symbolic field path traverses the supplied inner layout for `slot`"),
         "{}",
-        error.0
+        error
     );
 
     let orphan = SymbolicFieldInnerLayout::new("missing", record_interior(&carrier));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[orphan],
         std::slice::from_ref(&inner_path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a carrier must bind to a field the outer plan contains");
+        "a carrier must bind to a field the outer plan contains",
+    );
     assert!(
-        error.0.contains(
+        error.contains(
             "inner layout for `missing` binds to a field the validated layout plan does not contain"
         ),
         "{}",
-        error.0
+        error
     );
 
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[carrier.clone(), carrier.clone()],
         std::slice::from_ref(&inner_path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("one outer field accepts one interior carrier");
+        "one outer field accepts one interior carrier",
+    );
     assert!(
-        error
-            .0
-            .contains("inner layout for `slot` is supplied more than once"),
+        error.contains("inner layout for `slot` is supplied more than once"),
         "{}",
-        error.0
+        error
     );
 
     let unsized_carrier = SymbolicFieldInnerLayout::new(
@@ -197,20 +204,16 @@ fn symbolic_inner_materialization_requires_a_bound_traversed_carrier() {
             ..record_interior(&carrier)
         },
     );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[unsized_carrier],
         std::slice::from_ref(&inner_path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("the interior layout must be fixed-size");
+        "the interior layout must be fixed-size",
+    );
     assert!(
-        error
-            .0
-            .contains("inner layout for `slot` requires a fixed-size interior layout plan"),
+        error.contains("inner layout for `slot` requires a fixed-size interior layout plan"),
         "{}",
-        error.0
+        error
     );
 }
 
@@ -237,20 +240,17 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
     let ambiguous = SymbolicFieldValue::new_numbered("handlers", 9, 64, entry())
         .expect("repeated outer record")
         .with_inner_segment(SymbolicFieldPathSegment::new("flags"));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &repeated_outer,
         &[repeated_carrier],
         std::slice::from_ref(&ambiguous),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("an unindexed inner path cannot cover several elements");
+        "an unindexed inner path cannot cover several elements",
+    );
     assert!(
         error
-            .0
             .contains("requires the outer field `handlers` to resolve to exactly one element placement, found 4"),
         "{}",
-        error.0
+        error
     );
 
     // A fragmented or stored-integer outer placement cannot enclose a record.
@@ -273,20 +273,16 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
     let through_integer = SymbolicFieldValue::new("address", 64, entry())
         .expect("stored integer outer")
         .with_inner_segment(SymbolicFieldPathSegment::new("entry"));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &integer_outer,
         &[integer_carrier],
         std::slice::from_ref(&through_integer),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("an inner hop requires a whole-record outer placement");
+        "an inner hop requires a whole-record outer placement",
+    );
     assert!(
-        error
-            .0
-            .contains("inner layout for `address` requires a whole `At` placement"),
+        error.contains("inner layout for `address` requires a whole `At` placement"),
         "{}",
-        error.0
+        error
     );
 
     // A fragmented placement is the same dead end: bit containers describe a
@@ -306,47 +302,39 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
         ..integer_outer.clone()
     };
     let bits_carrier = SymbolicFieldInnerLayout::new("address", record_interior(&carrier));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &bits_outer,
         &[bits_carrier],
         std::slice::from_ref(&through_integer),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a fragmented outer placement cannot enclose a record interior");
+        "a fragmented outer placement cannot enclose a record interior",
+    );
     assert!(
-        error
-            .0
-            .contains("inner layout for `address` requires a whole `At` placement"),
+        error.contains("inner layout for `address` requires a whole `At` placement"),
         "{}",
-        error.0
+        error
     );
 
     // The inner member must exist in the retained interior plan.
     let missing_member = SymbolicFieldValue::new("slot", 64, entry())
         .expect("outer record field")
         .with_inner_segment(SymbolicFieldPathSegment::new("missing"));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&missing_member),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("an absent inner member cannot materialize");
+        "an absent inner member cannot materialize",
+    );
     assert!(
-        error
-            .0
-            .contains("`slot.missing` has no entry in the inner layout plan"),
+        error.contains("`slot.missing` has no entry in the inner layout plan"),
         "{}",
-        error.0
+        error
     );
 
     // Duplicate two-segment paths collide even though their outer fields match.
     let duplicate = SymbolicFieldValue::new("slot", 64, data())
         .expect("outer record field")
         .with_inner_segment(SymbolicFieldPathSegment::new("entry"));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         &[
@@ -355,14 +343,12 @@ fn symbolic_inner_materialization_rejects_ambiguous_or_missing_members() {
                 .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
             duplicate,
         ],
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("the same inner path cannot be supplied twice");
+        "the same inner path cannot be supplied twice",
+    );
     assert!(
-        error.0.contains("`slot.entry` is supplied more than once"),
+        error.contains("`slot.entry` is supplied more than once"),
         "{}",
-        error.0
+        error
     );
 }
 
@@ -381,40 +367,32 @@ fn symbolic_inner_materialization_rejects_deeper_path_faults() {
     // A second record boundary needs its own carrier: `slot`'s carrier alone
     // cannot resolve `sub`'s interior.
     let shallow = SymbolicFieldInnerLayout::new("slot", record_interior(&carrier));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[shallow],
         std::slice::from_ref(&deep_path("entry")),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a deeper hop needs the nested carrier");
+        "a deeper hop needs the nested carrier",
+    );
     assert!(
-        error
-            .0
-            .contains("`slot.sub.entry` has no supplied inner layout for `slot.sub`"),
+        error.contains("`slot.sub.entry` has no supplied inner layout for `slot.sub`"),
         "{}",
-        error.0
+        error
     );
 
     // A nested carrier no path traverses rejects, just like a top-level one.
     let shallow_path = SymbolicFieldValue::new("slot", 64, entry())
         .expect("outer record field")
         .with_inner_segment(SymbolicFieldPathSegment::new("pad"));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&shallow_path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a nested carrier no path traverses must reject");
+        "a nested carrier no path traverses must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("no symbolic field path traverses the supplied inner layout for `slot.sub`"),
+        error.contains("no symbolic field path traverses the supplied inner layout for `slot.sub`"),
         "{}",
-        error.0
+        error
     );
 
     // A nested carrier must bind to a field the enclosing interior contains.
@@ -430,24 +408,22 @@ fn symbolic_inner_materialization_rejects_deeper_path_faults() {
             },
         ),
     );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[stray],
         std::slice::from_ref(&shallow_path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a nested carrier must bind inside the enclosing interior");
+        "a nested carrier must bind inside the enclosing interior",
+    );
     assert!(
-        error.0.contains(
+        error.contains(
             "inner layout for `slot.missing` binds to a field the enclosing interior layout plan does not contain"
         ),
         "{}",
-        error.0
+        error
     );
 
     // The same inner path cannot be supplied twice at any depth.
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         &[
@@ -459,16 +435,12 @@ fn symbolic_inner_materialization_rejects_deeper_path_faults() {
                         .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
                 ),
         ],
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("the same deeper path cannot be supplied twice");
+        "the same deeper path cannot be supplied twice",
+    );
     assert!(
-        error
-            .0
-            .contains("`slot.sub.entry` is supplied more than once"),
+        error.contains("`slot.sub.entry` is supplied more than once"),
         "{}",
-        error.0
+        error
     );
 }
 
@@ -528,20 +500,18 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
         size: Some(56),
         ..layout.clone()
     };
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &outer_56,
         &[repeated_middle],
         std::slice::from_ref(&ambiguous),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("an unindexed deeper hop cannot cover several elements");
+        "an unindexed deeper hop cannot cover several elements",
+    );
     assert!(
-        error.0.contains(
+        error.contains(
             "requires the enclosing field `slot.subs` to resolve to exactly one element placement, found 2"
         ),
         "{}",
-        error.0
+        error
     );
 
     // A stored-integer interior field cannot enclose another record.
@@ -567,20 +537,16 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
         "sub",
         record_interior(&carrier.inner_layouts()[0]),
     ));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[integer_middle],
         std::slice::from_ref(&deep_path("entry")),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a deeper hop requires a whole-record enclosing placement");
+        "a deeper hop requires a whole-record enclosing placement",
+    );
     assert!(
-        error
-            .0
-            .contains("inner layout for `slot.sub` requires a whole `At` placement"),
+        error.contains("inner layout for `slot.sub` requires a whole `At` placement"),
         "{}",
-        error.0
+        error
     );
 
     // A nested carrier whose claimed interior overflows the enclosing element
@@ -602,20 +568,17 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
                 align: 8,
             },
         ));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[overflowing_interior],
         std::slice::from_ref(&deep_path("entry")),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a nested interior may not exceed its enclosing element");
+        "a nested interior may not exceed its enclosing element",
+    );
     assert!(
         error
-            .0
             .contains("interior layout for `slot.sub` exceeds the enclosing 32-byte record extent"),
         "{}",
-        error.0
+        error
     );
 
     // A leaf member may not escape the innermost interior extent either.
@@ -627,19 +590,15 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
     });
     let escaping = SymbolicFieldInnerLayout::new("slot", record_interior(&carrier))
         .with_inner_layout(SymbolicFieldInnerLayout::new("sub", deep_escape));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[escaping],
         std::slice::from_ref(&deep_path("escape")),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a deeper leaf may not escape its interior record extent");
+        "a deeper leaf may not escape its interior record extent",
+    );
     assert!(
-        error
-            .0
-            .contains("writes outside the 24-byte materialization"),
+        error.contains("writes outside the 24-byte materialization"),
         "{}",
-        error.0
+        error
     );
 }
