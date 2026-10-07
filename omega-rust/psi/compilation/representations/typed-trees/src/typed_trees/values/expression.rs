@@ -1111,19 +1111,8 @@ impl NamePath {
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
     ) -> Self {
-        let mut member_symbols = vec![SymbolHandle::invalid(); members.len()];
-        if let Some(first_symbol) = member_symbols.first_mut() {
-            *first_symbol = head_symbol;
-        }
-        if let Some(last_symbol) = member_symbols.last_mut() {
-            *last_symbol = symbol;
-        }
-        Self {
-            members: Arc::from(members.into_boxed_slice()),
-            member_symbols: Arc::from(member_symbols.into_boxed_slice()),
-            head_symbol,
-            symbol,
-        }
+        let member_symbols = vec![SymbolHandle::invalid(); members.len()];
+        Self::resolved_with_member_symbols(members, member_symbols, head_symbol, symbol)
     }
 
     pub fn resolved_with_member_symbols(
