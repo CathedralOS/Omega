@@ -506,16 +506,14 @@ defines the complete product bar.
     engines). Use ordinary expression continuations for selected payload returns,
     not raw jump arguments.
     Structural arrays and value dispatch still need their full construction
-    schedule. Two constructor consumers remain: transport routed child
+    schedule. Transport routed child
     qualifications through record construction for
-    `pending/calls/runtime_constructor_child_declared_membership_exit`, and
-    preserve a checked return summary or pure-call congruence through Terminal
-    call composition for `pending/calls/runtime_constructor_child_pure_calls_exit`.
-    Both pass source checking and checked interpretation (exit 0); native
-    production lacks the record qualification transport and CallRequires
-    certificate, respectively. The fixture READMEs identify the producer and
-    consumer joins. Preserve issuer provenance and exact call observations;
-    repeated syntax alone cannot establish either obligation.
+    `pending/calls/runtime_constructor_child_declared_membership_exit`.
+    It passes source checking, but native production rejects `Main::main` as
+    an unconsumed nested call in a call statement. Preserve issuer provenance
+    and exact child observations; repeated syntax cannot establish membership.
+    Keep `pass/calls/runtime_constructor_child_pure_calls_exit` at 0 in both
+    engines without adding an ensures clause or a Terminal certificate.
     Stored constructor values also need the completed RHS operand tree on
     `FlowStatementFact`, shared by initialization, assignment and value-origin
     transfer. `pending/calls/constructor_child_local_epochs_not_equal` still
