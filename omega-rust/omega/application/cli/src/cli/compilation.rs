@@ -119,21 +119,15 @@ fn compile_several_targets(
 /// incomplete, else `Reject` (1) — so an established violation in any target
 /// is never reported as a search that merely stopped early.
 fn refusal_exit_status<'a>(refusals: impl IntoIterator<Item = &'a CompileProjectError>) -> i32 {
-    let outcomes = refusals
-        .into_iter()
-        .map(CompileProjectError::outcome)
-        .collect::<Vec<_>>();
-    let aggregate = match outcomes.first() {
-        Some(&first)
-            if outcomes
-                .iter()
-                .all(|outcome| matches!(outcome, CompilerRequestOutcome::Incomplete(_))) =>
+    let mut outcomes = refusals.into_iter().map(CompileProjectError::outcome);
+    match outcomes.next() {
+        Some(first @ CompilerRequestOutcome::Incomplete(_))
+            if outcomes.all(|outcome| matches!(outcome, CompilerRequestOutcome::Incomplete(_))) =>
         {
-            first
+            i32::from(first.halt_value())
         }
-        _ => CompilerRequestOutcome::Reject,
-    };
-    i32::from(aggregate.halt_value())
+        _ => i32::from(CompilerRequestOutcome::Reject.halt_value()),
+    }
 }
 
 fn print_timings(outcome: &omega::compilation::CompileProjectOutcome) {
