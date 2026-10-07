@@ -40,7 +40,6 @@
 
 use std::collections::BTreeMap;
 
-use numerics::bignum::BigInt;
 use semantic_vocabulary::{
     IntegerCarrier, IntegerMathTerm, IntegerSign, IntegerValue, Proposition, ScalarTerm,
 };
@@ -790,33 +789,17 @@ impl Denotation {
         subtrahend_term: TermHandle,
         difference_term: TermHandle,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        if as_integer(minuend).sub(&as_integer(subtrahend)) != as_integer(difference) {
-            return Ok(None);
-        }
-        if let Some(&position) = self
-            .subtraction
-            .numeral_differences
-            .get(&(minuend, subtrahend, difference))
-        {
-            return Ok(Some(self.constant(position)));
-        }
-        let integer = self.integer_constant()?;
-        let application = self.subtract_terms(minuend_term, subtrahend_term)?;
-        let ty = self.arena.insert(Term::Id {
-            ty: integer,
-            left: application,
-            right: difference_term,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.subtraction
-            .numeral_differences
-            .insert((minuend, subtrahend, difference), position);
-        Ok(Some(self.constant(position)))
+        self.numeral_binary_operation(
+            minuend,
+            subtrahend,
+            difference,
+            minuend_term,
+            subtrahend_term,
+            difference_term,
+            |left, right| left.sub(right),
+            Self::subtract_terms,
+            |denotation| &mut denotation.subtraction.numeral_differences,
+        )
     }
 
     /// Denote the checked direct-subtract bound: a `Conjunction` of the

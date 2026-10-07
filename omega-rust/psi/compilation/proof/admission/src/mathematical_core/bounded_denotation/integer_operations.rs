@@ -16,7 +16,10 @@
 //! `Id`/`IntLt`/`IntLe` statements are a separate, already-applicative
 //! denotation.
 
-use semantic_vocabulary::IntegerType;
+use std::collections::BTreeMap;
+
+use numerics::bignum::BigInt;
+use semantic_vocabulary::{IntegerType, IntegerValue};
 
 use super::{BoundedDenotationError, Declaration, Denotation, ScalarTerm, Term, TermHandle};
 
@@ -400,5 +403,70 @@ impl Denotation {
             function,
             argument: right,
         })))
+    }
+
+
+    /// One binary operation applied to already-denoted operands —
+    /// `op l r` as two `Apply`s over the operation's assumption constant.
+    /// `operation` names which fixed operation's constant slot to use, so
+    /// `add`/`subtract`/`multiply` keep their distinct functions.
+    pub(super) fn binary_terms(
+        &mut self,
+        operation: fn(&mut Self) -> Result<u32, BoundedDenotationError>,
+        left: TermHandle,
+        right: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        let position = operation(self)?;
+        let operation = self.constant(position);
+        let function = self.arena.insert(Term::Apply {
+            function: operation,
+            argument: left,
+        });
+        Ok(self.arena.insert(Term::Apply {
+            function,
+            argument: right,
+        }))
+    }
+
+    /// One checked `op l r = n` bridge between evaluated numerals and the
+    /// operation's applied term, interned by its `(l, r, n)` value triple
+    /// in the operation's own table. `compute` is the checked numeral
+    /// arithmetic (add/sub/mul over machine integers), `terms` the
+    /// operation's application builder, `cache` its intern table.
+    pub(super) fn numeral_binary_operation(
+        &mut self,
+        left: IntegerValue,
+        right: IntegerValue,
+        result: IntegerValue,
+        left_term: TermHandle,
+        right_term: TermHandle,
+        result_term: TermHandle,
+        compute: impl Fn(&BigInt, &BigInt) -> BigInt,
+        terms: fn(&mut Self, TermHandle, TermHandle) -> Result<TermHandle, BoundedDenotationError>,
+        cache: impl Fn(
+            &mut Self,
+        ) -> &mut BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let as_integer = |value: IntegerValue| match value {
+            IntegerValue::Signed(value) => BigInt::from_i128(value),
+            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
+        };
+        if compute(&as_integer(left), &as_integer(right)) != as_integer(result) {
+            return Ok(None);
+        }
+        if let Some(&position) = cache(self).get(&(left, right, result)) {
+            return Ok(Some(self.constant(position)));
+        }
+        let integer = self.integer_constant()?;
+        let application = terms(self, left_term, right_term)?;
+        let ty = self.arena.insert(Term::Id {
+            ty: integer,
+            left: application,
+            right: result_term,
+        });
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        cache(self).insert((left, right, result), position);
+        Ok(Some(self.constant(position)))
     }
 }

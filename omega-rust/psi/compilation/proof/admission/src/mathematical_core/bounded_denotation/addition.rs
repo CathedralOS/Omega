@@ -96,16 +96,7 @@ impl Denotation {
         left: TermHandle,
         right: TermHandle,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = self.add_operation()?;
-        let operation = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function: operation,
-            argument: left,
-        });
-        Ok(self.arena.insert(Term::Apply {
-            function,
-            argument: right,
-        }))
+        self.binary_terms(Self::add_operation, left, right)
     }
 
     fn add_law_application(
@@ -198,29 +189,17 @@ impl Denotation {
         augend_term: TermHandle,
         sum_term: TermHandle,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        if as_integer(addend).add(&as_integer(augend)) != as_integer(sum) {
-            return Ok(None);
-        }
-        if let Some(&position) = self.addition.numeral_sums.get(&(addend, augend, sum)) {
-            return Ok(Some(self.constant(position)));
-        }
-        let integer = self.integer_constant()?;
-        let application = self.add_terms(addend_term, augend_term)?;
-        let ty = self.arena.insert(Term::Id {
-            ty: integer,
-            left: application,
-            right: sum_term,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.addition
-            .numeral_sums
-            .insert((addend, augend, sum), position);
-        Ok(Some(self.constant(position)))
+        self.numeral_binary_operation(
+            addend,
+            augend,
+            sum,
+            addend_term,
+            augend_term,
+            sum_term,
+            |left, right| left.add(right),
+            Self::add_terms,
+            |denotation| &mut denotation.addition.numeral_sums,
+        )
     }
 
     /// Select a checked carrier-endpoint-minus-addend witness. The

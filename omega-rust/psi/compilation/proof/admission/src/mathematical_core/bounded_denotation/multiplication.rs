@@ -293,33 +293,17 @@ impl Denotation {
         right_term: TermHandle,
         product_term: TermHandle,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let as_integer = |value: IntegerValue| match value {
-            IntegerValue::Signed(value) => BigInt::from_i128(value),
-            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-        };
-        if as_integer(left).mul(&as_integer(right)) != as_integer(product) {
-            return Ok(None);
-        }
-        if let Some(&position) = self
-            .multiplication
-            .numeral_products
-            .get(&(left, right, product))
-        {
-            return Ok(Some(self.constant(position)));
-        }
-        let integer = self.integer_constant()?;
-        let application = self.multiply_terms(left_term, right_term)?;
-        let ty = self.arena.insert(Term::Id {
-            ty: integer,
-            left: application,
-            right: product_term,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.multiplication
-            .numeral_products
-            .insert((left, right, product), position);
-        Ok(Some(self.constant(position)))
+        self.numeral_binary_operation(
+            left,
+            right,
+            product,
+            left_term,
+            right_term,
+            product_term,
+            |left, right| left.mul(right),
+            Self::multiply_terms,
+            |denotation| &mut denotation.multiplication.numeral_products,
+        )
     }
 
     /// `Id Int (div_T n' d') q'` — the numeral-operation equation naming
