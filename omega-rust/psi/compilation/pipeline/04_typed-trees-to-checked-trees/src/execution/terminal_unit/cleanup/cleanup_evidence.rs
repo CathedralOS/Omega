@@ -40,24 +40,6 @@ pub(crate) fn service_reach_is_empty(
             .is_empty()
 }
 
-pub(crate) fn service_reach_plan_is_empty(
-    facts: &CheckFacts,
-    plan: language_semantics::ServiceReachPlan,
-) -> bool {
-    let published_is_empty = match plan.interface {
-        language_semantics::ServiceReachInterface::InternalInferred => true,
-        language_semantics::ServiceReachInterface::PublishedCeiling(row) => {
-            facts.service_reaches.rows.services(row).is_empty()
-        }
-    };
-    published_is_empty
-        && facts
-            .service_reaches
-            .rows
-            .services(plan.checked_inferred)
-            .is_empty()
-}
-
 pub(crate) fn has_exact_root_affine_discard(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,

@@ -1,21 +1,17 @@
 //! Structural Unit and scalar return analysis.
 //!
-//! This file builds the four return plan sets. `affine_returns.rs` builds
-//! claim-free affine return machines, `guarded_call_returns.rs` payloadless
-//! guarded call returns,
-//! `structural_return_machine.rs` the structural return machine,
-//! `structural_scalar_returns.rs` structural and trait-operator scalar
-//! returns, `boundary_scalar_returns.rs` boundary scalar returns and
+//! This file builds the three return plan sets. `affine_returns.rs` builds
+//! claim-free affine return machines, `structural_scalar_returns.rs`
+//! structural scalar returns, `boundary_scalar_returns.rs` boundary scalar
+//! returns and
 //! `scalar_return_expressions.rs` classifies scalar return expressions;
 //! `primitive_effects.rs` and `selected_operator.rs` carry effects and
 //! selected operators.
 
 mod affine_returns;
 mod boundary_scalar_returns;
-mod guarded_call_returns;
 pub(super) mod primitive_effects;
 mod scalar_return_expressions;
-mod structural_return_machine;
 mod structural_scalar_returns;
 
 pub(crate) use boundary_scalar_returns::build_boundary_scalar_return_machine;
@@ -100,38 +96,28 @@ pub(crate) fn build_checked_scalar_callee_return_plans(
     plans
 }
 pub(crate) use scalar_return_expressions::checked_boolean_contains_short_circuit;
-pub(crate) use structural_return_machine::build_structural_return_machine;
 pub(crate) use structural_scalar_returns::build_structural_scalar_return_machine;
 
 use super::{
     BTreeSet, CheckFacts, CheckedBoundaryScalarReturnPlans, CheckedStructuralAccess,
-    CheckedStructuralCallReturnPlans, CheckedStructuralReturnPlans,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitStructuralParameterPlan,
-    Diagnostic, MachineSupplyMode, Multiplicity, StatementNode, TypeReferenceNode,
+    CheckedStructuralReturnPlans, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
+    CheckedUnitStructuralParameterPlan, Diagnostic, MachineSupplyMode, Multiplicity, StatementNode,
+    TypeReferenceNode,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::execution::terminal_unit::control::build_boundary_machine;
 use crate::execution::terminal_unit::control::build_static_boundary_requirements;
 use crate::execution::terminal_unit::returns::affine_returns::build_claim_free_affine_structural_return_machine;
-use crate::execution::terminal_unit::returns::guarded_call_returns::build_payloadless_guarded_call_return_machine;
-use crate::execution::terminal_unit::returns::structural_scalar_returns::build_trait_operator_scalar_return_machine;
 
-/// Build the exact checked carriers for `T in D -> T in D` whole-root
-/// passthrough and claim-free affine identity returns. Every wider ownership
-/// or control shape is omitted atomically.
+/// Build the exact checked carriers for claim-free affine identity returns.
+/// Every wider ownership or control shape is an ordinary body.
 pub(crate) fn build_checked_structural_return_plans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedStructuralReturnPlans {
     let mut shapes = ShapeCollector::new(program);
-    let machines = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| build_structural_return_machine(program, facts, &mut shapes, machine))
-        .collect::<Vec<_>>();
     let claim_free_affine_machines = program
         .machines()
         .iter()
@@ -140,78 +126,19 @@ pub(crate) fn build_checked_structural_return_plans(
             build_claim_free_affine_structural_return_machine(program, facts, &mut shapes, machine)
         })
         .collect::<Vec<_>>();
-    let retained = machines
+    let retained = claim_free_affine_machines
         .iter()
         .flat_map(|plan| {
-            machine_type_identities!(plan)
-                .chain(
-                    plan.trivial_affine_locals
-                        .iter()
-                        .map(|local| local.type_identity.as_str()),
-                )
-                .chain(std::iter::once(plan.result.type_identity.as_str()))
-        })
-        .chain(claim_free_affine_machines.iter().flat_map(|plan| {
             plan.attachment_type_identity.as_deref().into_iter().chain([
                 plan.structural_parameter.type_identity.as_str(),
                 plan.result.type_identity.as_str(),
             ])
-        }))
-        .collect::<BTreeSet<_>>();
-    let retained_domains = machines
-        .iter()
-        .flat_map(|plan| {
-            plan.structural_parameters
-                .iter()
-                .flat_map(|parameter| &parameter.qualifications)
-                .chain(&plan.result.qualifications)
-                .map(|domain| domain.0)
         })
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
-    shapes
-        .domains
-        .retain(|domain| retained_domains.contains(&domain.domain.0));
-    shapes.domains.sort_by_key(|domain| domain.domain.0);
     CheckedStructuralReturnPlans {
         structural_types: shapes.types.into_values().collect(),
-        structural_domains: shapes.domains,
-        machines,
         claim_free_affine_machines,
-    }
-}
-
-/// Build the guarded payloadless call returns: a zero-input call saved once
-/// and returned unchanged through exhaustive case arms that may bind the
-/// callee's selected guarded evidence. The callee is an ordinary Unit-effect
-/// machine, not a plan of this roster.
-pub(crate) fn build_checked_structural_call_return_plans(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-) -> CheckedStructuralCallReturnPlans {
-    let mut shapes = ShapeCollector::new(program);
-    let payloadless_guarded_machines = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| {
-            build_payloadless_guarded_call_return_machine(program, facts, &mut shapes, machine)
-        })
-        .collect::<Vec<_>>();
-    let retained = payloadless_guarded_machines
-        .iter()
-        .flat_map(|plan| {
-            plan.attachment_type_identity
-                .as_deref()
-                .into_iter()
-                .chain([plan.result.type_identity.as_str()])
-        })
-        .collect::<BTreeSet<_>>();
-    shapes.retain_transitive(&retained);
-    CheckedStructuralCallReturnPlans {
-        structural_types: shapes.types.into_values().collect(),
-        structural_domains: Vec::new(),
-        payloadless_guarded_machines,
     }
 }
 
@@ -240,28 +167,14 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
             )
         })
         .collect::<Vec<_>>();
-    let trait_operator_machines = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| {
-            build_trait_operator_scalar_return_machine(program, facts, &mut shapes, machine)
-        })
-        .collect::<Vec<_>>();
     let retained = machines
         .iter()
         .flat_map(|machine| machine_type_identities!(machine))
-        .chain(
-            trait_operator_machines
-                .iter()
-                .flat_map(|machine| machine_type_identities!(machine)),
-        )
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
     CheckedStructuralScalarReturnPlans {
         structural_types: shapes.types.into_values().collect(),
         machines,
-        trait_operator_machines,
     }
 }
 

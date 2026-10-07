@@ -78,7 +78,7 @@ pub use scalar_return_plans::{
     CheckedStructuralBooleanConvergencePlan, CheckedStructuralScalarIntegerBoundKind,
     CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
     CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralScalarReturnPlans, CheckedTraitOperatorScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans,
 };
 pub use structural_argument_plans::{
     CheckedCallScalarArgument, CheckedUnitCallCoordinate, CheckedUnitEntryClaimPlan,
@@ -94,10 +94,7 @@ pub use structural_control_plans::{
 };
 pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};
 pub use structural_return_plans::{
-    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedPayloadlessGuardedCallEvidencePlan,
-    CheckedPayloadlessGuardedCallEvidenceUsePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
-    CheckedStructuralCallReturnPlans, CheckedStructuralReturnMachinePlan,
-    CheckedStructuralReturnPlans,
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
 };
 pub use structural_type_plans::{
     CheckedAffineConstructionElementPlan, CheckedByteSequenceCarrier,

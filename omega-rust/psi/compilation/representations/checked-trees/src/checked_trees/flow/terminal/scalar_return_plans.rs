@@ -1,7 +1,6 @@
-//! Scalar return plans for structural, trait-operator and boundary machines,
+//! Scalar return plans for structural and boundary machines,
 //! with their integer bounds and parameter plans.
 
-use crate::CheckedScalarExpression;
 use crate::checked_trees::flow::terminal::{
     CheckedBoundaryMachinePlan, CheckedNormalCleanupAction, CheckedScalarBinding,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
@@ -20,10 +19,6 @@ use typed_trees::types::PrimitiveType;
 pub struct CheckedStructuralScalarReturnPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub machines: Vec<CheckedStructuralScalarReturnMachinePlan>,
-    /// Direct trait-backed fixed-token returns. These stay separate from the
-    /// builtin scalar-expression lane because the selected realization is an
-    /// executable structural call, not a primitive comparison.
-    pub trait_operator_machines: Vec<CheckedTraitOperatorScalarReturnMachinePlan>,
 }
 
 impl CheckedStructuralScalarReturnPlans {
@@ -33,43 +28,6 @@ impl CheckedStructuralScalarReturnPlans {
     ) -> Option<&CheckedStructuralScalarReturnMachinePlan> {
         self.machines.iter().find(|plan| plan.machine == machine)
     }
-
-    pub fn trait_operator_for_machine(
-        &self,
-        machine: SymbolHandle,
-    ) -> Option<&CheckedTraitOperatorScalarReturnMachinePlan> {
-        self.trait_operator_machines
-            .iter()
-            .find(|plan| plan.machine == machine)
-    }
-}
-
-/// One exact trait-backed fixed-token return over whole structural parameters.
-/// The selected closed application and realization row cross the checked
-/// boundary explicitly; Terminal lowering must not rediscover either from
-/// names or visible conformances.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedTraitOperatorScalarReturnMachinePlan {
-    pub machine: SymbolHandle,
-    pub state: SymbolHandle,
-    pub attachment_type_identity: Option<String>,
-    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
-    pub result_type: PrimitiveType,
-    pub return_statement_ordinal: u32,
-    pub conformance: SymbolHandle,
-    /// Compact report coordinate; authority uses the adjacent commitment.
-    pub conformance_application_report_fingerprint: u64,
-    pub conformance_application_commitment:
-        typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
-    pub requirement: SymbolHandle,
-    pub realization_machine: SymbolHandle,
-    pub realization_state: SymbolHandle,
-    /// Source-independent checked body of the exact selected realization.
-    /// This is retained here because an unselected conformance member is not
-    /// otherwise part of the ordinary terminal scalar-expression roots.
-    pub realization_return_expression: CheckedScalarExpression,
-    /// Authored source-parameter positions in fixed-token operand order.
-    pub argument_source_positions: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

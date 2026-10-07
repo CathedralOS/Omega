@@ -1,13 +1,12 @@
-//! Structural and trait-operator scalar return machines.
+//! Structural scalar return machines.
 
 use crate::execution::terminal_unit::calls::{
     free_structural_scalar_signature, structural_scalar_signature,
 };
 use crate::execution::terminal_unit::cleanup::{
-    checked_requires_expressions, machine_has_content_evidence,
-    nominal_cleanup_boolean_requirements, nominal_cleanup_missing_requirement,
-    nominal_cleanup_shape, nominal_cleanup_target_matches, nominal_scalar_caller_requirements,
-    scalar_nominal_cleanup_missing_requirement_diagnostic,
+    checked_requires_expressions, nominal_cleanup_boolean_requirements,
+    nominal_cleanup_missing_requirement, nominal_cleanup_shape, nominal_cleanup_target_matches,
+    nominal_scalar_caller_requirements, scalar_nominal_cleanup_missing_requirement_diagnostic,
 };
 use crate::execution::terminal_unit::returns::primitive_effects;
 
@@ -18,195 +17,16 @@ use crate::execution::terminal_unit::returns::scalar_return_expressions::{
     is_structural_short_circuit_boolean_return,
 };
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, machine_binders, parameter_qualifications, projected_parameter_qualifications,
-    state_flow, type_graph_requires_nominal_drop,
+    ShapeCollector, machine_binders, state_flow, type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedNormalCleanupAction, CheckedScalarBinding,
     CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStructuralAccess, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTraitOperatorScalarReturnMachinePlan, CheckedUnitEffectPlans,
-    CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralParameterPlan, Diagnostic,
-    ExpressionNode, Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
-    PrimitiveType, StatementNode, checked_shared_boolean_convergence, is_reference,
-    shared_convergence,
+    CheckedStructuralScalarReturnMachinePlan, CheckedUnitEffectPlans,
+    CheckedUnitNominalAffineCleanupPlan, Diagnostic, Multiplicity, PermissionAccess,
+    PermissionEventKind, PermissionEventSource, PrimitiveType, StatementNode,
+    checked_shared_boolean_convergence, shared_convergence,
 };
-
-pub(crate) fn build_trait_operator_scalar_return_machine(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-) -> Option<CheckedTraitOperatorScalarReturnMachinePlan> {
-    let [state] = program.machine_states(machine) else {
-        return None;
-    };
-    if !program.machine_contracts(machine).is_empty()
-        || !program.state_contracts(state).is_empty()
-        || machine_has_content_evidence(facts, machine.symbol, state.symbol)
-    {
-        return None;
-    }
-    let [StatementNode::Expression(expression)] =
-        program.statement_table.statements(state.statement_nodes)
-    else {
-        return None;
-    };
-    let expression = *expression;
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let candidate = facts
-        .operators
-        .selected_trait_candidate_in_machine(expression, machine.symbol)?;
-    let specialization = program
-        .machine_specializations
-        .iter()
-        .find(|specialization| specialization.instance == machine.symbol)?;
-    let application = specialization
-        .conformance_applications
-        .iter()
-        .find(|application| {
-            application.declaration == candidate.conformance_symbol
-                && application.report_fingerprint
-                    == candidate.conformance_application_report_fingerprint
-                && application.commitment == candidate.conformance_application_commitment
-        })?;
-    if application.report_fingerprint == 0
-        || !application.rows.iter().any(|row| {
-            row.requirement == candidate.trait_requirement_symbol
-                && row.realization_machine == candidate.realization_machine_symbol
-                && row.realization_state == candidate.realization_state_symbol
-        })
-    {
-        return None;
-    }
-    let realization_machine =
-        crate::lookup::machine_by_symbol(program, candidate.realization_machine_symbol)?;
-    let [realization_state] = program.machine_states(realization_machine) else {
-        return None;
-    };
-    if realization_state.symbol != candidate.realization_state_symbol {
-        return None;
-    }
-    let [StatementNode::Expression(realization_expression)] = program
-        .statement_table
-        .statements(realization_state.statement_nodes)
-    else {
-        return None;
-    };
-    let realization_return_expression = CheckedScalarExpression::Boolean(Box::new(
-        crate::values::lower_machine_parameter_boolean_expression(
-            program,
-            &facts.operators,
-            realization_machine,
-            *realization_expression,
-            &[],
-        )?,
-    ));
-
-    let binders = machine_binders(program, machine);
-    // A qualified owner must resolve, but only an authored receiver retains
-    // it as attachment storage.
-    let _attached = match machine.attached_data.as_ref() {
-        Some(attached_name) => Some(
-            program
-                .data_definitions()
-                .iter()
-                .find(|data| data.name == *attached_name)?,
-        ),
-        None => None,
-    };
-    let attachment_type_identity = None::<String>;
-    let source_parameters = program.state_parameters(state);
-    let structural_parameters = source_parameters
-        .iter()
-        .enumerate()
-        .map(|(position, parameter)| {
-            if parameter.is_const
-                || parameter.is_mutable
-                || is_reference(program, parameter.type_reference)
-                || program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_some()
-            {
-                return None;
-            }
-            let type_identity = { shapes.add_type(parameter.type_reference, &binders, &[])? };
-            let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
-            let qualifications =
-                parameter_qualifications(program, shapes, parameter.type_reference, &binders)?;
-            if multiplicity != Multiplicity::Affine || !qualifications.is_empty() {
-                return None;
-            }
-            Some(CheckedUnitStructuralParameterPlan {
-                position: u32::try_from(position).ok()?,
-                primitive_referent: shapes.primitive_scalar(&type_identity),
-                type_identity,
-                multiplicity,
-                access: CheckedStructuralAccess::Owned,
-                qualifications,
-                projected_qualifications: projected_parameter_qualifications(
-                    program,
-                    shapes,
-                    parameter.type_reference,
-                    &binders,
-                )?,
-                fused_service_erasure: None,
-            })
-        })
-        .collect::<Option<Vec<_>>>()?;
-    if structural_parameters.is_empty() {
-        return None;
-    }
-    let argument_source_positions = [binary.left, binary.right]
-        .iter()
-        .map(|operand| {
-            let ExpressionNode::Name(path) = program.expression_table.expression(*operand) else {
-                return None;
-            };
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
-            {
-                return None;
-            }
-            source_parameters
-                .iter()
-                .position(|parameter| parameter.symbol == path.symbol)
-                .and_then(|position| u32::try_from(position).ok())
-        })
-        .collect::<Option<Vec<_>>>()?;
-    if argument_source_positions.len() != structural_parameters.len()
-        || argument_source_positions
-            .iter()
-            .copied()
-            .collect::<BTreeSet<_>>()
-            .len()
-            != structural_parameters.len()
-    {
-        return None;
-    }
-    Some(CheckedTraitOperatorScalarReturnMachinePlan {
-        machine: machine.symbol,
-        state: state.symbol,
-        attachment_type_identity,
-        structural_parameters,
-        result_type: program.primitive_type_reference(state.return_type)?,
-        return_statement_ordinal: 0,
-        conformance: candidate.conformance_symbol,
-        conformance_application_report_fingerprint: candidate
-            .conformance_application_report_fingerprint,
-        conformance_application_commitment: candidate.conformance_application_commitment,
-        requirement: candidate.trait_requirement_symbol,
-        realization_machine: candidate.realization_machine_symbol,
-        realization_state: candidate.realization_state_symbol,
-        realization_return_expression,
-        argument_source_positions,
-    })
-}
 
 pub(crate) fn build_structural_scalar_return_machine(
     program: &dyn ::validation::CheckingInput,

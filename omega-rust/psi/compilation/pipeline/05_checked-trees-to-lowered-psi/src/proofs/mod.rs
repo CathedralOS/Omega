@@ -41,9 +41,7 @@ use terminal_psi::{
     ContentEntryClaim, ContentIdentityReshuffle, ContentPlaceSubstitution,
     CrashCause as TerminalCrashCause, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
-    EvidenceTermDeclaration, OperationKind, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificEvidenceUse,
+    EvidenceTermDeclaration, OperationKind, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
     OutcomeSpecificGuard, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
@@ -59,7 +57,7 @@ use crate::emission::scalar_types::{
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{
-    dense_identity, lookup_claim_id, machine_id, obligation_id, proposition_id, value_id,
+    dense_identity, lookup_claim_id, obligation_id, proposition_id, value_id,
 };
 
 pub(crate) mod content_conservation;

@@ -3,7 +3,7 @@
 //! The return rosters remain separate tables because each retains the
 //! structural-type roster its lowering emits and outside readers iterate them
 //! by field. This view names the family once, so a consumer asks which return
-//! plan a machine lowers instead of walking seven rosters and repeating the
+//! plan a machine lowers instead of walking every roster and repeating the
 //! same admission beside each. A zero-input payloadless case constructor is
 //! not a return family: it is an ordinary Unit-effect body.
 
@@ -12,9 +12,7 @@ use symbols::SymbolHandle;
 use crate::checked_trees::flow::FlowFacts;
 use crate::checked_trees::flow::terminal::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedClaimFreeAffineStructuralReturnMachinePlan,
-    CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedStructuralReturnMachinePlan,
     CheckedStructuralScalarReturnMachinePlan, CheckedTerminalSignatureEligibility,
-    CheckedTraitOperatorScalarReturnMachinePlan,
 };
 
 /// The result-bearing plan one machine lowers. Each variant borrows the row
@@ -24,20 +22,12 @@ use crate::checked_trees::flow::terminal::{
 /// terminal lowering has always dispatched in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedReturnPlan<'a> {
-    /// One payloadless structural result saved from a final call and returned
-    /// unchanged through its exhaustive identity arms.
-    PayloadlessGuardedCall(&'a CheckedPayloadlessGuardedCallReturnMachinePlan),
-    /// One scalar result realized by calling a trait-backed fixed-token
-    /// realization.
-    TraitOperator(&'a CheckedTraitOperatorScalarReturnMachinePlan),
     /// One scalar result computed over a structural frontier, followed by its
     /// post-result cleanup.
     StructuralScalar(&'a CheckedStructuralScalarReturnMachinePlan),
     /// One scalar result returned by a bodyless boundary call that consumes
     /// the structural claim frontier.
     BoundaryScalar(&'a CheckedBoundaryScalarReturnMachinePlan),
-    /// One whole linear root transferred to the result with its claim.
-    Structural(&'a CheckedStructuralReturnMachinePlan),
     /// One whole claim-free owned-affine parameter returned unchanged.
     ClaimFreeAffine(&'a CheckedClaimFreeAffineStructuralReturnMachinePlan),
 }
@@ -45,33 +35,16 @@ pub enum CheckedReturnPlan<'a> {
 impl<'a> CheckedReturnPlan<'a> {
     /// The return plan `machine` lowers, if any roster admitted it.
     pub fn for_machine(flow: &'a FlowFacts, machine: SymbolHandle) -> Option<Self> {
-        let scalar_returns = &flow.terminal_structural_scalar_returns;
-        let structural_returns = &flow.terminal_structural_returns;
-        flow.terminal_structural_call_returns
-            .payloadless_guarded_for_machine(machine)
-            .map(Self::PayloadlessGuardedCall)
-            .or_else(|| {
-                scalar_returns
-                    .trait_operator_for_machine(machine)
-                    .map(Self::TraitOperator)
-            })
-            .or_else(|| {
-                scalar_returns
-                    .for_machine(machine)
-                    .map(Self::StructuralScalar)
-            })
+        flow.terminal_structural_scalar_returns
+            .for_machine(machine)
+            .map(Self::StructuralScalar)
             .or_else(|| {
                 flow.terminal_boundary_scalar_returns
                     .for_machine(machine)
                     .map(Self::BoundaryScalar)
             })
             .or_else(|| {
-                structural_returns
-                    .for_machine(machine)
-                    .map(Self::Structural)
-            })
-            .or_else(|| {
-                structural_returns
+                flow.terminal_structural_returns
                     .claim_free_affine_for_machine(machine)
                     .map(Self::ClaimFreeAffine)
             })
@@ -80,41 +53,20 @@ impl<'a> CheckedReturnPlan<'a> {
     /// The selected machine this plan returns from.
     pub fn machine(self) -> SymbolHandle {
         match self {
-            Self::PayloadlessGuardedCall(plan) => plan.machine,
-            Self::TraitOperator(plan) => plan.machine,
             Self::StructuralScalar(plan) => plan.machine,
             Self::BoundaryScalar(plan) => plan.machine,
-            Self::Structural(plan) => plan.machine,
             Self::ClaimFreeAffine(plan) => plan.machine,
-        }
-    }
-
-    /// The checked machine whose body realizes this return through one
-    /// call, when the plan is such a call rather than an authored body.
-    pub fn realization_machine(self) -> Option<SymbolHandle> {
-        match self {
-            Self::TraitOperator(plan) => Some(plan.realization_machine),
-            Self::PayloadlessGuardedCall(plan) => Some(plan.target_machine),
-            Self::StructuralScalar(_)
-            | Self::BoundaryScalar(_)
-            | Self::Structural(_)
-            | Self::ClaimFreeAffine(_) => None,
         }
     }
 
     /// Whether `signature` is the selection this plan lowers under: an
     /// attached signature when the plan retains its owner, either free
     /// signature otherwise, exactly as a Unit plan admits it. A free machine
-    /// that reaches services is selected `FreeUnitEffect`. The
-    /// operator-realized kind constrains its realization instead of the
-    /// caller's selection and admits any signature.
+    /// that reaches services is selected `FreeUnitEffect`.
     pub fn admits_signature(self, signature: CheckedTerminalSignatureEligibility) -> bool {
         let attached = match self {
-            Self::TraitOperator(_) => return true,
-            Self::PayloadlessGuardedCall(plan) => plan.attachment_type_identity.is_some(),
             Self::StructuralScalar(plan) => plan.attachment_type_identity.is_some(),
             Self::BoundaryScalar(plan) => plan.attachment_type_identity.is_some(),
-            Self::Structural(plan) => plan.attachment_type_identity.is_some(),
             Self::ClaimFreeAffine(plan) => plan.attachment_type_identity.is_some(),
         };
         !attached

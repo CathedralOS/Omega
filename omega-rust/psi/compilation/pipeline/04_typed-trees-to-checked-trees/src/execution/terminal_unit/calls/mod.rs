@@ -77,9 +77,7 @@ impl<'program> CallTarget<'program> {
     }
 }
 
-pub(crate) use affine_locals::{
-    build_affine_array_construction_prefix, build_unit_trivial_affine_locals,
-};
+pub(crate) use affine_locals::build_affine_array_construction_prefix;
 pub(crate) use argument_paths::{
     borrowed_index_segment, byte_sequence_literal_argument, projected_argument_path,
     projected_borrowed_path, projected_observed_path,

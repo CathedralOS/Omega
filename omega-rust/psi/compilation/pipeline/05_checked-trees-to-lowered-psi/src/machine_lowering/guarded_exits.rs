@@ -1,11 +1,10 @@
 //! Guarded-exit admission for outcome-specific guarantees.
 //!
 //! A checked `outcome`-parameterized guarantee is provable only through a
-//! guarded exit: either the selected entry itself returns one exact
-//! payloadless structural case, or its guarantee rides the caller arm of a
-//! guarded payloadless call into the selected callee. The lowering route
-//! refuses guarantees that cannot reach such an exit once the source closure
-//! is lowered.
+//! guarded exit: the selected entry itself returns one exact payloadless
+//! structural case. The lowering route refuses guarantees that cannot reach
+//! such an exit once the source closure is lowered. A caller arm that matches
+//! a callee's guarded case does not yet carry the callee's guarantee.
 //!
 //! The exact case exit is read from the lowered entry machine, not from which
 //! producer lowered it: a payloadless case constructor is an ordinary Unit
@@ -63,8 +62,7 @@ pub(crate) fn exact_payloadless_return_guard(
 /// can publish.
 ///
 /// A guarantee is admitted when its machine is the entry of a single-machine
-/// closure whose lowered entry returns one exact payloadless case, or when
-/// the entry is a guarded payloadless caller and the machine is its callee.
+/// closure whose lowered entry returns one exact payloadless case.
 pub(crate) fn reject_unguarded_outcome_guarantees(
     checked: &CheckedTrees,
     source_machines: &[SymbolHandle],
@@ -78,12 +76,6 @@ pub(crate) fn reject_unguarded_outcome_guarantees(
             .find(|machine| machine.id == module.entry)
             .and_then(exact_payloadless_return_guard)
             .is_some();
-    let payloadless_callee = checked
-        .facts
-        .flow
-        .terminal_structural_call_returns
-        .payloadless_guarded_for_machine(entry)
-        .map(|plan| plan.target_machine);
     if checked
         .facts
         .proof
@@ -91,8 +83,7 @@ pub(crate) fn reject_unguarded_outcome_guarantees(
         .iter()
         .any(|(_, guarantee)| {
             source_machines.contains(&guarantee.machine_symbol)
-                && !((exact_payloadless_entry && guarantee.machine_symbol == entry)
-                    || payloadless_callee == Some(guarantee.machine_symbol))
+                && !(exact_payloadless_entry && guarantee.machine_symbol == entry)
         })
     {
         return unsupported(

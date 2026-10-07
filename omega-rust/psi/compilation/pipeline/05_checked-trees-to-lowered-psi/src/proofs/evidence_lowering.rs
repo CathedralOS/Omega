@@ -1,14 +1,14 @@
 //! Proposition and evidence artifact lowering.
 //!
 //! This file installs the artifacts and names checked evidence identities.
-//! `guarded_call_evidence.rs` lowers payloadless guarded-call evidence and
-//! outcome-specific ensures, `evidence_terms.rs` lowers the proposition
+//! `outcome_specific_ensures.rs` lowers outcome-specific ensures,
+//! `evidence_terms.rs` lowers the proposition
 //! vocabulary, evidence terms, interfaces and contract lanes,
 //! `proof_output_calls.rs` lowers proof-output calls and runtime calls and
 //! `producer_provenance.rs` lowers evidence producer provenance.
 
 mod evidence_terms;
-mod guarded_call_evidence;
+mod outcome_specific_ensures;
 mod proof_output_calls;
 
 use super::{CheckedTrees, LoweredPsi, LoweringError, unsupported};
@@ -16,9 +16,7 @@ use crate::proofs::evidence_lowering::evidence_terms::{
     lower_evidence_contract_lanes, lower_evidence_term_ids, lower_evidence_terms,
     lower_proposition_vocabulary,
 };
-use crate::proofs::evidence_lowering::guarded_call_evidence::{
-    lower_and_install_payloadless_guarded_call_evidence, lower_outcome_specific_ensures,
-};
+use crate::proofs::evidence_lowering::outcome_specific_ensures::lower_outcome_specific_ensures;
 use crate::proofs::evidence_lowering::proof_output_calls::lower_proof_output_calls;
 
 pub(crate) fn lower_and_install_evidence_artifacts(
@@ -26,14 +24,6 @@ pub(crate) fn lower_and_install_evidence_artifacts(
     machine: symbols::SymbolHandle,
     lowered: &mut LoweredPsi,
 ) -> Result<(), LoweringError> {
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_call_returns
-        .payloadless_guarded_for_machine(machine)
-    {
-        return lower_and_install_payloadless_guarded_call_evidence(checked, plan, lowered);
-    }
     let evidence_term_ids = lower_evidence_term_ids(checked, machine)?;
     let (declarations, applications, declaration_ids) =
         lower_proposition_vocabulary(checked, &evidence_term_ids.term_ids)?;

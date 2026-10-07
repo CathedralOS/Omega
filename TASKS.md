@@ -2535,22 +2535,22 @@ code and preserve check/native behavior for the named customer slices.
   `pass/calls/runtime_value_call_literal_len_arm_guard_exit` exits 70.
 
 - **RETURN-ROUTES-RETIRED.** (new-scope) Depends on **ONE-CALL-LOWERING**.
-  Replace the six return rosters in
+  Replace the three remaining return rosters in
   `.../05_checked-trees-to-lowered-psi/src/returns/` (structural-scalar,
-  boundary-scalar, structural, claim-free affine, trait-operator and guarded
-  payloadless) with ordinary body operations plus result completion, keeping
-  outcome-selected evidence and proof-only tail arguments. A route census over
-  the full checked corpus (2026-10-07) found no machine selected through any
-  return route at top level: entries lower as composed graphs or Unit
-  closures, and only `omega inspect-terminal --machine` or a callback thunk
-  can select a return-plan machine. No return plan has an in-closure
-  consumer any more: every boundary-scalar or structural-scalar return
-  machine also owns an ordinary Unit body with a scalar completion, so scalar
-  callees resolve to that body, and the claim-free affine leaf call route is
-  deleted. What remains is the top-level route set in `returns/` and the
-  checked rosters that feed it (plus the domain and parameter catalogs that
-  still read `terminal_boundary_scalar_returns` and
-  `terminal_structural_scalar_returns`). Coordinate operator
+  boundary-scalar and claim-free affine) with ordinary body operations plus
+  result completion. A route census over the full checked corpus
+  (2026-10-07) found no machine selected through any return route at top
+  level: entries lower as composed graphs or Unit closures, and only
+  `omega inspect-terminal --machine` or a callback thunk can select a
+  return-plan machine. Every machine in the three rosters (242
+  boundary-scalar, 13 structural-scalar, 13 claim-free affine) also owns an
+  ordinary Unit body, so scalar callees resolve to that body. What remains is
+  the top-level route set in `returns/` and the checked rosters that feed it
+  (plus the domain and parameter catalogs that still read
+  `terminal_boundary_scalar_returns` and `terminal_structural_scalar_returns`).
+  A caller arm matching a callee's outcome-specific guarantee has no
+  producer: Terminal's `OutcomeSpecificCallEvidence` is never emitted, and no
+  corpus fixture writes `ensures Result::Case -> { ... }`. Coordinate operator
   returns with **OPERATOR-BOUNDARY-CALLS**.
   `pass/providers/specialized_structural_fixed_operator_terminal_custody` has
   an unused `exercise` beside an empty entry, so its build proves nothing:

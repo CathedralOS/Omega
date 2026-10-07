@@ -144,16 +144,10 @@ pub(crate) fn lower_selected_machine(
     ))
 }
 
-/// Whether the checked program selects a dynamic implementation anywhere in
-/// the product it lowers. The retired data-attached descriptor route that
-/// lowered such selections is deleted, so every selection now stops at this
-/// one refusal until the named-implementation selector route lands. Product
-/// pruning retains only the selections of reachable machines.
 /// The one checked return plan `selection` lowers, if any. Every result kind
 /// shares this admission: the selection's signature is the one the plan's
 /// attachment implies — attached when the plan retains its owner, either
-/// free signature otherwise. The operator-realized kinds constrain their
-/// realization rather than the caller's selection and admit any signature.
+/// free signature otherwise.
 fn select_return_plan<'checked>(
     checked: &'checked CheckedTrees,
     selection: &CheckedTerminalMachineSelection,

@@ -124,9 +124,12 @@ is authoritative, not the current bounded producer vocabulary.
 
 ### Structural results and suspension
 
-[Structural returns](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/returns/structural_return.rs)
-and [suspension retention](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs)
-own these lowering responsibilities. Native task planning remains downstream;
+A structural result is an ordinary body lowered through the
+[Unit closure](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs);
+[return plans](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/returns/mod.rs)
+keep only the claim-free affine identity, boundary scalar and structural
+scalar rosters. [Suspension retention](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs)
+owns retained call plans. Native task planning remains downstream;
 a retained call plan alone does not establish native execution coverage.
 
 ## Coverage and validation

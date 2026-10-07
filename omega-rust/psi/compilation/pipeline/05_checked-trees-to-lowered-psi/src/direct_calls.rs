@@ -53,10 +53,6 @@ pub(crate) enum DirectCallResult {
     Structural {
         multiplicity: StructuralMultiplicity,
     },
-    /// Terminal's bounded payloadless `CallStructural` form: no operand,
-    /// claim or contract lane crosses, and return establishes one unrestricted
-    /// exact structural case whose outcome evidence a later pass selects.
-    PayloadlessCase,
 }
 
 /// The frame a scalar-result call crosses.
@@ -164,26 +160,6 @@ impl DirectCall {
                     claim_transfers,
                     requirement_obligations,
                     crash_continuations,
-                }
-            }
-            DirectCallResult::PayloadlessCase => {
-                debug_assert!(
-                    arguments.is_empty()
-                        && erased_arguments.is_empty()
-                        && erased_proof_arguments.is_empty()
-                        && structural_arguments.is_empty()
-                        && claim_transfers.is_empty()
-                        && requirement_obligations.is_empty()
-                        && crash_continuations.is_empty(),
-                    "the payloadless structural call form carries no lane"
-                );
-                OperationKind::CallStructural {
-                    callee,
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                    selected_evidence: Vec::new(),
                 }
             }
         }

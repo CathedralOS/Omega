@@ -2,12 +2,12 @@
 //!
 //! `lower_return_machine` lowers the one checked return plan a selected
 //! machine carries: it dispatches on the plan's result kind to the body that
-//! owns it — owned-affine identity returns, boundary scalar results, guarded
-//! payloadless calls, general structural results, structural scalar returns
-//! and their operator-realized forms — and publishes what every kind shares.
-//! A payloadless case constructor is not a kind here: it is an ordinary
-//! Unit-effect body, and the guarded call lowers it through the Unit closure. Structural-type retention shared by the result and
-//! control lanes lives here.
+//! owns it — owned-affine identity returns, boundary scalar results and
+//! structural scalar returns — and publishes what every kind shares. A
+//! claim-bearing structural result, a guarded call result and a payloadless
+//! case constructor are not kinds here: each is an ordinary body lowered
+//! through the Unit closure. Structural-type retention shared by the result
+//! and control lanes lives here.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -16,10 +16,10 @@ use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
     CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedNormalCleanupAction,
     CheckedReturnPlan, CheckedScalarBindingValue, CheckedScalarExpressionRole,
-    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
+    CheckedStructuralScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    ClosedScalarContractValue,
 };
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, ServiceReachId, ServiceReachSummary,
@@ -32,12 +32,12 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     Block, ByteSequenceCarrier, CompletionReceipt, EntryClaim, MachineContract, Operation,
-    OperationKind, ServiceDeclaration, StructuralAccess, StructuralArgument,
-    StructuralCaseDeclaration, StructuralDomainDeclaration, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration,
+    OperationKind, ServiceDeclaration, StructuralAccess, StructuralCaseDeclaration,
+    StructuralDomainDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration,
 };
 
 use crate::emission::boolean_control::{
@@ -56,17 +56,10 @@ use crate::expression_preparation::prepare_expression::{
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::content_conservation;
-use crate::proofs::content_conservation::{
-    RESULT_STRUCTURAL_PLACE_ID, lower_content_identity_reshuffles,
-};
 use crate::proofs::crash_routes::lower_checked_crash_route_buckets;
 use crate::returns::affine_return::lower_affine_return_machine;
 use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine;
-use crate::returns::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
-use crate::returns::structural_return::lower_structural_return_machine;
-use crate::returns::structural_scalar_return::{
-    lower_structural_scalar_return_machine, lower_trait_operator_scalar_return_machine,
-};
+use crate::returns::structural_scalar_return::lower_structural_scalar_return_machine;
 use crate::returns::structural_types::{
     lower_mixed_cases, lower_mixed_fields, lower_structural_type_plans,
     retain_additional_structural_types, terminal_byte_sequence_carrier,
@@ -74,8 +67,8 @@ use crate::returns::structural_types::{
 use crate::terminal_identities::{
     TERMINAL_MACHINE_IDENTITY_STRIDE, allocate_dense, block_id, boundary_machine_id, claim_id,
     contract_id, dense_identity, edge_id, lookup_claim_id, lookup_machine_id, lookup_service_id,
-    lookup_type_id, machine_id, obligation_id, operation_id, place_id, service_id,
-    structural_domain_id, structural_field_id, structural_type_id, value_id,
+    lookup_type_id, machine_id, obligation_id, place_id, service_id, structural_domain_id,
+    structural_field_id, structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{
     checked_unit_boundary_identity, collect_installation_machine_contract_services,
@@ -86,15 +79,12 @@ use crate::unit::attached_unit::{
 
 pub(crate) mod affine_return;
 pub(crate) mod boundary_scalar_return;
-pub(crate) mod payloadless_guarded_call_return;
-pub(crate) mod structural_return;
 pub(crate) mod structural_scalar_return;
 pub(crate) mod structural_types;
 
 /// Lower the one checked return plan a selected machine carries: the body
 /// that owns its result kind, then the publication every kind shares. The
-/// published source closure is the selected machine followed by the
-/// realization it calls when the plan is one call; the boundary body alone
+/// published source closure is the selected machine alone; the boundary body
 /// publishes an exact machine catalog, and the affine identity body publishes
 /// no debug map.
 pub(crate) fn lower_return_machine(
@@ -105,13 +95,6 @@ pub(crate) fn lower_return_machine(
     // The checked debug map describes a scalar entry result. A structural
     // result publishes none, whether or not its machine retains attachment.
     let terminal = match plan {
-        CheckedReturnPlan::PayloadlessGuardedCall(plan) => {
-            completion.debug = DebugPublication::Omit;
-            lower_payloadless_guarded_call_return_machine(checked, plan)?
-        }
-        CheckedReturnPlan::TraitOperator(plan) => {
-            lower_trait_operator_scalar_return_machine(checked, plan)?
-        }
         CheckedReturnPlan::StructuralScalar(plan) => {
             lower_structural_scalar_return_machine(checked, plan)?
         }
@@ -121,18 +104,12 @@ pub(crate) fn lower_return_machine(
                 completion,
             ));
         }
-        CheckedReturnPlan::Structural(plan) => {
-            completion.debug = DebugPublication::Omit;
-            lower_structural_return_machine(checked, plan)?
-        }
         CheckedReturnPlan::ClaimFreeAffine(plan) => {
             completion.debug = DebugPublication::Omit;
             lower_affine_return_machine(checked, plan)?
         }
     };
-    let source_machines = std::iter::once(plan.machine())
-        .chain(plan.realization_machine())
-        .collect();
+    let source_machines = vec![plan.machine()];
     Ok(LoweredSelectedMachine::entry_only(
         terminal,
         completion,

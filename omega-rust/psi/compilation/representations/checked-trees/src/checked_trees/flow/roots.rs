@@ -276,12 +276,8 @@ pub struct FlowFacts {
     /// One result-bearing bodyless boundary call whose successful completion
     /// consumes the exact structural claim frontier.
     pub terminal_boundary_scalar_returns: super::CheckedBoundaryScalarReturnPlans,
-    /// Exact whole-root structural transfers and separate zero-input
-    /// payload-less sum-case constructors.
+    /// Exact whole claim-free owned-affine identity returns.
     pub terminal_structural_returns: super::CheckedStructuralReturnPlans,
-    /// Final direct internal calls whose exact whole-root structural result is
-    /// returned immediately by the caller.
-    pub terminal_structural_call_returns: super::CheckedStructuralCallReturnPlans,
 }
 
 impl FlowFacts {
@@ -315,7 +311,6 @@ impl FlowFacts {
             ),
             terminal_boundary_scalar_returns: super::CheckedBoundaryScalarReturnPlans::default(),
             terminal_structural_returns: super::CheckedStructuralReturnPlans::default(),
-            terminal_structural_call_returns: super::CheckedStructuralCallReturnPlans::default(),
         }
     }
 }

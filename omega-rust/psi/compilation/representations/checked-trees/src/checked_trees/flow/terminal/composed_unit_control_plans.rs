@@ -340,7 +340,6 @@ impl CheckedComposedUnitControlTerminatorPlan {
             })
             .collect()
     }
-
 }
 
 /// How a returning state of a scalar-result graph completes its value. These
