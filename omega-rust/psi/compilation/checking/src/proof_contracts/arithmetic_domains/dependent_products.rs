@@ -64,19 +64,9 @@ pub(super) fn refine_dependent_product(
         return naive;
     }
     // The coupling: `requires self.Fa * self.Fb <= K` (either multiply order).
-    let Some(k) = requires_product_coupling(program, machine, &fa, &fb) else {
+    let Some(k) = preserved_product_coupling(program, machine, &fa, &fb) else {
         return naive;
     };
-    // Preservation of both fields, machine-wide.
-    for field in [&fa, &fb] {
-        let preserved = program
-            .machine_states(machine)
-            .iter()
-            .all(|state| validation_state_preserves_field(program, machine, state, field));
-        if !preserved {
-            return naive;
-        }
-    }
     let Some(high) = k.checked_sub(1) else {
         return naive;
     };
@@ -103,6 +93,28 @@ fn strict_dependent_atom_field(
     )?;
     let (field, offset) = dependent_maximum_of_type_reference(program, raw)?;
     (offset == -1).then_some(field)
+}
+
+/// The `requires self.Fa * self.Fb <= K` coupling bound once both fields are
+/// preserved machine-wide; `None` is each site's `naive` fallback, either
+/// because no coupling exists or because a state writes one of the fields.
+fn preserved_product_coupling(
+    program: &TypedTrees,
+    machine: &Machine,
+    fa: &typed_trees::name::Identifier,
+    fb: &typed_trees::name::Identifier,
+) -> Option<i64> {
+    let k = requires_product_coupling(program, machine, fa, fb)?;
+    for field in [fa, fb] {
+        let preserved = program
+            .machine_states(machine)
+            .iter()
+            .all(|state| validation_state_preserves_field(program, machine, state, field));
+        if !preserved {
+            return None;
+        }
+    }
+    Some(k)
 }
 
 /// A machine `requires` conjunct `main.Fa * main.Fb <= K` (either multiply
@@ -267,18 +279,9 @@ pub(super) fn refine_dependent_product_factor(
     let Some(fa) = strict_dependent_atom_field(program, machine, state, a_expr) else {
         return naive;
     };
-    let Some(k) = requires_product_coupling(program, machine, &fa, &fb) else {
+    let Some(k) = preserved_product_coupling(program, machine, &fa, &fb) else {
         return naive;
     };
-    for field in [&fa, &fb] {
-        let preserved = program
-            .machine_states(machine)
-            .iter()
-            .all(|state| validation_state_preserves_field(program, machine, state, field));
-        if !preserved {
-            return naive;
-        }
-    }
     Interval {
         low: Some(naive.low.map_or(0, |low| low.max(0))),
         high: Some(naive.high.map_or(k, |naive_high| naive_high.min(k))),
