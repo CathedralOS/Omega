@@ -1,0 +1,4 @@
+owner: z6
+provenance: reduce-loc phase B: keyword push-state kind param + token-load prelude folds (parser+data); diagnostic parity 12/12 preexisting
+ticket: 13532ce784e04a4eae566811584674d5
+published_utc: 2026-10-07T05:04:38.572292+00:00
