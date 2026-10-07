@@ -81,6 +81,47 @@ impl TerminalExecution {
                 }
                 continue;
             }
+            // A bounded byte owner passed by value is an independent copy of
+            // the live bytes, the same detached snapshot a structural copy
+            // publishes. The formal's domains must hold for those bytes.
+            if let terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } = carrier
+                && parameter.access == StructuralAccess::Owned
+                && argument.access == StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && parameter.structural_type == resolved.structural_type
+                && parameter.projected_qualifications.is_empty()
+                && argument.path.is_empty()
+            {
+                let bytes = self.byte_sequence_values.get(&argument.place).ok_or(
+                    TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
+                )?;
+                let ByteSequenceBinding::Immutable(snapshot) = self
+                    .reborrow_byte_sequence_binding(
+                        bytes,
+                        resolved,
+                        StructuralAccess::SharedBorrow,
+                    )?
+                else {
+                    return Err(malformed());
+                };
+                if u64::try_from(snapshot.len()).map_or(true, |length| length > *capacity)
+                    || !terminal_semantics::byte_literal_qualifications_hold_in(
+                        self.program.catalogs.structural_domains.iter(),
+                        parameter.structural_type,
+                        &parameter.qualifications,
+                        snapshot.bytes(),
+                    )
+                    || values
+                        .insert(
+                            parameter.place,
+                            ByteSequenceBinding::Immutable(snapshot.detached_descriptor()),
+                        )
+                        .is_some()
+                {
+                    return Err(malformed());
+                }
+                continue;
+            }
             if !carrier.is_borrowed()
                 || parameter.structural_type != resolved.structural_type
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted

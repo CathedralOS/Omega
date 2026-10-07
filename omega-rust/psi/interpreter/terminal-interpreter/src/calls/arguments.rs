@@ -160,9 +160,23 @@ impl TerminalExecution {
             prepared.scalar_cases = scalar_cases;
             return Ok(prepared);
         }
-        let values = self.resolve_reference_call_arguments(&opaque_arguments)?;
+        let mut values = self.resolve_reference_call_arguments(&opaque_arguments)?;
         let byte_sequences =
             self.bind_byte_sequence_arguments(&opaque_parameters, &opaque_arguments, &values)?;
+        // An owned byte copy was just checked against every domain its formal
+        // names, so the callee holds the copy under those domains.
+        for (value, parameter) in values.iter_mut().zip(&opaque_parameters) {
+            if parameter.access == StructuralAccess::Owned
+                && byte_sequences.contains_key(&parameter.place)
+            {
+                for domain in &parameter.qualifications {
+                    if !value.qualifications.contains(domain) {
+                        value.qualifications.push(*domain);
+                    }
+                }
+                value.qualifications.sort();
+            }
+        }
         let element_views =
             self.bind_element_view_arguments(&opaque_parameters, &opaque_arguments, &values)?;
         Ok(StructuralCallArguments {

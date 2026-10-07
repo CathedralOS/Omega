@@ -470,6 +470,10 @@ impl TerminalExecution {
                         return Err(malformed());
                     }
                 }
+                // A shared loan moves no custody and grants no write, so it
+                // may present any aggregate, including one holding service
+                // bindings or claims, as the exact view its path selects. An
+                // exclusive loan still requires a plain owned shape.
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                     if self.plain_aggregate_type(parameter.structural_type)
                         || matches!(
@@ -478,7 +482,21 @@ impl TerminalExecution {
                                 .get(&parameter.structural_type)
                                 .map(|declaration| &declaration.shape),
                             Some(StructuralTypeShape::PrimitiveScalar(_))
-                        ) =>
+                        )
+                        || (parameter.access == StructuralAccess::SharedBorrow
+                            && matches!(
+                                self.program
+                                    .structural_types
+                                    .get(&parameter.structural_type)
+                                    .map(|declaration| &declaration.shape),
+                                Some(
+                                    StructuralTypeShape::Record { .. }
+                                        | StructuralTypeShape::FixedArray { .. }
+                                        | StructuralTypeShape::Sum { .. }
+                                        | StructuralTypeShape::Mixed { .. }
+                                        | StructuralTypeShape::FusedServiceBinding
+                                )
+                            )) =>
                 {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || self
@@ -790,8 +808,12 @@ impl TerminalExecution {
                             terminal_psi::OperationKind::StructuralLeafCopy {
                                 ref path, ..
                             } => !scalar_case || path.is_empty(),
+                            // A zeroed establishment publishes fresh owned
+                            // storage exactly as construction does; its
+                            // fields are written by later stores.
                             terminal_psi::OperationKind::EstablishStructuralArray { .. }
                             | terminal_psi::OperationKind::EstablishRecord { .. }
+                            | terminal_psi::OperationKind::EstablishZeroedStructural {}
                             | terminal_psi::OperationKind::StructuralCaseLeafCopy { .. } => {
                                 !scalar_case
                             }
