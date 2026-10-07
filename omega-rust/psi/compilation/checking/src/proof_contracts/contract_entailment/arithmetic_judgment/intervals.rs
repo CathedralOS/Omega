@@ -523,6 +523,39 @@ impl<'program> Engine<'program> {
         count: Polynomial,
         count_bits: u32,
     ) -> Option<Polynomial> {
+        self.integer_shift(
+            value,
+            count,
+            count_bits,
+            |value, count| Some(value.shl_bits(count as usize)),
+            Self::shift_left_interval,
+            "left",
+            "<<",
+            |value, count, count_bits| OpaqueTerm::ShiftLeft {
+                value,
+                count,
+                count_bits,
+            },
+        )
+    }
+
+    /// The shared exact-integer shift normalization behind
+    /// [`Self::integer_shift_left`] and [`Self::integer_shift_right`]:
+    /// a spelled constant count outside `[0, count_bits)` refuses the term,
+    /// constant operands evaluate eagerly, and opaque terms carry an
+    /// interval over the admitted count range.
+    #[allow(clippy::too_many_arguments)]
+    fn integer_shift(
+        &mut self,
+        value: Polynomial,
+        count: Polynomial,
+        count_bits: u32,
+        constant: impl Fn(&BigInt, u64) -> Option<BigInt>,
+        interval: fn(&Self, &Polynomial, &Polynomial, u32) -> Interval,
+        direction: &str,
+        operator: &str,
+        term: impl Fn(Polynomial, Polynomial, u32) -> OpaqueTerm,
+    ) -> Option<Polynomial> {
         if let Some(count) = count.constant_value() {
             let in_range = count
                 .to_u64()
@@ -531,21 +564,12 @@ impl<'program> Engine<'program> {
                 return None;
             }
             if let Some(value) = value.constant_value() {
-                return Some(Polynomial::constant(
-                    value.shl_bits(count.to_u64()? as usize),
-                ));
+                return constant(&value, count.to_u64()?).map(Polynomial::constant);
             }
         }
-        let interval = self.shift_left_interval(&value, &count, count_bits);
-        let atom = format!("\0integer-shift-left:{value:?}<<{count:?}");
-        self.register_opaque_term(
-            atom.clone(),
-            OpaqueTerm::ShiftLeft {
-                value,
-                count,
-                count_bits,
-            },
-        );
+        let interval = interval(self, &value, &count, count_bits);
+        let atom = format!("\0integer-shift-{direction}:{value:?}{operator}{count:?}");
+        self.register_opaque_term(atom.clone(), term(value, count, count_bits));
         self.arithmetic_intervals.insert(atom.clone(), interval);
         Some(Polynomial::atom(atom))
     }
@@ -562,29 +586,20 @@ impl<'program> Engine<'program> {
         count: Polynomial,
         count_bits: u32,
     ) -> Option<Polynomial> {
-        if let Some(count) = count.constant_value() {
-            let in_range = count
-                .to_u64()
-                .is_some_and(|bits| bits < u64::from(count_bits));
-            if !in_range {
-                return None;
-            }
-            if let Some(value) = value.constant_value() {
-                return floor_shift_right(&value, count.to_u64()?).map(Polynomial::constant);
-            }
-        }
-        let interval = self.shift_right_interval(&value, &count, count_bits);
-        let atom = format!("\0integer-shift-right:{value:?}>>{count:?}");
-        self.register_opaque_term(
-            atom.clone(),
-            OpaqueTerm::ShiftRight {
+        self.integer_shift(
+            value,
+            count,
+            count_bits,
+            floor_shift_right,
+            Self::shift_right_interval,
+            "right",
+            ">>",
+            |value, count, count_bits| OpaqueTerm::ShiftRight {
                 value,
                 count,
                 count_bits,
             },
-        );
-        self.arithmetic_intervals.insert(atom.clone(), interval);
-        Some(Polynomial::atom(atom))
+        )
     }
 
     /// Normalize an independently admitted integer bitwise-AND. The caller
