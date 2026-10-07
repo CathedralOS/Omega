@@ -6,27 +6,16 @@ claim's task — the normalized worktree name or its task token appearing as the
 claim owner's task tail. Substring coincidence is not a match.
 """
 
-import importlib.util
 from pathlib import Path
-import sys
 import tempfile
 import unittest
+
+import worktree_testkit as kit
 
 
 UNDER_TEST = Path(__file__).resolve().parents[1] / "swarm" / "worktree_status.py"
 
 
-def load_module():
-    specification = importlib.util.spec_from_file_location(
-        "worktree_status_under_test", UNDER_TEST)
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
 
 
 def claim(owner, item="ITEM-ONE"):
@@ -36,7 +25,7 @@ def claim(owner, item="ITEM-ONE"):
 
 class ClaimAttachTests(unittest.TestCase):
     def setUp(self):
-        self.module = load_module()
+        self.module = kit.load_status_module()
         self.temporary = tempfile.TemporaryDirectory(prefix="omega claims test ")
         self.addCleanup(self.temporary.cleanup)
         self.repository = Path(self.temporary.name)

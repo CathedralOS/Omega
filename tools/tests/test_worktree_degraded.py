@@ -6,86 +6,43 @@ unborn branch (orphan checkout: rev-list/log fail with 128) — must degrade to
 a marked row, not abort the report.
 """
 
-import contextlib
-import importlib.util
-import io
 import json
-import os
 from pathlib import Path
 import re
 import shutil
-import subprocess
-import sys
-import tempfile
 import unittest
+
+import worktree_testkit as kit
 
 
 UNDER_TEST = Path(__file__).resolve().parents[1] / "swarm" / "worktree_status.py"
 
 
-def load_module():
-    specification = importlib.util.spec_from_file_location(
-        "worktree_status_under_test", UNDER_TEST)
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
 
 
 class DegradedWorktreeTests(unittest.TestCase):
     def setUp(self):
-        self.module = load_module()
-        self.temporary = tempfile.TemporaryDirectory(prefix="omega ws degraded ")
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
-        self.repository = self.root / "repo"
-        self.repository.mkdir()
-        self.environment = {key: value for key, value in os.environ.items()
-                            if not key.startswith("GIT_")}
-        self.environment.update(GIT_CONFIG_NOSYSTEM="1",
-                                GIT_CONFIG_GLOBAL=os.devnull,
-                                GIT_TERMINAL_PROMPT="0")
-        self.git(self.repository, "init", "-b", "main")
-        for name, value in (("user.name", "Worktree Test"),
-                            ("user.email", "test@example.invalid"),
-                            ("commit.gpgSign", "false")):
-            self.git(self.repository, "config", name, value)
-        (self.repository / "file.txt").write_text("initial\n", encoding="utf-8")
-        self.git(self.repository, "add", "-A")
-        self.git(self.repository, "commit", "-m", "initial")
+        self.module = kit.load_status_module()
+        self.root, self.repository = kit.seed_repository(self, 'omega ws degraded ')
         self.keep = self.root / "wt-keep"
         self.gone = self.root / "wt-gone"
         self.orphan = self.root / "wt-orphan"
-        self.git(self.repository, "worktree", "add",
+        kit.git(self, self.repository, "worktree", "add",
                  str(self.keep), "-b", "keep")
-        self.git(self.repository, "worktree", "add",
+        kit.git(self, self.repository, "worktree", "add",
                  str(self.gone), "-b", "gone")
-        self.git(self.repository, "worktree", "add",
+        kit.git(self, self.repository, "worktree", "add",
                  str(self.orphan), "-b", "orphan-base")
         # Orphan checkout: HEAD is born no longer; rev-list/log fail.
-        self.git(self.orphan, "checkout", "--orphan", "unborn")
+        kit.git(self, self.orphan, "checkout", "--orphan", "unborn")
         (self.keep / "file.txt").write_text("modified\n", encoding="utf-8")
         shutil.rmtree(self.gone)
 
-    def git(self, directory, *arguments):
-        result = subprocess.run(["git", "-C", str(directory), *arguments],
-                                capture_output=True, text=True, encoding="utf-8",
-                                env=self.environment, timeout=30)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return result.stdout.strip()
 
     def record(self):
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            code = self.module.main([
-                "--repository", str(self.repository),
-                "--base", "main", "--offline"])
+        code, output = kit.run_main(self.module, self.repository)
         self.assertEqual(code, 0, "main() must tolerate degraded worktrees")
-        return json.loads(output.getvalue())
+        return json.loads(output)
 
     def rows(self):
         return {row["name"]: row for row in self.record()["worktrees"]}
@@ -119,13 +76,9 @@ class DegradedWorktreeTests(unittest.TestCase):
         self.assertIsInstance(keep["landed"], bool)
 
     def test_markdown_renders_all_rows(self):
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            code = self.module.main([
-                "--repository", str(self.repository),
-                "--base", "main", "--offline", "--markdown"])
+        code, output = kit.run_main(self.module, self.repository, "--markdown")
         self.assertEqual(code, 0)
-        text = output.getvalue()
+        text = output
         for name in ("wt-keep", "wt-gone", "wt-orphan"):
             self.assertIn(name, text)
         self.assertRegex(text, re.compile(
