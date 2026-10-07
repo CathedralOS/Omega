@@ -12,10 +12,7 @@ fn explicit_domain_subject_preserves_ordinary_name_operands() {
         domain Player::Alive(player) requires player.health > 0 { }
         machine health(player: Player) -> u64 { player.health }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize domain subject");
-    let parsed = parse_syntax_trees(&tokens).expect("parse explicit domain subject");
+    let parsed = super::parse_source_verbose(source, "tokenize domain subject", "parse explicit domain subject");
     let domain = parsed
         .root_items()
         .find_map(|item| match item {
@@ -770,8 +767,7 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
             }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize outcome arm");
-    let parsed = parse_syntax_trees(&tokens).expect("outcome selector arm should parse");
+    let parsed = super::parse_source_verbose(source, "tokenize outcome arm", "outcome selector arm should parse");
     let transition = parsed
         .root_items()
         .find_map(|item| match item {
@@ -830,8 +826,7 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
     ];
     let mut plans = Vec::new();
     for source in sources {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize outcome arm");
-        let parsed = parse_syntax_trees(&tokens).expect("outcome arm should parse");
+        let parsed = super::parse_source_verbose(source, "tokenize outcome arm", "outcome arm should parse");
         let inspect = parsed
             .root_items()
             .find_map(|item| match item {

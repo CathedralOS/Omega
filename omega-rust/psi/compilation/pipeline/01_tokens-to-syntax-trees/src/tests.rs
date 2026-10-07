@@ -19,9 +19,19 @@ mod value_dispatch;
 /// Shared test entry: lex and parse `source`, expecting success at both
 /// steps and naming the expectation when a site pins a specific parse.
 fn parse_source(source: &str, parse_message: &str) -> syntax_trees::SyntaxTrees {
+    parse_source_verbose(source, "tokenize should succeed", parse_message)
+}
+
+/// `parse_source` with an explicit tokenize expectation for sites that pin
+/// one.
+fn parse_source_verbose(
+    source: &str,
+    tokenize_message: &str,
+    parse_message: &str,
+) -> syntax_trees::SyntaxTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
-        .expect("tokenize should succeed");
+        .expect(tokenize_message);
     crate::parser::parse_syntax_trees(&tokens).expect(parse_message)
 }
 

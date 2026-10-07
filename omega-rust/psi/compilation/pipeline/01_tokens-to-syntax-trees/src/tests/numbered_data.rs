@@ -12,8 +12,7 @@ fn numbered_declarations_share_ordinary_data_and_source_identity() {
         "data Message<'scope> { #7 value: &'scope u32; retired #8; }",
         "data Message { #7 value: u32; case #9 Ready; }",
     ] {
-        let tokens = Lexer::new(declaration).tokenize().expect("tokens");
-        let parsed = parse_syntax_trees(&tokens).expect("ordinary numbered declaration");
+        let parsed = super::parse_source_verbose(declaration, "tokens", "ordinary numbered declaration");
         let Some(Item::Data(definition)) = parsed.root_items().next() else {
             panic!("numbering must not select a different declaration representation");
         };

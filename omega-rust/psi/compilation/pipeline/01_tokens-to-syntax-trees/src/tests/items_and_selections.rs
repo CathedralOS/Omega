@@ -520,10 +520,7 @@ fn provider_selection_retains_two_structural_type_paths() {
             Build::select_provider<host::Console, application::ConsoleProvider>(builder);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize provider selection");
-    let parsed = parse_syntax_trees(&tokens).expect("parse provider selection");
+    let parsed = super::parse_source_verbose(source, "tokenize provider selection", "parse provider selection");
     let call = parsed
         .expressions
         .iter_expressions()
@@ -560,10 +557,7 @@ fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
             Build::exclude_service<host::Console>(builder);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize service exclusion");
-    let parsed = parse_syntax_trees(&tokens).expect("parse service exclusion");
+    let parsed = super::parse_source_verbose(source, "tokenize service exclusion", "parse service exclusion");
     let call = parsed
         .expressions
         .iter_expressions()
@@ -626,10 +620,7 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
             );
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize independent provider selection");
-    let parsed = parse_syntax_trees(&tokens).expect("parse independent provider selection");
+    let parsed = super::parse_source_verbose(source, "tokenize independent provider selection", "parse independent provider selection");
     let call = parsed
         .expressions
         .iter_expressions()
@@ -669,10 +660,7 @@ fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
             Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize root binding");
-    let parsed = parse_syntax_trees(&tokens).expect("parse root binding");
+    let parsed = super::parse_source_verbose(source, "tokenize root binding", "parse root binding");
     let machine = super::root_machine(&parsed, "build machine");
     let state = parsed
         .items
@@ -734,8 +722,7 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
         let source = format!(
             "machine build(builder: &mut Build) {{ Build::bind(builder, Slot, {operand}); }}"
         );
-        let tokens = Lexer::new(&source).tokenize().expect("root binding tokens");
-        let parsed = parse_syntax_trees(&tokens).expect("description expression syntax");
+        let parsed = super::parse_source_verbose(&source, "root binding tokens", "description expression syntax");
         let machine = super::root_machine(&parsed, "build machine");
         let state = parsed
             .items
@@ -758,10 +745,7 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
             Build::select_representation<interrupt::Ack, platform::AckRepresentation>(builder);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize opaque representation selection");
-    let parsed = parse_syntax_trees(&tokens).expect("parse opaque representation selection");
+    let parsed = super::parse_source_verbose(source, "tokenize opaque representation selection", "parse opaque representation selection");
     let call = parsed
         .expressions
         .iter_expressions()
@@ -928,10 +912,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
 #[test]
 fn struct_literal_retains_its_complete_authored_source_span() {
     let source = "const ORIGIN: Point = Point { x: 1, y: 2 };";
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize structured const declaration");
-    let parsed = parse_syntax_trees(&tokens).expect("parse structured const declaration");
+    let parsed = super::parse_source_verbose(source, "tokenize structured const declaration", "parse structured const declaration");
     let declaration = parsed
         .root_items()
         .find_map(|item| match item {

@@ -57,8 +57,7 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
             value
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("parse exact requirement application");
+    let parsed = super::parse_source_verbose(source, "tokenize", "parse exact requirement application");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -849,8 +848,7 @@ fn parses_evidence_binder_in_machine_telescope() {
             values: &mut [Element]
         ) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("an evidence binder should parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "an evidence binder should parse");
     let machine = super::root_machine(&parsed, "machine");
 
     let parameters = parsed.items.type_parameters(machine.type_parameters);

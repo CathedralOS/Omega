@@ -504,8 +504,7 @@ fn parses_asm_where_facts_at_entry_and_exit() {
             { out main.port, main.value }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("asm facts should parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "asm facts should parse");
     let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items

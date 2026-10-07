@@ -210,8 +210,7 @@ fn carry_property_parses_all_four_axes_on_data_and_bounds() {
             address: movable,
         )]> { value: T; }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("four-axis carry properties should parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "four-axis carry properties should parse");
     let data = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -1333,8 +1332,7 @@ fn parses_named_machine_contract_evidence_bindings() {
         {
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("named contracts parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "named contracts parse");
     let machine = super::root_machine(&parsed, "machine");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
@@ -1364,8 +1362,7 @@ fn parses_outcome_specific_ensures_as_rows_without_group_identity() {
         }
         { Outcome::Success }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("outcome-specific ensures parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "outcome-specific ensures parse");
     let machine = super::root_machine(&parsed, "machine");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
@@ -1448,8 +1445,7 @@ fn parses_named_bodyless_signature_contract_bindings() {
             ensures output_proof: ready();
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("named signature contracts parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "named signature contracts parse");
     let worker = parsed
         .root_items()
         .filter_map(|item| match item {

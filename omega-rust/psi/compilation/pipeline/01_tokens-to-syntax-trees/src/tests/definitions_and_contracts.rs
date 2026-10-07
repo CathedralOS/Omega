@@ -136,8 +136,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
 #[test]
 fn parses_unqualified_machine_establishment_routes() {
     let source = "domain u64::Issued established by issue, Factory::issue;";
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let parsed = parse_syntax_trees(&tokens).expect("free and attached issuer paths");
+    let parsed = super::parse_source_verbose(source, "tokens", "free and attached issuer paths");
     let domain = parsed
         .root_items()
         .find_map(|item| match item {
@@ -558,8 +557,7 @@ fn parses_positional_erased_evidence_call_lane_after_semicolon() {
             consume(value; first_proof, second_proof);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("evidence lane should parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "evidence lane should parse");
     let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -591,8 +589,7 @@ fn parses_evidence_only_call_lane_with_leading_semicolon() {
             consume(; proof);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("evidence-only lane should parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "evidence-only lane should parse");
     let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -620,8 +617,7 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
             state next() {}
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("named transition evidence lane should parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "named transition evidence lane should parse");
     let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -656,8 +652,7 @@ fn tail_self_call_rewrite_retains_the_authored_target_span() {
             repeat(remaining - 1)
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("tail self call should parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "tail self call should parse");
     let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -794,10 +789,7 @@ fn parses_target_scoped_bodyless_boundary_machine() {
             satisfies Console::exit_process;
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize target-scoped catalog leaf");
-    let parsed = parse_syntax_trees(&tokens).expect("parse target-scoped catalog leaf");
+    let parsed = super::parse_source_verbose(source, "tokenize target-scoped catalog leaf", "parse target-scoped catalog leaf");
     let machine = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -1285,8 +1277,7 @@ fn proof_output_binding_separates_type_and_prop_lanes() {
             value
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("proof-output lane should parse");
+    let parsed = super::parse_source_verbose(source, "tokenize", "proof-output lane should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
