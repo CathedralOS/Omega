@@ -472,6 +472,22 @@ pub(crate) fn lower_direct_call_binding_arguments(
     })
 }
 
+/// The call a value expression evaluates, whether spelled directly or reached
+/// beneath same-carrier integer casts — the two custody spellings a statement
+/// can write for `CallSite::Expression` argument rows.
+pub(crate) fn value_call_expression(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    scalar_qualified_call_expression(program, value).or_else(|| {
+        matches!(
+            program.expression_table.expression(value),
+            ExpressionNode::Call(_)
+        )
+        .then_some(value)
+    })
+}
+
 /// Locate a call beneath only same-carrier integer qualifications. The actual
 /// callee declaration supplies that carrier; no conversion result is guessed.
 pub(crate) fn scalar_qualified_call_expression(

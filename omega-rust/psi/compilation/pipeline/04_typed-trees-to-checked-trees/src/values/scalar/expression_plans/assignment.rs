@@ -5,7 +5,6 @@ use super::{
     CheckedScalarExpressionRole, ExpressionNode, StatementPlanner,
     assignment_target_primitive_type, lower_call_arguments, lower_index_expression,
     lower_return_expression, retain_call_arguments, retain_subslice_endpoints,
-    scalar_qualified_call_expression,
 };
 
 pub(super) fn plan(
@@ -98,14 +97,7 @@ pub(super) fn plan(
     // lands does not change their source bindings. The
     // qualified-call spelling below stays for the cast
     // chains only ordinary integer-returning machines have.
-    if let Some(expression) =
-        scalar_qualified_call_expression(program, assignment.value).or_else(|| {
-            matches!(
-                program.expression_table.expression(assignment.value),
-                ExpressionNode::Call(_)
-            )
-            .then_some(assignment.value)
-        })
+    if let Some(expression) = super::value_call_expression(program, assignment.value)
         && let ExpressionNode::Call(call) = program.expression_table.expression(expression)
         && let Some(arguments) = lower_call_arguments(
             program,

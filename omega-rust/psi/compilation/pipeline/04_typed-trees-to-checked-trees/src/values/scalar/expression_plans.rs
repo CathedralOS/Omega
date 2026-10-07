@@ -10,7 +10,7 @@
 use crate::values::scalar::boolean_lowering::lower_boolean_guard;
 use crate::values::scalar::call_lowering::{
     LoweredCallArguments, lower_call_arguments, lower_direct_call_binding_arguments,
-    retain_call_arguments, scalar_qualified_call_expression,
+    retain_call_arguments, value_call_expression,
 };
 use crate::values::scalar::expression_facts::operator_is_builtin;
 use crate::values::scalar::scalar_lowering::{lower_index_expression, lower_return_expression};

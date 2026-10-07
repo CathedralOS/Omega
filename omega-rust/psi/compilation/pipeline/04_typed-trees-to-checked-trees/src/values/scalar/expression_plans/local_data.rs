@@ -10,7 +10,6 @@ use super::{
     CheckedScalarExpressionRole, ExpressionNode, LoweredCallArguments, ScalarLocal,
     StatementPlanner, lower_call_arguments, lower_direct_call_binding_arguments,
     lower_return_expression, lower_selected_operator_operands, retain_call_arguments,
-    scalar_qualified_call_expression,
 };
 
 pub(super) fn plan(
@@ -70,14 +69,7 @@ pub(super) fn plan(
         || program
             .primitive_type_reference(local.type_reference)
             .is_none())
-        && let Some(expression) = scalar_qualified_call_expression(program, local.initial_value)
-            .or_else(|| {
-                matches!(
-                    program.expression_table.expression(local.initial_value),
-                    ExpressionNode::Call(_)
-                )
-                .then_some(local.initial_value)
-            })
+        && let Some(expression) = super::value_call_expression(program, local.initial_value)
         && let ExpressionNode::Call(call) = program.expression_table.expression(expression)
         && let Some(arguments) = lower_call_arguments(
             program,
