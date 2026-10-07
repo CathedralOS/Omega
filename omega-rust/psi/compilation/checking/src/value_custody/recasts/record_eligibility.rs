@@ -362,6 +362,7 @@ fn closed_record_generic_origin_is_eligible(
                     )
                 }
                 typed_trees::data::TypeParameterKind::Machine { .. }
+                | typed_trees::data::TypeParameterKind::Implementation
                 | typed_trees::data::TypeParameterKind::Proposition { .. } => false,
             })
 }

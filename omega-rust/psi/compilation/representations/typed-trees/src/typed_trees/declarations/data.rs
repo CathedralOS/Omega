@@ -161,6 +161,9 @@ impl Default for TypeParameter {
 pub enum TypeParameterKind {
     #[default]
     Type,
+    /// Positional trait implementation binder. It selects code, never a
+    /// stored type; the owner's conformance bound carries its exact contract.
+    Implementation,
     Const {
         type_reference: TypeReferenceHandle,
     },

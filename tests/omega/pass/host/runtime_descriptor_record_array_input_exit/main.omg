@@ -5,7 +5,7 @@ use omega::language::core::external_binding;
 use omega_language_std::calling;
 use byte_view_calling;
 
-pub boundary trait DescriptorIo: Calling<ByteViewCalling> {
+pub boundary trait DescriptorIo: Calling<ByteViewCallingPolicy<u8>> {
     machine read_bytes(descriptor: i32, bytes: &mut [u8]) -> i64 blocks;
     machine write_bytes(descriptor: i32, bytes: &[u8]) -> i64;
 }

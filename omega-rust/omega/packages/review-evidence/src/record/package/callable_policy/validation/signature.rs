@@ -17,6 +17,7 @@ pub(in crate::record) type Result = std::result::Result<(), &'static str>;
 #[derive(Clone, Copy)]
 pub(in crate::record) enum BinderKind<'a> {
     Type,
+    Implementation,
     Const,
     Machine,
     Proposition(&'a PackageReviewPropositionParameterSignature),
@@ -47,6 +48,9 @@ impl Scope<'_> {
                     .get(local)
                     .map(|parameter| match &parameter.kind {
                         PackagePolicyTypeParameterKind::Type => BinderKind::Type,
+                        PackagePolicyTypeParameterKind::Implementation => {
+                            BinderKind::Implementation
+                        }
                         PackagePolicyTypeParameterKind::Const(_)
                         | PackagePolicyTypeParameterKind::Value(_) => BinderKind::Const,
                         PackagePolicyTypeParameterKind::Machine(_) => BinderKind::Machine,
@@ -69,6 +73,7 @@ impl Scope<'_> {
                 .get(local)
                 .map(|parameter| match &parameter.kind {
                     PackageReviewTypeParameterKind::Type => BinderKind::Type,
+                    PackageReviewTypeParameterKind::Implementation => BinderKind::Implementation,
                     PackageReviewTypeParameterKind::Const(_)
                     | PackageReviewTypeParameterKind::Value(_) => BinderKind::Const,
                     PackageReviewTypeParameterKind::Machine(_) => BinderKind::Machine,

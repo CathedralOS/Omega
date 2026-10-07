@@ -253,8 +253,8 @@ fn classify_proposition_static_symbol(
                 }
             })
             .or_else(|| {
-find_data_type_parameter(lowerer, symbol)
-                    .and_then(|parameter| match parameter.kind {
+                find_data_type_parameter(lowerer, symbol).and_then(|parameter| {
+                    match parameter.kind {
                         resolved::data::TypeParameterKind::Type => {
                             Some(typed::proposition::PropositionBinderArgumentKind::Type)
                         }
@@ -265,8 +265,10 @@ find_data_type_parameter(lowerer, symbol)
                         resolved::data::TypeParameterKind::Machine { .. } => {
                             Some(typed::proposition::PropositionBinderArgumentKind::Machine)
                         }
-                        resolved::data::TypeParameterKind::Proposition { .. } => None,
-                    })
+                        resolved::data::TypeParameterKind::Implementation
+                        | resolved::data::TypeParameterKind::Proposition { .. } => None,
+                    }
+                })
             }),
         _ => None,
     }
@@ -314,16 +316,16 @@ fn proposition_const_symbol_type<'a>(
             | resolved::proposition::PropositionBinderKind::Machine => None,
         })
         .or_else(|| {
-find_data_type_parameter(lowerer, symbol)
-                .and_then(|parameter| match &parameter.kind {
-                    resolved::data::TypeParameterKind::Const { type_reference }
-                    | resolved::data::TypeParameterKind::Value { type_reference } => {
-                        Some(type_reference)
-                    }
-                    resolved::data::TypeParameterKind::Type
-                    | resolved::data::TypeParameterKind::Machine { .. }
-                    | resolved::data::TypeParameterKind::Proposition { .. } => None,
-                })
+            find_data_type_parameter(lowerer, symbol).and_then(|parameter| match &parameter.kind {
+                resolved::data::TypeParameterKind::Const { type_reference }
+                | resolved::data::TypeParameterKind::Value { type_reference } => {
+                    Some(type_reference)
+                }
+                resolved::data::TypeParameterKind::Type
+                | resolved::data::TypeParameterKind::Implementation
+                | resolved::data::TypeParameterKind::Machine { .. }
+                | resolved::data::TypeParameterKind::Proposition { .. } => None,
+            })
         })
 }
 

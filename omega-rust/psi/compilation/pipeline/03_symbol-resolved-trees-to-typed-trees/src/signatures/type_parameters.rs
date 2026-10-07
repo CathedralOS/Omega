@@ -44,6 +44,9 @@ pub(crate) fn lower_type_parameter_kind(
 ) -> Result<typed::data::TypeParameterKind, Diagnostic> {
     match kind {
         resolved::data::TypeParameterKind::Type => Ok(typed::data::TypeParameterKind::Type),
+        resolved::data::TypeParameterKind::Implementation => {
+            Ok(typed::data::TypeParameterKind::Implementation)
+        }
         resolved::data::TypeParameterKind::Const { type_reference } => {
             Ok(typed::data::TypeParameterKind::Const {
                 type_reference: lower_type_reference_into_table(lowerer, type_reference)?,

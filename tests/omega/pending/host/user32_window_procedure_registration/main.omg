@@ -304,7 +304,7 @@ data WindowGeometry {
 // The user32 boundary: register/unregister own the linear registration
 // contract; create/pump/destroy are the coherent window legs that may
 // synchronously enter the registered procedure.
-boundary trait User32: Calling<User32Policy> {
+boundary trait User32: Calling<User32PolicyCalling> {
     machine register_class<machine Selected>(
         specification: &WindowClass,
         capacity: Registration,

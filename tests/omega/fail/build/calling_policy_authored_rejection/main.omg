@@ -1,7 +1,5 @@
-// A named `CallingPolicy` implementation binds `plan` by an explicit reference
-// row, but it does not admit the policy for `Calling<LocalPolicy>`: plan
-// computation requires the policy type's `LocalPolicy::plan` machine to carry
-// the exact `satisfies CallingPolicy::plan` edge before evaluating it.
+// A selected reference map is valid without a separate machine satisfaction
+// edge. Its authored policy rejection still prevents boundary realization.
 use omega_language_std::calling;
 
 data LocalPolicy { }
@@ -15,7 +13,7 @@ machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult {
     }
 }
 
-boundary trait LocalEntry: Calling<LocalPolicy> {
+boundary trait LocalEntry: Calling<LocalPolicyCalling> {
     machine enter(value: u64) -> u64;
 }
 

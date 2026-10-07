@@ -71,18 +71,26 @@ pub(super) fn top_level_type_symbol_for_source(
     {
         return symbol;
     }
-    symbols
-        .find_top_level_by_name_and_kinds_from_source(
-            name.as_str(),
-            &[
-                SymbolKind::BuiltinType,
-                SymbolKind::Data,
-                SymbolKind::Machine,
-                SymbolKind::Trait,
-            ],
-            name.source_span(),
-        )
-        .unwrap_or_else(SymbolHandle::invalid)
+    match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+        name.as_str(),
+        &[
+            SymbolKind::BuiltinType,
+            SymbolKind::Data,
+            SymbolKind::Machine,
+            SymbolKind::Trait,
+        ],
+        name.source_span(),
+        |_| true,
+    ) {
+        symbols::SymbolLookup::Unique(symbol) => symbol,
+        symbols::SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+        // Retain a code-only name for the checker's category diagnostic.
+        // A data candidate always wins ordinary grammar; an implementation
+        // argument is independently rebound by its selected trait slot.
+        symbols::SymbolLookup::NotFound => {
+            top_level_symbol_for_source(symbols, SymbolKind::Conformance, name)
+        }
+    }
 }
 
 pub(super) fn top_level_symbol_for_source(

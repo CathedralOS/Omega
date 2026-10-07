@@ -302,6 +302,11 @@ pub(super) fn validate_static_application(
                     RelationPlanError::RepresentativePropositionApplicationUnsupported(position),
                 );
             }
+            TypeParameterKind::Implementation => {
+                return Err(
+                    RelationPlanError::RepresentativeStaticArgumentCategoryMismatch(position),
+                );
+            }
         };
         bindings.push(RepresentativeStaticBinding {
             parameter: parameter.symbol,

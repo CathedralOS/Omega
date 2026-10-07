@@ -242,4 +242,4 @@ machine MacosX64::extent_shape(shape: ValueShape, signature: &BoundarySignature)
     state no() -> bool { false }
 }
 
-boundary trait MacosX64Application: ProgramStorageEntry + MacosX64PhysicalEntry + Calling<MacosX64> {}
+boundary trait MacosX64Application: ProgramStorageEntry + MacosX64PhysicalEntry + Calling<MacosX64CallingPolicy> {}

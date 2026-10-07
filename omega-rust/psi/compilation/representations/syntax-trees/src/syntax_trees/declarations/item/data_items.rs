@@ -143,6 +143,10 @@ pub struct TypeParameter {
 pub enum TypeParameterKind {
     #[default]
     Type,
+    /// A trait's explicitly selected implementation argument. Its exact
+    /// contract is retained in the owner's conformance bounds; keeping this
+    /// slot in the telescope preserves mixed argument declaration order.
+    Implementation,
     Const {
         type_reference: crate::types::TypeReferenceHandle,
     },

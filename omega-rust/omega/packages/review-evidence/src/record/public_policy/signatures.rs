@@ -14,6 +14,8 @@ pub struct PackagePolicyTypeParameter {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyTypeParameterKind {
     Type,
+    /// A positional code selection linked to the owner's conformance bounds.
+    Implementation,
     Const(PackageReviewTypeIdentity),
     /// A runtime-capable value binder; the public record preserves the
     /// authored kind rather than strengthening it to `const`.

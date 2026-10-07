@@ -82,7 +82,7 @@ pub(crate) fn validate_candidate_conformance_bounds(
         // alone would admit a non-fitting map -- check the selected rows
         // against the refinement's clauses.
         let carrier =
-            crate::monomorphization::selection::resolve_bound_carrier(program, bound.trait_symbol);
+            validation::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
         let expected_trait = program
             .traits()
             .iter()
@@ -109,7 +109,7 @@ pub(crate) fn validate_candidate_conformance_bounds(
         }
         if let Some(refinement) = carrier.refinement {
             diagnostics.extend(
-                crate::monomorphization::selection::refinement_fit_diagnostics(
+                validation::refinement_fit::refinement_fit_diagnostics(
                     program,
                     refinement,
                     selected,
@@ -184,7 +184,7 @@ pub(crate) fn conformance_application_arguments_match_candidate(
     // own arguments against a base application comes out right by accident
     // only for a head that passes its parameters through in order.
     let carrier =
-        crate::monomorphization::selection::resolve_bound_carrier(program, bound.trait_symbol);
+        validation::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     let required = match carrier
         .refinement
         .and_then(|refinement| refinement.refines.as_ref().map(|base| (refinement, base)))

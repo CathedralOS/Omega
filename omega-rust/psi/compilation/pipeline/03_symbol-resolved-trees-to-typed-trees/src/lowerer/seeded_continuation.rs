@@ -1246,7 +1246,8 @@ fn exact_extension_machine_symbol(
                         } => false,
                     }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+                symbol_resolved_trees::data::TypeParameterKind::Implementation
+                | symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
             }
             })
         || !machine.satisfies.is_empty()

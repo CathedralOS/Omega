@@ -540,6 +540,9 @@ impl SyntaxTrees {
             |this, parameter| {
                 let kind = match &parameter.kind {
                     crate::item::TypeParameterKind::Type => crate::item::TypeParameterKind::Type,
+                    crate::item::TypeParameterKind::Implementation => {
+                        crate::item::TypeParameterKind::Implementation
+                    }
                     crate::item::TypeParameterKind::Const { type_reference } => {
                         crate::item::TypeParameterKind::Const {
                             type_reference: this.copy_type_reference_handle(other, *type_reference),

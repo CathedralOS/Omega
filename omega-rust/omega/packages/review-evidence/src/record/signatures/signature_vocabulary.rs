@@ -19,6 +19,9 @@ impl PackageReviewTypeIdentity {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewTypeParameterKind {
     Type,
+    /// A positional implementation selection; its exact contract is retained
+    /// in the owner's declaration-ordered conformance bounds.
+    Implementation,
     Const(PackageReviewTypeIdentity),
     /// A runtime-capable value binder; today only statically supplied
     /// arguments specialize it, but the kind must not be republished as

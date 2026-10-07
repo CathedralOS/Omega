@@ -431,6 +431,10 @@ impl<'a> Elaborator<'a> {
                     "mathematical binder `{}` cannot carry a machine or proposition contract",
                     binder.name
                 ))),
+            TypeParameterKind::Implementation => Err(self.refuse(format!(
+                "mathematical binder `{}` cannot select an implementation; implementation slots belong to trait telescopes",
+                binder.name
+            ))),
         }
     }
 

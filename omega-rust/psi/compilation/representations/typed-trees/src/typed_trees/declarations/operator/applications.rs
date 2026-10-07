@@ -167,6 +167,7 @@ fn closed_application_for_operands(
                 })
                 .filter(|_| closed_boundary_application_type(program, type_reference)),
             crate::data::TypeParameterKind::Machine { .. }
+            | crate::data::TypeParameterKind::Implementation
             | crate::data::TypeParameterKind::Proposition { .. } => None,
         })
         .collect::<Option<Vec<_>>>()?;

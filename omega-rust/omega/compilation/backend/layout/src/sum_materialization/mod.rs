@@ -1565,11 +1565,11 @@ fn require_closed_generic_argument(
                 ))),
             }
         }
-        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => {
-            Err(Diagnostic::error(format!(
-                "{role} is not a data parameter; only closed const atoms and closed types can cross the materialization boundary"
-            )))
-        }
+        TypeParameterKind::Machine { .. }
+        | TypeParameterKind::Implementation
+        | TypeParameterKind::Proposition { .. } => Err(Diagnostic::error(format!(
+            "{role} is not a data parameter; only closed const atoms and closed types can cross the materialization boundary"
+        ))),
     }
 }
 

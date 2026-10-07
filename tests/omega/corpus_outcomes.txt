@@ -410,8 +410,8 @@ fail/build/build_log_counterfeit_facet_refused rejected 781ms expected @d116b779
 	build-time evaluation of `build` failed: build logging requires the activation's compiler-issued BuildLog facet
 fail/build/build_machine_wrong_arity rejected 2ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
-fail/build/calling_policy_plan_requires_exact_edge rejected 81ms expected @f9e3cc7163ae+wt
-	calling-policy machine `LocalPolicy::plan` must satisfy `CallingPolicy::plan`
+fail/build/calling_policy_authored_rejection rejected 88ms expected @9b6debbda081+wt
+	calling policy rejected the boundary: local
 fail/build/captured_named_input_missing_slot rejected 933ms expected published:none @a7d5ff53f2ca
 	build-time evaluation of `build` failed: named build input `absent` is not assigned to this activation
 fail/build/captured_source_write_grant_refused rejected 882ms expected published:none @a7d5ff53f2ca
@@ -1905,6 +1905,8 @@ fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 459ms expected 
 	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[position]; output is part of [u8; N]::Utf8)
 fail/traits/conformance_item_missing_member rejected 14ms expected @e3131e3bcd65+wt
 	closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`
+fail/traits/data_in_implementation_argument rejected 65ms expected @9b6debbda081+wt
+	trait `Concrete` parent `Consumer` cannot bind implementation `Reader`: expected an explicitly named implementation, not a data argument
 fail/traits/data_subject_implementation_retired rejected 1ms expected @c9e4c60b2906+wt
 	tests/omega/fail/traits/data_subject_implementation_retired/main.omg:18:10: data does not satisfy traits; declare a named implementation `Name satisfies Trait<Data> { ... }` that names each data type as an ordinary trait argument and binds every requirement row
 fail/traits/dyn_data_carrier_selector_retired rejected 4ms expected @7f068b5c82b8
@@ -1964,6 +1966,16 @@ fail/traits/generic_reference_forwarding_carrier_mismatch rejected 1304ms expect
 	argument `subject` for state `entry` expects `&mut T`, got `named value`
 	argument `subject` for state `entry` expects `&mut Counter`, got `named value`
 	argument `subject` for state `entry` expects the `Counter` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/traits/implementation_argument_runtime_type rejected 224ms expected @9b6debbda081+wt
+	data `Main` field `stored` uses implementation `SelectedReading` as a stored/runtime type; implementations select code, not data
+fail/traits/implementation_argument_wrong_contract rejected 59ms expected @9b6debbda081+wt
+	trait `Concrete` parent `Consumer` cannot bind implementation `Reader`: `SelectedWriting` must select a complete `Reading` implementation with the instantiated trait arguments
+fail/traits/implementation_argument_wrong_type_arguments rejected 59ms expected @9b6debbda081+wt
+	trait `Concrete` parent `Consumer` cannot bind implementation `Reader`: `SelectedReading` must select a complete `Reading` implementation with the instantiated trait arguments
+fail/traits/implementation_binder_extra_arguments rejected 56ms expected @9b6debbda081+wt
+	trait `Forward` parent `Consumer` cannot bind implementation `Reader`: an implementation evidence binder is already selected and takes no application arguments
+fail/traits/implementation_binder_missing_refinement rejected 65ms expected @9b6debbda081+wt
+	trait `Forward` parent `Consumer` cannot bind implementation `Reader`: forwarded binder `Reader` does not guarantee the exact `LocalReading` trait application
 fail/traits/implementation_call_unknown_requirement rejected 210ms expected @e3131e3bcd65+wt
 	implementation `NormalIncrement` has no row for requirement `decrement`
 fail/traits/inherited_default_ambiguous rejected 213ms expected @e3131e3bcd65+wt
@@ -3616,6 +3628,8 @@ pass/traits/equatable_string_field_equality_exit checked 3111ms check-target:mac
 pass/traits/exact_edge_application_and_invocation_parameters checked 1639ms check-target:macos_arm64 @774eaac263cb+wt
 pass/traits/generic_reference_forwarding_exit checked 13520ms check-target:macos_arm64 @f3a79ef091a9
 pass/traits/generic_trait_parent_binds_requirement checked 267ms @474542aa7f86
+pass/traits/implementation_argument_category_collision checked 1567ms check-target:macos_arm64 @9b6debbda081+wt
+pass/traits/implementation_argument_mixed_telescope checked 619ms @9b6debbda081+wt
 pass/traits/nominal_generic_reference_forwarding_exit checked 13052ms check-target:macos_arm64 @f3a79ef091a9
 pass/traits/nominal_machine_binder_static_dispatch checked 675ms check-target:macos_arm64 @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit checked 3090ms check-target:macos_arm64 @2d8ed253669f

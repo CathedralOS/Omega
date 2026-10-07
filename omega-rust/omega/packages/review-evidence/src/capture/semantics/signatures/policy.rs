@@ -201,6 +201,10 @@ fn convert_parameters(
                 (TypeParameterKind::Type, PackageReviewTypeParameterKind::Type) => {
                     PackagePolicyTypeParameterKind::Type
                 }
+                (
+                    TypeParameterKind::Implementation,
+                    PackageReviewTypeParameterKind::Implementation,
+                ) => PackagePolicyTypeParameterKind::Implementation,
                 (TypeParameterKind::Const { .. }, PackageReviewTypeParameterKind::Const(value)) => {
                     PackagePolicyTypeParameterKind::Const(value)
                 }

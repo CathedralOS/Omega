@@ -190,4 +190,4 @@ machine MacosArm64::word(bytes: u64, register: u64) -> ValuePlacement {
     value
 }
 
-boundary trait MacosApplication: ProgramStorageEntry + MacosArm64PhysicalEntry + Calling<MacosArm64> {}
+boundary trait MacosApplication: ProgramStorageEntry + MacosArm64PhysicalEntry + Calling<MacosArm64CallingPolicy> {}

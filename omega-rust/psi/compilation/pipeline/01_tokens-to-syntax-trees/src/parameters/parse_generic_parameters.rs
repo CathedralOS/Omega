@@ -214,10 +214,28 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                     rest,
                 )?;
             conformance_bounds.push(syntax_trees::item::GenericConformanceBound {
-                binder: name,
+                binder: name.clone(),
                 trait_name,
                 arguments,
             });
+            // Trait applications supply every static slot positionally.
+            // Machines retain their existing separate evidence telescope;
+            // traits publish the implementation slot alongside type, const,
+            // machine and proposition slots, with the bound carrying its
+            // contract rather than pretending an implementation is data.
+            if trait_requirement_parameters {
+                let handle = syntax_trees.items.append_type_parameter(TypeParameter {
+                    name,
+                    kind: TypeParameterKind::Implementation,
+                    bounds: DataProperties::default(),
+                });
+                if type_parameter_count == 0 {
+                    type_parameter_start = handle;
+                }
+                type_parameter_count = type_parameter_count
+                    .checked_add(1)
+                    .ok_or_else(|| input.error_here("trait parameter count exceeds u32"))?;
+            }
             input = rest;
 
             if input.at_punctuation(PunctuationKind::Comma) {

@@ -4,16 +4,14 @@
 //! `callee_proposals.rs` resolves callees and their machine proposals,
 //! `selection_assembly.rs` assembles selections from proposals,
 //! `static_bindings.rs` infers static, fixed-array and domain bindings,
-//! `candidate_bounds.rs` validates candidate conformance bounds and
-//! `refinement_fit.rs` resolves a transparent-refinement carrier to its base
-//! and checks the selected conformance against the refinement's clauses.
+//! `candidate_bounds.rs` validates candidate conformance bounds using the
+//! shared conformance closure and refinement judgments.
 
 use validation::collect_expression_tree;
 use validation::collect_statement_expression_trees;
 
 mod callee_proposals;
 mod candidate_bounds;
-mod refinement_fit;
 mod selection_assembly;
 mod static_bindings;
 
@@ -22,7 +20,6 @@ pub(crate) use callee_proposals::{
     state_by_symbol,
 };
 pub(crate) use candidate_bounds::{approved_type_bounds, validate_candidate_conformance_bounds};
-pub(crate) use refinement_fit::{refinement_fit_diagnostics, resolve_bound_carrier};
 pub(crate) use selection_assembly::{
     selection_for_call, selection_from_proposals, unique_complete_selections, upsert_selection,
 };

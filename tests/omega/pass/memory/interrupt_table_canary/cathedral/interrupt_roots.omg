@@ -144,7 +144,7 @@ machine CriticalStackPolicy::plan(
 // the authored calling policy). The compiler's provider selection
 // resolves this trait to the named implementation below; nothing
 // consumer-side spells the provider's name again.
-pub boundary trait FatalExceptionRoot: InterruptEntry + Calling<CriticalStackPolicy> {
+pub boundary trait FatalExceptionRoot: InterruptEntry + Calling<CriticalStackPolicyCalling> {
 }
 
 // The divide-error provider. Its entry machine realizes
@@ -260,7 +260,7 @@ machine TimerStackPolicy::plan(
 // deliberately one shared requirement identity -- the selected closure
 // now retains one resolution row per (requirement, plan), so this second
 // inheriting trait resolves through its own provider plan.
-pub boundary trait TimerRoot: InterruptEntry + Calling<TimerStackPolicy> {
+pub boundary trait TimerRoot: InterruptEntry + Calling<TimerStackPolicyCalling> {
 }
 
 // The timer provider. Its tick machine realizes `InterruptEntry::enter`:

@@ -259,6 +259,11 @@ pub(crate) fn retain_closed_reach_applications(
                         "closed reach executable proposition argument is unavailable",
                     );
                 }
+                TypeParameterKind::Implementation => {
+                    return unsupported(
+                        "closed reach machine telescope retains a trait-only implementation binder",
+                    );
+                }
             });
         }
         if !covered {
@@ -572,6 +577,11 @@ fn closed_call_application(
                 }
             }
             TypeParameterKind::Proposition { .. } => return Ok(None),
+            TypeParameterKind::Implementation => {
+                return unsupported(
+                    "schema machine telescope retains a trait-only implementation binder",
+                );
+            }
         });
     }
     if types.next().is_some() || constants.next().is_some() || machines.next().is_some() {

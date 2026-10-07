@@ -166,6 +166,7 @@ pub(super) fn project_contract_conformance_application(
                                 != symbols::SymbolKind::Const)
                 }
                 typed_trees::data::TypeParameterKind::Machine { .. }
+                | typed_trees::data::TypeParameterKind::Implementation
                 | typed_trees::data::TypeParameterKind::Proposition { .. } => true,
             })
         || !closed.lifetime_arguments.is_empty()

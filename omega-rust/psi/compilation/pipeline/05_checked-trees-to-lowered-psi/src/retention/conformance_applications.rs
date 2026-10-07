@@ -313,6 +313,11 @@ fn collect_closed_conformance_applications(
                             "closed conformance application retains a proposition parameter",
                         ));
                     }
+                    TypeParameterKind::Implementation => {
+                        return Err(LoweringError::Unsupported(
+                            "closed conformance telescope retains a trait-only implementation binder",
+                        ));
+                    }
                 };
                 telescope.push(ClosedConformanceParameterBinding {
                     parameter: parameter.name.as_str().to_owned(),

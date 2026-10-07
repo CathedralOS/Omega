@@ -210,6 +210,7 @@ pub(crate) fn describe_type_parameter(
         TypeParameterKind::Const { type_reference } => ("const", Some(*type_reference)),
         TypeParameterKind::Value { type_reference } => ("value", Some(*type_reference)),
         TypeParameterKind::Machine { .. } => ("machine", None),
+        TypeParameterKind::Implementation => ("implementation", None),
         TypeParameterKind::Proposition { .. } => ("proposition", None),
     };
     TypeParameterDescription {

@@ -795,6 +795,9 @@ pub(crate) fn snapshot_type_parameter(
     let (kind, const_type, machine_contract, machine_requirement, proposition_contract) =
         match &parameter.kind {
             crate::item::TypeParameterKind::Type => ("type", None, None, None, None),
+            crate::item::TypeParameterKind::Implementation => {
+                ("implementation", None, None, None, None)
+            }
             crate::item::TypeParameterKind::Const { type_reference } => (
                 "const",
                 Some(snapshot_type_reference_handle(

@@ -204,7 +204,7 @@ machine WrongUefiPolicy::plan(
     }
 }
 
-boundary trait UefiApplication: ProgramStorageEntry + UefiPhysicalEntry + Calling<WrongUefiPolicy> {
+boundary trait UefiApplication: ProgramStorageEntry + UefiPhysicalEntry + Calling<WrongUefiPolicyCallingPolicy> {
 }
 
 machine launch(

@@ -66,6 +66,7 @@ pub(crate) use trait_applications::validate_trait_application_obligations;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TypeParameterKindFamily {
     Type,
+    Implementation,
     Const,
     Value,
     Machine,
@@ -76,6 +77,9 @@ fn type_parameter_kind_family(
     kind: &typed_trees::data::TypeParameterKind,
 ) -> TypeParameterKindFamily {
     match kind {
+        typed_trees::data::TypeParameterKind::Implementation => {
+            TypeParameterKindFamily::Implementation
+        }
         typed_trees::data::TypeParameterKind::Type => TypeParameterKindFamily::Type,
         typed_trees::data::TypeParameterKind::Const { .. } => TypeParameterKindFamily::Const,
         typed_trees::data::TypeParameterKind::Value { .. } => TypeParameterKindFamily::Value,

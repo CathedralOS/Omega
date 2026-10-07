@@ -4,12 +4,13 @@
 use omega_language_std::calling;
 
 pub data ByteViewCalling { }
-ByteViewCallingPolicy satisfies CallingPolicy {
+// A generic map may bind a closed, non-generic realization. The selected
+// argument is map identity, not an extra runtime or policy-machine operand.
+pub ByteViewCallingPolicy<StorageElement> satisfies CallingPolicy {
     CallingPolicy::plan = ByteViewCalling::plan;
 }
 
 pub machine ByteViewCalling::plan(signature: BoundarySignature) -> BoundaryPlanResult
-    satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 2 && signature.native_parameter_count == 2
         && signature.has_result && signature.callback_demand_count == 0 {

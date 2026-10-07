@@ -2,7 +2,7 @@
 use calling;
 
 data HookProcedurePolicy { }
-HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
+pub HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = HookProcedurePolicy::plan;
 }
 
@@ -68,12 +68,12 @@ machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
     }
 }
 
-boundary trait HookProcedure: Calling<HookProcedurePolicy> {
+boundary trait HookProcedure: Calling<HookProcedurePolicyCallingPolicy> {
     machine call(message: u64) -> u64;
 }
 
 data RegistrarPolicy { }
-RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+pub RegistrarPolicyCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = RegistrarPolicy::plan;
 }
 
@@ -158,7 +158,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
     }
 }
 
-boundary trait HookRegistrar: Calling<RegistrarPolicy> {
+boundary trait HookRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     machine install<machine Handler>(
         kind: u64,
         native callback procedure from Handler,

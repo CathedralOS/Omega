@@ -110,6 +110,7 @@ pub(super) fn is_supported(
                             )
                         }
                         symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                        | symbol_resolved_trees::data::TypeParameterKind::Implementation
                         | symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
                             false
                         }

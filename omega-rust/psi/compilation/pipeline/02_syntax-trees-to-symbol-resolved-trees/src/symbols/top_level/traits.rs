@@ -43,6 +43,9 @@ pub(super) fn assign_trait_symbols(
             data_type_parameters.span_mut_or_empty(trait_definition.type_parameters)
         {
             let kind = match type_parameter.kind {
+                symbol_resolved_trees::data::TypeParameterKind::Implementation => {
+                    SymbolKind::ConformanceParameter
+                }
                 symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
                     SymbolKind::PropositionParameter
                 }
@@ -75,14 +78,17 @@ pub(super) fn assign_trait_symbols(
                 &local_type_parameters,
                 base.arguments,
 );
+            assign_trait_bound_slot_argument_symbols(
+                symbols, child_type_references, &local_type_parameters, base.symbol, base.arguments,
+                &trait_proposition_slots, &trait_machine_identity_slots,
+            );
         }
 
         for bound in &mut trait_definition.conformance_bounds {
-            bound.binder = next_child_of_kind(
-                &mut trait_children,
-                symbols,
-                SymbolKind::ConformanceParameter,
-            );
+            bound.binder = local_type_parameters.iter()
+                .find(|parameter| parameter.name == bound.binder_name
+                    && parameter.kind == symbol_resolved_trees::data::TypeParameterKind::Implementation)
+                .map_or(SymbolHandle::invalid(), |parameter| parameter.symbol);
         }
 
         for index in 0..trait_definition.type_parameters.len() {

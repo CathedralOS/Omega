@@ -29,6 +29,9 @@ pub(crate) fn contract_call_static_parameter_kind(
 ) -> ContractCallStaticParameterKind {
     match parameter.kind {
         typed_trees::data::TypeParameterKind::Type => ContractCallStaticParameterKind::Type,
+        typed_trees::data::TypeParameterKind::Implementation => {
+            ContractCallStaticParameterKind::Conformance
+        }
         typed_trees::data::TypeParameterKind::Const { .. }
         | typed_trees::data::TypeParameterKind::Value { .. } => {
             ContractCallStaticParameterKind::Const

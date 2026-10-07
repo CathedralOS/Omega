@@ -503,6 +503,7 @@ pub(crate) fn mathematical_definition_snapshot(
             .map(|binder| {
                 let (kind, carrier) = match &binder.kind {
                     TypeParameterKind::Type => ("type", None),
+                    TypeParameterKind::Implementation => ("implementation", None),
                     TypeParameterKind::Const { type_reference } => (
                         "const",
                         Some(type_reference_snapshot(program, type_reference)),

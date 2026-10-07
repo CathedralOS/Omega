@@ -22,6 +22,19 @@ use crate::record::validation::ordered;
 use crate::record::validation::signatures;
 
 pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPublicApi) -> Result {
+    let implementation_count = value
+        .type_parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                crate::record::PackagePolicyTypeParameterKind::Implementation
+            )
+        })
+        .count();
+    if implementation_count != value.conformance_bounds.len() {
+        return Err("public trait implementation slots do not match their conformance contracts");
+    }
     let scope = super::scope(&value.type_parameters, value.lifetime_parameter_count);
     signatures::parameters(&scope, 0)?;
     signatures::bounds(&value.conformance_bounds, &scope)?;

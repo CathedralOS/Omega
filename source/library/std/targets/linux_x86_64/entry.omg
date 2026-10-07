@@ -226,4 +226,4 @@ machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 }
 
-boundary trait LinuxX86_64Application: ProgramStorageEntry + LinuxX86_64PhysicalEntry + Calling<LinuxX86_64> {}
+boundary trait LinuxX86_64Application: ProgramStorageEntry + LinuxX86_64PhysicalEntry + Calling<LinuxX86_64CallingPolicy> {}

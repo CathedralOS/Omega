@@ -13,7 +13,9 @@ observes the original bytes, untouched prefix/suffix and unchanged marker.
 The record's custody is not the selected array's presentation type.
 
 The calling policy uses canonical std vocabulary and explicitly declares the
-pointer/count ABI. Public execution is `omega update`, review the exact
+pointer/count ABI. `Calling<ByteViewCallingPolicy<u8>>` closes a generic named
+map whose reference row selects the same non-generic plan body; the map argument
+does not become an extra runtime operand. Public execution is `omega update`, review the exact
 candidate, `omega update --resume`, then `omega run --both main.omg < input.txt`.
 Full std package review remains a separate acceptance requirement, as described
 in the sibling `runtime_descriptor_mutable_view_input_exit/README.md`; no

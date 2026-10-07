@@ -1147,6 +1147,7 @@ fn visit_type_parameters(
                 }
             }
             TypeParameterKind::Type => {}
+            TypeParameterKind::Implementation => visit_symbol(retained, parameter.symbol),
         }
     }
 }

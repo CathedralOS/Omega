@@ -43,6 +43,7 @@ pub fn canonical_template_contract_bytes(
             TypeParameterKind::Value { .. } => 5,
             TypeParameterKind::Machine { .. } => 3,
             TypeParameterKind::Proposition { .. } => 4,
+            TypeParameterKind::Implementation => 6,
         });
         bytes.extend((index as u32).to_le_bytes());
         encode_data_properties(parameter.bounds, &mut bytes);
@@ -111,7 +112,7 @@ pub fn canonical_template_contract_bytes(
                     );
                 }
             }
-            TypeParameterKind::Type => {}
+            TypeParameterKind::Type | TypeParameterKind::Implementation => {}
         }
         bytes.push(0xfe);
     }
@@ -465,6 +466,7 @@ fn type_parameter_binders(
             TypeParameterKind::Value { .. } => "V",
             TypeParameterKind::Machine { .. } => "M",
             TypeParameterKind::Proposition { .. } => "P",
+            TypeParameterKind::Implementation => "I",
         };
         let binder_position = binders.len();
         binders.push((parameter.symbol, format!("${prefix}{binder_position}")));

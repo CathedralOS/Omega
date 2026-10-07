@@ -276,8 +276,7 @@ pub trait CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult;
 }
 
-// `Calling<C>` names the policy type whose `C::plan` machine satisfies
-// `CallingPolicy::plan`. The compiler checks that exact requirement edge,
-// evaluates the plan, and validates its canonical result.
-pub trait Calling<C>
+// The selected named implementation supplies the exact plan requirement row.
+// Data names and attached machines cannot select a policy implicitly.
+pub trait Calling<Policy satisfies CallingPolicy>
 { }

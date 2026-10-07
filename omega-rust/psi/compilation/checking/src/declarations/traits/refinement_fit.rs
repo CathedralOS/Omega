@@ -11,7 +11,8 @@
 //! fit check would silently accept a base conformance the refinement
 //! forbids, so both live here and are consulted together.
 
-use crate::monomorphization::{Diagnostic, SymbolHandle};
+use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 use typed_trees::trait_definition::{
     Conformance, TraitDefinition, TraitRefinementClause, TraitRefinementReach,
 };
@@ -19,20 +20,20 @@ use typed_trees::trait_definition::{
 /// The nominal base a conformance-bound carrier denotes, plus the refinement
 /// that named it. An ordinary trait carrier denotes itself and refines
 /// nothing.
-pub(crate) struct ResolvedBoundCarrier<'program> {
+pub struct ResolvedBoundCarrier<'program> {
     /// The nominal trait a selected conformance must actually satisfy.
-    pub(crate) base: SymbolHandle,
+    pub base: SymbolHandle,
     /// The refinement whose clauses bound that base, when the authored
     /// carrier was a refinement.
-    pub(crate) refinement: Option<&'program TraitDefinition>,
+    pub refinement: Option<&'program TraitDefinition>,
 }
 
 /// Resolve an authored conformance-bound carrier through `refines`.
 ///
 /// Symbol resolution rejects a refinement of a refinement ("refine the
 /// nominal base directly"), so exactly one hop reaches the nominal base.
-pub(crate) fn resolve_bound_carrier<'program>(
-    program: &'program dyn ::validation::CheckingInput,
+pub fn resolve_bound_carrier<'program>(
+    program: &'program dyn crate::CheckingInput,
     carrier: SymbolHandle,
 ) -> ResolvedBoundCarrier<'program> {
     let Some(definition) = program
@@ -89,8 +90,8 @@ fn covering_clauses<'program>(
 /// violates an axis the covering clause AUTHORED. "Omission here means
 /// inheritance, unlike the omission rules of an ordinary machine contract",
 /// so only authored axes carry an obligation at the concrete site.
-pub(crate) fn refinement_fit_diagnostics(
-    program: &dyn ::validation::CheckingInput,
+pub fn refinement_fit_diagnostics(
+    program: &dyn crate::CheckingInput,
     refinement: &TraitDefinition,
     conformance: &Conformance,
     template_name: &str,

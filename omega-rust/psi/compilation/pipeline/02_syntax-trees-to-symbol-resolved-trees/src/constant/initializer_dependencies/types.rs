@@ -230,7 +230,9 @@ impl<'program> Collector<'program> {
                 TypeParameterKind::Proposition { contract } => {
                     self.state_parameters(contract.parameters)?;
                 }
-                TypeParameterKind::Type | TypeParameterKind::Machine { .. } => {}
+                TypeParameterKind::Type
+                | TypeParameterKind::Implementation
+                | TypeParameterKind::Machine { .. } => {}
             }
         }
         Ok(())

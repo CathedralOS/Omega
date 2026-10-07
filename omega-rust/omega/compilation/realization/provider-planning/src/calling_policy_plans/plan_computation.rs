@@ -3,9 +3,8 @@
 //! the plan the policy produced.
 
 use crate::calling_policy_plans::boundary_signatures::{
-    boundary_policy_instances, call_signature_from_top_level_requirement,
-    call_signature_from_typed, collect_boundary_signatures, compatibility_call_signature,
-    concrete_policy_type_name, exact_compatibility_overload_index, find_policy_machine,
+    call_signature_from_top_level_requirement, call_signature_from_typed,
+    collect_boundary_signatures, compatibility_call_signature, exact_compatibility_overload_index,
 };
 use crate::calling_policy_plans::build_time_decoding::{
     CALLBACK_FIELD_PATH_CAPACITY, CALLBACK_MATERIALIZATION_CAPACITY, PARAMETER_CAPACITY,
@@ -13,6 +12,9 @@ use crate::calling_policy_plans::build_time_decoding::{
 };
 use crate::calling_policy_plans::callback_bindings::{
     callback_materialization_context, validate_retained_callback_binders,
+};
+use crate::calling_policy_plans::policy_implementations::{
+    boundary_policy_instances, selected_policy_machine,
 };
 use crate::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryNativeParameter, BoundaryNativeParameterOrigin,
@@ -143,7 +145,7 @@ pub fn evaluate_compatibility_boundary_entry_plan(
         .map_err(|diagnostic| diagnostic.to_string())
 }
 
-/// Discover concrete `Calling<C>` relationships, evaluate `C::plan` once for
+/// Discover concrete `Calling<Policy>` relationships, evaluate the selected implementation row once for
 /// every method in the boundary service surface, and retain only canonical
 /// evaluated identities on the typed program.
 pub fn compute_boundary_calling_plans(
@@ -179,7 +181,7 @@ pub fn compute_boundary_calling_plans(
         }
         if relationships.len() != 1 {
             return Err(vec![Diagnostic::error(format!(
-                "boundary trait `{}` selects {} Calling<C> policies; exactly one concrete policy may define a boundary contract",
+                "boundary trait `{}` selects {} Calling<Policy> policies; exactly one concrete policy may define a boundary contract",
                 boundary.name,
                 relationships.len()
             ))
@@ -192,7 +194,6 @@ pub fn compute_boundary_calling_plans(
             .find(|(calling, _)| calling.symbol == relationship.symbol)
             .copied()
             .expect("filtered above to the vocabulary owning this Calling symbol");
-        let calling_policy_symbol = calling_policy_trait.symbol;
         let arguments = typed
             .type_reference_table
             .type_reference_handles(relationship.arguments);
@@ -208,50 +209,29 @@ pub fn compute_boundary_calling_plans(
             boundary_policy_instances(typed, boundary, arguments[0]).map_err(|reason| {
                 vec![
                     Diagnostic::error(format!(
-                        "boundary trait `{}` cannot evaluate Calling<C>: {reason}",
+                        "boundary trait `{}` cannot evaluate Calling<Policy>: {reason}",
                         boundary.name
                     ))
                     .with_source_span(relationship_span),
                 ]
             })?;
         for (boundary_arguments, policy_argument) in instances {
-            let policy_type =
-                concrete_policy_type_name(typed, policy_argument).map_err(|reason| {
-                    vec![
-                        Diagnostic::error(format!(
-                            "boundary trait `{}` cannot evaluate Calling<C>: {reason}",
-                            boundary.name
-                        ))
-                        .with_source_span(relationship_span),
-                    ]
-                })?;
-            let policy_machine = find_policy_machine(typed, &policy_type).ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "boundary trait `{}` selects `{policy_type}`, but no `{policy_type}::plan` machine exists",
-                    boundary.name
-                ))
-                .with_source_span(relationship_span)]
-            })?;
-            let satisfies_policy =
-                typed
-                    .machine_trait_conformances(policy_machine)
-                    .iter()
-                    .any(|conformance| {
-                        conformance.symbol == calling_policy_symbol
-                            && conformance.requirement.as_ref().is_some_and(|requirement| {
-                                requirement.as_str().rsplit("::").next() == Some("plan")
-                            })
-                    });
-            if !satisfies_policy {
-                return Err(vec![
+            let policy_machine = selected_policy_machine(
+                typed,
+                boundary,
+                &boundary_arguments,
+                policy_argument,
+                calling_policy_trait,
+            )
+            .map_err(|reason| {
+                vec![
                     Diagnostic::error(format!(
-                        "calling-policy machine `{}` must satisfy `CallingPolicy::plan`",
-                        policy_machine.name
+                        "boundary trait `{}` cannot evaluate Calling<Policy>: {reason}",
+                        boundary.name
                     ))
                     .with_source_span(relationship_span),
-                ]);
-            }
-
+                ]
+            })?;
             let mut signatures = Vec::new();
             collect_boundary_signatures(
                 typed,
@@ -284,6 +264,7 @@ pub fn compute_boundary_calling_plans(
                     boundary_arguments.clone(),
                     signature.symbol,
                     policy_machine.name.as_str().to_owned(),
+                    policy_machine.symbol,
                     boundary_signature,
                     relationship_span,
                 ));
@@ -307,14 +288,16 @@ pub fn compute_boundary_calling_plans(
         boundary_arguments,
         requirement_machine,
         policy_machine,
+        policy_symbol,
         signature,
         relationship_span,
     ) in pending
     {
-        let validated = evaluate_materialized_calling_policy_plan(
+        let validated = evaluate_selected_materialized_calling_policy_plan(
             typed,
             &admission,
             &policy_machine,
+            Some(policy_symbol),
             &signature,
             Some(build_time_evaluation::BuildTimeInvocationCustody::Source(
                 relationship_span,
@@ -380,7 +363,7 @@ pub fn evaluate_calling_policy_plan(
 
 /// One refused calling-policy evaluation. `source_span` locates the authored
 /// occurrence build-time admission rejected, when it named one; the caller
-/// otherwise reports the `Calling<C>` relationship it was evaluating.
+/// otherwise reports the `Calling<Policy>` relationship it was evaluating.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CallingPolicyRejection {
     pub(crate) reason: String,
@@ -403,6 +386,24 @@ pub(crate) fn evaluate_materialized_calling_policy_plan(
     signature: &MaterializedBoundarySignature,
     custody: Option<build_time_evaluation::BuildTimeInvocationCustody>,
 ) -> Result<ValidatedBoundaryEntryPlan, CallingPolicyRejection> {
+    evaluate_selected_materialized_calling_policy_plan(
+        typed,
+        admission,
+        policy_machine,
+        None,
+        signature,
+        custody,
+    )
+}
+
+fn evaluate_selected_materialized_calling_policy_plan(
+    typed: &TypedTrees,
+    admission: &build_time_evaluation::BuildTimeAdmissionPlan,
+    policy_machine: &str,
+    policy_symbol: Option<symbols::SymbolHandle>,
+    signature: &MaterializedBoundarySignature,
+    custody: Option<build_time_evaluation::BuildTimeInvocationCustody>,
+) -> Result<ValidatedBoundaryEntryPlan, CallingPolicyRejection> {
     if signature.parameters.len() > PARAMETER_CAPACITY {
         return Err(format!(
             "boundary signature has {} parameters; calling policies currently support at most {PARAMETER_CAPACITY}",
@@ -412,19 +413,33 @@ pub(crate) fn evaluate_materialized_calling_policy_plan(
     }
 
     let arguments = vec![build_boundary_signature(signature)];
-    let value = match custody {
-        Some(custody) => {
-            admission.evaluate_machine_for_invocation(typed, policy_machine, arguments, custody)
+    let value = if let Some(symbol) = policy_symbol {
+        admission
+            .evaluate_machine_symbol_for_invocation_measured(
+                typed,
+                symbol,
+                arguments,
+                custody.unwrap_or(build_time_evaluation::BuildTimeInvocationCustody::Symbol(
+                    symbol,
+                )),
+            )
+            .map(|evaluation| evaluation.into_value())
+            .map_err(CallingPolicyRejection::from)?
+    } else {
+        match custody {
+            Some(custody) => {
+                admission.evaluate_machine_for_invocation(typed, policy_machine, arguments, custody)
+            }
+            None => admission.evaluate_machine(typed, policy_machine, arguments),
         }
-        None => admission.evaluate_machine(typed, policy_machine, arguments),
-    }
-    .map_err(|rejection| CallingPolicyRejection {
-        reason: format!(
-            "build-time evaluation of calling policy `{policy_machine}` failed: {}",
-            rejection.reason
-        ),
-        source_span: rejection.source_span,
-    })?;
+        .map_err(|rejection| CallingPolicyRejection {
+            reason: format!(
+                "build-time evaluation of calling policy `{policy_machine}` failed: {}",
+                rejection.reason
+            ),
+            source_span: rejection.source_span,
+        })?
+    };
     let result = decode_boundary_plan_result(&value).map_err(|reason| {
         format!("calling policy `{policy_machine}` returned an invalid result: {reason}")
     })?;

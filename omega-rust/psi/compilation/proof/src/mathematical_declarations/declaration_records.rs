@@ -134,6 +134,16 @@ fn elaborate_binder(
                 ),
             ));
         }
+        TypeParameterKind::Implementation => {
+            return Err(refuse(
+                program,
+                definition,
+                format!(
+                    "mathematical binder `{}` cannot select an implementation; implementation slots belong to trait telescopes",
+                    binder.name
+                ),
+            ));
+        }
     };
     Ok(CheckedMathematicalBinder {
         name: binder.name.to_string(),

@@ -34,7 +34,9 @@ pub(super) fn parameter_is_supported(
                             type_reference,
                         ))
             }
-            TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => false,
+            TypeParameterKind::Machine { .. }
+            | TypeParameterKind::Implementation
+            | TypeParameterKind::Proposition { .. } => false,
         }
 }
 

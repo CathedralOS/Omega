@@ -262,11 +262,13 @@ helper that passes does not close an item.
     secondary-processor canaries) are named implementations whose rows name
     existing entry machines; provider planning installs each through the
     implementation's own plan and resolves installation reach from its rows.
-    Remaining: trait-header evidence binders parse but have no
-    positional application, so std's `Calling<C>` names the policy type and
-    plan computation checks its exact `CallingPolicy::plan` edge; reflection
-    selection rejects a named implementation as a member's operation until
-    callable-contract checking lands (**Semantic reflection**).
+    Remaining: product-producer parity for positional trait implementation
+    binders and their ordered mixed telescopes; structural/const argument
+    conversion and package projection for generic implementation applications;
+    specialization of generic calling-policy realization machines and nested
+    data arguments before plan evaluation. Reflection selection rejects a
+    named implementation as a member's operation until callable-contract checking lands
+    (**Semantic reflection**).
   - Own parsing, resolution, typing, checking and conformance publication in
     `omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees` through
     `07_lowered-psi-to-terminal-psi`, their representations and
@@ -1777,8 +1779,9 @@ then independent claimed restoration slices -> final closure.
   Qualify the ordinary `omega run --both` route for
   `borrows/indexed_record_field_replacement_exit` and
   `host/runtime_descriptor_{mutable_view,record_array}_input_exit` after their
-  full-stdlib package review: the first graph requests 277 decisions, the
-  mutable-view graph 278, including `FilesystemHost`. Unlocked mutable-view
+  full-stdlib package review, including `FilesystemHost`. Recompute the exact
+  review choices against the current package after its named Calling migration;
+  old accepted evidence cannot admit a changed public telescope. Unlocked mutable-view
   execution refuses the dependency-owned program-entry binding; corpus
   agreement does not settle that package admission.
   Complete clock imports beyond the admitted Darwin nanosecond reads and

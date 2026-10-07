@@ -21,6 +21,7 @@ pub(in crate::record) fn parameters(scope: &Scope<'_>, nesting: usize) -> Result
     for parameter in scope.policy_statics {
         match &parameter.kind {
             PackagePolicyTypeParameterKind::Type => {}
+            PackagePolicyTypeParameterKind::Implementation => {}
             PackagePolicyTypeParameterKind::Const(value)
             | PackagePolicyTypeParameterKind::Value(value) => value_type(value)?,
             PackagePolicyTypeParameterKind::Proposition(signature) => {

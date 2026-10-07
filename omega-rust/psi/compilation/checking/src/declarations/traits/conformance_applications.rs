@@ -21,6 +21,11 @@ pub fn validate_conformance_applications(
     program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    if let Err(failures) =
+        super::trait_implementation_arguments::validate_trait_implementation_arguments(program)
+    {
+        diagnostics.extend(failures);
+    }
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call_arguments(
@@ -144,6 +149,14 @@ pub fn close_conformance_application(
     let mut machine_arguments = Vec::new();
     for (parameter, argument) in parameters.iter().zip(supplied) {
         match &parameter.kind {
+            TypeParameterKind::Implementation => {
+                return Err(category_error(
+                    declaration_name,
+                    parameter.name.as_str(),
+                    "conformance-declaration parameter (implementation slots belong to trait headers)",
+                    argument,
+                ));
+            }
             TypeParameterKind::Type => {
                 validate_type_argument(
                     program,

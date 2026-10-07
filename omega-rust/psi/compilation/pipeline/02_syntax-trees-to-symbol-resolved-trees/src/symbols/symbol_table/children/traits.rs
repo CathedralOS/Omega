@@ -17,6 +17,9 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
             .iter()
             .map(|parameter| {
                 let kind = match parameter.kind {
+                    symbol_resolved_trees::data::TypeParameterKind::Implementation => {
+                        SymbolKind::ConformanceParameter
+                    }
                     symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                         SymbolKind::MachineParameter
                     }
@@ -27,13 +30,6 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
                 };
                 symbol_seed(kind, &parameter.name, has_sources)
             })
-            .chain(trait_definition.conformance_bounds.iter().map(|bound| {
-                symbol_seed(
-                    SymbolKind::ConformanceParameter,
-                    &bound.binder_name,
-                    has_sources,
-                )
-            }))
             .chain(
                 program
                     .trait_machine_signatures(trait_definition.machines)
@@ -60,10 +56,6 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
                     }),
             );
         }
-    }
-
-    for _ in &trait_definition.conformance_bounds {
-        let _ = trait_children.next();
     }
 
     for (machine_symbol, machine) in trait_children.zip(

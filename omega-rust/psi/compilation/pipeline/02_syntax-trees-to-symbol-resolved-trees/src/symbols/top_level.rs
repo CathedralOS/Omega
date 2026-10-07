@@ -350,6 +350,7 @@ pub(super) fn assign_machine_parameter_signature_symbols(
         .span_mut_or_empty(contract.type_parameters)
     {
         let kind = match parameter.kind {
+            TypeParameterKind::Implementation => SymbolKind::ConformanceParameter,
             TypeParameterKind::Machine { .. } => SymbolKind::MachineParameter,
             TypeParameterKind::Proposition { .. } => SymbolKind::PropositionParameter,
             _ => SymbolKind::TypeParameter,
@@ -376,6 +377,7 @@ pub(super) fn assign_machine_parameter_signature_symbols(
         };
         let resolved_kind = match kind {
             TypeParameterKind::Type => TypeParameterKind::Type,
+            TypeParameterKind::Implementation => TypeParameterKind::Implementation,
             TypeParameterKind::Const { mut type_reference } => {
                 crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                     tables.symbols,

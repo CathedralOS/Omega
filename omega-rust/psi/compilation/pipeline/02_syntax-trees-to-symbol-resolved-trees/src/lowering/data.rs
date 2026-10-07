@@ -333,6 +333,9 @@ pub(crate) fn lower_type_parameters(
     for parameter in syntax_trees.items.type_parameters(type_parameters) {
         let (kind, pending_service_reaches) = match &parameter.kind {
             syntax::item::TypeParameterKind::Type => (TypeParameterKind::Type, None),
+            syntax::item::TypeParameterKind::Implementation => {
+                (TypeParameterKind::Implementation, None)
+            }
             syntax::item::TypeParameterKind::Const { type_reference } => (
                 TypeParameterKind::Const {
                     type_reference: lower_type_reference_handle(

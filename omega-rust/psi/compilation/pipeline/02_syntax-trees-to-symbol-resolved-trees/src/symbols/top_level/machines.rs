@@ -101,7 +101,7 @@ pub(super) fn assign_machine_symbols(
             };
             type_parameter.symbol = next_child_of_kind(&mut machine_children, symbols, kind);
         }
-        let local_type_parameters = data_type_parameters
+        let mut local_type_parameters = data_type_parameters
             .span_or_empty(machine.type_parameters)
             .to_vec();
 
@@ -161,6 +161,16 @@ pub(super) fn assign_machine_symbols(
                 SymbolKind::ConformanceParameter,
             );
         }
+        // Machine evidence lives in a separate telescope. Retain those exact
+        // lexical binders in the local selection context for trait arguments.
+        local_type_parameters.extend(machine.conformance_bounds.iter().map(|bound| {
+            symbol_resolved_trees::data::TypeParameter {
+                symbol: bound.binder,
+                name: bound.binder_name.clone(),
+                kind: symbol_resolved_trees::data::TypeParameterKind::Implementation,
+                bounds: Default::default(),
+            }
+        }));
 
         // MP1: machine-parameter contracts are real signature data, not
         // parser-only text. Resolve their parameter/result type references in
@@ -371,7 +381,11 @@ pub(super) fn assign_machine_symbols(
                 type_constraints,
                 &local_type_parameters,
                 conformance.arguments,
-);
+            );
+            crate::symbols::type_references::assign_trait_implementation_argument_symbols(
+                symbols, child_type_references, &local_type_parameters,
+                conformance.symbol, conformance.arguments,
+            );
             if conformance.via_expression.is_valid() {
                 assign_expression_table_symbols(
                     symbols,

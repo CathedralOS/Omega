@@ -22,10 +22,12 @@ SysV eightbyte and AAPCS64 homogeneous-float rules are backend decisions.
 Class compatibility does not replace placement or full calling-plan validation.
 
 The source vocabulary is [std/calling.omg](../../../../../source/library/std/calling.omg).
-Its existing `Calling<C>` declaration remains behind the specified
-`Calling<C, Policy>` explicit named-evidence surface. Policy evaluation itself
-works; implementing the named-evidence selection is distinct from adding machine
-parameters or runtime function values. Standard target evaluators still include
+`Calling<Policy>` selects the named implementation argument declared
+`Policy satisfies CallingPolicy`. Psi checks the ordered implementation slot;
+[policy implementations](../../realization/provider-planning/src/calling_policy_plans/policy_implementations.rs)
+closes its application and selects the exact `CallingPolicy::plan` row.
+The row's machine is invoked by symbol, not by an attached `Data::plan` name.
+Standard target evaluators still include
 Rust implementations; source policies replace them only with differential
 coverage and the same validator.
 

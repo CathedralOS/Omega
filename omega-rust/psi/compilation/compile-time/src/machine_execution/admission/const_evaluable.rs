@@ -390,7 +390,9 @@ fn require_closed_argument(
                 )),
             }
         }
-        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => Err(format!(
+        TypeParameterKind::Machine { .. }
+        | TypeParameterKind::Implementation
+        | TypeParameterKind::Proposition { .. } => Err(format!(
             "{path} is not a data parameter; only closed const atoms and closed types can cross the const boundary"
         )),
     }

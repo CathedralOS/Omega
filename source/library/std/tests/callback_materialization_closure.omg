@@ -49,7 +49,7 @@ data ForeignRecord {
 }
 
 pub data RegistrarPolicy { }
-RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+pub RegistrarPolicyCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = RegistrarPolicy::plan;
 }
 
@@ -133,7 +133,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
     }
 }
 
-pub boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
+pub boundary trait WindowRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     machine register<machine Selected, machine SecondarySelected>(
         specification: &Spread<ForeignRecord>
     )

@@ -446,107 +446,6 @@ pub(crate) fn compatibility_call_signature(
     })
 }
 
-pub(crate) fn boundary_policy_instances(
-    typed: &TypedTrees,
-    boundary: &typed_trees::trait_definition::TraitDefinition,
-    policy_argument: TypeReferenceHandle,
-) -> Result<Vec<(Vec<TypeReferenceHandle>, TypeReferenceHandle)>, String> {
-    let parameters = typed.trait_type_parameters(boundary);
-    if parameters.is_empty() {
-        return Ok(vec![(Vec::new(), policy_argument)]);
-    }
-    let policy_parameter_index = named_parameter_index(typed, policy_argument, parameters);
-
-    let mut instances = Vec::new();
-    for conformance in typed
-        .conformances()
-        .iter()
-        .filter(|conformance| names_match(conformance.trait_name.as_str(), boundary.name.as_str()))
-    {
-        // Every named implementation of the generic boundary trait is one
-        // concrete application; its trait arguments carry every data type.
-        let arguments = typed
-            .type_reference_table
-            .type_reference_handles(conformance.arguments)
-            .to_vec();
-        if arguments.len() != parameters.len() {
-            return Err(format!(
-                "conformance `{} satisfies {}` supplies {} argument(s), expected {}",
-                typed.symbols.display_path(conformance.symbol, "::"),
-                conformance.trait_name,
-                arguments.len(),
-                parameters.len()
-            ));
-        }
-        let concrete_policy = policy_parameter_index.map_or(policy_argument, |parameter_index| {
-            arguments[parameter_index]
-        });
-        instances.push((arguments, concrete_policy));
-    }
-
-    // A generic declaration is not itself a callable ABI. With no concrete
-    // conformance there is no requirement identity to publish yet.
-    Ok(instances)
-}
-
-fn names_match(left: &str, right: &str) -> bool {
-    left == right
-        || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
-        || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
-}
-
-fn named_parameter_index(
-    typed: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
-    parameters: &[typed_trees::data::TypeParameter],
-) -> Option<usize> {
-    loop {
-        match typed.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Named { symbol, name } => {
-                return parameters.iter().position(|parameter| {
-                    (parameter.symbol.is_valid() && parameter.symbol == *symbol)
-                        || parameter.name.as_str() == name.as_str()
-                });
-            }
-            _ => return None,
-        }
-    }
-}
-
-pub(crate) fn concrete_policy_type_name(
-    typed: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
-) -> Result<String, String> {
-    loop {
-        match typed.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Named { name, .. } => return Ok(name.as_str().to_owned()),
-            other => {
-                return Err(format!(
-                    "policy argument `{}` is not a concrete data type ({other:?})",
-                    typed.display_type_reference(type_reference)
-                ));
-            }
-        }
-    }
-}
-
-pub(crate) fn find_policy_machine<'a>(
-    typed: &'a TypedTrees,
-    policy_type: &str,
-) -> Option<&'a typed_trees::machine::Machine> {
-    let expected = format!("{policy_type}::plan");
-    typed.machines().iter().find(|machine| {
-        machine.name.as_str() == expected
-            || (machine.name.as_str().ends_with("::plan")
-                && machine
-                    .attached_data
-                    .as_ref()
-                    .is_some_and(|data| data.as_str() == policy_type))
-    })
-}
-
 pub(crate) fn collect_boundary_signatures<'a>(
     typed: &'a TypedTrees,
     definition: &'a typed_trees::trait_definition::TraitDefinition,
@@ -591,7 +490,7 @@ pub(crate) fn collect_boundary_signatures<'a>(
     visited.pop();
 }
 
-fn trait_type_bindings(
+pub(crate) fn trait_type_bindings(
     typed: &TypedTrees,
     definition: &typed_trees::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],

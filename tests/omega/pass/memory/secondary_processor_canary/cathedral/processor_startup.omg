@@ -198,7 +198,7 @@ satisfies CallingPolicy::plan
 // this trait; realization binds the contract's service demand.
 pub boundary trait FirstSecondaryProcessorRoot:
     SecondaryProcessorEntry
-    + Calling<FirstSecondaryProcessorStackPolicy>
+    + Calling<FirstSecondaryProcessorStackCalling>
 {
 }
 
@@ -304,7 +304,7 @@ satisfies CallingPolicy::plan
 
 pub boundary trait SecondSecondaryProcessorRoot:
     SecondaryProcessorEntry
-    + Calling<SecondSecondaryProcessorStackPolicy>
+    + Calling<SecondSecondaryProcessorStackCalling>
 {
 }
 

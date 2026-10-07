@@ -46,9 +46,9 @@ pub(super) fn from_machine(
                     signature.clone(),
                 ));
             }
-            // Proposition parameters belong to trait abstraction surfaces,
+            // Implementation and proposition parameters belong to trait abstraction surfaces,
             // not executable machines.
-            TypeParameterKind::Proposition { .. } => {}
+            TypeParameterKind::Implementation | TypeParameterKind::Proposition { .. } => {}
         }
     }
     let evidence_parameters = machine.conformance_bounds.clone();

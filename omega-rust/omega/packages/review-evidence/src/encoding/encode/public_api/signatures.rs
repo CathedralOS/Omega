@@ -20,6 +20,7 @@ pub(in crate::encoding::encode) fn type_parameter(
     encoder.field("kind", |encoder| {
         match &parameter.kind {
             PackagePolicyTypeParameterKind::Type => encoder.tag("type", 0),
+            PackagePolicyTypeParameterKind::Implementation => encoder.tag("implementation", 5),
             PackagePolicyTypeParameterKind::Const(value) => {
                 encoder.tag("const", 1);
                 encoder.field("type_identity", |encoder| {

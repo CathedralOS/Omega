@@ -16,8 +16,10 @@ empty and EOF calls preserve the same original backing and fixed extent.
 `byte_view_calling.omg` explicitly places the view's pointer/count pair in
 X1/X2; a bare safe slice does not declare a foreign ABI. Its types come from
 the canonical std calling vocabulary, not copied compiler-owned definitions.
-Package preparation currently requests four root decisions and 274 std
-decisions, including unrelated filesystem/process capabilities. Those remain
+The policy selects the public `ByteViewCallingPolicy` map's exact reference
+row; its body machine needs no separate satisfaction edge or naming convention.
+Package preparation requests a full std review, including unused foreign
+filesystem/process interfaces. Those decisions remain
 unapproved in development validation. Without acceptance, the public command
 refuses std's dependency-owned program-entry binding before execution; corpus
 agreement is not evidence of accepted-package CLI execution.

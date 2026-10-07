@@ -124,6 +124,9 @@ pub type TypeParameter = Binder<TypeParameterKind>;
 pub enum TypeParameterKind {
     #[default]
     Type,
+    /// Positional trait implementation binder, with a conformance bound
+    /// keyed by the same ConformanceParameter symbol.
+    Implementation,
     Const {
         type_reference: TypeReference,
     },

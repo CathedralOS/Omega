@@ -186,4 +186,4 @@ machine WindowsX86_64::extent_reference(register: MachineRegister,
     value
 }
 
-boundary trait WindowsX86_64Application: ProgramStorageEntry + WindowsProcessEntry + Calling<WindowsX86_64> {}
+boundary trait WindowsX86_64Application: ProgramStorageEntry + WindowsProcessEntry + Calling<WindowsX86_64CallingPolicy> {}

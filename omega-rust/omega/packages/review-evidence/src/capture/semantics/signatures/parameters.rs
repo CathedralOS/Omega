@@ -140,6 +140,9 @@ fn project_type_parameters_inner(
     for parameter in parameters {
         let kind = match &parameter.kind {
             typed_trees::data::TypeParameterKind::Type => PackageReviewTypeParameterKind::Type,
+            typed_trees::data::TypeParameterKind::Implementation => {
+                PackageReviewTypeParameterKind::Implementation
+            }
             typed_trees::data::TypeParameterKind::Const { type_reference } => {
                 PackageReviewTypeParameterKind::Const(projection.value_type(
                     typed,

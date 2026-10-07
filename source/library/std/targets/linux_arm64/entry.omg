@@ -249,4 +249,4 @@ machine LinuxArm64::stack_word(bytes: u64) -> ValuePlacement {
     value
 }
 
-boundary trait LinuxArm64Application: ProgramStorageEntry + LinuxArm64PhysicalEntry + Calling<LinuxArm64> {}
+boundary trait LinuxArm64Application: ProgramStorageEntry + LinuxArm64PhysicalEntry + Calling<LinuxArm64CallingPolicy> {}

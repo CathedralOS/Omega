@@ -18,6 +18,7 @@ pub(in crate::encoding::recovery) fn type_parameter(
 ) -> Result<PackagePolicyTypeParameter, Error> {
     let kind = match reader.byte()? {
         0 => PackagePolicyTypeParameterKind::Type,
+        5 => PackagePolicyTypeParameterKind::Implementation,
         1 => PackagePolicyTypeParameterKind::Const(type_identity(reader)?),
         4 => PackagePolicyTypeParameterKind::Value(type_identity(reader)?),
         2 => PackagePolicyTypeParameterKind::Machine(machine_contract(reader)?),

@@ -80,10 +80,14 @@ pub(crate) fn validate_trait_requirements(
                 );
             }
 
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(requirement.arguments)
-            {
+            for (parameter, argument) in program.trait_type_parameters(required_trait).iter().zip(
+                program
+                    .type_reference_table
+                    .type_reference_handles(requirement.arguments),
+            ) {
+                if parameter.kind == typed_trees::data::TypeParameterKind::Implementation {
+                    continue;
+                }
                 validate_type_reference_handle_with_type_parameters(
                     program,
                     *argument,

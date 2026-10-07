@@ -2,7 +2,7 @@ use omega::language::core::layout;
 use omega::language::core::binding;
 use omega_language_std::calling;
 
-pub boundary trait WindowProcedure: Calling<RegistrarPolicy> {
+pub boundary trait WindowProcedure: Calling<RegistrarPolicyCallingPolicy> {
     machine call(message: u64);
 }
 
@@ -50,7 +50,7 @@ data ForeignRecord {
 }
 
 pub data RegistrarPolicy { }
-RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+pub RegistrarPolicyCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = RegistrarPolicy::plan;
 }
 
@@ -134,7 +134,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
     }
 }
 
-pub boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
+pub boundary trait WindowRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     machine register<machine Selected, machine SecondarySelected>(
         specification: &Spread<ForeignRecord>
     )

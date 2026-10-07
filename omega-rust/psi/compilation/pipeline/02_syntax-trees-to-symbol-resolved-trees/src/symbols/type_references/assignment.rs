@@ -364,6 +364,13 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             &local_type_parameters,
             conformance.arguments,
         );
+        assign_trait_implementation_argument_symbols(
+            symbols,
+            child_type_references,
+            &local_type_parameters,
+            conformance.trait_symbol,
+            conformance.arguments,
+        );
         if let Some((_, proposition_slots)) = trait_proposition_slots
             .iter()
             .find(|(symbol, _)| *symbol == conformance.trait_symbol)
@@ -407,6 +414,13 @@ pub(in crate::symbols) fn assign_trait_bound_slot_argument_symbols(
     trait_proposition_slots: &[(SymbolHandle, Vec<bool>)],
     trait_machine_identity_slots: &[(SymbolHandle, Vec<bool>)],
 ) {
+    assign_trait_implementation_argument_symbols(
+        symbols,
+        child_type_references,
+        local_type_parameters,
+        bound_trait_symbol,
+        arguments,
+    );
     if let Some((_, proposition_slots)) = trait_proposition_slots
         .iter()
         .find(|(symbol, _)| *symbol == bound_trait_symbol)
@@ -430,6 +444,56 @@ pub(in crate::symbols) fn assign_trait_bound_slot_argument_symbols(
             arguments,
             machine_slots,
         );
+    }
+}
+
+/// A trait's ordered binder children classify its written arguments. Ordinary
+/// type lookup excludes code maps; only an implementation slot can select one.
+/// Lexical binders shadow global declarations even when their kind is wrong,
+/// so checking diagnoses the selected binder rather than admitting a fallback.
+pub(in crate::symbols) fn assign_trait_implementation_argument_symbols(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    trait_symbol: SymbolHandle,
+    arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
+) {
+    if !trait_symbol.is_valid() {
+        return;
+    }
+    let parameters = symbols
+        .child_handles(trait_symbol)
+        .into_iter()
+        .flatten()
+        .take_while(|parameter| {
+            matches!(
+                symbols.get(*parameter).kind,
+                SymbolKind::TypeParameter
+                    | SymbolKind::MachineParameter
+                    | SymbolKind::PropositionParameter
+                    | SymbolKind::ConformanceParameter
+            )
+        });
+    for (argument, parameter) in child_type_references
+        .span_mut_or_empty(arguments)
+        .iter_mut()
+        .zip(parameters)
+    {
+        if symbols.get(parameter).kind != SymbolKind::ConformanceParameter {
+            continue;
+        }
+        let (selected, name) = match argument {
+            symbol_resolved_trees::types::TypeReference::Named { symbol, name } => (symbol, &*name),
+            symbol_resolved_trees::types::TypeReference::Generic(generic) => {
+                (&mut generic.storage.base_symbol, &generic.storage.base_name)
+            }
+            _ => continue,
+        };
+        *selected = local_type_parameters
+            .iter()
+            .find(|parameter| parameter.name.as_str() == name.as_str())
+            .map(|parameter| parameter.symbol)
+            .unwrap_or_else(|| top_level_symbol_for_source(symbols, SymbolKind::Conformance, name));
     }
 }
 

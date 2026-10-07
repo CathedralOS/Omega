@@ -797,6 +797,12 @@ fn validate_type_reference_handle_with_context(
                 }
                 for (parameter, argument) in parameters.iter().zip(argument_handles) {
                     match &parameter.kind {
+                        TypeParameterKind::Implementation => {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "data `{base_name}` declares implementation binder `{}`; implementation parameters belong to trait or machine contracts, not stored data",
+                                parameter.name
+                            )));
+                        }
                         TypeParameterKind::Const { type_reference }
                         | TypeParameterKind::Value { type_reference } => {
                             validate_const_data_argument(
@@ -917,6 +923,17 @@ fn validate_type_reference_handle_with_context(
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses machine parameter `{name}` as a stored/runtime type; static machine parameters may only index a generic proof-data family or specialize a direct call"
+                )));
+                return;
+            }
+            if symbol.is_valid()
+                && matches!(
+                    program.symbols.get(*symbol).kind,
+                    symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
+                )
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses implementation `{name}` as a stored/runtime type; implementations select code, not data"
                 )));
                 return;
             }
