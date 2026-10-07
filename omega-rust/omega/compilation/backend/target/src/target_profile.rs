@@ -16,6 +16,10 @@
 //! `NativeTarget::from_omega_target_name` is where a demanded operation
 //! acquires — or refuses — a native shape.
 
+mod entry_slot_fingerprint;
+
+pub(crate) use entry_slot_fingerprint::{Fnv1a, hash_entry_slot};
+
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 
