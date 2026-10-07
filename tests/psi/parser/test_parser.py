@@ -1784,6 +1784,33 @@ def main() -> None:
     for name, source, diagnostic, span, counts in where_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
+    # `suspend [block]` and `block` acknowledge the call they prefix, as one
+    # prefix node over it; followed by `(` either word is a name.
+    def operators(source: bytes) -> list[tuple[int, int]]:
+        status, payload = run(program, source)
+        assert status == 0, f"{source!r}: status {status}"
+        return [(row[0], row[1]) for row in decode(payload).expressions]
+
+    UNARY = 8
+    assert (UNARY, 25) in operators(b"machine f() { let x: u8 = block g(); }")
+    assert (UNARY, 24) in operators(b"machine f() { suspend g(); }")
+    assert (UNARY, 26) in operators(b"machine f() { transition { _ -> suspend block h(1) } }")
+    assert all(row[0] != UNARY for row in operators(b"machine f() { block(x); suspend(y); }"))
+    acknowledgement_rejections = (
+        ("block-then-suspend", b"machine f() { block suspend g(); }", 107, (20, 27), {}),
+        ("block-twice", b"machine f() { block block g(); }", 106, (20, 25), {}),
+        ("suspend-twice", b"machine f() { suspend suspend g(); }", 106, (22, 29), {}),
+        ("suspend-block-twice", b"machine f() { suspend block block g(); }", 106, (28, 33), {}),
+    )
+    for name, source, diagnostic, span, counts in acknowledgement_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    # Inside brackets a braced path always constructs, even in a transition
+    # target where an unbracketed `{` would open a body.
+    status, payload = run(program, b"machine f() { transition { _ -> g(V { a: 1 }) } }")
+    assert status == 0, f"bracketed-construction: status {status}"
+    assert len(decode(payload).construct_fields) == 1, "bracketed-construction"
+
     # Every keyword but `self` is a name in an expression, as in every other
     # name position.
     source = b"machine f() { g(target, data); transition { _ -> data(target) } state data(target: u8) {} }"

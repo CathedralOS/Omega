@@ -285,3 +285,17 @@ crashes Trap
         false
     }
 }
+
+// Whether the token after the current one is `expected`, leaving the cursor
+// where it was: the one-token lookahead that tells a contextual word from an
+// ordinary name, as `block f()` from `block(x)`.
+machine Parser::next_is_punctuation(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) -> bool
+crashes Trap
+{
+    let cursor: u64 in Trapping = parser.cursor;
+    parser.cursor = parser.cursor + 1;
+    let present: bool = Parser::at_punctuation(parser, input, expected);
+    parser.cursor = cursor;
+    Parser::load_current(parser, input);
+    present
+}

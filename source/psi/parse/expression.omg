@@ -84,8 +84,92 @@ crashes Trap
             Token::Keyword { keyword: KeywordKind::True } -> boolean(parser, input, true)
             Token::Keyword { keyword: KeywordKind::False } -> boolean(parser, input, false)
             Token::Keyword { keyword } -> keyword_operand(parser, input, code, keyword)
-            Token::Identifier -> path(parser, input)
+            Token::Identifier -> identifier_operand(parser, input)
             _ -> reject(parser, input, code)
+        }
+    }
+
+    // `suspend [block]` and `block` acknowledge the operational effects of
+    // the call they prefix, in that canonical order and once each. Followed
+    // by `(` either word is an ordinary name.
+    state identifier_operand(parser: &mut Parser, input: &TokenStream) {
+        let suspends: bool = Parser::at_word(parser, input, "suspend");
+        let blocks: bool = Parser::at_word(parser, input, "block");
+        let called: bool = Parser::next_is_punctuation(parser, input, PunctuationKind::LeftParen);
+        transition (suspends || blocks) && !called {
+            true -> acknowledgement(parser, input, suspends)
+            _ -> path(parser, input)
+        }
+    }
+
+    state acknowledgement(parser: &mut Parser, input: &TokenStream, suspends: bool) {
+        let token: Token = input.tokens[parser.current_index];
+        Parser::take_current(parser, input);
+        let then_suspend: bool = Parser::at_word(parser, input, "suspend");
+        let then_block: bool = Parser::at_word(parser, input, "block");
+        transition suspends {
+            true -> after_suspend(parser, input, token.start, then_suspend, then_block)
+            _ -> after_block(parser, input, token.start, then_suspend, then_block)
+        }
+    }
+
+    state after_suspend(
+        parser: &mut Parser,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        then_suspend: bool,
+        then_block: bool
+    ) {
+        transition then_suspend {
+            true -> reject(parser, input, ParseDiagnosticCode::DuplicateCallAcknowledgement)
+            _ -> suspend_alone(parser, input, start, then_block)
+        }
+    }
+
+    state suspend_alone(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, then_block: bool) {
+        transition then_block {
+            true -> suspend_block(parser, input, start)
+            _ -> acknowledge(parser, input, OperatorKind::Suspend, start)
+        }
+    }
+
+    state suspend_block(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        let again: bool = Parser::at_word(parser, input, "block");
+        let reversed: bool = Parser::at_word(parser, input, "suspend");
+        transition again || reversed {
+            true -> reject(parser, input, ParseDiagnosticCode::DuplicateCallAcknowledgement)
+            _ -> acknowledge(parser, input, OperatorKind::SuspendBlock, start)
+        }
+    }
+
+    state after_block(
+        parser: &mut Parser,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        then_suspend: bool,
+        then_block: bool
+    ) {
+        transition then_suspend {
+            true -> reject(parser, input, ParseDiagnosticCode::CallAcknowledgementOrder)
+            _ -> block_alone(parser, input, start, then_block)
+        }
+    }
+
+    state block_alone(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, then_block: bool) {
+        transition then_block {
+            true -> reject(parser, input, ParseDiagnosticCode::DuplicateCallAcknowledgement)
+            _ -> acknowledge(parser, input, OperatorKind::Block, start)
+        }
+    }
+
+    // An acknowledgement binds like a prefix operator: it applies to the
+    // whole postfix expression that follows.
+    state acknowledge(parser: &mut Parser, input: &TokenStream, operator: OperatorKind, start: u64 in Trapping) {
+        Parser::push_operator(parser, input, operator, 11, true, start);
+        transition parser.output.accepted {
+            true -> operand(parser, input, ParseDiagnosticCode::ExpectedOperand)
+            _ -> done()
         }
     }
 
@@ -264,7 +348,9 @@ crashes Trap
 
     state after_path(parser: &mut Parser, input: &TokenStream) {
         let braced: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
-        transition braced && parser.expression_allow_construct {
+        // A body's `{` can follow only an unbracketed operand; inside any
+        // bracket a braced path is always a construction.
+        transition braced && (parser.expression_allow_construct || parser.expression_frame_depth > 0) {
             true -> open_construct(parser, input)
             _ -> after_operand(parser, input)
         }

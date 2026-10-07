@@ -234,6 +234,8 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::TypeNestingCapacityExceeded -> parse_diagnostic(parser_harness, output, 103)
             ParseDiagnosticCode::TypeArgumentCapacityExceeded -> parse_diagnostic(parser_harness, output, 104)
             ParseDiagnosticCode::ClauseNotAdmitted -> parse_diagnostic(parser_harness, output, 105)
+            ParseDiagnosticCode::DuplicateCallAcknowledgement -> parse_diagnostic(parser_harness, output, 106)
+            ParseDiagnosticCode::CallAcknowledgementOrder -> parse_diagnostic(parser_harness, output, 107)
         }
     }
 
@@ -988,6 +990,9 @@ crashes Trap
             OperatorKind::BitNot -> expression_operator(parser_harness, output, index, expression, 21)
             OperatorKind::Borrow -> expression_operator(parser_harness, output, index, expression, 22)
             OperatorKind::BorrowMutable -> expression_operator(parser_harness, output, index, expression, 23)
+            OperatorKind::Suspend -> expression_operator(parser_harness, output, index, expression, 24)
+            OperatorKind::Block -> expression_operator(parser_harness, output, index, expression, 25)
+            OperatorKind::SuspendBlock -> expression_operator(parser_harness, output, index, expression, 26)
         }
     }
 

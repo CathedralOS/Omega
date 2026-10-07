@@ -756,6 +756,32 @@ crashes Trap
         transition call.kind {
             ExpressionKind::Call -> call_target_callee(parser, input, unsupported, has_subject, subject, kind, pattern,
                 first_field, field_count, target, call)
+            ExpressionKind::Unary -> acknowledged_target(parser, input, unsupported, has_subject, subject, kind,
+                pattern, first_field, field_count, target, call)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTransitionTargetOpen)
+        }
+    }
+
+    // A target may acknowledge its call's operational effects
+    // (`-> suspend block read(source)`); the arm keeps the acknowledged node.
+    state acknowledged_target(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping,
+        target: u64 in Trapping,
+        acknowledgement: Expression
+    ) {
+        let call: Expression = SyntaxTrees::expression(&parser.output, acknowledgement.left);
+        let acknowledged: bool = Parser::acknowledges(acknowledgement.operator);
+        transition acknowledged && call.kind == ExpressionKind::Call {
+            true -> call_target_callee(parser, input, unsupported, has_subject, subject, kind, pattern,
+                first_field, field_count, target, call)
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTransitionTargetOpen)
         }
     }
@@ -848,4 +874,22 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// Whether `operator` is a call acknowledgement prefix.
+machine Parser::acknowledges(operator: OperatorKind) -> bool {
+    transition operator {
+        OperatorKind::Suspend -> acknowledgement()
+        OperatorKind::Block -> acknowledgement()
+        OperatorKind::SuspendBlock -> acknowledgement()
+        _ -> other()
+    }
+
+    state acknowledgement() {
+        true
+    }
+
+    state other() {
+        false
+    }
 }

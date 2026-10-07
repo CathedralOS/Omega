@@ -173,6 +173,9 @@ pub data OperatorKind [copy] {
     case BitNot;
     case Borrow;
     case BorrowMutable;
+    case Suspend;
+    case Block;
+    case SuspendBlock;
 }
 
 pub data Expression [copy] {
@@ -448,6 +451,8 @@ pub data ParseDiagnosticCode [copy] {
     case TypeNestingCapacityExceeded;
     case TypeArgumentCapacityExceeded;
     case ClauseNotAdmitted;
+    case DuplicateCallAcknowledgement;
+    case CallAcknowledgementOrder;
 }
 
 pub data ParseDiagnostic [copy] {
