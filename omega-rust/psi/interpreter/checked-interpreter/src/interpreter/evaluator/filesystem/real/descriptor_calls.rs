@@ -36,16 +36,13 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     None => Err(EBADF),
                 }
             };
-            match outcome {
-                Ok(bytes) => {
+            match self.hosted_errno(outcome) {
+                Some(bytes) => {
                     let n = bytes.len() as i64;
                     buffer.write(&bytes)?;
                     n
                 }
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    -1
-                }
+                None => -1,
             }
         })
     }
@@ -61,12 +58,9 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             if !self.require_real_descriptor_write_grant(fd, false) {
                 return Ok(-1);
             }
-            let prepared = match self.prepare_sponsored_write(fd, bytes.len(), None)? {
-                Ok(prepared) => prepared,
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    return Ok(-1);
-                }
+            let write = self.prepare_sponsored_write(fd, bytes.len(), None)?;
+            let Some(prepared) = self.hosted_errno(write) else {
+                return Ok(-1);
             };
             let real = self.real_fs_mut();
             let outcome = match real.files.get_mut(&fd) {
@@ -76,15 +70,12 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 },
                 None => Err(EBADF),
             };
-            match outcome {
-                Ok(written) => {
+            match self.hosted_errno(outcome) {
+                Some(written) => {
                     self.commit_sponsored_write(prepared, written)?;
                     checked_written_count(written)?
                 }
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    -1
-                }
+                None => -1,
             }
         })
     }
@@ -186,8 +177,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     .map_err(|error| io_errno(&error)),
                 None => Err(EBADF),
             };
-            match cloned {
-                Ok((file, path, append, canonical_metadata)) => {
+            match self.hosted_errno(cloned) {
+                Some((file, path, append, canonical_metadata)) => {
                     let sponsor_descriptor = self.commit_sponsored_open(prepared)?;
                     self.real_fs_mut()
                         .insert_preselected(
@@ -202,10 +193,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                             -1
                         })
                 }
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    -1
-                }
+                None => -1,
             }
         })
     }
@@ -227,15 +215,12 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 Some(entry) => entry.file.set_len(length).map_err(|error| io_errno(&error)),
                 None => Err(EBADF),
             };
-            match outcome {
-                Ok(()) => {
+            match self.hosted_errno(outcome) {
+                Some(()) => {
                     self.commit_sponsored_mutation(prepared)?;
                     0
                 }
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    -1
-                }
+                None => -1,
             }
         })
     }
@@ -291,16 +276,13 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     None => Err(EBADF),
                 }
             };
-            match outcome {
-                Ok(bytes) => {
+            match self.hosted_errno(outcome) {
+                Some(bytes) => {
                     let n = bytes.len() as i64;
                     buffer.write(&bytes)?;
                     n
                 }
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    -1
-                }
+                None => -1,
             }
         })
     }
@@ -318,12 +300,9 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             if !self.require_real_descriptor_write_grant(fd, false) {
                 return Ok(-1);
             }
-            let prepared = match self.prepare_sponsored_write(fd, bytes.len(), Some(offset))? {
-                Ok(prepared) => prepared,
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    return Ok(-1);
-                }
+            let write = self.prepare_sponsored_write(fd, bytes.len(), Some(offset))?;
+            let Some(prepared) = self.hosted_errno(write) else {
+                return Ok(-1);
             };
             let outcome = match self.real_fs_mut().files.get_mut(&fd) {
                 Some(entry) => match positioned_write(&mut entry.file, offset, &bytes) {
@@ -332,15 +311,12 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 },
                 None => Err(EBADF),
             };
-            match outcome {
-                Ok(written) => {
+            match self.hosted_errno(outcome) {
+                Some(written) => {
                     self.commit_sponsored_write(prepared, written)?;
                     checked_written_count(written)?
                 }
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    -1
-                }
+                None => -1,
             }
         })
     }
@@ -364,8 +340,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 },
                 None => Err(EBADF),
             };
-            match looked_up {
-                Ok(SelectedFilesystemMetadata::Canonical(metadata)) => {
+            match self.hosted_errno(looked_up) {
+                Some(SelectedFilesystemMetadata::Canonical(metadata)) => {
                     self.write_canonical_fs_stat(
                         &buffer,
                         FilesystemMetadataObservationKind::OpenDescriptor,
@@ -373,7 +349,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     )?;
                     0
                 }
-                Ok(SelectedFilesystemMetadata::Physical(metadata)) => {
+                Some(SelectedFilesystemMetadata::Physical(metadata)) => {
                     self.write_real_fs_stat(
                         &buffer,
                         FilesystemMetadataObservationKind::OpenDescriptor,
@@ -381,10 +357,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     )?;
                     0
                 }
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    -1
-                }
+                None => -1,
             }
         })
     }

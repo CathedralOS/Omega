@@ -36,8 +36,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     None => Ok(Err(EBADF)),
                 }
             }?;
-            match listed {
-                Ok(entries) => {
+            match self.hosted_errno(listed) {
+                Some(entries) => {
                     let records = crate::interpreter::evaluator::pack_dirent_records(&entries)?;
                     let start = position.initial.max(0) as usize;
                     let (chunk, next_position) = crate::interpreter::evaluator::dirent_record_chunk(
@@ -52,10 +52,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         n as i64
                     }
                 }
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    -1
-                }
+                None => -1,
             }
         })
     }
@@ -85,8 +82,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 },
                 None => Ok(Err(ENOENT)),
             }?;
-            match listed {
-                Ok(entries) => {
+            match self.hosted_errno(listed) {
+                Some(entries) => {
                     let mut queue: std::collections::VecDeque<(Vec<u8>, bool)> = entries
                         .into_iter()
                         .map(|(name, d_type)| (name, d_type == 4))
@@ -98,10 +95,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     self.virtual_finds.insert(handle, queue);
                     handle
                 }
-                Err(errno) => {
-                    self.real_fs_mut().errno = errno;
-                    -1
-                }
+                None => -1,
             }
         })
     }

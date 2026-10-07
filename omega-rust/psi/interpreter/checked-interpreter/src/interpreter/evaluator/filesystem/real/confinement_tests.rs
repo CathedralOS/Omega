@@ -2,8 +2,8 @@
 //! of an authored path is a symlink. These exercise the host filesystem
 //! directly and carry no Omega source input.
 
-use super::resolve_for_check;
 use super::super::grants::canonical_grants;
+use super::resolve_for_check;
 use std::os::unix::fs::symlink;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

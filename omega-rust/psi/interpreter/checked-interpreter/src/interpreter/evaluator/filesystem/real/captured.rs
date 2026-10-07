@@ -395,12 +395,9 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 "captured inputs expose only logical source operations, not native metadata, host paths, handles, locks or synchronization".into()
             )),
         };
-        Ok(Value::Int(match outcome {
-            Ok(value) => value,
-            Err(errno) => {
-                self.real_fs_mut().errno = errno;
-                -1
-            }
+        Ok(Value::Int(match self.hosted_errno(outcome) {
+            Some(value) => value,
+            None => -1,
         }))
     }
 

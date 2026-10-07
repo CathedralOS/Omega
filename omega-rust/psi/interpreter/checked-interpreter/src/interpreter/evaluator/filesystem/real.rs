@@ -497,6 +497,18 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             .expect("try_real_filesystem_call only runs in real mode")
     }
 
+    /// A host operation's `errno` outcome: `Some` on success, or `None` with
+    /// `real_fs.errno` stamped — callers map `None` to the negative return.
+    pub(super) fn hosted_errno<T>(&mut self, outcome: Result<T, i32>) -> Option<T> {
+        match outcome {
+            Ok(value) => Some(value),
+            Err(errno) => {
+                self.real_fs_mut().errno = errno;
+                None
+            }
+        }
+    }
+
     #[cfg(unix)]
     fn real_result_unit(&mut self, outcome: std::io::Result<()>) -> i64 {
         match outcome {
