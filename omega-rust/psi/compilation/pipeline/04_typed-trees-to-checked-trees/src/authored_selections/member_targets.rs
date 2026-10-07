@@ -142,12 +142,17 @@ fn authored_member_target(
         .or_else(|| collection_measure_target(program, receiver_type, member))
 }
 
-fn contextual_statement_member_target(
+/// Run `visit` on every `(state, statement_index, statement)` whose
+/// statement expression tree contains `needle`; `None` aborts the walk.
+fn for_each_statement_containing(
     program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
-) -> Option<CheckedResolutionTarget> {
-    let mut resolved = None;
+    needle: typed_trees::expression::ExpressionHandle,
+    mut visit: impl FnMut(
+        &typed_trees::state::State,
+        usize,
+        &typed_trees::statement::StatementNode,
+    ) -> Option<()>,
+) -> Option<()> {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
@@ -162,30 +167,39 @@ fn contextual_statement_member_target(
                     statement,
                     &mut expressions,
                 );
-                if !expressions.contains(&expression) {
+                if !expressions.contains(&needle) {
                     continue;
                 }
-
-                let receiver_type = crate::flow::expression_type_reference_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    member.receiver,
-                )?;
-                let target = member_symbol_from_type_reference(
-                    program,
-                    receiver_type,
-                    member.member.as_str(),
-                )
-                .and_then(declaration_target)
-                .or_else(|| collection_measure_target(program, receiver_type, member))?;
-                if resolved.is_some_and(|candidate| candidate != target) {
-                    return None;
-                }
-                resolved = Some(target);
+                visit(state, statement_index, statement)?;
             }
         }
     }
+    Some(())
+}
+
+fn contextual_statement_member_target(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> Option<CheckedResolutionTarget> {
+    let mut resolved = None;
+    for_each_statement_containing(program, expression, |state, statement_index, _| {
+        let receiver_type = crate::flow::expression_type_reference_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            member.receiver,
+        )?;
+        let target =
+            member_symbol_from_type_reference(program, receiver_type, member.member.as_str())
+                .and_then(declaration_target)
+                .or_else(|| collection_measure_target(program, receiver_type, member))?;
+        if resolved.is_some_and(|candidate| candidate != target) {
+            return None;
+        }
+        resolved = Some(target);
+        Some(())
+    })?;
     resolved
 }
 
@@ -287,40 +301,27 @@ pub(crate) fn expression_is_contextual_statement_primitive(
         return found;
     }
     let mut found = false;
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
-                let mut expressions = Vec::new();
-                crate::monomorphization::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
-                if !expressions.contains(&containing_expression) {
-                    continue;
-                }
-
-                let Some(type_reference) = crate::flow::expression_type_reference_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    operand,
-                ) else {
-                    return false;
-                };
-                if program.primitive_type_reference(type_reference).is_none() {
-                    return false;
-                }
-                found = true;
+    for_each_statement_containing(
+        program,
+        containing_expression,
+        |state, statement_index, _| {
+            let Some(type_reference) = crate::flow::expression_type_reference_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                operand,
+            ) else {
+                return None;
+            };
+            if program.primitive_type_reference(type_reference).is_none() {
+                return None;
             }
-        }
-    }
-    found
+            found = true;
+            Some(())
+        },
+    )
+    .is_some()
+        && found
 }
 
 /// Whether the containment walk from `root` reaches `target`.
