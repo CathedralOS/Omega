@@ -1159,6 +1159,8 @@ impl<'program> Evaluator<'program> {
             machine_symbol,
             state_symbol: state.symbol,
             guard_call_results: Vec::new(),
+            scalar_expression_depth: 0,
+            scalar_expression_values: Vec::new(),
         };
         for (parameter, argument) in self.program.state_parameters(state).iter().zip(arguments) {
             let argument = argument.clone();

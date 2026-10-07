@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 5.09, "load1_start": 5.09, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 22.04, "load1_start": 20.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_field_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -131,6 +131,8 @@ pass/calls/runtime_local_case_terminal_payload_result_exit built 875ms exit:0 in
 pass/calls/runtime_nested_case_argument_exit built 4465ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit built 1052ms exit:0 interpreter-exit:0 interpreter:agrees @3daca3fd87c2
 pass/calls/runtime_nested_value_call_guard_exit built 3472ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
+pass/calls/runtime_numeric_operand_order_exit built 4790ms exit:0 interpreter-exit:0 interpreter:agrees @8c190f8c0e66+wt
+pass/calls/runtime_numeric_operand_single_evaluation_exit built 4606ms exit:0 interpreter-exit:0 interpreter:agrees @8c190f8c0e66+wt
 pass/calls/runtime_owned_parameter_primitive_borrow_exit built 730ms exit:0 interpreter-exit:0 interpreter:agrees @51b4aa0b5a70+wt
 pass/calls/runtime_qualified_terminal_result_exit built 716ms exit:0 interpreter-exit:0 interpreter:agrees @4655ab8ed512
 pass/calls/runtime_selected_local_owner_exit built 3656ms exit:0 interpreter-exit:0 interpreter:agrees @16bba2bbc2d5+wt

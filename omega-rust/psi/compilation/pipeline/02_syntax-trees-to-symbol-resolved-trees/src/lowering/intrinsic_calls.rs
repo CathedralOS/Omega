@@ -6,9 +6,10 @@
 //! its exact builtin; authored visibility, selection partition and operation
 //! coordinates follow the original occurrence through the rewrite.
 //!
-//! Absolute value retains the existing shared-operand expansion and its
-//! call-operand restriction. This pass does not introduce another evaluator or
-//! change the source operation's overflow policy.
+//! Absolute value retains one operand handle through its shared expansion.
+//! Checked computation construction preserves that occurrence as one value;
+//! selection carries its completed evaluation into the winning arm. This
+//! changes neither operand order nor the source operation's overflow policy.
 
 use crate::resolution::lowerer::{Lowerer, PendingAuthoredExpression};
 use diagnostics::Diagnostic;
@@ -77,15 +78,6 @@ fn normalize_call(
     let normalized = match function {
         BuiltinFunction::Abs => {
             let operand = arguments[0];
-            if matches!(
-                expressions(lowerer).expression(operand),
-                ExpressionNode::Call(_)
-            ) {
-                return Err(Diagnostic::error(
-                    "abs(...) duplicates its argument, so a call argument would run twice; \
-                     bind it to a local first (`let v = f(); abs(v)`)",
-                ));
-            }
             let zero = expressions(lowerer).insert(ExpressionNode::Integer(
                 numerics::literals::IntegerLiteral::zero(),
             ));

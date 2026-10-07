@@ -230,17 +230,19 @@ fn is_hoistable_value_cast_call(lowerer: &Lowerer, expression: ExpressionHandle)
 }
 
 /// Whether a call spells one of the composing scalar builtins
-/// (`BuiltinFunction::is_scalar_computation`: `min`/`max`/`sqrt`). Calls are
+/// (`BuiltinFunction::is_scalar_computation` or its source normalization). Calls are
 /// still unresolved at these normalization sites, so the target spelling is
 /// asked of the builtin vocabulary rather than re-listed here. Such a call
 /// keeps its expression lowering: its synthetic result type is inferred from
 /// an operand, not a declared machine return, so no call-result local can
-/// carry it.
+/// carry it. Normalized operations must stay here too: before resolution they
+/// have no machine signature from which a synthetic result local can be typed.
 pub(crate) fn is_scalar_computation_builtin_call(
     call: &symbol_resolved_trees::expression::TableCallExpression,
 ) -> bool {
-    BuiltinFunction::from_name(call.target.as_str())
-        .is_some_and(BuiltinFunction::is_scalar_computation)
+    BuiltinFunction::from_name(call.target.as_str()).is_some_and(|function| {
+        function.is_scalar_computation() || function.is_source_normalization()
+    })
 }
 
 /// A compiler proof term has no runtime call-result slot to materialize.

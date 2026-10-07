@@ -234,6 +234,12 @@ pub(crate) struct Frame {
     /// loops re-evaluate naturally. Destructure-marked case payload projections
     /// reuse this subject too; separately authored successor calls do not.
     guard_call_results: Vec<(ExpressionHandle, Value)>,
+    /// Scalar DAG snapshots belong to one expression evaluation. Exact handles
+    /// identify shared normalized operands, never similarly spelled calls.
+    /// Separate call frames and outer evaluations cannot reuse these values;
+    /// references and aggregate ownership stay with their existing evaluators.
+    scalar_expression_depth: usize,
+    scalar_expression_values: Vec<(ExpressionHandle, Value)>,
 }
 
 /// One open descriptor in the interpreter's virtual filesystem: which path it

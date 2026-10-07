@@ -1,0 +1,7 @@
+machine step(value: i32) -> i32 [-2..=-2]
+requires value >= -3i32 && value <= 3i32;
+{ -2i32 }
+
+machine main() {
+    let observed: i32 = abs(step(100i32) + 1i32);
+}

@@ -16,6 +16,7 @@ use crate::values::scalar::scalar_lowering::lower_scalar_expression;
 use crate::values::scalar::semantic_casts;
 use crate::values::scalar_expression_type;
 
+#[derive(Clone)]
 pub(super) struct IntegerOperand {
     pub(super) value: CheckedScalarExpression,
     value_source: ExpressionHandle,
@@ -70,6 +71,24 @@ impl Builder<'_, '_> {
     /// operand keeps its own carrier, and the hint is consulted only where the
     /// expression itself carries none anywhere -- see `integer_operands`.
     pub(super) fn integer_operand(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: Option<PrimitiveType>,
+    ) -> Option<IntegerOperand> {
+        if let Some((_, _, operand)) = self
+            .integer_occurrences
+            .iter()
+            .find(|(source, carrier, _)| *source == expression && *carrier == expected)
+        {
+            return Some(operand.clone());
+        }
+        let operand = self.build_integer_operand(expression, expected)?;
+        self.integer_occurrences
+            .push((expression, expected, operand.clone()));
+        Some(operand)
+    }
+
+    fn build_integer_operand(
         &mut self,
         expression: ExpressionHandle,
         expected: Option<PrimitiveType>,
@@ -519,8 +538,10 @@ impl Builder<'_, '_> {
     /// or flow call owns it: the computation is the authored comparison
     /// `a <= b` (or `a >= b` for `max`) selecting between its operands. Each
     /// operand computation is shared between the comparison's application and
-    /// the winning selection arm, so an operand carrying a machine call stays
-    /// on the ordinary call lane -- sharing it would sequence its call twice.
+    /// the winning selection arm. Selection carries the completed comparison
+    /// prefix, including effectful operands, instead of evaluating the chosen
+    /// operand again. Source normalization retains operand handles, so their
+    /// repeated references also retain one computation within this statement.
     pub(super) fn integer_min_max(
         &mut self,
         source_expression: ExpressionHandle,
@@ -550,14 +571,22 @@ impl Builder<'_, '_> {
         let [left_expression, right_expression] = *arguments else {
             return None;
         };
-        let left = self.expression(left_expression, expected_type)?;
-        let right = self.expression(right_expression, expected_type)?;
-        if self.subgraph_carries_call(left) {
+        let (left, right) = self.integer_operands(
+            &typed_trees::expression::TableBinaryExpression {
+                left: left_expression,
+                operator: ordering,
+                right: right_expression,
+            },
+            Some(expected_type),
+        )?;
+        if scalar_expression_type(&left.value)? != expected_type {
             return None;
         }
-        if self.subgraph_carries_call(right) {
+        let left = self.materialize_integer(left)?;
+        if scalar_expression_type(&right.value)? != expected_type {
             return None;
         }
+        let right = self.materialize_integer(right)?;
         let operands = self.plans.operands.insert_many([left, right]);
         let template = construct_integer_comparison(
             ordering,
@@ -572,6 +601,10 @@ impl Builder<'_, '_> {
                 operands,
             },
         );
+        // The selection scheduler carries this condition's completed operand
+        // prefix into either arm. Reusing these exact handles therefore keeps
+        // calls and mutable observations ordered and single-evaluated; call
+        // presence is not a separate admission condition.
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::Select {
@@ -581,81 +614,5 @@ impl Builder<'_, '_> {
                 when_false: right,
             },
         ))
-    }
-
-    /// Whether any node under `root` sequences a machine call. Selection shares
-    /// an operand computation between its comparison and both arms; a shared
-    /// call would be sequenced once per referencing position.
-    fn subgraph_carries_call(&self, root: CheckedScalarComputationHandle) -> bool {
-        let plans = &*self.plans;
-        let mut pending = vec![root];
-        let mut visited = Vec::new();
-        while let Some(handle) = pending.pop() {
-            if !plans.nodes.is_valid(handle) {
-                return true;
-            }
-            if visited.contains(&handle) {
-                continue;
-            }
-            visited.push(handle);
-            let kind = &plans.nodes.get(handle).kind;
-            match kind {
-                CheckedScalarComputationKind::Call { .. } => return true,
-                CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
-                    pending.extend([*left, *right]);
-                }
-                CheckedScalarComputationKind::Qualification { operand, .. }
-                | CheckedScalarComputationKind::AuthoredCast { operand, .. }
-                | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
-                    pending.push(*operand);
-                }
-                CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                    pending.push(*subject);
-                    let Some(arms) = plans.dispatch_arms.span(*arms) else {
-                        return true;
-                    };
-                    for arm in arms {
-                        if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
-                            arm.pattern
-                        {
-                            pending.push(pattern);
-                        }
-                        pending.push(arm.value);
-                    }
-                }
-                CheckedScalarComputationKind::Apply { operands, .. } => {
-                    let Some(operands) = plans.operands.span(*operands) else {
-                        return true;
-                    };
-                    pending.extend(operands.iter().copied());
-                }
-                CheckedScalarComputationKind::Select {
-                    condition,
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    pending.extend([*condition, *when_true, *when_false]);
-                }
-                CheckedScalarComputationKind::CaseMembership {
-                    subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
-                    ..
-                } => {
-                    let Some(fields) = plans.case_fields.span(subject.fields) else {
-                        return true;
-                    };
-                    for field in fields {
-                        pending.push(field.value);
-                    }
-                }
-                CheckedScalarComputationKind::CaseMembership { .. } => {}
-                CheckedScalarComputationKind::Value(_)
-                | CheckedScalarComputationKind::StructuralField { .. }
-                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
-                | CheckedScalarComputationKind::ByteSequencePredicate { .. } => {}
-            }
-        }
-        false
     }
 }

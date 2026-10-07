@@ -113,6 +113,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     locals: &locals,
                     plans: &mut plans,
                     structural_values: &mut structural_values,
+                    integer_occurrences: Vec::new(),
                 };
                 // Endpoints are ordinary operands. Capture every occurrence
                 // before constructing consumers, so a call result and a pure
@@ -905,6 +906,14 @@ struct Builder<'program, 'plans> {
     locals: &'program [ScalarLocal],
     plans: &'plans mut CheckedScalarComputationPlans,
     structural_values: &'plans mut checked_trees::CheckedStructuralValuePlans,
+    /// One statement's normalized source DAG may reference an operand more
+    /// than once. Retain its computation identity, including the contextual
+    /// carrier for anonymous integers; never merge different authored handles.
+    integer_occurrences: Vec<(
+        ExpressionHandle,
+        Option<PrimitiveType>,
+        integers::IntegerOperand,
+    )>,
 }
 
 impl Builder<'_, '_> {

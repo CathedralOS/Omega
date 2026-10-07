@@ -13,6 +13,9 @@ pub(in crate::semantic::calls) struct CallSiteTraversal<'program, 'ordinal> {
     conditional: bool,
     pub(in crate::semantic::calls) matched_conditionally: bool,
     pub(super) collected: Option<&'ordinal mut Vec<super::super::CallSite<'program>>>,
+    /// Normalization preserves a DAG's authored expression handles. A second
+    /// edge to one call is not a second authored invocation or ordinal.
+    expressions: Vec<typed_trees::expression::ExpressionHandle>,
 }
 
 impl<'program> CallSiteTraversal<'program, '_> {
@@ -36,6 +39,7 @@ impl<'program> CallSiteTraversal<'program, '_> {
             collected: None,
             conditional: false,
             matched_conditionally: false,
+            expressions: Vec::new(),
         }
     }
 
@@ -60,6 +64,7 @@ impl<'program> CallSiteTraversal<'program, '_> {
             collected: Some(collected),
             conditional: false,
             matched_conditionally: false,
+            expressions: Vec::new(),
         }
     }
 
@@ -69,6 +74,12 @@ impl<'program> CallSiteTraversal<'program, '_> {
         &mut self,
         site: super::super::CallSite<'program>,
     ) -> Option<super::super::CallSite<'program>> {
+        if let super::super::CallSite::Expression { expression, .. } = site {
+            if self.expressions.contains(&expression) {
+                return None;
+            }
+            self.expressions.push(expression);
+        }
         if let Some(collected) = self.collected.as_deref_mut() {
             collected.push(site);
             self.advance_call_ordinal();

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 7.15, "load1_start": 7.25, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 22.04, "load1_start": 20.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -120,6 +120,8 @@ fail/arithmetic/narrowing_literal_wider_than_target rejected 291ms expected @2d8
 	anonymous integer value `3000000123` does not fit destination `i32` in machine `Main::main` state `main` assignment
 fail/arithmetic/narrowing_signedness_rejected rejected 254ms expected @2d8ed253669f
 	store in machine `Main::main` state `main` assignment implicitly converts `u8` to `i8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i8`)
+fail/arithmetic/numeric_operand_abs_unrepresentable rejected 587ms expected @8c190f8c0e66+wt
+	exact arithmetic in machine `main` state `entry` local `observed` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `bottom(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`).
 fail/arithmetic/qualified_cast_decision_wrong_arm rejected 181ms expected @3031abcffbe7
 	Exact integer cast in machine `narrow` state `entry` cast expression from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `narrow` state `entry` return value from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
@@ -598,6 +600,11 @@ fail/calls/nested_call_argument_constraints_unproven rejected 531ms expected @9e
 fail/calls/nontail_value_self_call_rejected rejected 70ms expected @5181ccde6df7+wt
 	`Main::triple(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> triple(..)` on a measured machine, or iterate with an explicit stack.
 	exact arithmetic in machine `Main::triple` state `triple` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `triple(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/calls/numeric_operand_call_requires rejected 267ms expected @8c190f8c0e66+wt
+	machine `main` state `entry` value call to `step` violates required fact `value >= -3 && value <= 3`: the instantiated fact is structurally false
+	machine `main` state `entry` value call to `step` violates required fact `value >= -3 && value <= 3`: the instantiated fact is structurally false
+fail/calls/numeric_operand_exclusive_arguments_overlap rejected 781ms expected @8c190f8c0e66+wt
+	state `pair` receives `counter` as mutable more than once
 fail/calls/numeric_scalar_call_boolean_guard rejected 140ms expected @313d9f292579+wt
 	machine `evaluate` state `entry` applies an operator to a numeric value and a boolean -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
 fail/calls/ordered_bound_requires_argument_rejected rejected 325ms expected @2d8ed253669f
@@ -2198,6 +2205,8 @@ pass/calls/runtime_nested_constructor_child_snapshots_exit checked 1221ms check-
 pass/calls/runtime_nested_local_field_store_exit checked 1769ms check-target:macos_arm64 @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms check-target:macos_arm64 @ac942fdbba24
 pass/calls/runtime_nested_value_call_guard_exit checked 7580ms check-target:macos_arm64 @2b2f058c0e38+wt
+pass/calls/runtime_numeric_operand_order_exit checked 5942ms check-target:macos_arm64 @8c190f8c0e66+wt
+pass/calls/runtime_numeric_operand_single_evaluation_exit checked 5269ms check-target:macos_arm64 @8c190f8c0e66+wt
 pass/calls/runtime_option_value_call_exit checked 1531ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 1299ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_owned_mutable_state_parameter_exit checked 829ms check-target:macos_arm64 @cba4afbf6f2f+wt

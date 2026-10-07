@@ -1,3 +1,11 @@
+//! Preserve expression identity while adding type meaning.
+//!
+//! Normalization can share an operand between several operations. Lowering
+//! each edge into a fresh expression used to turn that one occurrence into
+//! multiple calls. The mapping lives for one root and one fixed lowering
+//! context, not across statements or symbol substitutions; independently
+//! authored handles remain independently evaluated.
+
 use crate::expressions::equatable::EqualityScope;
 use crate::expressions::expression::domain_membership::{
     lower_case_membership_expression, lower_domain_membership_expression,
@@ -32,6 +40,10 @@ pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
     /// (proof-only) data stays a raw Binary for the structural entailment
     /// judge instead of demanding runtime synthesis (math roster N3).
     pub(super) fact_position: bool,
+    lowered_expressions: Vec<(
+        resolved::expression::ExpressionHandle,
+        typed::expression::ExpressionHandle,
+    )>,
 }
 
 impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
@@ -49,6 +61,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             symbol_substitution,
             equality_scope,
             fact_position: false,
+            lowered_expressions: Vec::new(),
         }
     }
 
@@ -128,6 +141,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         expression: resolved::expression::ExpressionHandle,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        if let Some((_, lowered)) = self
+            .lowered_expressions
+            .iter()
+            .find(|(source, _)| *source == expression)
+        {
+            return Ok(*lowered);
+        }
         let source_span = self.source.source_span(expression);
         let authored_selection_occurrences = self
             .source
@@ -137,6 +157,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         self.target().set_source_span(lowered, source_span);
         self.target()
             .attach_authored_selection_occurrences(lowered, authored_selection_occurrences);
+        self.lowered_expressions.push((expression, lowered));
         Ok(lowered)
     }
 

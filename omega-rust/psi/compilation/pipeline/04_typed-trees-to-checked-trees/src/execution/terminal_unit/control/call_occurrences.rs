@@ -16,6 +16,11 @@ use crate::execution::terminal_unit::control::call_results::checked_structural_r
 
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
+struct ComputationVisit {
+    computation: CheckedScalarComputationHandle,
+    completed: bool,
+}
+
 /// An unconditional named machine invocation completes this Unit body after
 /// its ordinary call operation. Internal state destinations remain control
 /// edges; guarded invocations must not be hoisted into this linear sequence.
@@ -1395,7 +1400,7 @@ fn collect_structural_argument_calls(
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
-    active: &mut Vec<CheckedScalarComputationHandle>,
+    visits: &mut Vec<ComputationVisit>,
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
     if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
@@ -1439,7 +1444,7 @@ fn collect_structural_argument_calls(
             handle,
             calls,
             minimum_call_ordinal,
-            active,
+            visits,
             consumed,
         )?;
     }
@@ -1454,14 +1459,24 @@ fn collect(
     handle: CheckedScalarComputationHandle,
     calls: &[checked_trees::FlowCallFact],
     minimum_call_ordinal: u32,
-    active: &mut Vec<CheckedScalarComputationHandle>,
+    visits: &mut Vec<ComputationVisit>,
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
     let plans = &facts.values.scalar_computations;
-    if !plans.nodes.is_valid(handle) || active.contains(&handle) {
+    if !plans.nodes.is_valid(handle) {
         return None;
     }
-    active.push(handle);
+    // A computation is a DAG value, not one invocation per incoming edge.
+    // Reuse a completed node's accounting; an unfinished visit is a cycle.
+    // Distinct nodes still cannot claim the same captured call below.
+    if let Some(visit) = visits.iter().find(|visit| visit.computation == handle) {
+        return visit.completed.then_some(());
+    }
+    let visit_index = visits.len();
+    visits.push(ComputationVisit {
+        computation: handle,
+        completed: false,
+    });
     match &plans.nodes.get(handle).kind {
         CheckedScalarComputationKind::CaseMembership {
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
@@ -1476,7 +1491,7 @@ fn collect(
                 subject,
                 calls,
                 minimum_call_ordinal,
-                active,
+                visits,
                 consumed,
             )?;
         }
@@ -1493,7 +1508,7 @@ fn collect(
                     field.value,
                     calls,
                     minimum_call_ordinal,
-                    active,
+                    visits,
                     consumed,
                 )?;
             }
@@ -1507,7 +1522,7 @@ fn collect(
                 *left,
                 calls,
                 minimum_call_ordinal,
-                active,
+                visits,
                 consumed,
             )?;
             collect(
@@ -1518,7 +1533,7 @@ fn collect(
                 *right,
                 calls,
                 minimum_call_ordinal,
-                active,
+                visits,
                 consumed,
             )?;
         }
@@ -1533,7 +1548,7 @@ fn collect(
                 *operand,
                 calls,
                 minimum_call_ordinal,
-                active,
+                visits,
                 consumed,
             )?;
         }
@@ -1546,7 +1561,7 @@ fn collect(
                 *subject,
                 calls,
                 minimum_call_ordinal,
-                active,
+                visits,
                 consumed,
             )?;
             for arm in plans.dispatch_arms.span(*arms)? {
@@ -1559,7 +1574,7 @@ fn collect(
                         pattern,
                         calls,
                         minimum_call_ordinal,
-                        active,
+                        visits,
                         consumed,
                     )?;
                 }
@@ -1571,7 +1586,7 @@ fn collect(
                     arm.value,
                     calls,
                     minimum_call_ordinal,
-                    active,
+                    visits,
                     consumed,
                 )?;
             }
@@ -1592,7 +1607,7 @@ fn collect(
                 subject,
                 calls,
                 minimum_call_ordinal,
-                active,
+                visits,
                 consumed,
             )?;
             // This selected primitive owns its authored call occurrence even
@@ -1667,7 +1682,7 @@ fn collect(
                     operand,
                     calls,
                     minimum_call_ordinal,
-                    active,
+                    visits,
                     consumed,
                 )?;
             }
@@ -1683,7 +1698,7 @@ fn collect(
                         source,
                         calls,
                         minimum_call_ordinal,
-                        active,
+                        visits,
                         consumed,
                     )?;
                 }
@@ -1699,7 +1714,7 @@ fn collect(
                             field.value,
                             calls,
                             minimum_call_ordinal,
-                            active,
+                            visits,
                             consumed,
                         )?;
                     }
@@ -1716,7 +1731,7 @@ fn collect(
                     *operand,
                     calls,
                     minimum_call_ordinal,
-                    active,
+                    visits,
                     consumed,
                 )?;
             }
@@ -1736,12 +1751,12 @@ fn collect(
                     *operand,
                     calls,
                     minimum_call_ordinal,
-                    active,
+                    visits,
                     consumed,
                 )?;
             }
         }
     }
-    active.pop();
+    visits[visit_index].completed = true;
     Some(())
 }

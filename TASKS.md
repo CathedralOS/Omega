@@ -3233,6 +3233,10 @@ deletions, which the commit lists.
   `calls/authored_numeric_name_requires`, `arithmetic/authored_max_result_bound`
   and `modules/ambiguous_numeric_callable_not_builtin` constrain selected-call
   behavior, declared contracts, result bounds and fail-closed ambiguity.
+  `calls/runtime_numeric_operand_{single_evaluation,order}_exit` (0) constrain
+  occurrence identity, operand snapshots, ordered effects and evaluation lifetime;
+  `calls/numeric_operand_{call_requires,exclusive_arguments_overlap}` and
+  `arithmetic/numeric_operand_abs_unrepresentable` must reject independently.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.

@@ -8,6 +8,13 @@ pub(super) fn collect_expression_borrow_calls(
     collection: &mut BorrowCallCollection<'_>,
     expression: ExpressionHandle,
 ) {
+    // Normalize one expression occurrence once, even when several DAG edges
+    // use its value. Borrow and semantic lookup must assign the same call
+    // ordinal; distinct authored handles still establish distinct loans.
+    if collection.expressions.contains(&expression) {
+        return;
+    }
+    collection.expressions.push(expression);
     let program = collection.program;
     if super::super::children::recurse_shared_children(program, expression, &mut |child| {
         collect_expression_borrow_calls(collection, child);

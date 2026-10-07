@@ -14,6 +14,37 @@ impl<'program> Evaluator<'program> {
         handle: ExpressionHandle,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
+        let outermost = frame.scalar_expression_depth == 0;
+        if outermost {
+            frame.scalar_expression_values.clear();
+        }
+        if let Some((_, value)) = frame
+            .scalar_expression_values
+            .iter()
+            .find(|(expression, _)| *expression == handle)
+        {
+            return Ok(value.clone());
+        }
+        frame.scalar_expression_depth += 1;
+        let result = self.eval_expression_node(handle, frame);
+        frame.scalar_expression_depth -= 1;
+        if let Ok(
+            value @ (Value::Int(_) | Value::Bool(_) | Value::Float(_) | Value::UndeterminedNaN(_)),
+        ) = &result
+        {
+            frame.scalar_expression_values.push((handle, value.clone()));
+        }
+        if outermost {
+            frame.scalar_expression_values.clear();
+        }
+        result
+    }
+
+    fn eval_expression_node(
+        &mut self,
+        handle: ExpressionHandle,
+        frame: &mut Frame,
+    ) -> EvalResult<Value> {
         self.tick()?;
         let node = self.program.expression_table.expression(handle).clone();
         if matches!(
