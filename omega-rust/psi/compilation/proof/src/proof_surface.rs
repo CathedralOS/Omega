@@ -78,7 +78,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
             Item::Data(data_definition) => {
                 for member in syntax_trees.items.data_members(data_definition.members) {
                     if let DataMember::Field(field) = member {
-                        collect_bounded_type_site_tree(
+                        collect_bounded_type_site(
                             &mut report,
                             syntax_trees,
                             field.type_reference,
@@ -139,7 +139,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                         PropositionBodySurface::Primitive
                     }
                     syntax_trees::item::PropositionBody::Witness { evidence } => {
-                        collect_bounded_type_site_tree(
+                        collect_bounded_type_site(
                             &mut report,
                             syntax_trees,
                             evidence,
@@ -153,7 +153,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                 };
                 for parameter in syntax_trees.items.state_parameters(proposition.parameters) {
                     let parameter = syntax_trees.items.state_parameter(*parameter);
-                    collect_bounded_type_site_tree(
+                    collect_bounded_type_site(
                         &mut report,
                         syntax_trees,
                         parameter.type_reference,
@@ -381,45 +381,6 @@ fn collect_bounded_type_site(
     }
 }
 
-fn collect_bounded_type_site_tree(
-    report: &mut ProofSurfaceReport,
-    syntax_trees: &SyntaxTrees,
-    type_reference: TypeReferenceHandle,
-    owner: &str,
-) {
-    match syntax_trees.type_references.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            collect_bounded_type_site_tree(report, syntax_trees, *referee, owner);
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            report.bounded_sites.insert(BoundedTypeSite {
-                owner: owner.to_owned(),
-                base_type: type_reference_name(syntax_trees, *base_type),
-                constraints: constraint_handle_name(syntax_trees, *constraints),
-            });
-            collect_bounded_type_site_tree(report, syntax_trees, *base_type, owner);
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            collect_bounded_type_site_tree(report, syntax_trees, *element_type, owner);
-        }
-        TypeReferenceNode::Slice { element_type } => {
-            collect_bounded_type_site_tree(report, syntax_trees, *element_type, owner);
-        }
-        TypeReferenceNode::Generic { arguments, .. } => {
-            for argument in syntax_trees
-                .type_references
-                .type_reference_handles(*arguments)
-            {
-                collect_bounded_type_site_tree(report, syntax_trees, *argument, owner);
-            }
-        }
-        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {}
-        TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
-    }
-}
 
 fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReferenceHandle) -> String {
     match syntax_trees.type_references.type_reference(type_reference) {
