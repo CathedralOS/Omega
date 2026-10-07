@@ -2495,35 +2495,47 @@ code and preserve check/native behavior for the named customer slices.
 
 
 - **UNIT-PLAN-GAPS-REPORTED-AT-SOURCE.** (new-scope)
-  Report an unsupported executable construct at its source span rather than
-  dropping a body into `OmissionLedger` and failing later at entry
-  establishment. Stage 04 `execution/terminal_unit/` builders return
-  `Option`; fallback builders retry different plans. Carry a structured
-  failure through ordinary plan construction, delete omission/retry bookkeeping,
-  and distinguish unsupported valid code from a violated checking obligation.
+  A demanded body without a Unit plan reports an `Incomplete` coverage
+  diagnostic at the unsupported construct's source span, and
+  `OmissionLedger`/`CheckedUnitPlanOmissionStage` are gone (7f2571cd346).
+  Remaining: retry-based body selection. Both stage 04 builders (the
+  statement sequence, `control::build_checked_machine_traced`, and
+  `state_graph::build_traced`) still run on every checked body, and overlap
+  resolution in `execution/terminal_unit/mod.rs` keeps one plan when both
+  succeed; the candidate closure still carries a competing-candidate cause.
 
-  Probe the upstream failed decision, not merely its phase string. Existing
-  customers are `pass/text/runtime_local_struct_string_field_concat_exit`,
-  `pass/traits/runtime_dyn_two_impl_dispatch_exit` and
-  `pass/ownership/linear_transparent_record_frontier`. Their current semantic
-  repairs belong respectively to **REFERENCE-BEARING-RECORD-LOCAL-FILL**,
-  **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION** and
-  **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS**; old receiver-era site
-  maps must not dictate new lowering. Content partition transport is unfinished
-  implementation under **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**,
-  not an unnamed owner decision.
+  Choose the route from the body's shape before building. A trial rule (a
+  single state without transitions into its own recursive component, state
+  contracts or non-linear nominal-drop owners, whose result is Unit, a
+  scalar, or a structural value outside the graph's result vocabulary, is a
+  sequence; everything else is a graph) leaves 7 corpus fixtures needing the
+  other builder's capability. The graph cannot yet take a tail call to an
+  acyclic machine in a transition (`pass/collections/named_transition_completion`,
+  `Filesystem::create_dir_all` in `pass/filesystem/dir_walk_wrappers_exit`),
+  owned record state parameters of the specialized containers in
+  `pass/generics/runtime_{const_container_methods,container_setter_matrix}_exit`,
+  or copy locals consumed by calls nested in a returned literal
+  (`pass/calls/runtime_lifetime_only_constructor_result_exit`,
+  `pass/providers/generic_provider_structural_result_composition_exit`). A
+  linear structural result with machine contracts is refused by the graph's
+  result vocabulary and by the sequence's `checked_state_contracts_supported`
+  gate (`pass/structs/runtime_{nonzero_array_elements,qualified_record_call_composition}_exit`).
+  Close those in the builders, then route by shape.
 
-  Preserve `pass/wire/wire_preserving_decode_relay_exit` (exit 70):
-  borrowed-slice length metadata is not an owned move.
-  `pass/build/uefi_os_handoff_invocation` retains its checked body; its native
-  catalog gap belongs to **UEFI-OS-HANDOFF**. Keep
-  `fail/build/placed_view_program_entry_input` rejecting its invalid entry.
+  The customers' semantic repairs belong to **REFERENCE-BEARING-RECORD-LOCAL-FILL**
+  (`pass/text/runtime_local_struct_string_field_concat_exit`),
+  **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**
+  (`pass/traits/runtime_dyn_two_impl_dispatch_exit`) and
+  **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS**
+  (`pass/ownership/linear_transparent_record_frontier`). Preserve
+  `pass/wire/wire_preserving_decode_relay_exit` (exit 70) and
+  `pass/build/uefi_os_handoff_invocation`'s checked body.
+  `fail/build/placed_view_program_entry_input` refuses its entry with an
+  `Incomplete` gap until call-bound custody supplies its `view` argument.
 
-  Acceptance: each still-unsupported body reports the actual construct and
-  source span from `omega --check`; repaired customers execute instead.
-  `OmissionLedger`, `CheckedUnitPlanOmissionStage` and retry-based body
-  selection are gone, with no silent body omission or weaker fallback.
-
+  Acceptance: one route per checked body, chosen by shape; overlap
+  resolution and the competing-candidate cause are gone, with no silent body
+  omission or weaker fallback; check and native corpus unchanged.
 
 - **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS.** (split-of:PROJECTED-OWNED-LET-CONTINUATION)
   Preserve the path-indexed linear claim frontier of an affine record in
