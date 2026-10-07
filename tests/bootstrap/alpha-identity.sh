@@ -2,18 +2,10 @@
 set -eu
 
 TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../.." && pwd -P)
-export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
+GATE_ENVS="alpha/seed_env.sh"
+. "$TEST_DIR/gate_env.sh"
 
-TMP=$(mktemp -d)
-trap 'rm -rf -- "$TMP"' EXIT
-
-fail() {
-  echo "FAIL $1" >&2
-  exit 1
-}
+. "$TEST_DIR/gate_tmp.sh"
 
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 

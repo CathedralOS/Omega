@@ -2,23 +2,15 @@
 set -eu
 
 TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../.." && pwd -P)
-export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/omega/compiler_env.sh"
+GATE_ENVS="omega/compiler_env.sh"
+. "$TEST_DIR/gate_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
   echo "Omega identity: skipped (python3 absent)"
   exit 0
 }
 
-TMP=$(mktemp -d)
-trap 'rm -rf -- "$TMP"' EXIT
-
-fail() {
-  echo "FAIL $1" >&2
-  exit 1
-}
+. "$TEST_DIR/gate_tmp.sh"
 
 flip_byte() {
   if [ "$(od -An -tc -j 100 -N1 "$1" | tr -d ' ')" = "a" ]; then
