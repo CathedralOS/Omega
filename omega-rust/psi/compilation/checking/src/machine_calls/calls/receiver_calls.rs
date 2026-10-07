@@ -86,14 +86,12 @@ pub(super) fn validate_receiver_call(
         declared_receiver_type_reference(program, current_machine, state, receiver)
     });
 
-    if let Some(error) = receiver_type_reference.and_then(|type_reference| {
-        crate::declarations::traits::dynamic_receiver_call_error(
-            program,
-            type_reference,
-            call.target.as_str(),
-        )
-    }) {
-        diagnostics.push(Diagnostic::error(error));
+    if crate::declarations::traits::report_dynamic_receiver_call_error(
+        program,
+        receiver_type_reference,
+        call.target.as_str(),
+        diagnostics,
+    ) {
         return;
     }
 

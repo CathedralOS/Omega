@@ -656,14 +656,12 @@ fn validate_expression_call_bounds(
                 .and_then(|type_reference| named_type_reference_name(program, type_reference))
         });
 
-    if let Some(error) = receiver_type_reference.and_then(|type_reference| {
-        crate::declarations::traits::dynamic_receiver_call_error(
-            program,
-            type_reference,
-            call.target.as_str(),
-        )
-    }) {
-        diagnostics.push(Diagnostic::error(error));
+    if crate::declarations::traits::report_dynamic_receiver_call_error(
+        program,
+        receiver_type_reference,
+        call.target.as_str(),
+        diagnostics,
+    ) {
         return;
     }
 

@@ -420,6 +420,24 @@ pub(crate) fn dynamic_selector_application(
 /// A receiver-style call on a selector (`selector.member(...)`) has no
 /// target: the selector is a dispatch operand, so the call names the
 /// requirement through its trait and passes the selector first.
+/// Report the dynamic-receiver call error `receiver_type_reference` carries,
+/// when any — the `.and_then`-push-return spine the call-site validators share.
+/// Returns true when a diagnostic was emitted.
+pub(crate) fn report_dynamic_receiver_call_error(
+    program: &TypedTrees,
+    receiver_type_reference: Option<TypeReferenceHandle>,
+    target: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let Some(error) = receiver_type_reference
+        .and_then(|type_reference| dynamic_receiver_call_error(program, type_reference, target))
+    else {
+        return false;
+    };
+    diagnostics.push(Diagnostic::error(error));
+    true
+}
+
 pub(crate) fn dynamic_receiver_call_error(
     program: &TypedTrees,
     receiver_type: TypeReferenceHandle,

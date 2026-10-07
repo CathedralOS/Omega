@@ -53,7 +53,8 @@ pub use dynamic::{
     resolve_dynamic_call_targets, resolve_selected_dynamic_call_targets,
 };
 pub(crate) use dynamic::{
-    dynamic_receiver_call_error, dynamic_requirement_ineligibility, dynamic_selector_application,
+    dynamic_requirement_ineligibility, dynamic_selector_application,
+    report_dynamic_receiver_call_error,
 };
 pub(crate) use named_implementations::{arguments_for_declaring_trait, validate_conformances};
 pub(crate) use requirements::validate_trait_requirements;

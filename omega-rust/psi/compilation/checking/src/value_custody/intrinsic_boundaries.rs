@@ -356,7 +356,6 @@ pub fn exact_byte_read_result_type(
     result_type: typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     use typed_trees::data::DataMember;
-    use typed_trees::types::TypeConstraintNode;
 
     let (data, symbol) = checked_shape_data_declaration(program, result_type, "ByteRead")?;
     let [DataMember::Variant(eof), DataMember::Variant(byte)] = program.data_members(data) else {

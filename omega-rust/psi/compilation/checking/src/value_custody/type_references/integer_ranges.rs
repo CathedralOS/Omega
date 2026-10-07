@@ -9,7 +9,7 @@
 use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// An arithmetic-policy-only integer result changes future operation meaning,
 /// not the set of representable payloads. It owes no extra range predicate.

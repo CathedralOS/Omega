@@ -5,7 +5,6 @@
 //! `external_shapes.rs` the external native shapes; `generic_operator.rs`
 //! stays as it was.
 
-
 /// The provider's effectively-reached services outside `allowed_services`,
 /// named for diagnostics; `None` (with the missing-summary diagnostic
 /// already pushed) when the provider has no inferred summary.
