@@ -30,31 +30,10 @@ pub(super) fn validate(
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
-    let mut type_parameters = program.machine_type_parameters(machine).to_vec();
-    let mut lifetime_parameters = machine.lifetime_parameters.clone();
-    if let Some(attached_data) = &machine.attached_data
-        && let Some(definition) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name == *attached_data)
-    {
-        for parameter in program.data_type_parameters(definition) {
-            if !type_parameters
-                .iter()
-                .any(|existing| existing.symbol == parameter.symbol)
-            {
-                type_parameters.push(parameter.clone());
-            }
-        }
-        for parameter in &definition.lifetime_parameters {
-            if !lifetime_parameters
-                .iter()
-                .any(|existing| existing == parameter)
-            {
-                lifetime_parameters.push(parameter.clone());
-            }
-        }
-    }
+    let (type_parameters, lifetime_parameters) = program
+        .machine_and_attached_data_parameters(machine, |existing, parameter| {
+            existing.symbol == parameter.symbol
+        });
     validate_type_reference_handle_with_type_parameters(
         program,
         local_data.type_reference,

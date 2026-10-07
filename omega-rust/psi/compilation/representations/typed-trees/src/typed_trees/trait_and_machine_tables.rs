@@ -390,6 +390,42 @@ impl TypedTrees {
             .span_or_empty(machine.type_parameters)
     }
 
+    /// The machine's own parameters extended by its attached data
+    /// definition's, deduplicated under `same_type_parameter` — each
+    /// validation lane picks name or symbol identity.
+    pub fn machine_and_attached_data_parameters(
+        &self,
+        machine: &machine::Machine,
+        same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
+    ) -> (Vec<data::TypeParameter>, Vec<crate::name::Identifier>) {
+        let mut type_parameters = self.machine_type_parameters(machine).to_vec();
+        let mut lifetime_parameters = machine.lifetime_parameters.clone();
+        if let Some(attached_data) = &machine.attached_data
+            && let Some(definition) = self
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name == *attached_data)
+        {
+            for parameter in self.data_type_parameters(definition) {
+                if !type_parameters
+                    .iter()
+                    .any(|existing| same_type_parameter(existing, parameter))
+                {
+                    type_parameters.push(parameter.clone());
+                }
+            }
+            for parameter in &definition.lifetime_parameters {
+                if !lifetime_parameters
+                    .iter()
+                    .any(|existing| existing == parameter)
+                {
+                    lifetime_parameters.push(parameter.clone());
+                }
+            }
+        }
+        (type_parameters, lifetime_parameters)
+    }
+
     /// The authored callable contract of a compile-time machine parameter in
     /// `machine`. The parameter symbol is also the contract's call-target
     /// identity until specialization replaces it with a concrete state.
