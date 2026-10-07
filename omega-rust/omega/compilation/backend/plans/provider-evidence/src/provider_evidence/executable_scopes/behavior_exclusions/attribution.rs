@@ -95,9 +95,6 @@ impl ProhibitedSite {
                     .unwrap_or("<undeclared boundary>");
                 format!("call to boundary `{identity}` (block {block}, operation {operation})")
             }
-            ProhibitedSite::DynamicCall { block, operation } => {
-                format!("dynamic call (block {block}, operation {operation})")
-            }
             ProhibitedSite::PortWrite { block, operation } => {
                 format!("port write (block {block}, operation {operation})")
             }
@@ -109,9 +106,6 @@ impl EvidenceGapKind {
     /// Describe why the retained closure cannot establish absence.
     pub fn describe(&self) -> String {
         match self {
-            EvidenceGapKind::DynamicCall => {
-                "a dynamic call has no bounded retained realization".to_owned()
-            }
             EvidenceGapKind::UnknownCallee(callee) => {
                 format!("call target machine {callee} is not retained in the module")
             }

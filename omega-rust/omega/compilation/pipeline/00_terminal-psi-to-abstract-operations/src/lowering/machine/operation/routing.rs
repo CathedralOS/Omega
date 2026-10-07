@@ -456,13 +456,6 @@ pub(super) fn lower(
                 obligation: *obligation,
             })
         }
-        OperationKind::StoreDynamicDescriptor { .. }
-        | OperationKind::CallDynamicScalar { .. }
-        | OperationKind::CallDynamicParameterScalar { .. }
-        | OperationKind::CallDynamicUnit { .. }
-        | OperationKind::CallDynamicParameterUnit { .. } => {
-            Err(LoweringError::UnsupportedDynamicDispatch(machine.id))
-        }
         OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishStructuralArray { .. }
         | OperationKind::EstablishScalarCase { .. }

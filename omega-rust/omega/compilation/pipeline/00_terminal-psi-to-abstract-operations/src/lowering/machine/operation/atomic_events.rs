@@ -330,12 +330,6 @@ fn latest_write(
         )
     };
     match &operation.kind {
-        // Dynamic descriptors can capture aliases outside this operation's
-        // explicit projection roster. No event history crosses that call.
-        OperationKind::CallDynamicScalar { .. }
-        | OperationKind::CallDynamicUnit { .. }
-        | OperationKind::CallDynamicParameterScalar { .. }
-        | OperationKind::CallDynamicParameterUnit { .. } => return Some(Reaching::Unknown),
         OperationKind::AtomicAccess {
             place: other_root,
             path: other_path,

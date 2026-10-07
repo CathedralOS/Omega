@@ -53,10 +53,7 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
             closure.push(*root);
         }
     }
-    let embedded_roots = closure.clone();
-    let mut computation_targets = Vec::new();
     let mut structural_members = structural_roots.to_vec();
-    let mut attached_members = Vec::new();
     let mut next = 0_usize;
     while let Some(machine) = closure.get(next).copied() {
         next += 1;
@@ -75,15 +72,11 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
             selection.signature,
             CheckedTerminalSignatureEligibility::Eligible
                 | CheckedTerminalSignatureEligibility::FreeUnitEffect
-                | CheckedTerminalSignatureEligibility::Attached
         );
         if selection.name.is_empty() || !supported_signature {
             return unsupported(
                 "embedded scalar call closure has an unsupported terminal signature",
             );
-        }
-        if selection.signature == CheckedTerminalSignatureEligibility::Attached {
-            attached_members.push(machine);
         }
         let callee = if structural_members.contains(&machine) {
             crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
@@ -145,11 +138,6 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
                 }
             }
         }
-        for target in &computed {
-            if !computation_targets.contains(target) {
-                computation_targets.push(*target);
-            }
-        }
         for target in direct_targets {
             crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find(
                 checked, target,
@@ -177,14 +165,6 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
                 closure.push(target);
             }
         }
-    }
-    // Check after discovery so two callers reaching the same callee do not make
-    // static eligibility depend on the closure's worklist order.
-    if attached_members
-        .iter()
-        .any(|machine| !embedded_roots.contains(machine) && !computation_targets.contains(machine))
-    {
-        return unsupported("embedded scalar call closure has an unsupported terminal signature");
     }
     Ok(closure)
 }

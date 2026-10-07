@@ -18,35 +18,33 @@
 //! the separate upstream authority that produced the bytes.
 
 use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError, malformed};
-use crate::execution::{ExecutableMachine, RuntimeDynamicDescriptorTemplate};
+use crate::execution::ExecutableMachine;
 use crate::instance::TerminalInstance;
 use crate::structural_inputs::TerminalStructuralInputs;
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, StructuralTypeId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    BoundaryMachineDeclaration, StructuralArgument, StructuralTypeDeclaration, TerminalModule,
-    TerminalPsiIdentity,
+    BoundaryMachineDeclaration, StructuralTypeDeclaration, TerminalModule, TerminalPsiIdentity,
 };
 
 /// The immutable content of one verified Terminal-Psi module, shared verbatim
 /// by every instance of the same admitted program.
 ///
 /// Admission splits the module into the execution-ready projections the
-/// interpreter loop reads — `machines`, the indexed declaration maps, the
-/// dynamic dispatch tables — plus `catalogs`, the subset of roster rows a
+/// interpreter loop reads — `machines` and the indexed declaration maps —
+/// plus `catalogs`, the subset of roster rows a
 /// fresh instance still consults: the entry selector, the direct-entry
 /// placed-view input rows, and the structural type and domain rosters that
 /// placed-view referent validation runs against. Verification-only payloads
-/// (proof vocabularies, dynamic dispatch custody, conformance applications)
-/// are dropped at admission rather than retained per program.
+/// (proof vocabularies, conformance applications) are dropped at admission rather than retained per program.
 #[derive(Clone)]
 pub(crate) struct AdmittedTerminalProgram {
     /// Canonical Terminal-Psi identity of the verified module, computed once
     /// at admission; provider installations bind to this exact identity.
     pub(crate) identity: TerminalPsiIdentity,
-    /// Slim catalog: entry, placed-view inputs, structural types/domains and
-    /// entry dynamic-descriptor declarations. These descriptions grant no host
+    /// Slim catalog: entry, placed-view inputs and structural types/domains.
+    /// These descriptions grant no host
     /// provisions; drivers name required ingress without rebuilding source.
     /// Other rosters are empty after admission consumes their authority.
     pub(crate) catalogs: TerminalModule,
@@ -57,13 +55,6 @@ pub(crate) struct AdmittedTerminalProgram {
     /// dispatch to the installed provider machine and are never host imports:
     /// a host binding cannot substitute for a checked provider.
     pub(crate) provider_candidates: BTreeSet<BoundaryMachineId>,
-    pub(crate) dynamic_scalar_calls: BTreeMap<(MachineId, u32), (MachineId, StructuralArgument)>,
-    pub(crate) dynamic_descriptor_templates:
-        BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
-    pub(crate) dynamic_selection_templates:
-        BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
-    pub(crate) dynamic_descriptor_arguments:
-        BTreeMap<(MachineId, OperationId), Vec<terminal_psi::TerminalDynamicDescriptorArgument>>,
 }
 
 impl AdmittedTerminalProgram {
@@ -97,137 +88,6 @@ impl AdmittedTerminalProgram {
                 )
             })
             .collect::<BTreeMap<_, _>>();
-        let mut dynamic_scalar_calls = module
-            .dynamic_dispatch
-            .indirect_dispatches
-            .iter()
-            .map(|dispatch| {
-                let descriptor = module
-                    .dynamic_dispatch
-                    .rebound_descriptors
-                    .iter()
-                    .find(|descriptor| {
-                        descriptor.owner == dispatch.owner
-                            && descriptor.ordinal == dispatch.descriptor_ordinal
-                    })
-                    .expect("verified indirect dispatch has one descriptor");
-                let selection = module
-                    .dynamic_dispatch
-                    .selections
-                    .iter()
-                    .find(|selection| {
-                        selection.owner == descriptor.owner
-                            && selection.ordinal == descriptor.rebound_selection_ordinal
-                    })
-                    .expect("verified descriptor has one latest selection");
-                (
-                    (dispatch.owner, dispatch.descriptor_ordinal),
-                    (dispatch.realization, selection.source.clone()),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        for dispatch in &module.dynamic_dispatch.stored_dispatches {
-            let descriptor = module
-                .dynamic_dispatch
-                .stored_descriptors
-                .iter()
-                .find(|descriptor| {
-                    descriptor.owner == dispatch.owner
-                        && descriptor.ordinal == dispatch.descriptor_ordinal
-                })
-                .expect("verified stored dispatch has one descriptor");
-            let selection = module
-                .dynamic_dispatch
-                .selections
-                .iter()
-                .find(|selection| {
-                    selection.owner == descriptor.owner
-                        && selection.ordinal == descriptor.selection_ordinal
-                })
-                .expect("verified stored descriptor has one selection");
-            assert!(
-                dynamic_scalar_calls
-                    .insert(
-                        (dispatch.owner, dispatch.descriptor_ordinal),
-                        (dispatch.realization, selection.source.clone()),
-                    )
-                    .is_none(),
-                "verified dynamic descriptor coordinates must be disjoint"
-            );
-        }
-        let dynamic_selection_templates = module
-            .dynamic_dispatch
-            .selections
-            .iter()
-            .map(|selection| {
-                let application = module
-                    .closed_conformance_applications
-                    .iter()
-                    .find(|application| {
-                        application.owner == selection.owner
-                            && application.report_fingerprint
-                                == selection.conformance_application_report_fingerprint
-                            && application.commitment
-                                == selection.conformance_application_commitment
-                    })
-                    .expect("verified selection has one conformance application");
-                let callables = application
-                    .rows
-                    .iter()
-                    .map(|row| {
-                        row.realization_callable_identity.as_ref().map(|identity| {
-                            application
-                                .realization_callables
-                                .iter()
-                                .find(|callable| callable.source_callable_identity == *identity)
-                                .map(|callable| callable.machine)
-                                .expect("verified dynamic row has one callable")
-                        })
-                    })
-                    .collect();
-                (
-                    (selection.owner, selection.ordinal),
-                    RuntimeDynamicDescriptorTemplate {
-                        source: selection.source.clone(),
-                        callables,
-                    },
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let mut dynamic_descriptor_templates = module
-            .dynamic_dispatch
-            .rebound_descriptors
-            .iter()
-            .map(|descriptor| {
-                let template = dynamic_selection_templates
-                    .get(&(descriptor.owner, descriptor.rebound_selection_ordinal))
-                    .expect("verified descriptor has one latest selection")
-                    .clone();
-                ((descriptor.owner, descriptor.ordinal), template)
-            })
-            .collect::<BTreeMap<_, _>>();
-        for descriptor in &module.dynamic_dispatch.stored_descriptors {
-            let template = dynamic_selection_templates
-                .get(&(descriptor.owner, descriptor.selection_ordinal))
-                .expect("verified stored descriptor has one selection")
-                .clone();
-            assert!(
-                dynamic_descriptor_templates
-                    .insert((descriptor.owner, descriptor.ordinal), template)
-                    .is_none(),
-                "verified dynamic descriptor coordinates must be disjoint"
-            );
-        }
-        let mut dynamic_descriptor_arguments = BTreeMap::<
-            (MachineId, OperationId),
-            Vec<terminal_psi::TerminalDynamicDescriptorArgument>,
-        >::new();
-        for argument in &module.dynamic_dispatch.arguments {
-            dynamic_descriptor_arguments
-                .entry((argument.owner, argument.operation))
-                .or_default()
-                .push(argument.clone());
-        }
         let boundary_machines = module
             .boundary_machines
             .iter()
@@ -246,12 +106,6 @@ impl AdmittedTerminalProgram {
             .map(|candidate| candidate.boundary)
             .collect();
         let mut catalogs = TerminalModule::for_entry(module.entry);
-        catalogs.dynamic_dispatch.parameters = module
-            .dynamic_dispatch
-            .parameters
-            .into_iter()
-            .filter(|parameter| parameter.owner == module.entry)
-            .collect();
         catalogs.placed_view_inputs = std::mem::take(&mut module.placed_view_inputs);
         catalogs.structural_types = std::mem::take(&mut module.structural_types);
         catalogs.structural_domains = std::mem::take(&mut module.structural_domains);
@@ -262,10 +116,6 @@ impl AdmittedTerminalProgram {
             structural_types,
             boundary_machines,
             provider_candidates,
-            dynamic_scalar_calls,
-            dynamic_descriptor_templates,
-            dynamic_selection_templates,
-            dynamic_descriptor_arguments,
         })
     }
 
@@ -310,7 +160,6 @@ impl std::fmt::Debug for TerminalProgram {
 pub struct TerminalProgramEntry<'program> {
     pub scalar_parameters: &'program [terminal_psi::ValueDeclaration],
     pub structural_parameters: &'program [terminal_psi::StructuralParameterDeclaration],
-    pub dynamic_parameters: &'program [terminal_psi::TerminalDynamicDescriptorParameter],
     pub placed_view_inputs: &'program [terminal_psi::TerminalPlacedViewInput],
     pub result: &'program terminal_psi::TerminalMachineResult,
 }
@@ -324,7 +173,6 @@ impl TerminalProgram {
             scalar_parameters: &machine.parameters,
             structural_parameters: &machine.structural_parameters,
             placed_view_inputs: &self.program.catalogs.placed_view_inputs,
-            dynamic_parameters: &self.program.catalogs.dynamic_dispatch.parameters,
             result: &machine.result,
         }
     }

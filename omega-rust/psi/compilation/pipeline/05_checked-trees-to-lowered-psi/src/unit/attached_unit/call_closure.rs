@@ -138,8 +138,7 @@ pub(super) fn checked_terminal_machine_name(
     let selection = unique_terminal_selection(checked, symbol)?;
     if !matches!(
         selection.signature,
-        CheckedTerminalSignatureEligibility::Attached
-            | CheckedTerminalSignatureEligibility::FreeUnitEffect
+        CheckedTerminalSignatureEligibility::FreeUnitEffect
             | CheckedTerminalSignatureEligibility::Eligible
     ) {
         return unsupported("Unit-effect member has an invalid checked terminal selection");

@@ -14,10 +14,8 @@
 //! and prepares the exit entailment results (`entailment`) and the cyclic
 //! header invariants (`exits`). It then walks each state's flow:
 //!
-//! 1. for each call: the scalar tail result domains (`exits`), the refusal of
-//!    erased formals on a dynamic-dispatch requirement
-//!    (`dynamic_erased_lane`), and the call's requirements (`calls`, which
-//!    also checks the nominal inputs);
+//! 1. for each call: the scalar tail result domains (`exits`) and the call's
+//!    requirements (`calls`, which also checks the nominal inputs);
 //! 2. for each exit: the scalar result domains, the `ensures` clauses, the
 //!    result field domains and the field domains of readable `&mut`
 //!    referents (`exits`);
@@ -37,7 +35,6 @@ mod argument_intervals;
 mod assembly;
 pub(crate) mod calls;
 pub(crate) mod contextual_cleanup;
-mod dynamic_erased_lane;
 mod evidence;
 mod exits;
 
@@ -145,13 +142,6 @@ pub(super) fn check_flow_call_contracts(
             }
             exits::check_state_transfer_result_domains(
                 program,
-                state_flow,
-                call_flow,
-                &mut diagnostics,
-            );
-            dynamic_erased_lane::check_dynamic_erased_formal_lane(
-                program,
-                facts,
                 state_flow,
                 call_flow,
                 &mut diagnostics,

@@ -28,20 +28,6 @@ pub(super) fn lower_machine(
     machine: &TerminalMachine,
 ) -> Result<AbstractFunction, LoweringError> {
     let structural_types = &module.structural_types;
-    // The retired data-attached dynamic route has no abstract lowering; the
-    // named-implementation selector route replaces it.
-    let dynamic_dispatch = &module.dynamic_dispatch;
-    if dynamic_dispatch
-        .parameters
-        .iter()
-        .any(|parameter| parameter.owner == machine.id)
-        || dynamic_dispatch
-            .arguments
-            .iter()
-            .any(|argument| argument.owner == machine.id)
-    {
-        return Err(LoweringError::UnsupportedDynamicDispatch(machine.id));
-    }
     let result = machine.result.scalar();
     let blocks = machine
         .blocks

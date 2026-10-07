@@ -4,8 +4,7 @@
 //! machine carries: it dispatches on the plan's kind to the body that owns it
 //! — nominal and partial affine cleanup, composed control, structural control
 //! — and publishes what each kind completes. The module also owns attached
-//! closure assembly, bounded dynamic composed dispatch and the entry
-//! requirements every Unit body must satisfy.
+//! closure assembly and the entry requirements every Unit body must satisfy.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -25,7 +24,7 @@ use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
     ServiceReachInterface, ServiceReachPlan, ServiceReachRowId, ServiceReachSummary,
 };
-use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
+use lowered_psi::LoweredPsi;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, DomainSemanticId, EdgeId, IntegerSign, IntegerType,
     IntegerValue, MachineId, ObligationId, PlaceId, Proposition, QualifiedScalarType, ScalarTerm,
@@ -64,16 +63,15 @@ use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
 };
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
-use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
+use crate::proofs::content_conservation;
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{
     lower_boundary_crash_routes, lower_checked_crash_route_buckets,
     lower_structural_crash_route_buckets, structural_crash_route_argument_prefix,
     substitute_structural_crash_route_roots,
 };
-use crate::proofs::{content_conservation, evidence_lowering};
 use crate::retention::placed_view_inputs::lower_placed_view_input;
 use crate::returns::structural_types::{
     lower_mixed_cases, lower_mixed_fields, lower_structural_type_plans,
@@ -88,9 +86,8 @@ use crate::terminal_identities::{
     structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{
-    checked_unit_target_reach_matches, collect_service_summary,
-    lower_composed_unit_control_machine, lower_installation_machine_service_ceiling,
-    lower_root_service_reach, lower_unit_closure, lower_unit_parameters, unique_unit_machine,
+    lower_composed_unit_control_machine, lower_unit_closure, lower_unit_parameters,
+    unique_unit_machine,
 };
 use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
 use crate::unit::unit_cleanup::{
@@ -102,7 +99,6 @@ pub(crate) mod crash_interface;
 pub(crate) use crash_interface::effective_crash_routes;
 pub(crate) mod plan_omissions;
 pub(crate) use plan_omissions::unit_plan_omission_explanation;
-pub(crate) mod dynamic_composed_unit;
 pub(crate) mod runtime_requirements;
 pub(crate) mod structural_unit_control;
 pub(crate) mod unit_cleanup;

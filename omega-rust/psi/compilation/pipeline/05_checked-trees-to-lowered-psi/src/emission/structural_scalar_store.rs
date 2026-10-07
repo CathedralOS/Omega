@@ -6,28 +6,21 @@
 //! in for checking this value immediately before this store.
 
 use super::{
-    CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitStructuralPathSegment,
-    LoweringError, OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralAccess,
-    StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
-    ValueId, allocate_dense, obligation_id, terminal_scalar_type, unsupported,
+    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PlaceId, ScalarType,
+    StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, ValueId, allocate_dense, obligation_id,
+    terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::ProjectionStep;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StoreAccessPolicy {
-    MutableOnly,
-    Exclusive,
-}
 
 pub(crate) struct LoweredStructuralScalarStore {
     /// Carrier steps from the destination root; a runtime element's selector
     /// is evaluated by the emitter before the stored value.
     pub steps: Vec<ProjectionStep>,
     pub field: StructuralFieldId,
-    pub scalar_type: ScalarType,
     pub requires_range_obligation: bool,
     bounded_integer: Option<semantic_vocabulary::BoundedIntegerType>,
     pub range_decided: bool,
@@ -52,7 +45,6 @@ impl LoweredStructuralScalarStore {
             range_decided: false,
             steps,
             field: field.id,
-            scalar_type,
             requires_range_obligation: terminal_semantics::scalar_field_requires_evidence(
                 &field.field_type,
             ),
@@ -79,11 +71,6 @@ impl LoweredStructuralScalarStore {
             self.bounded_integer,
         )?;
         Ok(())
-    }
-
-    /// The static carrier path, for routes that evaluate no selector.
-    pub(crate) fn static_path(&self) -> Result<Vec<StructuralPathSegment>, LoweringError> {
-        crate::emission::runtime_elements::static_segments(self.steps.clone())
     }
 
     /// Each replacement requests its own declaration-derived range proof against
@@ -172,36 +159,6 @@ pub(crate) fn source_range_decided(
     Ok(decided)
 }
 
-pub(crate) fn lower_structural_scalar_store_destination(
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
-    expected_statement_index: u32,
-    parameter: &StructuralParameterDeclaration,
-    structural_types: &[StructuralTypeDeclaration],
-    scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
-    available_scalar_types: &[ScalarType],
-    access_policy: StoreAccessPolicy,
-) -> Result<LoweredStructuralScalarStore, LoweringError> {
-    if store.destination.parameter_position() != Some(parameter.position)
-        || !checked_store_source_matches(
-            store.value.as_pure().ok_or(LoweringError::Unsupported(
-                "this structural scalar store route requires a pure RHS",
-            ))?,
-            store.primitive_type,
-            scalar_parameters,
-            available_scalar_types,
-        )
-    {
-        return unsupported("structural scalar store lost exact exclusive custody");
-    }
-    lower_structural_scalar_store_place(
-        store,
-        expected_statement_index,
-        parameter,
-        structural_types,
-        access_policy,
-    )
-}
-
 /// Resolve the destination independently of the ordered source expression.
 /// Callers must validate and emit that expression in its current scalar namespace.
 /// They also rejoin the authored destination through their source-position map
@@ -212,7 +169,6 @@ pub(crate) fn lower_structural_scalar_store_place(
     expected_statement_index: u32,
     parameter: &StructuralParameterDeclaration,
     structural_types: &[StructuralTypeDeclaration],
-    access_policy: StoreAccessPolicy,
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
     let scalar_type = terminal_scalar_type(store.primitive_type)?;
     let (steps, field) = lower_structural_field_place_steps(
@@ -229,7 +185,6 @@ pub(crate) fn lower_structural_scalar_store_place(
         &store.field_identity,
         parameter,
         structural_types,
-        access_policy,
     )?;
     LoweredStructuralScalarStore::at_field(scalar_type, steps, field)
 }
@@ -264,7 +219,6 @@ pub(crate) fn lower_structural_field_place<'a>(
     field_identity: &str,
     parameter: &StructuralParameterDeclaration,
     structural_types: &'a [StructuralTypeDeclaration],
-    access_policy: StoreAccessPolicy,
 ) -> Result<
     (
         Vec<StructuralPathSegment>,
@@ -280,7 +234,6 @@ pub(crate) fn lower_structural_field_place<'a>(
         field_identity,
         parameter,
         structural_types,
-        access_policy,
     )?;
     Ok((
         crate::emission::runtime_elements::static_segments(steps)?,
@@ -298,7 +251,6 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
     field_identity: &str,
     parameter: &StructuralParameterDeclaration,
     structural_types: &'a [StructuralTypeDeclaration],
-    access_policy: StoreAccessPolicy,
 ) -> Result<
     (
         Vec<ProjectionStep>,
@@ -306,7 +258,7 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
     ),
     LoweringError,
 > {
-    validate_root_access(parameter, access_policy)?;
+    validate_root_access(parameter)?;
     if statement_index != expected_statement_index
         || destination_parameter_position != parameter.position
     {
@@ -321,18 +273,15 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
 }
 
 /// Typed field projections and representation-byte projections require the
-/// same live root authority. Geometry cannot turn a shared place exclusive.
+/// same exclusive live root authority. Geometry cannot turn a shared place
+/// exclusive.
 pub(crate) fn validate_root_access(
     parameter: &StructuralParameterDeclaration,
-    access_policy: StoreAccessPolicy,
 ) -> Result<(), LoweringError> {
-    let access_matches = match access_policy {
-        StoreAccessPolicy::MutableOnly => parameter.access == StructuralAccess::MutableBorrow,
-        StoreAccessPolicy::Exclusive => matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        ),
-    };
+    let access_matches = matches!(
+        parameter.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    );
     if !access_matches
         || !matches!(
             parameter.multiplicity,
@@ -658,86 +607,4 @@ pub(crate) fn lower_window_path<'a>(
         }
     }
     unsupported("structural window path has no leaf segment")
-}
-
-fn checked_store_source_matches(
-    value: &CheckedScalarExpression,
-    primitive_type: PrimitiveType,
-    scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
-    available_scalar_types: &[ScalarType],
-) -> bool {
-    if checked_store_literal_matches(value, primitive_type) {
-        return true;
-    }
-    if let CheckedScalarExpression::Local {
-        position,
-        primitive_type: source_type,
-    } = value
-    {
-        return scalar_parameters.is_empty()
-            && *position == 0
-            && *source_type == primitive_type
-            && terminal_scalar_type(*source_type).ok()
-                == available_scalar_types.get(*position).copied()
-            && available_scalar_types.len() == 1
-            && matches!(
-                primitive_type,
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            );
-    }
-    if scalar_parameters.is_empty() {
-        return checked_store_literal_matches(value, primitive_type);
-    }
-    let (position, source_type) = match value {
-        CheckedScalarExpression::Parameter {
-            position,
-            primitive_type,
-        } => (*position, *primitive_type),
-        CheckedScalarExpression::Boolean(boolean) => {
-            let CheckedBooleanExpression::Parameter { position } = boolean.as_ref() else {
-                return false;
-            };
-            (*position, PrimitiveType::Bool)
-        }
-        _ => return false,
-    };
-    scalar_parameters.get(position).is_some_and(|parameter| {
-        Some(parameter.source_position) == authored_scalar_position(position)
-            && parameter.primitive_type == primitive_type
-            && source_type == primitive_type
-    }) && scalar_parameters
-        .iter()
-        .enumerate()
-        .all(|(index, parameter)| {
-            Some(parameter.source_position) == authored_scalar_position(index)
-        })
-}
-
-fn authored_scalar_position(dense_position: usize) -> Option<u32> {
-    u32::try_from(dense_position).ok()?.checked_add(1)
-}
-
-pub(crate) fn checked_store_literal_matches(
-    value: &CheckedScalarExpression,
-    primitive_type: PrimitiveType,
-) -> bool {
-    match (value, primitive_type) {
-        (CheckedScalarExpression::IeeeFloatLiteral { value }, primitive_type) => {
-            terminal_scalar_type(primitive_type).ok() == Some(ScalarType::IeeeFloat(value.format()))
-        }
-        (CheckedScalarExpression::IntegerLiteral { .. }, primitive_type) => {
-            primitive_type.accepts_integer_literal()
-        }
-        (CheckedScalarExpression::Boolean(boolean), PrimitiveType::Bool) => {
-            matches!(boolean.as_ref(), CheckedBooleanExpression::Constant(_))
-        }
-        _ => false,
-    }
 }

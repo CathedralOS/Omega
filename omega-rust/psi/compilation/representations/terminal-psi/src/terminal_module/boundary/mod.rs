@@ -2,7 +2,6 @@
 
 mod conformances;
 mod declarations;
-mod dynamic_dispatch;
 mod providers;
 mod reach_applications;
 mod services;
@@ -18,14 +17,6 @@ pub use declarations::{
     BoundaryParameterKind, BoundaryStructuralResultDeclaration, ContentConservationGuarantee,
     ProgramLocalRootIntroductionSchema, StructuralDomainRequirement,
     program_local_root_introduction_compatibility_report_identity,
-};
-pub use dynamic_dispatch::{
-    TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
-    TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
-    TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog, TerminalDynamicRequirement,
-    TerminalIndirectDynamicDispatch, TerminalParameterDynamicDispatch,
-    TerminalReboundDynamicDescriptor, TerminalStoredDynamicDescriptor,
-    TerminalStoredDynamicDispatch,
 };
 pub use providers::{
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,

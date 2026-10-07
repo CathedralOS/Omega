@@ -15,9 +15,9 @@ pub(super) struct BlockLocalEvidence {
     pub blocks: BTreeSet<BlockId>,
     /// Edges carrying qualification coercions or invariant arrivals.
     pub edges: BTreeSet<EdgeId>,
-    /// Operations carrying suspension plans, proof-output joins, dynamic
-    /// dispatches, reborrow restorations, closed reach calls, partition
-    /// theorem producers, or crash contracts.
+    /// Operations carrying suspension plans, proof-output joins, reborrow
+    /// restorations, closed reach calls, partition theorem producers, or
+    /// crash contracts.
     pub operations: BTreeSet<OperationId>,
     /// Values named inside propositions, coercion endpoints, retained
     /// suspension frontiers, float entry range parameters, or float-meaning
@@ -105,23 +105,6 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
         if let Some(runtime) = &call.runtime_call {
             evidence.operations.insert(runtime.operation);
         }
-    }
-    let dispatch = &module.dynamic_dispatch;
-    for operation in dispatch
-        .arguments
-        .iter()
-        .map(|row| row.operation)
-        .chain(dispatch.direct_dispatches.iter().map(|row| row.operation))
-        .chain(dispatch.indirect_dispatches.iter().map(|row| row.operation))
-        .chain(dispatch.stored_dispatches.iter().map(|row| row.operation))
-        .chain(
-            dispatch
-                .parameter_dispatches
-                .iter()
-                .map(|row| row.operation),
-        )
-    {
-        evidence.operations.insert(operation);
     }
     for restoration in &module.reborrow_restored_call_uses {
         evidence.operations.insert(restoration.operation);
@@ -269,7 +252,7 @@ pub(super) fn retained_machines_with_roots(
 /// Every machine identity a module-level row names is a retention root:
 /// coercions, float and integer entry ranges, invariants, operation crash
 /// contracts, suspensions, proof outputs, conformance applications,
-/// dynamic-dispatch custody, reborrow publications, placed views, float
+/// reborrow publications, placed views, float
 /// projections, evidence lanes, providers, and attached machines each keep
 /// their named machine regardless of call reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
@@ -314,36 +297,6 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
         for callable in &application.realization_callables {
             roots.insert(callable.machine);
         }
-    }
-    let dispatch = &module.dynamic_dispatch;
-    for owner in dispatch
-        .parameters
-        .iter()
-        .map(|row| row.owner)
-        .chain(dispatch.arguments.iter().map(|row| row.owner))
-        .chain(dispatch.selections.iter().map(|row| row.owner))
-        .chain(dispatch.rebound_descriptors.iter().map(|row| row.owner))
-        .chain(dispatch.stored_descriptors.iter().map(|row| row.owner))
-        .chain(dispatch.direct_dispatches.iter().map(|row| row.owner))
-        .chain(dispatch.indirect_dispatches.iter().map(|row| row.owner))
-        .chain(dispatch.stored_dispatches.iter().map(|row| row.owner))
-        .chain(dispatch.parameter_dispatches.iter().map(|row| row.owner))
-    {
-        roots.insert(owner);
-    }
-    for realization in dispatch
-        .direct_dispatches
-        .iter()
-        .map(|row| row.realization)
-        .chain(
-            dispatch
-                .indirect_dispatches
-                .iter()
-                .map(|row| row.realization),
-        )
-        .chain(dispatch.stored_dispatches.iter().map(|row| row.realization))
-    {
-        roots.insert(realization);
     }
     for handoff in &module.reborrow_root_handoffs {
         roots.insert(handoff.machine);

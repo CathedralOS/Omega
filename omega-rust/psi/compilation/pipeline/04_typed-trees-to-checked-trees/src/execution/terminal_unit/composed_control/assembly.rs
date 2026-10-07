@@ -1,4 +1,4 @@
-//! Atomic assembly after topology, guard, leaf, and provider admission.
+//! Atomic assembly of state-graph Unit control plans after provider admission.
 use super::super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedProviderAttachmentRequirementPlan, MachineSupplyMode, TypedTrees,

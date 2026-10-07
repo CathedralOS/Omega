@@ -1,12 +1,11 @@
 //! Emit a composed callee using the enclosing closure's catalogs and identities.
 use super::super::super::{
-    MachineId, ServiceDeclaration, ServiceId, ServiceReachId, StructuralDomainDeclaration,
-    StructuralParameterDeclaration, StructuralTypeDeclaration,
+    MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
 use super::super::operation_frame::BoundaryParameters;
 use super::super::{
-    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, StructuralTypeId, TerminalMachine,
-    ValueDeclaration, lookup_machine_id,
+    CheckedBoundaryMachinePlan, StructuralTypeId, TerminalMachine, ValueDeclaration,
+    lookup_machine_id,
 };
 use super::{CheckedTrees, LoweringError, catalogs, scalar_calls, state_graph};
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
@@ -37,12 +36,8 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
 pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub type_ids: &'a [(String, StructuralTypeId)],
-    pub structural_domains: &'a [StructuralDomainDeclaration],
     pub domain_ids: &'a [StructuralDomainBinding],
-    pub services: &'a [ServiceDeclaration],
     pub service_ids: &'a [(ServiceReachId, ServiceId)],
-    pub root_service_reach: &'a terminal_psi::TerminalRootServiceReach,
-    pub boundaries: &'a [BoundaryMachineDeclaration],
     pub boundary_parameters: &'a [BoundaryParameters],
     pub machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
     pub signatures: &'a [MachineSignature],
@@ -87,11 +82,7 @@ pub(in crate::unit::attached_unit) fn emit(
         result_places: Vec::new(),
         structural_types: Cow::Borrowed(shared.structural_types),
         type_ids: Cow::Borrowed(shared.type_ids),
-        structural_domains: Cow::Borrowed(shared.structural_domains),
         domain_ids: Cow::Borrowed(shared.domain_ids),
-        services: Cow::Borrowed(shared.services),
-        root_service_reach: Cow::Borrowed(shared.root_service_reach),
-        boundary_machines: Cow::Borrowed(shared.boundaries),
         lowered_boundaries: catalogs::LoweredComposedBoundary::roster(shared.boundary_parameters),
         boundary_parameters: Cow::Borrowed(shared.boundary_parameters),
         signatures: Cow::Borrowed(shared.signatures),
@@ -117,7 +108,6 @@ pub(in crate::unit::attached_unit) fn emit(
                 .collect(),
         ),
         root_crash_routes: crate::unit::effective_crash_routes(checked, plan.machine)?,
-        shared_units: None,
         next_place: *counters.place,
         next_value: *counters.value,
         next_block: *counters.block,

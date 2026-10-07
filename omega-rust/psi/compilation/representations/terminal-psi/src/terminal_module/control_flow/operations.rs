@@ -588,13 +588,6 @@ pub enum OperationKind {
     EstablishRecord {
         fields: Vec<crate::RecordFieldInitializer>,
     },
-    /// Establish one already-selected two-word dynamic descriptor in the
-    /// exact aggregate field named by the module dynamic-dispatch catalog.
-    /// The specialized catalog owns aggregate shape and conformance custody;
-    /// later representation planning chooses physical local storage.
-    StoreDynamicDescriptor {
-        descriptor_ordinal: u32,
-    },
     /// Invoke one in-module machine with positional scalar arguments. Each
     /// callee `requires` clause has the obligation identity at the same index;
     /// successful return binds the operation result. `crash_continuations`
@@ -645,43 +638,6 @@ pub enum OperationKind {
         erased_proof_arguments: Vec<ProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
-        requirement_obligations: Vec<ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one scalar-result requirement through an owner-local dynamic
-    /// descriptor. Exact descriptor versions, conformance application, table
-    /// row, and realization callable remain in the module dynamic-dispatch
-    /// catalog. This operation intentionally carries no static callee or raw
-    /// source argument.
-    CallDynamicScalar {
-        descriptor_ordinal: u32,
-        requirement_obligations: Vec<ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one scalar-result requirement through an existential descriptor
-    /// received as a machine parameter. The dynamic catalog owns the exact
-    /// parameter interface and operation-to-slot join; this operation retains
-    /// only the executable coordinates.
-    CallDynamicParameterScalar {
-        parameter_ordinal: u32,
-        requirement_slot: u32,
-        requirement_obligations: Vec<ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one Unit-returning requirement through an owner-local dynamic
-    /// descriptor. This operation creates no scalar value or structural
-    /// place; the dynamic catalog retains its exact descriptor and row join.
-    CallDynamicUnit {
-        descriptor_ordinal: u32,
-        requirement_obligations: Vec<ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one Unit-returning requirement through an existential descriptor
-    /// parameter. The parameter interface and requirement-slot join remain in
-    /// the dynamic catalog, and successful completion creates no result value.
-    CallDynamicParameterUnit {
-        parameter_ordinal: u32,
-        requirement_slot: u32,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
@@ -1169,11 +1125,6 @@ impl OperationKind {
             | Self::StructuralByteSequenceFieldLength { .. }
             | Self::StructuralByteViewFieldStore { .. }
             | Self::EstablishTrivialAffineLocal { .. }
-            | Self::StoreDynamicDescriptor { .. }
-            | Self::CallDynamicScalar { .. }
-            | Self::CallDynamicParameterScalar { .. }
-            | Self::CallDynamicUnit { .. }
-            | Self::CallDynamicParameterUnit { .. }
             | Self::CallStructural { .. }
             | Self::PortWrite { .. }
             | Self::IntegerConstant { .. }

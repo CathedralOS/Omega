@@ -18,7 +18,6 @@ pub struct CheckedTerminalMachineSelection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedTerminalSignatureEligibility {
     Eligible,
-    Attached,
     FreeUnitEffect,
     Unsupported,
 }

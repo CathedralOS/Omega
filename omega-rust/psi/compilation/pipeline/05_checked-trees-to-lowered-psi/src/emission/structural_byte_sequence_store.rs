@@ -311,7 +311,6 @@ pub(crate) fn emit_content_store(
                         field_identity,
                         parameter,
                         structural_types,
-                        crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
                     )?
                 }
                 StoreRoot::Reference {
@@ -536,7 +535,6 @@ pub(crate) fn prepare_descriptor_store(
                 field_identity,
                 parameter,
                 structural_types,
-                crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
             )?,
         ),
         StoreRoot::Reference {

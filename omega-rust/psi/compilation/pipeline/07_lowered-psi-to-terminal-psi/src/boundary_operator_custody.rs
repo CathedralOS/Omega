@@ -1,13 +1,12 @@
 //! Reconstruct boundary-operator applications and bind their custody to the published artifact.
 
-mod dynamic_calls;
 mod float_comparisons;
 mod integer_comparisons;
 mod result_policies;
 
 use checked_trees::CheckedTrees;
 use lowered_psi::LoweredPsi;
-use semantic_vocabulary::{MachineId, OperationId};
+use semantic_vocabulary::OperationId;
 use std::collections::BTreeSet;
 
 fn unsupported<T>(message: &'static str) -> Result<T, &'static str> {
@@ -24,7 +23,6 @@ pub struct CheckedBoundaryOperatorApplicationScope {
     terminal_artifact_identity: terminal_codec::TerminalArtifactIdentity,
     applications: Vec<checked_trees::CheckedBoundaryOperatorApplicationDemand>,
     occurrences: Vec<CheckedBoundaryOperatorApplicationOccurrence>,
-    dynamic_call_occurrences: Vec<CheckedDynamicCallOccurrence>,
 }
 
 impl CheckedBoundaryOperatorApplicationScope {
@@ -48,99 +46,6 @@ impl CheckedBoundaryOperatorApplicationScope {
 
     pub fn occurrences(&self) -> &[CheckedBoundaryOperatorApplicationOccurrence] {
         &self.occurrences
-    }
-
-    /// Exact source-produced dynamic calls replayed into the admitted
-    /// descriptor-table lanes, one row per surviving Terminal occurrence.
-    pub fn dynamic_call_occurrences(&self) -> &[CheckedDynamicCallOccurrence] {
-        &self.dynamic_call_occurrences
-    }
-}
-
-/// Which checked descriptor-table roster one source-produced dynamic-call
-/// occurrence rejoins. The rebound and stored lanes are local
-/// descriptor-table materializations; the forwarded lanes rejoin the
-/// register-indirect dispatch a generated helper chain's existential
-/// descriptor parameter performs. Direct plans emit a different catalog
-/// species and stay unadmitted here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedDynamicCallLane {
-    /// A rebound scalar binding: a scalar dispatch through a materialized
-    /// rebound descriptor (`CallDynamicScalar`).
-    ReboundScalar,
-    /// A rebound Unit binding: a Unit dispatch through a materialized rebound
-    /// descriptor (`CallDynamicUnit`).
-    ReboundUnit,
-    /// A stored scalar binding: a scalar dispatch through a descriptor
-    /// established in one local aggregate field (`StoreDynamicDescriptor`
-    /// then `CallDynamicScalar`). Stored Unit calls are refused at lowering,
-    /// so the lane is scalar-only.
-    StoredScalar,
-    /// A forwarded scalar binding: a scalar dispatch through an existential
-    /// descriptor parameter (`CallDynamicParameterScalar`) at the end of a
-    /// generated helper chain, whether one root caller or a checked
-    /// two-predecessor join supplies it.
-    ForwardedScalar,
-    /// A forwarded Unit binding: a Unit dispatch through an existential
-    /// descriptor parameter (`CallDynamicParameterUnit`) under the same
-    /// helper-chain custody.
-    ForwardedUnit,
-}
-
-/// Compiler-private join from one retained checked dynamic-call plan to the
-/// exact Terminal operation and descriptor-table row produced for it.
-/// `plan_index` addresses the checked `dynamic_dispatch.calls` roster, whose
-/// row is the rebound, stored or forwarded binding `lane` names;
-/// the machine/operation pair names the emitted `CallDynamic*` occurrence the
-/// native projection must retain.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckedDynamicCallOccurrence {
-    lane: CheckedDynamicCallLane,
-    plan_index: usize,
-    terminal_machine: MachineId,
-    terminal_operation: OperationId,
-    descriptor_ordinal: u32,
-}
-
-impl CheckedDynamicCallOccurrence {
-    pub(super) const fn new(
-        lane: CheckedDynamicCallLane,
-        plan_index: usize,
-        terminal_machine: MachineId,
-        terminal_operation: OperationId,
-        descriptor_ordinal: u32,
-    ) -> Self {
-        Self {
-            lane,
-            plan_index,
-            terminal_machine,
-            terminal_operation,
-            descriptor_ordinal,
-        }
-    }
-
-    pub const fn lane(self) -> CheckedDynamicCallLane {
-        self.lane
-    }
-
-    /// Index into the lane's checked dynamic-call plan roster.
-    pub const fn plan_index(self) -> usize {
-        self.plan_index
-    }
-
-    pub const fn terminal_machine(self) -> MachineId {
-        self.terminal_machine
-    }
-
-    pub const fn terminal_operation(self) -> OperationId {
-        self.terminal_operation
-    }
-
-    /// Owner-local descriptor ordinal the dispatch consumes: a rebound
-    /// descriptor row for the rebound lanes, a stored descriptor row for the
-    /// stored lane, a dynamic descriptor parameter for the forwarded lanes.
-    pub const fn descriptor_ordinal(self) -> u32 {
-        self.descriptor_ordinal
     }
 }
 
@@ -182,7 +87,6 @@ pub fn checked_boundary_operator_scope(
         terminal_artifact_identity: artifact.manifest().identity(),
         applications: checked.facts.operators.boundary_applications.clone(),
         occurrences: checked_boundary_operator_occurrences(checked, lowered)?,
-        dynamic_call_occurrences: dynamic_calls::replay(checked, lowered)?,
     })
 }
 

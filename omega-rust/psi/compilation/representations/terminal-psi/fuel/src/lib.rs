@@ -60,14 +60,9 @@ impl TerminalFuelSchedule {
             | OperationKind::EstablishStructuralArray { .. }
             | OperationKind::EstablishRecord { .. }
             | OperationKind::EstablishStructuralCase { .. }
-            | OperationKind::StoreDynamicDescriptor { .. }
             | OperationKind::Call { .. }
             | OperationKind::CallUnit { .. }
             | OperationKind::CallStructuralScalar { .. }
-            | OperationKind::CallDynamicScalar { .. }
-            | OperationKind::CallDynamicParameterScalar { .. }
-            | OperationKind::CallDynamicUnit { .. }
-            | OperationKind::CallDynamicParameterUnit { .. }
             | OperationKind::CallStructural { .. }
             | OperationKind::CallStructuralWithScalarArguments { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }

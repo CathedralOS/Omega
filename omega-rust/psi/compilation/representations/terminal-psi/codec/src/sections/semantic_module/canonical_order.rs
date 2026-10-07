@@ -104,28 +104,6 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     }
     if !strictly_increasing(
         module
-            .dynamic_dispatch
-            .parameters
-            .iter()
-            .map(|parameter| (parameter.owner, parameter.ordinal)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "dynamic descriptor parameters by owner and ordinal",
-        ));
-    }
-    if !strictly_increasing(module.dynamic_dispatch.arguments.iter().map(|argument| {
-        (
-            argument.owner,
-            argument.operation,
-            argument.parameter_ordinal,
-        )
-    })) {
-        return Err(CodecError::NonCanonicalOrder(
-            "dynamic descriptor arguments by owner, operation, and parameter ordinal",
-        ));
-    }
-    if !strictly_increasing(
-        module
             .structural_types
             .iter()
             .map(|declaration| declaration.id),
@@ -158,83 +136,6 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     ) {
         return Err(CodecError::NonCanonicalOrder(
             "closed conformance applications by owner, declaration, and fingerprint",
-        ));
-    }
-    if !strictly_increasing(
-        module
-            .dynamic_dispatch
-            .selections
-            .iter()
-            .map(|selection| (selection.owner, selection.ordinal)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "dynamic conformance selections by owner and ordinal",
-        ));
-    }
-    if !strictly_increasing(
-        module
-            .dynamic_dispatch
-            .direct_dispatches
-            .iter()
-            .map(|dispatch| (dispatch.owner, dispatch.operation)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "direct dynamic dispatches by owner and operation",
-        ));
-    }
-    if !strictly_increasing(
-        module
-            .dynamic_dispatch
-            .rebound_descriptors
-            .iter()
-            .map(|descriptor| (descriptor.owner, descriptor.ordinal)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "rebound dynamic descriptors by owner and ordinal",
-        ));
-    }
-    if !strictly_increasing(
-        module
-            .dynamic_dispatch
-            .stored_descriptors
-            .iter()
-            .map(|descriptor| (descriptor.owner, descriptor.ordinal)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "stored dynamic descriptors by owner and ordinal",
-        ));
-    }
-    if !strictly_increasing(
-        module
-            .dynamic_dispatch
-            .indirect_dispatches
-            .iter()
-            .map(|dispatch| (dispatch.owner, dispatch.operation)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "indirect dynamic dispatches by owner and operation",
-        ));
-    }
-    if !strictly_increasing(
-        module
-            .dynamic_dispatch
-            .parameter_dispatches
-            .iter()
-            .map(|dispatch| (dispatch.owner, dispatch.operation)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "parameter dynamic dispatches by owner and operation",
-        ));
-    }
-    if !strictly_increasing(
-        module
-            .dynamic_dispatch
-            .stored_dispatches
-            .iter()
-            .map(|dispatch| (dispatch.owner, dispatch.operation)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "stored dynamic dispatches by owner and operation",
         ));
     }
     for invocation in &module.proof_output_calls {
@@ -579,14 +480,6 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     ..
                 }
                 | OperationKind::CallStructuralScalar {
-                    crash_continuations,
-                    ..
-                }
-                | OperationKind::CallDynamicScalar {
-                    crash_continuations,
-                    ..
-                }
-                | OperationKind::CallDynamicParameterScalar {
                     crash_continuations,
                     ..
                 }

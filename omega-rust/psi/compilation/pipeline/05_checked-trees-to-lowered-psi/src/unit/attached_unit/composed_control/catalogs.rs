@@ -1,25 +1,13 @@
 //! Selected type, boundary, and service catalogs for composed Unit control.
 use super::super::super::{
-    BoundaryMachineId, ServiceDeclaration, ServiceId, ServiceReachId, ServiceReachPlan,
-    StructuralDomainDeclaration, StructuralTypeDeclaration,
+    BoundaryMachineId, ServiceId, ServiceReachId, StructuralTypeDeclaration,
 };
-use super::super::{
-    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
-    CheckedUnitEffectOperationPlan, LoweredPsi, SemanticDomainId, ServiceReachSummary,
-    StructuralPlaceDeclaration, StructuralTypeId, lower_root_service_reach, unsupported,
-};
-use super::{CheckedTrees, LoweringError, internal_calls, scalar_calls};
+use super::super::{StructuralPlaceDeclaration, StructuralTypeId};
+use super::scalar_calls;
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::terminal_identities::StructuralDomainBinding;
-use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
-use crate::unit::attached_unit::catalog::{
-    collect_installation_machine_contract_services, collect_published_contract_services,
-    collect_service_summary, lower_selected_unit_services, lower_unit_structural_domains_including,
-    lower_unit_structural_type_roots,
-};
 use crate::unit::attached_unit::operation_frame::BoundaryParameters;
 use crate::unit::attached_unit::signatures::MachineSignature;
-use checked_trees::CheckedUnitCallResult;
 use std::borrow::Cow;
 
 /// Standalone roots own their publication tables; shared callees borrow the
@@ -30,24 +18,18 @@ use std::borrow::Cow;
 pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
     pub(crate) type_ids: Cow<'a, [(String, StructuralTypeId)]>,
-    pub(crate) structural_domains: Cow<'a, [StructuralDomainDeclaration]>,
     pub(crate) domain_ids: Cow<'a, [StructuralDomainBinding]>,
-    pub(crate) services: Cow<'a, [ServiceDeclaration]>,
-    pub(crate) root_service_reach: Cow<'a, terminal_psi::TerminalRootServiceReach>,
-    pub(crate) boundary_machines: Cow<'a, [BoundaryMachineDeclaration]>,
     /// The boundaries a provider attachment names, by checked source.
     pub(crate) lowered_boundaries: Vec<LoweredComposedBoundary>,
     pub(in crate::unit::attached_unit) boundary_parameters: Cow<'a, [BoundaryParameters]>,
     /// The allocated signature of every Unit body the closure emits; a
     /// state's internal calls substitute into the callee's.
     pub(in crate::unit::attached_unit) signatures: Cow<'a, [MachineSignature]>,
-    /// The closure's Unit bodies and prepared scalar callees; a standalone
-    /// dynamic continuation has neither and makes no scalar call.
+    /// The closure's Unit bodies and prepared scalar callees.
     pub(in crate::unit::attached_unit) closure: &'a [symbols::SymbolHandle],
     pub(in crate::unit::attached_unit) prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
     /// The closure's scalar qualification namespace; a call's emitted
-    /// result republishes the callee's qualified result through it. A
-    /// standalone dynamic continuation carries none.
+    /// result republishes the callee's qualified result through it.
     pub(in crate::unit::attached_unit) prepared_scalar_qualifications:
         Option<&'a crate::expression_preparation::qualifications::PreparedScalarQualifications>,
     pub(crate) service_ids: Cow<'a, [(ServiceReachId, ServiceId)]>,
@@ -57,78 +39,10 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) result_places: Vec<StructuralPlaceDeclaration>,
     pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls,
     pub(crate) root_crash_routes: Vec<checked_trees::CrashRouteBucket>,
-    pub(crate) shared_units: Option<LoweredPsi>,
     pub(crate) next_value: u64,
     pub(crate) next_block: u64,
     pub(crate) next_operation: u64,
     pub(crate) next_edge: u64,
-}
-
-fn lower_composed_services(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    contract_service_reach: ServiceReachPlan,
-    service_reach: ServiceReachSummary,
-    states: &[checked_trees::CheckedComposedUnitControlStatePlan],
-    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
-    internal_targets: &[(UnitBody<'_>, String)],
-) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
-    let facts = &checked.facts.service_reaches;
-    let mut selected = Vec::new();
-    collect_installation_machine_contract_services(
-        checked,
-        machine,
-        contract_service_reach,
-        service_reach,
-        &mut selected,
-    )?;
-    for operation in states
-        .iter()
-        .flat_map(|state| state.operation_dependencies())
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-    {
-        // A boundary scalar call falls to the refusal with non-call operations.
-        let Some(call) = operation.call().filter(|call| {
-            !(call.is_boundary() && matches!(call.result(), CheckedUnitCallResult::Scalar(_)))
-        }) else {
-            match operation {
-                CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
-                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
-                | CheckedUnitEffectOperationPlan::AtomicAccess(_) => continue,
-                _ => return unsupported("composed Unit control contains a non-call operation"),
-            }
-        };
-        collect_service_summary(&facts.rows, call.target.service_reach, &mut selected)?;
-    }
-    for (boundary, _) in boundaries {
-        collect_published_contract_services(
-            &facts.rows,
-            boundary.contract_service_reach,
-            boundary.service_reach,
-            &mut selected,
-        )?;
-    }
-    for (target, _) in internal_targets {
-        let entry = target.entry()?;
-        collect_installation_machine_contract_services(
-            checked,
-            entry.machine,
-            entry.contract_service_reach,
-            target.service_reach(),
-            &mut selected,
-        )?;
-    }
-    lower_selected_unit_services(checked, selected)
 }
 
 pub(crate) struct LoweredComposedBoundary {
@@ -147,235 +61,4 @@ impl LoweredComposedBoundary {
             })
             .collect()
     }
-}
-
-pub(crate) fn lower_dynamic_catalogs(
-    checked: &CheckedTrees,
-    plan: &checked_trees::CheckedDynamicScalarCallPlan,
-    continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
-    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
-    internal_targets: &[(UnitBody<'_>, String)],
-) -> Result<ComposedCatalogs<'static>, LoweringError> {
-    let contract_service_reach = checked
-        .facts
-        .service_reaches
-        .plan_for_machine(plan.caller_machine)
-        .ok_or(LoweringError::Unsupported(
-            "direct dynamic continuation has no checked service contract",
-        ))?;
-    lower_catalogs(
-        checked,
-        plan.caller_machine,
-        Some(&plan.caller_attachment_type_identity),
-        contract_service_reach,
-        plan.caller_service_reach,
-        &continuation.leaves,
-        boundaries,
-        internal_targets,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn lower_catalogs(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    attachment_type_identity: Option<&str>,
-    contract_service_reach: ServiceReachPlan,
-    service_reach: ServiceReachSummary,
-    states: &[checked_trees::CheckedComposedUnitControlStatePlan],
-    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
-    admitted_internal_targets: &[(UnitBody<'_>, String)],
-) -> Result<ComposedCatalogs<'static>, LoweringError> {
-    if !admitted_internal_targets.is_empty() {
-        return internal_calls::catalogs::lower(
-            checked,
-            machine,
-            attachment_type_identity,
-            contract_service_reach,
-            service_reach,
-            states,
-            boundaries,
-            admitted_internal_targets,
-        );
-    }
-    let mut type_roots = attachment_type_identity
-        .map(str::to_owned)
-        .into_iter()
-        .collect::<Vec<_>>();
-    // A fused roster's case computations record under each state's authored
-    // owner machine, not the composed plan's dispatch machine.
-    let mut owners = vec![machine];
-    for state in states {
-        let (owner, _) = crate::declarations::state_declaration(checked, state.state)?;
-        if !owners.contains(&owner.symbol) {
-            owners.push(owner.symbol);
-        }
-    }
-    for owner in owners {
-        type_roots.extend(
-            crate::scalar_graph::scalar_computations::operand_types::type_roots(checked, owner)?,
-        );
-    }
-    type_roots.extend(
-        states
-            .iter()
-            .flat_map(|state| &state.structural_parameters)
-            .map(|parameter| parameter.type_identity.clone()),
-    );
-    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
-    for operation in states
-        .iter()
-        .flat_map(|state| state.operation_dependencies())
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-    {
-        super::super::catalog::collect_operation_type_roots(
-            checked,
-            plans,
-            operation,
-            &mut type_roots,
-        )?;
-    }
-    type_roots.extend(
-        states
-            .iter()
-            .flat_map(|state| state.successors())
-            .flat_map(|successor| &successor.transfers)
-            .filter_map(|transfer| match &transfer.source {
-                // A projected loan's carrier declares the `&'a V` view no
-                // parameter or operation names; it must reach the lowered
-                // table before the edge emits the EstablishReference op.
-                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                    carrier_identity,
-                    ..
-                } if !carrier_identity.is_empty() => Some(carrier_identity.clone()),
-                _ => None,
-            }),
-    );
-    for (boundary, _) in boundaries {
-        type_roots.extend(boundary.attachment_type_identity.iter().cloned());
-        type_roots.extend(
-            boundary
-                .structural_parameters
-                .iter()
-                .map(|parameter| parameter.type_identity.clone()),
-        );
-        if let Some(identity) = boundary.result.structural_identity() {
-            type_roots.push(identity.to_owned());
-        }
-    }
-    type_roots.extend(
-        admitted_internal_targets
-            .iter()
-            .filter_map(|(target, _)| target.attachment().map(str::to_owned)),
-    );
-    let (structural_types, type_ids) =
-        lower_unit_structural_type_roots(checked, plans, &type_roots)?;
-    let mut domain_roots = plans
-        .for_machine(machine)
-        .into_iter()
-        .flat_map(|plan| {
-            plan.structural_parameters
-                .iter()
-                .flat_map(|parameter| {
-                    parameter.qualifications.iter().chain(
-                        parameter
-                            .projected_qualifications
-                            .iter()
-                            .map(|row| &row.domain),
-                    )
-                })
-                .chain(plan.body_qualifications.iter())
-        })
-        .chain(
-            plans
-                .composed_for_machine(machine)
-                .into_iter()
-                .flat_map(|plan| plan.body_qualifications.iter()),
-        )
-        .chain(states.iter().flat_map(|state| {
-            state.structural_parameters.iter().flat_map(|parameter| {
-                parameter.qualifications.iter().chain(
-                    parameter
-                        .projected_qualifications
-                        .iter()
-                        .map(|row| &row.domain),
-                )
-            })
-        }))
-        .chain(boundaries.iter().flat_map(|(boundary, _)| {
-            boundary
-                .structural_parameters
-                .iter()
-                .flat_map(|parameter| parameter.qualifications.iter())
-                .chain(match &boundary.result {
-                    CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
-                        qualifications.as_slice()
-                    }
-                    CheckedBoundaryMachineResultPlan::Unit
-                    | CheckedBoundaryMachineResultPlan::Scalar(_) => &[],
-                })
-        }))
-        .copied()
-        .collect::<Vec<SemanticDomainId>>();
-    domain_roots.sort_by_key(|domain| domain.0);
-    domain_roots.dedup();
-    let (structural_domains, domain_ids) = lower_unit_structural_domains_including(
-        checked,
-        plans,
-        &[],
-        boundaries,
-        &type_ids,
-        &domain_roots,
-    )?;
-    let (services, service_ids) = lower_composed_services(
-        checked,
-        machine,
-        contract_service_reach,
-        service_reach,
-        states,
-        boundaries,
-        admitted_internal_targets,
-    )?;
-    let root_service_reach = lower_root_service_reach(checked, machine, &service_ids)?;
-    let mut next_place = 1_u64;
-    let (boundary_machines, boundary_parameters) =
-        crate::unit::attached_unit::boundaries::lower_declarations(
-            checked,
-            boundaries,
-            &type_ids,
-            &structural_types,
-            &domain_ids,
-            &service_ids,
-            &mut next_place,
-        )?;
-    let scalar_calls = scalar_calls::prepare(checked, machine, states)?;
-    let root_crash_routes = crate::unit::effective_crash_routes(checked, machine)?;
-    Ok(ComposedCatalogs {
-        structural_types: structural_types.into(),
-        type_ids: type_ids.into(),
-        structural_domains: structural_domains.into(),
-        domain_ids: domain_ids.into(),
-        services: services.into(),
-        root_service_reach: Cow::Owned(root_service_reach),
-        boundary_machines: boundary_machines.into(),
-        lowered_boundaries: LoweredComposedBoundary::roster(&boundary_parameters),
-        boundary_parameters: boundary_parameters.into(),
-        // No internal target means no signature to call and no scalar call
-        // (`admit_dynamic_continuation` admits only call-and-return leaves).
-        signatures: Cow::Owned(Vec::new()),
-        closure: &[],
-        prepared_scalar_machines: &[],
-        prepared_scalar_qualifications: None,
-        service_ids: service_ids.into(),
-        next_place,
-        temporary_places: Vec::new(),
-        result_places: Vec::new(),
-        scalar_calls,
-        root_crash_routes,
-        shared_units: None,
-        next_value: 1,
-        next_block: 1,
-        next_operation: 1,
-        next_edge: 1,
-    })
 }

@@ -96,18 +96,8 @@ pub(super) const NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD: u8 = 45;
 pub(super) const STRUCTURAL_SCALAR_FIELD_STORE: u8 = 46;
 /// `OperationKind::IntegerStructuralField`.
 pub(super) const INTEGER_STRUCTURAL_FIELD: u8 = 47;
-/// `OperationKind::CallDynamicScalar`.
-pub(super) const CALL_DYNAMIC_SCALAR: u8 = 48;
-/// `OperationKind::CallDynamicParameterScalar`.
-pub(super) const CALL_DYNAMIC_PARAMETER_SCALAR: u8 = 49;
 /// `OperationKind::CallStructuralWithScalarArguments`.
 pub(super) const CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS: u8 = 50;
-/// `OperationKind::CallDynamicUnit`.
-pub(super) const CALL_DYNAMIC_UNIT: u8 = 52;
-/// `OperationKind::CallDynamicParameterUnit`.
-pub(super) const CALL_DYNAMIC_PARAMETER_UNIT: u8 = 53;
-/// `OperationKind::StoreDynamicDescriptor`.
-pub(super) const STORE_DYNAMIC_DESCRIPTOR: u8 = 54;
 /// `OperationKind::ByteSequenceLength`.
 pub(super) const BYTE_SEQUENCE_LENGTH: u8 = 55;
 /// `OperationKind::ByteSequenceRead`.

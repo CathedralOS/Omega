@@ -39,16 +39,19 @@ remain independently checked for every ordinary parameter.
 codec, verifier and consumer migration. These byte layouts do not claim that
 the remaining consumer migration or end-to-end validation is complete.
 
-The same distinction applies to the legacy conformance subject field and the
-single structural argument stored in a dynamic selection below. The
+The same distinction applies to the legacy conformance subject field. The
 [named-implementation contract](../language/conformances.md#data-and-code-are-independent)
 has no subject. The [dynamic contract](dynamic_dispatch.md) retains an
 implementation selector separately from zero or more ordinary call arguments.
-`NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` and
-`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` must remove those legacy fields
-across producers, codecs, interpreters and consumers together. The byte tables
-record the current implementation during that migration; they do not authorize
-retaining the old semantic model or decoding it as a compatibility dialect.
+`NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` must remove the legacy subject field
+across producers, codecs, interpreters and consumers together. The retired
+data-attached dynamic operations, catalog sections and suspension targets have
+no wire form: their former operation tags 48, 49, 52, 53 and 54 and suspension
+target tags 3 and 4 are unassigned and reject, and
+`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` adds the selector route's own rows.
+The byte tables record the current implementation during that migration; they
+do not authorize retaining the old semantic model or decoding it as a
+compatibility dialect.
 
 Operation variants are closed and typed. Their referenced values must be
 available under the operation's definition/dominance rules. Each reconstructs
@@ -451,12 +454,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 45 | NearestIeeeFloatFusedMultiplyAdd | left value id + right value id + addend value id |
 | 46 | StructuralScalarFieldStore | destination place id + structural path + field id + value id; unchecked form |
 | 47 | IntegerStructuralField | source place id + scalar field carrier path + field id |
-| 48 | CallDynamicScalar | `u32` descriptor ordinal + obligation id list + crash routes |
-| 49 | CallDynamicParameterScalar | `u32` parameter ordinal + `u32` requirement slot + obligation id list + crash routes |
 | 50 | CallStructuralWithScalarArguments | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + counted returned claim transfers + obligation id list + crash routes |
-| 52 | CallDynamicUnit | `u32` descriptor ordinal + obligation id list + crash routes |
-| 53 | CallDynamicParameterUnit | `u32` parameter ordinal + `u32` requirement slot + obligation id list + crash routes |
-| 54 | StoreDynamicDescriptor | `u32` descriptor ordinal |
 | 55 | ByteSequenceLength | source place id |
 | 56 | ByteSequenceRead | source place id + index value id + length value id + obligation id |
 | 57 | ByteSequenceSubslice | source place id + start value id + end value id + length value id + obligation id |
@@ -621,19 +619,10 @@ the declaration order below and ending with the machine roster.
 | 18 | proof-output invocations | counted proof-output call rows |
 | 19 | proof recursive components | counted recursive component rows |
 | 20 | closed conformance applications | counted conformance application rows |
-| 21 | dynamic descriptor parameters | counted descriptor parameter rows |
-| 22 | dynamic descriptor arguments | counted descriptor argument rows |
-| 23 | dynamic conformance selections | counted conformance selection rows |
-| 24 | rebound dynamic descriptors | counted rebound descriptor rows |
-| 25 | stored dynamic descriptors | counted stored descriptor rows |
-| 26 | direct dynamic dispatches | counted direct dispatch rows |
-| 27 | indirect dynamic dispatches | counted indirect dispatch rows |
-| 28 | stored dynamic dispatches | counted stored dispatch rows |
-| 29 | parameter dynamic dispatches | counted parameter dispatch rows |
-| 30 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 31 | scalar block invariants | the counted invariant rows above |
-| 32 | operation crash contracts | counted operation crash contract rows |
-| 33 | machines | counted machine rows |
+| 21 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 22 | scalar block invariants | the counted invariant rows above |
+| 23 | operation crash contracts | counted operation crash contract rows |
+| 24 | machines | counted machine rows |
 
 The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by
@@ -1261,43 +1250,6 @@ subject field as the new representation.
 Closed conformance applications are strictly ordered by owner machine id,
 declaration identity, and report fingerprint.
 
-### Dynamic dispatch tables
-
-Implementation migration: the exactly-one structural argument in the selection
-row below belongs to the retired data-attached descriptor. In the replacement,
-selection rows identify implementations only; dispatch rows retain an explicit
-selector and the requirement's complete ordinary argument roster. Data arguments
-use the shared call vocabulary and preserve their own place/access/lifetime
-facts. The selector has no implied instance or subject parameter position.
-
-| Row | Fields |
-| --- | --- |
-| dynamic descriptor parameter | owner machine id + `u32` ordinal + `u32` source parameter position + trait identity string + structural access + counted requirements |
-| descriptor requirement | `u32` requirement slot + declaring trait identity string + public requirement identity string + counted family tuple strings + callable result |
-| dynamic descriptor argument | owner machine id + operation id + `u32` parameter ordinal + descriptor source |
-| dynamic conformance selection | owner machine id + `u32` ordinal + counted structural arguments (exactly one) + `u64` conformance application report fingerprint + 32-byte commitment |
-| structural argument | place id + structural access + counted structural path segments |
-| rebound dynamic descriptor | owner machine id + `u32` ordinal + `u32` initial selection ordinal + `u32` rebound selection ordinal |
-| stored dynamic descriptor | owner machine id + `u32` ordinal + establishment operation id + `u32` selection ordinal + aggregate type identity string + field identity string |
-| direct dynamic dispatch | owner machine id + operation id + `u32` selection ordinal + realization targets |
-| indirect dynamic dispatch | owner machine id + operation id + `u32` descriptor ordinal + realization targets |
-| stored dynamic dispatch | owner machine id + operation id + `u32` descriptor ordinal + realization targets |
-| parameter dynamic dispatch | owner machine id + operation id + `u32` parameter ordinal + `u32` requirement slot |
-| realization targets | declaring trait identity + public requirement identity + counted family tuple strings + requirement identity + realization identity + realization callable identity + realization machine id |
-
-<!-- descriptor-source-tags -->
-
-| tag | Dynamic descriptor source |
-| --- | --- |
-| 1 | ReboundDescriptor | `u32` rebound descriptor ordinal |
-| 2 | Parameter | `u32` descriptor parameter ordinal |
-| 3 | Selection | `u32` conformance selection ordinal |
-
-Descriptor parameters are strictly ordered by owner machine id and ordinal;
-arguments by owner machine id, operation id, and parameter ordinal;
-selections, rebound descriptors, and stored descriptors by owner machine id
-and ordinal; and every dispatch table by owner machine id and operation id.
-
 ### Suspension rows
 
 The suspension section is a bare `u32` call-plan count, then counted call
@@ -1316,8 +1268,6 @@ sites, then counted call plans.
 | --- | --- |
 | 1 | Machine | machine id |
 | 2 | Boundary | boundary machine id |
-| 3 | DynamicDescriptor | `u32` descriptor ordinal |
-| 4 | DynamicParameter | `u32` parameter ordinal + `u32` requirement slot |
 
 <!-- carry-suspension-tags -->
 

@@ -37,9 +37,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     Block, EntryClaim, NominalAffineCleanup, OperationKind, StructuralAffineDiscard,
-    StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
-    TerminalMachineResult, TerminalPlacedViewInput, Terminator,
+    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralResultClaimTransfer, TerminalMachineResult,
+    TerminalPlacedViewInput, Terminator,
 };
 
 /// What one settled terminator tells the interpreter loop to do next.
@@ -73,7 +73,6 @@ pub struct TerminalExecution {
     // storage; frames retain only machine identity. There is no per-machine
     // or per-operation Arc allocation.
     pub(crate) program: std::sync::Arc<crate::program::AdmittedTerminalProgram>,
-    pub(crate) dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     pub(crate) provider_installation: BTreeMap<BoundaryMachineId, MachineId>,
     /// Root-authorized assumed binding contracts admitted with the provider
     /// installation. They are conditional evidence on this execution, not
@@ -161,28 +160,10 @@ pub(crate) struct SuspendedCall {
     pub(crate) element_view_values: BTreeMap<PlaceId, crate::element_views::ElementView>,
     pub(crate) live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     pub(crate) live_claims: BTreeMap<ClaimId, LiveClaim>,
-    pub(crate) dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     pub(crate) current_machine: MachineId,
     pub(crate) current: BlockId,
     pub(crate) next_operation: usize,
     pub(crate) result: SuspendedCallResult,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RuntimeDynamicDescriptorTemplate {
-    pub(crate) source: StructuralArgument,
-    /// Positional callable table parallel to the selection's conformance
-    /// application rows. A lane that materializes only its selected
-    /// realization leaves the other roster rows unbound evidence, so entries
-    /// are sparse; verified descriptor-capable selections bind every row.
-    pub(crate) callables: Vec<Option<MachineId>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RuntimeDynamicDescriptor {
-    pub(crate) source: TerminalStructuralValue,
-    /// See [`RuntimeDynamicDescriptorTemplate::callables`].
-    pub(crate) callables: Vec<Option<MachineId>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -312,7 +293,6 @@ impl TerminalExecution {
         )?;
         Ok(Self {
             program,
-            dynamic_parameters: BTreeMap::new(),
             provider_installation: installation
                 .map(|installation| installation.installed.clone())
                 .unwrap_or_default(),
@@ -486,9 +466,6 @@ impl TerminalExecution {
                         self.execute_primitive_read(operation, source, path)?;
                         OperationFlow::Advance
                     }
-                    OperationKind::StoreDynamicDescriptor { .. } => {
-                        self.execute_store_dynamic_descriptor(operation)?
-                    }
                     OperationKind::EstablishScalarCase { .. } => {
                         self.execute_establish_scalar_case(operation)?
                     }
@@ -513,18 +490,6 @@ impl TerminalExecution {
                     OperationKind::CallUnit { .. } => self.execute_call_unit(operation)?,
                     OperationKind::CallStructuralScalar { .. } => {
                         self.execute_call_structural_scalar(operation)?
-                    }
-                    OperationKind::CallDynamicScalar { .. } => {
-                        self.execute_call_dynamic_scalar(operation)?
-                    }
-                    OperationKind::CallDynamicParameterScalar { .. } => {
-                        self.execute_call_dynamic_parameter_scalar(operation)?
-                    }
-                    OperationKind::CallDynamicUnit { .. } => {
-                        self.execute_call_dynamic_unit(operation)?
-                    }
-                    OperationKind::CallDynamicParameterUnit { .. } => {
-                        self.execute_call_dynamic_parameter_unit(operation)?
                     }
                     OperationKind::CallStructural { .. } => {
                         self.execute_call_structural(operation)?

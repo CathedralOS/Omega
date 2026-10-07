@@ -1,5 +1,5 @@
 //! Call operations: Unit, structural and scalar calls with their argument
-//! and result shapes, boundary calls, port writes and dynamic Unit calls.
+//! and result shapes, boundary calls and port writes.
 
 use super::{
     StructuralArgumentPresentation, callee_exact_payloadless_return, has_service,

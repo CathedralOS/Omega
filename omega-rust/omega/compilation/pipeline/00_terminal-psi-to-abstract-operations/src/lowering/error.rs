@@ -73,10 +73,6 @@ pub enum LoweringError {
     InvalidElementViewLength(semantic_vocabulary::OperationId),
     InvalidElementViewRead(semantic_vocabulary::OperationId),
     InvalidElementViewSubslice(semantic_vocabulary::OperationId),
-    /// The machine uses the retired data-attached dynamic route, which has
-    /// no abstract lowering; the named-implementation selector route
-    /// replaces it.
-    UnsupportedDynamicDispatch(MachineId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// write-only parameter, its storage path or array shape, the u64 runtime
     /// index, or the preceding scalar definition.

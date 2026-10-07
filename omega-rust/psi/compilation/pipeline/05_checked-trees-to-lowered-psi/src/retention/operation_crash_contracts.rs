@@ -536,15 +536,7 @@ fn positional_scalar_operands(kind: &OperationKind) -> Result<Vec<ValueId>, Lowe
 
 /// A direct, dynamic or boundary call.
 fn is_call_operation(kind: &OperationKind) -> bool {
-    direct_call_parts(kind).is_some()
-        || matches!(
-            kind,
-            OperationKind::CallDynamicScalar { .. }
-                | OperationKind::CallDynamicParameterScalar { .. }
-                | OperationKind::CallDynamicUnit { .. }
-                | OperationKind::CallDynamicParameterUnit { .. }
-                | OperationKind::BoundaryCall { .. }
-        )
+    direct_call_parts(kind).is_some() || matches!(kind, OperationKind::BoundaryCall { .. })
 }
 
 fn scalar_value_type(machine: &TerminalMachine, value: ValueId) -> Option<ScalarType> {

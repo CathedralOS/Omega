@@ -1,6 +1,6 @@
 //! Operations that read or write retained storage: references, byte-sequence
-//! fields and views, primitive and structural scalar stores, field reads,
-//! case membership and dynamic descriptors.
+//! fields and views, primitive and structural scalar stores, field reads and
+//! case membership.
 
 use super::{structural_place_type, validate_structural_path};
 use crate::codec_error::{CodecError, malformed};
@@ -1549,28 +1549,4 @@ fn scalar_observation_authorized(
                     | terminal_psi::StructuralAccess::MutableBorrow
             )
         )
-}
-
-pub(super) fn validate_store_dynamic_descriptor(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: &Operation,
-) -> Result<(), CodecError> {
-    let OperationKind::StoreDynamicDescriptor { descriptor_ordinal } = &operation.kind else {
-        unreachable!("dispatched validate_store_dynamic_descriptor")
-    };
-    if operation.result != OperationResult::Unit
-        || !module
-            .dynamic_dispatch
-            .stored_descriptors
-            .iter()
-            .any(|descriptor| {
-                descriptor.owner == machine.id
-                    && descriptor.ordinal == *descriptor_ordinal
-                    && descriptor.establishment_operation == operation.id
-            })
-    {
-        return malformed("dynamic descriptor storage has no exact catalog row");
-    }
-    Ok(())
 }

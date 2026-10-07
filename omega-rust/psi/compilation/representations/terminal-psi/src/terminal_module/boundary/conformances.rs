@@ -64,11 +64,9 @@ pub struct ClosedConformanceRow {
     /// table row supplies: one canonical const identity per requirement value
     /// binder, in the requirement's binder declaration order, the same
     /// strings a typed `MachineSpecialization` retains in
-    /// `const_argument_identities` and the same discipline
-    /// [`TerminalDynamicRequirement::family_tuple`](crate::TerminalDynamicRequirement::family_tuple)
-    /// pins on dispatch rows. Together with the two identities above it names
-    /// the exact `(declaring trait, complete requirement overload, canonical
-    /// value tuple)` row a dispatch rejoins. A nongeneric requirement carries
+    /// `const_argument_identities`. Together with the two identities above it
+    /// names the exact `(declaring trait, complete requirement overload,
+    /// canonical value tuple)` row a dispatch rejoins. A nongeneric requirement carries
     /// the empty tuple; readable spellings never appear here.
     pub family_tuple: Vec<String>,
     /// Declaration path retained separately for exact row-map replay.

@@ -99,7 +99,6 @@ pub(crate) mod view_ranges;
 // How a body completes: its scalar or structural result.
 mod scalar_completion;
 mod structural_completion;
-pub(crate) use scalar_completion::control::validate_tail as validate_scalar_control_tail;
 
 use bodies::{UnitBody, UnitPlans};
 pub(crate) use boundaries::{retain_admitted_unit_boundary, retain_exact_unit_boundary};
@@ -107,8 +106,8 @@ pub(crate) use parameters::validate_direct_unit_parameter_custody;
 pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
 use call_closure::{
-    checked_scalar_call_closure_with_structural_roots, checked_terminal_machine_name,
-    reject_recursive_unit_closure, unique_unit_boundary, validate_unit_operation_sequence,
+    checked_scalar_call_closure_with_structural_roots, reject_recursive_unit_closure,
+    unique_unit_boundary, validate_unit_operation_sequence,
 };
 pub(crate) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
@@ -117,11 +116,6 @@ use catalog::require_valid_service_row;
 pub(crate) use catalog::{
     checked_unit_target_reach_matches, collect_installation_machine_contract_services,
     collect_published_contract_services, collect_service_summary, lower_root_service_reach,
-    lower_unit_structural_type_roots,
-};
-pub(crate) use composed_control::dynamic_result::{
-    emit_call_leaf as emit_dynamic_control_leaf,
-    lower_control_catalogs as lower_dynamic_control_catalogs,
 };
 pub(crate) use composed_control::live as unit_graph_live_states;
 pub(crate) use composed_control::lower_composed_unit_control_machine;
@@ -131,7 +125,6 @@ pub(crate) use parameters::{
     lower_structural_arguments, lower_unit_parameters, mint_runtime_index_selectors,
     statement_receiver_path, structural_carrier_type,
 };
-pub(crate) use provider_attachments::lower_provider_attachment_places;
 use providers::{ProviderBody, checked_unit_provider_candidates};
 
 /// The one closure assembly request. `plans` is the Unit roster the closure
@@ -476,12 +469,8 @@ pub(crate) fn lower_unit_closure(
                 composed_control::callable::SharedCatalog {
                     structural_types: &structural_types,
                     type_ids: &type_ids,
-                    structural_domains: &structural_domains,
                     domain_ids: &domain_ids,
-                    services: &services,
                     service_ids: &service_ids,
-                    root_service_reach: &root_service_reach,
-                    boundaries: &boundary_machines,
                     boundary_parameters: &lowered_boundary_parameters,
                     machine_ids: &machine_ids,
                     signatures: &machine_signatures,
@@ -654,7 +643,6 @@ pub(crate) fn lower_unit_closure(
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
-            dynamic_dispatch: Default::default(),
             suspension_call_plan_count: 0,
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
@@ -669,9 +657,7 @@ pub(crate) fn lower_unit_closure(
         lowered,
         machine_ids,
         type_ids,
-        domain_ids,
         service_ids,
-        boundary_parameters: lowered_boundary_parameters,
         signatures: machine_signatures,
         scalar_requirement_counts,
         next_place,

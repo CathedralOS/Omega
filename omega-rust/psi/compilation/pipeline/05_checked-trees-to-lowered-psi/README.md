@@ -25,8 +25,8 @@ owner is unavailable.
 The plan families beneath the coordinator are concept-owned modules beside
 `lib.rs`; each root file names the work its directory owns:
 
-- [`unit`](src/unit/mod.rs): attached, dynamic composed, structural-control and
-  cleanup Unit machines, plus the runtime requirements they derive.
+- [`unit`](src/unit/mod.rs): attached, structural-control and cleanup Unit
+  machines, plus the runtime requirements they derive.
 - [`returns`](src/returns/mod.rs): affine, boundary-scalar, payloadless and
   structural return machines, with the structural types they publish.
 - [`scalar_graph`](src/scalar_graph/mod.rs): scalar-graph preparation,

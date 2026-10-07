@@ -45,24 +45,6 @@ impl TerminalExecution {
         })
     }
 
-    pub(crate) fn execute_store_dynamic_descriptor(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::StoreDynamicDescriptor { descriptor_ordinal } = operation.kind else {
-            unreachable!("dispatched execute_store_dynamic_descriptor")
-        };
-        if operation.result != terminal_psi::OperationResult::Unit
-            || !self
-                .program
-                .dynamic_descriptor_templates
-                .contains_key(&(self.current_machine, descriptor_ordinal))
-        {
-            return Err(malformed());
-        }
-        Ok(OperationFlow::Advance)
-    }
-
     pub(crate) fn execute_establish_scalar_case(
         &mut self,
         operation: &terminal_psi::Operation,

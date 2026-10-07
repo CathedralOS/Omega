@@ -30,13 +30,6 @@ pub struct TerminalSuspensionCallPlan {
 pub enum TerminalSuspensionCallTarget {
     Machine(MachineId),
     Boundary(BoundaryMachineId),
-    DynamicDescriptor {
-        ordinal: u32,
-    },
-    DynamicParameter {
-        parameter_ordinal: u32,
-        requirement_slot: u32,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -85,18 +78,6 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
         TerminalSuspensionCallTarget::Boundary(boundary) => {
             hash.update([2]);
             hash.update(boundary.get().to_le_bytes());
-        }
-        TerminalSuspensionCallTarget::DynamicDescriptor { ordinal } => {
-            hash.update([3]);
-            hash.update(ordinal.to_le_bytes());
-        }
-        TerminalSuspensionCallTarget::DynamicParameter {
-            parameter_ordinal,
-            requirement_slot,
-        } => {
-            hash.update([4]);
-            hash.update(parameter_ordinal.to_le_bytes());
-            hash.update(requirement_slot.to_le_bytes());
         }
     }
     hash_carry_policy(&mut hash, plan.effective);

@@ -72,21 +72,6 @@ pub(super) fn interpret(
                         "machine {machine:?} result leaf {result_path:?} needs alternative backing transport"
                     ),
                 ),
-                TerminalInterpretError::DynamicDescriptorInputMissing {
-                    machine,
-                    parameter_ordinal,
-                } if program.entry().dynamic_parameters.iter().any(|parameter| {
-                    parameter.owner == machine && parameter.ordinal == parameter_ordinal
-                }) =>
-                {
-                    Observation::missing(
-                        "program-entry-arrival-values",
-                        "TERMINAL-RUNTIME-DRIVERS",
-                        format!(
-                            "the admitted entry declares dynamic descriptor {parameter_ordinal}; its runtime ingress adapter is missing"
-                        ),
-                    )
-                }
                 other => Observation::failure(other),
             };
         }
@@ -105,17 +90,15 @@ pub(super) fn interpret(
     if !entry.scalar_parameters.is_empty()
         || !entry.structural_parameters.is_empty()
         || !entry.placed_view_inputs.is_empty()
-        || !entry.dynamic_parameters.is_empty()
     {
         return Observation::missing(
             "program-entry-arrival-values",
             "TERMINAL-RUNTIME-DRIVERS",
             format!(
-                "the admitted entry demands {} scalar values, {} structural values and {} placed-view establishments plus {} dynamic descriptors; the corpus runtime provision adapter is missing",
+                "the admitted entry demands {} scalar values, {} structural values and {} placed-view establishments; the corpus runtime provision adapter is missing",
                 entry.scalar_parameters.len(),
                 entry.structural_parameters.len(),
-                entry.placed_view_inputs.len(),
-                entry.dynamic_parameters.len()
+                entry.placed_view_inputs.len()
             ),
         );
     }

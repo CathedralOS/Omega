@@ -18,8 +18,8 @@
 //!    through `machine_lowering::machine_dispatch` to the plan family that
 //!    owns the machine's shape.
 //! 2. The plan families are layered, and each one reaches only downward:
-//!    [`unit`] lowers attached, dynamic composed, structural-control and
-//!    cleanup Unit machines; [`returns`] lowers affine, boundary-scalar,
+//!    [`unit`] lowers attached, structural-control and cleanup Unit
+//!    machines; [`returns`] lowers affine, boundary-scalar,
 //!    payloadless and structural return machines; [`scalar_graph`] prepares
 //!    scalar graphs, closes their calls and assembles the module;
 //!    [`expression_preparation`] turns source-bound expressions and bindings

@@ -508,8 +508,6 @@ fn resolve_float_operation_result_source(
         producer.kind,
         terminal_psi::OperationKind::Call { .. }
             | terminal_psi::OperationKind::CallStructuralScalar { .. }
-            | terminal_psi::OperationKind::CallDynamicScalar { .. }
-            | terminal_psi::OperationKind::CallDynamicParameterScalar { .. }
             | terminal_psi::OperationKind::BoundaryCall { .. }
     );
     if call_kind != call {

@@ -26,7 +26,7 @@ pub(super) fn eliminate(
         if !terminal_semantics::is_unconditionally_total_scalar(&operation.kind)
             && !inputs(&operation.kind, &mut pending)
         {
-            // Dynamic catalogs and guarded call provenance carry additional
+            // Guarded call provenance carries additional
             // scalar references outside the local operand list.
             return;
         }
@@ -347,12 +347,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             }
             values.extend(arguments);
         }
-        O::CallStructural { .. }
-        | O::CallDynamicScalar { .. }
-        | O::CallDynamicUnit { .. }
-        | O::CallDynamicParameterScalar { .. }
-        | O::CallDynamicParameterUnit { .. }
-        | O::StoreDynamicDescriptor { .. } => return false,
+        O::CallStructural { .. } => return false,
     }
     true
 }

@@ -25,12 +25,7 @@ pub use boundary::{
     ClosedReachParameter, ClosedReachSchema, ContentConservationGuarantee,
     InstallationReachDependency, ProgramLocalRootIntroductionSchema, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
-    ServiceDeclaration, StructuralDomainRequirement, TerminalDirectDynamicDispatch,
-    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
-    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
-    TerminalDynamicDispatchCatalog, TerminalDynamicRequirement, TerminalIndirectDynamicDispatch,
-    TerminalParameterDynamicDispatch, TerminalReboundDynamicDescriptor, TerminalRootServiceReach,
-    TerminalStoredDynamicDescriptor, TerminalStoredDynamicDispatch,
+    ServiceDeclaration, StructuralDomainRequirement, TerminalRootServiceReach,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
     program_local_root_introduction_compatibility_report_identity,
 };
@@ -182,8 +177,6 @@ pub struct TerminalModule {
     /// retained machine closure. Rows are owned by the concrete terminal
     /// machine whose specialization selected the application.
     pub closed_conformance_applications: Vec<ClosedConformanceApplication>,
-    /// Source-free local dynamic selection and dispatch custody.
-    pub dynamic_dispatch: crate::TerminalDynamicDispatchCatalog,
     /// Exact source-free live frontier at each possibly-suspending ordinary
     /// call. This is a semantic carry demand only; it adds no control edge,
     /// cleanup action, activation choice, or park/resume behavior.
@@ -226,7 +219,6 @@ impl TerminalModule {
             scalar_block_invariants: Vec::new(),
             operation_crash_contracts: Vec::new(),
             closed_conformance_applications: Vec::new(),
-            dynamic_dispatch: Default::default(),
             suspension_call_plan_count: 0,
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),

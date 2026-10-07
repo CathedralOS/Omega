@@ -1,18 +1,14 @@
 //! Exact checked-plan selection and dispatch into one Terminal Psi machine family.
 
 use checked_trees::{
-    CheckedDynamicBindingKind, CheckedDynamicDispatchPlan, CheckedReturnPlan,
-    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitPlan,
+    CheckedReturnPlan, CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility,
+    CheckedTrees, CheckedUnitPlan,
 };
 
 use crate::lowering_error::LoweringError;
-use crate::producer_result::{
-    ConformancePublication, DebugPublication, LoweredSelectedMachine, LoweringCompletion,
-};
+use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::returns::lower_return_machine;
 use crate::unit::attached_unit::lower_unit_effect_closure;
-use crate::unit::dynamic_composed_unit::{LoweredDynamicDispatch, lower_dynamic_dispatch_machine};
 use crate::unit::lower_unit_plan_machine;
 
 /// Which checked Terminal machine one lowering selects.
@@ -62,26 +58,8 @@ pub(crate) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
-    if let Some(plan) = select_dynamic_dispatch_plan(checked, selection)? {
-        let completion = LoweringCompletion {
-            conformances: match plan.binding_kind() {
-                CheckedDynamicBindingKind::Joined => ConformancePublication::BoundedModule,
-                CheckedDynamicBindingKind::Rebound => ConformancePublication::BoundedRoot,
-                CheckedDynamicBindingKind::Direct | CheckedDynamicBindingKind::Stored => {
-                    ConformancePublication::ExactRoot
-                }
-            },
-            ..Default::default()
-        };
-        return Ok(match lower_dynamic_dispatch_machine(checked, plan)? {
-            LoweredDynamicDispatch::SourceMapped(lowered) => {
-                LoweredSelectedMachine::source_mapped(lowered, completion)
-            }
-            LoweredDynamicDispatch::EntryOnly {
-                terminal,
-                source_machines,
-            } => LoweredSelectedMachine::entry_only(terminal, completion, source_machines),
-        });
+    if selects_dynamic_implementation(checked) {
+        return unsupported("dynamic dispatch awaits the named-implementation selector route");
     }
     // A result-bearing plan owns both its result and the cleanup after it, so
     // the return family is tried before the Unit-only cleanup plans below.
@@ -120,7 +98,6 @@ pub(crate) fn lower_selected_machine(
         .for_machine(selection.machine)
         .is_some();
     let unit_closure = match selection.signature {
-        CheckedTerminalSignatureEligibility::Attached => graph.is_none() || unit_plan,
         CheckedTerminalSignatureEligibility::FreeUnitEffect => graph.is_none(),
         CheckedTerminalSignatureEligibility::Eligible => graph.is_none() && unit_plan,
         CheckedTerminalSignatureEligibility::Unsupported => {
@@ -167,49 +144,14 @@ pub(crate) fn lower_selected_machine(
     ))
 }
 
-/// The one checked dynamic dispatch plan `selection` lowers, if any. Every
-/// binding kind and result shape shares this admission: one plan per caller,
-/// whose signature is inside the Terminal Psi slice.
-///
-/// This admission used to require `Attached`, which
-/// `build_checked_terminal_machine_selections` does not produce: under named
-/// implementations a machine's data arrives as an ordinary explicit parameter
-/// and contributes no attached signature, so the requirement refused every
-/// dynamic dispatch that was ever planned. What it stood in for -- that the
-/// caller really does carry the dispatch's context place -- is now a rejoin of
-/// the caller's published structural-parameter roster in
-/// `dynamic_composed_unit::structural_types::caller_context_parameter`, which
-/// reads the roster the checked plan publishes instead of asserting a shape.
-fn select_dynamic_dispatch_plan<'checked>(
-    checked: &'checked CheckedTrees,
-    selection: &CheckedTerminalMachineSelection,
-) -> Result<Option<&'checked CheckedDynamicDispatchPlan>, LoweringError> {
-    let plans = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .for_caller(selection.machine)
-        .collect::<Vec<_>>();
-    let [plan] = plans.as_slice() else {
-        let Some(first) = plans.first() else {
-            return Ok(None);
-        };
-        let has_join = |scalar: bool| {
-            plans.iter().any(|plan| {
-                plan.binding_kind() == CheckedDynamicBindingKind::Joined
-                    && matches!(plan, CheckedDynamicDispatchPlan::Scalar(_)) == scalar
-            })
-        };
-        if has_join(true) && has_join(false) {
-            return unsupported("scalar and Unit dynamic joins compete for one caller");
-        }
-        return unsupported(duplicated_dynamic_plan_refusal(first));
-    };
-    if selection.signature == CheckedTerminalSignatureEligibility::Unsupported {
-        return unsupported("machine signature is outside the current terminal-Psi source slice");
-    }
-    Ok(Some(plan))
+/// Whether the checked program selects a dynamic implementation anywhere in
+/// the product it lowers. The retired data-attached descriptor route that
+/// lowered such selections is deleted, so every selection now stops at this
+/// one refusal until the named-implementation selector route lands. Product
+/// pruning retains only the selections of reachable machines.
+fn selects_dynamic_implementation(checked: &CheckedTrees) -> bool {
+    let conformances = &checked.facts.dynamic_conformances;
+    !conformances.selections.is_empty() || !conformances.storages.is_empty()
 }
 
 /// The one checked return plan `selection` lowers, if any. Every result kind
@@ -248,19 +190,4 @@ fn select_unit_plan<'checked>(
         return unsupported("Unit plan attachment disagrees with its selected signature");
     }
     Ok(Some(plan))
-}
-
-fn duplicated_dynamic_plan_refusal(plan: &CheckedDynamicDispatchPlan) -> &'static str {
-    use CheckedDynamicBindingKind::{Direct, Joined, Rebound, Stored};
-    use CheckedDynamicDispatchPlan::{Scalar, Unit};
-    match (plan, plan.binding_kind()) {
-        (Scalar(_), Direct) => "direct dynamic dispatch plan is duplicated for one caller",
-        (Scalar(_), Rebound) => "rebound dynamic dispatch plan is duplicated for one caller",
-        (Scalar(_), Stored) => "stored dynamic dispatch plan is duplicated for one caller",
-        (Scalar(_), Joined) => "joined dynamic dispatch plan is duplicated for one caller",
-        (Unit(_), Direct) => "direct dynamic Unit plan is duplicated for one caller",
-        (Unit(_), Rebound) => "rebound dynamic Unit plan is duplicated for one caller",
-        (Unit(_), Stored) => "stored dynamic Unit plan is duplicated for one caller",
-        (Unit(_), Joined) => "joined dynamic Unit plan is duplicated for one caller",
-    }
 }

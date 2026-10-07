@@ -117,11 +117,11 @@ impl<'a> CheckedReturnPlan<'a> {
             Self::Structural(plan) => plan.attachment_type_identity.is_some(),
             Self::ClaimFreeAffine(plan) => plan.attachment_type_identity.is_some(),
         };
-        matches!(
-            (signature, attached),
-            (CheckedTerminalSignatureEligibility::Attached, true)
-                | (CheckedTerminalSignatureEligibility::Eligible, false)
-                | (CheckedTerminalSignatureEligibility::FreeUnitEffect, false)
-        )
+        !attached
+            && matches!(
+                signature,
+                CheckedTerminalSignatureEligibility::Eligible
+                    | CheckedTerminalSignatureEligibility::FreeUnitEffect
+            )
     }
 }

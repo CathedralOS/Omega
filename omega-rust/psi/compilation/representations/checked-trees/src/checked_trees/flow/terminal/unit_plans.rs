@@ -78,16 +78,15 @@ impl<'a> CheckedUnitPlan<'a> {
         }
     }
 
-    /// Whether `signature` is the selection this plan lowers under: an
-    /// attached signature when the plan retains its owner, either free Unit
-    /// signature otherwise.
+    /// Whether `signature` is the selection this plan lowers under: either
+    /// free Unit signature, and never a plan that retains an owner.
     pub fn admits_signature(self, signature: CheckedTerminalSignatureEligibility) -> bool {
-        matches!(
-            (signature, self.attachment_type_identity().is_some()),
-            (CheckedTerminalSignatureEligibility::Attached, true)
-                | (CheckedTerminalSignatureEligibility::Eligible, false)
-                | (CheckedTerminalSignatureEligibility::FreeUnitEffect, false)
-        )
+        self.attachment_type_identity().is_none()
+            && matches!(
+                signature,
+                CheckedTerminalSignatureEligibility::Eligible
+                    | CheckedTerminalSignatureEligibility::FreeUnitEffect
+            )
     }
 
     /// Whether the roster that admitted this plan carries its machine more

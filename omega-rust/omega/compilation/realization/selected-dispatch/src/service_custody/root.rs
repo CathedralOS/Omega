@@ -225,15 +225,6 @@ pub fn derive_fused_program_entry_establishments(
                         .filter_map(|state| context_identity(&state.structural_parameters))
                 }),
         )
-        .chain(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .dynamic_dispatch
-                .caller_structural_parameters(machine.symbol, state.symbol)
-                .filter_map(context_identity),
-        )
         .collect::<Vec<_>>();
     let [attachment_type_identity] = attachment_identities.as_slice() else {
         let mut message = format!(

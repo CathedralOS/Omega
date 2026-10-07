@@ -56,7 +56,6 @@ pub fn bare_module() -> TerminalModule {
         scalar_block_invariants: Vec::new(),
         operation_crash_contracts: Vec::new(),
         closed_conformance_applications: Vec::new(),
-        dynamic_dispatch: Default::default(),
         suspension_call_plan_count: 0,
         suspension_call_sites: Vec::new(),
         suspension_call_plans: Vec::new(),

@@ -292,26 +292,6 @@ pub(super) fn collect_machine_edges(
         );
     }
 
-    // Dynamic-dispatch plan rows bind each retained caller to its selected
-    // realization machine.
-    let dispatch = &facts.flow.terminal_unit_effects.dynamic_dispatch;
-    for call in &dispatch.calls {
-        for realization in call.realization_machines() {
-            push_edge(
-                &mut edges,
-                call.caller_machine(),
-                index.machine_of(realization),
-            );
-        }
-    }
-    for transfer in &dispatch.transfers {
-        push_edge(
-            &mut edges,
-            transfer.caller_machine,
-            index.machine_of(transfer.target_machine),
-        );
-    }
-
     // Traversal writes directly into each owner's final dependency storage.
     // Normalize once: repeated expression, proof, and checked-fact edges have
     // the same reachability meaning, and traversal order is not product order.

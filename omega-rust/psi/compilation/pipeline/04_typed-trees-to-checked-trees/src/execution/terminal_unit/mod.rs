@@ -104,16 +104,15 @@ use crate::execution::terminal_unit::control::{
     LocalConstructionTrace, build_boundary_machine, build_checked_machine_traced,
     build_static_boundary_requirements,
 };
-use crate::execution::terminal_unit::dynamic_scalar_calls::build_checked_dynamic_dispatch_plans;
 use crate::execution::terminal_unit::types::ShapeCollector;
 use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::{
-    CheckFacts, CheckedAffineConstructionElementPlan, CheckedBooleanExpression,
-    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
-    CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
-    CheckedByteSequenceCarrier, CheckedClaimFreeAffineStructuralReturnMachinePlan,
-    CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
+    CheckFacts, CheckedAffineConstructionElementPlan, CheckedBoundaryMachinePlan,
+    CheckedBoundaryMachineResultPlan, CheckedBoundaryScalarReturnMachinePlan,
+    CheckedBoundaryScalarReturnPlans, CheckedByteSequenceCarrier,
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseOutcomePlan,
+    CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan, CheckedIntegerBinaryKind,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
@@ -149,7 +148,6 @@ use diagnostics::Diagnostic;
 use language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, PermissionProvenance, SemanticDomainId,
-    ServiceReachSummary,
 };
 use symbols::{BuiltinFunction, SymbolHandle};
 use typed_trees::{
@@ -170,7 +168,6 @@ mod candidate_closure;
 pub(crate) mod cleanup;
 mod composed_control;
 pub(crate) mod control;
-mod dynamic_scalar_calls;
 mod providers;
 mod receiver_aliases;
 use validation::reference_result_custody as reference_results;
@@ -445,8 +442,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 }
         })
     });
-    let dynamic_dispatch =
-        build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);
 
     let closure_omissions = candidate_closure::retain_available(
         program,
@@ -629,12 +624,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                     })
                 }))
         }))
-        .chain(
-            dynamic_dispatch
-                .calls
-                .iter()
-                .flat_map(checked_trees::CheckedDynamicDispatchPlan::type_identities),
-        )
         .collect::<BTreeSet<_>>();
     for operation in candidates
         .iter()
@@ -860,7 +849,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         },
         boundary_machines,
         machines: candidates,
-        dynamic_dispatch,
         composed_machines,
         omissions: omissions.into_rows(),
     }

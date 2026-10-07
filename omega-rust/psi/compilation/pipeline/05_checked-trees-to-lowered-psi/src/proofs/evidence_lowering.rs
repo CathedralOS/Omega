@@ -119,8 +119,7 @@ pub(crate) struct CheckedRequirementFamilyRow {
 /// a nongeneric requirement, or one row per declared roster tuple for a finite
 /// generic family. Each family row names the unique bare value-tuple
 /// specialization of the row's provider template that the tuple's canonical
-/// const identities select — the same coordinate
-/// `dynamic_family_realization` joins on the checked side. A tuple with no
+/// const identities select. A tuple with no
 /// retained specialization, or with several, rejects the row rather than
 /// lowering a partial or ambiguous family.
 pub(crate) fn checked_requirement_family_rows(
@@ -267,40 +266,6 @@ fn exact_trait_requirement<'a>(
             .state_signature_type_parameters(signature)
             .is_empty(),
     })
-}
-
-/// The checked-side callable identity of one realization machine: the bare
-/// normalized overload identity `CheckedDynamic*CallPlan` and
-/// `CheckedDynamic*RealizationCallablePlan` retain in `realization_identity`.
-/// Terminal row coordinates consume [`checked_evidence_machine_identity`]
-/// instead, which wraps a specialization instance's bare identity in its
-/// specialization-application commitment so sibling tuple instances of one
-/// template cannot satisfy one another's rows.
-pub(crate) fn checked_dynamic_machine_identity(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-) -> Result<String, LoweringError> {
-    let mut matches = checked
-        .typed
-        .machines()
-        .iter()
-        .filter(|candidate| candidate.symbol == machine);
-    let machine = matches.next().ok_or(LoweringError::Unsupported(
-        "dynamic realization row has no exact machine",
-    ))?;
-    if matches.next().is_some() {
-        return unsupported("dynamic realization row has an ambiguous machine");
-    }
-    let identity = checked
-        .typed
-        .machine_callable_identity_text(machine)
-        .ok_or(LoweringError::Unsupported(
-            "dynamic realization has no callable identity",
-        ))?;
-    if identity.is_empty() {
-        return unsupported("dynamic realization has an empty machine identity");
-    }
-    Ok(identity)
 }
 
 pub(crate) fn checked_evidence_machine_identity(

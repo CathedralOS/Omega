@@ -477,11 +477,6 @@ pub(super) fn adapt(
                         }
                     }
                 }
-                OperationKind::StoreDynamicDescriptor { .. }
-                | OperationKind::CallDynamicScalar { .. }
-                | OperationKind::CallDynamicUnit { .. }
-                | OperationKind::CallDynamicParameterScalar { .. }
-                | OperationKind::CallDynamicParameterUnit { .. } => step.may_escape = true,
                 _ => {}
             }
             step.authority_derivations = step.derivations.clone();

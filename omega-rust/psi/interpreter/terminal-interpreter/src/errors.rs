@@ -13,10 +13,6 @@ use terminal_psi::CrashCause;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
     ScalarEntryQualificationUnsupported,
-    DynamicDescriptorInputMissing {
-        machine: MachineId,
-        parameter_ordinal: u32,
-    },
     UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability),
     UnsupportedSemanticVariant(&'static str),
     /// The artifact's exact affine cleanup transaction does not match the

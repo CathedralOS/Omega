@@ -164,7 +164,6 @@ fn inline_byte_field_capacity<'types>(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallTargetRule {
     ExactModuleMachine,
-    DynamicDescriptorTable,
     ExactBoundaryMachine,
 }
 
@@ -181,7 +180,6 @@ pub enum CallArgumentRule {
     ScalarPositionalArguments,
     StructuralPositionalArguments,
     ScalarAndStructuralPositionalArguments,
-    DynamicDescriptorSource,
     BoundaryScalarAndStructuralPositionalArguments,
 }
 
@@ -296,7 +294,7 @@ pub struct CallCompositionSemanticRow {
 }
 
 impl CallCompositionSemanticRow {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 6] = [
         Self {
             tag: OperationSemanticTag::Call,
             schema: CallCompositionSchema {
@@ -335,66 +333,6 @@ impl CallCompositionSemanticRow {
                 arguments: CallArgumentRule::StructuralPositionalArguments,
                 requirements: CallRequirementRule::EnumerateStructuralRequires,
                 transfers: CallTransferRule::ExactClaimTransfers,
-                outcomes: CallOutcomeRule::ImportStructuralEnsures,
-                crash: CallCrashRule::ComposeStructuralCrashRoutes,
-                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::TransfersStructuralFrontier,
-            },
-        },
-        Self {
-            tag: OperationSemanticTag::CallDynamicScalar,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::DynamicDescriptorTable,
-                result: CallResultRule::ScalarCalleeResult,
-                arguments: CallArgumentRule::DynamicDescriptorSource,
-                requirements: CallRequirementRule::EnumerateStructuralRequires,
-                transfers: CallTransferRule::NoStructuralTransfer,
-                outcomes: CallOutcomeRule::ImportStructuralEnsures,
-                crash: CallCrashRule::ComposeStructuralCrashRoutes,
-                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::TransfersStructuralFrontier,
-            },
-        },
-        Self {
-            tag: OperationSemanticTag::CallDynamicParameterScalar,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::DynamicDescriptorTable,
-                result: CallResultRule::ScalarCalleeResult,
-                arguments: CallArgumentRule::DynamicDescriptorSource,
-                requirements: CallRequirementRule::EnumerateStructuralRequires,
-                transfers: CallTransferRule::NoStructuralTransfer,
-                outcomes: CallOutcomeRule::ImportStructuralEnsures,
-                crash: CallCrashRule::ComposeStructuralCrashRoutes,
-                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::TransfersStructuralFrontier,
-            },
-        },
-        Self {
-            tag: OperationSemanticTag::CallDynamicUnit,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::DynamicDescriptorTable,
-                result: CallResultRule::UnitCalleeResult,
-                arguments: CallArgumentRule::DynamicDescriptorSource,
-                requirements: CallRequirementRule::EnumerateStructuralRequires,
-                transfers: CallTransferRule::NoStructuralTransfer,
-                outcomes: CallOutcomeRule::ImportStructuralEnsures,
-                crash: CallCrashRule::ComposeStructuralCrashRoutes,
-                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::TransfersStructuralFrontier,
-            },
-        },
-        Self {
-            tag: OperationSemanticTag::CallDynamicParameterUnit,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::DynamicDescriptorTable,
-                result: CallResultRule::UnitCalleeResult,
-                arguments: CallArgumentRule::DynamicDescriptorSource,
-                requirements: CallRequirementRule::EnumerateStructuralRequires,
-                transfers: CallTransferRule::NoStructuralTransfer,
                 outcomes: CallOutcomeRule::ImportStructuralEnsures,
                 crash: CallCrashRule::ComposeStructuralCrashRoutes,
                 evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
@@ -464,10 +402,6 @@ const fn is_call_composition_tag(tag: OperationSemanticTag) -> bool {
         OperationSemanticTag::Call
             | OperationSemanticTag::CallUnit
             | OperationSemanticTag::CallStructuralScalar
-            | OperationSemanticTag::CallDynamicScalar
-            | OperationSemanticTag::CallDynamicParameterScalar
-            | OperationSemanticTag::CallDynamicUnit
-            | OperationSemanticTag::CallDynamicParameterUnit
             | OperationSemanticTag::CallStructural
             | OperationSemanticTag::CallStructuralWithScalarArguments
             | OperationSemanticTag::BoundaryCall
@@ -512,10 +446,6 @@ pub fn validate_call_composition_semantic_rows(
         OperationSemanticTag::Call,
         OperationSemanticTag::CallUnit,
         OperationSemanticTag::CallStructuralScalar,
-        OperationSemanticTag::CallDynamicScalar,
-        OperationSemanticTag::CallDynamicParameterScalar,
-        OperationSemanticTag::CallDynamicUnit,
-        OperationSemanticTag::CallDynamicParameterUnit,
         OperationSemanticTag::CallStructural,
         OperationSemanticTag::CallStructuralWithScalarArguments,
         OperationSemanticTag::BoundaryCall,

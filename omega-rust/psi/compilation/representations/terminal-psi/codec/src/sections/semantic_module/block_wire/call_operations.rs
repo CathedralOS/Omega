@@ -1,5 +1,5 @@
-//! Call operations on the wire: scalar, Unit, structural and dynamic calls
-//! with their arguments, claim transfers, obligations and crash routes, plus
+//! Call operations on the wire: scalar, Unit and structural calls with their
+//! arguments, claim transfers, obligations and crash routes, plus
 //! boundary calls and port writes.
 
 use super::super::CodecError;
@@ -176,104 +176,6 @@ pub(super) fn decode_call_structural_scalar(
                 argument_index: reader.u32()?,
             })
         })?,
-        requirement_obligations: decode_ids(reader, "ObligationId")?,
-        crash_continuations: decode_crash_routes(reader)?,
-    })
-}
-
-pub(super) fn encode_call_dynamic_scalar(
-    writer: &mut Writer,
-    descriptor_ordinal: u32,
-    requirement_obligations: Vec<ObligationId>,
-    crash_continuations: Vec<CrashRouteBucket>,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::CALL_DYNAMIC_SCALAR);
-    writer.u32(descriptor_ordinal);
-    encode_obligation_ids(writer, &requirement_obligations)?;
-    encode_crash_routes(writer, &crash_continuations)?;
-    Ok(())
-}
-
-pub(super) fn decode_call_dynamic_scalar(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::CallDynamicScalar {
-        descriptor_ordinal: reader.u32()?,
-        requirement_obligations: decode_ids(reader, "ObligationId")?,
-        crash_continuations: decode_crash_routes(reader)?,
-    })
-}
-
-pub(super) fn encode_call_dynamic_parameter_scalar(
-    writer: &mut Writer,
-    parameter_ordinal: u32,
-    requirement_slot: u32,
-    requirement_obligations: Vec<ObligationId>,
-    crash_continuations: Vec<CrashRouteBucket>,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::CALL_DYNAMIC_PARAMETER_SCALAR);
-    writer.u32(parameter_ordinal);
-    writer.u32(requirement_slot);
-    encode_obligation_ids(writer, &requirement_obligations)?;
-    encode_crash_routes(writer, &crash_continuations)?;
-    Ok(())
-}
-
-pub(super) fn decode_call_dynamic_parameter_scalar(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::CallDynamicParameterScalar {
-        parameter_ordinal: reader.u32()?,
-        requirement_slot: reader.u32()?,
-        requirement_obligations: decode_ids(reader, "ObligationId")?,
-        crash_continuations: decode_crash_routes(reader)?,
-    })
-}
-
-pub(super) fn encode_call_dynamic_unit(
-    writer: &mut Writer,
-    descriptor_ordinal: u32,
-    requirement_obligations: Vec<ObligationId>,
-    crash_continuations: Vec<CrashRouteBucket>,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::CALL_DYNAMIC_UNIT);
-    writer.u32(descriptor_ordinal);
-    encode_obligation_ids(writer, &requirement_obligations)?;
-    encode_crash_routes(writer, &crash_continuations)?;
-    Ok(())
-}
-
-pub(super) fn decode_call_dynamic_unit(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::CallDynamicUnit {
-        descriptor_ordinal: reader.u32()?,
-        requirement_obligations: decode_ids(reader, "ObligationId")?,
-        crash_continuations: decode_crash_routes(reader)?,
-    })
-}
-
-pub(super) fn encode_call_dynamic_parameter_unit(
-    writer: &mut Writer,
-    parameter_ordinal: u32,
-    requirement_slot: u32,
-    requirement_obligations: Vec<ObligationId>,
-    crash_continuations: Vec<CrashRouteBucket>,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::CALL_DYNAMIC_PARAMETER_UNIT);
-    writer.u32(parameter_ordinal);
-    writer.u32(requirement_slot);
-    encode_obligation_ids(writer, &requirement_obligations)?;
-    encode_crash_routes(writer, &crash_continuations)?;
-    Ok(())
-}
-
-pub(super) fn decode_call_dynamic_parameter_unit(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::CallDynamicParameterUnit {
-        parameter_ordinal: reader.u32()?,
-        requirement_slot: reader.u32()?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,
         crash_continuations: decode_crash_routes(reader)?,
     })

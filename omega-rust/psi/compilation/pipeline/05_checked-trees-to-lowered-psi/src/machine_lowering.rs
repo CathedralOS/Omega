@@ -13,7 +13,6 @@
 //! Unsupported source constructs fail closed.
 
 pub(crate) mod bounded_callbacks;
-pub(crate) mod conformance_publication;
 pub(crate) mod debug_map;
 pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
@@ -26,7 +25,6 @@ use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
 use lowered_psi::LoweredPsi;
 
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::machine_lowering::conformance_publication::publish_selected_conformance_applications;
 use crate::machine_lowering::debug_map::build_debug_map;
 use crate::machine_lowering::float_meanings::retain_float_meanings;
 use crate::machine_lowering::guarded_exits::reject_unguarded_outcome_guarantees;
@@ -206,7 +204,6 @@ fn lower_terminal_selection(
         source_mapping,
     } = lower_selected_machine(checked, selection)?;
     reject_conditional_claim_joins(checked, &source_machines)?;
-    let has_exact_source_owners = source_mapping.exact_owners().is_some();
     let entry_source = [(selection.machine, lowered.semantic_module.entry)];
     retain_nominal_cleanup_roles(
         checked,
@@ -270,14 +267,10 @@ fn lower_terminal_selection(
         selection.machine,
         &lowered.semantic_module,
     )?;
-    publish_selected_conformance_applications(
+    crate::retention::conformance_applications::lower_closed_conformance_applications(
         checked,
-        selection.machine,
-        &completion.conformances,
-        has_exact_source_owners,
-        &projection_sources,
         &source_machines,
-        &mut lowered,
+        &mut lowered.semantic_module,
     )?;
     retain_float_meanings(checked, &projection_sources, &mut lowered)?;
     lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;

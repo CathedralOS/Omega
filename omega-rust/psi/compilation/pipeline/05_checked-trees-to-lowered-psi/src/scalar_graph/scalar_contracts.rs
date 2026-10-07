@@ -536,8 +536,7 @@ fn strict_result_bound(left: ScalarTerm, right: ScalarTerm) -> Proposition {
 
 /// The erased-proof roster the caller machine's given state exposes to its
 /// lowered terms: the scalar-graph state's own roster when the caller is a
-/// scalar machine, the dynamic lane's own roster when the caller dispatches
-/// dynamically, otherwise the unit machine's published roster.
+/// scalar machine, otherwise the unit machine's published roster.
 pub(crate) fn caller_erased_proof_roster(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -555,15 +554,6 @@ pub(crate) fn caller_erased_proof_roster(
     {
         return Ok(roster);
     }
-    // Three rosters exist because the checked stage publishes each caller
-    // body in exactly one of them. A dynamically dispatching caller is in
-    // neither of the other two: its body lives in the dynamic-dispatch lane
-    // and the ordinary plan roster carries only an omission row for it, so
-    // `UnitBody::find` below would report a missing transitive plan for a
-    // machine whose plan is present. Ask the lane before concluding that.
-    if let Some(roster) = dynamic_caller_erased_proof_roster(checked, machine, state) {
-        return Ok(roster);
-    }
     Ok(crate::unit::attached_unit::bodies::UnitBody::find(
         crate::unit::attached_unit::bodies::UnitPlans::published(
             &checked.facts.flow.terminal_unit_effects,
@@ -572,29 +562,4 @@ pub(crate) fn caller_erased_proof_roster(
     )?
     .entry()?
     .erased_proof_parameters)
-}
-
-/// The dynamic lane's roster for one caller state. A continuation leaf is the
-/// only dynamic row that publishes a state's own erased-proof formals, and
-/// every lane that can carry a caller body reaches one through its scalar
-/// call plan: direct, rebound, both joined branches, and stored. The Unit-call
-/// lanes publish no per-state roster at all. A state no lane names stays
-/// `None` so the caller still fails loudly rather than borrowing an unrelated
-/// machine's formals.
-fn dynamic_caller_erased_proof_roster(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-) -> Option<&[CheckedErasedProofParameterPlan]> {
-    checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .scalar_calls()
-        .filter(|plan| plan.caller_machine == machine)
-        .filter_map(|plan| plan.unit_continuation.as_ref())
-        .flat_map(|continuation| continuation.leaves.iter())
-        .find(|leaf| leaf.state == state)
-        .map(|leaf| leaf.erased_proof_parameters.as_slice())
 }

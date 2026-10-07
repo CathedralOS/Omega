@@ -476,7 +476,6 @@ impl<'a> IndexedWriteTarget<'a> {
                         &store.field_identity,
                         parameter,
                         structural_types,
-                        crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
                     )?;
                 // A domain-carrying bounded field (`[u8; N] in Utf8`) keeps the
                 // plain carrier's layout and store route. Its byte restrictions

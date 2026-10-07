@@ -1,5 +1,5 @@
-//! Call operations of the interpreter loop: Unit, structural, dynamic and
-//! runtime scalar calls that push a frame and redispatch, plus boundary
+//! Call operations of the interpreter loop: Unit, structural and runtime
+//! scalar calls that push a frame and redispatch, plus boundary
 //! calls and port writes handed to the effect handler.
 //!
 //! `frames.rs` binds each call's arguments and pushes its frame,
@@ -11,7 +11,7 @@ pub(crate) mod scalar_case_arguments;
 
 use crate::custody::{
     bind_arguments, bind_boundary_arguments, bind_structural_arguments, complete_claims,
-    remove_affine_root, resolve_structural_arguments, validate_boundary_requirements,
+    remove_affine_root, validate_boundary_requirements,
 };
 use crate::effects::results;
 use crate::effects::results::TerminalEffectResult;
@@ -53,7 +53,6 @@ impl TerminalExecution {
                     .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let dynamic_parameters = self.resolve_dynamic_call_arguments(operation.id)?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
         self.begin_unit_call(
@@ -62,7 +61,6 @@ impl TerminalExecution {
             structural_arguments,
             prepared_arguments,
             claim_transfers,
-            dynamic_parameters,
         )?;
         Ok(OperationFlow::Redispatch)
     }
@@ -82,7 +80,6 @@ impl TerminalExecution {
             unreachable!("dispatched execute_call_structural_scalar")
         };
         let result = operation.result.scalar().ok_or(malformed())?;
-        let dynamic_parameters = self.resolve_dynamic_call_arguments(operation.id)?;
         let scalar_arguments = arguments
             .iter()
             .map(|argument| {
@@ -101,131 +98,7 @@ impl TerminalExecution {
             structural_arguments,
             prepared_arguments,
             claim_transfers,
-            dynamic_parameters,
         )?;
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_dynamic_scalar(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::CallDynamicScalar {
-            descriptor_ordinal, ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call_dynamic_scalar")
-        };
-        let result = operation.result.scalar().ok_or(malformed())?;
-        let (callee, source) = self
-            .program
-            .dynamic_scalar_calls
-            .get(&(self.current_machine, descriptor_ordinal))
-            .cloned()
-            .ok_or(malformed())?;
-        let structural_arguments = std::slice::from_ref(&source);
-        let prepared_arguments =
-            self.prepare_structural_call_arguments(callee, structural_arguments)?;
-        self.begin_structural_scalar_call(
-            callee,
-            result,
-            &[],
-            structural_arguments,
-            prepared_arguments,
-            &[],
-            BTreeMap::new(),
-        )?;
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_dynamic_parameter_scalar(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::CallDynamicParameterScalar {
-            parameter_ordinal,
-            requirement_slot,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call_dynamic_parameter_scalar")
-        };
-        let result = operation.result.scalar().ok_or(malformed())?;
-        let descriptor = self
-            .dynamic_parameters
-            .get(&parameter_ordinal)
-            .cloned()
-            .ok_or(malformed())?;
-        let slot = usize::try_from(requirement_slot).map_err(|_| malformed())?;
-        let callee = descriptor
-            .callables
-            .get(slot)
-            .copied()
-            .flatten()
-            .ok_or(malformed())?;
-        self.begin_runtime_dynamic_scalar_call(callee, result, descriptor.source)?;
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_dynamic_unit(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::CallDynamicUnit {
-            descriptor_ordinal, ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call_dynamic_unit")
-        };
-        if operation.result != terminal_psi::OperationResult::Unit {
-            return Err(malformed());
-        }
-        let (callee, source) = self
-            .program
-            .dynamic_scalar_calls
-            .get(&(self.current_machine, descriptor_ordinal))
-            .cloned()
-            .ok_or(malformed())?;
-        let arguments = resolve_structural_arguments(
-            &self.program.structural_types,
-            &self.structural_values,
-            std::slice::from_ref(&source),
-        )?;
-        let [source] = arguments.as_slice() else {
-            return Err(malformed());
-        };
-        self.begin_runtime_dynamic_unit_call(callee, source.clone())?;
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_dynamic_parameter_unit(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::CallDynamicParameterUnit {
-            parameter_ordinal,
-            requirement_slot,
-            ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_call_dynamic_parameter_unit")
-        };
-        if operation.result != terminal_psi::OperationResult::Unit {
-            return Err(malformed());
-        }
-        let descriptor = self
-            .dynamic_parameters
-            .get(&parameter_ordinal)
-            .cloned()
-            .ok_or(malformed())?;
-        let slot = usize::try_from(requirement_slot).map_err(|_| malformed())?;
-        let callee = descriptor
-            .callables
-            .get(slot)
-            .copied()
-            .flatten()
-            .ok_or(malformed())?;
-        self.begin_runtime_dynamic_unit_call(callee, descriptor.source)?;
         Ok(OperationFlow::Redispatch)
     }
 
@@ -393,7 +266,6 @@ impl TerminalExecution {
                     structural_arguments,
                     prepared_arguments,
                     &claim_transfers,
-                    BTreeMap::new(),
                 )?,
                 terminal_psi::OperationResult::Structural(result) => {
                     self.begin_structural_result_call(
@@ -414,7 +286,6 @@ impl TerminalExecution {
                         structural_arguments,
                         prepared_arguments,
                         &claim_transfers,
-                        BTreeMap::new(),
                     )?;
                 }
             }
@@ -600,7 +471,6 @@ impl TerminalExecution {
             element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
-            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
             current_machine: self.current_machine,
             current: self.current,
             next_operation: self.next_operation,
@@ -610,7 +480,6 @@ impl TerminalExecution {
         self.structural_values = BTreeMap::new();
         self.live_affine_frontier = BTreeSet::new();
         self.live_claims = BTreeMap::new();
-        self.dynamic_parameters = BTreeMap::new();
         self.current_machine = callee_id;
         self.current = callee.entry;
         self.next_operation = 0;

@@ -400,9 +400,6 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             result_case,
             fields,
         } => value_operations::encode_establish_structural_case(writer, result_case, fields)?,
-        OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
-            storage_operations::encode_store_dynamic_descriptor(writer, descriptor_ordinal)?
-        }
         OperationKind::Call {
             callee,
             arguments,
@@ -456,50 +453,6 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             erased_proof_arguments.clone(),
             structural_arguments,
             claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-        )?,
-        OperationKind::CallDynamicScalar {
-            descriptor_ordinal,
-            requirement_obligations,
-            crash_continuations,
-        } => call_operations::encode_call_dynamic_scalar(
-            writer,
-            descriptor_ordinal,
-            requirement_obligations,
-            crash_continuations,
-        )?,
-        OperationKind::CallDynamicParameterScalar {
-            parameter_ordinal,
-            requirement_slot,
-            requirement_obligations,
-            crash_continuations,
-        } => call_operations::encode_call_dynamic_parameter_scalar(
-            writer,
-            parameter_ordinal,
-            requirement_slot,
-            requirement_obligations,
-            crash_continuations,
-        )?,
-        OperationKind::CallDynamicUnit {
-            descriptor_ordinal,
-            requirement_obligations,
-            crash_continuations,
-        } => call_operations::encode_call_dynamic_unit(
-            writer,
-            descriptor_ordinal,
-            requirement_obligations,
-            crash_continuations,
-        )?,
-        OperationKind::CallDynamicParameterUnit {
-            parameter_ordinal,
-            requirement_slot,
-            requirement_obligations,
-            crash_continuations,
-        } => call_operations::encode_call_dynamic_parameter_unit(
-            writer,
-            parameter_ordinal,
-            requirement_slot,
             requirement_obligations,
             crash_continuations,
         )?,
@@ -1010,17 +963,6 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::CALL_STRUCTURAL_SCALAR => {
             call_operations::decode_call_structural_scalar(reader)?
-        }
-        operation_tags::CALL_DYNAMIC_SCALAR => call_operations::decode_call_dynamic_scalar(reader)?,
-        operation_tags::CALL_DYNAMIC_PARAMETER_SCALAR => {
-            call_operations::decode_call_dynamic_parameter_scalar(reader)?
-        }
-        operation_tags::CALL_DYNAMIC_UNIT => call_operations::decode_call_dynamic_unit(reader)?,
-        operation_tags::CALL_DYNAMIC_PARAMETER_UNIT => {
-            call_operations::decode_call_dynamic_parameter_unit(reader)?
-        }
-        operation_tags::STORE_DYNAMIC_DESCRIPTOR => {
-            storage_operations::decode_store_dynamic_descriptor(reader)?
         }
         operation_tags::CALL_STRUCTURAL => call_operations::decode_call_structural(reader)?,
         operation_tags::CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS => {

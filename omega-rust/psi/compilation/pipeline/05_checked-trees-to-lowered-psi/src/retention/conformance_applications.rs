@@ -41,48 +41,6 @@ pub(crate) fn lower_closed_conformance_applications(
     Ok(())
 }
 
-/// Dynamic roots already retain their selected application. Add independently
-/// selected callee applications without replacing that dynamic custody.
-pub(crate) fn append_closed_conformance_applications_excluding(
-    checked: &CheckedTrees,
-    owners: &[(symbols::SymbolHandle, semantic_vocabulary::MachineId)],
-    excluded_source: symbols::SymbolHandle,
-    module: &mut TerminalModule,
-) -> Result<(), LoweringError> {
-    if owners.len() != module.machines.len()
-        || owners
-            .iter()
-            .zip(&module.machines)
-            .any(|((_, owner), machine)| *owner != machine.id)
-        || owners.iter().enumerate().any(|(index, (source, owner))| {
-            owners[..index]
-                .iter()
-                .any(|(prior_source, prior_owner)| source == prior_source || owner == prior_owner)
-        })
-    {
-        return Err(LoweringError::Unsupported(
-            "closed conformance application owners do not match the exact terminal closure",
-        ));
-    }
-    let applications =
-        collect_closed_conformance_applications(checked, owners, &[excluded_source])?;
-    for application in applications {
-        if !module
-            .closed_conformance_applications
-            .iter()
-            .any(|existing| {
-                existing.owner == application.owner
-                    && existing.declaration_identity == application.declaration_identity
-                    && existing.report_fingerprint == application.report_fingerprint
-            })
-        {
-            module.closed_conformance_applications.push(application);
-        }
-    }
-    sort_applications(&mut module.closed_conformance_applications);
-    Ok(())
-}
-
 fn collect_closed_conformance_applications(
     checked: &CheckedTrees,
     owners: &[(symbols::SymbolHandle, semantic_vocabulary::MachineId)],

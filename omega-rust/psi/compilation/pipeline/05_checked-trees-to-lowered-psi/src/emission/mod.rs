@@ -6,7 +6,7 @@
 
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
-    CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     CheckedUnitStructuralPathSegment,
 };
 use semantic_vocabulary::{

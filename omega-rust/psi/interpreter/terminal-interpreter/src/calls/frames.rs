@@ -1,18 +1,14 @@
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::byte_sequences::binding::StructuralCallArguments;
 use crate::calls::scalar_case_arguments;
-use crate::custody::bind_affine_frontier;
 use crate::custody::bind_arguments;
-use crate::custody::bind_structural_arguments;
-use crate::custody::resolve_structural_arguments;
 use crate::custody::transfer_claims;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::RuntimeDynamicDescriptor;
 use crate::execution::SuspendedCall;
 use crate::execution::SuspendedCallResult;
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
-use semantic_vocabulary::{MachineId, OperationId, PlaceId};
+use semantic_vocabulary::{MachineId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
@@ -55,73 +51,6 @@ fn retire_transferred_call_sources(
 }
 
 impl TerminalExecution {
-    pub(crate) fn resolve_dynamic_call_arguments(
-        &self,
-        operation: OperationId,
-    ) -> Result<BTreeMap<u32, RuntimeDynamicDescriptor>, TerminalInterpretError> {
-        let mut resolved = BTreeMap::new();
-        for argument in self
-            .program
-            .dynamic_descriptor_arguments
-            .get(&(self.current_machine, operation))
-            .into_iter()
-            .flatten()
-        {
-            let descriptor = match argument.source {
-                terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal } => {
-                    let template = self
-                        .program
-                        .dynamic_selection_templates
-                        .get(&(self.current_machine, ordinal))
-                        .ok_or(malformed())?;
-                    let sources = resolve_structural_arguments(
-                        &self.program.structural_types,
-                        &self.structural_values,
-                        std::slice::from_ref(&template.source),
-                    )?;
-                    let [source] = sources.as_slice() else {
-                        return Err(malformed());
-                    };
-                    RuntimeDynamicDescriptor {
-                        source: source.clone(),
-                        callables: template.callables.clone(),
-                    }
-                }
-                terminal_psi::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
-                    let template = self
-                        .program
-                        .dynamic_descriptor_templates
-                        .get(&(self.current_machine, ordinal))
-                        .ok_or(malformed())?;
-                    let sources = resolve_structural_arguments(
-                        &self.program.structural_types,
-                        &self.structural_values,
-                        std::slice::from_ref(&template.source),
-                    )?;
-                    let [source] = sources.as_slice() else {
-                        return Err(malformed());
-                    };
-                    RuntimeDynamicDescriptor {
-                        source: source.clone(),
-                        callables: template.callables.clone(),
-                    }
-                }
-                terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal } => self
-                    .dynamic_parameters
-                    .get(&ordinal)
-                    .cloned()
-                    .ok_or(malformed())?,
-            };
-            if resolved
-                .insert(argument.parameter_ordinal, descriptor)
-                .is_some()
-            {
-                return Err(malformed());
-            }
-        }
-        Ok(resolved)
-    }
-
     /// Rebind whole existing byte arguments, without converting inline storage.
     pub(crate) fn bind_byte_sequence_arguments(
         &self,
@@ -237,7 +166,6 @@ impl TerminalExecution {
         structural_arguments: &[StructuralArgument],
         prepared_arguments: StructuralCallArguments,
         claim_transfers: &[ClaimTransfer],
-        dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
         let callee = program
@@ -302,7 +230,6 @@ impl TerminalExecution {
             element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
-            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
             current_machine: self.current_machine,
             current: self.current,
             next_operation: self.next_operation,
@@ -319,7 +246,6 @@ impl TerminalExecution {
         self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
-        self.dynamic_parameters = dynamic_parameters;
         self.current_machine = callee_id;
         self.current = callee.entry;
         self.next_operation = 0;
@@ -327,8 +253,8 @@ impl TerminalExecution {
     }
 
     /// Enter one scalar-result callee after the operation-specific argument
-    /// checks have succeeded. Ordinary and dynamic calls prepare their
-    /// arguments against the callee signature directly; admitted provider
+    /// checks have succeeded. Ordinary calls prepare their arguments against
+    /// the callee signature directly; admitted provider
     /// dispatch passes the boundary-prepared arguments converted by
     /// `BoundaryArguments::into_call_arguments`, the same custody conversion
     /// the Unit and structural provider results use.
@@ -340,7 +266,6 @@ impl TerminalExecution {
         structural_arguments: &[StructuralArgument],
         prepared_arguments: StructuralCallArguments,
         claim_transfers: &[ClaimTransfer],
-        dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
         let callee = program
@@ -405,7 +330,6 @@ impl TerminalExecution {
             element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
-            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
             current_machine: self.current_machine,
             current: self.current,
             next_operation: self.next_operation,
@@ -422,7 +346,6 @@ impl TerminalExecution {
         self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
-        self.dynamic_parameters = dynamic_parameters;
         self.current_machine = callee_id;
         self.current = callee.entry;
         self.next_operation = 0;
@@ -600,7 +523,6 @@ impl TerminalExecution {
             element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: remaining_claims,
-            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
             current_machine: self.current_machine,
             current: self.current,
             next_operation: self.next_operation,
@@ -621,102 +543,6 @@ impl TerminalExecution {
         self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
-        self.dynamic_parameters = BTreeMap::new();
-        self.current_machine = callee_id;
-        self.current = callee.entry;
-        self.next_operation = 0;
-        Ok(())
-    }
-
-    pub(crate) fn begin_runtime_dynamic_scalar_call(
-        &mut self,
-        callee_id: MachineId,
-        result: terminal_psi::ValueDeclaration,
-        source: TerminalStructuralValue,
-    ) -> Result<(), TerminalInterpretError> {
-        let program = std::sync::Arc::clone(&self.program);
-        let callee = program
-            .machines
-            .get(&callee_id)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
-        if !callee.parameters.is_empty()
-            || callee.structural_parameters.len() != 1
-            || callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type)
-        {
-            return Err(malformed());
-        }
-        let structural_values =
-            bind_structural_arguments(&callee.structural_parameters, &[source])?;
-        let callee_affine_frontier =
-            bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
-        self.next_operation += 1;
-        self.call_stack.push(SuspendedCall {
-            values: std::mem::take(&mut self.values),
-            structural_values: std::mem::take(&mut self.structural_values),
-            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
-            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
-            element_view_values: std::mem::take(&mut self.element_view_values),
-            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
-            live_claims: std::mem::take(&mut self.live_claims),
-            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
-            current_machine: self.current_machine,
-            current: self.current,
-            next_operation: self.next_operation,
-            result: SuspendedCallResult::Scalar(result.id),
-        });
-        self.values = BTreeMap::new();
-        self.structural_values = structural_values;
-        self.live_affine_frontier = callee_affine_frontier;
-        self.live_claims = BTreeMap::new();
-        self.dynamic_parameters = BTreeMap::new();
-        self.current_machine = callee_id;
-        self.current = callee.entry;
-        self.next_operation = 0;
-        Ok(())
-    }
-
-    pub(crate) fn begin_runtime_dynamic_unit_call(
-        &mut self,
-        callee_id: MachineId,
-        source: TerminalStructuralValue,
-    ) -> Result<(), TerminalInterpretError> {
-        let program = std::sync::Arc::clone(&self.program);
-        let callee = program
-            .machines
-            .get(&callee_id)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
-        if !callee.parameters.is_empty()
-            || callee.structural_parameters.len() != 1
-            || callee.result != TerminalMachineResult::Unit
-        {
-            return Err(malformed());
-        }
-        let structural_values =
-            bind_structural_arguments(&callee.structural_parameters, &[source])?;
-        let callee_affine_frontier =
-            bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
-        self.next_operation += 1;
-        self.call_stack.push(SuspendedCall {
-            values: std::mem::take(&mut self.values),
-            structural_values: std::mem::take(&mut self.structural_values),
-            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
-            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
-            element_view_values: std::mem::take(&mut self.element_view_values),
-            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
-            live_claims: std::mem::take(&mut self.live_claims),
-            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
-            current_machine: self.current_machine,
-            current: self.current,
-            next_operation: self.next_operation,
-            result: SuspendedCallResult::Unit,
-        });
-        self.values = BTreeMap::new();
-        self.structural_values = structural_values;
-        self.live_affine_frontier = callee_affine_frontier;
-        self.live_claims = BTreeMap::new();
-        self.dynamic_parameters = BTreeMap::new();
         self.current_machine = callee_id;
         self.current = callee.entry;
         self.next_operation = 0;

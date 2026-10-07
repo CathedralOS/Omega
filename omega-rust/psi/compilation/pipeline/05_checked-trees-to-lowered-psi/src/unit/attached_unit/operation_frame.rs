@@ -1403,10 +1403,7 @@ impl OperationFrame<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "record store lost its backing parameter",
                     ))?;
-                crate::emission::structural_scalar_store::validate_root_access(
-                    parameter,
-                    crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
-                )?;
+                crate::emission::structural_scalar_store::validate_root_access(parameter)?;
                 (parameter.place, parameter.structural_type)
             }
             LoanedSource::Local(symbol) => self.local_store_root(symbol)?,
@@ -1556,7 +1553,6 @@ impl OperationFrame<'_, '_> {
                         store.statement_index,
                         destination,
                         self.structural_types.declarations(),
-                        crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
                     )?;
                 (destination.place, destination.structural_type, lowered)
             }

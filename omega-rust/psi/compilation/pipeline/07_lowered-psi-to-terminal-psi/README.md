@@ -22,8 +22,6 @@ The replay mechanisms have distinct authored roles:
 
 - [Source-call occurrences](src/boundary_operator_custody.rs)
   join retained calls to their exact source applications and Terminal operations.
-- [Dynamic calls](src/boundary_operator_custody/dynamic_calls.rs)
-  rejoin the retained rebound descriptor-table occurrences.
 - [Float comparisons](src/boundary_operator_custody/float_comparisons.rs)
   check the complete Terminal comparison roster, selected meaning, operand
   format and exact application, including implicit match-arm comparisons.

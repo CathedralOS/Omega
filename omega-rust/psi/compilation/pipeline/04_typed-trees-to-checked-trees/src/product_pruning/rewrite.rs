@@ -379,15 +379,6 @@ fn apply_fact_pruning(
         .terminal_structural_call_returns
         .payloadless_guarded_machines
         .retain(|row| retained.contains(&row.machine));
-
-    // Dynamic-dispatch rows keyed by the calling machine.
-    let dispatch = &mut facts.flow.terminal_unit_effects.dynamic_dispatch;
-    dispatch
-        .transfers
-        .retain(|row| retained.contains(&row.caller_machine));
-    dispatch
-        .calls
-        .retain(|row| retained.contains(&row.caller_machine()));
 }
 
 /// Whether a contract-fact owner survives pruning: machine owners must be

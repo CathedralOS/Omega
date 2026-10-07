@@ -27,17 +27,6 @@ mod scalar_block_invariant_wire;
 
 use terminal_psi::{TerminalModule, TerminalRootServiceReach, VocabularyMarker};
 
-use super::dynamic_dispatch_wire::{
-    decode_direct_dynamic_dispatches, decode_dynamic_conformance_selections,
-    decode_dynamic_descriptor_arguments, decode_dynamic_descriptor_parameters,
-    decode_indirect_dynamic_dispatches, decode_parameter_dynamic_dispatches,
-    decode_rebound_dynamic_descriptors, decode_stored_dynamic_descriptors,
-    decode_stored_dynamic_dispatches, encode_direct_dynamic_dispatches,
-    encode_dynamic_conformance_selections, encode_dynamic_descriptor_arguments,
-    encode_dynamic_descriptor_parameters, encode_indirect_dynamic_dispatches,
-    encode_parameter_dynamic_dispatches, encode_rebound_dynamic_descriptors,
-    encode_stored_dynamic_descriptors, encode_stored_dynamic_dispatches,
-};
 use super::proof_declaration_wire::{
     decode_proposition_application, decode_proposition_declaration, encode_proposition_application,
     encode_proposition_declaration,
@@ -176,18 +165,6 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for application in &module.closed_conformance_applications {
         closed_conformance_wire::encode_closed_conformance_application(&mut writer, application)?;
     }
-    encode_dynamic_descriptor_parameters(&mut writer, &module.dynamic_dispatch.parameters)?;
-    encode_dynamic_descriptor_arguments(&mut writer, &module.dynamic_dispatch.arguments)?;
-    encode_dynamic_conformance_selections(&mut writer, &module.dynamic_dispatch.selections)?;
-    encode_rebound_dynamic_descriptors(&mut writer, &module.dynamic_dispatch.rebound_descriptors)?;
-    encode_stored_dynamic_descriptors(&mut writer, &module.dynamic_dispatch.stored_descriptors)?;
-    encode_direct_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.direct_dispatches)?;
-    encode_indirect_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.indirect_dispatches)?;
-    encode_stored_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.stored_dispatches)?;
-    encode_parameter_dynamic_dispatches(
-        &mut writer,
-        &module.dynamic_dispatch.parameter_dispatches,
-    )?;
     writer.u32(module.suspension_call_plan_count);
     writer.len("suspension call sites", module.suspension_call_sites.len())?;
     for site in &module.suspension_call_sites {
@@ -264,27 +241,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         reader,
         closed_conformance_wire::decode_closed_conformance_application,
     )?;
-    let (
-        dynamic_descriptor_parameters,
-        dynamic_descriptor_arguments,
-        dynamic_conformance_selections,
-        rebound_dynamic_descriptors,
-        stored_dynamic_descriptors,
-        direct_dynamic_dispatches,
-        indirect_dynamic_dispatches,
-        stored_dynamic_dispatches,
-        parameter_dynamic_dispatches,
-    ) = (
-        decode_dynamic_descriptor_parameters(reader)?,
-        decode_dynamic_descriptor_arguments(reader)?,
-        decode_dynamic_conformance_selections(reader)?,
-        decode_rebound_dynamic_descriptors(reader)?,
-        decode_stored_dynamic_descriptors(reader)?,
-        decode_direct_dynamic_dispatches(reader)?,
-        decode_indirect_dynamic_dispatches(reader)?,
-        decode_stored_dynamic_dispatches(reader)?,
-        decode_parameter_dynamic_dispatches(reader)?,
-    );
     let (suspension_call_plan_count, suspension_call_sites, suspension_call_plans) = (
         reader.u32()?,
         decode_counted(reader, decode_suspension_call_site)?,
@@ -330,17 +286,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         proof_output_calls,
         proof_recursive_components,
         closed_conformance_applications,
-        dynamic_dispatch: terminal_psi::TerminalDynamicDispatchCatalog {
-            parameters: dynamic_descriptor_parameters,
-            arguments: dynamic_descriptor_arguments,
-            selections: dynamic_conformance_selections,
-            rebound_descriptors: rebound_dynamic_descriptors,
-            stored_descriptors: stored_dynamic_descriptors,
-            direct_dispatches: direct_dynamic_dispatches,
-            indirect_dispatches: indirect_dynamic_dispatches,
-            stored_dispatches: stored_dynamic_dispatches,
-            parameter_dispatches: parameter_dynamic_dispatches,
-        },
         suspension_call_plan_count,
         suspension_call_sites,
         suspension_call_plans,

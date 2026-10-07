@@ -15,15 +15,13 @@ mod checked_machine;
 mod construction_trace;
 pub(in crate::execution::terminal_unit) mod scalar_arrays;
 pub(super) mod statement_sequence;
-pub(super) use statement_sequence::scalar_control;
 pub(super) mod structural_operands;
 mod structural_unit_machine;
 
 pub(super) use crate::semantic::calls::terminal_callable_target;
 pub(crate) use boundary_machine::{build_boundary_machine, build_static_boundary_requirements};
 pub(super) use call_occurrences::{
-    call_owns_statement_computations, outer_calls, outer_calls_before_traced, tail_call,
-    terminal_named_call,
+    call_owns_statement_computations, outer_calls, outer_calls_before_traced, terminal_named_call,
 };
 pub(crate) use call_results::{
     bind_scalar_call_result, bind_structural_call_result, checked_structural_result_type,

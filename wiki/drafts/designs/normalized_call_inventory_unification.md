@@ -29,12 +29,11 @@ semantics:
 | `DynamicParameterScalarCall` | `AbstractParameterDynamicDispatch` + `parameter_abi` + `requirement` + `table_slot_byte_offset` + `dispatch_call_plan` | none beyond the descriptor parameter | `AbstractResult` + scalar home |
 | `DynamicParameterUnitCall` | same | same | none |
 
-Status: the seven descriptor rows above are now one `CallDynamic` operation.
-Its `dispatch: TargetDynamicDispatch` is `DescriptorArguments`, `Stored`,
-`Rebound` or `Parameter`; its `result: TargetDynamicCallResult` is `Unit` or
-`Scalar(home)`; `call_plan`, obligations and crash routes sit on the
-operation. The remaining unification joins `Call`, `CallDynamic` and
-`NormalizedForeignCall`.
+Status: the seven descriptor rows above became one `CallDynamic` operation,
+which was then deleted with the rest of the data-attached dynamic route; the
+named-implementation selector route will add its own dynamic callee variant.
+The remaining unification joins `Call` and `NormalizedForeignCall`, and the
+dynamic rows below record the retired design only.
 
 plus two adjacent-but-separate leaves: `NormalizedForeignCall` (evaluated
 import leaf: `boundary` + `provider_execution` + `binding`, foreign

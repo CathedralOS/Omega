@@ -318,8 +318,9 @@ evidence are complete.
 `FINITE-GENERIC-DISPATCH` implements the
 [explicit family contract](../../../../wiki/spec/language/generics.md#finite-specialization-boundary)
 and [dynamic rows](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
-Current nongeneric dynamic tables do not implement tuple expansion, runtime
-family selection, or indexed result custody. Explicit source disjunctions, not
+No dynamic dispatch lowering exists below checking until the
+named-implementation selector route lands, so tuple expansion, runtime family
+selection, and indexed result custody are all unimplemented. Explicit source disjunctions, not
 integer ranges or current callers, define the roster. Keep const rejection,
 target coverage, and table completeness; no general reflection, implicit boxing,
 or runtime-dependent inline storage is part of this work.

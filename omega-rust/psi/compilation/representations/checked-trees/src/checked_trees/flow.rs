@@ -28,10 +28,9 @@ mod ownership;
 mod semantic_dependencies;
 
 // Terminal plans the checker publishes for lowering: `terminal` holds the
-// plan carriers for each terminal machine kind, and `dynamic_scalar_calls`
-// the dynamic dispatch and structural field store plans the Unit-effect
-// plans use.
-mod dynamic_scalar_calls;
+// plan carriers for each terminal machine kind, and `store_plans` the
+// structural field store plans the Unit-effect plans use.
+mod store_plans;
 mod terminal;
 
 // Lookup methods on `FlowFacts`.
@@ -109,18 +108,6 @@ pub use control::{
     FlowExitParameterOrigin, FlowOperatorInvocationFact, FlowStateFact, FlowStateOutgoingFact,
     FlowStatementFact, RetiredFlowCall,
 };
-pub use dynamic_scalar_calls::{
-    CheckedDynamicBinding, CheckedDynamicBindingKind, CheckedDynamicDescriptorTransferEdge,
-    CheckedDynamicDescriptorTransferPath, CheckedDynamicDescriptorTransferPlan,
-    CheckedDynamicDescriptorTransferSource, CheckedDynamicDispatchPlan,
-    CheckedDynamicDispatchPlans, CheckedDynamicJoinBranchPlan, CheckedDynamicJoinControlPlan,
-    CheckedDynamicRealizationBodyPlan, CheckedDynamicRealizationCallablePlan,
-    CheckedDynamicScalarCallOrigin, CheckedDynamicScalarCallPlan, CheckedDynamicScalarHelperPlan,
-    CheckedDynamicSelectionPlan, CheckedDynamicStoredDescriptorPlan, CheckedDynamicUnitCallOrigin,
-    CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan, CheckedDynamicUnitHelperPlan,
-    CheckedStoreRoot, CheckedStoreValue, CheckedStructuralCaseFieldStorePlan,
-    CheckedStructuralCaseLiteralFieldStorePlan, CheckedStructuralScalarFieldStorePlan,
-};
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operand::{FlowOperandChild, FlowOperandFact, FlowOperandReferent};
 pub use ownership::{
@@ -137,4 +124,8 @@ pub use roots::{
 pub use semantic_dependencies::{
     CheckedSemanticDependencies, CheckedSemanticDependency, CheckedSemanticDependencyExposure,
     CheckedSemanticDependencyKind,
+};
+pub use store_plans::{
+    CheckedStoreRoot, CheckedStoreValue, CheckedStructuralCaseFieldStorePlan,
+    CheckedStructuralCaseLiteralFieldStorePlan, CheckedStructuralScalarFieldStorePlan,
 };

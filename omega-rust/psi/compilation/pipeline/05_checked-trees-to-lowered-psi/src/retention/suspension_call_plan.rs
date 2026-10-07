@@ -287,31 +287,6 @@ fn terminal_call_target(
         OperationKind::BoundaryCall { boundary, .. } => Some(
             terminal_psi::TerminalSuspensionCallTarget::Boundary(*boundary),
         ),
-        OperationKind::CallDynamicScalar {
-            descriptor_ordinal, ..
-        }
-        | OperationKind::CallDynamicUnit {
-            descriptor_ordinal, ..
-        } => Some(
-            terminal_psi::TerminalSuspensionCallTarget::DynamicDescriptor {
-                ordinal: *descriptor_ordinal,
-            },
-        ),
-        OperationKind::CallDynamicParameterScalar {
-            parameter_ordinal,
-            requirement_slot,
-            ..
-        }
-        | OperationKind::CallDynamicParameterUnit {
-            parameter_ordinal,
-            requirement_slot,
-            ..
-        } => Some(
-            terminal_psi::TerminalSuspensionCallTarget::DynamicParameter {
-                parameter_ordinal: *parameter_ordinal,
-                requirement_slot: *requirement_slot,
-            },
-        ),
         _ => None,
     }
 }

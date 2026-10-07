@@ -75,7 +75,6 @@ impl TerminalExecution {
             element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
-            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
             current_machine: self.current_machine,
             current: self.current,
             next_operation: self.next_operation,
@@ -104,7 +103,6 @@ impl TerminalExecution {
         self.byte_sequence_values = caller.byte_sequence_values;
         self.live_affine_frontier = caller.live_affine_frontier;
         self.live_claims = caller.live_claims;
-        self.dynamic_parameters = caller.dynamic_parameters;
         self.current_machine = caller.current_machine;
         self.current = caller.current;
         self.next_operation = caller.next_operation;

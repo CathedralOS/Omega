@@ -306,12 +306,7 @@ impl OperationKind {
             | Self::EstablishScalarCase { .. }
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::EstablishTrivialAffineLocal { .. }
-            | Self::StoreDynamicDescriptor { .. }
             | Self::Call { .. }
-            | Self::CallDynamicScalar { .. }
-            | Self::CallDynamicParameterScalar { .. }
-            | Self::CallDynamicUnit { .. }
-            | Self::CallDynamicParameterUnit { .. }
             | Self::PortWrite { .. }
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }
@@ -478,12 +473,7 @@ impl OperationKind {
             | Self::ElementViewWrite { .. }
             | Self::ElementViewSubslice { .. }
             | Self::EstablishTrivialAffineLocal { .. }
-            | Self::StoreDynamicDescriptor { .. }
             | Self::Call { .. }
-            | Self::CallDynamicScalar { .. }
-            | Self::CallDynamicParameterScalar { .. }
-            | Self::CallDynamicUnit { .. }
-            | Self::CallDynamicParameterUnit { .. }
             | Self::PortWrite { .. }
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }

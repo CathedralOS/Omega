@@ -1,7 +1,6 @@
 //! Operations that read or write retained storage on the wire: references,
 //! primitive reads and stores, byte sequences and byte-sequence fields,
-//! structural scalar and field reads and stores, case membership and
-//! dynamic descriptors.
+//! structural scalar and field reads and stores, and case membership.
 
 use super::super::CodecError;
 use super::super::wire::{Reader, Writer};
@@ -734,23 +733,6 @@ pub(super) fn decode_range_checked_structural_scalar_field_store(
         field: reader.id("StructuralFieldId")?,
         value: reader.id("ValueId")?,
         range_obligation: Some(reader.id("ObligationId")?),
-    })
-}
-
-pub(super) fn encode_store_dynamic_descriptor(
-    writer: &mut Writer,
-    descriptor_ordinal: u32,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::STORE_DYNAMIC_DESCRIPTOR);
-    writer.u32(descriptor_ordinal);
-    Ok(())
-}
-
-pub(super) fn decode_store_dynamic_descriptor(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::StoreDynamicDescriptor {
-        descriptor_ordinal: reader.u32()?,
     })
 }
 

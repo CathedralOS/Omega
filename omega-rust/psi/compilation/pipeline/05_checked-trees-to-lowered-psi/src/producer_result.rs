@@ -2,9 +2,9 @@
 //!
 //! `LoweredSelectedMachine` carries the unsealed module beside the choices the
 //! plan family already made about it: which source machines it closed over
-//! (`SourceMapping`), whether a debug companion is published
-//! (`DebugPublication`), and which conformances still need publishing. The
-//! entrance reads those modes to decide what remains to run.
+//! (`SourceMapping`) and whether a debug companion is published
+//! (`DebugPublication`). The entrance reads those modes to decide what
+//! remains to run.
 
 use crate::lowering_error::{LoweringError, unsupported};
 use lowered_psi::LoweredPsi;
@@ -46,17 +46,7 @@ impl SourceMapping {
 /// Work remaining after a producer has assembled its machines.
 #[derive(Default)]
 pub(crate) struct LoweringCompletion {
-    pub(crate) conformances: ConformancePublication,
     pub(crate) debug: DebugPublication,
-}
-
-#[derive(Default)]
-pub(crate) enum ConformancePublication {
-    #[default]
-    Reconstruct,
-    ExactRoot,
-    BoundedRoot,
-    BoundedModule,
 }
 
 pub(crate) struct LoweredSelectedMachine {

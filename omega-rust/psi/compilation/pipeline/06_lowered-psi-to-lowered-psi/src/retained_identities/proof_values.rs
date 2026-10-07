@@ -76,22 +76,6 @@ pub(crate) fn crash_continuations(kind: &O) -> &[CrashRouteBucket] {
             crash_continuations,
             ..
         }
-        | O::CallDynamicScalar {
-            crash_continuations,
-            ..
-        }
-        | O::CallDynamicParameterScalar {
-            crash_continuations,
-            ..
-        }
-        | O::CallDynamicUnit {
-            crash_continuations,
-            ..
-        }
-        | O::CallDynamicParameterUnit {
-            crash_continuations,
-            ..
-        }
         | O::CallStructural {
             crash_continuations,
             ..

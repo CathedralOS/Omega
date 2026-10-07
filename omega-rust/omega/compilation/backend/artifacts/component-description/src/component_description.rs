@@ -302,8 +302,6 @@ pub enum CustodyKind {
     /// A provider assumption retained by a called boundary's content
     /// guarantee.
     BoundaryContentGuarantee,
-    /// Source-free local dynamic selection or dispatch custody.
-    DynamicDescriptorCustody,
     /// The exact live frontier carried across a possibly-suspending call.
     SuspensionFrontier,
     /// Custody of a resource or code mapping the composition admits. The row
@@ -324,7 +322,6 @@ impl CustodyKind {
             Self::CompletionReceipt => 4,
             Self::ProgramLocalRootIntroduction => 5,
             Self::BoundaryContentGuarantee => 6,
-            Self::DynamicDescriptorCustody => 7,
             Self::SuspensionFrontier => 8,
             Self::Mapping => 9,
             Self::Lease => 10,
@@ -339,7 +336,6 @@ impl CustodyKind {
             4 => Some(Self::CompletionReceipt),
             5 => Some(Self::ProgramLocalRootIntroduction),
             6 => Some(Self::BoundaryContentGuarantee),
-            7 => Some(Self::DynamicDescriptorCustody),
             8 => Some(Self::SuspensionFrontier),
             9 => Some(Self::Mapping),
             10 => Some(Self::Lease),
@@ -665,10 +661,9 @@ pub(crate) fn derive_component_inventory(
                 // authority surface: block terminators are closure-internal
                 // control flow, suspension resumptions are the module-level
                 // call-site table counted below, and in-module calls resolve
-                // through the verified module's own machine and
-                // dynamic-dispatch tables, so their callee's operations are
-                // scanned by this same enumeration and they carry no
-                // authority past the component closure.
+                // through the verified module's own machine table, so their
+                // callee's operations are scanned by this same enumeration and
+                // they carry no authority past the component closure.
                 match &operation.kind {
                     OperationKind::BoundaryCall {
                         boundary,
@@ -701,12 +696,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::CallUnit { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralScalar { .. }
-                    | OperationKind::CallStructuralWithScalarArguments { .. }
-                    | OperationKind::CallDynamicScalar { .. }
-                    | OperationKind::CallDynamicParameterScalar { .. }
-                    | OperationKind::CallDynamicUnit { .. }
-                    | OperationKind::CallDynamicParameterUnit { .. }
-                    | OperationKind::StoreDynamicDescriptor { .. } => {}
+                    | OperationKind::CallStructuralWithScalarArguments { .. } => {}
                     OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }
                     | OperationKind::EstablishScalarArray { .. }
@@ -861,28 +851,6 @@ pub(crate) fn derive_component_inventory(
             ),
             evidence: CustodyEvidence::ModuleDerived,
         });
-    }
-
-    let dispatch = &module.dynamic_dispatch;
-    let lanes = [
-        ("parameters", dispatch.parameters.len()),
-        ("arguments", dispatch.arguments.len()),
-        ("selections", dispatch.selections.len()),
-        ("rebound-descriptors", dispatch.rebound_descriptors.len()),
-        ("stored-descriptors", dispatch.stored_descriptors.len()),
-        ("direct-dispatches", dispatch.direct_dispatches.len()),
-        ("indirect-dispatches", dispatch.indirect_dispatches.len()),
-        ("stored-dispatches", dispatch.stored_dispatches.len()),
-        ("parameter-dispatches", dispatch.parameter_dispatches.len()),
-    ];
-    for (lane, count) in lanes {
-        if count > 0 {
-            custody.push(CustodyConstraint {
-                kind: CustodyKind::DynamicDescriptorCustody,
-                identity: format!("dynamic:{lane}:{count}"),
-                evidence: CustodyEvidence::ModuleDerived,
-            });
-        }
     }
 
     let mut entries = Vec::new();

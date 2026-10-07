@@ -602,17 +602,9 @@ fn validate_operation_foundation(
         OperationKind::EstablishPrimitiveLocal { .. } => {
             value_foundations::validate_establish_primitive_local(module, machine, operation)?
         }
-        OperationKind::StoreDynamicDescriptor { .. } => {
-            storage_foundations::validate_store_dynamic_descriptor(module, machine, operation)?
-        }
         OperationKind::Call { .. } => {
             if !matches!(operation.result, OperationResult::Scalar(_)) {
                 return malformed("scalar call declares a Unit result");
-            }
-        }
-        OperationKind::CallDynamicUnit { .. } | OperationKind::CallDynamicParameterUnit { .. } => {
-            if operation.result != OperationResult::Unit {
-                return malformed("dynamic Unit call declares a result value");
             }
         }
         // The result shape follows the event: an observing event defines the

@@ -157,18 +157,6 @@ fn encode_suspension_call_target(writer: &mut Writer, target: TerminalSuspension
             writer.u8(2);
             writer.id(boundary);
         }
-        TerminalSuspensionCallTarget::DynamicDescriptor { ordinal } => {
-            writer.u8(3);
-            writer.u32(ordinal);
-        }
-        TerminalSuspensionCallTarget::DynamicParameter {
-            parameter_ordinal,
-            requirement_slot,
-        } => {
-            writer.u8(4);
-            writer.u32(parameter_ordinal);
-            writer.u32(requirement_slot);
-        }
     }
 }
 
@@ -182,13 +170,6 @@ fn decode_suspension_call_target(
         2 => Ok(TerminalSuspensionCallTarget::Boundary(
             reader.id("BoundaryMachineId")?,
         )),
-        3 => Ok(TerminalSuspensionCallTarget::DynamicDescriptor {
-            ordinal: reader.u32()?,
-        }),
-        4 => Ok(TerminalSuspensionCallTarget::DynamicParameter {
-            parameter_ordinal: reader.u32()?,
-            requirement_slot: reader.u32()?,
-        }),
         tag => Err(CodecError::InvalidTag("TerminalSuspensionCallTarget", tag)),
     }
 }

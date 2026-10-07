@@ -6,24 +6,20 @@
 //! Unit result is not a normal return the runtime can commit. Reject these
 //! missing capabilities before any entry operation, rather than after
 //! a preceding boundary effect. This is not semantic verification: admission
-//! already authenticated these signatures and dispatch tables. Walk possible
-//! executable calls from the chosen entry, preserving descriptor arguments and
-//! installed providers, so unrelated retained declarations and unused dynamic
-//! requirement rows do not impose runtime capabilities.
+//! already authenticated these signatures. Walk possible executable calls from
+//! the chosen entry, preserving installed providers, so unrelated retained
+//! declarations do not impose runtime capabilities.
 //! The existing selected-backing refusal takes priority over external completion:
 //! collect external demands while inspecting the rest of the closure, without
 //! following them as normal provider calls. This keeps independent transport
 //! limitations visible regardless of when an external call is encountered.
 
 use crate::effects::AdmittedProviderInstallation;
-use crate::errors::{TerminalInterpretError, malformed};
+use crate::errors::TerminalInterpretError;
 use crate::program::AdmittedTerminalProgram;
-use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind, MachineId, OperationId};
-use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{
-    OperationKind, StructuralPathSegment, TerminalAffineCleanupAction,
-    TerminalDynamicDescriptorSource, Terminator,
-};
+use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind, MachineId};
+use std::collections::BTreeSet;
+use terminal_psi::{OperationKind, StructuralPathSegment, TerminalAffineCleanupAction, Terminator};
 
 /// A precise implementation limitation on an otherwise admitted program.
 /// Driver task names and display diagnostics belong to the driver, not Psi.
@@ -47,8 +43,6 @@ pub struct TerminalExecutionRequirements {
     pub missing_providers: Vec<BoundaryMachineId>,
 }
 
-type DescriptorParameters = BTreeMap<u32, Vec<Option<MachineId>>>;
-
 pub(crate) fn check(
     program: &AdmittedTerminalProgram,
     installation: Option<&AdmittedProviderInstallation>,
@@ -59,10 +53,10 @@ pub(crate) fn check(
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
     let mut external_completion = None;
-    let mut pending = vec![(program.catalogs.entry, DescriptorParameters::new())];
+    let mut pending = vec![program.catalogs.entry];
     let mut visited = BTreeSet::new();
-    while let Some((machine_id, parameters)) = pending.pop() {
-        if !visited.insert((machine_id, parameters.clone())) {
+    while let Some(machine_id) = pending.pop() {
+        if !visited.insert(machine_id) {
             continue;
         }
         let machine = program.machines.get(&machine_id).ok_or(
@@ -107,39 +101,6 @@ pub(crate) fn check(
                     | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
                         Some(*callee)
                     }
-                    OperationKind::CallDynamicScalar {
-                        descriptor_ordinal, ..
-                    }
-                    | OperationKind::CallDynamicUnit {
-                        descriptor_ordinal, ..
-                    } => Some(
-                        program
-                            .dynamic_scalar_calls
-                            .get(&(machine_id, *descriptor_ordinal))
-                            .ok_or(malformed())?
-                            .0,
-                    ),
-                    OperationKind::CallDynamicParameterScalar {
-                        parameter_ordinal,
-                        requirement_slot,
-                        ..
-                    }
-                    | OperationKind::CallDynamicParameterUnit {
-                        parameter_ordinal,
-                        requirement_slot,
-                        ..
-                    } => Some(
-                        parameters
-                            .get(parameter_ordinal)
-                            .ok_or(TerminalInterpretError::DynamicDescriptorInputMissing {
-                                machine: machine_id,
-                                parameter_ordinal: *parameter_ordinal,
-                            })?
-                            .get(*requirement_slot as usize)
-                            .copied()
-                            .flatten()
-                            .ok_or(malformed())?,
-                    ),
                     OperationKind::BoundaryCall { boundary, .. } => {
                         let declaration = program.boundary_machines.get(boundary).ok_or(
                             TerminalInterpretError::VerifiedBoundaryMachineMissing(*boundary),
@@ -171,10 +132,7 @@ pub(crate) fn check(
                     _ => None,
                 };
                 if let Some(callee) = callee {
-                    pending.push((
-                        callee,
-                        call_parameters(program, machine_id, operation.id, &parameters)?,
-                    ));
+                    pending.push(callee);
                 }
             }
             match &block.terminator {
@@ -201,7 +159,7 @@ pub(crate) fn check(
                     .flat_map(|(_, actions)| actions)
                     .filter_map(|action| match action {
                         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                            Some((cleanup.cleanup_machine, DescriptorParameters::new()))
+                            Some(cleanup.cleanup_machine)
                         }
                         _ => None,
                     }),
@@ -219,50 +177,14 @@ pub(crate) fn check(
     })
 }
 
-fn call_parameters(
-    program: &AdmittedTerminalProgram,
-    owner: MachineId,
-    operation: OperationId,
-    parameters: &DescriptorParameters,
-) -> Result<DescriptorParameters, TerminalInterpretError> {
-    let mut supplied = DescriptorParameters::new();
-    for argument in program
-        .dynamic_descriptor_arguments
-        .get(&(owner, operation))
-        .into_iter()
-        .flatten()
-    {
-        let table = match argument.source {
-            TerminalDynamicDescriptorSource::Selection { ordinal } => program
-                .dynamic_selection_templates
-                .get(&(owner, ordinal))
-                .map(|template| &template.callables),
-            TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => program
-                .dynamic_descriptor_templates
-                .get(&(owner, ordinal))
-                .map(|template| &template.callables),
-            TerminalDynamicDescriptorSource::Parameter { ordinal } => {
-                Some(parameters.get(&ordinal).ok_or(
-                    TerminalInterpretError::DynamicDescriptorInputMissing {
-                        machine: owner,
-                        parameter_ordinal: ordinal,
-                    },
-                )?)
-            }
-        }
-        .ok_or(malformed())?;
-        supplied.insert(argument.parameter_ordinal, table.clone());
-    }
-    Ok(supplied)
-}
-
 #[cfg(test)]
 mod tests {
     // These tests exercise the projection graph algorithm, not program admission.
     // End-to-end acceptance uses genuinely produced artifacts in the corpus.
     use super::*;
-    use crate::execution::{ExecutableMachine, RuntimeDynamicDescriptorTemplate};
-    use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralTypeId};
+    use crate::execution::ExecutableMachine;
+    use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId, StructuralTypeId};
+    use std::collections::BTreeMap;
     use terminal_psi::{
         Block, Operation, OperationResult, StructuralAccess, StructuralArgument,
         StructuralMultiplicity, StructuralReferenceResultSource, StructuralResultDeclaration,
@@ -611,53 +533,6 @@ mod tests {
             frontier_lower_bound: Vec::new(),
         };
         program.machines.insert(selected, never_returns);
-        assert!(check(&program, None).is_ok());
-    }
-
-    #[test]
-    fn capability_graph_uses_called_dynamic_slot_not_unused_rows() {
-        let mut program = program();
-        let target = MachineId::new(2).unwrap();
-        let unused = MachineId::new(3).unwrap();
-        let parameter = MachineId::new(4).unwrap();
-        program.machines.insert(
-            program.catalogs.entry,
-            machine(0, vec![unit_call(parameter)]),
-        );
-        program.machines.insert(
-            parameter,
-            machine(
-                0,
-                vec![OperationKind::CallDynamicParameterUnit {
-                    parameter_ordinal: 0,
-                    requirement_slot: 0,
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                }],
-            ),
-        );
-        program.machines.insert(target, machine(1, Vec::new()));
-        program.machines.insert(unused, machine(2, Vec::new()));
-        program.dynamic_selection_templates.insert(
-            (program.catalogs.entry, 0),
-            RuntimeDynamicDescriptorTemplate {
-                source: StructuralArgument {
-                    place: PlaceId::new(1).unwrap(),
-                    path: Vec::new(),
-                    access: StructuralAccess::SharedBorrow,
-                },
-                callables: vec![Some(target), Some(unused)],
-            },
-        );
-        program.dynamic_descriptor_arguments.insert(
-            (program.catalogs.entry, OperationId::new(1).unwrap()),
-            vec![terminal_psi::TerminalDynamicDescriptorArgument {
-                owner: program.catalogs.entry,
-                operation: OperationId::new(1).unwrap(),
-                parameter_ordinal: 0,
-                source: TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
-            }],
-        );
         assert!(check(&program, None).is_ok());
     }
 
