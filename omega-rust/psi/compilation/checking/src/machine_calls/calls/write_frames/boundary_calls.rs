@@ -1210,8 +1210,12 @@ fn exclusive_boundary_result_origins(
                 // reach. Unless that storage can hold the referent only at
                 // its root, the referent's offset inside stays unknown and a
                 // projected origin must not narrow beneath the root.
-                let root_only =
-                    storage_holds_referent_only_at_root(program, *referee, referent, &mut *bindings);
+                let root_only = storage_holds_referent_only_at_root(
+                    program,
+                    *referee,
+                    referent,
+                    &mut *bindings,
+                );
                 for origin in boundary_argument_origins(
                     program,
                     current_machine,

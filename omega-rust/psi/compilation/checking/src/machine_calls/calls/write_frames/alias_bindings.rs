@@ -265,7 +265,8 @@ pub(super) fn representable_assignment_alias_rebinding<ResolveOrigin>(
     resolve_origin: ResolveOrigin,
 ) -> bool
 where
-    ResolveOrigin: FnOnce(&[(String, FramePlaceOrigin)], ExpressionHandle) -> Option<FramePlaceOrigin>,
+    ResolveOrigin:
+        FnOnce(&[(String, FramePlaceOrigin)], ExpressionHandle) -> Option<FramePlaceOrigin>,
 {
     match statement {
         StatementNode::Assignment(assignment) => coarse_place_path(program, assignment.target)

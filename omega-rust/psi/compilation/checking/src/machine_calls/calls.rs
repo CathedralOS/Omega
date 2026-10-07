@@ -366,6 +366,30 @@ fn requirement_call_result_type(
     Some(signature.return_type)
 }
 
+/// Landing and constant-projection destination checks every argument runs
+/// before its permission and class gates.
+fn validate_literal_argument_destination(
+    program: &TypedTrees,
+    current_machine_symbol: symbols::SymbolHandle,
+    argument: ExpressionHandle,
+    parameter_type: TypeReferenceHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    crate::value_custody::literals::validate_suffix_landing(
+        program,
+        argument,
+        parameter_type,
+        diagnostics,
+    );
+    crate::value_custody::literals::validate_constant_projection_destination(
+        program,
+        current_machine_symbol,
+        argument,
+        parameter_type,
+        diagnostics,
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_arguments_handles(
     program: &TypedTrees,
@@ -479,13 +503,7 @@ fn validate_call_arguments_with_type_correspondence(
         let value_environment = argument_environments
             .get(argument_index)
             .unwrap_or(value_environment);
-        crate::value_custody::literals::validate_suffix_landing(
-            program,
-            *argument,
-            parameter.type_reference,
-            diagnostics,
-        );
-        crate::value_custody::literals::validate_constant_projection_destination(
+        validate_literal_argument_destination(
             program,
             current_machine.symbol,
             *argument,
@@ -747,13 +765,7 @@ fn validate_value_call_argument_classes(
             )));
             continue;
         }
-        crate::value_custody::literals::validate_suffix_landing(
-            program,
-            *argument,
-            parameter.type_reference,
-            diagnostics,
-        );
-        crate::value_custody::literals::validate_constant_projection_destination(
+        validate_literal_argument_destination(
             program,
             current_machine.symbol,
             *argument,
