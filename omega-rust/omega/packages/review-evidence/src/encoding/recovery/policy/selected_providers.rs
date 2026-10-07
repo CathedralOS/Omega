@@ -25,25 +25,19 @@ impl PackagePolicySelectedProviders {
         bytes: &[u8],
         limits: PackagePolicyRecoveryLimits,
     ) -> Result<Self, Error> {
-        let mut reader = Reader::new(bytes, limits)?;
-        reader.literal(SELECTED_PROVIDER_POLICY_MAGIC)?;
-        if reader.u16()? != PACKAGE_SELECTED_PROVIDER_POLICY_VERSION {
-            return Err(Error::UnsupportedVersion);
-        }
-        let policy = policy(&mut reader)?;
-        reader.finish()?;
-        policy
-            .validate_canonical_structure()
-            .map_err(|_| Error::InvalidValue)?;
-        reader.canonical_scratch(bytes.len())?;
-        if policy
-            .canonical_bytes()
-            .map_err(|_| Error::NonCanonicalEncoding)?
-            != bytes
-        {
-            return Err(Error::NonCanonicalEncoding);
-        }
-        Ok(policy)
+        super::recover_component(
+            bytes,
+            limits,
+            SELECTED_PROVIDER_POLICY_MAGIC,
+            PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
+            policy,
+            |policy| {
+                policy
+                    .validate_canonical_structure()
+                    .map_err(|_| Error::InvalidValue)
+            },
+            Self::canonical_bytes,
+        )
     }
 }
 

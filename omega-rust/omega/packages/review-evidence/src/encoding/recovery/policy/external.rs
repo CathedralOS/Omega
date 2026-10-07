@@ -22,25 +22,17 @@ impl PackagePolicyExternalExecutableSupply {
         bytes: &[u8],
         limits: PackagePolicyRecoveryLimits,
     ) -> Result<Self, Error> {
-        let mut reader = Reader::new(bytes, limits)?;
-        reader.literal(EXTERNAL_SUPPLY_POLICY_MAGIC)?;
-        if reader.u16()? != PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION {
-            return Err(Error::UnsupportedVersion);
-        }
-        let supply = policy(&mut reader)?;
-        reader.finish()?;
-        reader.canonical_scratch(bytes.len())?;
-        // The ordinary encoder also checks cross-field representation rules,
-        // such as complete selected conformance applications. This is a format
-        // check, never a reconstruction of compiler or acceptance evidence.
-        if supply
-            .canonical_bytes()
-            .map_err(|_| Error::NonCanonicalEncoding)?
-            != bytes
-        {
-            return Err(Error::NonCanonicalEncoding);
-        }
-        Ok(supply)
+        super::recover_component(
+            bytes,
+            limits,
+            EXTERNAL_SUPPLY_POLICY_MAGIC,
+            PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION,
+            policy,
+            |_| Ok(()),
+            // The ordinary encoder checks cross-field representation rules.
+            // This remains a format check, not compiler or acceptance evidence.
+            Self::canonical_bytes,
+        )
     }
 }
 

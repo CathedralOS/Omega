@@ -14,22 +14,15 @@ impl PackagePolicyPhysicalCallingContract {
         bytes: &[u8],
         limits: PackagePolicyRecoveryLimits,
     ) -> Result<Self, Error> {
-        let mut reader = Reader::new(bytes, limits)?;
-        reader.literal(PHYSICAL_CALLING_POLICY_MAGIC)?;
-        if reader.u16()? != PACKAGE_PHYSICAL_CALLING_POLICY_VERSION {
-            return Err(Error::UnsupportedVersion);
-        }
-        let component = physical(&mut reader)?;
-        reader.finish()?;
-        reader.canonical_scratch(bytes.len())?;
-        if component
-            .canonical_bytes()
-            .map_err(|_| Error::NonCanonicalEncoding)?
-            != bytes
-        {
-            return Err(Error::NonCanonicalEncoding);
-        }
-        Ok(component)
+        super::recover_component(
+            bytes,
+            limits,
+            PHYSICAL_CALLING_POLICY_MAGIC,
+            PACKAGE_PHYSICAL_CALLING_POLICY_VERSION,
+            physical,
+            |_| Ok(()),
+            Self::canonical_bytes,
+        )
     }
 }
 

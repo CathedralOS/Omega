@@ -17,22 +17,15 @@ impl PackagePolicyClosedConformanceApplication {
         bytes: &[u8],
         limits: PackagePolicyRecoveryLimits,
     ) -> Result<Self, Error> {
-        let mut reader = Reader::new(bytes, limits)?;
-        reader.literal(CONFORMANCE_POLICY_MAGIC)?;
-        if reader.u16()? != PACKAGE_CONFORMANCE_POLICY_VERSION {
-            return Err(Error::UnsupportedVersion);
-        }
-        let application = application(&mut reader)?;
-        reader.finish()?;
-        reader.canonical_scratch(bytes.len())?;
-        if application
-            .canonical_bytes()
-            .map_err(|_| Error::NonCanonicalEncoding)?
-            != bytes
-        {
-            return Err(Error::NonCanonicalEncoding);
-        }
-        Ok(application)
+        super::recover_component(
+            bytes,
+            limits,
+            CONFORMANCE_POLICY_MAGIC,
+            PACKAGE_CONFORMANCE_POLICY_VERSION,
+            application,
+            |_| Ok(()),
+            Self::canonical_bytes,
+        )
     }
 }
 

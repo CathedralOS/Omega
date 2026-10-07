@@ -19,25 +19,19 @@ impl PackagePolicyCallingPlan {
         bytes: &[u8],
         limits: PackagePolicyRecoveryLimits,
     ) -> Result<Self, Error> {
-        let mut reader = Reader::new(bytes, limits)?;
-        reader.literal(CALLING_POLICY_MAGIC)?;
-        if reader.u16()? != PACKAGE_CALLING_POLICY_VERSION {
-            return Err(Error::UnsupportedVersion);
-        }
-        let application = application(&mut reader)?;
-        reader.finish()?;
-        application
-            .validate_canonical_structure()
-            .map_err(|_| Error::InvalidValue)?;
-        reader.canonical_scratch(bytes.len())?;
-        if application
-            .canonical_bytes()
-            .map_err(|_| Error::NonCanonicalEncoding)?
-            != bytes
-        {
-            return Err(Error::NonCanonicalEncoding);
-        }
-        Ok(application)
+        super::recover_component(
+            bytes,
+            limits,
+            CALLING_POLICY_MAGIC,
+            PACKAGE_CALLING_POLICY_VERSION,
+            application,
+            |policy| {
+                policy
+                    .validate_canonical_structure()
+                    .map_err(|_| Error::InvalidValue)
+            },
+            Self::canonical_bytes,
+        )
     }
 }
 

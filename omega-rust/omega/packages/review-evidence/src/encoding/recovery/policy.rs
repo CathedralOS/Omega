@@ -31,3 +31,30 @@ use PackagePolicyRecoveryError as Error;
 pub use policy_recovery_accounting::{
     PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
 };
+
+/// Keep component framing and scratch charges on the decoder's shared budget.
+/// Validation stays component-specific; canonical encoding is an independent
+/// format check after scratch accounting, never recovered compiler authority.
+fn recover_component<Policy>(
+    bytes: &[u8],
+    limits: PackagePolicyRecoveryLimits,
+    magic: &[u8],
+    version: u16,
+    decode: impl FnOnce(&mut reader::Reader<'_>) -> Result<Policy, Error>,
+    validate: impl FnOnce(&Policy) -> Result<(), Error>,
+    encode: impl FnOnce(&Policy) -> Result<Vec<u8>, crate::encoding::PackageReviewEncodingError>,
+) -> Result<Policy, Error> {
+    let mut reader = reader::Reader::new(bytes, limits)?;
+    reader.literal(magic)?;
+    if reader.u16()? != version {
+        return Err(Error::UnsupportedVersion);
+    }
+    let policy = decode(&mut reader)?;
+    reader.finish()?;
+    validate(&policy)?;
+    reader.canonical_scratch(bytes.len())?;
+    if encode(&policy).map_err(|_| Error::NonCanonicalEncoding)? != bytes {
+        return Err(Error::NonCanonicalEncoding);
+    }
+    Ok(policy)
+}
