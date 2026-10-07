@@ -4,7 +4,9 @@ use crate::current_ownership::cleanup::{
 };
 use crate::current_ownership::mutations::{insert_owned_result, reject_live_linear_claim};
 use crate::current_ownership::structural::projected_root_is_fully_consumed;
-use crate::current_ownership::{CurrentOwnership, LiveClaim, bind_owned_parameters};
+use crate::current_ownership::{
+    CurrentOwnership, LiveClaim, consume_edge_sources, establish_edge_parameters,
+};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
@@ -1015,7 +1017,18 @@ pub(super) fn validate_current_ownership_cfg(
                 &blocks[&edge.target].structural_parameters,
                 &frontier,
             )?;
+            // Owned sources leave first, so a projected move opens partial
+            // custody that this edge's residual cleanup can then retire; the
+            // target's roots are installed only after that cleanup.
             let mut outgoing = frontier.clone();
+            let transfer = consume_edge_sources(
+                function,
+                structural_types,
+                block_id,
+                &mut outgoing,
+                &edge.structural_bindings,
+                blocks[&edge.target],
+            )?;
             super::continuation::apply_edge_cleanup_actions(
                 function,
                 functions,
@@ -1024,13 +1037,13 @@ pub(super) fn validate_current_ownership_cfg(
                 &mut outgoing,
                 &edge.cleanup_actions,
             )?;
-            bind_owned_parameters(
+            establish_edge_parameters(
                 function,
-                structural_types,
                 block_id,
                 &mut outgoing,
                 &edge.structural_bindings,
                 blocks[&edge.target],
+                transfer,
             )?;
             snapshots.insert(
                 OwnershipFrontierSite::EdgeExit(edge.psi_edge),

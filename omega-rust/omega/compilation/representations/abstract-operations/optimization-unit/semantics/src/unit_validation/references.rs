@@ -776,10 +776,12 @@ pub(crate) fn validate_function_references(
             return Err(invalid());
         }
     }
-    // Binding any subtree of a reference-bearing root would need partial-move
-    // custody, even when the selected target parameter itself has no references.
-    // A whole owned argument moves the entire record — and every stored loan
-    // with it — across the edge; a borrow lane or a projected path cannot.
+    // A reference-bearing root crosses an edge only by owned transfer. A whole
+    // argument moves the entire record — and every stored loan with it; a
+    // projected argument moves one subtree's loans under the root's partial
+    // custody, which the ownership replay relocates onto the target parameter
+    // while the root keeps its siblings' loans. A borrow lane would alias the
+    // stored loans instead of moving them.
     if function
         .blocks
         .iter()
@@ -789,8 +791,7 @@ pub(crate) fn validate_function_references(
         .any(|binding| {
             structural_source_contract(function, binding.argument.place)
                 .is_some_and(|source| contains_reference(types, source.structural_type))
-                && (binding.argument.access != terminal_psi::StructuralAccess::Owned
-                    || !binding.argument.path.is_empty())
+                && binding.argument.access != terminal_psi::StructuralAccess::Owned
         })
     {
         return Err(invalid());

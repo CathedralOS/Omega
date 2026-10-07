@@ -4,7 +4,7 @@ use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape,
@@ -137,6 +137,20 @@ pub(crate) fn partial_affine_root_type(
         })
 }
 
+/// Whether projected moves have taken every affine child of an owned
+/// partial-affine root, leaving no residual complement for cleanup.
+pub(crate) fn partial_affine_root_is_drained(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    place: PlaceId,
+    moved: &BTreeSet<Vec<StructuralPathSegment>>,
+) -> bool {
+    partial_affine_root_type(function, place).is_some_and(|root_type| {
+        partial_affine_residuals(structural_types, root_type, moved, 0)
+            .is_some_and(|residuals| residuals.is_empty())
+    })
+}
+
 pub(super) fn projected_root_is_fully_consumed(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -157,9 +171,8 @@ pub(super) fn projected_root_is_fully_consumed(
     let Some(moved) = frontier.partial_custody_paths.get(&place) else {
         return false;
     };
-    if let Some(root_type) = partial_affine_root_type(function, place) {
-        return partial_affine_residuals(structural_types, root_type, moved, 0)
-            .is_some_and(|residuals| residuals.is_empty());
+    if partial_affine_root_type(function, place).is_some() {
+        return partial_affine_root_is_drained(function, structural_types, place, moved);
     }
     let Some(parameter) = function
         .structural_parameters

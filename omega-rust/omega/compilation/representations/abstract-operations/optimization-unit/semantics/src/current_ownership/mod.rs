@@ -38,11 +38,12 @@ mod replay;
 mod residuals;
 mod storage_regions;
 mod structural;
-pub(crate) use structural::{constructor_arguments, partial_affine_root_type};
+pub(crate) use structural::{
+    constructor_arguments, partial_affine_root_is_drained, partial_affine_root_type,
+};
 
-use block_parameters::bind_owned_parameters;
 pub(crate) use block_parameters::parameter_establishment_order;
-pub(crate) use continuation::valid_partial_continuation_complement;
+use block_parameters::{consume_edge_sources, establish_edge_parameters};
 
 pub(super) fn validate_current_ownership_frontier_collecting(
     psi: terminal_psi::TerminalPsiIdentity,

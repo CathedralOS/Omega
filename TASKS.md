@@ -742,13 +742,7 @@ defines the complete product bar.
     `runtime_owned_{record_replacement,nominal_replacement,replacement_composition}_exit`
     and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
     as value-home, occurrence and invalid-custody controls.
-  - Abstract optimization validation still requires whole owned successor
-    arguments in
-    `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/function_structure/structural_transfers.rs`.
-    Preserve selected-subtree contracts through stage 01's current-ownership
-    analysis; do not add a second independent replay. Coordinate the static-maze
-    loan outcome.
-    Reference-bearing nominal owners remain excluded by
+  - Reference-bearing nominal owners remain excluded by
     `checking/src/machine_calls/reference_result_custody.rs`; admitting their
     intact receiver also reaches `InvalidNominalAffineCleanup` in the retiring
     replay. Preserve receiver custody through the ordinary callable path as

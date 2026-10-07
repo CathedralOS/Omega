@@ -3,10 +3,10 @@ use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     OwnershipFrontierOwnedPlace, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    PsiOptimizationUnit, PsiProvenance,
 };
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
-use std::collections::{BTreeMap, BTreeSet};
+use semantic_vocabulary::PlaceId;
+use std::collections::BTreeMap;
 
 mod block_bindings;
 
@@ -62,75 +62,23 @@ pub(super) fn validate_retained_ownership_authority(
                                 },
                             );
                         };
-                        let actions = if source_index == 0 {
-                            edge.cleanup_actions.as_slice()
+                        // Every implemented edge-combining rewrite fences
+                        // nonempty inherited cleanup work and bindings.
+                        let (actions, bindings) = if source_index == 0 {
+                            (
+                                edge.cleanup_actions.as_slice(),
+                                edge.structural_bindings.as_slice(),
+                            )
                         } else {
-                            // Every implemented edge-combining rewrite fences
-                            // nonempty inherited cleanup work.
-                            &[]
+                            (&[][..], &[][..])
                         };
-                        let mut discards = Vec::new();
-                        let mut residuals = Vec::new();
-                        let mut after_nominal = (*entry).clone();
-                        for action in actions {
-                            match action {
-                                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
-                                    discards.push(*place)
-                                }
-                                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-                                    discard,
-                                ) => residuals.push(discard.clone()),
-                                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
-                                    cleanup,
-                                ) => {
-                                    // Current-frontier replay authenticates the
-                                    // hook. Here retain its exact conservation
-                                    // relationship to the source edge snapshot;
-                                    // nominal consumption is not an affine discard.
-                                    let claims = after_nominal
-                                        .claims
-                                        .iter()
-                                        .filter(|claim| claim.input == Some(cleanup.place))
-                                        .map(|claim| claim.claim)
-                                        .collect::<Vec<_>>();
-                                    let Some(position) = after_nominal
-                                        .owned_places
-                                        .iter()
-                                        .position(|owned| owned.place == cleanup.place)
-                                    else {
-                                        return Err(OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
-                                            machine: function.machine, edge: edge.psi_edge,
-                                        });
-                                    };
-                                    if claims != cleanup.consumed_claims
-                                        || after_nominal
-                                            .partial_custody
-                                            .iter()
-                                            .any(|partial| partial.place == cleanup.place)
-                                    {
-                                        return Err(OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
-                                            machine: function.machine, edge: edge.psi_edge,
-                                        });
-                                    }
-                                    after_nominal.owned_places.remove(position);
-                                    after_nominal
-                                        .claims
-                                        .retain(|claim| !claims.contains(&claim.claim));
-                                }
-                            }
-                        }
                         if !block_bindings::valid_transition(
                             function,
                             &structural_types,
-                            &after_nominal,
+                            entry,
                             exit,
-                            &discards,
-                            &residuals,
-                            if source_index == 0 {
-                                &edge.structural_bindings
-                            } else {
-                                &[]
-                            },
+                            actions,
+                            bindings,
                         ) {
                             return Err(
                                 OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
@@ -178,183 +126,6 @@ pub(super) fn validate_retained_ownership_authority(
         }
     }
     Ok(())
-}
-
-fn valid_edge_partial_affine_transition(
-    function: &PsiOptimizationFunction,
-    structural_types: &BTreeMap<
-        semantic_vocabulary::StructuralTypeId,
-        &terminal_psi::StructuralTypeDeclaration,
-    >,
-    entry: &OwnershipFrontierSnapshot,
-    exit: &OwnershipFrontierSnapshot,
-    discards: &[PlaceId],
-    residuals: &[terminal_psi::StructuralAffineDiscard],
-) -> bool {
-    if residuals.is_empty() {
-        return valid_edge_affine_transition(function, entry, exit, discards);
-    }
-    let mut roots = Vec::new();
-    let mut remaining = residuals;
-    while let Some(first) = remaining.first() {
-        let root = first.place;
-        let group_length = remaining
-            .iter()
-            .take_while(|discard| discard.place == root)
-            .count();
-        let (group, rest) = remaining.split_at(group_length);
-        let Some(custody) = entry
-            .partial_custody
-            .iter()
-            .find(|custody| custody.place == root)
-        else {
-            return false;
-        };
-        let moved = custody.moved_paths.iter().cloned().collect::<BTreeSet<_>>();
-        if roots.contains(&root)
-            || discards.contains(&root)
-            || moved.len() != custody.moved_paths.len()
-            || entry.claims.iter().any(|claim| claim.input == Some(root))
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == root)
-            || !entry.owned_places.iter().any(|owned| {
-                owned.place == root
-                    && owned.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            })
-            || !crate::current_ownership::valid_partial_continuation_complement(
-                function,
-                structural_types,
-                root,
-                &moved,
-                group,
-            )
-        {
-            return false;
-        }
-        roots.push(root);
-        remaining = rest;
-    }
-    // Each removed partial row has just been authenticated by its exact moved
-    // paths and full complement. Reuse ordinary disposal ordering for the
-    // carrier roots, then independently replay the whole-root transaction.
-    let mut complete = entry.clone();
-    complete
-        .partial_custody
-        .retain(|custody| !roots.contains(&custody.place));
-    let mut after_residuals = complete.clone();
-    after_residuals
-        .owned_places
-        .retain(|owned| !roots.contains(&owned.place));
-    valid_edge_affine_transition(function, &complete, &after_residuals, &roots)
-        && valid_edge_affine_transition(function, &after_residuals, exit, discards)
-}
-
-pub(crate) fn valid_edge_affine_transition(
-    function: &PsiOptimizationFunction,
-    entry: &OwnershipFrontierSnapshot,
-    exit: &OwnershipFrontierSnapshot,
-    discards: &[PlaceId],
-) -> bool {
-    if entry.claims != exit.claims
-        || entry.partial_custody != exit.partial_custody
-        || entry
-            .partial_custody
-            .iter()
-            .any(|custody| discards.contains(&custody.place))
-    {
-        return false;
-    }
-    // With no cleanup transaction, exact frontier equality is the complete
-    // remaining judgment. Computing the eligible discard order would rebuild
-    // whole-function dominance for every edge without consuming that order.
-    if discards.is_empty() {
-        return entry.owned_places == exit.owned_places;
-    }
-    let live = entry
-        .owned_places
-        .iter()
-        .map(|owned| owned.place)
-        .collect::<BTreeSet<_>>();
-    let mut results = function
-        .structural_places
-        .iter()
-        .filter_map(|place| match place.kind {
-            StructuralPlaceKind::OperationResult { producer, .. }
-                if entry.owned_places.iter().any(|owned| {
-                    owned.place == place.id
-                        && owned.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                }) && !entry
-                    .claims
-                    .iter()
-                    .any(|claim| claim.input == Some(place.id))
-                    && !function
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == place.id) =>
-            {
-                Some((producer, place.id))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    results.sort_by_key(|(producer, _)| std::cmp::Reverse(*producer));
-    let mut locals = function
-        .structural_places
-        .iter()
-        .filter_map(|place| match place.kind {
-            StructuralPlaceKind::TrivialAffineLocal {
-                declaration_ordinal,
-                ..
-            } if live.contains(&place.id) => Some((declaration_ordinal, place.id)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
-    let mut eligible = results
-        .into_iter()
-        .map(|(_, place)| place)
-        .chain(locals.into_iter().map(|(_, place)| place))
-        .collect::<Vec<_>>();
-    eligible.extend(
-        crate::current_ownership::parameter_establishment_order(function)
-            .into_iter()
-            .rev()
-            .filter_map(|parameter| {
-                (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                    && live.contains(&parameter.place)
-                    && !entry
-                        .claims
-                        .iter()
-                        .any(|claim| claim.input == Some(parameter.place))
-                    && !function
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == parameter.place))
-                .then_some(parameter.place)
-            }),
-    );
-    let mut next = 0;
-    for eligible_place in eligible {
-        if discards.get(next) == Some(&eligible_place) {
-            next += 1;
-        }
-    }
-    if next != discards.len() {
-        return false;
-    }
-    let discard_set = discards.iter().copied().collect::<BTreeSet<_>>();
-    if discard_set.len() != discards.len() {
-        return false;
-    }
-    let expected_exit = entry
-        .owned_places
-        .iter()
-        .filter(|owned| !discard_set.contains(&owned.place))
-        .copied()
-        .collect::<Vec<_>>();
-    expected_exit == exit.owned_places
 }
 
 pub(crate) fn valid_hidden_affine_establishment(

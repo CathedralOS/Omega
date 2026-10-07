@@ -236,9 +236,30 @@ pub(super) fn validate(
                             root_type == parameter.structural_type
                                 && multiplicity != StructuralMultiplicity::Linear
                         })
+                } else if !binding.argument.path.is_empty() {
+                    // A projected owned argument moves one affine child out of
+                    // an owned affine root into the target's plain affine
+                    // parameter. The path resolves exactly to the declared
+                    // child type; the root keeps its remaining siblings, whose
+                    // availability and residual cleanup the ownership replay
+                    // checks on this edge.
+                    parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity == StructuralMultiplicity::Affine
+                        && parameter.qualifications.is_empty()
+                        && parameter.projected_qualifications.is_empty()
+                        && crate::current_ownership::partial_affine_root_type(
+                            function,
+                            binding.argument.place,
+                        )
+                        .is_some_and(|root_type| {
+                            crate::unit_validation::structural_catalog::resolve_structural_path(
+                                types,
+                                root_type,
+                                &binding.argument.path,
+                            ) == Some(parameter.structural_type)
+                        })
                 } else {
-                    binding.argument.path.is_empty()
-                        && source.is_some_and(|(source_type, access, multiplicity)| {
+                    source.is_some_and(|(source_type, access, multiplicity)| {
                             // A borrowed arrival carries permission over the
                                 // source, not ownership of its descriptor. Its
                                 // declaration does not erase the affine result's

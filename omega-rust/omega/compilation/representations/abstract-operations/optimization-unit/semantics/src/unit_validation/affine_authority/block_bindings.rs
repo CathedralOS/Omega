@@ -1,110 +1,45 @@
-//! Rejoin retained edge snapshots after cleanup and whole owned rebinding.
-use crate::unit_validation::affine_authority::valid_edge_partial_affine_transition;
+//! Rejoin retained edge snapshots through the edge's owned rebinding and cleanup.
+//!
+//! The transition follows the current-ownership replay's edge transaction:
+//! owned sources leave the entry frontier first (a projected move opens or
+//! extends partial custody on its root), the edge's cleanup stream then
+//! retires each root it names, and the target's roots and transferred claims
+//! are installed last. The replay of the same unit authenticates every cleanup
+//! action against the exact live subject partition, eligibility order and
+//! claim roster; this check conserves the retained snapshots' net custody
+//! change across the current edge.
 use abstract_operations::AbstractStructuralBinding;
 use optimization_unit::{
-    OwnershipFrontierOwnedPlace, OwnershipFrontierSnapshot, PsiOptimizationFunction,
+    OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace, OwnershipFrontierPartialCustody,
+    OwnershipFrontierSnapshot, PsiOptimizationFunction,
 };
-use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+use terminal_psi::{
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction,
+};
 
 pub(super) fn valid_transition(
     function: &PsiOptimizationFunction,
-    types: &BTreeMap<
-        semantic_vocabulary::StructuralTypeId,
-        &terminal_psi::StructuralTypeDeclaration,
-    >,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     entry: &OwnershipFrontierSnapshot,
     exit: &OwnershipFrontierSnapshot,
-    discards: &[PlaceId],
-    residuals: &[terminal_psi::StructuralAffineDiscard],
+    actions: &[TerminalAffineCleanupAction],
     bindings: &[AbstractStructuralBinding],
 ) -> bool {
-    if bindings.is_empty() {
-        return valid_edge_partial_affine_transition(
-            function, types, entry, exit, discards, residuals,
-        );
-    }
-    let mut expected = entry.clone();
-    expected.owned_places.retain(|owned| {
-        !discards.contains(&owned.place)
-            && !residuals.iter().any(|discard| discard.place == owned.place)
-    });
-    expected.partial_custody.retain(|custody| {
-        !residuals
-            .iter()
-            .any(|discard| discard.place == custody.place)
-    });
-    if !valid_edge_partial_affine_transition(function, types, entry, &expected, discards, residuals)
-    {
+    let Some(consumed) = consume_sources(function, types, entry, bindings) else {
         return false;
-    }
+    };
+    let Some(mut expected) = retire_cleanup_roots(consumed.frontier, actions) else {
+        return false;
+    };
     let mut owned = expected
         .owned_places
         .iter()
         .map(|owned| (owned.place, owned.multiplicity))
         .collect::<BTreeMap<_, _>>();
-    let parameters = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters);
-    let mut arrivals = Vec::new();
-    let mut transferred_claims = Vec::new();
-    let mut removed_claims = BTreeSet::new();
-    // Signature replay checks each exact source/destination type, access and
-    // multiplicity. Read claim custody from the immutable entry snapshot, then
-    // remove every source before installing any arrival, preserving swaps and
-    // self-loops without treating a new destination as another old source.
-    for binding in bindings {
-        let Some(parameter) = parameters
-            .clone()
-            .find(|parameter| parameter.place == binding.parameter)
-        else {
-            return false;
-        };
-        if parameter.access != StructuralAccess::Owned {
-            continue;
-        }
-        let source = binding.argument.place;
-        if !binding.argument.path.is_empty()
-            || binding.argument.access != StructuralAccess::Owned
-            || expected
-                .partial_custody
-                .iter()
-                .any(|custody| custody.place == source)
-        {
-            return false;
-        }
-        let source_claims = entry
-            .claims
-            .iter()
-            .filter(|claim| claim.input == Some(source))
-            .collect::<Vec<_>>();
-        if (parameter.multiplicity == StructuralMultiplicity::Linear && source_claims.is_empty())
-            || (parameter.multiplicity != StructuralMultiplicity::Linear
-                && !source_claims.is_empty())
-        {
-            return false;
-        }
-        if parameter.multiplicity != StructuralMultiplicity::Unrestricted {
-            if owned.remove(&source) != Some(parameter.multiplicity) {
-                return false;
-            }
-            arrivals.push(parameter);
-        }
-        for claim in source_claims {
-            if !removed_claims.insert(claim.claim) {
-                return false;
-            }
-            let mut moved = claim.clone();
-            moved.input = Some(parameter.place);
-            transferred_claims.push(moved);
-        }
-    }
-    expected
-        .claims
-        .retain(|claim| !removed_claims.contains(&claim.claim));
-    for parameter in arrivals {
+    for parameter in consumed.arrivals {
         if owned
             .insert(parameter.place, parameter.multiplicity)
             .is_some()
@@ -116,7 +51,7 @@ pub(super) fn valid_transition(
             return false;
         }
     }
-    for claim in transferred_claims {
+    for claim in consumed.claims {
         if expected
             .claims
             .iter()
@@ -135,4 +70,184 @@ pub(super) fn valid_transition(
         })
         .collect();
     expected == *exit
+}
+
+/// Each root's cleanup actions are one contiguous group that retires the
+/// root's owned row and partial custody after its last subject; nominal hooks
+/// also consume exactly the claims they name from that root.
+fn retire_cleanup_roots(
+    mut frontier: OwnershipFrontierSnapshot,
+    actions: &[TerminalAffineCleanupAction],
+) -> Option<OwnershipFrontierSnapshot> {
+    let mut retired = Vec::<PlaceId>::new();
+    for action in actions {
+        let place = action.place();
+        if retired.last() != Some(&place) {
+            if retired.contains(&place) {
+                return None;
+            }
+            let position = frontier
+                .owned_places
+                .iter()
+                .position(|owned| owned.place == place)?;
+            frontier.owned_places.remove(position);
+            frontier
+                .partial_custody
+                .retain(|custody| custody.place != place);
+            retired.push(place);
+        }
+        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+            for consumed in &cleanup.consumed_claims {
+                let position = frontier
+                    .claims
+                    .iter()
+                    .position(|claim| claim.claim == *consumed && claim.input == Some(place))?;
+                frontier.claims.remove(position);
+            }
+        }
+    }
+    Some(frontier)
+}
+
+/// The entry frontier after every owned source has left it, with the
+/// destination roots and renamed claims still waiting to be installed.
+struct ConsumedSources<'function> {
+    frontier: OwnershipFrontierSnapshot,
+    arrivals: Vec<&'function StructuralParameterDeclaration>,
+    claims: Vec<OwnershipFrontierLiveClaim>,
+}
+
+/// Signature replay checks each exact source/destination type, access and
+/// multiplicity. Read claim custody from the immutable entry snapshot, then
+/// remove every source before any arrival exists, preserving swaps and
+/// self-loops without treating a new destination as another old source.
+fn consume_sources<'function>(
+    function: &'function PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    entry: &OwnershipFrontierSnapshot,
+    bindings: &[AbstractStructuralBinding],
+) -> Option<ConsumedSources<'function>> {
+    let mut frontier = entry.clone();
+    let parameters = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters);
+    let mut arrivals = Vec::new();
+    let mut claims = Vec::new();
+    let mut removed_claims = BTreeSet::new();
+    for binding in bindings {
+        let parameter = parameters
+            .clone()
+            .find(|parameter| parameter.place == binding.parameter)?;
+        if parameter.access != StructuralAccess::Owned {
+            continue;
+        }
+        let source = binding.argument.place;
+        if binding.argument.access != StructuralAccess::Owned {
+            return None;
+        }
+        let source_claims = entry
+            .claims
+            .iter()
+            .filter(|claim| claim.input == Some(source))
+            .collect::<Vec<_>>();
+        if !binding.argument.path.is_empty() {
+            // A projected move takes one affine child of a claim-free affine
+            // root; the root keeps the complement under partial custody.
+            if parameter.multiplicity != StructuralMultiplicity::Affine
+                || !source_claims.is_empty()
+                || !move_projected_child(function, types, &mut frontier, source, binding)
+            {
+                return None;
+            }
+            arrivals.push(parameter);
+            continue;
+        }
+        if frontier
+            .partial_custody
+            .iter()
+            .any(|custody| custody.place == source)
+            || (parameter.multiplicity == StructuralMultiplicity::Linear
+                && source_claims.is_empty())
+            || (parameter.multiplicity != StructuralMultiplicity::Linear
+                && !source_claims.is_empty())
+        {
+            return None;
+        }
+        if parameter.multiplicity != StructuralMultiplicity::Unrestricted {
+            let position = frontier.owned_places.iter().position(|owned| {
+                owned.place == source && owned.multiplicity == parameter.multiplicity
+            })?;
+            frontier.owned_places.remove(position);
+            arrivals.push(parameter);
+        }
+        for claim in source_claims {
+            if !removed_claims.insert(claim.claim) {
+                return None;
+            }
+            let mut moved = claim.clone();
+            moved.input = Some(parameter.place);
+            claims.push(moved);
+        }
+    }
+    frontier
+        .claims
+        .retain(|claim| !removed_claims.contains(&claim.claim));
+    Some(ConsumedSources {
+        frontier,
+        arrivals,
+        claims,
+    })
+}
+
+/// Record one projected owned move on its root's partial custody row. A root
+/// whose affine complement is now empty leaves the owned set at this edge, as
+/// it does in the current-ownership replay.
+fn move_projected_child(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    frontier: &mut OwnershipFrontierSnapshot,
+    source: PlaceId,
+    binding: &AbstractStructuralBinding,
+) -> bool {
+    let path = &binding.argument.path;
+    if !frontier
+        .owned_places
+        .iter()
+        .any(|owned| owned.place == source && owned.multiplicity == StructuralMultiplicity::Affine)
+    {
+        return false;
+    }
+    let position = match frontier
+        .partial_custody
+        .binary_search_by_key(&source, |custody| custody.place)
+    {
+        Ok(position) => position,
+        Err(position) => {
+            frontier.partial_custody.insert(
+                position,
+                OwnershipFrontierPartialCustody {
+                    place: source,
+                    moved_paths: Vec::new(),
+                },
+            );
+            position
+        }
+    };
+    let moved = &mut frontier.partial_custody[position].moved_paths;
+    if moved
+        .iter()
+        .any(|existing| existing.starts_with(path) || path.starts_with(existing))
+    {
+        return false;
+    }
+    let insertion = moved
+        .binary_search(path)
+        .unwrap_or_else(|position| position);
+    moved.insert(insertion, path.clone());
+    let moved = moved.iter().cloned().collect::<BTreeSet<_>>();
+    if crate::current_ownership::partial_affine_root_is_drained(function, types, source, &moved) {
+        frontier.owned_places.retain(|owned| owned.place != source);
+    }
+    true
 }

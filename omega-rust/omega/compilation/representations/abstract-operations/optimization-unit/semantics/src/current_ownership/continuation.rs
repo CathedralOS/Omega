@@ -1,12 +1,10 @@
-//! Ordered continuation cleanup retires one partial owner, not the whole frontier.
+//! Ordered edge cleanup retires each named owner in turn, not the whole frontier.
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;
-use crate::current_ownership::residuals::partial_affine_residuals;
-use crate::current_ownership::structural::partial_affine_root_type;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{StructuralAffineDiscard, StructuralPathSegment, StructuralTypeDeclaration};
+use semantic_vocabulary::{BlockId, StructuralTypeId};
+use std::collections::BTreeMap;
+use terminal_psi::StructuralTypeDeclaration;
 
 /// Apply the selected edge's stream without grouping whole owners ahead of
 /// partial owners or hooks. A residual group is one exact owner's complement;
@@ -48,32 +46,4 @@ pub(super) fn apply_edge_cleanup_actions(
         remaining = rest;
     }
     Ok(())
-}
-
-pub(crate) fn valid_partial_continuation_complement(
-    function: &PsiOptimizationFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    root: PlaceId,
-    moved: &BTreeSet<Vec<StructuralPathSegment>>,
-    residuals: &[StructuralAffineDiscard],
-) -> bool {
-    let Some(root_type) = partial_affine_root_type(function, root) else {
-        return false;
-    };
-    let Some(expected) =
-        partial_affine_residuals(structural_types, root_type, moved, residuals.len())
-    else {
-        return false;
-    };
-    !moved.is_empty()
-        && !residuals.is_empty()
-        && residuals.len() == expected.len()
-        && residuals
-            .iter()
-            .zip(expected)
-            .all(|(actual, (path, structural_type))| {
-                actual.place == root
-                    && actual.path == path
-                    && actual.structural_type == structural_type
-            })
 }
