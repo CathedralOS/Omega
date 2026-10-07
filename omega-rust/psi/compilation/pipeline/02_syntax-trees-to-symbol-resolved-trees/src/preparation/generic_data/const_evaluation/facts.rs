@@ -1159,6 +1159,43 @@ fn evaluate_domain_index_argument(
 /// constraints cannot be proved at declaration site.
 const CONSTRAINED_CONST_FENCE: &str = "constrained const declarations require declaration-site proof checking before they can publish compatibility identity";
 
+/// One Domain constraint discharged over a bound const subject: `Holds`
+/// passes silently, `Refuted` fails naming the caller's subject, and an
+/// undecided fact fences rather than guessing the binding.
+fn prove_const_domain_constraint(
+    syntax: &SyntaxTrees,
+    constraint: &TypeConstraintNode,
+    carrier: &str,
+    subject_binding: ConstSubjectBinding<'_>,
+    const_values: &HashMap<String, i128>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    warnings: &mut Vec<Diagnostic>,
+    subject_label: &str,
+) -> Result<(), String> {
+    let TypeConstraintNode::Domain(domain) = constraint else {
+        return Ok(());
+    };
+    let holds = evaluate_const_domain_constraint(
+        syntax,
+        domain,
+        carrier,
+        subject_binding,
+        const_values,
+        selection,
+        warnings,
+    )?;
+    match holds {
+        Some(DomainFactProof::Holds) => Ok(()),
+        Some(DomainFactProof::Refuted {
+            domain: failed_domain,
+        }) => Err(format!(
+            "domain constraint `{}` for {subject_label} is false; failed domain `{failed_domain}`",
+            domain.name.as_str(),
+        )),
+        None => Err(CONSTRAINED_CONST_FENCE.to_owned()),
+    }
+}
+
 /// Discharge a constrained const declaration's domain constraints at its
 /// canonical value — the declaration-site proof a constrained carrier owes
 /// before it may publish compatibility identity. Every constraint must be a
@@ -1288,28 +1325,16 @@ pub(crate) fn prove_declared_const_domain_constraints(
                 return Err(CONSTRAINED_CONST_FENCE.to_owned());
             }
         }
-        let holds = evaluate_const_domain_constraint(
+        prove_const_domain_constraint(
             syntax,
-            domain,
+            constraint,
             &carrier,
             subject_binding,
             &const_values,
             selection,
             &mut warnings,
+            &format!("const `{}`", super::qualified_const_name(definition)),
         )?;
-        match holds {
-            Some(DomainFactProof::Holds) => {}
-            Some(DomainFactProof::Refuted {
-                domain: failed_domain,
-            }) => {
-                return Err(format!(
-                    "domain constraint `{}` for const `{}` is false; failed domain `{failed_domain}`",
-                    domain.name.as_str(),
-                    super::qualified_const_name(definition),
-                ));
-            }
-            None => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
-        }
     }
     Ok(())
 }
@@ -1409,31 +1434,16 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
         crate::preparation::generic_data::module_constants::lexical_integer_const_values(syntax);
     let mut warnings = Vec::new();
     for constraint in constraints {
-        let TypeConstraintNode::Domain(domain) = constraint else {
-            continue;
-        };
-        let holds = evaluate_const_domain_constraint(
+        prove_const_domain_constraint(
             syntax,
-            domain,
+            constraint,
             &carrier,
             subject_binding,
             &const_values,
             selection,
             &mut warnings,
+            "the const leaf value",
         )?;
-        match holds {
-            Some(DomainFactProof::Holds) => {}
-            Some(DomainFactProof::Refuted {
-                domain: failed_domain,
-            }) => {
-                return Err(format!(
-                    "domain constraint `{}` for the const leaf value is false; \
-                     failed domain `{failed_domain}`",
-                    domain.name.as_str(),
-                ));
-            }
-            None => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
-        }
     }
     Ok(())
 }
