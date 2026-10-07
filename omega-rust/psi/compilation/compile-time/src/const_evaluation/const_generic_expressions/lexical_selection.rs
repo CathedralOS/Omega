@@ -70,19 +70,7 @@ pub(crate) fn retain(
                 pending.push(indexed.collection);
             }
             ExpressionNode::Call(call) => {
-                pending.extend(
-                    syntax
-                        .expressions
-                        .expression_handles(call.arguments)
-                        .iter()
-                        .rev()
-                        .copied(),
-                );
-                if call.receiver.is_valid()
-                    && !selected_call_has_namespace_receiver(syntax, resolved, call)?
-                {
-                    pending.push(call.receiver);
-                }
+                push_selected_call_children(&mut pending, syntax, resolved, call)?;
             }
             ExpressionNode::Binary(binary) => {
                 pending.push(binary.right);
@@ -156,19 +144,7 @@ pub(crate) fn retain_calls(
                 if !calls.contains(&selection) {
                     calls.push(selection);
                 }
-                pending.extend(
-                    syntax
-                        .expressions
-                        .expression_handles(call.arguments)
-                        .iter()
-                        .rev()
-                        .copied(),
-                );
-                if call.receiver.is_valid()
-                    && !selected_call_has_namespace_receiver(syntax, resolved, call)?
-                {
-                    pending.push(call.receiver);
-                }
+                push_selected_call_children(&mut pending, syntax, resolved, call)?;
             }
             ExpressionNode::Match(dispatch) => {
                 for arm in syntax.expressions.match_arms(dispatch.arms).iter().rev() {
@@ -372,4 +348,27 @@ fn selected_constant(
         origin = Some(selected_origin);
     }
     origin.ok_or_else(|| "machine index operand lost its original lexical occurrence".to_owned())
+}
+
+/// The call node's traversal children in visit order: arguments last-to-first
+/// (the pending stack pops them in written order), then the receiver when it
+/// is a value and not the call's namespace path.
+fn push_selected_call_children(
+    pending: &mut Vec<ExpressionHandle>,
+    syntax: &SyntaxTrees,
+    resolved: &SymbolResolvedTrees,
+    call: &syntax_trees::expression::TableCallExpression,
+) -> Result<(), String> {
+    pending.extend(
+        syntax
+            .expressions
+            .expression_handles(call.arguments)
+            .iter()
+            .rev()
+            .copied(),
+    );
+    if call.receiver.is_valid() && !selected_call_has_namespace_receiver(syntax, resolved, call)? {
+        pending.push(call.receiver);
+    }
+    Ok(())
 }
