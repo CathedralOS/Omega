@@ -69,11 +69,7 @@ echo "truncate: a truncated manifest is refused before packing"
 
 cp "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$TMP/implementation/implementation.gamma.sources"
 CORRUPT_MEMBER="$TMP/implementation/lowering/bindings.gamma"
-if [ "$(od -An -tc -j 100 -N1 "$CORRUPT_MEMBER" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$CORRUPT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$CORRUPT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$CORRUPT_MEMBER"
 rc=0
 (
   export OMEGA_PATH_DELTA_COMPILER_SOURCES=$TMP/implementation/implementation.gamma.sources
@@ -105,11 +101,7 @@ echo "support manifest: a truncated support manifest is refused before packing"
 cp "$OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES" \
   "$TMP/support/support.gamma.sources"
 CORRUPT_SUPPORT_MEMBER="$TMP/support/bytes.gamma"
-if [ "$(od -An -tc -j 100 -N1 "$CORRUPT_SUPPORT_MEMBER" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$CORRUPT_SUPPORT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$CORRUPT_SUPPORT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$CORRUPT_SUPPORT_MEMBER"
 rc=0
 (
   export OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES=$TMP/support/support.gamma.sources
@@ -146,11 +138,7 @@ require_delta_compiler_development_entry_identity ||
 echo "driver: canonical development entry passes the bound identity check"
 
 cp "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY" "$TMP/corrupt-driver.gamma"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/corrupt-driver.gamma" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/corrupt-driver.gamma" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/corrupt-driver.gamma" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$TMP/corrupt-driver.gamma"
 rc=0
 (
   export OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY=$TMP/corrupt-driver.gamma
@@ -243,11 +231,7 @@ rc=0
   fail "truncated internal-boundary manifest: expected exit 3, got $rc"
 cp "$OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES" \
   "$TMP/internal-boundary/controls.gamma.sources"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/internal-boundary/main.gamma" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/internal-boundary/main.gamma" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/internal-boundary/main.gamma" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$TMP/internal-boundary/main.gamma"
 rc=0
 (
   export OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES=$TMP/internal-boundary/controls.gamma.sources
@@ -274,11 +258,7 @@ rc=0
 cp "$OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES" \
   "$TMP/emission/controls/emission.gamma.sources"
 CORRUPT_EMISSION_MEMBER="$TMP/emission/controls/main.gamma"
-if [ "$(od -An -tc -j 100 -N1 "$CORRUPT_EMISSION_MEMBER" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$CORRUPT_EMISSION_MEMBER" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$CORRUPT_EMISSION_MEMBER" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$CORRUPT_EMISSION_MEMBER"
 rc=0
 (
   export OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES=$TMP/emission/controls/emission.gamma.sources

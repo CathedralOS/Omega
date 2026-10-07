@@ -22,11 +22,7 @@ check_controls_corruption() {
   [ "$rc" = 3 ] ||
     fail "truncated $1 manifest: expected exit 3, got $rc"
   cp "$3" "$TMP/$1/$4"
-  if [ "$(od -An -tc -j 100 -N1 "$TMP/$1/$5" | tr -d ' ')" = "a" ]; then
-    printf 'b' | dd of="$TMP/$1/$5" bs=1 seek=100 conv=notrunc status=none
-  else
-    printf 'a' | dd of="$TMP/$1/$5" bs=1 seek=100 conv=notrunc status=none
-  fi
+  flip_byte "$TMP/$1/$5"
   rc=0
   (
     export "$7=$TMP/$1/$4"
@@ -36,4 +32,13 @@ check_controls_corruption() {
     fail "corrupted $1 member: repack unexpectedly succeeded"
   grep -q 'digest' "$TMP/$9" ||
     fail "corrupted $1 member: refusal did not name the member digest"
+}
+
+# Change byte 100 in text members; call unguarded to retain the gate set -e context.
+flip_byte() {
+  if [ "$(od -An -tc -j 100 -N1 "$1" | tr -d ' ')" = "a" ]; then
+    printf 'b' | dd of="$1" bs=1 seek=100 conv=notrunc status=none
+  else
+    printf 'a' | dd of="$1" bs=1 seek=100 conv=notrunc status=none
+  fi
 }

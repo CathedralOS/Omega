@@ -40,11 +40,7 @@ echo "truncate: a truncated manifest is refused before packing"
 
 cp "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$TMP/4_epsilon/epsilon_compiler.delta.sources"
 CORRUPT_MEMBER="$TMP/4_epsilon/lexical/tokens.delta"
-if [ "$(od -An -tc -j 100 -N1 "$CORRUPT_MEMBER" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$CORRUPT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$CORRUPT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$CORRUPT_MEMBER"
 rc=0
 (
   export OMEGA_PATH_EPSILON_COMPILER_SOURCES=$TMP/4_epsilon/epsilon_compiler.delta.sources
@@ -63,11 +59,7 @@ require_epsilon_execution_driver_identity ||
 echo "driver: canonical execution driver passes the bound identity check"
 
 cp "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" "$TMP/corrupt-driver.delta"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/corrupt-driver.delta" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/corrupt-driver.delta" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/corrupt-driver.delta" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$TMP/corrupt-driver.delta"
 rc=0
 (
   export OMEGA_PATH_EPSILON_EXECUTION_DRIVER=$TMP/corrupt-driver.delta
@@ -96,11 +88,7 @@ echo "entry: canonical evaluator entry passes the bound identity check"
 
 EPSILON_ENTRY_FILE="$OMEGA_REPO_ROOT/tests/epsilon/evaluator-entry/evaluator_entry.delta"
 cp "$EPSILON_ENTRY_FILE" "$TMP/corrupt-entry.delta"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/corrupt-entry.delta" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/corrupt-entry.delta" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/corrupt-entry.delta" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$TMP/corrupt-entry.delta"
 rc=0
 (
   export OMEGA_PATH_EPSILON_EVALUATOR_ENTRY=$TMP/corrupt-entry.delta

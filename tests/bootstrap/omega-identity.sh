@@ -12,14 +12,6 @@ command -v python3 >/dev/null 2>&1 || {
 
 . "$TEST_DIR/gate_tmp.sh"
 
-flip_byte() {
-  if [ "$(od -An -tc -j 100 -N1 "$1" | tr -d ' ')" = "a" ]; then
-    printf 'b' | dd of="$1" bs=1 seek=100 conv=notrunc status=none
-  else
-    printf 'a' | dd of="$1" bs=1 seek=100 conv=notrunc status=none
-  fi
-}
-
 require_omega_compiler_identity ||
   fail "bound identity check refused the canonical checkout"
 echo "canonical: bound manifest and packed closure pass"

@@ -53,11 +53,7 @@ echo "truncate: a truncated checker manifest is refused before packing"
 cp "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
   "$TMP/checker-implementation/implementation.gamma.sources"
 CORRUPT_MEMBER="$TMP/checker-implementation/layout.gamma"
-if [ "$(od -An -tc -j 100 -N1 "$CORRUPT_MEMBER" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$CORRUPT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$CORRUPT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$CORRUPT_MEMBER"
 rc=0
 (
   export OMEGA_PATH_DERIVATION_CHECKER_SOURCES=$TMP/checker-implementation/implementation.gamma.sources
@@ -87,11 +83,7 @@ echo "truncate: a truncated theory manifest is refused before packing"
 
 cp "$OMEGA_PATH_BETA_ENCODING_SOURCES" "$TMP/theory/theory.gamma.sources"
 CORRUPT_MEMBER="$TMP/theory/definitions/counters/bytes.gamma"
-if [ "$(od -An -tc -j 100 -N1 "$CORRUPT_MEMBER" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$CORRUPT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$CORRUPT_MEMBER" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$CORRUPT_MEMBER"
 rc=0
 (
   export OMEGA_PATH_BETA_ENCODING_SOURCES=$TMP/theory/theory.gamma.sources
@@ -106,11 +98,7 @@ grep -q 'member digest changed' "$TMP/corrupt-theory-member.err" ||
 echo "member: a one-byte theory member change is refused during packing"
 
 cp "$OMEGA_PATH_BETA_ENCODING_PACKAGE" "$TMP/definition_package.bin"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/definition_package.bin" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/definition_package.bin" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/definition_package.bin" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$TMP/definition_package.bin"
 rc=0
 (
   export OMEGA_PATH_BETA_ENCODING_PACKAGE=$TMP/definition_package.bin

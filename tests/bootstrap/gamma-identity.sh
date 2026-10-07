@@ -20,11 +20,7 @@ cmp -s "$TMP/stamped" "$TMP/expected" ||
 echo "materialize: stamped seed embeds exactly [len][selected tape]"
 
 cp "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" "$TMP/corrupt-source.beta"
-if [ "$(od -An -tc -j 100 -N1 "$TMP/corrupt-source.beta" | tr -d ' ')" = "a" ]; then
-  printf 'b' | dd of="$TMP/corrupt-source.beta" bs=1 seek=100 conv=notrunc status=none
-else
-  printf 'a' | dd of="$TMP/corrupt-source.beta" bs=1 seek=100 conv=notrunc status=none
-fi
+flip_byte "$TMP/corrupt-source.beta"
 rc=0
 (
   export OMEGA_PATH_GAMMA_EVALUATOR_SOURCE=$TMP/corrupt-source.beta
