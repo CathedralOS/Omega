@@ -443,20 +443,10 @@ pub(super) fn closed_lift_literal_for_representative(
             let row_primitive = exact_primitive_type(program, *row_element_type)
                 .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
             if row_primitive == PrimitiveType::U8 {
-                let rows = elements
-                    .iter()
-                    .map(|row| {
-                        let ExpressionNode::ArrayLiteral(row_elements) =
-                            program.expression_table.expression(*row)
-                        else {
-                            return None;
-                        };
-                        let row_elements =
-                            program.expression_table.expression_handles(*row_elements);
-                        (row_elements.len() == *row_width)
-                            .then(|| canonical_fixed_bytes(program, row_elements))
-                            .flatten()
-                            .map(std::sync::Arc::from)
+                let rows = nested_literal_rows(program, elements, *row_width, position)?
+                    .into_iter()
+                    .map(|row_elements| {
+                        canonical_fixed_bytes(program, row_elements).map(std::sync::Arc::from)
                     })
                     .collect::<Option<Vec<_>>>()
                     .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
@@ -466,23 +456,9 @@ pub(super) fn closed_lift_literal_for_representative(
                 }));
             }
             if integer_primitive_landing(row_primitive).is_some() {
-                let rows = elements
-                    .iter()
-                    .map(|row| {
-                        let ExpressionNode::ArrayLiteral(row_elements) =
-                            program.expression_table.expression(*row)
-                        else {
-                            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
-                                position,
-                            ));
-                        };
-                        let row_elements =
-                            program.expression_table.expression_handles(*row_elements);
-                        if row_elements.len() != *row_width {
-                            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
-                                position,
-                            ));
-                        }
+                let rows = nested_literal_rows(program, elements, *row_width, position)?
+                    .into_iter()
+                    .map(|row_elements| {
                         row_elements
                             .iter()
                             .map(|element| {
@@ -504,23 +480,9 @@ pub(super) fn closed_lift_literal_for_representative(
                 }));
             }
             if matches!(row_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
-                let rows = elements
-                    .iter()
-                    .map(|row| {
-                        let ExpressionNode::ArrayLiteral(row_elements) =
-                            program.expression_table.expression(*row)
-                        else {
-                            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
-                                position,
-                            ));
-                        };
-                        let row_elements =
-                            program.expression_table.expression_handles(*row_elements);
-                        if row_elements.len() != *row_width {
-                            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
-                                position,
-                            ));
-                        }
+                let rows = nested_literal_rows(program, elements, *row_width, position)?
+                    .into_iter()
+                    .map(|row_elements| {
                         row_elements
                             .iter()
                             .map(|element| {
@@ -543,20 +505,10 @@ pub(super) fn closed_lift_literal_for_representative(
             if row_primitive != PrimitiveType::Bool {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
-            let rows = elements
-                .iter()
-                .map(|row| {
-                    let ExpressionNode::ArrayLiteral(row_elements) =
-                        program.expression_table.expression(*row)
-                    else {
-                        return None;
-                    };
-                    let row_elements = program.expression_table.expression_handles(*row_elements);
-                    if row_elements.len() != *row_width {
-                        return None;
-                    }
-                    closed_boolean_array_elements(program, row_elements)
-                        .map(std::sync::Arc::from)
+            let rows = nested_literal_rows(program, elements, *row_width, position)?
+                .into_iter()
+                .map(|row_elements| {
+                    closed_boolean_array_elements(program, row_elements).map(std::sync::Arc::from)
                 })
                 .collect::<Option<Vec<_>>>()
                 .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
@@ -828,6 +780,36 @@ fn closed_recursive_array_element(
 
 /// The shared integer-element arm of the flat and nested integer array
 /// lifts: unwrap the literal and land it under `element_type`.
+/// A nested array literal's elements each unwrapped to their row's spelled
+/// elements, rejecting a row that is not itself a literal or whose width
+/// disagrees with the declared shape.
+fn nested_literal_rows<'program>(
+    program: &'program TypedTrees,
+    elements: &[ExpressionHandle],
+    row_width: usize,
+    position: usize,
+) -> Result<Vec<&'program [ExpressionHandle]>, RelationPlanError> {
+    elements
+        .iter()
+        .map(|row| {
+            let ExpressionNode::ArrayLiteral(row_elements) =
+                program.expression_table.expression(*row)
+            else {
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
+                    position,
+                ));
+            };
+            let row_elements = program.expression_table.expression_handles(*row_elements);
+            if row_elements.len() != row_width {
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
+                    position,
+                ));
+            }
+            Ok(row_elements)
+        })
+        .collect()
+}
+
 fn closed_integer_array_element(
     program: &TypedTrees,
     element: ExpressionHandle,
