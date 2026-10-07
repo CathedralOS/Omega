@@ -9,7 +9,7 @@ use language_semantics::const_value::{
 use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::{DataMember, MachineParameterContract, TypeParameter, TypeParameterKind};
+use typed_trees::data::{DataField, DataMember, MachineParameterContract, TypeParameter, TypeParameterKind};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn validate_machine_data_argument(
@@ -644,16 +644,12 @@ fn validate_decoded_structured_const(
                     let DataMember::Field(field) = member else {
                         return Err("structured const carrier contains a case".to_owned());
                     };
-                    if encoded_name.as_str() != field.name.as_str() {
-                        return Err(format!(
-                            "record field `{encoded_name}` appears where `{}` is required",
-                            field.name
-                        ));
-                    }
-                    validate_decoded_structured_const(
+                    validate_named_field_value(
                         program,
-                        field.type_reference,
+                        encoded_name.as_str(),
+                        field,
                         encoded_value,
+                        "record field",
                         visiting,
                     )
                 },
@@ -718,16 +714,12 @@ fn validate_decoded_structured_const(
             visiting.push(*symbol);
             let result = payload.iter().zip(fields).try_for_each(
                 |(field, (encoded_name, encoded_value))| {
-                    if encoded_name.as_str() != field.name.as_str() {
-                        return Err(format!(
-                            "case payload field `{encoded_name}` appears where `{}` is required",
-                            field.name
-                        ));
-                    }
-                    validate_decoded_structured_const(
+                    validate_named_field_value(
                         program,
-                        field.type_reference,
+                        encoded_name.as_str(),
+                        field,
                         encoded_value,
+                        "case payload field",
                         visiting,
                     )
                 },
@@ -740,6 +732,31 @@ fn validate_decoded_structured_const(
             type_reference_label(program, expected_type)
         )),
     }
+}
+
+/// One decoded field-payload pair: the encoded name must spell the declared
+/// field's name, then the value recurses through the structured-const
+/// validation with the visiting guard intact.
+fn validate_named_field_value(
+    program: &TypedTrees,
+    encoded_name: &str,
+    field: &DataField,
+    encoded_value: &DecodedCanonicalConstValue,
+    field_role: &str,
+    visiting: &mut Vec<SymbolHandle>,
+) -> Result<(), String> {
+    if encoded_name != field.name.as_str() {
+        return Err(format!(
+            "{field_role} `{encoded_name}` appears where `{}` is required",
+            field.name
+        ));
+    }
+    validate_decoded_structured_const(
+        program,
+        field.type_reference,
+        encoded_value,
+        visiting,
+    )
 }
 
 fn exact_const_primitive(
