@@ -6,17 +6,13 @@ use super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralResultDeclaration,
 };
 use super::super::super::{
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity, Operation,
-    OperationKind, PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape,
-    TerminalMachineResult, ValueDeclaration, allocate_dense,
-    direct_expression_contains_short_circuit, emit_direct_expression, lookup_type_id,
-    obligation_id, place_id, terminal_scalar_type, unsupported, validate_direct_parameter_types,
-    value_id,
+    CheckedUnitEffectOperationPlan, Multiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TerminalMachineResult, ValueDeclaration, allocate_dense, lookup_type_id, place_id,
+    terminal_scalar_type, unsupported, value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::borrowed_window::terminal_multiplicity;
-use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedControlResultPlan;
 
@@ -375,145 +371,4 @@ pub(super) fn result(
                 )?,
         },
     ))
-}
-
-pub(super) fn emit(
-    checked: &CheckedTrees,
-    state: &CheckedComposedUnitControlStatePlan,
-    result: &TerminalMachineResult,
-    bindings: &crate::expression_preparation::bindings::ScalarBindings,
-    catalogs: &mut catalogs::ComposedCatalogs,
-    values: &[ValueDeclaration],
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<Option<PlaceId>, LoweringError> {
-    let CheckedComposedUnitControlTerminatorPlan::ReturnCase {
-        result: construction,
-    } = &state.terminator
-    else {
-        return Ok(None);
-    };
-    emit_case(
-        checked,
-        state,
-        construction,
-        result,
-        bindings,
-        catalogs,
-        values,
-        next_value,
-        operations,
-    )
-}
-
-pub(super) fn emit_case(
-    checked: &CheckedTrees,
-    state: &CheckedComposedUnitControlStatePlan,
-    construction: &checked_trees::CheckedStructuralCaseReturnPlan,
-    result: &TerminalMachineResult,
-    bindings: &crate::expression_preparation::bindings::ScalarBindings,
-    catalogs: &mut catalogs::ComposedCatalogs,
-    values: &[ValueDeclaration],
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<Option<PlaceId>, LoweringError> {
-    let checked_trees::CheckedStructuralCaseReturnPlan {
-        statement_ordinal,
-        case_identity,
-        fields,
-    } = construction;
-    let result = result.structural().ok_or(LoweringError::Unsupported(
-        "case construction result signature missing",
-    ))?;
-    let declaration = catalogs
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)
-        .ok_or(LoweringError::Unsupported(
-            "case construction result type missing",
-        ))?;
-    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return unsupported("case construction result is not a sum");
-    };
-    let case = cases
-        .iter()
-        .find(|case| case.identity == *case_identity)
-        .ok_or(LoweringError::Unsupported(
-            "case construction declaration missing",
-        ))?;
-    let mut evaluated = Vec::new();
-    for field in fields {
-        let declaration = case
-            .fields
-            .iter()
-            .find(|declaration| declaration.identity == field.field_identity)
-            .ok_or(LoweringError::Unsupported(
-                "case construction field declaration missing",
-            ))?;
-        let expression = bindings.expression_at(
-            checked,
-            state.state,
-            *statement_ordinal,
-            CheckedScalarExpressionRole::ReturnCaseField {
-                field_ordinal: field.field_ordinal,
-            },
-        )?;
-        if declaration.field_type.scalar_type() != Some(expression.scalar_type())
-            || direct_expression_contains_short_circuit(&expression)
-        {
-            return unsupported("case construction needs an exact branch-free scalar operand");
-        }
-        validate_direct_parameter_types(
-            &expression,
-            &values
-                .iter()
-                .map(|value| value.scalar_type)
-                .collect::<Vec<_>>(),
-        )?;
-        let value = emit_direct_expression(&expression, values, next_value, operations);
-        let range_obligation =
-            if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type) {
-                Some(obligation_id(allocate_dense(
-                    &mut catalogs.scalar_calls.next_call_obligation,
-                )?))
-            } else {
-                None
-            };
-        evaluated.push(terminal_psi::ScalarCaseField {
-            field: declaration.id,
-            value,
-            range_obligation,
-        });
-    }
-    evaluated.sort_by_key(|field| field.field);
-    let operation = operations.allocate();
-    let place = place_id(allocate_dense(&mut catalogs.next_place)?);
-    catalogs.result_places.push(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: operation,
-            structural_type: result.structural_type,
-        },
-    });
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result: terminal_psi::OperationResult::Structural(
-            terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place,
-                structural_type: result.structural_type,
-                multiplicity: result.multiplicity,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            },
-        ),
-        kind: OperationKind::EstablishScalarCase {
-            result_case: case.id,
-            fields: evaluated,
-        },
-    });
-    Ok(Some(place))
 }

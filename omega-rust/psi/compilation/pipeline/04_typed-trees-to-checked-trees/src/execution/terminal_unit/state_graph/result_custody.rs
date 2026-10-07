@@ -288,8 +288,9 @@ pub(super) fn account(
             // an affine owner through the exit permit, an unrestricted value
             // through dominance. The returned binding itself is the return's.
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
-            | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. } => permits_disposal(&[]),
+            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
+                permits_disposal(&[])
+            }
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => {
                 matches!(returned.source,
                     CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }

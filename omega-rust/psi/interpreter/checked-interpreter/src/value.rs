@@ -6,6 +6,72 @@ use std::collections::BTreeMap;
 use std::ops::{Deref, Range};
 use std::rc::Rc;
 use symbols::SymbolHandle;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+
+/// A reference transports storage identity and its captured representation
+/// together. Copies share the endpoint; returning or storing a reference never
+/// requires recovering metadata from a callee's vanished lexical binding.
+#[derive(Debug, Clone)]
+pub struct Reference {
+    pub(crate) cell: Cell,
+    pub(crate) storage: Option<ReferenceStorage>,
+}
+
+impl Reference {
+    pub fn new(cell: Cell) -> Self {
+        Self {
+            cell,
+            storage: None,
+        }
+    }
+
+    pub(crate) fn view(cell: Cell, storage: ReferenceStorage) -> Self {
+        Self {
+            cell,
+            storage: Some(storage),
+        }
+    }
+}
+
+/// A checked shared or mutable view's captured geometry. Access comes from
+/// the checked reference type, not this runtime representation descriptor.
+#[derive(Debug, Clone)]
+pub(crate) enum ReferenceStorage {
+    Direct {
+        source: PrimitiveType,
+        target: PrimitiveType,
+    },
+    ByteRegion {
+        cells: Vec<Cell>,
+        offset: usize,
+        target: PrimitiveType,
+    },
+    AggregateByteRegion {
+        cells: Vec<Cell>,
+        projection: ReferenceProjection,
+    },
+    AggregateTyped {
+        source: Cell,
+        source_type: TypeReferenceHandle,
+        projection: ReferenceProjection,
+    },
+}
+
+impl ReferenceStorage {
+    pub(crate) fn target(&self) -> Option<PrimitiveType> {
+        match self {
+            Self::Direct { target, .. } | Self::ByteRegion { target, .. } => Some(*target),
+            Self::AggregateByteRegion { .. } | Self::AggregateTyped { .. } => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ReferenceProjection {
+    pub(crate) offset: usize,
+    pub(crate) type_reference: TypeReferenceHandle,
+    pub(crate) stored_integer: Option<typed_trees::PlanLaidIntegerField>,
+}
 
 /// A storage cell. Every alias clones the same allocation, so a write through a
 /// reference mutates the original cell. A sponsored cell also owns one lifetime
@@ -429,8 +495,8 @@ pub enum Value {
     /// interpreter does not distinguish their static type -- indexing and `.len` work the
     /// same -- which is enough for the slice/array canaries.
     Array(Vec<Cell>),
-    /// A mutable reference: holds the SAME cell as the place it points at.
-    Ref(Cell),
+    /// A shared or mutable reference with its original endpoint and codec.
+    Ref(Reference),
 }
 
 impl Value {
@@ -535,12 +601,8 @@ impl Value {
         }
     }
 
-    /// Follow a `Ref` to the underlying cell, returning a clone of the same allocation so the
-    /// aliasing is preserved. Non-references return `None`.
-    pub fn as_ref_cell(&self) -> Option<Cell> {
-        match self {
-            Value::Ref(cell) => Some(cell.clone()),
-            _ => None,
-        }
+    /// Borrow canonical cell storage without inventing a view or copying its value.
+    pub fn reference(cell: Cell) -> Self {
+        Self::Ref(Reference::new(cell))
     }
 }

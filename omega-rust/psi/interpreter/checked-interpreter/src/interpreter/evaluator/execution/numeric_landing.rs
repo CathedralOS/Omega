@@ -4,7 +4,7 @@
 
 use crate::interpreter::evaluator::{
     EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, ExpressionNode, Frame,
-    PrimitiveType, State, TypeReferenceHandle, TypeReferenceNode, Value, unsupported,
+    PrimitiveType, Reference, State, TypeReferenceHandle, TypeReferenceNode, Value, unsupported,
 };
 impl Evaluator<'_> {
     /// Preserve aggregate destinations until each literal element reaches its
@@ -23,22 +23,11 @@ impl Evaluator<'_> {
             let selected = self.select_match_arm(expression, &dispatch, frame)?;
             return self.eval_expression_at_type(selected, destination, frame);
         }
-        if matches!(
-            self.program
-                .type_reference_table
-                .type_reference(destination),
-            TypeReferenceNode::Reference { .. }
-        ) {
-            if self
-                .capture_reference_view(expression, destination, frame)?
-                .is_some()
+        if self.declared_type_is_reference(destination) {
+            if let Some((source, storage)) =
+                self.capture_reference_view(expression, destination, frame)?
             {
-                // This Value-only seam cannot retain the frame-owned codec and
-                // captured projection. Returning its first-byte Cell as a raw
-                // Ref would lose the encoded endpoint without a diagnostic.
-                return unsupported(
-                    "reference-valued result cannot transport captured storage-view metadata",
-                );
+                return Ok(Value::Ref(Reference::view(source, storage)));
             }
             // A reference result/field retains the selected Ref, not a scalar
             // observation of its referent. The same selection serves arguments.

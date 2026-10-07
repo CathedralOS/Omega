@@ -4,7 +4,7 @@
 //! private conversions still belong to the old executor and are deleted with
 //! it; no storage or execution algorithm is relocated into the data owner.
 
-use crate::value::{Cell, Value};
+use crate::value::{Cell, Reference, Value};
 use build_time_values::BuildTimeValue;
 use std::collections::BTreeMap;
 
@@ -62,8 +62,11 @@ pub(crate) fn materialize_build_time_value<E>(
 
 /// Deep-read an interpreter value back out. References deref (a build-time
 /// result is a VALUE; nothing it points at survives the evaluation).
-pub(crate) fn observe_build_time_value(value: &Value) -> BuildTimeValue {
-    match value {
+pub(crate) fn observe_build_time_value<E>(
+    value: &Value,
+    read_reference: &impl Fn(&Reference) -> Result<Value, E>,
+) -> Result<BuildTimeValue, E> {
+    Ok(match value {
         Value::Unit => BuildTimeValue::Unit,
         Value::Int(value) => BuildTimeValue::Int(*value),
         Value::Bool(value) => BuildTimeValue::Bool(*value),
@@ -76,8 +79,13 @@ pub(crate) fn observe_build_time_value(value: &Value) -> BuildTimeValue {
             type_name: type_name.to_string(),
             fields: fields
                 .iter()
-                .map(|(name, cell)| (name.to_string(), observe_build_time_value(&cell.borrow())))
-                .collect(),
+                .map(|(name, cell)| {
+                    Ok((
+                        name.to_string(),
+                        observe_build_time_value(&cell.borrow(), read_reference)?,
+                    ))
+                })
+                .collect::<Result<_, E>>()?,
         },
         Value::Enum {
             variant_name,
@@ -87,17 +95,24 @@ pub(crate) fn observe_build_time_value(value: &Value) -> BuildTimeValue {
             variant: variant_name.to_string(),
             payload: payload
                 .iter()
-                .map(|(name, cell)| (name.to_string(), observe_build_time_value(&cell.borrow())))
-                .collect(),
+                .map(|(name, cell)| {
+                    Ok((
+                        name.to_string(),
+                        observe_build_time_value(&cell.borrow(), read_reference)?,
+                    ))
+                })
+                .collect::<Result<_, E>>()?,
         },
         Value::Array(elements) => BuildTimeValue::Array(
             elements
                 .iter()
-                .map(|cell| observe_build_time_value(&cell.borrow()))
-                .collect(),
+                .map(|cell| observe_build_time_value(&cell.borrow(), read_reference))
+                .collect::<Result<_, E>>()?,
         ),
-        Value::Ref(cell) => observe_build_time_value(&cell.borrow()),
-    }
+        Value::Ref(reference) => {
+            observe_build_time_value(&read_reference(reference)?, read_reference)?
+        }
+    })
 }
 
 /// One supplied semantic execution, tied to the exact checked operator use.

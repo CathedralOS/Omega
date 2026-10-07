@@ -1,4 +1,4 @@
-//! Composed unit control plans: state plans, natural ranks, case returns and
+//! Composed unit control plans: state plans, natural ranks, value returns and
 //! closed-sum successors.
 
 use crate::checked_trees::flow::terminal::{
@@ -154,13 +154,6 @@ pub struct CheckedComposedUnitControlStatePlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralCaseReturnPlan {
-    pub statement_ordinal: u32,
-    pub case_identity: String,
-    pub fields: Vec<CheckedScalarCaseFieldPlan>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedComposedUnitControlTerminatorPlan {
     ReturnUnit,
     /// Complete a scalar-result machine with the same completion an ordinary
@@ -171,9 +164,6 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     /// Return a completed result from the ordinary structural value namespace.
     ReturnStructural {
         result: crate::CheckedUnitStructuralReturnPlan,
-    },
-    ReturnCase {
-        result: CheckedStructuralCaseReturnPlan,
     },
     /// Guards and coverage belong to the shared source-owned scalar tail roster.
     /// These construction payloads bind its destinations by exact source coordinate,
@@ -264,7 +254,6 @@ impl CheckedComposedUnitControlTerminatorPlan {
             Self::ReturnUnit
             | Self::ReturnScalar { .. }
             | Self::Guarded { .. }
-            | Self::ReturnCase { .. }
             | Self::Crash { .. }
             | Self::ReturnStructural { .. }
             | Self::ConditionalCompletion { .. } => Vec::new(),

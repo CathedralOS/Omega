@@ -260,7 +260,7 @@ impl<'program> Evaluator<'program> {
                     .is_some_and(|shell| shell.access.is_exclusive()) =>
             {
                 vec![EvaluatedArgument::plain(
-                    self.allocate_cell(Value::Ref(source.clone()))?,
+                    self.allocate_cell(Value::reference(source.clone()))?,
                 )]
             }
             _ => return unsupported("nominal cleanup target argument custody drifted"),

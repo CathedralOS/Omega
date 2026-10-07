@@ -22,6 +22,7 @@
 
 use crate::build_evaluation_sponsor::BuildEvaluationLiveFilesystemHandleLease;
 use crate::value::{Cell, CellMeter, TextByteMeter, Value};
+use crate::value::{Reference, ReferenceProjection, ReferenceStorage};
 use crate::{
     BuildEvaluationSponsor, EvaluationUsage, FilesystemEvaluationHaltKind, FilesystemGrantAccess,
     FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemGrantRootIdentity,
@@ -135,54 +136,16 @@ const VIRTUAL_UID: u32 = 501;
 const VIRTUAL_GID: u32 = 20;
 
 #[derive(Clone)]
-enum MutableScalarRecast {
-    Direct {
-        source: PrimitiveType,
-        target: PrimitiveType,
-    },
-    ByteRegion {
-        cells: Vec<Cell>,
-        offset: usize,
-        target: PrimitiveType,
-    },
-    AggregateByteRegion {
-        cells: Vec<Cell>,
-        projection: MutableRecordProjection,
-    },
-    AggregateTyped {
-        source: Cell,
-        source_type: TypeReferenceHandle,
-        projection: MutableRecordProjection,
-    },
-}
-
-impl MutableScalarRecast {
-    fn target(&self) -> Option<PrimitiveType> {
-        match self {
-            Self::Direct { target, .. } | Self::ByteRegion { target, .. } => Some(*target),
-            Self::AggregateByteRegion { .. } | Self::AggregateTyped { .. } => None,
-        }
-    }
-}
-
-#[derive(Clone)]
-enum MutableRecordProjectionStep {
+enum ReferenceProjectionStep {
     Field(String),
     Index(ExpressionHandle),
-}
-
-#[derive(Clone, Copy)]
-struct MutableRecordProjection {
-    offset: usize,
-    type_reference: TypeReferenceHandle,
-    stored_integer: Option<typed_trees::PlanLaidIntegerField>,
 }
 
 /// Captured representation geometry. A typed backing is read at the eventual
 /// write so RHS changes to unrelated bytes are not overwritten by a snapshot.
 struct MutableRecordRecastWrite {
-    recast: MutableScalarRecast,
-    projection: MutableRecordProjection,
+    recast: ReferenceStorage,
+    projection: ReferenceProjection,
 }
 
 /// One parameter or `let` binding of an activated frame, keyed by the checked
@@ -202,11 +165,6 @@ struct FrameLocal {
     /// coercion alone cannot represent an expression whose own domain differs
     /// from its landing slot's). `None` for a non-scalar binding.
     scalar: Option<(PrimitiveType, ArithmeticDomain)>,
-    /// A mutable recast binding retains either one equal-width scalar cell or
-    /// an indexed byte region. The binding remains a normal `Ref` for place
-    /// resolution, while this descriptor preserves the stated scalar/record
-    /// geometry at the observable read/write seams.
-    mutable_recast: Option<MutableScalarRecast>,
 }
 
 /// A lexical scope containing only explicit parameter and local bindings.
@@ -466,15 +424,11 @@ pub(crate) struct Evaluator<'program> {
 #[derive(Clone)]
 struct EvaluatedArgument {
     cell: Cell,
-    mutable_recast: Option<MutableScalarRecast>,
 }
 
 impl EvaluatedArgument {
     fn plain(cell: Cell) -> Self {
-        Self {
-            cell,
-            mutable_recast: None,
-        }
+        Self { cell }
     }
 }
 
@@ -507,11 +461,6 @@ impl Frame {
 
     fn local_scalar(&self, symbol: SymbolHandle) -> Option<(PrimitiveType, ArithmeticDomain)> {
         self.local(symbol).and_then(|local| local.scalar)
-    }
-
-    fn local_mutable_recast(&self, symbol: SymbolHandle) -> Option<MutableScalarRecast> {
-        self.local(symbol)
-            .and_then(|local| local.mutable_recast.clone())
     }
 
     /// Bind or rebind one symbol. A re-executed `let` (a self-targeting

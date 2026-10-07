@@ -1,15 +1,15 @@
-//! Normal graph results and source-bound scalar case construction. A
+//! Normal graph results through the shared structural value producer. A
 //! primitive scalar result completes each returning state with the same
 //! binding or exit roster an ordinary single-state body retains.
 use super::super::{
     CheckedStructuralResultPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralTypeShape, DataMember, TypeReferenceHandle,
+    CheckedUnitStructuralTypeShape, TypeReferenceHandle,
 };
 use super::{
-    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, Multiplicity,
-    StatementNode, TransitionExit, TransitionTargetNode, TypeReferenceNode, control,
+    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralParameterPlan, Multiplicity, StatementNode, TransitionExit,
+    TransitionTargetNode, control,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::types::{
@@ -23,9 +23,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, PrimitiveType,
 };
 
-use checked_trees::{
-    CheckedByteSequenceCarrier, CheckedControlResultPlan, CheckedScalarCaseFieldPlan,
-};
+use checked_trees::{CheckedByteSequenceCarrier, CheckedControlResultPlan};
 
 pub(in crate::execution::terminal_unit) fn signature(
     program: &dyn ::validation::CheckingInput,
@@ -265,76 +263,6 @@ pub(super) fn scalar_completion(
         return None;
     }
     Some(checked_trees::CheckedScalarReturnPlan::Exits(exits))
-}
-
-pub(super) fn constructor(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state: &typed_trees::state::State,
-    statement_ordinal: u32,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<checked_trees::CheckedStructuralCaseReturnPlan> {
-    // A shape classification does not establish fresh linear authority.
-    if program.type_multiplicity(state.return_type) == Multiplicity::Linear {
-        return None;
-    }
-    let TypeReferenceNode::Named { symbol, .. } = program
-        .type_reference_table
-        .type_reference(state.return_type)
-    else {
-        return None;
-    };
-    let constructor = validation::scalar_case_constructor(program, expression)?;
-    if program.normalized_type_identity(constructor.type_reference)
-        != program.normalized_type_identity(state.return_type)
-    {
-        return None;
-    }
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *symbol)?;
-    let variant = program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Variant(variant) if variant.symbol == constructor.case => Some(variant),
-            _ => None,
-        })?;
-    let declarations = program.data_payload_fields(variant);
-    let mut planned = Vec::new();
-    for (ordinal, (field_symbol, source, primitive_type)) in constructor.fields.iter().enumerate() {
-        let declaration = declarations
-            .iter()
-            .find(|declaration| declaration.symbol == *field_symbol)?;
-        let identity = declaration.path_identity();
-        if planned
-            .iter()
-            .any(|field: &CheckedScalarCaseFieldPlan| field.field_identity == identity)
-        {
-            return None;
-        }
-        let field_ordinal = u32::try_from(ordinal).ok()?;
-        let (binding, expression) = facts.values.scalar_expressions.bound_expression_at(
-            state.symbol,
-            statement_ordinal,
-            CheckedScalarExpressionRole::ReturnCaseField { field_ordinal },
-        )?;
-        if binding.expression != *source || binding.destination.is_valid() {
-            return None;
-        }
-        planned.push(CheckedScalarCaseFieldPlan {
-            field_ordinal,
-            field_identity: identity,
-            primitive_type: *primitive_type,
-            expression: expression.clone(),
-        });
-    }
-    Some(checked_trees::CheckedStructuralCaseReturnPlan {
-        statement_ordinal,
-        case_identity: variant.path_identity(),
-        fields: planned,
-    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -736,25 +664,7 @@ fn shared_reference_result_operation(
         expression,
         return_type,
     )?;
-    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
-    else {
-        return None;
-    };
-    let authored_position = program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| {
-            !parameter.is_const
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .nth(parameter_index as usize)?
-        .0;
-    if parameters.get(parameter_index as usize)?.position as usize != authored_position {
-        return None;
-    }
+    reference_parameter_matches(program, state, parameters, &source)?;
     let referee = crate::execution::terminal_unit::types::borrowed_view_referent(
         program,
         return_type,
@@ -784,15 +694,9 @@ fn shared_reference_result_operation(
     })
 }
 
-/// The `EstablishReference` producer for one authored `&mut place` return
-/// target of a `&mut T` result: the target's canonical place — with a view
-/// local (`let slots: &mut [T] = self.items.as_mut_slice()`) rebased to the
-/// storage it views — must root at a `&mut` structural parameter this state
-/// retains, and the projected path must bottom out in exactly the declared
-/// referee. The result loans that caller-side storage; it does not
-/// establish owned contents, so it carries the `Reference` plan shape the
-/// signature's `add_reference_type` spells and the affine multiplicity
-/// `result_multiplicity` records.
+/// Establish the returned mutable loan from the shared initializer custody
+/// relation. Forwarding and reborrowing retain the same ingress and exact
+/// referee, not owned contents or a new carrier-width storage home.
 fn mutable_reference_result_operation(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
@@ -808,53 +712,21 @@ fn mutable_reference_result_operation(
     if access != CheckedStructuralAccess::MutableBorrow {
         return None;
     }
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if borrow.access != language_semantics::ReferenceAccess::Mutable {
-        return None;
-    }
-    let statement_index = usize::try_from(statement_ordinal).ok()?;
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    // The shared custody owner reconstructs both forwarding and reborrowing,
+    // including the exact final reference crossing. A root's declared reference
+    // shell is not the type of the storage it lends.
+    let source = validation::reference_result_custody::initializer_source(
         program,
-        state.symbol,
-        statement_index,
-        borrow.target,
+        state,
+        expression,
+        return_type,
     )?;
-    let place =
-        crate::flow::rebase_exact_local_place(program, state.symbol, statement_index, place, None)?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
-    let authored = program.state_parameters(state);
-    let position = authored
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)?;
-    let carrier = &authored[position];
-    // A `mut` marker on the carrier is the `&mut self` spelling itself —
-    // `is_mutable` records it — so the rejection is only a mutable binding
-    // on a non-reference carrier, where reseating would break the loan's
-    // provenance. The reference's own readability check stays exact.
-    if (carrier.is_mutable
-        && !crate::execution::terminal_unit::types::is_reference(program, carrier.type_reference))
-        || !crate::checks::contracts::is_readable_mutable_reference(program, carrier.type_reference)
-    {
-        return None;
-    }
-    let parameter_index = parameters
-        .iter()
-        .position(|parameter| parameter.position as usize == position)?;
-    let (storage, path) = crate::execution::terminal_unit::calls::projected_argument_path(
-        program,
-        state.symbol,
-        statement_index,
-        &place,
-    )?;
-    if program.normalized_type_identity(storage) != program.normalized_type_identity(referee) {
-        return None;
-    }
+    reference_parameter_matches(program, state, parameters, &source)?;
     let type_identity = shapes.add_reference_type(return_type, &[])?;
     let referent_identity = shapes.add_type(referee, &[], &[])?;
+    if source.access != access || source.type_identity != referent_identity {
+        return None;
+    }
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index: statement_ordinal,
         binding_ordinal: u32::try_from(*count).ok()?,
@@ -865,14 +737,7 @@ fn mutable_reference_result_operation(
     Some(CheckedUnitEffectOperationPlan::EstablishReference {
         result,
         storage: checked_trees::CheckedReferenceStorage::Declared,
-        source: CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
-            },
-            path,
-            type_identity: referent_identity,
-            access: CheckedStructuralAccess::MutableBorrow,
-        },
+        source,
     })
 }
 
@@ -1041,4 +906,32 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
         source,
         storage: checked_trees::CheckedReferenceStorage::Declared,
     })
+}
+
+/// Structural ingress ordinals exclude scalar/const parameters. Retain their
+/// exact authored coordinate in the published signature for every reference
+/// access kind; merely finding a slot with the same index does not prove it.
+fn reference_parameter_matches(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    source: &CheckedUnitStructuralArgumentPlan,
+) -> Option<()> {
+    let parameter_index = source.source_parameter_index()?;
+    let authored_position = program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| {
+            !parameter.is_const
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .nth(parameter_index as usize)?
+        .0;
+    if parameters.get(parameter_index as usize)?.position as usize != authored_position {
+        return None;
+    }
+    Some(())
 }

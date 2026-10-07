@@ -1,7 +1,7 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, DataDefinition, DataMember, EvalResult, Evaluator, ExpressionHandle,
-    ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet, MutableRecordProjection,
-    MutableRecordProjectionStep, MutableRecordRecastWrite, MutableScalarRecast, PrimitiveType,
+    ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet, MutableRecordRecastWrite,
+    PrimitiveType, Reference, ReferenceProjection, ReferenceProjectionStep, ReferenceStorage,
     SemanticFloatFormat, SymbolHandle, TableNamePath, TypeReferenceHandle, TypeReferenceNode,
     Value, apply_arithmetic_domain, interpreter_f32_from_bits, interpreter_f32_to_bits, trap,
     unsupported,
@@ -80,35 +80,45 @@ impl<'program> Evaluator<'program> {
         let cell = self.resolve_name_place(path, frame)?;
         let value = cell.borrow().clone();
         // A `Ref` read through a name dereferences transparently (param of `&mut T`).
-        if let Value::Ref(inner) = value {
-            if members.len() == 1
-                && let Some(recast) = frame.local_mutable_recast(path.head_symbol)
-            {
-                return match recast {
-                    MutableScalarRecast::Direct { target, .. } => {
-                        self.eval_recast(inner.borrow().clone(), Some(target))
-                    }
-                    MutableScalarRecast::ByteRegion {
-                        cells,
-                        offset,
-                        target,
-                    } => self.assemble_scalar_byte_region(&cells, offset, target),
-                    MutableScalarRecast::AggregateByteRegion { cells, projection } => {
-                        self.read_record_view_projection(&cells, projection)
-                    }
-                    MutableScalarRecast::AggregateTyped {
-                        source,
-                        source_type,
-                        projection,
-                    } => {
-                        let cells = self.snapshot_typed_value_bytes(&source, source_type)?;
-                        self.read_record_view_projection(&cells, projection)
-                    }
-                };
+        self.observe_reference_value(value)
+    }
+
+    /// Read the selected endpoint at its retained representation. No lexical
+    /// binding lookup is needed, so returned and aggregate-stored references
+    /// use the same observation as parameters and locals.
+    pub(crate) fn read_reference(&self, reference: &Reference) -> EvalResult<Value> {
+        match &reference.storage {
+            None => Ok(reference.cell.borrow().clone()),
+            Some(ReferenceStorage::Direct { target, .. }) => {
+                self.eval_recast(reference.cell.borrow().clone(), Some(*target))
             }
-            return Ok(inner.borrow().clone());
+            Some(ReferenceStorage::ByteRegion {
+                cells,
+                offset,
+                target,
+            }) => self.assemble_scalar_byte_region(cells, *offset, *target),
+            Some(ReferenceStorage::AggregateByteRegion { cells, projection }) => {
+                self.read_record_view_projection(cells, *projection)
+            }
+            Some(ReferenceStorage::AggregateTyped {
+                source,
+                source_type,
+                projection,
+            }) => {
+                let cells = self.snapshot_typed_value_bytes(source, *source_type)?;
+                self.read_record_view_projection(&cells, *projection)
+            }
         }
-        Ok(value)
+    }
+
+    pub(in crate::interpreter::evaluator) fn observe_reference_value(
+        &self,
+        value: Value,
+    ) -> EvalResult<Value> {
+        match value {
+            Value::Ref(reference) => self.read_reference(&reference),
+            other => Ok(other),
+        }
     }
 
     /// Capture one checked reference endpoint for locals and call operands.
@@ -119,7 +129,7 @@ impl<'program> Evaluator<'program> {
         initializer: ExpressionHandle,
         mut destination: TypeReferenceHandle,
         frame: &mut Frame,
-    ) -> EvalResult<Option<(Cell, MutableScalarRecast)>> {
+    ) -> EvalResult<Option<(Cell, ReferenceStorage)>> {
         loop {
             match self
                 .program
@@ -134,12 +144,12 @@ impl<'program> Evaluator<'program> {
         if let Some(reference) = self.reference_recast_initializer(initializer, frame)? {
             return Ok(Some(reference));
         }
-        let Some((mut recast, path)) = self.mutable_recast_path(initializer, frame)? else {
+        let Some((mut recast, path)) = self.reference_storage_path(initializer, frame)? else {
             return Ok(None);
         };
         if let Some(projection) = self.project_record_reference(&recast, &path, frame)? {
             let source = match &mut recast {
-                MutableScalarRecast::AggregateByteRegion {
+                ReferenceStorage::AggregateByteRegion {
                     cells,
                     projection: retained,
                 } => {
@@ -151,7 +161,7 @@ impl<'program> Evaluator<'program> {
                         )
                     })?
                 }
-                MutableScalarRecast::AggregateTyped {
+                ReferenceStorage::AggregateTyped {
                     source,
                     projection: retained,
                     ..
@@ -177,7 +187,7 @@ impl<'program> Evaluator<'program> {
         &mut self,
         initializer: ExpressionHandle,
         frame: &mut Frame,
-    ) -> EvalResult<Option<(Cell, MutableScalarRecast)>> {
+    ) -> EvalResult<Option<(Cell, ReferenceStorage)>> {
         let cast_handle = match self.program.expression_table.expression(initializer) {
             ExpressionNode::Borrow(inner) => inner.target,
             ExpressionNode::Cast(cast) if cast.form.is_recast() => initializer,
@@ -227,14 +237,14 @@ impl<'program> Evaluator<'program> {
                     ))
                 })?;
                 let recast = match target {
-                    Some(target) => MutableScalarRecast::ByteRegion {
+                    Some(target) => ReferenceStorage::ByteRegion {
                         cells,
                         offset,
                         target,
                     },
-                    None => MutableScalarRecast::AggregateByteRegion {
+                    None => ReferenceStorage::AggregateByteRegion {
                         cells,
-                        projection: MutableRecordProjection {
+                        projection: ReferenceProjection {
                             offset,
                             type_reference: cast.target_type,
                             stored_integer: None,
@@ -256,10 +266,10 @@ impl<'program> Evaluator<'program> {
             {
                 return Ok(Some((
                     source.clone(),
-                    MutableScalarRecast::AggregateTyped {
+                    ReferenceStorage::AggregateTyped {
                         source,
                         source_type,
-                        projection: MutableRecordProjection {
+                        projection: ReferenceProjection {
                             offset: 0,
                             type_reference: cast.target_type,
                             stored_integer: None,
@@ -277,46 +287,24 @@ impl<'program> Evaluator<'program> {
         let source_cell = self.resolve_place(source_handle, frame)?;
         Ok(Some((
             self.deref_cell(source_cell),
-            MutableScalarRecast::Direct { source, target },
+            ReferenceStorage::Direct { source, target },
         )))
     }
 
-    pub(in crate::interpreter::evaluator) fn mutable_scalar_recast_target(
-        &self,
-        target: ExpressionHandle,
-        frame: &Frame,
-    ) -> Option<MutableScalarRecast> {
-        let target = match self.program.expression_table.expression(target) {
-            ExpressionNode::Borrow(inner) => inner.target,
-            _ => target,
-        };
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(target) else {
-            return None;
-        };
-        let members = self
-            .program
-            .expression_table
-            .name_path_members(path.members);
-        if members.len() != 1 {
-            return None;
-        }
-        frame.local_mutable_recast(path.head_symbol)
-    }
-
-    /// Recover a mutable recast local and any record-field path projected from
-    /// it. Typed expressions use both `Name([view, field])` and nested Member
-    /// nodes, so normalize both spellings here.
-    pub(in crate::interpreter::evaluator) fn mutable_recast_path(
+    /// Find the captured reference at the selected storage place, retaining
+    /// any remaining projection. References in locals, parameters and record
+    /// fields carry the same descriptor. Normalize typed Name and Member paths.
+    pub(in crate::interpreter::evaluator) fn reference_storage_path(
         &mut self,
         handle: ExpressionHandle,
         frame: &mut Frame,
-    ) -> EvalResult<Option<(MutableScalarRecast, Vec<MutableRecordProjectionStep>)>> {
+    ) -> EvalResult<Option<(ReferenceStorage, Vec<ReferenceProjectionStep>)>> {
         match self.program.expression_table.expression(handle).clone() {
             ExpressionNode::Borrow(inner) => {
                 if let Some((_, recast)) = self.reference_recast_initializer(handle, frame)? {
                     return Ok(Some((recast, Vec::new())));
                 }
-                self.mutable_recast_path(inner.target, frame)
+                self.reference_storage_path(inner.target, frame)
             }
             ExpressionNode::Cast(cast) if cast.form.is_recast() => Ok(self
                 .reference_recast_initializer(handle, frame)?
@@ -329,36 +317,49 @@ impl<'program> Evaluator<'program> {
                 if members.is_empty() {
                     return Ok(None);
                 }
-                let recast = frame.local_mutable_recast(path.head_symbol);
-                Ok(recast.map(|recast| {
-                    (
-                        recast,
-                        members[1..]
-                            .iter()
-                            .map(|member| {
-                                MutableRecordProjectionStep::Field(member.as_str().to_owned())
-                            })
-                            .collect(),
-                    )
-                }))
+                let Some(mut cell) = frame.local_cell(path.head_symbol) else {
+                    return Ok(None);
+                };
+                for position in 1..=members.len() {
+                    let storage = match &*cell.borrow() {
+                        Value::Ref(reference) => reference.storage.clone(),
+                        _ => None,
+                    };
+                    if let Some(storage) = storage {
+                        return Ok(Some((
+                            storage,
+                            members[position..]
+                                .iter()
+                                .map(|member| {
+                                    ReferenceProjectionStep::Field(member.as_str().to_owned())
+                                })
+                                .collect(),
+                        )));
+                    }
+                    if let Some(member) = members.get(position) {
+                        cell = self.field_cell(&cell, member.as_str())?;
+                    }
+                }
+                Ok(None)
             }
             ExpressionNode::Member(member) => {
-                let Some((recast, mut path)) = self.mutable_recast_path(member.receiver, frame)?
+                let Some((recast, mut path)) =
+                    self.reference_storage_path(member.receiver, frame)?
                 else {
                     return Ok(None);
                 };
-                path.push(MutableRecordProjectionStep::Field(
+                path.push(ReferenceProjectionStep::Field(
                     member.member.as_str().to_owned(),
                 ));
                 Ok(Some((recast, path)))
             }
             ExpressionNode::Indexed(indexed) => {
                 let Some((recast, mut path)) =
-                    self.mutable_recast_path(indexed.collection, frame)?
+                    self.reference_storage_path(indexed.collection, frame)?
                 else {
                     return Ok(None);
                 };
-                path.push(MutableRecordProjectionStep::Index(indexed.index));
+                path.push(ReferenceProjectionStep::Index(indexed.index));
                 Ok(Some((recast, path)))
             }
             _ => Ok(None),
@@ -370,10 +371,10 @@ impl<'program> Evaluator<'program> {
         handle: ExpressionHandle,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        let Some((recast, path)) = self.mutable_recast_path(handle, frame)? else {
+        let Some((recast, path)) = self.reference_storage_path(handle, frame)? else {
             return Ok(None);
         };
-        if matches!(path.as_slice(), [MutableRecordProjectionStep::Field(field)]
+        if matches!(path.as_slice(), [ReferenceProjectionStep::Field(field)]
             if CollectionMeasure::from_authored_spelling(field) == Some(CollectionMeasure::Length))
             && let Some((projection, region_length)) = self.record_reference_geometry(&recast)?
             && self.declared_type_is_slice(projection.type_reference)
@@ -391,8 +392,8 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         };
         let cells = match recast {
-            MutableScalarRecast::AggregateByteRegion { cells, .. } => cells,
-            MutableScalarRecast::AggregateTyped {
+            ReferenceStorage::AggregateByteRegion { cells, .. } => cells,
+            ReferenceStorage::AggregateTyped {
                 source,
                 source_type,
                 ..
@@ -408,10 +409,10 @@ impl<'program> Evaluator<'program> {
     /// with the logical scalar width when the reference is forwarded.
     fn project_record_reference(
         &mut self,
-        recast: &MutableScalarRecast,
-        path: &[MutableRecordProjectionStep],
+        recast: &ReferenceStorage,
+        path: &[ReferenceProjectionStep],
         frame: &mut Frame,
-    ) -> EvalResult<Option<MutableRecordProjection>> {
+    ) -> EvalResult<Option<ReferenceProjection>> {
         let Some((retained, region_length)) = self.record_reference_geometry(recast)? else {
             return Ok(None);
         };
@@ -457,13 +458,13 @@ impl<'program> Evaluator<'program> {
 
     fn record_reference_geometry(
         &self,
-        recast: &MutableScalarRecast,
-    ) -> EvalResult<Option<(MutableRecordProjection, usize)>> {
+        recast: &ReferenceStorage,
+    ) -> EvalResult<Option<(ReferenceProjection, usize)>> {
         let geometry = match recast {
-            MutableScalarRecast::AggregateByteRegion { cells, projection } => {
+            ReferenceStorage::AggregateByteRegion { cells, projection } => {
                 (*projection, cells.len())
             }
-            MutableScalarRecast::AggregateTyped {
+            ReferenceStorage::AggregateTyped {
                 source_type,
                 projection,
                 ..
@@ -483,7 +484,7 @@ impl<'program> Evaluator<'program> {
     fn read_record_view_projection(
         &self,
         cells: &[Cell],
-        projection: MutableRecordProjection,
+        projection: ReferenceProjection,
     ) -> EvalResult<Value> {
         if let Some(integer) = projection.stored_integer {
             let primitive = self
@@ -513,7 +514,7 @@ impl<'program> Evaluator<'program> {
         handle: ExpressionHandle,
         frame: &mut Frame,
     ) -> EvalResult<Option<MutableRecordRecastWrite>> {
-        let Some((recast, path)) = self.mutable_recast_path(handle, frame)? else {
+        let Some((recast, path)) = self.reference_storage_path(handle, frame)? else {
             return Ok(None);
         };
         let Some(projection) = self.project_record_reference(&recast, &path, frame)? else {
@@ -528,8 +529,8 @@ impl<'program> Evaluator<'program> {
         value: Value,
     ) -> EvalResult<()> {
         let (cells, typed_source) = match write.recast {
-            MutableScalarRecast::AggregateByteRegion { cells, .. } => (cells, None),
-            MutableScalarRecast::AggregateTyped {
+            ReferenceStorage::AggregateByteRegion { cells, .. } => (cells, None),
+            ReferenceStorage::AggregateTyped {
                 source,
                 source_type,
                 ..
@@ -563,17 +564,17 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
-    fn mutable_record_projection_display(path: &[MutableRecordProjectionStep]) -> String {
+    fn mutable_record_projection_display(path: &[ReferenceProjectionStep]) -> String {
         let mut rendered = String::new();
         for step in path {
             match step {
-                MutableRecordProjectionStep::Field(field) => {
+                ReferenceProjectionStep::Field(field) => {
                     if !rendered.is_empty() {
                         rendered.push('.');
                     }
                     rendered.push_str(field);
                 }
-                MutableRecordProjectionStep::Index(_) => rendered.push_str("[..]"),
+                ReferenceProjectionStep::Index(_) => rendered.push_str("[..]"),
             }
         }
         rendered
@@ -675,7 +676,7 @@ impl<'program> Evaluator<'program> {
             // deref it like any name-resolved reference cell. A non-reference
             // result is a temporary with no storage and still fails closed.
             other => match self.eval_expression(handle, frame)? {
-                Value::Ref(target) => Ok(target),
+                value @ Value::Ref(_) => self.allocate_cell(value),
                 _ => unsupported(format!("place expression not supported: {other:?}")),
             },
         }
@@ -966,7 +967,7 @@ impl<'program> Evaluator<'program> {
     /// parameter reaches the aliased place). Otherwise the cell itself.
     pub(in crate::interpreter::evaluator) fn deref_cell(&self, cell: Cell) -> Cell {
         let inner = match &*cell.borrow() {
-            Value::Ref(target) => Some(target.clone()),
+            Value::Ref(reference) => Some(reference.cell.clone()),
             _ => None,
         };
         inner.unwrap_or(cell)

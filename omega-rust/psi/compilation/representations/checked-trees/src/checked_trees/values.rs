@@ -294,10 +294,6 @@ pub enum CheckedScalarExpressionRole {
         expression: ExpressionHandle,
         element_ordinal: u32,
     },
-    /// Scalar operand of a returned case construction, in authored order.
-    ReturnCaseField {
-        field_ordinal: u32,
-    },
     /// Initial value written into mutable local storage. This does not append
     /// an immutable runtime binding or change the scalar operand namespace.
     StorageInitializer,

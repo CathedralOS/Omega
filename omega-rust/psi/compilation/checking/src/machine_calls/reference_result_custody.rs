@@ -223,11 +223,6 @@ pub fn initializer_source(
     borrowed_initializer_source(program, state, local.initial_value, reference)
 }
 
-/// Returning an ingress loan can reduce access, never change its referent.
-/// Lifetime validity is checked by the borrow checker; this reconstruction
-/// retains the exact referent (including qualifications). An outer constraint
-/// shell is not silently dropped to make an access conversion succeed.
-
 /// The filtered formal ordinal + parameter for a non-const, non-primitive
 /// state parameter named `symbol` — the structural-parameter lane both
 /// borrowed-carrier walks index by.
@@ -249,6 +244,10 @@ fn structural_parameter_position<'program>(
         .find(|(_, parameter)| parameter.symbol == symbol)
 }
 
+/// Returning an ingress loan can reduce access, never change its referent.
+/// Lifetime validity is checked by the borrow checker; this reconstruction
+/// retains the exact referent (including qualifications). An outer constraint
+/// shell is not silently dropped to make an access conversion succeed.
 fn reference_parameter_can_supply(
     program: &dyn crate::CheckingInput,
     source: TypeReferenceHandle,
@@ -277,13 +276,12 @@ fn reference_parameter_can_supply(
         == program.normalized_type_identity(*result_referee)
 }
 
-/// A borrowed initializer may name one projected leaf of a formal carrier —
-/// `&receiver.field[i]` — where the whole-carrier arm above only spells a
-/// bare parameter. The authored address walks member hops and literal index
-/// hops off the receiver; the minted source is that parameter's position and
-/// the projected segments. A final `Referent` step belongs only to a stored
-/// reference leaf, never to an ordinary value being borrowed. Indexes bound
-/// to locals stay opaque: folding them would need the
+/// A borrowed initializer names a whole referent or projected storage leaf.
+/// The authored address walks member hops and literal index hops from its
+/// storage root; the source retains that root and the projected segments.
+/// A reference formal already denotes its referent. A final `Referent` step
+/// belongs only to a stored reference leaf, never to an ordinary value being
+/// borrowed. Indexes bound to locals stay opaque: folding them would need the
 /// constant-binding evidence the producer resolves elsewhere.
 pub fn borrowed_initializer_source(
     program: &dyn crate::CheckingInput,
@@ -320,23 +318,33 @@ pub fn borrowed_initializer_source(
     let found = structural_parameter_position(program, state, path.symbol);
     // The borrowed carrier roots at a non-self structural formal — the
     // existing ingress family — or at an established local of this state,
-    // which mints the local's own storage as the loaned home. A formal still
-    // requires a projected leaf (`&mut formal.field`); a local admits the
-    // whole place (`&mut owner`) because its storage is wholly owned by this
-    // frame. A mutable or write-only loan needs a mutable referent
+    // which mints the local's own storage as the loaned home. A borrowed formal
+    // already denotes its referent; a local admits the whole place (`&mut owner`)
+    // because its storage is wholly owned by this frame. A mutable or write-only
+    // loan needs a mutable referent
     // declaration, the local must not be erased, and a reference-typed
     // local is a silent marker with no storage to name — borrowing through
     // one is the reborrow lane, which this plan does not reconstruct.
     let (source, mut owner_type) = match found {
         Some((position, parameter)) => {
-            if parameter.name != *name || projections.is_empty() {
+            if parameter.name != *name {
                 return None;
             }
+            let owner_type = if let Some((referee, parameter_access)) =
+                stored_loan_parts(program, parameter.type_reference)
+            {
+                if !reference_access_can_supply(parameter_access, access) {
+                    return None;
+                }
+                referee
+            } else {
+                parameter.type_reference
+            };
             (
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: u32::try_from(position).ok()?,
                 },
-                parameter.type_reference,
+                owner_type,
             )
         }
         None => {
@@ -2412,30 +2420,25 @@ pub fn result_multiplicity(
     }
 }
 
+/// Whole-reference completion retains one formal ingress regardless of whether
+/// the body spells a name, reborrow, local alias or internal transition. The
+/// complete origin relation proves correspondence; an empty source path keeps
+/// this query distinct from a projected referent or an owned reference leaf.
 pub fn source_parameter(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<usize> {
-    let StatementNode::Expression(expression) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .last()?
-    else {
-        return None;
-    };
-    let Some(symbol) =
-        crate::expression_traversal::single_segment_name_symbol(program, *expression)
-    else {
-        return None;
-    };
-    // The same ingress reconstruction serves bare returns and stored reference
-    // initializers. Parameter identity is explicit; attached-machine identity
-    // cannot stand in for an authored argument.
-    initializer_source(program, state, *expression, state.return_type)?;
-    program
-        .state_parameters(state)
+    let sources = whole_reference_sources(program, state)?;
+    if sources
         .iter()
-        .position(|parameter| parameter.symbol == symbol && !parameter.is_const)
+        .any(|source| !source.value.source.path.is_empty())
+    {
+        return None;
+    }
+    let position = reference_sources_parameter(program, state, &sources)?;
+    let parameter = program.state_parameters(state).get(position)?;
+    stored_loan_parts(program, parameter.type_reference)?;
+    Some(position)
 }
 
 /// An owned formal's returned descriptor retains its exact ingress origin
@@ -2490,8 +2493,16 @@ fn reference_result_source_parameter(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<usize> {
-    let (_, access) = stored_loan_parts(program, state.return_type)?;
     let sources = whole_reference_sources(program, state)?;
+    reference_sources_parameter(program, state, &sources)
+}
+
+fn reference_sources_parameter(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    sources: &[ConstructionSource],
+) -> Option<usize> {
+    let (_, access) = stored_loan_parts(program, state.return_type)?;
     let mut parameter = None;
     for source in sources {
         if !source.value.path.is_empty() || source.value.source.access != access {

@@ -1,6 +1,6 @@
 use crate::interpreter::evaluator::{
-    Cell, EvalResult, Evaluator, FixedArrayLength, Frame, Halt, HashSet, MutableRecordProjection,
-    MutableRecordProjectionStep, PrimitiveType, TypeReferenceHandle, TypeReferenceNode, Value,
+    Cell, EvalResult, Evaluator, FixedArrayLength, Frame, Halt, HashSet, PrimitiveType,
+    ReferenceProjection, ReferenceProjectionStep, TypeReferenceHandle, TypeReferenceNode, Value,
     interpreter_f32_from_bits, interpreter_f32_to_bits, trap, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
@@ -559,13 +559,12 @@ impl<'program> Evaluator<'program> {
     fn record_view_projection(
         &mut self,
         type_name: &str,
-        path: &[MutableRecordProjectionStep],
+        path: &[ReferenceProjectionStep],
         base_offset: usize,
         region_len: usize,
         frame: &mut Frame,
-    ) -> EvalResult<Option<MutableRecordProjection>> {
-        let Some((MutableRecordProjectionStep::Field(field_name), rest)) = path.split_first()
-        else {
+    ) -> EvalResult<Option<ReferenceProjection>> {
+        let Some((ReferenceProjectionStep::Field(field_name), rest)) = path.split_first() else {
             return Ok(None);
         };
         let (_, field_type, field_offset, stored_integer, repeated_field) = self
@@ -582,7 +581,7 @@ impl<'program> Evaluator<'program> {
             .checked_add(field_offset)
             .ok_or_else(|| Halt::Trap("record-view field offset overflow".to_owned()))?;
         if stored_integer.is_some() {
-            return Ok(rest.is_empty().then_some(MutableRecordProjection {
+            return Ok(rest.is_empty().then_some(ReferenceProjection {
                 offset,
                 type_reference: field_type,
                 stored_integer,
@@ -601,14 +600,14 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn record_view_type_projection(
         &mut self,
         type_reference: TypeReferenceHandle,
-        path: &[MutableRecordProjectionStep],
+        path: &[ReferenceProjectionStep],
         base_offset: usize,
         region_len: usize,
         frame: &mut Frame,
         outer_stride: Option<usize>,
-    ) -> EvalResult<Option<MutableRecordProjection>> {
+    ) -> EvalResult<Option<ReferenceProjection>> {
         if path.is_empty() {
-            return Ok(Some(MutableRecordProjection {
+            return Ok(Some(ReferenceProjection {
                 offset: base_offset,
                 type_reference,
                 stored_integer: None,
@@ -616,7 +615,7 @@ impl<'program> Evaluator<'program> {
         }
         let (step, rest) = path.split_first().expect("nonempty projection path");
         match step {
-            MutableRecordProjectionStep::Field(_) => {
+            ReferenceProjectionStep::Field(_) => {
                 let Some(nested_name) = self
                     .record_view_named_type(type_reference)
                     .map(str::to_owned)
@@ -625,7 +624,7 @@ impl<'program> Evaluator<'program> {
                 };
                 self.record_view_projection(&nested_name, path, base_offset, region_len, frame)
             }
-            MutableRecordProjectionStep::Index(index_handle) => {
+            ReferenceProjectionStep::Index(index_handle) => {
                 let node = self
                     .program
                     .type_reference_table
@@ -951,7 +950,7 @@ impl<'program> Evaluator<'program> {
         // Look through a reference-valued source (a recast of a `&T`-typed
         // local re-views the pointee's bytes).
         let value = match value {
-            Value::Ref(cell) => cell.borrow().clone(),
+            Value::Ref(reference) => self.read_reference(&reference)?,
             other => other,
         };
         if matches!(value, Value::UndeterminedNaN(_)) {

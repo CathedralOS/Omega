@@ -6,7 +6,7 @@
 //! (packed bytes and recasts) affect the write, not the evaluation schedule.
 use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
-    MutableRecordRecastWrite, MutableScalarRecast, TypeReferenceNode, Value, trap,
+    MutableRecordRecastWrite, ReferenceStorage, TypeReferenceNode, Value, trap,
 };
 
 enum AssignmentDestination {
@@ -17,7 +17,7 @@ enum AssignmentDestination {
     },
     ScalarRecast {
         cell: Cell,
-        recast: MutableScalarRecast,
+        recast: ReferenceStorage,
     },
     RecordRecast(MutableRecordRecastWrite),
 }
@@ -88,17 +88,17 @@ impl Evaluator<'_> {
                 })?;
                 let value = self.coerce_scalar_with(value, primitive, ArithmeticDomain::Exact)?;
                 match recast {
-                    MutableScalarRecast::Direct { source, .. } => {
+                    ReferenceStorage::Direct { source, .. } => {
                         *cell.borrow_mut() = self.eval_recast(value, Some(source))?;
                         Ok(())
                     }
-                    MutableScalarRecast::ByteRegion {
+                    ReferenceStorage::ByteRegion {
                         cells,
                         offset,
                         target,
                     } => self.write_scalar_byte_region(&cells, offset, target, value),
-                    MutableScalarRecast::AggregateByteRegion { .. }
-                    | MutableScalarRecast::AggregateTyped { .. } => {
+                    ReferenceStorage::AggregateByteRegion { .. }
+                    | ReferenceStorage::AggregateTyped { .. } => {
                         trap("aggregate recast reached the scalar write seam")
                     }
                 }
@@ -143,13 +143,6 @@ impl Evaluator<'_> {
         if let Some(write) = self.prepare_mutable_record_recast_write(target, frame)? {
             return Ok(AssignmentDestination::RecordRecast(write));
         }
-        if let Some(recast) = self.mutable_scalar_recast_target(target, frame) {
-            let cell = self.resolve_place(target, frame)?;
-            return Ok(AssignmentDestination::ScalarRecast {
-                cell: self.deref_cell(cell),
-                recast,
-            });
-        }
         let cell = if let ExpressionNode::Indexed(indexed) =
             self.program.expression_table.expression(target).clone()
             && !matches!(
@@ -166,6 +159,26 @@ impl Evaluator<'_> {
         } else {
             self.resolve_place(target, frame)?
         };
+        if let Value::Ref(reference) = cell.borrow().clone()
+            && let Some(storage) = reference.storage
+        {
+            return Ok(match storage {
+                recast
+                @ (ReferenceStorage::Direct { .. } | ReferenceStorage::ByteRegion { .. }) => {
+                    AssignmentDestination::ScalarRecast {
+                        cell: reference.cell,
+                        recast,
+                    }
+                }
+                recast @ (ReferenceStorage::AggregateByteRegion { projection, .. }
+                | ReferenceStorage::AggregateTyped { projection, .. }) => {
+                    AssignmentDestination::RecordRecast(MutableRecordRecastWrite {
+                        recast,
+                        projection,
+                    })
+                }
+            });
+        }
         Ok(AssignmentDestination::Cell(self.deref_cell(cell)))
     }
 }

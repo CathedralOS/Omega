@@ -17,9 +17,7 @@ use super::super::super::super::{
     place_id, unsupported,
 };
 use super::super::super::LoweringError;
-use super::super::{
-    CheckedStructuralControlSuccessorPlan, case_emission, ranking, returns, scalars,
-};
+use super::super::{CheckedStructuralControlSuccessorPlan, case_emission, ranking, scalars};
 use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -423,16 +421,6 @@ impl StateGraphEmission<'_, '_> {
             &state_parameters,
             &operations,
             &mut next_value,
-        )?;
-        let returned_case = returns::emit(
-            checked,
-            state,
-            &self.machine_result,
-            &bindings,
-            self.catalogs,
-            &values,
-            &mut next_value,
-            &mut operations,
         )?;
         let guarded_return = super::super::guarded::emit(
             checked,
@@ -982,16 +970,6 @@ impl StateGraphEmission<'_, '_> {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
                     source: evaluation.current_structural_place(source),
                     returned_claims,
-                    cleanup_actions: Vec::new(),
-                }
-            }
-            CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. } => {
-                Terminator::ReturnStructural {
-                    edge: edge_id(allocate_dense(&mut next_edge)?),
-                    source: returned_case.ok_or(LoweringError::Unsupported(
-                        "case return construction missing",
-                    ))?,
-                    returned_claims: Vec::new(),
                     cleanup_actions: Vec::new(),
                 }
             }

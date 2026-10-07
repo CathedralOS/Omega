@@ -414,10 +414,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 // revalidated by `lower_checked_crash_exit` at emission.
             }
             (
-                CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. },
-                [StatementNode::Expression(_)],
-            ) => {}
-            (
                 CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. },
                 [StatementNode::Expression(_)],
             ) => {

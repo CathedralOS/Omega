@@ -3084,16 +3084,19 @@ deletions, which the commit lists.
 
   Carry backing and encoding through joins, returns, recursion and stored
   references in native and both interpreters without losing the original
-  endpoint or authored storage codec. The checked interpreter declines encoded
-  reference-valued results because its Value-only seam loses view metadata;
-  multi-origin reference results still lack a complete source-loan resource.
-  Runtime encoding choices cannot be solved by
+  endpoint or authored storage codec. A returned encoded reference stored in an
+  owned carrier still rejects in IntegerAt fit checking with unknown encoded
+  effect reach: the write-effect origin analysis must follow captured reference
+  fields. Multi-origin reference results still lack a complete source-loan
+  resource. Runtime encoding choices cannot be solved by
   specialization; raw carrier-width pointers and delayed copy-out are not
   substitutes. Foreign pointers need compatible checked adapters.
 
   Acceptance: `python tools/corpus_gate.py --both --filter
   layouts/runtime_callee_integer_at_fitting_write_exit` runs with exit 0 and
-  preserves neighboring byte 85.
+  preserves neighboring byte 85. Preserve the returned/reborrowed endpoint in
+  `layouts/runtime_returned_encoded_reference_exit` with the checked-tree oracle
+  selected by `--checked-interpreter` as well as Native and Terminal.
 
 - **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
   specification and board text in one commit:

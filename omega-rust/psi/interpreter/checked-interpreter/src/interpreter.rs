@@ -286,7 +286,13 @@ pub fn materialize_zero_initialized_build_time_value(
                 }
                 Halt::Exit(code) => format!("zero storage initialization exited with code {code}"),
             })?;
-    Ok(crate::build_time::observe_build_time_value(&value))
+    crate::build_time::observe_build_time_value(&value, &|reference| {
+        evaluator.read_reference(reference)
+    })
+    .map_err(|reason| match reason {
+        Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => message,
+        Halt::Exit(code) => format!("zero storage observation exited with code {code}"),
+    })
 }
 
 /// Evaluate one build-time machine for its structured return value and the

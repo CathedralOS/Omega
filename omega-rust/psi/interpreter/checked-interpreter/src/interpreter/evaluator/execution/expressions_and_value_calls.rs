@@ -1,6 +1,6 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, Evaluator, ExpressionHandle, ExpressionNode,
-    Frame, Halt, HashSet, PrimitiveType, Value, trap, unsupported,
+    Frame, Halt, HashSet, PrimitiveType, Reference, Value, trap, unsupported,
 };
 mod call_evaluation;
 mod literal_evaluation;
@@ -184,7 +184,8 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Name(path) => self.eval_name(&path, frame),
             ExpressionNode::Member(_) => {
                 let field = self.eval_read_cell(handle, frame)?;
-                Ok(self.deref_cell(field).borrow().clone())
+                let value = field.borrow().clone();
+                self.observe_reference_value(value)
             }
             ExpressionNode::Borrow(inner) => {
                 // `&mut place as &mut View` can survive typed-tree rewriting as
@@ -201,7 +202,7 @@ impl<'program> Evaluator<'program> {
                 // Re-borrow collapse: see eval_argument's Mutable arm.
                 let target = match &*cell.borrow() {
                     Value::Ref(target) => target.clone(),
-                    _ => cell.clone(),
+                    _ => Reference::new(cell.clone()),
                 };
                 Ok(Value::Ref(target))
             }
@@ -284,7 +285,7 @@ impl<'program> Evaluator<'program> {
                             })
                     }) {
                     match left {
-                        Value::Ref(cell) => self.deref_cell(cell).borrow().clone(),
+                        Value::Ref(reference) => self.read_reference(&reference)?,
                         value => value,
                     }
                 } else {
@@ -384,8 +385,8 @@ impl<'program> Evaluator<'program> {
             }
             ExpressionNode::Indexed(_) => {
                 let cell = self.eval_read_cell(handle, frame)?;
-                let value = self.deref_cell(cell).borrow().clone();
-                Ok(value)
+                let value = cell.borrow().clone();
+                self.observe_reference_value(value)
             }
             ExpressionNode::ArrayLiteral(values) => {
                 let mut elements = Vec::new();
@@ -445,7 +446,7 @@ impl<'program> Evaluator<'program> {
         let owner_symbol = owner.symbol;
         let subject = self.eval_expression(binary.left, frame)?;
         let subject = match subject {
-            Value::Ref(cell) => self.deref_cell(cell).borrow().clone(),
+            Value::Ref(reference) => self.read_reference(&reference)?,
             value => value,
         };
         let Value::Enum {
@@ -546,7 +547,9 @@ pub(super) fn byte_sequence_operand_bytes(value: &Value) -> EvalResult<Vec<u8>> 
                     })
             })
             .collect(),
-        Value::Ref(cell) => byte_sequence_operand_bytes(&cell.borrow()),
+        Value::Ref(reference) if reference.storage.is_none() => {
+            byte_sequence_operand_bytes(&reference.cell.borrow())
+        }
         _ => Err(Halt::Trap(
             "byte-sequence predicate operand is not a byte sequence".to_owned(),
         )),

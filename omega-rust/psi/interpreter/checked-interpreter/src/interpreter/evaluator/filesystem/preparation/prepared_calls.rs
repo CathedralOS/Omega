@@ -691,7 +691,8 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                 check_byte_len(cells.len())?;
                 cells.iter().map(prepared_byte).collect()
             }
-            Value::Ref(target) => match &*target.borrow() {
+            Value::Ref(reference) if reference.storage.is_none() => match &*reference.cell.borrow()
+            {
                 Value::Array(cells) => {
                     check_byte_len(cells.len())?;
                     cells.iter().map(prepared_byte).collect()

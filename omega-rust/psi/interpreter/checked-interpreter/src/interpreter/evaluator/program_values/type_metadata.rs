@@ -15,14 +15,10 @@ impl<'program> Evaluator<'program> {
         destination: TypeReferenceHandle,
         frame: &mut Frame,
     ) -> EvalResult<EvaluatedArgument> {
-        let initializer = self.capture_reference_view(argument, destination, frame)?;
-        if let Some((source, recast)) = initializer {
-            return Ok(EvaluatedArgument {
-                cell: self.allocate_cell(Value::Ref(source))?,
-                mutable_recast: Some(recast),
-            });
-        }
-        let cell = if let Some(value) = self.anonymous_integer_landing_value(
+        let cell = if self.declared_type_is_reference(destination) {
+            let value = self.eval_expression_at_type(argument, destination, frame)?;
+            self.allocate_cell(value)?
+        } else if let Some(value) = self.anonymous_integer_landing_value(
             argument,
             self.program.primitive_type_reference(destination),
         )? {
@@ -44,10 +40,24 @@ impl<'program> Evaluator<'program> {
         let value = cell.borrow().clone();
         let value = self.capture_value_operand(value, destination)?;
         *cell.borrow_mut() = value;
-        Ok(EvaluatedArgument {
-            cell,
-            mutable_recast: None,
-        })
+        Ok(EvaluatedArgument::plain(cell))
+    }
+
+    pub(in crate::interpreter::evaluator) fn declared_type_is_reference(
+        &self,
+        mut destination: TypeReferenceHandle,
+    ) -> bool {
+        loop {
+            match self
+                .program
+                .type_reference_table
+                .type_reference(destination)
+            {
+                TypeReferenceNode::Constrained { base_type, .. } => destination = *base_type,
+                TypeReferenceNode::Reference { .. } => return true,
+                _ => return false,
+            }
+        }
     }
 
     pub(in crate::interpreter::evaluator) fn expression_type_reference(
@@ -154,7 +164,7 @@ impl<'program> Evaluator<'program> {
                 length: FixedArrayLength::Literal(length),
             } => {
                 let value = match value {
-                    Value::Ref(cell) => cell.borrow().clone(),
+                    Value::Ref(reference) => self.read_reference(&reference)?,
                     other => other,
                 };
                 let Value::Array(elements) = value else {
@@ -176,7 +186,7 @@ impl<'program> Evaluator<'program> {
             }
             TypeReferenceNode::Slice { element_type } => {
                 let value = match value {
-                    Value::Ref(cell) => cell.borrow().clone(),
+                    Value::Ref(reference) => self.read_reference(&reference)?,
                     other => other,
                 };
                 let Value::Array(elements) = value else {

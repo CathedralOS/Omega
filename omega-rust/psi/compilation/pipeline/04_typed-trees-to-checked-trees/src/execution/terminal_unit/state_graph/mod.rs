@@ -447,7 +447,6 @@ pub(super) fn build_traced(
                 | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
                 | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
-                | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
         ) {
             // A ClosedSum subject's state-exit disposal is the case
             // dispatch's own consumption, already proved inside the

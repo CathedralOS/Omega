@@ -308,7 +308,7 @@ impl<'program> Evaluator<'program> {
             let context = self.default_value_for_type(*referee)?;
             let context = self.allocate_cell(context)?;
             arguments.push(EvaluatedArgument::plain(
-                self.allocate_cell(Value::Ref(context))?,
+                self.allocate_cell(Value::reference(context))?,
             ));
         }
         if provisioned_context.is_some() && !context_bound {
@@ -455,7 +455,9 @@ impl<'program> Evaluator<'program> {
                  during build-time evaluation"
             )));
         }
-        Ok(crate::build_time::observe_build_time_value(&value))
+        crate::build_time::observe_build_time_value(&value, &|reference| {
+            self.read_reference(reference)
+        })
     }
 
     /// The augmenting-machine variant: run and read back the FINAL argument
@@ -563,7 +565,7 @@ impl<'program> Evaluator<'program> {
                         .type_reference(parameter.type_reference),
                     TypeReferenceNode::Reference { .. }
                 ) {
-                    self.allocate_cell(Value::Ref(cell))?
+                    self.allocate_cell(Value::reference(cell))?
                 } else {
                     cell
                 };
@@ -588,10 +590,13 @@ impl<'program> Evaluator<'program> {
                 )
             }));
         }
-        Ok(kept
-            .iter()
-            .map(|cell| crate::build_time::observe_build_time_value(&cell.borrow()))
-            .collect())
+        kept.iter()
+            .map(|cell| {
+                crate::build_time::observe_build_time_value(&cell.borrow(), &|reference| {
+                    self.read_reference(reference)
+                })
+            })
+            .collect()
     }
 
     // ---- explicit data construction ----------------------------------------
@@ -1209,7 +1214,6 @@ impl<'program> Evaluator<'program> {
                 cell,
                 type_reference: parameter.type_reference,
                 scalar,
-                mutable_recast: argument.mutable_recast,
             });
         }
         Ok(frame)

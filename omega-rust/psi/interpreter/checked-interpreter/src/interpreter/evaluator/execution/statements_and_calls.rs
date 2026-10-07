@@ -1,7 +1,7 @@
 use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, FrameLocal, Halt,
-    Machine, State, StatementNode, SymbolHandle, TableCall, TableTransition, TransitionDecision,
-    TransitionGuardNode, TransitionTargetNode, Value, trap,
+    Machine, Reference, State, StatementNode, SymbolHandle, TableCall, TableTransition,
+    TransitionDecision, TransitionGuardNode, TransitionTargetNode, Value, trap,
 };
 use typed_trees::statement::TransitionExit;
 
@@ -23,25 +23,6 @@ impl<'program> Evaluator<'program> {
                 self.assign(assignment.target, assignment.value, frame)
             }
             StatementNode::LocalData(local) => {
-                // Reference recasts retain their original cells and captured
-                // view coordinates. Reads use the stated representation;
-                // checked mutable views also write through the same descriptor.
-                if local.initial_value.is_valid()
-                    && let Some((source, recast)) = self.capture_reference_view(
-                        local.initial_value,
-                        local.type_reference,
-                        frame,
-                    )?
-                {
-                    frame.bind(FrameLocal {
-                        symbol: local.symbol,
-                        cell: self.allocate_cell(Value::Ref(source))?,
-                        type_reference: local.type_reference,
-                        scalar: None,
-                        mutable_recast: Some(recast),
-                    });
-                    return Ok(());
-                }
                 // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so
                 // a later mutation of `v` does not alias the initializer's source. A
                 // `Value::Array` is deep-cloned ONLY when the local's declared type is an owned
@@ -87,7 +68,6 @@ impl<'program> Evaluator<'program> {
                     cell: self.allocate_cell(value)?,
                     type_reference: local.type_reference,
                     scalar,
-                    mutable_recast: None,
                 });
                 Ok(())
             }
@@ -547,7 +527,7 @@ impl<'program> Evaluator<'program> {
                 // target" while the native build served it (2026-07-11l).
                 let target = match &*cell.borrow() {
                     Value::Ref(target) => target.clone(),
-                    _ => cell.clone(),
+                    _ => Reference::new(cell.clone()),
                 };
                 self.allocate_cell(Value::Ref(target))
             }

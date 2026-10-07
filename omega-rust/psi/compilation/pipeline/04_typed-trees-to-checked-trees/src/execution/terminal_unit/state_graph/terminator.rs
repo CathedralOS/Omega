@@ -79,6 +79,37 @@ pub(super) fn build(
             trace,
         )
     };
+    // Bare expressions and unconditional value arms are the same completion.
+    // Keep one producer/operand schedule instead of making the bare spelling
+    // admit only literals and case constructors while transitions admit loans.
+    let complete_expression =
+        |expression,
+         shapes: &mut ShapeCollector<'_>,
+         operations: &mut Vec<CheckedUnitEffectOperationPlan>| {
+            trace.phase("state graph: terminator: return expression");
+            if let Some(result) = structural_result.cloned() {
+                return Some(CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result });
+            }
+            let mut count = returns::next_result_ordinal(operations)?;
+            let (operation, operand_calls) = returns::return_value_operation(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural,
+                entry_claims,
+                &mut count,
+                ordinal,
+                expression,
+                trace,
+            )?;
+            let result = operation.structural_result_binding()?.clone().into();
+            operations.extend(operand_calls);
+            operations.push(operation);
+            Some(CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result })
+        };
     let terminator = if let Some(terminator) = closed_sum::build(
         program,
         facts,
@@ -132,25 +163,7 @@ pub(super) fn build(
             [StatementNode::Expression(expression)]
                 if result != checked_trees::CheckedControlResultPlan::Unit =>
             {
-                trace.phase("state graph: terminator: return expression");
-                if let Some(result) = structural_result.cloned() {
-                    CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
-                } else if let Some(operation) = returns::literal_result_operation(
-                    program,
-                    shapes,
-                    state,
-                    &mut returns::next_result_ordinal(operations)?,
-                    ordinal,
-                    *expression,
-                ) {
-                    let result = operation.structural_result_binding()?.clone().into();
-                    operations.push(operation);
-                    CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
-                } else {
-                    CheckedComposedUnitControlTerminatorPlan::ReturnCase {
-                        result: returns::constructor(program, facts, state, ordinal, *expression)?,
-                    }
-                }
+                complete_expression(*expression, shapes, operations)?
             }
             [StatementNode::Transition(transition)]
                 if matches!(transition.exit, TransitionExit::Crash(_)) =>
@@ -174,50 +187,7 @@ pub(super) fn build(
                             && transition.exit == TransitionExit::Ordinary
                             && !transition.continuation.is_valid() =>
                     {
-                        trace.phase("state graph: terminator: return expression");
-                        if let Some(result) = structural_result.cloned() {
-                            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
-                        } else {
-                            let mut count = returns::next_result_ordinal(operations)?;
-                            let (operation, operand_calls) = returns::return_value_operation(
-                                program,
-                                facts,
-                                scalar_callees,
-                                shapes,
-                                machine,
-                                state,
-                                structural,
-                                entry_claims,
-                                &mut count,
-                                ordinal,
-                                *expression,
-                                trace,
-                            )?;
-                            let result = match &operation {
-                                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                                    result,
-                                    ..
-                                }
-                                | CheckedUnitEffectOperationPlan::EstablishReference {
-                                    result,
-                                    ..
-                                }
-                                | CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                                    result,
-                                    ..
-                                }
-                                | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
-                                    result,
-                                    ..
-                                } => checked_trees::CheckedUnitStructuralReturnPlan::from(
-                                    result.clone(),
-                                ),
-                                _ => return None,
-                            };
-                            operations.extend(operand_calls);
-                            operations.push(operation);
-                            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
-                        }
+                        complete_expression(*expression, shapes, operations)?
                     }
                     // An unconditional terminal machine call already ran as
                     // this state's last operation (the sequence planned and

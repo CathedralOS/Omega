@@ -62,9 +62,6 @@ impl StateGraphEmission<'_, '_> {
                                 "structural return has no source statement",
                             ))?
                     }
-                    CheckedComposedUnitControlTerminatorPlan::ReturnCase { result } => {
-                        result.statement_ordinal as usize
-                    }
                     _ => {
                         return unsupported(
                             "structural return lost its authored completion coordinate",
