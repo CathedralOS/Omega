@@ -264,6 +264,15 @@ pub(crate) fn decode_all(
     Ok(decoded)
 }
 
+/// Register-direct modrm operand pairing: `source` is the r/m field
+/// extended by REX.B, `destination` the reg field extended by REX.R.
+fn modrm_source_destination(modrm: u8, rex: u8) -> (u8, u8) {
+    (
+        (modrm & 7) | ((rex & 1) << 3),
+        ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+    )
+}
+
 pub(crate) fn decode_one(
     bytes: &[u8],
 ) -> Result<(DecodedInstruction, usize), X86_64SelectedFormEncodingError> {
@@ -374,10 +383,11 @@ pub(crate) fn decode_one(
         && rex & !0x05 == 0x48
         && modrm & 0xc0 == 0xc0
     {
+        let (source, destination) = modrm_source_destination(*modrm, *rex);
         return Ok((
             DecodedInstruction::Multiply {
-                source: (modrm & 7) | ((rex & 1) << 3),
-                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+                source,
+                destination,
             },
             4,
         ));
@@ -421,10 +431,11 @@ pub(crate) fn decode_one(
         && rex & !0x05 == 0x40
         && modrm & 0xc0 == 0xc0
     {
+        let (source, destination) = modrm_source_destination(*modrm, *rex);
         return Ok((
             DecodedInstruction::ZeroExtendU8 {
-                source: (modrm & 7) | ((rex & 1) << 3),
-                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+                source,
+                destination,
             },
             4,
         ));
@@ -433,10 +444,11 @@ pub(crate) fn decode_one(
         && rex & !0x05 == 0x40
         && modrm & 0xc0 == 0xc0
     {
+        let (source, destination) = modrm_source_destination(*modrm, *rex);
         return Ok((
             DecodedInstruction::ZeroExtendU16 {
-                source: (modrm & 7) | ((rex & 1) << 3),
-                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+                source,
+                destination,
             },
             4,
         ));
@@ -445,10 +457,11 @@ pub(crate) fn decode_one(
         && rex & !0x05 == 0x48
         && modrm & 0xc0 == 0xc0
     {
+        let (source, destination) = modrm_source_destination(*modrm, *rex);
         return Ok((
             DecodedInstruction::SignExtendI8 {
-                source: (modrm & 7) | ((rex & 1) << 3),
-                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+                source,
+                destination,
             },
             4,
         ));
@@ -457,10 +470,11 @@ pub(crate) fn decode_one(
         && rex & !0x05 == 0x48
         && modrm & 0xc0 == 0xc0
     {
+        let (source, destination) = modrm_source_destination(*modrm, *rex);
         return Ok((
             DecodedInstruction::SignExtendI16 {
-                source: (modrm & 7) | ((rex & 1) << 3),
-                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+                source,
+                destination,
             },
             4,
         ));
@@ -469,10 +483,11 @@ pub(crate) fn decode_one(
         && rex & !0x05 == 0x48
         && modrm & 0xc0 == 0xc0
     {
+        let (source, destination) = modrm_source_destination(*modrm, *rex);
         return Ok((
             DecodedInstruction::SignExtendI32 {
-                source: (modrm & 7) | ((rex & 1) << 3),
-                destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+                source,
+                destination,
             },
             3,
         ));
