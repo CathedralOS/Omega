@@ -84,9 +84,8 @@ pub use contract_plans::{
 };
 pub use domains::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
 pub use dynamic_conformances::{
-    DynamicConformanceBindingFact, DynamicConformanceBindingFacts, DynamicConformanceCandidateFact,
     DynamicConformanceFacts, DynamicConformanceRowFact, DynamicConformanceRowSource,
-    DynamicConformanceSelectionFact, DynamicDescriptorStorageFact,
+    DynamicSelectionFact,
 };
 pub use index_compatibility::{
     IndexCompatibilityDischarge, IndexCompatibilityFact, IndexCompatibilityFacts,

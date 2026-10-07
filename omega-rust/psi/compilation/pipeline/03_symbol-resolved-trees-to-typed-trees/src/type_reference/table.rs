@@ -144,18 +144,31 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
         resolved::types::TypeReferenceNode::DynamicTrait {
             symbol,
             name,
-            conformance,
-            conformance_carrier,
-            conformance_name,
+            arguments,
         } => {
+            let mut lowered_arguments = HandleSpan::empty();
+            for argument in source_trees
+                .tables
+                .types
+                .references
+                .type_reference_handles(*arguments)
+            {
+                let argument = lower_type_reference_handle_from_table_with_context(
+                    source_trees,
+                    typed_trees,
+                    *argument,
+                    exposure,
+                )?;
+                typed_trees
+                    .type_reference_table
+                    .push_type_reference_handle(&mut lowered_arguments, argument);
+            }
             super::lower_dynamic_trait_type_reference(
                 source_trees,
                 typed_trees,
                 *symbol,
                 name,
-                *conformance,
-                conformance_carrier.as_ref(),
-                conformance_name.as_ref(),
+                lowered_arguments,
                 exposure,
             )
         }

@@ -339,62 +339,47 @@ helper that passes does not close an item.
 - **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION.** (split-of:RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY)
   Replace data-attached trait objects with runtime selection of named
   implementations under [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md).
-  Depends on **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION** for closed maps.
   The implementation selector and every data argument have distinct identities;
   no argument is an erased subject and no caller requires an attachment.
-  - Customers: rewrite `pass/traits/runtime_dyn_two_impl_dispatch_exit`,
-    `runtime_local_named_dyn_devirtualized_exit`,
-    `runtime_local_named_dyn_pass_through_exit`, and `dyn_finite_family_dispatch`
-    to select named implementations and pass data separately. Keep runtime
-    branching, descriptor rebinding/forwarding, mutation and result oracles;
-    do not reduce all calls to known static selections.
+  - Current frontier: the data-attached route is deleted below checking
+    (stage 04 dispatch plans, stage 05 composed dynamic units, stage 07
+    rejoin, the Terminal `CallDynamic*`/descriptor catalog, interpreter
+    descriptors, Omega descriptor lowering, adapters and image replay).
+    `dyn Trait<Args>` parses with trait arguments and types as an
+    unrestricted one-word selector; `Impl as dyn Trait<Args>` must name a
+    closed implementation of exactly that application; `Trait::member(selector,
+    data...)` checks the operands after the selector through the evidence-call
+    path (`checking/src/machine_calls/calls/dynamic_requirement.rs`), including
+    the finite-family roster. Data-place conversions, receiver-style selector
+    calls, mismatched applications and `dyn Data::Implementation` reject. The
+    rewritten customers (`pass/traits/runtime_dyn_*`, `dyn_finite_family_dispatch`)
+    check; the runtime ones stop at stage 04 because a dynamic call has no
+    unit plan yet.
+  - Next: stage 04 plans a dynamic call against the requirement's instantiated
+    signature (requirements are `StateSignature`s, not states; a bodyless
+    requirement-dispatch machine per selected application and requirement is
+    the intended callee), with a dynamic call route carrying the selector as a
+    scalar operand. `Impl as dyn Trait<Args>` lowers to a selection scalar.
+    Terminal gains an interface/table catalog, a `SelectImplementation`
+    operation and a dynamic callee on the ordinary call operations; the
+    interpreter dispatches through the table. Zero-data calls, several data
+    arguments, owned results, rebinding, joins, storage and forwarding then use
+    ordinary value flow and call machinery.
   - Own Psi dynamic checking/facts and stages 04/05/07, Terminal selection/call
-    representation and codec, and corresponding `source/psi/` producers.
-    Delete the `structural.is_empty()`/caller attachment requirement in
-    `composed_control/dynamic_result`, synthetic `is_self` parameters in
-    `dynamic_composed_unit`, data-place-to-dyn coercions and the one-`&Self`
-    eligibility rule. Bind all types through ordinary trait applications.
-    Zero-data calls, two same-type data arguments, two different data types,
-    and concrete owned results use the same ordinary call machinery.
-  - Forward and store selector identity independently from explicit argument
-    loans and places. Entry establishment must see ordinary context parameters
-    in dynamic callers rather than recover a hidden receiver. Preserve exact
-    rows, contracts, finite families, proof actuals and private selection
-    visibility. Package review and independent verification consume the same
-    new records; reject obsolete records rather than translate them silently.
-  - Absorbs **DYN-CONTINUATION-ROOT-REJOIN** and **DYN-JOIN-LANE-STILL-DEAD**:
-    migrate the devirtualized caller, forwarded helper and joined selector
-    through explicit context parameters. Remove attachment/parameter-zero
-    discovery and the unproduced `CheckedTerminalSignatureEligibility::Attached`
-    rows, rather than repairing the retired data-attached model. Include a
-    joined-selector fixture; existing single-call coverage does not exercise it.
-    Stage 07 entry eligibility and Omega entry settlement must agree on the
-    actual parameter roster. Verifier-only consumers follow PCC deletion.
-  - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns consuming this model
-    in Omega lowering and native emission, including `source/omega/` parity.
-    Remove the instance half of descriptors and receiver adapters end to end.
-    Apply the breaking-migration authorization above. Hiding input/output types
-    is separate work, not a prerequisite and not permission to restore `Self`.
+    representation and codec, the interpreter, and corresponding `source/psi/`
+    producers. Preserve exact rows, contracts, finite families, proof actuals
+    and private selection visibility. Package review consumes the same new
+    records.
+  - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns native consumption,
+    including `source/omega/` parity. Hiding input/output types is separate
+    work, not a prerequisite and not permission to restore `Self`.
   Acceptance: `python tools/corpus_gate.py --filter traits/` covers the migrated
   programs with interpreter/native result agreement on matching supported hosts.
   A selector changes implementation at runtime while operating on the same
-  explicit counter; separate coverage uses zero and multiple data arguments.
-  A mismatched trait application rejects, and copying/rebinding the selector
-  neither captures data nor changes its borrow lifetime. No legacy dynamic
-  subject path remains. Native completion depends on the custody task below.
-  Blocker:
-  `pass/traits/runtime_dyn_two_impl_dispatch_exit` erases a concrete reference
-  to `&mut dyn` at a **call-argument** position, and
-  `collect_dynamic_conformance_selections` only visits a local declaration
-  carrying a coercion cast, so no conformance selection is recorded at all and
-  no dispatch plan can exist. That is the open decision
-  `dynamic-erasure-at-argument-position` in `OWNER_QUESTIONS.md`, which also
-  has to settle per-call-site selection, since this fixture calls one helper
-  from two sites choosing different conformances while a caller admits exactly
-  one plan. Do not widen `base_type_identity` to make it pass: a `&mut dyn`
-  argument is a two-word descriptor, not a structural operand, so its having no
-  structural-argument identity is correct.
-
+  explicit data; `runtime_dyn_data_argument_counts_exit` uses zero and two data
+  arguments, `runtime_dyn_joined_selector_exit` joins two selections and
+  `runtime_dyn_selector_record_field_exit` stores one. Copying or rebinding a
+  selector neither captures data nor changes its borrow lifetime.
 
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
@@ -2501,7 +2486,6 @@ code and preserve check/native behavior for the named customer slices.
   it receives:
   - `.../05_checked-trees-to-lowered-psi/src/unit/attached_unit/admission/`
     and `admission.rs`;
-  - `unit/dynamic_composed_unit/plan_validation.rs`;
   - the terminator, edge and case checks against source in
     `unit/attached_unit/composed_control/state_graph/admission.rs` (the
     state body rejoin is gone; the terminator ordinal is a plan field);
@@ -2589,12 +2573,11 @@ code and preserve check/native behavior for the named customer slices.
   for the affected ownership slice.
 
 - **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
-  parameter transfer are lowered in about six places:
+  parameter transfer are lowered in about five places:
   - `unit/attached_unit/composed_control/state_graph/edges.rs` and
     `state_graph/emission/successor_edge.rs`;
   - `unit/structural_unit_control.rs`;
-  - `scalar_graph/scalar_graph_module/state_emission.rs`;
-  - `unit/dynamic_composed_unit/join.rs` and `continuation.rs`.
+  - `scalar_graph/scalar_graph_module/state_emission.rs`.
 
   Stage 04 builds successor plans in `execution/terminal_unit/state_graph/mod.rs`,
   `control/structural_unit_machine.rs`, `execution/terminal_scalar/successors.rs`,
@@ -2616,8 +2599,7 @@ code and preserve check/native behavior for the named customer slices.
 
   Structural arguments are assembled in 24 files. Stage 04 shares
   `calls/call_operations.rs::build_call_operation` at 9 sites but keeps
-  separate builders in `terminal_scalar`, `dynamic_scalar_calls` and
-  `returns/guarded_call_returns`. Make one argument preparation and one call
+  separate builders in `terminal_scalar` and `returns/guarded_call_returns`. Make one argument preparation and one call
   emitter, fed by `build_call_operation` alone. Include the claim-transfer
   parity the ordinary route lacks:
   - `ClaimBindings::Fixed` (`operation_frame/calls.rs`) cannot mint a result
@@ -2655,22 +2637,8 @@ code and preserve check/native behavior for the named customer slices.
   no route of its own, `CheckedReturnPlan` is gone, and corpus
   `--filter returns/,operators/,providers/` is unchanged in check and native.
 
-- **DYNAMIC-UNIT-ROUTE-RETIRED.** (new-scope) Depends on
-  **ONE-CALL-LOWERING**. Lower dynamic dispatch as an ordinary call operation
-  inside the body route and delete
-  `.../05_checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit/`
-  (4.9k lines, Scalar and Unit variants across four binding kinds). Embed
-  dynamic-call custody in the ordinary call plan instead of
-  `DynamicCallCustody`
-  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/dynamic_scalar_calls/call_plans.rs`)
-  and its separate join views. Relaxing the dynamic join's `_` check alone
-  does not admit a two-case sum dispatch. Acceptance: the directory is gone;
-  `pass/traits/` and the dyn dispatch run fixtures are unchanged in check and
-  native.
-
 - **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Depends on
-  **STRUCTURAL-UNIT-CONTROL-RETIRED**, **RETURN-ROUTES-RETIRED** and
-  **DYNAMIC-UNIT-ROUTE-RETIRED**. Lower scalar machines through the same body
+  **STRUCTURAL-UNIT-CONTROL-RETIRED** and **RETURN-ROUTES-RETIRED**. Lower scalar machines through the same body
   route as Unit machines and delete
   `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (19.4k lines) and
   the plan-presence matrix in `machine_lowering/machine_dispatch.rs`. Account
@@ -2920,8 +2888,8 @@ of a check the same flow already performed, not the check itself.
   `omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/type_identity/callable_identity.rs`
   for callable identities.
   `checked-trees` declares many `*identity: String` fields, concentrated in
-  `omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow/dynamic_scalar_calls.rs`
-  and `.../flow/terminal/structural_type_plans.rs`, with others in
+  `omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow/terminal/structural_type_plans.rs`,
+  with others in
   composed-unit, affine-cleanup, result-binding, termination and
   service-parameter plans. Replace each with the callable or type identity
   handle (or the existing symbol handle). Acceptance: no
@@ -4081,8 +4049,8 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   scalar contract arguments and record/sum constructions with
   `ProofTerm::Scalar` leaves work; `pass/relevance/erased_record_parameter_exit`
   covers signature stripping, not a contract consuming its witness. Array-field
-  carriers refuse, and dynamic dispatch rejects erased formals in
-  `checks/contracts/dynamic_erased_lane.rs`. Extend the existing routes to keep
+  carriers refuse, and dynamic calls do not lower yet
+  (**DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**). Extend the existing routes to keep
   exact erased subjects/actuals, witness identity, scope, multiplicity and
   assumptions through static and dynamic calls, without runtime storage or ABI
   arguments. Preserve erased-field custody and the ordinary
@@ -4921,20 +4889,17 @@ wait for Cathedral's instruction coverage. The interpreter is
   forwarding; one scalar binder, a common result, dispatch around a region-sized
   operation; no handwritten suffix methods.
 
-  - Runtime roster membership: `validate_dynamic_family_call_tuple`
-    (`omega-rust/psi/compilation/checking/src/declarations/traits/dynamic.rs`)
-    and `dynamic_family_tuple`
-    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/dynamic_scalar_calls/realization_callables.rs`)
-    require closed static tuples. Admit proved membership reusing
+  - Runtime roster membership: `validate_family_tuple`
+    (`omega-rust/psi/compilation/checking/src/machine_calls/calls/dynamic_requirement.rs`)
+    requires a closed static tuple. Admit proved membership reusing
     **RUNTIME-VALUE-GENERICS**' scalar argument/guard machinery (not general
     value-indexed data). Replace the legacy self-only, Unit/i32/bool callable
     subset with ordinary explicit scanner inputs/results, following
     **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**. Unproved membership rejects;
     no JIT or fallback.
   - Native dispatch through **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**'s
-    indirect-call mechanism: rebound `CallDynamicScalar` lacks common-graph
-    legalization, and selected construction rejects `DynamicParameterCall`.
-    Tuple tables must be source-produced.
+    indirect-call mechanism once dynamic calls lower. Tuple tables must be
+    source-produced.
 
   Acceptance: pass/fail/run fixtures preserve effects, index identity and
   once-only moves/cleanup through selection, forwarding and storage;
@@ -5376,21 +5341,23 @@ wait for Cathedral's instruction coverage. The interpreter is
     descriptor and receiver adapters with implementation selection plus the
     requirement's ordinary operands. No subject slot, forced parameter zero,
     hidden receiver or fallback legacy call route.
-  - Known old-path gaps to resolve in the new route: instruction selection
-    rejects `LegalizedScalarInstructionKind::DynamicParameterCall`, and
-    `omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/production.rs`
-    emits empty dynamic rosters. Implement indirect calls, immutable complete
-    tables, relocations and final-image evidence through the ordinary owners.
+  - The old descriptor route, its never-produced dynamic records, receiver
+    adapters and per-application data tables are deleted; Omega now has no
+    dynamic call lowering and the final-image validator admits no data-section
+    relocation. Implement indirect calls through a selector word, immutable
+    complete tables (one 8-byte slot per canonical row, trap slots retained),
+    their relocations and final-image evidence through the ordinary owners.
   - Preserve exact table/slot, ABI, clobber, effect and explicit argument-loan
     identities. Unit calls have no result home; selector and result storage
     cannot overlap. Tables retain trap slots and private implementation
     identities. Forwarding, storage and result composition must accept ordinary
     effects and control flow; remove superseded one-call/scalar recognizers.
-  Acceptance: migrated `runtime_local_named_dyn_pass_through_exit` and
-  `runtime_dyn_two_impl_dispatch_exit` run on matching supported hosts, including
+  Acceptance: `runtime_dyn_rebound_selector_forwarded_exit`,
+  `runtime_dyn_two_impl_dispatch_exit` and the other `pass/traits/runtime_dyn_*`
+  fixtures run on matching supported hosts, including
   Windows and macOS. Their results and writes to explicitly supplied data agree
-  with interpretation. Add zero-data and multiple-data-argument calls and
-  preserve producer-private selection on returned selectors. Run
+  with interpretation. Preserve producer-private selection on returned
+  selectors. Run
   `python tools/corpus_gate.py --filter traits/` and affected backend checks.
   A `dyn` selector owns no implicit data; explicit owners retain the ordinary
   [normal cleanup obligations](wiki/spec/terminal-psi/calls_and_outcomes.md#normal-cleanup).

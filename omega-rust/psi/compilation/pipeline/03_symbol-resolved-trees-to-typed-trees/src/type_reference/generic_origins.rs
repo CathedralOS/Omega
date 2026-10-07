@@ -527,15 +527,19 @@ impl Equality<'_, '_> {
             (
                 TypeReference::DynamicTrait {
                     symbol: left,
-                    conformance: left_conformance,
+                    arguments: left_arguments,
                     ..
                 },
                 TypeReference::DynamicTrait {
                     symbol: right,
-                    conformance: right_conformance,
+                    arguments: right_arguments,
                     ..
                 },
-            ) => self.live(*left) && left == right && left_conformance == right_conformance,
+            ) => {
+                self.live(*left)
+                    && left == right
+                    && self.arguments(*left_arguments, *right_arguments)
+            }
             (TypeReference::ConstExpression(left), TypeReference::ConstExpression(right)) => {
                 left.is_valid() && left == right
             }

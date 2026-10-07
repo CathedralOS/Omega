@@ -493,7 +493,15 @@ fn names_symbol(
                     .iter()
                     .any(|argument| names_symbol(program, argument, home))
         }
-        TypeReference::DynamicTrait { symbol, .. } => *symbol == home,
+        TypeReference::DynamicTrait {
+            symbol, arguments, ..
+        } => {
+            *symbol == home
+                || program
+                    .child_type_references(*arguments)
+                    .iter()
+                    .any(|argument| names_symbol(program, argument, home))
+        }
         TypeReference::Reference(reference) => names_symbol(
             program,
             program.child_type_reference(reference.referee),
@@ -969,16 +977,17 @@ impl<'program> ShapeNormalizer<'program> {
             TypeReference::DynamicTrait {
                 symbol,
                 name,
-                conformance,
-                ..
-            } => match conformance {
-                Some(conformance) if !self.display => format!(
-                    "dyn {} via #{}",
-                    self.binder_or_symbol(*symbol, name.as_str()),
-                    conformance.arena_index()
-                ),
-                _ => format!("dyn {}", self.binder_or_symbol(*symbol, name.as_str())),
-            },
+                arguments,
+            } => format!(
+                "dyn {}<{}>",
+                self.binder_or_symbol(*symbol, name.as_str()),
+                self.program
+                    .child_type_references(*arguments)
+                    .iter()
+                    .map(|argument| self.type_shape(argument))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             TypeReference::Named { symbol, name } => self.binder_or_symbol(*symbol, name.as_str()),
             TypeReference::SelfType { symbol } => {
                 // `Self` inside an attached machine's signature resolves to that

@@ -34,15 +34,12 @@ impl TypeReference {
             }
             TypeReference::ConstExpression(_) => "const <expression>".to_owned(),
             TypeReference::DynamicTrait {
-                name,
-                conformance_carrier,
-                conformance_name,
-                ..
-            } => display_dynamic_trait(
-                name,
-                conformance_carrier.as_ref(),
-                conformance_name.as_ref(),
-            ),
+                name, arguments, ..
+            } => match arguments.count() {
+                0 => format!("dyn {name}"),
+                1 => format!("dyn {name}<1 argument>"),
+                count => format!("dyn {name}<{count} arguments>"),
+            },
             TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::SelfType { .. } => "Self".to_owned(),
             TypeReference::Unit => "()".to_owned(),
@@ -83,30 +80,16 @@ impl TypeReference {
             }
             TypeReference::ConstExpression(_) => "const <expression>".to_owned(),
             TypeReference::DynamicTrait {
-                name,
-                conformance_carrier,
-                conformance_name,
-                ..
-            } => display_dynamic_trait(
-                name,
-                conformance_carrier.as_ref(),
-                conformance_name.as_ref(),
-            ),
+                name, arguments, ..
+            } => match arguments.count() {
+                0 => format!("dyn {name}"),
+                1 => format!("dyn {name}<1 argument>"),
+                count => format!("dyn {name}<{count} arguments>"),
+            },
             TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::SelfType { .. } => "Self".to_owned(),
             TypeReference::Unit => "()".to_owned(),
         }
-    }
-}
-
-fn display_dynamic_trait(
-    trait_name: &crate::name::DiagnosticName,
-    conformance_carrier: Option<&crate::name::DiagnosticName>,
-    conformance_name: Option<&crate::name::DiagnosticName>,
-) -> String {
-    match (conformance_carrier, conformance_name) {
-        (Some(carrier), Some(conformance)) => format!("dyn {carrier}::{conformance}"),
-        _ => format!("dyn {trait_name}"),
     }
 }
 

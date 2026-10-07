@@ -471,10 +471,19 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
                 syntax_trees.expressions.display_name(*expression)
             )
         }
-        TypeReferenceNode::DynamicTrait { name, conformance } => conformance
-            .as_ref()
-            .map(|selection| format!("dyn {name}::{selection}"))
-            .unwrap_or_else(|| format!("dyn {name}")),
+        TypeReferenceNode::DynamicTrait {
+            trait_name,
+            trait_arguments,
+        } => {
+            let arguments = syntax_trees
+                .type_references
+                .type_reference_handles(*trait_arguments)
+                .iter()
+                .map(|argument| type_reference_name(syntax_trees, *argument))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("dyn {trait_name}<{arguments}>")
+        }
         TypeReferenceNode::Named(name) => name.to_string(),
         TypeReferenceNode::SelfType => "Self".to_owned(),
         TypeReferenceNode::Unit => "()".to_owned(),

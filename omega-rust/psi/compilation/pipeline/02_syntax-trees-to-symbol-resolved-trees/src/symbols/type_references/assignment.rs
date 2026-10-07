@@ -635,34 +635,21 @@ fn assign_type_reference_symbol_with_context(
         symbol_resolved_trees::types::TypeReference::DynamicTrait {
             symbol,
             name,
-            conformance,
-            conformance_carrier,
-            conformance_name,
+            arguments,
         } => {
             *symbol = crate::symbols::lookup::top_level_symbol_for_source(
                 symbols,
                 SymbolKind::Trait,
                 name,
             );
-            if let (Some(data_name), Some(conformance_name)) =
-                (conformance_carrier, conformance_name)
-            {
-                let carrier = crate::symbols::lookup::top_level_symbol_for_source(
-                    symbols,
-                    SymbolKind::Data,
-                    data_name,
-                );
-                let selected = if carrier.is_valid() {
-                    crate::symbols::lookup::top_level_symbol_for_source(
-                        symbols,
-                        SymbolKind::Conformance,
-                        conformance_name,
-                    )
-                } else {
-                    SymbolHandle::invalid()
-                };
-                *conformance = selected.is_valid().then_some(selected);
-            }
+            assign_type_reference_argument_symbols_with_constraints(
+                symbols,
+                child_type_references,
+                type_constraints,
+                local_type_parameters,
+                self_type_symbol,
+                *arguments,
+            );
         }
         symbol_resolved_trees::types::TypeReference::Named { symbol, name } => {
             *symbol = resolve_type_symbol(symbols, local_type_parameters, name);

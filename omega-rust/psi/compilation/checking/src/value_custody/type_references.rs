@@ -855,10 +855,7 @@ fn validate_type_reference_handle_with_context(
         TypeReferenceNode::DynamicTrait {
             symbol,
             name,
-            conformance,
-            conformance_carrier,
-            conformance_name,
-            ..
+            arguments,
         } => {
             let trait_definition = symbols.trait_definition_by_symbol(*symbol).or_else(|| {
                 (!program.symbols.has_source_metadata())
@@ -874,26 +871,30 @@ fn validate_type_reference_handle_with_context(
 
             if trait_definition.is_boundary {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses boundary trait `{name}` as a local dynamic value; local dynamic descriptors cannot cross a replaceable component boundary"
+                    "{owner} uses boundary trait `{name}` as a local dynamic value; local dynamic selectors cannot cross a replaceable component boundary"
                 )));
             }
 
-            let generic_parameter_count = program.trait_type_parameters(trait_definition).len();
-            if generic_parameter_count != 0 {
+            // A selector names one exact trait application: every trait
+            // parameter is bound, so each requirement's call shape is concrete.
+            let parameter_count = program.trait_type_parameters(trait_definition).len();
+            let arguments = program.type_reference_table.type_reference_handles(*arguments);
+            if arguments.len() != parameter_count {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses generic trait `{name}` as an unbound dynamic value; bind its {generic_parameter_count} generic parameter(s) before deriving a dynamic surface"
+                    "{owner} uses `dyn {name}` with {} argument(s); `{name}` declares {parameter_count} trait parameter(s)",
+                    arguments.len()
                 )));
             }
-
-            if conformance_name.is_some() && conformance.is_none() {
-                let selection = conformance_carrier
-                    .as_ref()
-                    .zip(conformance_name.as_ref())
-                    .map(|(carrier, conformance)| format!("{carrier}::{conformance}"))
-                    .unwrap_or_else(|| "<invalid named conformance>".to_owned());
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} selects unresolved named conformance `{selection}` for dynamic trait `{name}`"
-                )));
+            for argument in arguments {
+                validate_type_reference_handle_with_context(
+                    program,
+                    *argument,
+                    symbols,
+                    diagnostics,
+                    owner.generic_argument(),
+                    false,
+                    type_parameter_scope,
+                );
             }
         }
         TypeReferenceNode::Named { symbol, name } => {

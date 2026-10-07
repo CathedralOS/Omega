@@ -731,9 +731,37 @@ fn type_matches(
                             }
                     })
         }
+        TypeReference::DynamicTrait {
+            symbol: template_symbol,
+            arguments: template_arguments,
+            ..
+        } => {
+            let TypeReference::DynamicTrait {
+                symbol: instance_symbol,
+                arguments: instance_arguments,
+                ..
+            } = instance
+            else {
+                return false;
+            };
+            let template_arguments = source.child_type_references(*template_arguments);
+            let instance_arguments = source.child_type_references(*instance_arguments);
+            template_symbol == instance_symbol
+                && template_arguments.len() == instance_arguments.len()
+                && template_arguments.iter().zip(instance_arguments).all(
+                    |(template_argument, instance_argument)| {
+                        type_matches(
+                            source,
+                            substitutions,
+                            validated_instances,
+                            template_argument,
+                            instance_argument,
+                        )
+                    },
+                )
+        }
         TypeReference::Constrained(_)
         | TypeReference::ConstExpression(_)
-        | TypeReference::DynamicTrait { .. }
         | TypeReference::SelfType { .. } => false,
     }
 }

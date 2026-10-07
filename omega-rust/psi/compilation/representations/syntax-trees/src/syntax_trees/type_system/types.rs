@@ -590,11 +590,12 @@ pub enum TypeReferenceNode {
     /// replaces it with the canonical decimal `Named` leaf used by literal
     /// const arguments. It must never survive into symbol-resolved trees.
     ConstExpression(crate::expression::ExpressionHandle),
+    /// `dyn Trait<Args>`: a runtime selector of one named implementation of
+    /// exactly this trait application. It packages no data instance; every
+    /// data value is an ordinary argument of the calls it selects.
     DynamicTrait {
-        /// Bare `dyn Trait`, or the data carrier in `dyn Data::Conformance`.
-        name: Identifier,
-        /// Exact named nominal conformance selected for this descriptor.
-        conformance: Option<Identifier>,
+        trait_name: Identifier,
+        trait_arguments: HandleSpan<TypeReferenceHandle>,
     },
     Named(Identifier),
     SelfType,

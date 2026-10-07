@@ -272,7 +272,11 @@ fn collect_type_expression_handles(
         | TypeReferenceNode::Slice { element_type } => {
             collect_type_expression_handles(syntax, *element_type, expressions, type_references)
         }
-        TypeReferenceNode::Generic { arguments, .. } => {
+        TypeReferenceNode::Generic { arguments, .. }
+        | TypeReferenceNode::DynamicTrait {
+            trait_arguments: arguments,
+            ..
+        } => {
             for argument in syntax.type_references.type_reference_handles(*arguments) {
                 collect_type_expression_handles(syntax, *argument, expressions, type_references);
             }
@@ -307,10 +311,7 @@ fn collect_type_expression_handles(
                 }
             }
         }
-        TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Named(_)
-        | TypeReferenceNode::SelfType
-        | TypeReferenceNode::Unit => {}
+        TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -580,7 +581,11 @@ pub(in crate::preparation) fn collect_type_positions(
         | TypeReferenceNode::Slice { element_type } => {
             collect_type_positions(syntax, *element_type, positions, include_domain_arguments)
         }
-        TypeReferenceNode::Generic { arguments, .. } => {
+        TypeReferenceNode::Generic { arguments, .. }
+        | TypeReferenceNode::DynamicTrait {
+            trait_arguments: arguments,
+            ..
+        } => {
             for argument in syntax
                 .tables
                 .type_references
@@ -590,7 +595,6 @@ pub(in crate::preparation) fn collect_type_positions(
             }
         }
         TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Named(_)
         | TypeReferenceNode::SelfType
         | TypeReferenceNode::Unit => {}

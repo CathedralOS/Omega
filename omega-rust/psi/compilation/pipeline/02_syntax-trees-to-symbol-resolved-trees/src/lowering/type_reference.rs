@@ -261,9 +261,14 @@ fn lower_type_reference_node(
             let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
             Ok(TypeReference::ConstExpression(expression))
         }
-        syntax::types::TypeReferenceNode::DynamicTrait { name, conformance } => {
-            lower_dynamic_trait_reference(lowerer, syntax_trees, name, conformance.as_ref())
-        }
+        syntax::types::TypeReferenceNode::DynamicTrait {
+            trait_name,
+            trait_arguments,
+        } => Ok(TypeReference::DynamicTrait {
+            symbol: SymbolHandle::invalid(),
+            name: crate::lowering::name::lower_name(trait_name),
+            arguments: lower_child_type_references(lowerer, syntax_trees, *trait_arguments)?,
+        }),
         syntax::types::TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
             symbol: SymbolHandle::invalid(),
             name: crate::lowering::name::lower_name(name),
@@ -273,62 +278,6 @@ fn lower_type_reference_node(
         }),
         syntax::types::TypeReferenceNode::Unit => Ok(TypeReference::Unit),
     }
-}
-
-fn lower_dynamic_trait_reference(
-    lowerer: &Lowerer,
-    syntax_trees: &SyntaxTrees,
-    name: &syntax::identifier::Identifier,
-    conformance_name: Option<&syntax::identifier::Identifier>,
-) -> Result<TypeReference, Diagnostic> {
-    let Some(conformance_name) = conformance_name else {
-        return Ok(TypeReference::DynamicTrait {
-            symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(name),
-            conformance: None,
-            conformance_carrier: None,
-            conformance_name: None,
-        });
-    };
-
-    let matches = syntax_trees
-        .root_items()
-        .filter_map(|item| match item {
-            syntax::item::Item::Conformance(conformance)
-                if matches!(
-                    &conformance.subject,
-                    syntax::item::ConformanceSubject::Carrier(type_name) if type_name == name
-                ) && conformance.alias.as_ref() == Some(conformance_name)
-                    && lowerer.source_reference_can_see_declaration(
-                        name.source_span(),
-                        conformance.trait_name.source_span(),
-                    ) =>
-            {
-                Some(conformance)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [conformance] = matches.as_slice() else {
-        let selection = format!("{name}::{conformance_name}");
-        return Err(if matches.is_empty() {
-            Diagnostic::error(format!(
-                "dynamic coercion selects unknown named conformance `{selection}`"
-            ))
-        } else {
-            Diagnostic::error(format!(
-                "dynamic coercion selects ambiguous named conformance `{selection}`"
-            ))
-        });
-    };
-
-    Ok(TypeReference::DynamicTrait {
-        symbol: SymbolHandle::invalid(),
-        name: crate::lowering::name::lower_name(&conformance.trait_name),
-        conformance: None,
-        conformance_carrier: Some(crate::lowering::name::lower_name(name)),
-        conformance_name: Some(crate::lowering::name::lower_name(conformance_name)),
-    })
 }
 
 pub(crate) fn lower_fixed_array_length(

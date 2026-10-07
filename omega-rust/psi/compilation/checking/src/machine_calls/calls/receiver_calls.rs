@@ -87,11 +87,10 @@ pub(super) fn validate_receiver_call(
     });
 
     if let Some(error) = receiver_type_reference.and_then(|type_reference| {
-        crate::declarations::traits::dynamic_requirement_call_error(
+        crate::declarations::traits::dynamic_receiver_call_error(
             program,
             type_reference,
             call.target.as_str(),
-            call.target_symbol,
         )
     }) {
         diagnostics.push(Diagnostic::error(error));

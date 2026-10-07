@@ -1,287 +1,79 @@
+//! Runtime selection of named implementations (`dyn Trait<Args>`).
+//!
+//! A `dyn Trait<Args>` value selects one named implementation of exactly that
+//! trait application at runtime. It packages no data instance: copying,
+//! storing or forwarding a selector borrows nothing, and every data value is
+//! an ordinary argument of the call it reaches. `Impl as dyn Trait<Args>` is
+//! the only constructor; it names the implementation, never a data place, so
+//! there is no implementation search over a value's type. A call names the
+//! requirement through its trait and passes the selector first:
+//! `Trait::member(selector, data...)`. The selector is the dispatch operand,
+//! not a requirement parameter
+//! ([dynamic dispatch](../../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)).
+//!
+//! Rebinding, joins, storage and forwarding are ordinary value flow of the
+//! selector; this module only fixes which implementation each conversion
+//! selects. Call checking (`machine_calls::calls::generic_requirement`)
+//! instantiates the requirement under the selector's trait application the
+//! same way an evidence binder's bound does.
+//!
+//! The receiver-call binding below is older and separate: a call through a
+//! `Binding<R>` service value binds its exact requirement target here.
+
 use diagnostics::Diagnostic;
-use source::SourceSpan;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::name::Identifier;
 use typed_trees::signature::StateSignature;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 use typed_trees::trait_definition::{DynamicSignatureIneligibility, TraitDefinition};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// One local dynamic coercion whose complete nominal conformance is fixed in
-/// the checked artifact. Runtime descriptor lowering consumes this exact
-/// selection rather than rediscovering implementations from names.
+/// One `Impl as dyn Trait<Args>` conversion: the exact named implementation it
+/// selects for the selector type at `occurrence`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DynamicConformanceSelection {
+pub struct DynamicImplementationSelection {
+    /// The conversion expression itself.
     pub occurrence: ExpressionHandle,
-    pub binding: symbols::SymbolHandle,
-    pub binding_name: Identifier,
     pub machine: symbols::SymbolHandle,
     pub state: symbols::SymbolHandle,
-    pub statement_index: usize,
-    /// Exact source place repackaged by this coercion. `source_symbol` is the
-    /// authored leaf declaration reached through `source_path`, not a
-    /// synthesized member-accessor identity. Whole-artifact devirtualization
-    /// uses it as the selected realization's receiver instead of treating the
-    /// two-word dynamic descriptor as the concrete `self`.
-    pub source_symbol: symbols::SymbolHandle,
-    pub source_name: Identifier,
-    pub source_path: Vec<Identifier>,
-    pub source_data: symbols::SymbolHandle,
+    /// The selected named implementation (a `Conformance` symbol).
+    pub implementation: symbols::SymbolHandle,
+    /// The `dyn Trait<Args>` type the conversion produces.
+    pub selector_type: TypeReferenceHandle,
     pub target_trait: symbols::SymbolHandle,
-    /// Stable package symbol for the explicitly named conformance.
-    pub conformance: Option<symbols::SymbolHandle>,
 }
 
-/// One exact move of an already-selected borrowed dynamic descriptor into a
-/// field of a local record. This is storage lineage, not a new conformance
-/// selection: `selection` remains the sole authority for the descriptor rows.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DynamicDescriptorStorage {
-    /// Exact field-value expression which supplies the descriptor.
-    pub occurrence: ExpressionHandle,
-    pub machine: symbols::SymbolHandle,
-    pub state: symbols::SymbolHandle,
-    pub statement_index: usize,
-    pub destination_binding: symbols::SymbolHandle,
-    pub destination_name: Identifier,
-    pub destination_field: symbols::SymbolHandle,
-    pub destination_path: Vec<Identifier>,
-    pub source_binding: symbols::SymbolHandle,
-    pub source_name: Identifier,
-    pub source_path: Vec<Identifier>,
-    pub selection: DynamicConformanceSelection,
-}
-
-/// Select complete nominal conformances for the currently admitted local
-/// coercion form: a direct place cast bound to a reference-typed local. Bare
-/// `dyn Trait` requires a unique conformance; `dyn Type::Conformance` selects
-/// the named declaration exactly.
-pub fn collect_dynamic_conformance_selections(
+/// Fix the implementation every `Impl as dyn Trait<Args>` conversion selects.
+/// The implementation must be a closed implementation of exactly the
+/// selector's trait application: a selection never widens, narrows or
+/// re-targets the application it was declared for.
+pub fn collect_dynamic_implementation_selections(
     program: &TypedTrees,
-) -> Result<Vec<DynamicConformanceSelection>, Vec<Diagnostic>> {
+) -> Result<Vec<DynamicImplementationSelection>, Vec<Diagnostic>> {
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
-
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
-                let StatementNode::LocalData(local) = statement else {
-                    continue;
-                };
-                let Some((occurrence, cast, dynamic_target)) =
-                    normalized_dynamic_coercion(program, local.initial_value)
-                else {
-                    continue;
-                };
-                let TypeReferenceNode::DynamicTrait {
-                    symbol: target_trait,
-                    conformance: exact_conformance,
-                    conformance_carrier,
-                    conformance_name,
-                    ..
-                } = dynamic_target
-                else {
-                    unreachable!("dynamic_trait_reference returns a dynamic-trait node")
-                };
-                let target_trait = *target_trait;
-                let Some(mut source_place) = dynamic_source_place(program, cast.value) else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "local dynamic coercion `{}` requires a direct named or member source place",
-                        cast.display_name(&program.expression_table)
-                    )));
-                    continue;
-                };
-                let Some(source_type) = crate::value_custody::places::declared_place_type_raw(
-                    program,
-                    machine,
-                    Some(state),
-                    cast.value,
-                ) else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "local dynamic coercion `{}` has no statically resolved source place type",
-                        cast.display_name(&program.expression_table)
-                    )));
-                    continue;
-                };
-                let Some(source_symbol) = crate::value_custody::places::declared_place_leaf_symbol(
-                    program,
-                    machine,
-                    Some(state),
-                    statement_index,
-                    cast.value,
-                ) else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "local dynamic coercion `{}` has no exact source declaration identity",
-                        cast.display_name(&program.expression_table)
-                    )));
-                    continue;
-                };
-                source_place.symbol = source_symbol;
-                let Some((source_data, source_name)) = nominal_data_type(program, source_type)
-                else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "local dynamic coercion `{}` requires a concrete nominal data source",
-                        cast.display_name(&program.expression_table)
-                    )));
-                    continue;
-                };
-                let Some(trait_definition) = program
-                    .traits()
-                    .iter()
-                    .find(|definition| definition.symbol == target_trait)
-                else {
-                    continue;
-                };
-                let nominal_matches = program
-                    .conformances()
-                    .iter()
-                    .filter(|conformance| {
-                        program.symbols.source_reference_can_see_symbol(
-                            program
-                                .symbols
-                                .symbol_source_span(machine.symbol)
-                                .unwrap_or_else(|| {
-                                    program.expression_table.source_span(occurrence)
-                                }),
-                            conformance.symbol,
-                        ) && conformance
-                            .carrier_name()
-                            .is_some_and(|carrier| carrier.as_str() == source_name)
-                            && conformance.trait_name == trait_definition.name
-                            && conformance.arguments.is_empty()
-                    })
-                    .collect::<Vec<_>>();
-                let matches = nominal_matches
-                    .iter()
-                    .copied()
-                    .filter(|conformance| {
-                        matches!(
-                            &conformance.implementation,
-                            typed_trees::trait_definition::ConformanceImplementation::Closed { .. }
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                if conformance_name.is_some() {
-                    let selection_name = conformance_carrier
-                        .as_ref()
-                        .zip(conformance_name.as_ref())
-                        .map(|(carrier, conformance)| format!("{carrier}::{conformance}"))
-                        .unwrap_or_else(|| "<invalid named conformance>".to_owned());
-                    let Some(exact_symbol) = exact_conformance else {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "local dynamic coercion selects unresolved named conformance `{selection_name}`"
-                        )));
-                        continue;
-                    };
-                    if nominal_matches.iter().any(|candidate| {
-                        candidate.symbol == *exact_symbol
-                            && matches!(
-                                &candidate.implementation,
-                                typed_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
-                            )
-                    }) {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "named conformance `{selection_name}` is bodyless and cannot license local dynamic dispatch; declare its complete row map with a conformance block"
-                        )));
-                        continue;
-                    }
-                    let Some(selected) = matches
-                        .iter()
-                        .find(|candidate| candidate.symbol == *exact_symbol)
-                    else {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "local dynamic coercion from `{source_name}` to `dyn {}` cannot use named conformance `{selection_name}`",
-                            trait_definition.name
-                        )));
-                        continue;
-                    };
-                    let selection = DynamicConformanceSelection {
-                        occurrence,
-                        binding: local.symbol,
-                        binding_name: local.name.clone(),
-                        machine: machine.symbol,
-                        state: state.symbol,
-                        statement_index,
-                        source_symbol: source_place.symbol,
-                        source_name: source_place.name.clone(),
-                        source_path: source_place.path.clone(),
-                        source_data,
-                        target_trait,
-                        conformance: Some(selected.symbol),
-                    };
-                    if !selections.contains(&selection) {
-                        selections.push(selection);
-                    }
-                    continue;
-                }
-                match matches.as_slice() {
-                    [conformance] => {
-                        let selection = DynamicConformanceSelection {
-                            occurrence,
-                            binding: local.symbol,
-                            binding_name: local.name.clone(),
-                            machine: machine.symbol,
-                            state: state.symbol,
-                            statement_index,
-                            source_symbol: source_place.symbol,
-                            source_name: source_place.name.clone(),
-                            source_path: source_place.path.clone(),
-                            source_data,
-                            target_trait,
-                            conformance: conformance.symbol.is_valid().then_some(conformance.symbol),
-                        };
-                        if !selections.contains(&selection) {
-                            selections.push(selection);
-                        }
-                    }
-                    [] => diagnostics.push(Diagnostic::error(format!(
-                        "local dynamic coercion from `{source_name}` to `dyn {}` has no complete nominal conformance",
-                        trait_definition.name
-                    ))),
-                    many => diagnostics.push(Diagnostic::error(format!(
-                        "local dynamic coercion from `{source_name}` to `dyn {}` has {} complete nominal conformances; select one exact named conformance",
-                        trait_definition.name,
-                        many.len()
-                    ))),
+            let mut visited = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                for root in crate::machine_calls::calls::statement_value_expression_roots(
+                    program, statement,
+                ) {
+                    collect_selections_in(
+                        program,
+                        machine,
+                        state,
+                        root,
+                        &mut visited,
+                        &mut selections,
+                        &mut diagnostics,
+                    );
                 }
             }
         }
     }
-
-    collect_named_conformance_dynamic_rebindings(program, &mut selections, &mut diagnostics);
-
-    // Validate pass-through only after the complete local-selection catalog is
-    // known. A call may use a selection authored earlier in its state; no
-    // visible-conformance search or source-order guess may reconstruct it.
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
-                validate_dynamic_call_arguments_in_statement(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    statement,
-                    &selections,
-                    &mut diagnostics,
-                );
-            }
-        }
-    }
-
     if diagnostics.is_empty() {
         Ok(selections)
     } else {
@@ -289,706 +81,189 @@ pub fn collect_dynamic_conformance_selections(
     }
 }
 
-/// Retain the first bounded aggregate-storage shape: an immutable local record
-/// literal field initialized directly from an earlier local `&dyn` selection.
-/// More general assignment, nesting, joins, and owned erasure remain separate
-/// rungs because each needs different lifetime and mutation custody.
-pub fn collect_dynamic_descriptor_storages(
+fn collect_selections_in(
     program: &TypedTrees,
-    selections: &[DynamicConformanceSelection],
-) -> Vec<DynamicDescriptorStorage> {
-    let mut storages = Vec::new();
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
-                let StatementNode::LocalData(local) = statement else {
-                    continue;
-                };
-                if local.is_mutable {
-                    continue;
-                }
-                let ExpressionNode::StructLiteral(literal) =
-                    program.expression_table.expression(local.initial_value)
-                else {
-                    continue;
-                };
-                if literal.case_symbol.is_some() {
-                    continue;
-                }
-                let Some(data) = crate::program_scope::data_definitions::data_definition_by_symbol(
-                    program,
-                    literal.type_symbol,
-                ) else {
-                    continue;
-                };
-                for field in program.expression_table.struct_fields(literal.fields) {
-                    let Some(declared_field) =
-                        program.data_members(data).iter().find_map(|member| {
-                            let typed_trees::data::DataMember::Field(declared) = member else {
-                                return None;
-                            };
-                            (declared.symbol == field.field_symbol).then_some(declared)
-                        })
-                    else {
-                        continue;
-                    };
-                    let Some(target_trait) =
-                        borrowed_dynamic_trait_symbol(program, declared_field.type_reference)
-                    else {
-                        continue;
-                    };
-                    let Some(source) = dynamic_source_place(program, field.value) else {
-                        continue;
-                    };
-                    if source.path.len() != 1 {
-                        continue;
-                    }
-                    let Some(selection) = selections
-                        .iter()
-                        .filter(|selection| {
-                            selection.machine == machine.symbol
-                                && selection.state == state.symbol
-                                && selection.statement_index < statement_index
-                                && selection.target_trait == target_trait
-                                && if source.symbol.is_valid() {
-                                    selection.binding == source.symbol
-                                } else {
-                                    selection.binding_name == source.name
-                                }
-                        })
-                        .max_by_key(|selection| selection.statement_index)
-                    else {
-                        continue;
-                    };
-                    let storage = DynamicDescriptorStorage {
-                        occurrence: field.value,
-                        machine: machine.symbol,
-                        state: state.symbol,
-                        statement_index,
-                        destination_binding: local.symbol,
-                        destination_name: local.name.clone(),
-                        destination_field: declared_field.symbol,
-                        destination_path: vec![local.name.clone(), declared_field.name.clone()],
-                        source_binding: source.symbol,
-                        source_name: source.name,
-                        source_path: source.path,
-                        selection: selection.clone(),
-                    };
-                    if !storages.contains(&storage) {
-                        storages.push(storage);
-                    }
-                }
-            }
-        }
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    visited: &mut Vec<ExpressionHandle>,
+    selections: &mut Vec<DynamicImplementationSelection>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !expression.is_valid() || visited.contains(&expression) {
+        return;
     }
-    storages
+    visited.push(expression);
+    let node = program.expression_table.expression(expression);
+    crate::expression_traversal::children(program, node, |child| {
+        collect_selections_in(
+            program,
+            machine,
+            state,
+            child,
+            visited,
+            selections,
+            diagnostics,
+        )
+    });
+    let ExpressionNode::Cast(cast) = node else {
+        return;
+    };
+    let TypeReferenceNode::DynamicTrait {
+        symbol: target_trait,
+        name: trait_name,
+        arguments,
+    } = program.type_reference_table.type_reference(cast.target_type)
+    else {
+        return;
+    };
+    let implementation = match program.expression_table.expression(cast.value) {
+        ExpressionNode::Name(name)
+            if name.symbol.is_valid()
+                && program.symbols.get(name.symbol).kind == symbols::SymbolKind::Conformance =>
+        {
+            name.symbol
+        }
+        _ => {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}` converts a value to `dyn {trait_name}`; a selector is constructed from a named implementation (`Implementation as dyn {trait_name}<...>`) and the data is passed to each call",
+                cast.display_name(&program.expression_table)
+            )));
+            return;
+        }
+    };
+    let Some(conformance) = program
+        .conformances()
+        .iter()
+        .find(|conformance| conformance.symbol == implementation)
+    else {
+        return;
+    };
+    let implementation_name = program.symbols.name(implementation);
+    if program.closed_conformance_rows(conformance).is_none() {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{implementation_name}` declares no complete row map and cannot be selected at runtime; declare it with a `{{ ... }}` implementation block"
+        )));
+        return;
+    }
+    let selector_arguments = program.type_reference_table.type_reference_handles(*arguments);
+    let implementation_arguments = program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+    let same_application = conformance.trait_symbol == *target_trait
+        && selector_arguments.len() == implementation_arguments.len()
+        && selector_arguments
+            .iter()
+            .zip(implementation_arguments)
+            .all(|(selector, implementation)| {
+                program.normalized_type_identity(*selector)
+                    == program.normalized_type_identity(*implementation)
+            });
+    if !same_application {
+        let display = |handle: TypeReferenceHandle| {
+            program
+                .type_reference_table
+                .display_name(handle)
+        };
+        let implemented = format!(
+            "{}<{}>",
+            conformance.trait_name,
+            implementation_arguments
+                .iter()
+                .map(|argument| display(*argument))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        let selected = format!(
+            "dyn {trait_name}<{}>",
+            selector_arguments
+                .iter()
+                .map(|argument| display(*argument))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        diagnostics.push(Diagnostic::error(format!(
+            "`{implementation_name}` implements `{implemented}`, not `{selected}`; a selector names exactly the trait application its implementation satisfies"
+        )));
+        return;
+    }
+    selections.push(DynamicImplementationSelection {
+        occurrence: expression,
+        machine: machine.symbol,
+        state: state.symbol,
+        implementation,
+        selector_type: cast.target_type,
+        target_trait: *target_trait,
+    });
 }
 
-fn borrowed_dynamic_trait_symbol(
+/// Why `requirement` cannot be called through `dyn Trait`: its signature or
+/// contract is outside the local dynamic surface. `None` when it can.
+pub(crate) fn dynamic_requirement_ineligibility(
+    program: &TypedTrees,
+    declaring_trait: &TraitDefinition,
+    requirement: &StateSignature,
+) -> Option<&'static str> {
+    if let Err(reason) = program.dynamic_signature_eligibility(declaring_trait, requirement) {
+        return Some(match reason {
+            DynamicSignatureIneligibility::BoundaryRequirement => {
+                "boundary-machine requirements are not local dynamic calls"
+            }
+            DynamicSignatureIneligibility::RequirementLocalGenerics => {
+                "the requirement has requirement-local generic parameters outside one finite family"
+            }
+        });
+    }
+    program
+        .dynamic_non_signature_eligibility(requirement)
+        .err()
+        .map(|reason| match reason {
+            typed_trees::dynamic_traits::DynamicNonSignatureIneligibility::PrivateContractIdentity => {
+                "its public contract names an identity a dynamic caller cannot see"
+            }
+            typed_trees::dynamic_traits::DynamicNonSignatureIneligibility::UnprojectableResultLifetime => {
+                "its result names a borrow lifetime no argument binds"
+            }
+            typed_trees::dynamic_traits::DynamicNonSignatureIneligibility::UnfittableEnvelope => {
+                "its operational envelope (installation-bound reach or native callback parameters) cannot be selected at runtime"
+            }
+        })
+}
+
+/// The trait and arguments of a `dyn Trait<Args>` selector type.
+pub(crate) fn dynamic_selector_application(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<symbols::SymbolHandle> {
+) -> Option<(symbols::SymbolHandle, &[TypeReferenceHandle])> {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => dynamic_trait_symbol(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
-            borrowed_dynamic_trait_symbol(program, *base_type)
+            dynamic_selector_application(program, *base_type)
         }
+        TypeReferenceNode::DynamicTrait {
+            symbol, arguments, ..
+        } => Some((
+            *symbol,
+            program.type_reference_table.type_reference_handles(*arguments),
+        )),
         _ => None,
     }
 }
 
-fn collect_named_conformance_dynamic_rebindings(
+/// A receiver-style call on a selector (`selector.member(...)`) has no
+/// target: the selector is a dispatch operand, so the call names the
+/// requirement through its trait and passes the selector first.
+pub(crate) fn dynamic_receiver_call_error(
     program: &TypedTrees,
-    selections: &mut Vec<DynamicConformanceSelection>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let initial_selections = selections.clone();
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
-                let StatementNode::Assignment(assignment) = statement else {
-                    continue;
-                };
-                let Some(target) = dynamic_source_place(program, assignment.target) else {
-                    continue;
-                };
-                if target.path.len() != 1 {
-                    continue;
-                }
-                let Some(target_symbol) = crate::value_custody::places::declared_place_leaf_symbol(
-                    program,
-                    machine,
-                    Some(state),
-                    statement_index,
-                    assignment.target,
-                ) else {
-                    if initial_selections.iter().any(|selection| {
-                        selection.machine == machine.symbol
-                            && selection.state == state.symbol
-                            && selection.binding_name == target.name
-                    }) {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "dynamic local rebind `{}` has no exact target declaration identity",
-                            target.name
-                        )));
-                    }
-                    continue;
-                };
-                let Some(initial) = initial_selections.iter().find(|selection| {
-                    selection.machine == machine.symbol
-                        && selection.state == state.symbol
-                        && selection.statement_index < statement_index
-                        && selection.binding == target_symbol
-                }) else {
-                    continue;
-                };
-                let mutable = program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .get(initial.statement_index)
-                    .is_some_and(|statement| {
-                        matches!(
-                            statement,
-                            StatementNode::LocalData(local)
-                                if local.symbol == initial.binding && local.is_mutable
-                        )
-                    });
-                if !mutable {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` requires the exact mutable local declaration",
-                        initial.binding_name
-                    )));
-                    continue;
-                }
-                let Some((occurrence, cast, dynamic_target)) =
-                    normalized_dynamic_coercion(program, assignment.value)
-                else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` requires an exact direct-place named-conformance cast",
-                        initial.binding_name
-                    )));
-                    continue;
-                };
-                let TypeReferenceNode::DynamicTrait {
-                    symbol: target_trait,
-                    conformance,
-                    ..
-                } = dynamic_target
-                else {
-                    unreachable!("normalized_dynamic_coercion returns a dynamic-trait target")
-                };
-                if *target_trait != initial.target_trait || conformance.is_none() {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` must retain its exact trait and a named conformance",
-                        initial.binding_name
-                    )));
-                    continue;
-                }
-                let Some(mut source_place) = dynamic_source_place(program, cast.value) else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` requires a direct named or member source place",
-                        initial.binding_name
-                    )));
-                    continue;
-                };
-                let Some(source_type) = crate::value_custody::places::declared_place_type_raw(
-                    program,
-                    machine,
-                    Some(state),
-                    cast.value,
-                ) else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` has no statically resolved source place type",
-                        initial.binding_name
-                    )));
-                    continue;
-                };
-                let Some(source_symbol) = crate::value_custody::places::declared_place_leaf_symbol(
-                    program,
-                    machine,
-                    Some(state),
-                    statement_index,
-                    cast.value,
-                ) else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` has no exact source declaration identity",
-                        initial.binding_name
-                    )));
-                    continue;
-                };
-                source_place.symbol = source_symbol;
-                let Some((source_data, _)) = nominal_data_type(program, source_type) else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` requires a concrete nominal data source",
-                        initial.binding_name
-                    )));
-                    continue;
-                };
-                if source_data != initial.source_data {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` must retain the exact source carrier for this rung",
-                        initial.binding_name
-                    )));
-                    continue;
-                }
-                selections.push(DynamicConformanceSelection {
-                    occurrence,
-                    binding: initial.binding,
-                    binding_name: initial.binding_name.clone(),
-                    machine: initial.machine,
-                    state: initial.state,
-                    statement_index,
-                    source_symbol: source_place.symbol,
-                    source_name: source_place.name,
-                    source_path: source_place.path,
-                    source_data,
-                    target_trait: initial.target_trait,
-                    conformance: *conformance,
-                });
-            }
-        }
-    }
+    receiver_type: TypeReferenceHandle,
+    target: &str,
+) -> Option<String> {
+    let (trait_symbol, _) = dynamic_selector_application(program, receiver_type)?;
+    let trait_name = program.symbols.name(trait_symbol);
+    Some(format!(
+        "a `dyn {trait_name}` selector is a dispatch operand, not a receiver; call `{trait_name}::{target}(selector, ...)`"
+    ))
 }
 
-fn validate_dynamic_call_arguments_in_statement(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
-    statement: &StatementNode,
-    selections: &[DynamicConformanceSelection],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if let StatementNode::Call(call) = statement {
-        validate_dynamic_call_arguments(
-            program,
-            machine,
-            state,
-            statement_index,
-            call.source_span,
-            call.target_symbol,
-            &call.target,
-            &call.machine_arguments,
-            call.static_requirement_dispatch.is_some(),
-            call.arguments,
-            selections,
-            diagnostics,
-        );
-    }
-    for root in crate::machine_calls::calls::statement_value_expression_roots(program, statement) {
-        validate_dynamic_call_arguments_in_expression(
-            program,
-            machine,
-            state,
-            statement_index,
-            root,
-            selections,
-            diagnostics,
-        );
-    }
-}
-
-fn validate_dynamic_call_arguments_in_expression(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    selections: &[DynamicConformanceSelection],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-    macro_rules! visit {
-        ($child:expr) => {
-            validate_dynamic_call_arguments_in_expression(
-                program,
-                machine,
-                state,
-                statement_index,
-                $child,
-                selections,
-                diagnostics,
-            )
-        };
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            visit!(dispatch.subject);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    visit!(pattern);
-                }
-                visit!(arm.value);
-            }
-        }
-        ExpressionNode::ArrayLiteral(elements) => {
-            for element in program.expression_table.expression_handles(*elements) {
-                visit!(*element);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            visit!(atomic.value);
-            visit!(atomic.result);
-        }
-        ExpressionNode::Binary(binary) => {
-            visit!(binary.left);
-            visit!(binary.right);
-        }
-        ExpressionNode::Cast(cast) => visit!(cast.value),
-        ExpressionNode::Call(call) => {
-            validate_dynamic_call_arguments(
-                program,
-                machine,
-                state,
-                statement_index,
-                program.expression_table.source_span(expression),
-                call.target_symbol,
-                &call.target,
-                &call.machine_arguments,
-                call.static_requirement_dispatch.is_some(),
-                call.arguments,
-                selections,
-                diagnostics,
-            );
-            visit!(call.receiver);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                visit!(*argument);
-            }
-        }
-        ExpressionNode::Indexed(indexed) => {
-            visit!(indexed.collection);
-            visit!(indexed.index);
-        }
-        ExpressionNode::Member(member) => visit!(member.receiver),
-        ExpressionNode::Borrow(inner) => visit!(inner.target),
-        ExpressionNode::Range(range) => {
-            visit!(range.start);
-            visit!(range.end);
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                visit!(field.value);
-            }
-        }
-        ExpressionNode::Unary(unary) => visit!(unary.operand),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_dynamic_call_arguments(
-    program: &TypedTrees,
-    caller: &Machine,
-    caller_state: &State,
-    statement_index: usize,
-    source_span: SourceSpan,
-    target_symbol: symbols::SymbolHandle,
-    target_name: &Identifier,
-    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
-    static_requirement_dispatch: bool,
-    arguments: arena::HandleSpan<ExpressionHandle>,
-    selections: &[DynamicConformanceSelection],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_dynamic_family_call_tuple(
-        program,
-        target_symbol,
-        machine_arguments,
-        static_requirement_dispatch,
-        diagnostics,
-    );
-    let source_span = program
-        .symbols
-        .symbol_source_span(caller.symbol)
-        .unwrap_or(source_span);
-    let Some(target_state) = called_state(program, target_symbol, target_name) else {
-        return;
-    };
-    let parameters = program.state_parameters(target_state).iter();
-    for (parameter, argument) in parameters.zip(
-        program
-            .expression_table
-            .expression_handles(arguments)
-            .iter()
-            .copied(),
-    ) {
-        let Some(TypeReferenceNode::DynamicTrait {
-            symbol: target_trait,
-            conformance: expected_conformance,
-            ..
-        }) = dynamic_trait_reference(program, parameter.type_reference)
-        else {
-            continue;
-        };
-        if expected_conformance.is_some() {
-            continue;
-        }
-
-        let source_type = crate::value_custody::places::declared_place_type_raw(
-            program,
-            caller,
-            Some(caller_state),
-            argument,
-        )
-        .or_else(|| {
-            crate::value_custody::places::declared_place_type_raw(
-                program,
-                caller,
-                Some(caller_state),
-                strip_mutable(program, argument),
-            )
-        });
-        let Some(source_type) = source_type else {
-            continue;
-        };
-        if let Some(TypeReferenceNode::DynamicTrait {
-            symbol: source_trait,
-            ..
-        }) = dynamic_trait_reference(program, source_type)
-        {
-            let passed = passed_dynamic_selection(
-                program,
-                caller,
-                caller_state,
-                statement_index,
-                argument,
-                selections,
-            );
-            if *source_trait == *target_trait
-                && (passed.is_some_and(|selection| selection.target_trait == *target_trait)
-                    || is_direct_dynamic_parameter(program, caller_state, argument, *target_trait))
-            {
-                continue;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-                "call to `{target_name}` cannot pass dynamic value to bare parameter `{}` without one earlier exact compatible local conformance selection or dynamic parameter",
-                parameter.name
-            )));
-            continue;
-        }
-        let Some((_, source_name)) = nominal_data_type(program, source_type) else {
-            continue;
-        };
-        let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == *target_trait)
-        else {
-            continue;
-        };
-        let complete_count = program
-            .conformances()
-            .iter()
-            .filter(|conformance| {
-                program
-                    .symbols
-                    .source_reference_can_see_symbol(source_span, conformance.symbol)
-                    && conformance
-                        .carrier_name()
-                        .is_some_and(|carrier| carrier.as_str() == source_name)
-                    && conformance.trait_name == trait_definition.name
-                    && conformance.arguments.is_empty()
-                    && matches!(
-                        &conformance.implementation,
-                        typed_trees::trait_definition::ConformanceImplementation::Closed { .. }
-                    )
-            })
-            .count();
-        match complete_count {
-            1 => {}
-            0 => diagnostics.push(Diagnostic::error(format!(
-                "call to `{target_name}` cannot pass `{source_name}` to bare dynamic parameter `{}`: no complete closed conformance to `{}` is available",
-                parameter.name, trait_definition.name
-            ))),
-            count => diagnostics.push(Diagnostic::error(format!(
-                "call to `{target_name}` cannot pass `{source_name}` to bare dynamic parameter `{}`: {count} complete closed conformances to `{}` are available; declare the parameter with one exact named dynamic conformance",
-                parameter.name, trait_definition.name
-            ))),
-        }
-    }
-}
-
-/// Validate the static machine arguments of a call whose resolved target is a
-/// local `dyn` requirement. A dynamic family call carries no ordinary generic
-/// machinery: the only legal binder tuple is one complete roster tuple of
-/// closed static values (`erased.code<16>()`), matching the requirement's
-/// declared finite family exactly. A requirement outside the family contract
-/// cannot take machine arguments at all, and static requirement dispatch
-/// (`C::m` bound calls) carries its own requirement contract outside this
-/// surface.
-fn validate_dynamic_family_call_tuple(
-    program: &TypedTrees,
-    target_symbol: symbols::SymbolHandle,
-    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
-    static_requirement_dispatch: bool,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if static_requirement_dispatch || !target_symbol.is_valid() {
-        return;
-    }
-    // Only a local `dyn` receiver binds a trait requirement signature as the
-    // call target; an ordinary machine call resolves to a state symbol and a
-    // boundary requirement is dispatched through selected adapters, not this
-    // local surface.
-    let Some((declaring_trait, requirement)) = program
-        .traits()
-        .iter()
-        .flat_map(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
-                .map(move |signature| (definition, signature))
-        })
-        .find(|(_, signature)| signature.symbol == target_symbol)
-    else {
-        return;
-    };
-    if declaring_trait.is_boundary {
-        return;
-    }
-    match program.finite_signature_family(requirement) {
-        typed_trees::finite_family::FamilyProbe::Finite { arity, tuples } => {
-            let tuple_identities: Option<Vec<String>> = machine_arguments
-                .iter()
-                .map(|argument| program.static_const_argument_identity(argument))
-                .collect();
-            let selects_exact_tuple = tuple_identities.as_deref().is_some_and(|identities| {
-                identities.len() == arity
-                    && tuples
-                        .iter()
-                        .any(|tuple| tuple.identities.as_ref() == identities)
-            });
-            if !selects_exact_tuple {
-                let roster = tuples
-                    .iter()
-                    .map(|tuple| format!("({})", tuple.display.join(", ")))
-                    .collect::<Vec<_>>()
-                    .join(" or ");
-                diagnostics.push(Diagnostic::error(format!(
-                    "dynamic family call `{}::{}` requires exactly one closed roster tuple ({roster}); runtime subjects and non-member values cannot select a family row",
-                    declaring_trait.name, requirement.name
-                )));
-            }
-        }
-        typed_trees::finite_family::FamilyProbe::NotFinite(_) => {
-            if !machine_arguments.is_empty() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "dynamic requirement call `{}::{}` supplies static machine arguments, but the requirement declares no finite family",
-                    declaring_trait.name, requirement.name
-                )));
-            }
-        }
-    }
-}
-
-fn is_direct_dynamic_parameter(
-    program: &TypedTrees,
-    caller_state: &State,
-    argument: ExpressionHandle,
-    target_trait: symbols::SymbolHandle,
-) -> bool {
-    let Some(source) = dynamic_source_place(program, strip_mutable(program, argument)) else {
-        return false;
-    };
-    source.path.len() == 1
-        && program
-            .state_parameters(caller_state)
-            .iter()
-            .any(|parameter| {
-                parameter.symbol == source.symbol
-                    && dynamic_trait_reference(program, parameter.type_reference).is_some_and(
-                        |node| {
-                            matches!(
-                                node,
-                                TypeReferenceNode::DynamicTrait {
-                                    symbol,
-                                    conformance: None,
-                                    ..
-                                } if *symbol == target_trait
-                            )
-                        },
-                    )
-            })
-}
-
-fn passed_dynamic_selection<'selections>(
-    program: &TypedTrees,
-    caller: &Machine,
-    caller_state: &State,
-    statement_index: usize,
-    argument: ExpressionHandle,
-    selections: &'selections [DynamicConformanceSelection],
-) -> Option<&'selections DynamicConformanceSelection> {
-    let source = dynamic_source_place(program, strip_mutable(program, argument))?;
-    if source.path.len() != 1 {
-        return None;
-    }
-    selections
-        .iter()
-        .filter(|selection| {
-            selection.machine == caller.symbol
-                && selection.state == caller_state.symbol
-                && selection.statement_index < statement_index
-                && if source.symbol.is_valid() {
-                    selection.binding == source.symbol
-                } else {
-                    selection.binding_name == source.name
-                }
-        })
-        .max_by_key(|selection| selection.statement_index)
-}
-
-fn called_state<'program>(
-    program: &'program TypedTrees,
-    target_symbol: symbols::SymbolHandle,
-    target_name: &Identifier,
-) -> Option<&'program State> {
-    if target_symbol.is_valid() {
-        if let Some(state) = program.state_by_symbol(target_symbol) {
-            return Some(state);
-        }
-        if let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == target_symbol)
-        {
-            return program.machine_states(machine).first();
-        }
-    }
-    (!program.symbols.has_source_metadata())
-        .then(|| {
-            program
-                .machines()
-                .iter()
-                .find(|machine| machine.attached_data.is_none() && machine.name == *target_name)
-                .and_then(|machine| program.machine_states(machine).first())
-        })
-        .flatten()
-}
-
-/// Bind every call through a typed dynamic receiver to the exact requirement
-/// symbol that declares its table slot. Early symbol resolution cannot do this
-/// for locals because their declared types are not available until typed trees.
-/// This pass runs before validation and checked-fact construction, so no later
-/// consumer has to recover a slot from its spelling.
 pub fn resolve_dynamic_call_targets(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     resolve_selected_dynamic_call_targets(
         program,
@@ -1262,7 +537,6 @@ fn receiver_trait_symbol(
         TypeReferenceNode::Constrained { base_type, .. } => {
             receiver_trait_symbol(program, *base_type)
         }
-        TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
         TypeReferenceNode::Named { symbol, .. }
             if program
                 .traits()
@@ -1311,170 +585,3 @@ fn collect_dynamic_requirements_named<'program>(
     }
 }
 
-#[derive(Debug, Clone)]
-struct DynamicSourcePlace {
-    symbol: symbols::SymbolHandle,
-    name: Identifier,
-    path: Vec<Identifier>,
-}
-
-fn dynamic_source_place(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<DynamicSourcePlace> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => dynamic_source_place(program, atomic.value),
-        ExpressionNode::Borrow(inner) => dynamic_source_place(program, inner.target),
-        ExpressionNode::Name(name) => {
-            let leaf = program
-                .expression_table
-                .name_path_members(name.members)
-                .last()?
-                .clone();
-            Some(DynamicSourcePlace {
-                symbol: name.symbol,
-                name: leaf.clone(),
-                path: vec![leaf],
-            })
-        }
-        ExpressionNode::Member(member) => {
-            let mut source = dynamic_source_place(program, member.receiver)?;
-            source.symbol = member.member_symbol;
-            source.name = member.member.clone();
-            source.path.push(member.member.clone());
-            Some(source)
-        }
-        _ => None,
-    }
-}
-
-/// Explain why one requirement is absent from a local `dyn Trait` surface.
-/// Eligibility is intentionally per requirement: an ineligible sibling does
-/// not invalidate calls to the rest of the trait.
-pub(crate) fn dynamic_requirement_call_error(
-    program: &TypedTrees,
-    receiver_type: TypeReferenceHandle,
-    target: &str,
-    target_symbol: symbols::SymbolHandle,
-) -> Option<String> {
-    let trait_symbol = dynamic_trait_symbol(program, receiver_type)?;
-    let dynamic_trait = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == trait_symbol)?;
-    let mut matches = Vec::new();
-    collect_dynamic_requirements_named(
-        program,
-        dynamic_trait,
-        target,
-        &mut Vec::new(),
-        &mut matches,
-    );
-    let selected = matches
-        .iter()
-        .find(|(_, requirement)| requirement.symbol == target_symbol)
-        .copied()
-        .or_else(|| {
-            let [selected] = matches.as_slice() else {
-                return None;
-            };
-            Some(*selected)
-        });
-    let (declaring_trait, requirement) = selected?;
-
-    let reason = match program
-        .dynamic_signature_eligibility(declaring_trait, requirement)
-        .err()?
-    {
-        DynamicSignatureIneligibility::BoundaryRequirement => {
-            "boundary-machine requirements are not local dynamic calls"
-        }
-        DynamicSignatureIneligibility::RequirementLocalGenerics => {
-            "the requirement has requirement-local generic parameters"
-        }
-        DynamicSignatureIneligibility::MissingBorrowedReceiver => {
-            "the requirement has no `&self` or `&mut self` receiver"
-        }
-        DynamicSignatureIneligibility::ByValueReceiver => {
-            "the receiver is by value rather than `&self` or `&mut self`"
-        }
-        DynamicSignatureIneligibility::MultipleReceivers => {
-            "the requirement has more than one receiver"
-        }
-        DynamicSignatureIneligibility::SelfOutsideReceiver => {
-            "`Self` appears outside the borrowed receiver"
-        }
-        DynamicSignatureIneligibility::SelfResult => "`Self` appears in the result type",
-    };
-
-    Some(format!(
-        "requirement `{}::{}` is absent from `dyn {}`: {reason}",
-        declaring_trait.name, requirement.name, dynamic_trait.name
-    ))
-}
-
-pub(crate) fn dynamic_trait_symbol(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<symbols::SymbolHandle> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => dynamic_trait_symbol(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            dynamic_trait_symbol(program, *base_type)
-        }
-        TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
-        _ => None,
-    }
-}
-
-fn dynamic_trait_reference(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<&TypeReferenceNode> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => dynamic_trait_reference(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            dynamic_trait_reference(program, *base_type)
-        }
-        dynamic @ TypeReferenceNode::DynamicTrait { .. } => Some(dynamic),
-        _ => None,
-    }
-}
-
-fn nominal_data_type(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<(symbols::SymbolHandle, &str)> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => nominal_data_type(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => nominal_data_type(program, *base_type),
-        TypeReferenceNode::Named { symbol, name } => {
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
-                .map(|definition| (definition.symbol, name.as_str()))
-        }
-        _ => None,
-    }
-}
-
-/// Recognize the exact local dynamic-coercion shape after removing the one
-/// borrow wrapper introduced by `&place as &dyn Carrier::Conformance`.
-/// Consumers must share this normalization so validation cannot admit a
-/// selection while independently fencing the same receiver shape.
-fn normalized_dynamic_coercion(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<(ExpressionHandle, &TableCastExpression, &TypeReferenceNode)> {
-    let occurrence = strip_mutable(program, expression);
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(occurrence) else {
-        return None;
-    };
-    let target = dynamic_trait_reference(program, cast.target_type)?;
-    Some((occurrence, cast, target))
-}
-
-fn strip_mutable(program: &TypedTrees, expression: ExpressionHandle) -> ExpressionHandle {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => inner.target,
-        _ => expression,
-    }
-}

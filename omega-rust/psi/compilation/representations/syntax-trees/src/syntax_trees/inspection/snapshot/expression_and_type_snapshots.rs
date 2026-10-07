@@ -66,9 +66,8 @@ pub enum TypeReferenceSnapshot {
         expression: ExpressionSnapshot,
     },
     DynamicTrait {
-        name: IdentifierSnapshot,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        conformance: Option<IdentifierSnapshot>,
+        trait_name: IdentifierSnapshot,
+        trait_arguments: Vec<TypeReferenceSnapshot>,
     },
     Named {
         name: IdentifierSnapshot,
@@ -292,12 +291,18 @@ pub(crate) fn snapshot_type_reference_handle(
         TypeReferenceNode::ConstExpression(expression) => TypeReferenceSnapshot::ConstExpression {
             expression: snapshot_expression_handle(syntax_trees, *expression),
         },
-        TypeReferenceNode::DynamicTrait { name, conformance } => {
-            TypeReferenceSnapshot::DynamicTrait {
-                name: snapshot_identifier(name),
-                conformance: conformance.as_ref().map(snapshot_identifier),
-            }
-        }
+        TypeReferenceNode::DynamicTrait {
+            trait_name,
+            trait_arguments,
+        } => TypeReferenceSnapshot::DynamicTrait {
+            trait_name: snapshot_identifier(trait_name),
+            trait_arguments: syntax_trees
+                .type_references
+                .type_reference_handles(*trait_arguments)
+                .iter()
+                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
+                .collect(),
+        },
         TypeReferenceNode::Named(name) => TypeReferenceSnapshot::Named {
             name: snapshot_identifier(name),
         },

@@ -59,7 +59,41 @@ pub(super) fn validate_named_conformance_call(
         }
         Ok(None) => {}
     }
-    false
+    match super::dynamic_requirement::dynamic_selector_call(
+        program,
+        current_machine,
+        current_state,
+        call.receiver_symbol,
+        call.target_symbol,
+        arguments,
+    ) {
+        Ok(Some(dynamic)) => {
+            validate_result_use(
+                program,
+                call,
+                dynamic.signature.name.as_str(),
+                dynamic.signature.return_type,
+                diagnostics,
+            );
+            super::dynamic_requirement::validate_dynamic_selector_arguments(
+                program,
+                current_machine,
+                current_state,
+                value_environment,
+                arguments,
+                &call.machine_arguments,
+                &dynamic,
+                writable_roots,
+                diagnostics,
+            );
+            true
+        }
+        Err(error) => {
+            diagnostics.push(Diagnostic::error(error));
+            true
+        }
+        Ok(None) => false,
+    }
 }
 
 /// Qualification selects declarations, not storage. Both retained endpoints

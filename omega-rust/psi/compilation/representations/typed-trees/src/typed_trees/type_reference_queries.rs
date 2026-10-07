@@ -214,9 +214,10 @@ impl TypedTrees {
                     .map(|definition| definition.properties.multiplicity)
                     .unwrap_or(Multiplicity::Affine)
             }
-            TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Slice { .. } => {
-                Multiplicity::Affine
-            }
+            // A selector names an implementation table and owns no data:
+            // copying it grants no authority over separately passed values.
+            TypeReferenceNode::DynamicTrait { .. } => Multiplicity::Unrestricted,
+            TypeReferenceNode::Slice { .. } => Multiplicity::Affine,
         }
     }
 

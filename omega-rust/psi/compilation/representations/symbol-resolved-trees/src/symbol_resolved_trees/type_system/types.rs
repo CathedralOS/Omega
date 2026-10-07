@@ -32,12 +32,13 @@ pub enum TypeReference {
     /// pre-resolution so exact operand and operator symbols can participate in
     /// PDI3 semantic identity.
     ConstExpression(crate::expression::ExpressionHandle),
+    /// `dyn Trait<Args>`: a runtime selector of one named implementation of
+    /// this exact trait application. `symbol` is the trait; the arguments are
+    /// ordinary type positions, resolved like a generic application's.
     DynamicTrait {
         symbol: SymbolHandle,
         name: DiagnosticName,
-        conformance: Option<SymbolHandle>,
-        conformance_carrier: Option<DiagnosticName>,
-        conformance_name: Option<DiagnosticName>,
+        arguments: HandleSpan<TypeReference>,
     },
     Named {
         symbol: SymbolHandle,
@@ -540,16 +541,21 @@ impl TypeReferenceTable {
             TypeReference::DynamicTrait {
                 symbol,
                 name,
-                conformance,
-                conformance_carrier,
-                conformance_name,
-            } => self.insert(TypeReferenceNode::DynamicTrait {
-                symbol: *symbol,
-                name: name.clone(),
-                conformance: *conformance,
-                conformance_carrier: conformance_carrier.clone(),
-                conformance_name: conformance_name.clone(),
-            }),
+                arguments,
+            } => {
+                let arguments = self.insert_type_reference_handle_span_from_trees(
+                    source_generic_arguments.span_or_empty(*arguments),
+                    expressions,
+                    source_generic_arguments,
+                    source_constraints,
+                    source_expressions,
+                );
+                self.insert(TypeReferenceNode::DynamicTrait {
+                    symbol: *symbol,
+                    name: name.clone(),
+                    arguments,
+                })
+            }
             TypeReference::Named { symbol, name } => self.insert(TypeReferenceNode::Named {
                 symbol: *symbol,
                 name: name.clone(),
@@ -595,12 +601,11 @@ pub enum TypeReferenceNode {
     },
     /// Table-backed form of [`TypeReference::ConstExpression`].
     ConstExpression(crate::expression::ExpressionHandle),
+    /// Table-backed form of [`TypeReference::DynamicTrait`].
     DynamicTrait {
         symbol: SymbolHandle,
         name: DiagnosticName,
-        conformance: Option<SymbolHandle>,
-        conformance_carrier: Option<DiagnosticName>,
-        conformance_name: Option<DiagnosticName>,
+        arguments: HandleSpan<TypeReferenceHandle>,
     },
     Named {
         symbol: SymbolHandle,

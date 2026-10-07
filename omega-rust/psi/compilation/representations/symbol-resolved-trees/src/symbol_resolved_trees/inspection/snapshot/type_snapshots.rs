@@ -64,8 +64,7 @@ pub enum TypeReferenceSnapshot {
     },
     DynamicTrait {
         name: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        conformance: Option<String>,
+        arguments: Vec<TypeReferenceSnapshot>,
     },
     Named {
         name: String,
@@ -206,16 +205,14 @@ pub(crate) fn type_reference_snapshot_from_program(
             expression: table_expression_snapshot(program, *expression),
         },
         TypeReference::DynamicTrait {
-            name,
-            conformance_carrier,
-            conformance_name,
-            ..
+            name, arguments, ..
         } => TypeReferenceSnapshot::DynamicTrait {
             name: name.to_string(),
-            conformance: conformance_carrier
-                .as_ref()
-                .zip(conformance_name.as_ref())
-                .map(|(carrier, selection)| format!("{carrier}::{selection}")),
+            arguments: program
+                .child_type_references(*arguments)
+                .iter()
+                .map(|argument| type_reference_snapshot_from_program(program, argument))
+                .collect(),
         },
         TypeReference::Named { name, .. } => TypeReferenceSnapshot::Named {
             name: name.to_string(),

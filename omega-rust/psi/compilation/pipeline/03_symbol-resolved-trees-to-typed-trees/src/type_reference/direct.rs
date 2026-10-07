@@ -131,18 +131,29 @@ pub(super) fn lower_type_reference_handle_with_context(
         resolved::types::TypeReference::DynamicTrait {
             symbol,
             name,
-            conformance,
-            conformance_carrier,
-            conformance_name,
+            arguments,
         } => {
+            // Arguments publish child spans into the same arena; finish their
+            // recursion before inserting this node's contiguous roster.
+            let source_arguments = source_trees.child_type_references(*arguments);
+            let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
+            for argument in source_arguments {
+                lowered_arguments.push(lower_type_reference_handle_with_context(
+                    source_trees,
+                    typed_trees,
+                    argument,
+                    exposure,
+                )?);
+            }
+            let arguments = typed_trees
+                .type_reference_table
+                .insert_type_reference_handles(lowered_arguments);
             super::lower_dynamic_trait_type_reference(
                 source_trees,
                 typed_trees,
                 *symbol,
                 name,
-                *conformance,
-                conformance_carrier.as_ref(),
-                conformance_name.as_ref(),
+                arguments,
                 exposure,
             )
         }

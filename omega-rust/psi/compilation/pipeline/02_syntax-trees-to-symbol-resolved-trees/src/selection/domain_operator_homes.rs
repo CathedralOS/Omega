@@ -533,10 +533,26 @@ fn type_references_match(
                 && left.arguments.len() == right.arguments.len()
         }
         (
-            TypeReference::DynamicTrait { name: left, .. },
-            TypeReference::DynamicTrait { name: right, .. },
-        )
-        | (TypeReference::Named { name: left, .. }, TypeReference::Named { name: right, .. }) => {
+            TypeReference::DynamicTrait {
+                name: left,
+                arguments: left_arguments,
+                ..
+            },
+            TypeReference::DynamicTrait {
+                name: right,
+                arguments: right_arguments,
+                ..
+            },
+        ) => {
+            left == right
+                && left_arguments.count() == right_arguments.count()
+                && program
+                    .child_type_references(*left_arguments)
+                    .iter()
+                    .zip(program.child_type_references(*right_arguments))
+                    .all(|(left, right)| type_references_match(program, left, right))
+        }
+        (TypeReference::Named { name: left, .. }, TypeReference::Named { name: right, .. }) => {
             left == right
         }
         (TypeReference::SelfType { symbol: left }, TypeReference::SelfType { symbol: right }) => {

@@ -421,19 +421,12 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
                 element_type: Box::new(self.type_descriptor(*element_type, bindings)),
             },
-            TypeReferenceNode::DynamicTrait {
-                symbol,
-                name,
-                conformance,
-                conformance_carrier,
-                conformance_name,
-            } => TypeLayoutDescriptor::DynamicTrait {
-                symbol: *symbol,
-                name: name.clone(),
-                conformance: *conformance,
-                conformance_carrier: conformance_carrier.clone(),
-                conformance_name: conformance_name.clone(),
-            },
+            TypeReferenceNode::DynamicTrait { symbol, name, .. } => {
+                TypeLayoutDescriptor::DynamicTrait {
+                    symbol: *symbol,
+                    name: name.clone(),
+                }
+            }
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,

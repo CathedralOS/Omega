@@ -870,13 +870,14 @@ pub fn visit_type_reference(
             }
         }
         TypeReferenceNode::DynamicTrait {
-            symbol,
-            conformance,
-            ..
+            symbol, arguments, ..
         } => {
             visit_symbol(retained, *symbol);
-            if let Some(conformance) = conformance {
-                visit_symbol(retained, *conformance);
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                visit_type_reference(program, retained, *argument);
             }
         }
         TypeReferenceNode::Named { symbol, .. } => {

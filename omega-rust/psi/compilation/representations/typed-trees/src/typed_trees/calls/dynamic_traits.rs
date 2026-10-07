@@ -55,134 +55,7 @@ impl TypedTrees {
             return Err(DynamicSignatureIneligibility::RequirementLocalGenerics);
         }
 
-        let parameters = self.state_signature_parameters(requirement);
-        let receiver_position = self.dynamic_subject_position(requirement)?;
-        let receiver = &parameters[receiver_position];
-        if !is_reference_to_self(self, receiver.type_reference) {
-            return Err(DynamicSignatureIneligibility::ByValueReceiver);
-        }
-        if parameters
-            .iter()
-            .enumerate()
-            .filter(|(position, _)| *position != receiver_position)
-            .any(|(_, parameter)| type_reference_contains_self(self, parameter.type_reference))
-        {
-            return Err(DynamicSignatureIneligibility::SelfOutsideReceiver);
-        }
-        if requirement.return_type.is_valid()
-            && type_reference_contains_self(self, requirement.return_type)
-        {
-            return Err(DynamicSignatureIneligibility::SelfResult);
-        }
         Ok(())
-    }
-
-    /// The position of `requirement`'s dynamic subject: the one parameter
-    /// whose type names `Self`.
-    ///
-    /// The subject reaches a dynamic surface under either spelling. `self`
-    /// set `is_self` and meant "my type is Self"; a static requirement says
-    /// the same thing in its parameter type, as
-    /// `machine code(shape: &Self) -> i32` does. So the subject is found by
-    /// POSITION rather than by the retired flag -- which keeps the
-    /// `Self`-outside-receiver check exact instead of letting it re-match the
-    /// subject itself, and gives every dynamic-dispatch owner the one
-    /// answer to "which operand carries the descriptor".
-    pub fn dynamic_subject_position(
-        &self,
-        requirement: &StateSignature,
-    ) -> Result<usize, DynamicSignatureIneligibility> {
-        let mut positions = self
-            .state_signature_parameters(requirement)
-            .iter()
-            .enumerate()
-            .filter(|(_, parameter)| type_reference_contains_self(self, parameter.type_reference))
-            .map(|(position, _)| position);
-        let Some(position) = positions.next() else {
-            return Err(DynamicSignatureIneligibility::MissingBorrowedReceiver);
-        };
-        if positions.next().is_some() {
-            return Err(DynamicSignatureIneligibility::MultipleReceivers);
-        }
-        Ok(position)
-    }
-
-    /// The place one authored operand names: the root symbol it starts at,
-    /// the leaf member it ends at, and the authored member path between them.
-    /// Only a name or a member chain is a descriptor place; every other
-    /// expression shape supplies no place.
-    pub fn dynamic_descriptor_place(
-        &self,
-        expression: ExpressionHandle,
-    ) -> Option<DynamicDescriptorPlace> {
-        match self.expression_table.expression(expression) {
-            ExpressionNode::Name(name) => {
-                let path = self
-                    .expression_table
-                    .name_path_members(name.members)
-                    .to_vec();
-                if path.is_empty() {
-                    return None;
-                }
-                Some(DynamicDescriptorPlace {
-                    root: if name.head_symbol.is_valid() {
-                        name.head_symbol
-                    } else {
-                        name.symbol
-                    },
-                    leaf: name.symbol,
-                    path,
-                })
-            }
-            ExpressionNode::Member(member) => {
-                let mut place = self.dynamic_descriptor_place(member.receiver)?;
-                place.leaf = member.member_symbol;
-                place.path.push(member.member.clone());
-                Some(place)
-            }
-            _ => None,
-        }
-    }
-
-    /// The place a call supplies as `requirement`'s dynamic subject, given the
-    /// call's authored arguments in source order.
-    ///
-    /// This is the one answer to "which operand carries the descriptor", so
-    /// every owner asks it here instead of reading a call's receiver symbol:
-    /// a trait-qualified call (`Shape::code(erased)`) spells the trait before
-    /// its name, which is a namespace and not a runtime place at all. Only
-    /// the subject operand is supported; a call whose argument list does not
-    /// end at the subject position supplies no place.
-    pub fn dynamic_dispatch_subject_place(
-        &self,
-        requirement: SymbolHandle,
-        arguments: &[ExpressionHandle],
-    ) -> Option<DynamicDescriptorPlace> {
-        let (_, _, position) = self.dynamic_requirement_subject(requirement)?;
-        if arguments.len() != position.checked_add(1)? {
-            return None;
-        }
-        self.dynamic_descriptor_place(*arguments.get(position)?)
-    }
-
-    /// The trait requirement `symbol` names, with its dynamic subject
-    /// position: what a call site holding only a target symbol needs to find
-    /// which operand carries the descriptor.
-    pub fn dynamic_requirement_subject(
-        &self,
-        symbol: SymbolHandle,
-    ) -> Option<(&TraitDefinition, &StateSignature, usize)> {
-        if !symbol.is_valid() {
-            return None;
-        }
-        self.traits().iter().find_map(|definition| {
-            let requirement = self
-                .trait_machine_signatures(definition)
-                .iter()
-                .find(|candidate| candidate.symbol == symbol)?;
-            let position = self.dynamic_subject_position(requirement).ok()?;
-            Some((definition, requirement, position))
-        })
     }
 
     /// Requirements that survive the currently implemented signature-only
@@ -568,13 +441,11 @@ fn collect_type_reference_symbols(
             program.collect_expression_symbols(*expression, symbols)
         }
         TypeReferenceNode::DynamicTrait {
-            symbol,
-            conformance,
-            ..
+            symbol, arguments, ..
         } => {
             symbols.push(*symbol);
-            if let Some(conformance) = conformance {
-                symbols.push(*conformance);
+            for argument in program.type_reference_table.type_reference_handles(*arguments) {
+                collect_type_reference_symbols(program, *argument, symbols);
             }
         }
         TypeReferenceNode::Unit => {}
@@ -629,53 +500,9 @@ fn collect_type_reference_lifetimes(
     }
 }
 
-fn is_reference_to_self(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return false;
-    };
-    matches!(
-        program.type_reference_table.type_reference(*referee),
-        TypeReferenceNode::Named { name, .. } if name.as_str() == "Self"
-    )
-}
-
-fn type_reference_contains_self(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => name.as_str() == "Self",
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_contains_self(program, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_contains_self(program, *base_type)
-        }
-        TypeReferenceNode::Generic { arguments, .. } => program
-            .type_reference_table
-            .type_reference_handles(*arguments)
-            .iter()
-            .any(|argument| type_reference_contains_self(program, *argument)),
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            type_reference_contains_self(program, *element_type)
-        }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => false,
-    }
-}
-
 fn push_lifetime_name(lifetimes: &mut Vec<String>, name: &Identifier) {
     let name = name.as_str();
     if !name.is_empty() && !lifetimes.iter().any(|seen| seen == name) {
         lifetimes.push(name.to_owned());
     }
-}
-
-/// The storage place an authored operand names, for the operand carrying a
-/// dynamic descriptor.
-pub struct DynamicDescriptorPlace {
-    pub root: SymbolHandle,
-    pub leaf: SymbolHandle,
-    pub path: Vec<Identifier>,
 }

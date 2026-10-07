@@ -61,15 +61,11 @@ pub enum TypeLayoutDescriptor {
     Slice {
         element_type: Box<TypeLayoutDescriptor>,
     },
+    /// A `dyn Trait<Args>` selector: one reference to the selected
+    /// implementation's table. The trait arguments do not change its layout.
     DynamicTrait {
-        /// Dynamic trait whose requirement surface owns the private table.
         symbol: SymbolHandle,
         name: Identifier,
-        /// Exact selected nominal conformance when the source spelling named
-        /// one. Bare coercions retain their checked selection in Psi facts.
-        conformance: Option<SymbolHandle>,
-        conformance_carrier: Option<Identifier>,
-        conformance_name: Option<Identifier>,
     },
     Named {
         symbol: SymbolHandle,

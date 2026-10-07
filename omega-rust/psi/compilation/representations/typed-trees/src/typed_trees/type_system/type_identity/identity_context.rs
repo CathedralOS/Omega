@@ -287,26 +287,17 @@ pub(crate) fn normalize_type_reference(
         TypeReferenceNode::DynamicTrait {
             symbol,
             name,
-            conformance,
-            conformance_carrier,
-            conformance_name,
-        } => {
-            let mut identity = vec![atom("name", &context.name(program, *symbol, name.as_str()))];
-            if let (Some(carrier), Some(selection)) =
-                (conformance_carrier.as_ref(), conformance_name.as_ref())
-            {
-                let fallback = format!("{carrier}::{selection}");
-                identity.push(atom(
-                    "conformance",
-                    &context.name(
-                        program,
-                        conformance.unwrap_or_else(SymbolHandle::invalid),
-                        &fallback,
-                    ),
-                ));
-            }
-            compound("dynamic-trait", identity)
-        }
+            arguments,
+        } => compound(
+            "dynamic-trait",
+            std::iter::once(atom("name", &context.name(program, *symbol, name.as_str()))).chain(
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .map(|argument| normalize_type_reference(program, *argument, context)),
+            ),
+        ),
         TypeReferenceNode::Named { symbol, name } => compound(
             "named",
             [normalize_const_or_nominal_name(

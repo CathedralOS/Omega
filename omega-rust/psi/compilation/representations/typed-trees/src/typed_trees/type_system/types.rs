@@ -872,16 +872,20 @@ impl TypeReferenceTable {
             TypeReferenceNode::DynamicTrait {
                 symbol,
                 name,
-                conformance,
-                conformance_carrier,
-                conformance_name,
-            } => self.insert(TypeReferenceNode::DynamicTrait {
-                symbol: *symbol,
-                name: name.clone(),
-                conformance: *conformance,
-                conformance_carrier: conformance_carrier.clone(),
-                conformance_name: conformance_name.clone(),
-            }),
+                arguments,
+            } => {
+                let arguments = self.copy_type_reference_handles_from(
+                    source,
+                    source_expressions,
+                    target_expressions,
+                    *arguments,
+                );
+                self.insert(TypeReferenceNode::DynamicTrait {
+                    symbol: *symbol,
+                    name: name.clone(),
+                    arguments,
+                })
+            }
             TypeReferenceNode::Named { symbol, name } => self.insert(TypeReferenceNode::Named {
                 symbol: *symbol,
                 name: name.clone(),
@@ -978,17 +982,30 @@ impl TypeReferenceTable {
             TypeReferenceNode::ConstExpression(expression) => {
                 expressions.remap_symbols_in(expression, symbols);
             }
-            TypeReferenceNode::DynamicTrait { symbol, .. }
-            | TypeReferenceNode::Named { symbol, .. } => {
+            TypeReferenceNode::DynamicTrait {
+                symbol, arguments, ..
+            } => {
+                for argument in self.type_reference_handles(arguments).to_vec() {
+                    self.remap_symbols_in(argument, expressions, symbols);
+                }
+                let TypeReferenceNode::DynamicTrait {
+                    symbol: current, ..
+                } = self.type_references.get_mut(type_reference)
+                else {
+                    unreachable!();
+                };
+                *current = remapped(symbol, symbols);
+            }
+            TypeReferenceNode::Named { symbol, .. } => {
                 let replaced_named = matches!(
                     self.type_references.get(type_reference),
                     TypeReferenceNode::Named { .. }
                 )
                 .then_some(symbol);
-                let current = match self.type_references.get_mut(type_reference) {
-                    TypeReferenceNode::DynamicTrait { symbol, .. }
-                    | TypeReferenceNode::Named { symbol, .. } => symbol,
-                    _ => unreachable!(),
+                let TypeReferenceNode::Named { symbol: current, .. } =
+                    self.type_references.get_mut(type_reference)
+                else {
+                    unreachable!();
                 };
                 *current = remapped(symbol, symbols);
                 self.renamed_row(type_reference, replaced_named);
@@ -1126,12 +1143,13 @@ pub enum TypeReferenceNode {
     /// erased with its enclosing domain constraint but retains resolved names
     /// and selected-operation evidence for semantic identity and checking.
     ConstExpression(crate::expression::ExpressionHandle),
+    /// `dyn Trait<Args>`: a runtime selector of one named implementation of
+    /// this exact trait application. It packages no data instance; calls
+    /// supply every data value as an ordinary argument.
     DynamicTrait {
         symbol: SymbolHandle,
         name: Identifier,
-        conformance: Option<SymbolHandle>,
-        conformance_carrier: Option<Identifier>,
-        conformance_name: Option<Identifier>,
+        arguments: HandleSpan<TypeReferenceHandle>,
     },
     Named {
         symbol: SymbolHandle,

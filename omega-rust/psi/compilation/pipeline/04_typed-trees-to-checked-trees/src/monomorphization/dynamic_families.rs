@@ -112,7 +112,7 @@ pub(crate) fn generate_dynamic_family_specializations(
     // A failed dynamic-selection collection defers that generation to
     // `validate_typed_program`'s authoritative diagnostics, as documented
     // above; boundary demands collected already still apply.
-    if let Ok(selections) = validation::collect_dynamic_conformance_selections(program)
+    if let Ok(selections) = validation::collect_dynamic_implementation_selections(program)
         && !selections.is_empty()
     {
         collect_selection_demands(program, &selections, &mut demands, &mut diagnostics);
@@ -174,21 +174,21 @@ fn queue_family_demand(
 }
 
 /// Collect (realization template, roster tuples) demands from the program's
-/// dynamic conformance selections and descriptor storages.
+/// dynamic implementation selections. Each selection names its implementation
+/// exactly, so every finite-family row it can dispatch is generated once.
 fn collect_selection_demands(
     program: &TypedTrees,
-    selections: &[validation::DynamicConformanceSelection],
+    selections: &[validation::DynamicImplementationSelection],
     demands: &mut Vec<(SymbolHandle, Vec<FamilyTuple>)>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let storages = validation::collect_dynamic_descriptor_storages(program, selections);
     let mut seen_conformances: Vec<SymbolHandle> = Vec::new();
-    let all_selections = selections
-        .iter()
-        .cloned()
-        .chain(storages.iter().map(|storage| storage.selection.clone()));
-    for selection in all_selections {
-        let Some(conformance) = selected_data_conformance(program, &selection) else {
+    for selection in selections {
+        let Some(conformance) = program
+            .conformances()
+            .iter()
+            .find(|conformance| conformance.symbol == selection.implementation)
+        else {
             continue;
         };
         if seen_conformances.contains(&conformance.symbol) {
@@ -422,30 +422,4 @@ fn unescape_identity_component(component: &str) -> String {
         }
     }
     out
-}
-
-/// The conformance one dynamic selection binds, mirroring the checked-fact
-/// producer's rule: an exact symbol when the coercion named it, otherwise the
-/// sole nominal closed conformance for the source's data and the target trait.
-fn selected_data_conformance<'program>(
-    program: &'program TypedTrees,
-    selection: &validation::DynamicConformanceSelection,
-) -> Option<&'program typed_trees::trait_definition::Conformance> {
-    if let Some(symbol) = selection.conformance {
-        return program
-            .conformances()
-            .iter()
-            .find(|conformance| conformance.symbol == symbol);
-    }
-    let source_name = program.symbols.name(selection.source_data);
-    let trait_name = program.symbols.name(selection.target_trait);
-    let mut matches = program.conformances().iter().filter(|conformance| {
-        conformance
-            .carrier_name()
-            .is_some_and(|carrier| carrier.as_str() == source_name)
-            && conformance.trait_name.as_str() == trait_name
-            && conformance.alias.is_none()
-    });
-    let selected = matches.next()?;
-    matches.next().is_none().then_some(selected)
 }

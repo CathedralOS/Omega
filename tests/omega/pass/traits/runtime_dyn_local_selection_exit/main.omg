@@ -1,24 +1,26 @@
+// A local selector built from a named implementation dispatches to that
+// implementation's row, not to a same-named machine attached to the data
+// type: `Item::code` below is a deliberate look-alike that returns 4. The
+// selected row reads the explicitly passed item's value, 0 -> exit 70.
 use omega_language_std::console;
 use omega::language::core::binding;
 
-trait Shape {
-    machine code(subject: &Self) -> i32;
+trait Shape<T> {
+    machine code(subject: &T) -> i32;
 }
 
 data Item [copy] {
     value: i32;
 }
 
-// Deliberate look-alike: the selected conformance row below, not this ambient
-// attached machine, owns dynamic dispatch.
 machine Item::code(item: &Item) -> i32 {
     transition {
         _ -> 4
     }
 }
 
-Primary: Item satisfies Shape {
-    machine code(subject: &Self) -> i32 {
+Primary satisfies Shape<Item> {
+    machine code(subject: &Item) -> i32 {
         transition {
             _ -> subject.value
         }
@@ -31,8 +33,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let erased: &dyn Shape = &main.item as &dyn Item::Primary;
-    let result: i32 = Shape::code(erased);
+    let selected: dyn Shape<Item> = Primary as dyn Shape<Item>;
+    let result: i32 = Shape::code(selected, &main.item);
     transition result == 0 {
         true -> good(main)
         _ -> bad(main)

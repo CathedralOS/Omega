@@ -757,10 +757,20 @@ fn type_reference_key(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> Stri
                 .join(", ")
         ),
         TypeReferenceNode::ConstExpression(expression) => format!("const#{:?}", expression),
-        TypeReferenceNode::DynamicTrait { name, conformance } => conformance
-            .as_ref()
-            .map(|selection| format!("dyn {}::{}", name.as_str(), selection.as_str()))
-            .unwrap_or_else(|| format!("dyn {}", name.as_str())),
+        TypeReferenceNode::DynamicTrait {
+            trait_name,
+            trait_arguments,
+        } => format!(
+            "dyn {}<{}>",
+            trait_name.as_str(),
+            syntax
+                .type_references
+                .type_reference_handles(*trait_arguments)
+                .iter()
+                .map(|argument| type_reference_key(syntax, *argument))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
         TypeReferenceNode::Named(name) => name.as_str().to_string(),
         TypeReferenceNode::SelfType => "Self".to_string(),
         TypeReferenceNode::Unit => "()".to_string(),
@@ -860,8 +870,36 @@ fn substitute_type_reference(
                 syntax.type_references.insert_generic(base_name, arguments)
             }
         }
+        // A selector's trait arguments are ordinary type positions: a default
+        // instantiated at `T = Card` turns `dyn Ranked<T>` into
+        // `dyn Ranked<Card>`.
+        TypeReferenceNode::DynamicTrait {
+            trait_name,
+            trait_arguments,
+        } => {
+            let original = syntax
+                .type_references
+                .type_reference_handles(trait_arguments)
+                .to_vec();
+            let substituted = original
+                .iter()
+                .map(|argument| substitute_type_reference(syntax, *argument, substitution))
+                .collect::<Vec<_>>();
+            if substituted == original {
+                handle
+            } else {
+                let trait_arguments = syntax
+                    .type_references
+                    .insert_type_reference_handles(substituted);
+                syntax
+                    .type_references
+                    .insert(TypeReferenceNode::DynamicTrait {
+                        trait_name,
+                        trait_arguments,
+                    })
+            }
+        }
         TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::SelfType
         | TypeReferenceNode::Unit => handle,
     }

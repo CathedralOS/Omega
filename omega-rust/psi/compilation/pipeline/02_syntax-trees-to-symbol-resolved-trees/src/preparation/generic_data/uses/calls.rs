@@ -335,14 +335,27 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
         }
         (
             TypeReferenceNode::DynamicTrait {
-                name: left_name,
-                conformance: left_conformance,
+                trait_name: left_name,
+                trait_arguments: left_arguments,
             },
             TypeReferenceNode::DynamicTrait {
-                name: right_name,
-                conformance: right_conformance,
+                trait_name: right_name,
+                trait_arguments: right_arguments,
             },
-        ) => left_name == right_name && left_conformance == right_conformance,
+        ) => {
+            left_name == right_name
+                && call_context_parameter_types_agree(
+                    syntax,
+                    syntax
+                        .tables
+                        .type_references
+                        .type_reference_handles(*left_arguments),
+                    syntax
+                        .tables
+                        .type_references
+                        .type_reference_handles(*right_arguments),
+                )
+        }
         // Constraint expressions and pre-evaluated const expressions use
         // occurrence-specific handles here. Treat them as no consensus until
         // the normalized typed identity is available.

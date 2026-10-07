@@ -375,11 +375,16 @@ impl SyntaxTrees {
                 self.type_references
                     .insert(TypeReferenceNode::ConstExpression(expression))
             }
-            TypeReferenceNode::DynamicTrait { name, conformance } => {
+            TypeReferenceNode::DynamicTrait {
+                trait_name,
+                trait_arguments,
+            } => {
+                let trait_arguments =
+                    self.copy_type_reference_handle_span(other, *trait_arguments);
                 self.type_references
                     .insert(TypeReferenceNode::DynamicTrait {
-                        name: name.clone(),
-                        conformance: conformance.clone(),
+                        trait_name: trait_name.clone(),
+                        trait_arguments,
                     })
             }
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),

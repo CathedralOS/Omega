@@ -1,49 +1,46 @@
-// Multi-conformance `dyn Trait` dispatch via call-site monomorphization. The
-// call `Shape::code(s)` retains one exact row candidate per complete conformance,
-// and each call site's receiver type picks the conformance:
-// dispatch(&mut main.c) runs Circle::code() == 9, dispatch(&mut main.q) runs
-// Square::code() == 4, so n == 9 * 10 + 4 == 94 -> exit 70. (Pre-fix the dyn
-// call resolved to nothing and both calls returned 0.) Mirrors the interpreter
-// coverage test dyn_two_impl_dispatch_selects_impl_by_runtime_type.
+// Runtime implementation selection: one helper dispatches through a selector
+// it receives as an ordinary parameter, and two call sites pass different
+// named implementations of `Shape<Item>` with the same explicitly passed
+// data. The selector names an implementation; it carries no data
+// ([dynamic dispatch](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)).
+// CircleShape reports 9 and SquareShape reads the item's 4 sides:
+// 9 * 10 + 4 == 94 -> exit 70.
 use omega_language_std::console;
 use omega::language::core::binding;
 
-trait Shape {
-    machine code(subject: &mut Self) -> i32;
+trait Shape<T> {
+    machine code(subject: &mut T) -> i32;
 }
 
-data Circle {}
+data Item {
+    sides: i32;
+}
 
-machine Circle::code(circle: &mut Circle) -> i32 {
-    transition {
-        _ -> 9
+CircleShape satisfies Shape<Item> {
+    machine code(subject: &mut Item) -> i32 {
+        transition {
+            _ -> 9
+        }
     }
 }
 
-data Square {}
-
-machine Square::code(square: &mut Square) -> i32 {
-    transition {
-        _ -> 4
+SquareShape satisfies Shape<Item> {
+    machine code(subject: &mut Item) -> i32 {
+        transition {
+            _ -> subject.sides
+        }
     }
-}
-
-CircleShape: Circle satisfies Shape {
-    Shape::code = Circle::code;
-}
-SquareShape: Square satisfies Shape {
-    Shape::code = Square::code;
 }
 
 data Main {
     console: Binding<Console>;
-    c: Circle;
-    q: Square;
+    item: Item;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let a: i32 = Main::dispatch(&mut main.c);
-    let b: i32 = Main::dispatch(&mut main.q);
+    main.item.sides = 4;
+    let a: i32 = Main::dispatch(CircleShape as dyn Shape<Item>, &mut main.item);
+    let b: i32 = Main::dispatch(SquareShape as dyn Shape<Item>, &mut main.item);
     let n: i32 in Wrapping = (a as i32 in Wrapping) * 10 + (b as i32 in Wrapping);
     transition n == 94 {
         true -> good(main)
@@ -59,6 +56,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 }
 
-machine Main::dispatch(s: &mut dyn Shape) -> i32 {
-    Shape::code(s)
+machine Main::dispatch(shape: dyn Shape<Item>, item: &mut Item) -> i32 {
+    Shape::code(shape, item)
 }

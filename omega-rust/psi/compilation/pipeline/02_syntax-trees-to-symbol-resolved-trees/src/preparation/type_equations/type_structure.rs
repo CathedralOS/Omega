@@ -93,9 +93,16 @@ pub(super) fn collect_binder_mentions(
         TypeReferenceNode::ConstExpression(expression) => {
             collect_expression_binder_mentions(syntax, *expression, parameters, mentions);
         }
-        TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::SelfType
-        | TypeReferenceNode::Unit => {}
+        TypeReferenceNode::DynamicTrait {
+            trait_name,
+            trait_arguments,
+        } => {
+            name_mention(trait_name.as_str());
+            for argument in syntax.type_references.type_reference_handles(*trait_arguments) {
+                collect_binder_mentions(syntax, *argument, parameters, mentions);
+            }
+        }
+        TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
 

@@ -935,10 +935,6 @@ pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1023ms @0484de104502
 pass/traits/runtime_inherited_trait_default_exit rejected 179ms @0484de104502
 	exact arithmetic in machine `Main::main` state `main` call argument may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `main` call argument may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 980ms @0484de104502
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 0)
-pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1044ms @0484de104502
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/traits/runtime_qualified_byte_crash_equality_exit built 1214ms exit:70 @0484de104502
 pass/traits/trait_generic_bound_static_dispatch built 1189ms @7fc7a3a06d34
 pass/traits/transparent_refinement_declaration built 576ms @0484de104502

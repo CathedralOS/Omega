@@ -100,9 +100,6 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
     // Inline positions judged under the same relation: the cast's own
     // stated type is the source of truth (there is no let to restate it).
     let mut judged_inline: Vec<ExpressionHandle> = Vec::new();
-    let dynamic_rebindings =
-        crate::declarations::traits::collect_dynamic_conformance_selections(program)
-            .unwrap_or_default();
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -120,27 +117,6 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                     &mut judged_qualifications,
                     diagnostics,
                 );
-                if let StatementNode::Assignment(assignment) = statement {
-                    let value = strip_mutable(program, assignment.value);
-                    if dynamic_rebindings.iter().any(|selection| {
-                        selection.machine == machine.symbol
-                            && selection.state == state.symbol
-                            && selection.statement_index == statement_index
-                            && selection.occurrence == value
-                            && matches!(
-                                program.expression_table.expression(value),
-                                ExpressionNode::Cast(cast)
-                                    if cast.form.is_recast()
-                                        && crate::declarations::traits::dynamic_trait_symbol(
-                                            program,
-                                            cast.target_type,
-                                        )
-                                        .is_some()
-                            )
-                    }) {
-                        blessed.push(value);
-                    }
-                }
                 if let StatementNode::LocalData(local) = statement
                     && local.type_reference.is_valid()
                     && local.initial_value.is_valid()
@@ -165,25 +141,18 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                     match program.expression_table.expression(initializer) {
                         ExpressionNode::Cast(cast) if cast.form.is_recast() => {
                             blessed.push(initializer);
-                            if crate::declarations::traits::dynamic_trait_symbol(
+                            judge_scalar_recast(
                                 program,
-                                cast.target_type,
-                            )
-                            .is_none()
-                            {
-                                judge_scalar_recast(
-                                    program,
-                                    machine,
-                                    state,
-                                    statement_index,
-                                    cast,
-                                    initializer,
-                                    *referee,
-                                    access.is_exclusive(),
-                                    spelled_borrow_exclusive,
-                                    diagnostics,
-                                );
-                            }
+                                machine,
+                                state,
+                                statement_index,
+                                cast,
+                                initializer,
+                                *referee,
+                                access.is_exclusive(),
+                                spelled_borrow_exclusive,
+                                diagnostics,
+                            );
                         }
                         _ => {
                             report_unspelled_reference_pun(
@@ -227,25 +196,18 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                         && !judged_inline.contains(&handle)
                     {
                         judged_inline.push(handle);
-                        if crate::declarations::traits::dynamic_trait_symbol(
+                        judge_scalar_recast(
                             program,
+                            machine,
+                            state,
+                            statement_index,
+                            cast,
+                            handle,
                             cast.target_type,
-                        )
-                        .is_none()
-                        {
-                            judge_scalar_recast(
-                                program,
-                                machine,
-                                state,
-                                statement_index,
-                                cast,
-                                handle,
-                                cast.target_type,
-                                cast.form == language_core::cast_form::CastForm::RecastMutable,
-                                enclosing_borrow,
-                                diagnostics,
-                            );
-                        }
+                            cast.form == language_core::cast_form::CastForm::RecastMutable,
+                            enclosing_borrow,
+                            diagnostics,
+                        );
                     }
                     crate::expression_traversal::children(program, node, |child| {
                         pending.push((child, enclosing_borrow))

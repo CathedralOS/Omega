@@ -188,14 +188,13 @@ pub struct TraitRequirement {
 /// dynamic trait surface. Later contract/lifetime/envelope judgments remain
 /// independent and may exclude an otherwise signature-eligible requirement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// A selector packages no data, so no parameter position is privileged:
+/// zero, one or several data parameters and an owned result are all eligible
+/// (wiki/spec/terminal-psi/dynamic_dispatch.md, "Source eligibility").
 pub enum DynamicSignatureIneligibility {
     BoundaryRequirement,
     RequirementLocalGenerics,
-    MissingBorrowedReceiver,
-    ByValueReceiver,
-    MultipleReceivers,
-    SelfOutsideReceiver,
-    SelfResult,
 }
 
 impl Default for TraitRequirement {

@@ -821,12 +821,12 @@ fn rejects_subject_spelled_evidence_binder() {
 }
 
 #[test]
-fn retains_named_dynamic_conformance_path() {
+fn parses_dynamic_selector_trait_application() {
     let source = r#"
-        machine inspect(value: &dyn Card::PowerOrder) {}
+        machine inspect(order: dyn Ranked<Card>) {}
     "#;
 
-    let parsed = super::parse_source(source, "named dynamic conformance should parse");
+    let parsed = super::parse_source(source, "dynamic selector should parse");
     let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed.items.state(
         parsed
@@ -844,18 +844,38 @@ fn retains_named_dynamic_conformance_path() {
             .copied()
             .expect("value parameter"),
     );
-    let TypeReferenceNode::Reference { referee, .. } = parsed
+    let TypeReferenceNode::DynamicTrait {
+        trait_name,
+        trait_arguments,
+    } = parsed
         .type_references
         .type_reference(parameter.type_reference)
     else {
-        panic!("parameter should be borrowed");
+        panic!("parameter should be a dynamic selector");
     };
+    assert_eq!(trait_name.as_str(), "Ranked");
+    let arguments = parsed.type_references.type_reference_handles(*trait_arguments);
+    assert_eq!(arguments.len(), 1);
     assert!(matches!(
-        parsed.type_references.type_reference(*referee),
-        TypeReferenceNode::DynamicTrait { name, conformance }
-            if name.as_str() == "Card"
-                && conformance.as_ref().is_some_and(|name| name.as_str() == "PowerOrder")
+        parsed.type_references.type_reference(arguments[0]),
+        TypeReferenceNode::Named(name) if name.as_str() == "Card"
     ));
+}
+
+#[test]
+fn rejects_data_carrier_dynamic_selector() {
+    let source = r#"
+        machine inspect(value: &dyn Card::PowerOrder) {}
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("a data-carrier selector is retired");
+    assert!(
+        error.message.contains("`dyn Data::Implementation` is retired"),
+        "{}",
+        error.message
+    );
 }
 
 #[test]

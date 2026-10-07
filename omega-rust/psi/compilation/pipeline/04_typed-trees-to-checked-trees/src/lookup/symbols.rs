@@ -73,10 +73,8 @@ pub(crate) fn machine_symbol_from_type_reference_handle(
             symbol: base_symbol,
             ..
         } => *base_symbol,
-        // A `dyn Trait` retains the trait symbol. Exact checked conformance rows
-        // drive devirtualization and descriptor lowering; changing this symbol
-        // to a coincidentally unique carrier would discard that identity and
-        // restore attached-machine discovery.
+        // A `dyn Trait<Args>` selector names its trait; the implementation it
+        // selects is a runtime value, never a property of the type.
         typed_trees::types::TypeReferenceNode::DynamicTrait {
             symbol: trait_symbol,
             ..

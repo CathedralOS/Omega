@@ -8,7 +8,7 @@
 //! `validate_trait_requirements` (`requirements`),
 //! `validate_trait_conformance_bounds` for each trait, `validate_conformances`
 //! for named data conformance items (`data_conformance`), and
-//! `collect_dynamic_conformance_selections` (`dynamic`). For each machine, in
+//! `collect_dynamic_implementation_selections` (`dynamic`). For each machine, in
 //! this order: `validate_generic_conformance_bounds`,
 //! `validate_machine_trait_conformances`, `validate_external_via_expression`
 //! for each conformance, and `validate_external_leaf_native_shapes` for an
@@ -17,12 +17,11 @@
 //!
 //! Other readers. Call validation in `machine_calls::calls` uses the generic
 //! bound queries from `conformance`, `arguments_for_declaring_trait` (also
-//! read by `proof_contracts::quotients`) and `dynamic_requirement_call_error`;
-//! `value_custody::recasts` reads the dynamic selections and
-//! `dynamic_trait_symbol`. The typed-to-checked stage and the checked
-//! compilation build continuation call `resolve_dynamic_call_targets`; the
-//! typed-to-checked stage also reads the dynamic selections and descriptor
-//! storages, `compose_forwarded_trait_arguments` and
+//! read by `proof_contracts::quotients`), `dynamic_selector_application` and
+//! `dynamic_requirement_ineligibility`. The typed-to-checked stage and the
+//! checked compilation build continuation call `resolve_dynamic_call_targets`;
+//! the typed-to-checked stage also reads the dynamic implementation
+//! selections, `compose_forwarded_trait_arguments` and
 //! `generic_bound_operator_requirement`. Package review calls
 //! `revalidate_top_level_requirement_realization`.
 //!
@@ -50,11 +49,12 @@ pub(crate) use conformance::{
 };
 pub(crate) use data_conformance::{arguments_for_declaring_trait, validate_conformances};
 pub use dynamic::{
-    DynamicConformanceSelection, DynamicDescriptorStorage, collect_dynamic_conformance_selections,
-    collect_dynamic_descriptor_storages, resolve_dynamic_call_targets,
-    resolve_selected_dynamic_call_targets,
+    DynamicImplementationSelection, collect_dynamic_implementation_selections,
+    resolve_dynamic_call_targets, resolve_selected_dynamic_call_targets,
 };
-pub(crate) use dynamic::{dynamic_requirement_call_error, dynamic_trait_symbol};
+pub(crate) use dynamic::{
+    dynamic_receiver_call_error, dynamic_requirement_ineligibility, dynamic_selector_application,
+};
 pub(crate) use requirements::validate_trait_requirements;
 
 /// The trait `symbol` declares, or `None` for an invalid symbol or a symbol

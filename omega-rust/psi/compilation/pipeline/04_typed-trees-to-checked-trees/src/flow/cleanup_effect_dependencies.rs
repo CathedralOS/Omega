@@ -344,11 +344,13 @@ fn visit(
                 has_erased_members,
             )
         }
+        // A selector names an implementation table and owns no data, so it
+        // contributes no cleanup leaf.
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit
-        | TypeReferenceNode::ConstExpression(_) => Some(()),
-        TypeReferenceNode::DynamicTrait { .. } => None,
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. } => Some(()),
         TypeReferenceNode::Constrained { .. } => unreachable!("constraints were peeled"),
     };
     active.pop();

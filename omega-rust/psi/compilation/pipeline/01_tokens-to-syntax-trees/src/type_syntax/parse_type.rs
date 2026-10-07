@@ -156,23 +156,32 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         return Ok((syntax_trees.type_references.insert_self_type(), input));
     }
 
+    // `dyn Trait<Args>` names a trait application with the same argument
+    // grammar as `satisfies Trait<Args>`. A selector names no data carrier
+    // and no implementation: `Impl as dyn Trait<Args>` chooses one.
     if input.at_contextual("dyn") {
         let input = input.take_contextual("dyn")?;
-        let (trait_name, mut input) = input.take_identifier()?;
-        let conformance = if input.at_punctuation(PunctuationKind::ColonColon) {
-            input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-            let (conformance, rest) = input.take_identifier()?;
-            input = rest;
-            Some(conformance)
-        } else {
-            None
-        };
+        let ((trait_name, lifetime_arguments, trait_arguments), input) =
+            crate::contracts::conformance::parse_conformance::parse_conformance_trait_application(
+                syntax_trees,
+                input,
+            )?;
+        if !lifetime_arguments.is_empty() {
+            return Err(input.error_here(
+                "a dynamic selector takes no lifetime arguments; it borrows nothing",
+            ));
+        }
+        if input.at_punctuation(PunctuationKind::ColonColon) {
+            return Err(input.error_here(
+                "`dyn Data::Implementation` is retired; name the trait application (`dyn Trait<Data>`) and select an implementation with `Implementation as dyn Trait<Data>`",
+            ));
+        }
         return Ok((
             syntax_trees
                 .type_references
                 .insert(TypeReferenceNode::DynamicTrait {
-                    name: trait_name,
-                    conformance,
+                    trait_name,
+                    trait_arguments,
                 }),
             input,
         ));

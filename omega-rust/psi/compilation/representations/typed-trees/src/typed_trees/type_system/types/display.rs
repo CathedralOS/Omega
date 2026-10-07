@@ -52,15 +52,12 @@ impl TypeReferenceNode {
             }
             TypeReferenceNode::ConstExpression(_) => "const <expression>".to_owned(),
             TypeReferenceNode::DynamicTrait {
-                name,
-                conformance_carrier,
-                conformance_name,
-                ..
-            } => dynamic_trait_label(
-                name,
-                conformance_carrier.as_ref(),
-                conformance_name.as_ref(),
-            ),
+                name, arguments, ..
+            } => match arguments.count() {
+                0 => format!("dyn {name}"),
+                1 => format!("dyn {name}<1 argument>"),
+                count => format!("dyn {name}<{count} arguments>"),
+            },
             TypeReferenceNode::Named { name, .. } => name.to_string(),
             TypeReferenceNode::Unit => "()".to_owned(),
         }
@@ -129,14 +126,12 @@ impl TypeReferenceNode {
                 format!("const {}", expressions.display_name(*expression))
             }
             TypeReferenceNode::DynamicTrait {
-                name,
-                conformance_carrier,
-                conformance_name,
-                ..
-            } => dynamic_trait_label(
-                name,
-                conformance_carrier.as_ref(),
-                conformance_name.as_ref(),
+                name, arguments, ..
+            } => format!(
+                "dyn {name}<{}>",
+                comma_join_display(table.type_reference_handles(*arguments), |argument| {
+                    table.display_name_with_constraints(*argument, expressions)
+                })
             ),
             TypeReferenceNode::Named { name, .. } => name.to_string(),
             TypeReferenceNode::Unit => "()".to_owned(),
@@ -149,17 +144,6 @@ fn reference_qualifier(access: language_core::ReferenceAccess) -> &'static str {
         language_core::ReferenceAccess::Shared => "",
         language_core::ReferenceAccess::Mutable => "mut ",
         language_core::ReferenceAccess::WriteOnly => "write ",
-    }
-}
-
-fn dynamic_trait_label(
-    trait_name: &crate::name::Identifier,
-    conformance_carrier: Option<&crate::name::Identifier>,
-    conformance_name: Option<&crate::name::Identifier>,
-) -> String {
-    match (conformance_carrier, conformance_name) {
-        (Some(carrier), Some(conformance)) => format!("dyn {carrier}::{conformance}"),
-        _ => format!("dyn {trait_name}"),
     }
 }
 

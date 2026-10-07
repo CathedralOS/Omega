@@ -284,6 +284,46 @@ fn validate_expression_call_bounds(
         }
         Ok(None) => {}
     }
+    let call_arguments = program.expression_table.expression_handles(call.arguments);
+    match super::dynamic_requirement::dynamic_selector_call(
+        program,
+        current_machine,
+        Some(current_state),
+        super::dynamic_requirement::expression_trait_receiver(program, call.receiver),
+        call.target_symbol,
+        call_arguments,
+    ) {
+        Ok(Some(dynamic)) => {
+            if !unit_statement
+                && (!dynamic.signature.return_type.is_valid()
+                    || matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(dynamic.signature.return_type),
+                        TypeReferenceNode::Unit
+                    ))
+            {
+                diagnostics.push(Diagnostic::error(format!("trait requirement `{}::{}` does not return a value but is used in a VALUE position", dynamic.trait_definition.name, dynamic.signature.name)));
+            }
+            super::dynamic_requirement::validate_dynamic_selector_arguments(
+                program,
+                current_machine,
+                Some(current_state),
+                value_environment,
+                call_arguments,
+                &call.machine_arguments,
+                &dynamic,
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+        Err(error) => {
+            diagnostics.push(Diagnostic::error(error));
+            return;
+        }
+        Ok(None) => {}
+    }
     if super::unit_returns::call_returns_unit(program, current_machine, expression)
         && !unit_statement
     {
@@ -622,11 +662,10 @@ fn validate_expression_call_bounds(
         });
 
     if let Some(error) = receiver_type_reference.and_then(|type_reference| {
-        crate::declarations::traits::dynamic_requirement_call_error(
+        crate::declarations::traits::dynamic_receiver_call_error(
             program,
             type_reference,
             call.target.as_str(),
-            call.target_symbol,
         )
     }) {
         diagnostics.push(Diagnostic::error(error));

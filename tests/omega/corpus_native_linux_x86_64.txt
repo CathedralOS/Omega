@@ -1095,10 +1095,6 @@ pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1574ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
 pass/traits/runtime_inherited_trait_default_exit rejected 818ms @655eb1d82b+wt
 	authored Call declaration selection occurrence remained unresolved after successful checking (CheckedCall): sibling requirement call `set(&mut subject, ...)` inside a trait default body
-pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 4502ms @e8239f945e8
-	Terminal native proposal ProgramEntry settlement failed: FusedServiceEstablishmentDrift
-pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1445ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 1604ms @655eb1d82b+wt
 pass/traits/runtime_exact_requirement_edge_exit checked 1588ms @655eb1d82b+wt
 pass/traits/trait_generic_bound_static_dispatch checked 1595ms @655eb1d82b+wt

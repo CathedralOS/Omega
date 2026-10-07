@@ -25,7 +25,7 @@ use crate::{
     OpaqueDataPropertyReceipt, TopLevelSymbols, ValidatedBoundaryOperatorApplication,
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
     ValidatedIntegerEmbeddingCall, ValidatedProofRecursiveComponent, build_definition_fact_plan,
-    collect_dynamic_conformance_selections, declarations::declaration_visibility,
+    collect_dynamic_implementation_selections, declarations::declaration_visibility,
     declarations::operators, declarations::transitions, infer_operational_may,
     infer_service_reaches, machine_calls::call_cycles, machine_calls::callable_overloads,
     machine_calls::calls, machine_calls::fact_call_projections, machine_calls::invocations,
@@ -217,7 +217,7 @@ fn validate(
     let conformance_service_reaches = infer_service_reaches(program, &conformance_operational);
     if effect_admission == EffectAdmission::Complete {
         validate_conformances(program, &conformance_service_reaches, &mut diagnostics);
-        if let Err(mut dynamic_diagnostics) = collect_dynamic_conformance_selections(program) {
+        if let Err(mut dynamic_diagnostics) = collect_dynamic_implementation_selections(program) {
             diagnostics.append(&mut dynamic_diagnostics);
         }
     }
@@ -755,7 +755,7 @@ pub fn admit_prepared_program_effects(
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let service_reaches = infer_service_reaches(program, operational);
     validate_conformances(program, &service_reaches, &mut diagnostics);
-    if let Err(mut errors) = collect_dynamic_conformance_selections(program) {
+    if let Err(mut errors) = collect_dynamic_implementation_selections(program) {
         diagnostics.append(&mut errors);
     }
     machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);

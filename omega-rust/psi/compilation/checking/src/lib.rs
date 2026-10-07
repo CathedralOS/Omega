@@ -156,8 +156,8 @@ pub use declarations::operators::{
     validate_closed_operator_application, validate_named_operator_application,
 };
 pub use declarations::traits::{
-    DynamicConformanceSelection, DynamicDescriptorStorage, collect_dynamic_conformance_selections,
-    collect_dynamic_descriptor_storages, compose_forwarded_trait_arguments,
+    DynamicImplementationSelection, collect_dynamic_implementation_selections,
+    compose_forwarded_trait_arguments,
     generic_bound_operator_requirement, resolve_closed_requirement_application,
     resolve_dynamic_call_targets, resolve_selected_dynamic_call_targets,
     revalidate_top_level_requirement_realization,

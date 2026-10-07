@@ -192,10 +192,6 @@ fn apply_fact_pruning(
         .selections
         .retain(|row| retained.contains(&row.machine));
     facts
-        .dynamic_conformances
-        .storages
-        .retain(|row| retained.contains(&row.machine));
-    facts
         .carry
         .suspension_crossings
         .retain(|row| retained.contains(&row.machine));

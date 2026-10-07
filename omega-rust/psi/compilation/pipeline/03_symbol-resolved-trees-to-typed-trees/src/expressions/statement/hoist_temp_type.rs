@@ -610,14 +610,14 @@ fn substitute_machine_parameters_in_type(
         | typed::types::TypeReferenceNode::Slice { element_type } => {
             substitute_machine_parameters_in_type(table, element_type, substitutions);
         }
-        typed::types::TypeReferenceNode::Generic { arguments, .. } => {
+        typed::types::TypeReferenceNode::Generic { arguments, .. }
+        | typed::types::TypeReferenceNode::DynamicTrait { arguments, .. } => {
             let arguments = table.type_reference_handles(arguments).to_vec();
             for argument in arguments {
                 substitute_machine_parameters_in_type(table, argument, substitutions);
             }
         }
-        typed::types::TypeReferenceNode::DynamicTrait { .. }
-        | typed::types::TypeReferenceNode::ConstExpression(_)
+        typed::types::TypeReferenceNode::ConstExpression(_)
         | typed::types::TypeReferenceNode::Unit => {}
     }
 }

@@ -150,8 +150,7 @@ pub(crate) fn lower_selected_machine(
 /// one refusal until the named-implementation selector route lands. Product
 /// pruning retains only the selections of reachable machines.
 fn selects_dynamic_implementation(checked: &CheckedTrees) -> bool {
-    let conformances = &checked.facts.dynamic_conformances;
-    !conformances.selections.is_empty() || !conformances.storages.is_empty()
+    !checked.facts.dynamic_conformances.selections.is_empty()
 }
 
 /// The one checked return plan `selection` lowers, if any. Every result kind

@@ -944,11 +944,16 @@ fn case_fact_type_mentions(
         TypeReferenceNode::ConstExpression(expression) => {
             case_fact_expression_mentions(syntax_trees, *expression, gate, true)
         }
-        TypeReferenceNode::DynamicTrait { name, conformance } => {
-            gate.mentions(name.as_str())
-                || conformance
-                    .as_ref()
-                    .is_some_and(|conformance| gate.mentions(conformance.as_str()))
+        TypeReferenceNode::DynamicTrait {
+            trait_name,
+            trait_arguments,
+        } => {
+            gate.mentions(trait_name.as_str())
+                || syntax_trees
+                    .type_references
+                    .type_reference_handles(*trait_arguments)
+                    .iter()
+                    .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
         }
         TypeReferenceNode::SelfType | TypeReferenceNode::Unit => false,
     }

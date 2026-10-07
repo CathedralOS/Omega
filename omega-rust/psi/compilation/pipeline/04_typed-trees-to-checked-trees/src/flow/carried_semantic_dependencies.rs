@@ -293,13 +293,14 @@ fn collect_nominal_symbols(
             }
         }
         TypeReferenceNode::DynamicTrait {
-            symbol,
-            conformance,
-            ..
+            symbol, arguments, ..
         } => {
             push_nominal_symbol(program, *symbol, symbols);
-            if let Some(conformance) = conformance {
-                push_nominal_symbol(program, *conformance, symbols);
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                collect_nominal_symbols(program, *argument, symbols);
             }
         }
         TypeReferenceNode::Named { symbol, .. } => push_nominal_symbol(program, *symbol, symbols),

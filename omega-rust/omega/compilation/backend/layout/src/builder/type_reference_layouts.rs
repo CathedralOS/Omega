@@ -8,7 +8,7 @@ use crate::builder::generic_bindings::{
 use crate::builder::{LayoutBuilder, OpaqueRepresentationDemand};
 use crate::packing::placement_overflow;
 use crate::sizing::{
-    dynamic_trait_descriptor_layout, fat_descriptor_layout, primitive_type_layout,
+    fat_descriptor_layout, primitive_type_layout,
 };
 use diagnostics::Diagnostic;
 use representation_selections::selection_for_opaque;
@@ -53,9 +53,6 @@ impl<'program> LayoutBuilder<'program> {
                     referee_node = self.program.type_reference_table.type_reference(*base_type);
                 }
                 match referee_node {
-                    TypeReferenceNode::DynamicTrait { .. } => {
-                        Ok(dynamic_trait_descriptor_layout(self.target))
-                    }
                     TypeReferenceNode::Slice { .. } => Ok(fat_descriptor_layout(self.target)),
                     TypeReferenceNode::Named { name, .. } if name.as_str() == "string" => {
                         Ok(fat_descriptor_layout(self.target))
@@ -140,9 +137,13 @@ impl<'program> LayoutBuilder<'program> {
                 })
             }
             TypeReferenceNode::Slice { .. } => Ok(self.slice_layout()),
-            TypeReferenceNode::DynamicTrait { .. } => {
-                Ok(dynamic_trait_descriptor_layout(self.target))
-            }
+            // A selector is one reference to its implementation's immutable
+            // table. It carries no data word: data is always a separate
+            // argument of the call the selector reaches.
+            TypeReferenceNode::DynamicTrait { .. } => Ok(TypeLayout {
+                size: self.target.pointer_size,
+                alignment: self.target.pointer_alignment,
+            }),
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,

@@ -30,7 +30,6 @@ use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;
 use diagnostics::Diagnostic;
-use language_core::is_self_receiver;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -361,87 +360,6 @@ pub(crate) fn declared_member_field_symbol(
     let receiver = declared_place_type_raw(program, machine, state, member.receiver)?;
     let data = data_definition_for_type(program, receiver)?;
     Some(data_field_or_payload(program, data, member.member.as_str())?.symbol)
-}
-
-/// Resolve a lexical place at its exact statement position.
-pub(crate) fn declared_place_leaf_symbol(
-    program: &TypedTrees,
-    current_machine: &typed_trees::machine::Machine,
-    current_state: Option<&typed_trees::state::State>,
-    statement_index: usize,
-    argument: ExpressionHandle,
-) -> Option<symbols::SymbolHandle> {
-    let mut handle = argument;
-    if let ExpressionNode::Borrow(inner) = program.expression_table.expression(handle) {
-        handle = inner.target;
-    }
-    let members = collect_member_path(program, handle)?;
-    let (root, rest) = members.split_first()?;
-    if rest.is_empty() {
-        return lexical_place_declaration_before(program, current_state?, statement_index, root)
-            .map(|(symbol, _)| symbol);
-    }
-
-    let mut current_data = if is_self_receiver(root) {
-        let first = rest.first()?;
-        if let Some(owned) = program
-            .machine_owned_data(current_machine)
-            .iter()
-            .find(|owned| owned.name.as_str() == first)
-        {
-            if rest.len() == 1 {
-                return Some(owned.symbol);
-            }
-            data_definition_for_type(program, owned.type_reference)?
-        } else {
-            machine_attached_data(program, current_machine)?
-        }
-    } else {
-        let (_, receiver_type) =
-            lexical_place_declaration_before(program, current_state?, statement_index, root)?;
-        data_definition_for_type(program, receiver_type)?
-    };
-
-    for (index, member_name) in rest.iter().enumerate() {
-        let field = data_field_or_payload(program, current_data, member_name)?;
-        if index + 1 == rest.len() {
-            return Some(field.symbol);
-        }
-        current_data = data_definition_for_type(program, field.type_reference)?;
-    }
-    None
-}
-
-fn lexical_place_declaration_before(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    name: &str,
-) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
-    let mut matches = Vec::new();
-    for statement in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-    {
-        if let typed_trees::statement::StatementNode::LocalData(local) = statement
-            && local.name.as_str() == name
-        {
-            matches.push((local.symbol, local.type_reference));
-        }
-    }
-    for parameter in program.state_parameters(state) {
-        if parameter.name.as_str() == name {
-            matches.push((parameter.symbol, parameter.type_reference));
-        }
-    }
-    match matches.as_slice() {
-        [(symbol, type_reference)] if symbol.is_valid() && type_reference.is_valid() => {
-            Some((*symbol, *type_reference))
-        }
-        _ => None,
-    }
 }
 
 /// The declared type of the one binding a normalized immutable-bound symbol
