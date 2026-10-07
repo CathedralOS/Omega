@@ -577,6 +577,35 @@ fn call_route_guard_covers(
 /// retain operand-reversed equivalents. Everything else remains an opaque
 /// canonical atom. This is deliberately incomplete but sound, and does not
 /// rewrite public routes.
+
+/// `x == true`/`x == false`/`x != true`/`x != false` normalizes to the exact
+/// polarity of `x` the edge establishes, including a negated/fallthrough
+/// relation; `apply` receives the compared operand and its polarity.
+fn for_each_boolean_literal_operand(
+    program: &TypedTrees,
+    binary: &typed_trees::expression::TableBinaryExpression,
+    negated: bool,
+    mut apply: impl FnMut(typed_trees::expression::ExpressionHandle, bool),
+) {
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+
+    let operand_and_literal = match (
+        program.expression_table.expression(binary.left),
+        program.expression_table.expression(binary.right),
+    ) {
+        (ExpressionNode::Boolean(literal), _) => Some((binary.right, *literal)),
+        (_, ExpressionNode::Boolean(literal)) => Some((binary.left, *literal)),
+        _ => None,
+    };
+    if let Some((operand, literal)) = operand_and_literal {
+        let equality_is_negated = if binary.operator == BinaryOperator::Equal {
+            negated
+        } else {
+            !negated
+        };
+        apply(operand, equality_is_negated == literal);
+    }
+}
 fn collect_structural_guard_consequences(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
@@ -636,33 +665,17 @@ fn collect_structural_guard_consequences(
                 BinaryOperator::Equal | BinaryOperator::NotEqual
             ) =>
         {
-            let operand_and_literal = match (
-                program.expression_table.expression(binary.left),
-                program.expression_table.expression(binary.right),
-            ) {
-                (ExpressionNode::Boolean(literal), _) => Some((binary.right, *literal)),
-                (_, ExpressionNode::Boolean(literal)) => Some((binary.left, *literal)),
-                _ => None,
-            };
-            if let Some((operand, literal)) = operand_and_literal {
-                // Normalize `x == true`, `x == false`, `x != true`, and
-                // `x != false`, including a negated/fallthrough relation, to
-                // the exact polarity of x that the edge establishes.
-                let equality_is_negated = if binary.operator == BinaryOperator::Equal {
-                    negated
-                } else {
-                    !negated
-                };
+            for_each_boolean_literal_operand(program, binary, negated, |operand, polarity| {
                 collect_structural_guard_consequences(
                     program,
                     operand,
-                    equality_is_negated == literal,
+                    polarity,
                     parameter_names,
                     content_conservation,
                     integer_types,
                     output,
                 );
-            }
+            });
             let operands_are_integers =
                 comparison_operands_are_integers(program, binary.left, binary.right, integer_types);
             let normalized = normalized_comparison(binary.operator, negated, operands_are_integers)
@@ -771,31 +784,18 @@ fn collect_integer_order_relations(
                 BinaryOperator::Equal | BinaryOperator::NotEqual
             ) =>
         {
-            let operand_and_literal = match (
-                program.expression_table.expression(binary.left),
-                program.expression_table.expression(binary.right),
-            ) {
-                (ExpressionNode::Boolean(literal), _) => Some((binary.right, *literal)),
-                (_, ExpressionNode::Boolean(literal)) => Some((binary.left, *literal)),
-                _ => None,
-            };
-            if let Some((operand, literal)) = operand_and_literal {
-                let equality_is_negated = if binary.operator == BinaryOperator::Equal {
-                    negated
-                } else {
-                    !negated
-                };
+            for_each_boolean_literal_operand(program, binary, negated, |operand, polarity| {
                 collect_integer_order_relations(
                     program,
                     operand,
-                    equality_is_negated == literal,
+                    polarity,
                     parameter_names,
                     content_conservation,
                     integer_types,
                     output,
                     disequalities,
                 );
-            }
+            });
             collect_normalized_integer_order_relation(
                 program,
                 binary.operator,
