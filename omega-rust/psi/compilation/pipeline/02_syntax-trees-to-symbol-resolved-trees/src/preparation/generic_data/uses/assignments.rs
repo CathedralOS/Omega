@@ -1,8 +1,9 @@
 //! Expected types from constant/local declarations and assignments.
 use super::super::{
-    ExpressionNode, HashMap, Item, StatementNode, SyntaxTrees, TypeReferenceHandle,
+    ExpressionNode, Item, StatementNode, SyntaxTrees,
 };
 use crate::preparation::generic_data::uses::{
+    concrete_state_local_types,
     ConstructorFrontier, relabel_data_literal_for_expected_type,
 };
 
@@ -73,38 +74,9 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_as
     selection: Option<&declaration_selection::ConstantSelection>,
     declarations: &[syntax_trees::item::ItemHandle],
 ) {
-    let concrete_states = declarations
-        .iter()
-        .map(|declaration| syntax.root_item(*declaration))
-        .filter_map(|item| match item {
-            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
-            _ => None,
-        })
-        .flat_map(|machine| {
-            syntax
-                .tables
-                .items
-                .state_handles(machine.states)
-                .iter()
-                .copied()
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-
-    for state_handle in concrete_states {
-        let state = syntax.tables.items.state(state_handle).clone();
-        let mut local_types = HashMap::<String, TypeReferenceHandle>::new();
-        for parameter in syntax.tables.items.state_parameters(state.parameters) {
-            let parameter = syntax.tables.items.state_parameter(*parameter);
-            local_types.insert(parameter.name.as_str().to_owned(), parameter.type_reference);
-        }
-        let statements = syntax.tables.items.statements(state.statements).to_vec();
-        for statement in &statements {
-            if let StatementNode::LocalData(local) = syntax.tables.statements.statement(*statement)
-            {
-                local_types.insert(local.name.as_str().to_owned(), local.type_reference);
-            }
-        }
+    for (state, local_types, statements) in
+        concrete_state_local_types(syntax, declarations)
+    {
         for (index, statement) in statements.iter().enumerate() {
             let frontier = ConstructorFrontier {
                 parameters: state.parameters,

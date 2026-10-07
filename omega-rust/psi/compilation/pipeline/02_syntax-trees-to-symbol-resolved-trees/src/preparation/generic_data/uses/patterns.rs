@@ -1,9 +1,10 @@
 //! Membership and sum-pattern relabeling.
 use super::super::{
-    ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, Item, StatementNode, SyntaxTrees,
-    TypeReferenceHandle, TypeReferenceNode,
+    ExpressionNode, HandleSpan, HashSet, Identifier, SyntaxTrees, TypeReferenceHandle,
+    TypeReferenceNode,
 };
 use crate::preparation::generic_data::uses::{
+    concrete_state_local_types,
     ConstructorFrontier, closed_constructor_carrier, collect_statement_expression_handles,
     constructor_carrier_span, constructor_path_name, expected_instance, selected_case_value,
     selected_constructor, selected_machine_state_handles,
@@ -25,38 +26,9 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
     selection: Option<&declaration_selection::ConstantSelection>,
     declarations: &[syntax_trees::item::ItemHandle],
 ) {
-    let concrete_states = declarations
-        .iter()
-        .map(|declaration| syntax.root_item(*declaration))
-        .filter_map(|item| match item {
-            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
-            _ => None,
-        })
-        .flat_map(|machine| {
-            syntax
-                .tables
-                .items
-                .state_handles(machine.states)
-                .iter()
-                .copied()
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-
-    for state_handle in concrete_states {
-        let state = syntax.tables.items.state(state_handle).clone();
-        let mut local_types = HashMap::<String, TypeReferenceHandle>::new();
-        for parameter in syntax.tables.items.state_parameters(state.parameters) {
-            let parameter = syntax.tables.items.state_parameter(*parameter);
-            local_types.insert(parameter.name.as_str().to_owned(), parameter.type_reference);
-        }
-        let statements = syntax.tables.items.statements(state.statements).to_vec();
-        for statement in &statements {
-            if let StatementNode::LocalData(local) = syntax.tables.statements.statement(*statement)
-            {
-                local_types.insert(local.name.as_str().to_owned(), local.type_reference);
-            }
-        }
+    for (_state, local_types, statements) in
+        concrete_state_local_types(syntax, declarations)
+    {
         let mut reachable = HashSet::new();
         for statement in statements {
             collect_statement_expression_handles(syntax, statement, &mut reachable);

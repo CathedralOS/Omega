@@ -26,3 +26,54 @@ pub(super) use patterns::{
     closed_sum_path, named_type_name, relabel_closed_sum_memberships_from_local_types,
     relabel_unique_closed_sum_paths,
 };
+
+/// Concrete machine states and their declared parameter/local types — the
+/// shared prelude every local-typed relabel pass walks before its own scan.
+pub(super) fn concrete_state_local_types(
+    syntax: &super::SyntaxTrees,
+    declarations: &[syntax_trees::item::ItemHandle],
+) -> Vec<(
+    syntax_trees::item::StateNode,
+    super::HashMap<String, super::TypeReferenceHandle>,
+    Vec<syntax_trees::statement::StatementHandle>,
+)> {
+    use super::{Item, StatementNode};
+    let concrete_states = declarations
+        .iter()
+        .map(|declaration| syntax.root_item(*declaration))
+        .filter_map(|item| match item {
+            Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
+            _ => None,
+        })
+        .flat_map(|machine| {
+            syntax
+                .tables
+                .items
+                .state_handles(machine.states)
+                .iter()
+                .copied()
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    let mut states = Vec::with_capacity(concrete_states.len());
+    for state_handle in concrete_states {
+        let state = syntax.tables.items.state(state_handle).clone();
+        let mut local_types =
+            super::HashMap::<String, super::TypeReferenceHandle>::new();
+        for parameter in syntax.tables.items.state_parameters(state.parameters) {
+            let parameter = syntax.tables.items.state_parameter(*parameter);
+            local_types.insert(parameter.name.as_str().to_owned(), parameter.type_reference);
+        }
+        let statements = syntax.tables.items.statements(state.statements).to_vec();
+        for statement in &statements {
+            if let StatementNode::LocalData(local) =
+                syntax.tables.statements.statement(*statement)
+            {
+                local_types.insert(local.name.as_str().to_owned(), local.type_reference);
+            }
+        }
+        states.push((state, local_types, statements));
+    }
+    states
+}
