@@ -59,10 +59,6 @@ const PF_W: u32 = 2;
 
 const PF_R: u32 = 4;
 
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
 /// Close absolute load and section geometry for the retained Linux target.
 ///
 /// Both admitted profiles use a target-derived 64 KiB maximum-page policy.

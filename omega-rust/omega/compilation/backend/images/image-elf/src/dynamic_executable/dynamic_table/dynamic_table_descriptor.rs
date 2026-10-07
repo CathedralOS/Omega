@@ -10,6 +10,8 @@
 //! [System V ABI section header]: https://gabi.xinuos.com/elf/03-sheader.html
 //! [dynamic section]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::ValidatedElfDynamicTablePayload;
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
@@ -24,9 +26,6 @@ const UPSTREAM_DESCRIPTOR_COUNT: usize = 11;
 const UPSTREAM_NAME_SEED_SIZE: usize = 113;
 const DYNAMIC_NAME_OFFSET: u32 = 113;
 const DYNAMIC_NAME_SUFFIX: &[u8] = b".dynamic\0";
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
 /// Independently validated address-free metadata for the serialized
 /// `.dynamic` payload.
 ///
@@ -378,33 +377,6 @@ fn non_authoritative_descriptor_compatibility_fingerprint(
         None => hash.byte(0),
     }
     hash.finish()
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]

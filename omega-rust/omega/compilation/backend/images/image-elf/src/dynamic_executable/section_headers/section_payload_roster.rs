@@ -5,6 +5,8 @@
 //! fixups. It does not place bytes, resolve a fixup, emit program headers, or
 //! mutate the image.
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{
     ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload,
@@ -21,9 +23,6 @@ use diagnostics::Diagnostic;
 
 const SECTION_COUNT: usize = 14;
 const DYNAMIC_FIXUP_COUNT: usize = 9;
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
 /// Independently replayed numeric payload rows and indexed unresolved fixups.
 ///
 /// The exact section-header template remains owned by this non-clone carrier.
@@ -608,33 +607,6 @@ const fn image_section_tag(section: image::FinalImageSection) -> u8 {
         image::FinalImageSection::Data => 2,
         image::FinalImageSection::Bss => 3,
         image::FinalImageSection::None => 4,
-    }
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
     }
 }
 

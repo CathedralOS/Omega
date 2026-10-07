@@ -1,8 +1,10 @@
 //! The report-only layout compatibility fingerprint and checked arithmetic.
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::dynamic_executable::load_placement::load_layout::{
     DYNAMIC_LOAD_POLICY_TAG, ElfLoadImageMemoryPlacement, ElfLoadProgramHeader,
-    ElfPlacedDynamicSection, ElfResolvedSectionHeaderPlacement, FNV_OFFSET_BASIS, FNV_PRIME,
+    ElfPlacedDynamicSection, ElfResolvedSectionHeaderPlacement,
 };
 use crate::dynamic_executable::section_headers::relative_section_layout::ValidatedElfRelativeSectionPayloadLayout;
 use diagnostics::Diagnostic;
@@ -115,32 +117,5 @@ pub(crate) fn require(condition: bool, message: &str) -> Result<(), Diagnostic> 
         Ok(())
     } else {
         Err(Diagnostic::error(message))
-    }
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
     }
 }

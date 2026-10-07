@@ -11,6 +11,8 @@
 //! copy any dynamic payload into a file image, mutate the retained `FinalImage`,
 //! grant loader, publication, or runnable-image authority.
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::dynamic_executable::checked::{checked_product, checked_sum, read_u64, require};
 use crate::dynamic_executable::load_placement::load_layout::{
@@ -40,9 +42,6 @@ const EV_CURRENT: u32 = 1;
 const PT_LOAD: u32 = 1;
 const PT_DYNAMIC: u32 = 2;
 const PT_INTERP: u32 = 3;
-
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Independently replayed dynamic ELF file-container envelope.
 ///
@@ -583,33 +582,6 @@ fn non_authoritative_envelope_compatibility_fingerprint(
     hash.bytes(&contents.section_header_table_file_offset.to_le_bytes());
     hash.bytes(&contents.section_header_table_bytes);
     hash.finish()
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]

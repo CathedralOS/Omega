@@ -9,6 +9,8 @@
 //! [`Elf64_Dyn`]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::bytes::write_u64;
 use crate::dynamic_executable::checked::{checked_product, checked_sum, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tags::{
@@ -19,9 +21,6 @@ use diagnostics::Diagnostic;
 const ELF64_DYNAMIC_ROW_SIZE: usize = 16;
 const ELF64_DYNAMIC_VALUE_OFFSET: usize = 8;
 const ELF64_DYNAMIC_VALUE_SIZE: u8 = 8;
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
 /// Independently decoded and replayed ELF64-LSB `.dynamic` bytes.
 ///
 /// The exact semantic tag plan remains owned by this non-clone carrier. Every
@@ -405,33 +404,6 @@ fn non_authoritative_payload_compatibility_fingerprint(
         hash.byte(fixup.target as u8);
     }
     hash.finish()
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]

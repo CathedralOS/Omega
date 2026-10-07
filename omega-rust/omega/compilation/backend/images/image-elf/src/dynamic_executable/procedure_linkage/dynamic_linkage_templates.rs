@@ -53,10 +53,6 @@ const AARCH64_PLT_ENTRY_SIZE: usize = 16;
 
 const GOT_PLT_HEADER_WORDS: usize = 3;
 
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
 const X86_PLT_HEADER: [u8; X86_PLT_HEADER_SIZE] = [
     0xff, 0x35, 0, 0, 0, 0, // pushq GOT[1](%rip)
     0xff, 0x25, 0, 0, 0, 0, // jmpq *GOT[2](%rip)

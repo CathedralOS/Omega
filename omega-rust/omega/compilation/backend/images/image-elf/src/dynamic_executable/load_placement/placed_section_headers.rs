@@ -10,6 +10,8 @@
 //! headers; resolve payload-internal dynamic/procedure/source relocations;
 //! mutate the retained `FinalImage`; or claim a runnable image.
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::dynamic_executable::checked::{checked_product, checked_sum, read_u64, require};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind, ValidatedElfDynamicLoadLayout,
@@ -29,9 +31,6 @@ const FILE_OFFSET_PLACEMENT_COUNT: usize = 13;
 const VIRTUAL_ADDRESS_PLACEMENT_COUNT: usize = 12;
 const PLACEMENT_COUNT: usize = 25;
 const SECTION_NAME_TABLE_INDEX: usize = 13;
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
 /// One placement application retained beside the resulting bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ElfAppliedSectionHeaderPlacement {
@@ -586,33 +585,6 @@ fn non_authoritative_placed_compatibility_fingerprint(
         hash.bytes(&application.value.to_le_bytes());
     }
     hash.finish()
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]

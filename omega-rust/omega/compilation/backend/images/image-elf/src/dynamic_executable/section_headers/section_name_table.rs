@@ -10,6 +10,8 @@
 //! [section-name string table]: https://gabi.xinuos.com/elf/03-sheader.html#special-sections
 //! [section header]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
@@ -21,9 +23,6 @@ const UPSTREAM_NAME_SEED_SIZE: usize = 122;
 const SECTION_NAME_TABLE_NAME_OFFSET: u32 = 59;
 const COMPLETE_SECTION_NAME_TABLE_SIZE: usize = 122;
 const COMPLETE_SECTION_NAME_TABLE: &[u8] = b"\0.interp\0.dynstr\0.dynsym\0.hash\0.gnu.version\0.gnu.version_r\0.shstrtab\0.gnu.hash\0.plt\0.got.plt\0.rela.plt\0.rela.dyn\0.dynamic\0";
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
 /// Independently replayed complete section-name table and its address-free
 /// semantic descriptor.
 ///
@@ -384,33 +383,6 @@ fn non_authoritative_table_compatibility_fingerprint(
         None => hash.byte(0),
     }
     hash.finish()
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]

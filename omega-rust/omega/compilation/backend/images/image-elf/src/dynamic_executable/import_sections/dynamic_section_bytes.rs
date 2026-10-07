@@ -13,6 +13,8 @@
 //! [`DT_GNU_HASH` implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 //! [symbol versioning]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::import_sections::dynamic_sections::{
@@ -24,9 +26,6 @@ use diagnostics::Diagnostic;
 const ELF64_SYMBOL_SIZE: usize = 24;
 const ELF64_VERSION_NEED_SIZE: usize = 16;
 const ELF64_VERSION_AUXILIARY_SIZE: usize = 16;
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
 /// Independently decoded and replayed ELF64-LSB dynamic section payloads.
 ///
 /// The source structural plan remains owned by this non-clone carrier. These
@@ -769,33 +768,6 @@ fn non_authoritative_payload_compatibility_fingerprint(
         hash.bytes(bytes);
     }
     hash.finish()
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]

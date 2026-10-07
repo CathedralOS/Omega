@@ -9,6 +9,8 @@
 //! [`Elf64_Shdr`]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::bytes::{write_u32, write_u64};
 use crate::dynamic_executable::checked::{checked_product, checked_sum, require};
 use crate::dynamic_executable::section_headers::section_roster::{
@@ -25,9 +27,6 @@ const FILE_OFFSET_FIXUP_COUNT: usize = 13;
 const VIRTUAL_ADDRESS_FIXUP_COUNT: usize = 12;
 const PLACEMENT_FIXUP_COUNT: usize = FILE_OFFSET_FIXUP_COUNT + VIRTUAL_ADDRESS_FIXUP_COUNT;
 const SHF_ALLOC: u64 = 0x2;
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-
 /// Independently decoded and replayed ELF64-LSB section-header table
 /// templates.
 ///
@@ -542,33 +541,6 @@ fn non_authoritative_template_compatibility_fingerprint(
         hash.byte(fixup.kind as u8);
     }
     hash.finish()
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]

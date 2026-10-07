@@ -1,11 +1,10 @@
 //! The report-only template compatibility fingerprint.
 
+use crate::dynamic_executable::compatibility_hash::Fnv1a;
+
 use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::ValidatedElfProcedureLinkageRelocationPlan;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_plans::{
     ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplateContents,
-};
-use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
-    FNV_OFFSET_BASIS, FNV_PRIME,
 };
 
 pub(crate) fn non_authoritative_template_compatibility_fingerprint(
@@ -78,32 +77,5 @@ const fn image_section_tag(section: image::FinalImageSection) -> u8 {
         image::FinalImageSection::Data => 2,
         image::FinalImageSection::Bss => 3,
         image::FinalImageSection::None => 4,
-    }
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
     }
 }
