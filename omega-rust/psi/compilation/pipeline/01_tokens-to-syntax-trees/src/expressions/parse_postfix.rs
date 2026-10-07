@@ -351,44 +351,21 @@ fn parse_index_or_range_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    // Leading `..` / `..=` branch: open-start range (`..b`, `..`, `..=b`).
-    if let Some(end_inclusive) = range_separator(&input) {
-        let input = take_range_separator(input, end_inclusive)?;
-        let (end, input) = if input.at_punctuation(PunctuationKind::RightBracket) {
-            // A trailing inclusive separator with no end expression is invalid:
-            // `..=` does not name a normalizable end.
-            if end_inclusive {
-                return Err(ParseError::new(
-                    "inclusive range `..=` requires an end expression",
-                ));
-            }
-            (ExpressionHandle::invalid(), input)
-        } else {
-            let (end, input) =
-                parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
-            (end, input)
+    // A leading separator has no start; both forms share the same range tail.
+    let (start, input, end_inclusive) = if let Some(end_inclusive) = range_separator(&input) {
+        (ExpressionHandle::invalid(), input, end_inclusive)
+    } else {
+        let (start, input) =
+            parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
+        let Some(end_inclusive) = range_separator(&input) else {
+            return Ok((start, input));
         };
-        return Ok((
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Range(TableRangeExpression {
-                    start: ExpressionHandle::invalid(),
-                    end,
-                    end_inclusive,
-                })),
-            input,
-        ));
-    }
-
-    let (start, input) =
-        parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
-    let Some(end_inclusive) = range_separator(&input) else {
-        return Ok((start, input));
+        (start, input, end_inclusive)
     };
 
     let input = take_range_separator(input, end_inclusive)?;
     let (end, input) = if input.at_punctuation(PunctuationKind::RightBracket) {
-        // `start..=` with no end has no normalizable end bound: reject it.
+        // An inclusive separator with no end has no normalizable end bound.
         if end_inclusive {
             return Err(ParseError::new(
                 "inclusive range `..=` requires an end expression",

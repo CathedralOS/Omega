@@ -28,3 +28,20 @@ pub(crate) fn parse_crash_cause<'tokens, 'source>(
         ))),
     }
 }
+
+pub(crate) fn reject_retired_operational_reach(
+    service: &syntax_trees::identifier::Identifier,
+    input: crate::input::token_cursor::Input<'_, '_>,
+) -> Result<(), crate::diagnostics::parse_error::ParseError> {
+    let replacement = match service.as_str() {
+        "Suspend" => "suspends;",
+        "Block" => "blocks;",
+        "thread_block" => "blocks;",
+        "sync_wait" => "the appropriate independent `suspends;` and/or `blocks;` clause",
+        _ => return Ok(()),
+    };
+    Err(input.error_here(format!(
+        "`reaches {}` is invalid: `reaches` contains boundary-service identities only; write `{replacement}` as an independent operational clause",
+        service.as_str()
+    )))
+}

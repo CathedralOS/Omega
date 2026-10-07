@@ -163,7 +163,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 && !input.at_contextual("satisfies")
             {
                 let (service, rest) = input.take_identifier()?;
-                reject_retired_operational_reach(&service, rest)?;
+                super::reject_retired_operational_reach(&service, rest)?;
                 let handle = syntax_trees.items.append_identifier_path_member(service);
                 if service_count == 0 {
                     service_start = handle;
@@ -672,23 +672,6 @@ fn take_invokes_clause_terminator<'tokens, 'source>(
         // On a bodyless machine this is also the item terminator.
         Ok(input)
     }
-}
-
-fn reject_retired_operational_reach(
-    service: &Identifier,
-    input: Input<'_, '_>,
-) -> Result<(), crate::diagnostics::parse_error::ParseError> {
-    let replacement = match service.as_str() {
-        "Suspend" => "suspends;",
-        "Block" => "blocks;",
-        "thread_block" => "blocks;",
-        "sync_wait" => "the appropriate independent `suspends;` and/or `blocks;` clause",
-        _ => return Ok(()),
-    };
-    Err(input.error_here(format!(
-        "`reaches {}` is invalid: `reaches` contains boundary-service identities only; write `{replacement}` as an independent operational clause",
-        service.as_str()
-    )))
 }
 
 fn take_operational_clause<'tokens, 'source>(

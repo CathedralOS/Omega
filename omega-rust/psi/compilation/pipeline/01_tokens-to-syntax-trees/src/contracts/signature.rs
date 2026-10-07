@@ -2,7 +2,6 @@ use crate::contracts::facts::parse_proof_facts_until;
 use crate::input::token_cursor::Input;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind};
 use tokens::{KeywordKind, PunctuationKind};
 
@@ -145,7 +144,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 && !input.at_contextual("where")
             {
                 let (service, rest) = input.take_identifier()?;
-                reject_retired_operational_reach(&service, rest)?;
+                super::reject_retired_operational_reach(&service, rest)?;
                 let handle = syntax_trees.items.append_identifier_path_member(service);
                 if service_count == 0 {
                     service_start = handle;
@@ -372,23 +371,6 @@ fn take_invokes_signature_clause<'tokens, 'source>(
     } else {
         Ok(input)
     }
-}
-
-fn reject_retired_operational_reach(
-    service: &Identifier,
-    input: Input<'_, '_>,
-) -> Result<(), crate::diagnostics::parse_error::ParseError> {
-    let replacement = match service.as_str() {
-        "Suspend" => "suspends;",
-        "Block" => "blocks;",
-        "thread_block" => "blocks;",
-        "sync_wait" => "the appropriate independent `suspends;` and/or `blocks;` clause",
-        _ => return Ok(()),
-    };
-    Err(input.error_here(format!(
-        "`reaches {}` is invalid: `reaches` contains boundary-service identities only; write `{replacement}` as an independent operational clause",
-        service.as_str()
-    )))
 }
 
 fn take_operational_signature_clause<'tokens, 'source>(
