@@ -802,6 +802,41 @@ fn intersect_declared_place_ranges(
     }
 }
 
+/// `bound` unwrapped to a built-in exact-domain subtract whose right
+/// operand shares `left`'s declared primitive; yields the subtraction node,
+/// the shared primitive, and the right operand's place path.
+fn exact_place_subtract<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    left: ExpressionHandle,
+    bound: ExpressionHandle,
+) -> Option<(
+    &'program typed_trees::expression::TableBinaryExpression,
+    PrimitiveType,
+    String,
+)> {
+    let ExpressionNode::Binary(subtract) = program.expression_table.expression(bound) else {
+        return None;
+    };
+    if subtract.operator != BinaryOperator::Subtract
+        || !meaning::builtin_arithmetic(program, machine, state, bound)
+    {
+        return None;
+    }
+    let left_type = declared_place_type_raw(program, machine, state, left)?;
+    let right_type = declared_place_type_raw(program, machine, state, subtract.right)?;
+    let left_primitive = program.primitive_type_reference(left_type)?;
+    if program.primitive_type_reference(right_type) != Some(left_primitive)
+        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
+        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let right_path = place_path(program, subtract.right)?;
+    Some((subtract, left_primitive, right_path))
+}
+
 /// Recognize the exact guard `left <= MAX - right` (including its `>=`
 /// spelling) without pretending either operand has an independent tighter
 /// interval. The subtraction is total for unsigned carriers and for signed
@@ -821,24 +856,8 @@ fn joint_add_upper_guard(
         BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
         _ => return None,
     };
-    let ExpressionNode::Binary(subtract) = program.expression_table.expression(bound) else {
-        return None;
-    };
-    if subtract.operator != BinaryOperator::Subtract
-        || !meaning::builtin_arithmetic(program, machine, state, bound)
-    {
-        return None;
-    }
-    let left_type = declared_place_type_raw(program, machine, state, left)?;
-    let right_type = declared_place_type_raw(program, machine, state, subtract.right)?;
-    let left_primitive = program.primitive_type_reference(left_type)?;
-    if program.primitive_type_reference(right_type) != Some(left_primitive)
-        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
-        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
-    {
-        return None;
-    }
-    let right_path = place_path(program, subtract.right)?;
+    let (subtract, left_primitive, right_path) =
+        exact_place_subtract(program, machine, state, left, bound)?;
     let maximum_matches = match left_primitive {
         PrimitiveType::U8 => literal_i64(program, subtract.left) == Some(u8::MAX as i64),
         PrimitiveType::U16 => literal_i64(program, subtract.left) == Some(u16::MAX as i64),
@@ -904,24 +923,8 @@ fn joint_add_lower_guard(
         BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
         _ => return None,
     };
-    let ExpressionNode::Binary(subtract) = program.expression_table.expression(bound) else {
-        return None;
-    };
-    if subtract.operator != BinaryOperator::Subtract
-        || !meaning::builtin_arithmetic(program, machine, state, bound)
-    {
-        return None;
-    }
-    let left_type = declared_place_type_raw(program, machine, state, left)?;
-    let right_type = declared_place_type_raw(program, machine, state, subtract.right)?;
-    let left_primitive = program.primitive_type_reference(left_type)?;
-    if program.primitive_type_reference(right_type) != Some(left_primitive)
-        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
-        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
-    {
-        return None;
-    }
-    let right_path = place_path(program, subtract.right)?;
+    let (subtract, left_primitive, right_path) =
+        exact_place_subtract(program, machine, state, left, bound)?;
     let minimum = match left_primitive {
         PrimitiveType::I8 if environment.get(&right_path)?.high? <= 0 => i8::MIN as i64,
         PrimitiveType::I16 if environment.get(&right_path)?.high? <= 0 => i16::MIN as i64,
