@@ -327,17 +327,8 @@ fn subject_field_coordinates<'program>(
         if let Some(coordinate) =
             fields::FieldCoordinate::resolve_projection(program, root, *subject)
         {
-            let coordinate = match entry_parameters {
-                Some(entries) => coordinate.at_arrival(
-                    program,
-                    RankingRangeState {
-                        state,
-                        entry_parameters: entries,
-                    },
-                    coordinate.parameter.symbol,
-                )?,
-                None => coordinate,
-            };
+            let coordinate =
+                coordinate.at_entry_arrival(program, state, entry_parameters)?;
             coordinates.include(coordinate);
             continue;
         }
@@ -442,17 +433,8 @@ fn prove_edge(
             // Rebind the selected field only after proving its unique
             // nominal arrival; template spellings cannot supply that proof.
             let coordinate = fields::FieldCoordinate::resolve(program, root, subject, measure)?;
-            let coordinate = match entry_parameters {
-                Some(entries) => coordinate.at_arrival(
-                    program,
-                    RankingRangeState {
-                        state,
-                        entry_parameters: entries,
-                    },
-                    coordinate.parameter.symbol,
-                )?,
-                None => coordinate,
-            };
+            let coordinate =
+                coordinate.at_entry_arrival(program, state, entry_parameters)?;
             Some(field_coordinates::FieldCoordinates::new(coordinate))
         }
         // A declared scalar view may read projected storage: the subject's

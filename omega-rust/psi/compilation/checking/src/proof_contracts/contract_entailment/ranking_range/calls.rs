@@ -1378,17 +1378,8 @@ fn member_subject_coordinates<'program>(
         if let Some(coordinate) =
             fields::FieldCoordinate::resolve_projection(program, authored, *subject)
         {
-            let coordinate = match entry_parameters {
-                Some(entries) => coordinate.at_arrival(
-                    program,
-                    RankingRangeState {
-                        state: site,
-                        entry_parameters: entries,
-                    },
-                    coordinate.parameter.symbol,
-                )?,
-                None => coordinate,
-            };
+            let coordinate =
+                coordinate.at_entry_arrival(program, site, entry_parameters)?;
             coordinates.include(coordinate);
             continue;
         }
