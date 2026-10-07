@@ -8,7 +8,7 @@
 //! the entry-relative ranking.
 use super::{
     ExpressionHandle, ExpressionNode, Machine, ProofFact, RankingRangeMeasure,
-    RankingRangePremises, SignatureContractKind, TypeConstraintNode, TypeReferenceNode, TypedTrees,
+    RankingRangePremises, SignatureContractKind, TypedTrees,
     exact_integer_parameter,
 };
 use symbols::SymbolHandle;
@@ -78,29 +78,12 @@ pub(super) fn premise_symbols(
                 }
             }
         }
-        for parameter in program.state_parameters(root).iter().filter(|parameter| {
-            exact_integer_parameter(program, parameter.type_reference).is_some()
-        }) {
-            let mut reference = parameter.type_reference;
-            while let TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } = program.type_reference_table.type_reference(reference)
-            {
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    if let TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } = constraint
-                    {
-                        if !symbols.contains(&parameter.symbol) {
-                            symbols.push(parameter.symbol);
-                        }
-                        expressions.extend([*minimum, *maximum]);
-                    }
-                }
-                reference = *base_type;
-            }
-        }
+        super::constrained_parameter_bound_expressions(
+            program,
+            root,
+            &mut expressions,
+            Some(&mut symbols),
+        );
     }
     for expression in expressions {
         collect(program, expression, &mut symbols, 0)?;

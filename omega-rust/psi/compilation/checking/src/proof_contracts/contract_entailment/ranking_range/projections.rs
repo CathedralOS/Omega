@@ -1,8 +1,7 @@
 //! Expressions whose exact metadata/field coordinates enter one range judgment.
 use super::{
     ExpressionHandle, Machine, ProofFact, RankingRangeMeasure, RankingRangePremises,
-    SignatureContractKind, State, TypeConstraintNode, TypeReferenceNode, TypedTrees,
-    exact_integer_parameter,
+    SignatureContractKind, State, TypedTrees,
 };
 use typed_trees::expression::{ExpressionNode, TableRangeExpression};
 
@@ -103,26 +102,11 @@ pub(super) fn entry_expressions(
             }
         }
     }
-    for parameter in program.state_parameters(root).iter() {
-        if exact_integer_parameter(program, parameter.type_reference).is_none() {
-            continue;
-        }
-        let mut reference = parameter.type_reference;
-        while let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(reference)
-        {
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                if let TypeConstraintNode::Range {
-                    minimum, maximum, ..
-                } = constraint
-                {
-                    expressions.extend([*minimum, *maximum]);
-                }
-            }
-            reference = *base_type;
-        }
-    }
+    crate::proof_contracts::contract_entailment::ranking_range::constrained_parameter_bound_expressions(
+        program,
+        root,
+        &mut expressions,
+        None,
+    );
     expressions
 }

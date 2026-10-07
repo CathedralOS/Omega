@@ -274,6 +274,46 @@ pub(super) fn dependency_binary(operator: BinaryOperator) -> bool {
             | BinaryOperator::BitwiseAnd
     )
 }
+/// Push every `[minimum, maximum]` bound expression the root's exact-integer
+/// parameters carry in their `Constrained` shells into `expressions`;
+/// `recorded` also collects each contributing parameter's symbol.
+pub(super) fn constrained_parameter_bound_expressions(
+    program: &TypedTrees,
+    root: &State,
+    expressions: &mut Vec<ExpressionHandle>,
+    mut recorded: Option<&mut Vec<symbols::SymbolHandle>>,
+) {
+    for parameter in program
+        .state_parameters(root)
+        .iter()
+        .filter(|parameter| {
+            exact_integer_parameter(program, parameter.type_reference).is_some()
+        })
+    {
+        let mut reference = parameter.type_reference;
+        while let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        {
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                if let TypeConstraintNode::Range {
+                    minimum, maximum, ..
+                } = constraint
+                {
+                    if let Some(recorded) = recorded.as_deref_mut()
+                        && !recorded.contains(&parameter.symbol)
+                    {
+                        recorded.push(parameter.symbol);
+                    }
+                    expressions.extend([*minimum, *maximum]);
+                }
+            }
+            reference = *base_type;
+        }
+    }
+}
+
 
 fn subject_field_coordinates<'program>(
     program: &'program TypedTrees,
