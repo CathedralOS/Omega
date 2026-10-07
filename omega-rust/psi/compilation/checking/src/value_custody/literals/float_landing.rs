@@ -224,38 +224,14 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                                 pairs.push((*value, state.return_type));
                                 continue;
                             }
-                            let typed_trees::statement::TransitionTargetNode::Named {
-                                path,
-                                arguments,
-                                ..
-                            } = target_node
-                            else {
+                            let Some(named_arguments) = super::named_transition_arguments(
+                                program,
+                                machine,
+                                target_node,
+                            ) else {
                                 continue;
                             };
-                            // The Named target's path members live in the
-                            // STATEMENT table's identifier arena (the target
-                            // node's home), not the expression table's.
-                            let target_members =
-                                program.statement_table.name_path_members(path.members);
-                            let [target_name] = target_members else {
-                                continue;
-                            };
-                            let Some(target_state) = program
-                                .machine_states(machine)
-                                .iter()
-                                .find(|candidate| candidate.name.as_str() == target_name.as_str())
-                            else {
-                                continue;
-                            };
-                            // The `&mut self` receiver rides the param list but
-                            // never pairs with a spelled argument -- zip only the
-                            // value params.
-                            let parameters = program.state_parameters(target_state).iter();
-                            let argument_handles =
-                                program.statement_table.expression_handles(*arguments);
-                            for (parameter, argument) in
-                                parameters.zip(argument_handles.iter().copied())
-                            {
+                            for (parameter, argument) in named_arguments {
                                 if parameter.type_reference.is_valid() {
                                     pairs.push((argument, parameter.type_reference));
                                 }

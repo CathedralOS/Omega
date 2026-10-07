@@ -37,6 +37,47 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
 
 mod literal_widths;
+
+/// The named transition target's spelled arguments paired with the target
+/// state's parameters, or `None` when the target is not a singleton-named
+/// state. The `&mut self` receiver rides the param list but never pairs
+/// with a spelled argument -- the zip pairs only the value params.
+fn named_transition_arguments<'program>(
+    program: &'program TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    target_node: &typed_trees::statement::TransitionTargetNode,
+) -> Option<Vec<(&'program typed_trees::signature::StateParameter, ExpressionHandle)>> {
+    let typed_trees::statement::TransitionTargetNode::Named {
+        path, arguments, ..
+    } = target_node
+    else {
+        return None;
+    };
+    // The Named target's path members live in the STATEMENT table's
+    // identifier arena (the target node's home), not the expression table's.
+    let target_members = program.statement_table.name_path_members(path.members);
+    let [target_name] = target_members else {
+        return None;
+    };
+    let target_state = program
+        .machine_states(machine)
+        .iter()
+        .find(|candidate| candidate.name.as_str() == target_name.as_str())?;
+    Some(
+        program
+            .state_parameters(target_state)
+            .iter()
+            .zip(
+                program
+                    .statement_table
+                    .expression_handles(*arguments)
+                    .iter()
+                    .copied(),
+            )
+            .collect(),
+    )
+}
+
 pub(crate) use literal_widths::validate_literal_widths;
 
 /// CR4 (carrier, ch5 two-phase law): a width-SUFFIXED literal (`5i8`) landed
