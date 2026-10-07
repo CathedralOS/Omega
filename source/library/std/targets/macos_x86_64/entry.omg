@@ -1,5 +1,6 @@
 use omega::language::core::extent;
 use calling;
+use entry_shapes;
 
 // Apple's dyld calls appMain(argc, argv, envp, apple) and receives an int:
 // https://github.com/apple-oss-distributions/dyld/blob/main/dyld/dyldMain.cpp
@@ -54,11 +55,11 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     state physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
         apple: ValueShape, result: ValueShape) -> BoundaryPlanResult
     {
-        transition MacosX64::integer_shape(&argc, 4)
-            && MacosX64::integer_shape(&argv, 8)
-            && MacosX64::integer_shape(&envp, 8)
-            && MacosX64::integer_shape(&apple, 8)
-            && MacosX64::integer_shape(&result, 4)
+        transition HostedEntryShapes::integer_shape(&argc, 4)
+            && HostedEntryShapes::integer_shape(&argv, 8)
+            && HostedEntryShapes::integer_shape(&envp, 8)
+            && HostedEntryShapes::integer_shape(&apple, 8)
+            && HostedEntryShapes::integer_shape(&result, 4)
         {
             true -> build_physical()
             _ -> reject()
@@ -69,16 +70,16 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 4;
         // System V AMD64 integer argument order: edi, rsi, rdx, rcx.
-        output.call.parameters[0] = MacosX64::named_word(4,
+        output.call.parameters[0] = HostedEntryShapes::named_word(4,
             MachineRegister::X86Rdi);
-        output.call.parameters[1] = MacosX64::named_word(8,
+        output.call.parameters[1] = HostedEntryShapes::named_word(8,
             MachineRegister::X86Rsi);
-        output.call.parameters[2] = MacosX64::named_word(8,
+        output.call.parameters[2] = HostedEntryShapes::named_word(8,
             MachineRegister::X86Rdx);
-        output.call.parameters[3] = MacosX64::named_word(8,
+        output.call.parameters[3] = HostedEntryShapes::named_word(8,
             MachineRegister::X86Rcx);
         output.call.has_result = true;
-        output.call.result = MacosX64::named_word(4, MachineRegister::X86Rax);
+        output.call.result = HostedEntryShapes::named_word(4, MachineRegister::X86Rax);
         transition { _ -> finish(output) }
     }
 
@@ -112,9 +113,9 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots in
         // the first four System V integer registers.
-        output.call.parameters[0] = MacosX64::extent_value(
+        output.call.parameters[0] = HostedEntryShapes::register_extent_value(
             MachineRegister::X86Rdi, MachineRegister::X86Rsi);
-        output.call.parameters[1] = MacosX64::extent_value(
+        output.call.parameters[1] = HostedEntryShapes::register_extent_value(
             MachineRegister::X86Rdx, MachineRegister::X86Rcx);
         transition { _ -> finish(output) }
     }
@@ -206,17 +207,6 @@ machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 }
 
-machine MacosX64::integer_shape(shape: &ValueShape, bytes: u64) -> bool {
-    transition shape.class {
-        ValueClass::Integer -> integer(shape, bytes)
-        _ -> no()
-    }
-    state integer(shape: &ValueShape, bytes: u64) -> bool {
-        shape.byte_size == bytes && shape.alignment == bytes
-    }
-    state no() -> bool { false }
-}
-
 machine MacosX64::extent_shape(shape: ValueShape, signature: &BoundarySignature) -> bool {
     transition shape.class {
         ValueClass::Record { first_field, field_count } -> record(shape, first_field, field_count, signature)
@@ -247,41 +237,9 @@ machine MacosX64::extent_shape(shape: ValueShape, signature: &BoundarySignature)
         }
     }
     state words(base: &ValueShape, length: &ValueShape) -> bool {
-        MacosX64::integer_shape(base, 8) && MacosX64::integer_shape(length, 8)
+        HostedEntryShapes::integer_shape(base, 8) && HostedEntryShapes::integer_shape(length, 8)
     }
     state no() -> bool { false }
-}
-
-machine MacosX64::named_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
-    let mut value: ValuePlacement;
-    value.shape.class = AbiValueClass::Integer;
-    value.shape.byte_size = bytes;
-    value.shape.alignment = bytes;
-    value.location_count = 1;
-    value.locations[0] = ValueLocation::Register {
-        register: register,
-        value_byte_offset: 0, byte_size: bytes,
-    };
-    value
-}
-
-machine MacosX64::extent_value(first: MachineRegister, second: MachineRegister) -> ValuePlacement {
-    // Integer fragments describe ABI placement only. The source application
-    // retains the core Extent record, qualifications, and requirement identity.
-    let mut value: ValuePlacement;
-    value.shape.class = AbiValueClass::Integer;
-    value.shape.byte_size = 16;
-    value.shape.alignment = 8;
-    value.location_count = 2;
-    value.locations[0] = ValueLocation::Register {
-        register: first,
-        value_byte_offset: 0, byte_size: 8,
-    };
-    value.locations[1] = ValueLocation::Register {
-        register: second,
-        value_byte_offset: 8, byte_size: 8,
-    };
-    value
 }
 
 boundary trait MacosX64Application: ProgramStorageEntry + MacosX64PhysicalEntry + Calling<MacosX64> {}

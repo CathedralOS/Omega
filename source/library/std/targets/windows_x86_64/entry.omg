@@ -1,5 +1,6 @@
 use omega::language::core::extent;
 use calling;
+use entry_shapes;
 
 // The Windows loader enters a PE32+ executable at its AddressOfEntryPoint
 // under the Microsoft x64 calling convention: the integer argument registers
@@ -46,7 +47,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 
     state physical_shape(result: ValueShape) -> BoundaryPlanResult {
-        transition WindowsX86_64::integer_shape(&result, 4) {
+        transition HostedEntryShapes::integer_shape(&result, 4) {
             true -> build_physical()
             _ -> reject()
         }
@@ -58,7 +59,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         output.call.has_result = true;
         // Process completion status returns in eax; the loader maps it to the
         // process exit code.
-        output.call.result = WindowsX86_64::named_word(4,
+        output.call.result = HostedEntryShapes::named_word(4,
             MachineRegister::X86Rax);
         transition { _ -> finish(output) }
     }
@@ -86,8 +87,8 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     state semantic_shapes(image: ValueShape, storage: ValueShape,
         signature: BoundarySignature) -> BoundaryPlanResult
     {
-        transition WindowsX86_64::extent_shape(image, &signature)
-            && WindowsX86_64::extent_shape(storage, &signature)
+        transition HostedEntryShapes::extent_shape(image, &signature)
+            && HostedEntryShapes::extent_shape(storage, &signature)
         {
             true -> build_semantic()
             _ -> reject()
@@ -161,71 +162,6 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
             },
         }
     }
-}
-
-machine WindowsX86_64::integer_shape(shape: &ValueShape, bytes: u64) -> bool {
-    transition shape.class {
-        ValueClass::Integer -> integer(shape, bytes)
-        _ -> no()
-    }
-    state integer(shape: &ValueShape, bytes: u64) -> bool {
-        shape.byte_size == bytes && shape.alignment == bytes
-    }
-    state no() -> bool { false }
-}
-
-machine WindowsX86_64::extent_shape(shape: ValueShape, signature: &BoundarySignature) -> bool {
-    transition shape.class {
-        ValueClass::Record { first_field, field_count } -> record(shape, first_field, field_count, signature)
-        _ -> no()
-    }
-    state record(shape: ValueShape, first_field: u64, field_count: u64, signature: &BoundarySignature) -> bool {
-        transition shape.byte_size == 16 && shape.alignment == 8
-            && field_count == 2
-        {
-            true -> record_bounded(signature, first_field)
-            _ -> no()
-        }
-    }
-    state record_bounded(signature: &BoundarySignature, first_field: u64) -> bool {
-        transition first_field < 255 {
-            true -> field_range(signature, first_field)
-            _ -> no()
-        }
-    }
-    state field_range(signature: &BoundarySignature, first_field: u64 [0..=254]) -> bool {
-        let second_field: u64 = first_field + 1;
-        transition second_field < signature.field_count {
-            true -> fields(signature, &signature.fields[first_field], &signature.fields[second_field])
-            _ -> no()
-        }
-    }
-    state fields(signature: &BoundarySignature, base: &ValueField, length: &ValueField) -> bool {
-        transition base.byte_offset == 0 && length.byte_offset == 8
-            && base.shape < 256 && length.shape < 256
-            && base.shape < signature.shape_count && length.shape < signature.shape_count
-        {
-            true -> words(&signature.shapes[base.shape], &signature.shapes[length.shape])
-            _ -> no()
-        }
-    }
-    state words(base: &ValueShape, length: &ValueShape) -> bool {
-        WindowsX86_64::integer_shape(base, 8) && WindowsX86_64::integer_shape(length, 8)
-    }
-    state no() -> bool { false }
-}
-
-machine WindowsX86_64::named_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
-    let mut value: ValuePlacement;
-    value.shape.class = AbiValueClass::Integer;
-    value.shape.byte_size = bytes;
-    value.shape.alignment = bytes;
-    value.location_count = 1;
-    value.locations[0] = ValueLocation::Register {
-        register: register,
-        value_byte_offset: 0, byte_size: bytes,
-    };
-    value
 }
 
 machine WindowsX86_64::extent_reference(register: MachineRegister,
