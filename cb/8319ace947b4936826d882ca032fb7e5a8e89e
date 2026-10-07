@@ -1,0 +1,4 @@
+owner: z6
+provenance: reduce-loc phase A wider-net: invalid_relocation + set_flag + rejection asserts + worker-spawn gate + integer-register param + pe_ordinal_with
+ticket: 93f9bdcc7a7b4e71b34b554cd96e9c2b
+published_utc: 2026-10-07T04:35:34.474142+00:00
