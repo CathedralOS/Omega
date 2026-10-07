@@ -43,6 +43,31 @@ pub(crate) enum GenericParameterSyntax {
     MathematicalDefinition,
 }
 
+/// The `>` terminator shared by every exit from the parameter-list loop:
+/// take the close punctuation, then wrap the accumulated span.
+fn close_generic_parameter_list<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    lifetime_parameters: Vec<Identifier>,
+    type_parameter_start: Handle<TypeParameter>,
+    type_parameter_count: u32,
+    conformance_bounds: Vec<syntax_trees::item::GenericConformanceBound>,
+) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
+    let input = input.take_punctuation(PunctuationKind::Greater, ">")?;
+    let type_parameters = if type_parameter_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(type_parameter_start, type_parameter_count)
+    };
+    Ok((
+        ParsedGenericParameters {
+            lifetime_parameters,
+            type_parameters,
+            conformance_bounds,
+        },
+        input,
+    ))
+}
+
 pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
@@ -116,20 +141,13 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                 continue;
             }
 
-            input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-            let type_parameters = if type_parameter_count == 0 {
-                HandleSpan::empty()
-            } else {
-                HandleSpan::from_parts(type_parameter_start, type_parameter_count)
-            };
-            return Ok((
-                ParsedGenericParameters {
-                    lifetime_parameters,
-                    type_parameters,
-                    conformance_bounds,
-                },
+            return close_generic_parameter_list(
                 input,
-            ));
+                lifetime_parameters,
+                type_parameter_start,
+                type_parameter_count,
+                conformance_bounds,
+            );
         }
 
         let (name, mut kind, next) = if input.at_contextual("const") {
@@ -206,20 +224,13 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                 input = input.take_punctuation(PunctuationKind::Comma, ",")?;
                 continue;
             }
-            input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-            let type_parameters = if type_parameter_count == 0 {
-                HandleSpan::empty()
-            } else {
-                HandleSpan::from_parts(type_parameter_start, type_parameter_count)
-            };
-            return Ok((
-                ParsedGenericParameters {
-                    lifetime_parameters,
-                    type_parameters,
-                    conformance_bounds,
-                },
+            return close_generic_parameter_list(
                 input,
-            ));
+                lifetime_parameters,
+                type_parameter_start,
+                type_parameter_count,
+                conformance_bounds,
+            );
         }
         if matches!(kind, TypeParameterKind::Type)
             && input.at_punctuation(PunctuationKind::Colon)
@@ -315,19 +326,12 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             continue;
         }
 
-        input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-        let type_parameters = if type_parameter_count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(type_parameter_start, type_parameter_count)
-        };
-        return Ok((
-            ParsedGenericParameters {
-                lifetime_parameters,
-                type_parameters,
-                conformance_bounds,
-            },
+        return close_generic_parameter_list(
             input,
-        ));
+            lifetime_parameters,
+            type_parameter_start,
+            type_parameter_count,
+            conformance_bounds,
+        );
     }
 }
