@@ -18,4 +18,5 @@ omega audit packages --project tests/omega/pass/targets/private_target_supplies_
 The readable findings retain both `linux_x86_64` and `macos_arm64` target-member
 contexts. Changing only the inactive Linux syscall must change its risk row,
 not disappear from review. Selecting Linux likewise retains both disclosures;
-the unknown pure tag must not demand native realization.
+the unknown tag's body and unused boundary call must not demand or borrow this
+activation's native realization.

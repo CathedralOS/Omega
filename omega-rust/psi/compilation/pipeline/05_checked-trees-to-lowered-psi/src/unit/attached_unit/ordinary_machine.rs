@@ -817,6 +817,10 @@ pub(super) fn emit(
         )?;
         (scalar_return, structural_return)
     };
+    // Operand evaluation can reserve continuation blocks before their parents
+    // are sealed. Both normal return and external completion publish identity
+    // order, not emission order; abandonment must not skip this common seal.
+    evaluation.blocks.sort_by_key(|block| block.id);
     next_operation = operations.next_identity;
     let declared_result = external_result.unwrap_or_else(|| {
         if let Some((_, result)) = scalar_return {

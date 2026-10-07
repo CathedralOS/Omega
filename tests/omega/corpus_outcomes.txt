@@ -1711,6 +1711,8 @@ fail/structs/local_record_policy_erasure rejected 258ms expected @2d8ed253669f
 	store in machine `observe` state `entry` local `value` implicitly converts `u8 in Wrapping` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
 fail/structural/foreign_case_record_member rejected 119ms expected @ca8c127c90c5
 	machine `inspect` state `entry` reads a nested member `count`, but data `Scanned` has no field `count` (check the spelling of the field name)
+fail/targets/inactive_external_locator_target_rejected rejected 52ms expected @db1571e34f4a+wt
+	ordinary external `via` returned an invalid locator: foreign locator MachODylibSymbol is not applicable to selected target `windows_x86_64`
 fail/targets/sibling_body_type_error_rejected rejected 1059ms expected @2d8ed253669f
 	machine `Helper::paradigm_internal` state `paradigm_internal` local `wrong` stores a boolean into a `i32` local, which holds a numeric value
 fail/targets/single_target_internal_caller_rejected rejected 831ms expected @2d8ed253669f
@@ -3298,6 +3300,7 @@ pass/structural/selected_record_payload_observations_exit checked 4647ms check-t
 pass/structural/sum_attachment_receiver_compile checked 288ms @2d8ed253669f
 pass/targets/aarch64_hfa_entry_argument checked 1288ms @2d8ed253669f
 pass/targets/efi_vtable_call checked 638ms @2d8ed253669f
+pass/targets/private_target_supplies_remain_disclosed checked 1493ms check-target:macos_arm64 @db1571e34f4a+wt
 pass/targets/retained_target_family_bodies checked 1604ms check-target:macos_arm64 @2740301f86f2+wt
 pass/targets/retained_target_provider_family_exit checked 1613ms check-target:macos_arm64 @8b63d5091f67
 pass/targets/single_target_internal_package_same_target_caller checked 1208ms check-target:macos_arm64 @2d8ed253669f
