@@ -1113,57 +1113,17 @@ fn boundary_result_origins(
     if parameters.len() != arguments.len() {
         return None;
     }
-    for (parameter, actual) in parameters.into_iter().zip(arguments) {
-        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
-        let parameter_type = substituted_head(program, parameter_type, &bindings);
-        let TypeReferenceNode::Reference {
-            access, referee, ..
-        } = program.type_reference_table.type_reference(parameter_type)
-        else {
-            // A by-value carrier can still store exclusive references whose
-            // referents this frame cannot name; its route stays opaque.
-            if type_may_carry_write_in(program, parameter_type, &bindings) {
-                return None;
-            }
-            continue;
-        };
-        if !access.is_exclusive() {
-            continue;
-        }
-        match owned_storage_may_hold(program, *referee, referent, &mut bindings) {
-            Some(true) => {
-                // The admitted route places name the storage the result may
-                // reach. Unless that storage can hold the referent only at
-                // its root, the referent's offset inside stays unknown and a
-                // projected origin must not narrow beneath the root.
-                let root_only =
-                    storage_holds_referent_only_at_root(program, *referee, referent, &mut bindings);
-                for origin in boundary_argument_origins(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    *actual,
-                    inference,
-                )? {
-                    push_unique_origin(
-                        &mut origins,
-                        if root_only {
-                            origin
-                        } else {
-                            FramePlaceOrigin {
-                                precision: FramePathPrecision::CollectionCoarse,
-                                ..origin
-                            }
-                        },
-                    );
-                }
-            }
-            Some(false) => {}
-            None => return None,
-        }
-    }
-    (!origins.is_empty()).then_some(origins)
+    exclusive_boundary_result_origins(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        parameters,
+        arguments,
+        referent,
+        &mut bindings,
+        inference,
+    )
 }
 
 /// The signature's admitted candidate routes canonicalized through the
@@ -1208,6 +1168,76 @@ pub(super) fn boundary_result_candidate_origins(
 /// result, with the signature selected by retained `target_symbol` rather
 /// than receiver spelling. Explicit exclusive arguments supply the admitted
 /// storage origins.
+/// The boundary result's exclusive-reference storage reach, shared by the
+/// boundary and requirement walks: each admitted argument whose carrier type
+/// may itself store the referent contributes its origins, root-only storage
+/// keeps them collection-coarse.
+#[allow(clippy::too_many_arguments)]
+fn exclusive_boundary_result_origins(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    parameters: Vec<&StateParameter>,
+    arguments: &[ExpressionHandle],
+    referent: TypeReferenceHandle,
+    bindings: &mut TypeBindings,
+    inference: &mut FrameInference,
+) -> Option<Vec<FramePlaceOrigin>> {
+    let mut origins = Vec::new();
+    for (parameter, actual) in parameters.into_iter().zip(arguments) {
+        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
+        let parameter_type = substituted_head(program, parameter_type, &*bindings);
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = program.type_reference_table.type_reference(parameter_type)
+        else {
+            // A by-value carrier can still store exclusive references whose
+            // referents this frame cannot name; its route stays opaque.
+            if type_may_carry_write_in(program, parameter_type, &*bindings) {
+                return None;
+            }
+            continue;
+        };
+        if !access.is_exclusive() {
+            continue;
+        }
+        match owned_storage_may_hold(program, *referee, referent, &mut *bindings) {
+            Some(true) => {
+                // The admitted route places name the storage the result may
+                // reach. Unless that storage can hold the referent only at
+                // its root, the referent's offset inside stays unknown and a
+                // projected origin must not narrow beneath the root.
+                let root_only =
+                    storage_holds_referent_only_at_root(program, *referee, referent, &mut *bindings);
+                for origin in boundary_argument_origins(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    symbols,
+                    *actual,
+                    inference,
+                )? {
+                    push_unique_origin(
+                        &mut origins,
+                        if root_only {
+                            origin
+                        } else {
+                            FramePlaceOrigin {
+                                precision: FramePathPrecision::CollectionCoarse,
+                                ..origin
+                            }
+                        },
+                    );
+                }
+            }
+            Some(false) => {}
+            None => return None,
+        }
+    }
+    (!origins.is_empty()).then_some(origins)
+}
+
 fn requirement_result_origins(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -1252,58 +1282,17 @@ fn requirement_result_origins(
     let referent =
         live_unconstrained_type(program, substituted_head(program, *referee, &bindings))?;
 
-    let mut origins = Vec::new();
-    for (parameter, actual) in paired.into_iter().zip(arguments) {
-        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
-        let parameter_type = substituted_head(program, parameter_type, &bindings);
-        let TypeReferenceNode::Reference {
-            access, referee, ..
-        } = program.type_reference_table.type_reference(parameter_type)
-        else {
-            // A by-value carrier can still store exclusive references whose
-            // referents this frame cannot name; its route stays opaque.
-            if type_may_carry_write_in(program, parameter_type, &bindings) {
-                return None;
-            }
-            continue;
-        };
-        if !access.is_exclusive() {
-            continue;
-        }
-        match owned_storage_may_hold(program, *referee, referent, &mut bindings) {
-            Some(true) => {
-                // The admitted route places name the storage the result may
-                // reach. Unless that storage can hold the referent only at
-                // its root, the referent's offset inside stays unknown and a
-                // projected origin must not narrow beneath the root.
-                let root_only =
-                    storage_holds_referent_only_at_root(program, *referee, referent, &mut bindings);
-                for origin in boundary_argument_origins(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    *actual,
-                    inference,
-                )? {
-                    push_unique_origin(
-                        &mut origins,
-                        if root_only {
-                            origin
-                        } else {
-                            FramePlaceOrigin {
-                                precision: FramePathPrecision::CollectionCoarse,
-                                ..origin
-                            }
-                        },
-                    );
-                }
-            }
-            Some(false) => {}
-            None => return None,
-        }
-    }
-    (!origins.is_empty()).then_some(origins)
+    exclusive_boundary_result_origins(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        paired,
+        arguments,
+        referent,
+        &mut bindings,
+        inference,
+    )
 }
 
 /// The requirement signature's admitted candidate routes canonicalized into
