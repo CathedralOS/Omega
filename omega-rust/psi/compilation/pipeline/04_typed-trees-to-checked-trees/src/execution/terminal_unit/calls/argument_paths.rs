@@ -914,18 +914,9 @@ pub(crate) fn projected_call_contracts_are_represented(
         return false;
     }
     let has_content_evidence = |machine, state| {
-        facts
-            .qualifications
-            .content
-            .identity_reshuffles
-            .iter()
-            .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
-            || facts
-                .qualifications
-                .content
-                .partition_compositions
-                .iter()
-                .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
+        crate::execution::terminal_unit::cleanup::machine_has_content_evidence(
+            facts, machine, state,
+        )
     };
     let content_evidence = has_content_evidence(caller_machine.symbol, caller_state.symbol)
         || has_content_evidence(target_machine.symbol, target_state.symbol);
