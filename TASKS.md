@@ -1479,10 +1479,11 @@ defines the complete product bar.
   `mixed_integer_guard_comparison`, `pass/core/numeric_cross_signed_conversion_surface`
   execute on all three hosts; `pass/core/numeric_trapping_conversion_overflow`
   traps). Guarded Trap ceilings run:
-  `pass/core/runtime_guarded_trapping_conversion_exit` exits 70. Since
-  1d2efdb0e2 deleted certificate search, nothing rejects an uncovered site:
-  the four `fail/core/guarded_trap_ceiling_*_rejected` fixtures check; the
-  checker must refuse a Trapping site its `crashes Trap` predicate misses.
+  `pass/core/runtime_guarded_trapping_conversion_exit` exits 70, and the
+  checker refuses an integer or float-to-int Trapping site its `crashes Trap`
+  routes miss (`fail/core/guarded_trap_ceiling_*_rejected`). Trapping float
+  arithmetic and float-to-float conversions are not yet judged against a
+  published ceiling, and a site outside the entry state relies on no route.
   Preserve operation site, operands, carrier, cause and normal-only result
   equation; coordinate **CRASH-CONTRACT** and never invent a Crash edge.
 
