@@ -5,8 +5,6 @@ use super::*;
 /// checks add, and multiply checks divide. Each checker differs only in the
 /// two term variants it matches and the endpoint steps it records, so one
 /// parameterized check carries all three.
-type TermMatcher = fn(&ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)>;
-
 fn check_correlated_witness(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
@@ -82,50 +80,6 @@ fn check_correlated_witness(
         offset: 0,
         endpoint_steps: vec![endpoint_step],
     }))
-}
-
-fn exact_integer_add(term: &ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)> {
-    match term {
-        ScalarTerm::ExactIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        } => Some((scalar_type, left, right)),
-        _ => None,
-    }
-}
-
-fn exact_integer_subtract(term: &ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)> {
-    match term {
-        ScalarTerm::ExactIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-        } => Some((scalar_type, left, right)),
-        _ => None,
-    }
-}
-
-fn exact_integer_multiply(term: &ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)> {
-    match term {
-        ScalarTerm::ExactIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-        } => Some((scalar_type, left, right)),
-        _ => None,
-    }
-}
-
-fn exact_integer_divide(term: &ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)> {
-    match term {
-        ScalarTerm::ExactIntegerDivide {
-            scalar_type,
-            left,
-            right,
-        } => Some((scalar_type, left, right)),
-        _ => None,
-    }
 }
 
 pub(super) fn check_correlated_add_witness(

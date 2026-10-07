@@ -166,7 +166,9 @@ pub(super) fn apply_definition(
             } else {
                 left
             };
-            if let Some((sibling, used_landing)) = signed_literal(sibling_operand, integer_type, landed) {
+            if let Some((sibling, used_landing)) =
+                signed_literal(sibling_operand, integer_type, landed)
+            {
                 if sibling < 0 {
                     return Some(Err(IntegerAffineWitnessError::NegativeBitwiseOrSibling));
                 }
@@ -177,7 +179,8 @@ pub(super) fn apply_definition(
                     CheckedIntegerEndpointStep::BitwiseOrLiteralImage(sibling),
                 )
             } else {
-                let (operand, upper) = bounded_bitwise_sibling(sibling_operand, integer_type, prior_axioms)?;
+                let (operand, upper) =
+                    bounded_bitwise_sibling(sibling_operand, integer_type, prior_axioms)?;
                 (
                     Some(coefficient),
                     Some(offset),
@@ -438,6 +441,68 @@ fn nonnegative_count(
     }
 }
 
+/// Traverse an `Equal(defined, <policy>_add(operand, literal))` row toward its
+/// operand. Exactly one addend may be the chain operand: if both addends land
+/// as literals the backward step is ambiguous and rejects rather than
+/// guessing which value produced the sum.
+#[allow(clippy::too_many_arguments)]
+fn apply_add_inverse(
+    defined: &ScalarTerm,
+    expression: &ScalarTerm,
+    current: &ScalarTerm,
+    integer_type: IntegerType,
+    coefficient: i128,
+    offset: i128,
+    landed: Option<&LandedInteger>,
+    definition_index: usize,
+    matcher: TermMatcher,
+    step: fn(&ScalarTerm, i128) -> CheckedIntegerEndpointStep,
+) -> Option<
+    Result<(ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep), IntegerAffineWitnessError>,
+> {
+    if !matches!(defined, ScalarTerm::Value { .. }) || defined != current {
+        return None;
+    }
+    let Some((scalar_type, left, right)) = matcher(expression) else {
+        return None;
+    };
+    if *scalar_type != integer_type {
+        return None;
+    }
+    let left_operand = if matches!(left, ScalarTerm::Value { .. }) {
+        signed_literal(right, integer_type, landed)
+    } else {
+        None
+    };
+    let right_operand = if matches!(right, ScalarTerm::Value { .. }) {
+        signed_literal(left, integer_type, landed)
+    } else {
+        None
+    };
+    let (operand, literal, used_landing) = match (left_operand, right_operand) {
+        (Some((literal, used)), None) => (left, literal, used),
+        (None, Some((literal, used))) => (right, literal, used),
+        (None, None) => return None,
+        (Some(_), Some(_)) => {
+            return Some(Err(IntegerAffineWitnessError::AmbiguousDefinition(
+                definition_index,
+            )));
+        }
+    };
+    // `operand = defined - literal` keeps the coefficient; the mapped offset
+    // moves opposite the forward step.
+    Some(match offset.checked_sub(literal) {
+        Some(offset) => Ok((
+            operand.clone(),
+            coefficient,
+            offset,
+            used_landing,
+            step(operand, literal),
+        )),
+        None => Err(IntegerAffineWitnessError::CoefficientOverflow),
+    })
+}
+
 /// Traverse an `Equal(defined, wrapping_add(operand, literal))` row toward its
 /// operand. Only unsigned fixed carriers qualify, and exactly one addend may
 /// be the chain operand: if both addends land as literals the backward step is
@@ -455,55 +520,21 @@ pub(super) fn apply_wrapping_add_inverse(
 ) -> Option<
     Result<(ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep), IntegerAffineWitnessError>,
 > {
-    if !matches!(defined, ScalarTerm::Value { .. }) || defined != current {
-        return None;
-    }
-    let ScalarTerm::WrappingIntegerAdd {
-        scalar_type,
-        left,
-        right,
-    } = expression
-    else {
-        return None;
-    };
-    if *scalar_type != integer_type {
-        return None;
-    }
-    let left_operand = if matches!(left.as_ref(), ScalarTerm::Value { .. }) {
-        signed_literal(right, integer_type, landed)
-    } else {
-        None
-    };
-    let right_operand = if matches!(right.as_ref(), ScalarTerm::Value { .. }) {
-        signed_literal(left, integer_type, landed)
-    } else {
-        None
-    };
-    let (operand, literal, used_landing) = match (left_operand, right_operand) {
-        (Some((literal, used)), None) => (left.as_ref(), literal, used),
-        (None, Some((literal, used))) => (right.as_ref(), literal, used),
-        (None, None) => return None,
-        (Some(_), Some(_)) => {
-            return Some(Err(IntegerAffineWitnessError::AmbiguousDefinition(
-                definition_index,
-            )));
-        }
-    };
-    // `x = defined - literal (mod 2^w)` keeps the coefficient; the mapped
-    // offset moves opposite the forward step.
-    Some(match offset.checked_sub(literal) {
-        Some(offset) => Ok((
-            operand.clone(),
-            coefficient,
-            offset,
-            used_landing,
-            CheckedIntegerEndpointStep::WrappingAddBackward {
-                operand: operand.clone(),
-                literal,
-            },
-        )),
-        None => Err(IntegerAffineWitnessError::CoefficientOverflow),
-    })
+    apply_add_inverse(
+        defined,
+        expression,
+        current,
+        integer_type,
+        coefficient,
+        offset,
+        landed,
+        definition_index,
+        wrapping_integer_add,
+        |operand, literal| CheckedIntegerEndpointStep::WrappingAddBackward {
+            operand: operand.clone(),
+            literal,
+        },
+    )
 }
 
 /// Traverse an `Equal(defined, exact_add(operand, literal))` row toward its
@@ -525,51 +556,16 @@ pub(super) fn apply_exact_add_inverse(
 ) -> Option<
     Result<(ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep), IntegerAffineWitnessError>,
 > {
-    if !matches!(defined, ScalarTerm::Value { .. }) || defined != current {
-        return None;
-    }
-    let ScalarTerm::ExactIntegerAdd {
-        scalar_type,
-        left,
-        right,
-    } = expression
-    else {
-        return None;
-    };
-    if *scalar_type != integer_type {
-        return None;
-    }
-    let left_operand = if matches!(left.as_ref(), ScalarTerm::Value { .. }) {
-        signed_literal(right, integer_type, landed)
-    } else {
-        None
-    };
-    let right_operand = if matches!(right.as_ref(), ScalarTerm::Value { .. }) {
-        signed_literal(left, integer_type, landed)
-    } else {
-        None
-    };
-    let (operand, literal, used_landing) = match (left_operand, right_operand) {
-        (Some((literal, used)), None) => (left.as_ref(), literal, used),
-        (None, Some((literal, used))) => (right.as_ref(), literal, used),
-        (None, None) => return None,
-        (Some(_), Some(_)) => {
-            return Some(Err(IntegerAffineWitnessError::AmbiguousDefinition(
-                definition_index,
-            )));
-        }
-    };
-    // `operand = defined - literal` keeps the coefficient; the mapped offset
-    // moves opposite the forward step, and the `Subtract` endpoint step maps
-    // the bound's literal the same way.
-    Some(match offset.checked_sub(literal) {
-        Some(offset) => Ok((
-            operand.clone(),
-            coefficient,
-            offset,
-            used_landing,
-            CheckedIntegerEndpointStep::Subtract(literal),
-        )),
-        None => Err(IntegerAffineWitnessError::CoefficientOverflow),
-    })
+    apply_add_inverse(
+        defined,
+        expression,
+        current,
+        integer_type,
+        coefficient,
+        offset,
+        landed,
+        definition_index,
+        exact_integer_add,
+        |_, literal| CheckedIntegerEndpointStep::Subtract(literal),
+    )
 }
