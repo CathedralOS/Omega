@@ -165,29 +165,31 @@ impl ScalarTerm {
                     source_type.exact_cast_value_to(*target_type, operand)?,
                 ))
             }
-            Self::WrappingIntegerAdd { scalar_type, .. } => {
+            Self::WrappingIntegerAdd { scalar_type, .. }
+            | Self::SaturatingIntegerAdd { scalar_type, .. }
+            | Self::WrappingIntegerSubtract { scalar_type, .. }
+            | Self::SaturatingIntegerSubtract { scalar_type, .. }
+            | Self::WrappingIntegerMultiply { scalar_type, .. }
+            | Self::SaturatingIntegerMultiply { scalar_type, .. } => {
                 let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.wrapping_add(left, right)?))
-            }
-            Self::SaturatingIntegerAdd { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.saturating_add(left, right)?))
-            }
-            Self::WrappingIntegerSubtract { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.wrapping_sub(left, right)?))
-            }
-            Self::SaturatingIntegerSubtract { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.saturating_sub(left, right)?))
-            }
-            Self::WrappingIntegerMultiply { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.wrapping_mul(left, right)?))
-            }
-            Self::SaturatingIntegerMultiply { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.saturating_mul(left, right)?))
+                let value = match self {
+                    Self::WrappingIntegerAdd { .. } => scalar_type.wrapping_add(left, right)?,
+                    Self::SaturatingIntegerAdd { .. } => scalar_type.saturating_add(left, right)?,
+                    Self::WrappingIntegerSubtract { .. } => {
+                        scalar_type.wrapping_sub(left, right)?
+                    }
+                    Self::SaturatingIntegerSubtract { .. } => {
+                        scalar_type.saturating_sub(left, right)?
+                    }
+                    Self::WrappingIntegerMultiply { .. } => {
+                        scalar_type.wrapping_mul(left, right)?
+                    }
+                    Self::SaturatingIntegerMultiply { .. } => {
+                        scalar_type.saturating_mul(left, right)?
+                    }
+                    _ => unreachable!(),
+                };
+                Some((*scalar_type, value))
             }
             Self::IntegerBitwiseAnd { scalar_type, .. }
             | Self::IntegerBitwiseOr { scalar_type, .. }
@@ -247,10 +249,6 @@ impl ScalarTerm {
                 };
                 Some((*value_type, result))
             }
-            Self::ExactIntegerAdd { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.exact_add(left, right)?))
-            }
             Self::ExactIntegerSubtract { scalar_type, .. } => {
                 let right = operands.pop().flatten();
                 let left = operands.pop().flatten();
@@ -261,33 +259,33 @@ impl ScalarTerm {
                     scalar_type.exact_subtract_values(left_type, left, right_type, right)?,
                 ))
             }
-            Self::ExactIntegerMultiply { scalar_type, .. } => {
+            Self::ExactIntegerAdd { scalar_type, .. }
+            | Self::ExactIntegerMultiply { scalar_type, .. }
+            | Self::ExactIntegerDivide { scalar_type, .. }
+            | Self::ExactIntegerRemainder { scalar_type, .. }
+            | Self::WrappingIntegerDivide { scalar_type, .. }
+            | Self::WrappingIntegerRemainder { scalar_type, .. }
+            | Self::SaturatingIntegerDivide { scalar_type, .. }
+            | Self::SaturatingIntegerRemainder { scalar_type, .. } => {
                 let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.exact_mul(left, right)?))
-            }
-            Self::ExactIntegerDivide { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.exact_div(left, right)?))
-            }
-            Self::ExactIntegerRemainder { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.exact_rem(left, right)?))
-            }
-            Self::WrappingIntegerDivide { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.wrapping_div(left, right)?))
-            }
-            Self::WrappingIntegerRemainder { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.wrapping_rem(left, right)?))
-            }
-            Self::SaturatingIntegerDivide { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.saturating_div(left, right)?))
-            }
-            Self::SaturatingIntegerRemainder { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.saturating_rem(left, right)?))
+                let value = match self {
+                    Self::ExactIntegerAdd { .. } => scalar_type.exact_add(left, right)?,
+                    Self::ExactIntegerMultiply { .. } => scalar_type.exact_mul(left, right)?,
+                    Self::ExactIntegerDivide { .. } => scalar_type.exact_div(left, right)?,
+                    Self::ExactIntegerRemainder { .. } => scalar_type.exact_rem(left, right)?,
+                    Self::WrappingIntegerDivide { .. } => scalar_type.wrapping_div(left, right)?,
+                    Self::WrappingIntegerRemainder { .. } => {
+                        scalar_type.wrapping_rem(left, right)?
+                    }
+                    Self::SaturatingIntegerDivide { .. } => {
+                        scalar_type.saturating_div(left, right)?
+                    }
+                    Self::SaturatingIntegerRemainder { .. } => {
+                        scalar_type.saturating_rem(left, right)?
+                    }
+                    _ => unreachable!(),
+                };
+                Some((*scalar_type, value))
             }
             _ => None,
         }
