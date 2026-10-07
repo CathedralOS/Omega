@@ -28,20 +28,7 @@ pub(super) fn propose_proof_certified_scalar_identities(
             AnalysisKind::ScalarConstants,
         ));
     };
-    let Some(AnalysisProduct::UseDefinition(use_definitions)) =
-        analyses.get(AnalysisKind::UseDefinition)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::UseDefinition,
-        ));
-    };
-    let Some(AnalysisProduct::EffectSummaries(effects)) =
-        analyses.get(AnalysisKind::EffectSummaries)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::EffectSummaries,
-        ));
-    };
+    let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
     let mut candidates = Vec::new();
     for function in &unit.functions {
         for block in &function.blocks {

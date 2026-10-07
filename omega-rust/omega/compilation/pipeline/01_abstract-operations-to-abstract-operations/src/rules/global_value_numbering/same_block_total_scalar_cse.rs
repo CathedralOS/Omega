@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
+use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
     LocalScalarCommonSubexpressionRewrite, NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate,
 };
@@ -10,7 +10,7 @@ use optimization_unit::{
 use super::expression_keys::total_scalar_expression;
 use crate::rules::global_value_numbering::{exact_pure_scalar_effect, same_block_contract};
 use crate::rules::node_elision::node_elision_accounting;
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SameBlockTotalScalarCseRule;
@@ -34,40 +34,10 @@ impl PsiOptimizationRule for SameBlockTotalScalarCseRule {
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
-            analyses.get(AnalysisKind::UseDefinition)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::UseDefinition,
-            ));
-        };
-        let Some(AnalysisProduct::EffectSummaries(effects)) =
-            analyses.get(AnalysisKind::EffectSummaries)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::EffectSummaries,
-            ));
-        };
+        let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
         let mut candidates = Vec::new();
         for function in &unit.functions {
-            let value_types = function
-                .parameters
-                .iter()
-                .map(|row| (row.value, row.scalar_type))
-                .chain(function.blocks.iter().flat_map(|block| {
-                    block
-                        .parameters
-                        .iter()
-                        .map(|row| (row.value, row.scalar_type))
-                }))
-                .chain(function.blocks.iter().flat_map(|block| {
-                    block.nodes.iter().flat_map(|node| {
-                        node.definitions
-                            .iter()
-                            .map(|row| (row.value, row.scalar_type))
-                    })
-                }))
-                .collect::<BTreeMap<_, _>>();
+            let value_types = super::function_value_types(function);
             for block in &function.blocks {
                 let mut leaders = BTreeMap::new();
                 for (index, node) in block.nodes.iter().enumerate() {

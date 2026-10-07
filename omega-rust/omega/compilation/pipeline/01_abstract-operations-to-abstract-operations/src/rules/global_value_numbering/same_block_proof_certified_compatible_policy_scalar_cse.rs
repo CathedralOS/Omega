@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
+use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
     LocalScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, PsiOptimizationUnit,
     PsiRewriteCandidate,
@@ -13,7 +13,7 @@ use super::expression_keys::{compatible_policy_scalar_leader, compatible_policy_
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::global_value_numbering::same_block_contract;
 use crate::rules::node_elision::node_elision_accounting;
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
@@ -37,20 +37,7 @@ impl PsiOptimizationRule for SameBlockProofCertifiedCompatiblePolicyScalarCseRul
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
-            analyses.get(AnalysisKind::UseDefinition)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::UseDefinition,
-            ));
-        };
-        let Some(AnalysisProduct::EffectSummaries(effects)) =
-            analyses.get(AnalysisKind::EffectSummaries)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::EffectSummaries,
-            ));
-        };
+        let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
         let mut candidates = Vec::new();
         for function in &unit.functions {
             for block in &function.blocks {

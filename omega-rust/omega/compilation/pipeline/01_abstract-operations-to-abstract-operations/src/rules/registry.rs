@@ -11,7 +11,7 @@ use optimization_core::{
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError};
 use semantic_vocabulary::{MachineId, ObligationId, OperationId};
 
-use crate::AnalysisProduct;
+use crate::{AnalysisProduct, EffectSummaryAnalysis, UseDefinitionAnalysis};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RuleAnalysisView<'a> {
@@ -62,6 +62,28 @@ impl<'a> RuleAnalysisView<'a> {
                 .then(|| products.get(&kind))
                 .flatten(),
         }
+    }
+
+    /// Read shared prerequisites in their established diagnostic order. Going
+    /// through the view retains requested-set gating and first-match lookup.
+    pub(crate) fn use_definitions_and_effects(
+        self,
+    ) -> Result<(&'a UseDefinitionAnalysis, &'a EffectSummaryAnalysis), RuleProposalError> {
+        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+            self.get(AnalysisKind::UseDefinition)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::UseDefinition,
+            ));
+        };
+        let Some(AnalysisProduct::EffectSummaries(effects)) =
+            self.get(AnalysisKind::EffectSummaries)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::EffectSummaries,
+            ));
+        };
+        Ok((use_definitions, effects))
     }
 }
 

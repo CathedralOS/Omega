@@ -47,20 +47,7 @@ impl PsiOptimizationRule for PhiTranslatedProofCertifiedCompatiblePolicyScalarGv
         else {
             return Err(RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
         };
-        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
-            analyses.get(AnalysisKind::UseDefinition)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::UseDefinition,
-            ));
-        };
-        let Some(AnalysisProduct::EffectSummaries(effects)) =
-            analyses.get(AnalysisKind::EffectSummaries)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::EffectSummaries,
-            ));
-        };
+        let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
 
         let mut candidates = Vec::new();
         for function in &unit.functions {
@@ -70,24 +57,7 @@ impl PsiOptimizationRule for PhiTranslatedProofCertifiedCompatiblePolicyScalarGv
                 .find(|(machine, _)| *machine == function.machine)
                 .map(|(_, rows)| rows.as_slice())
                 .unwrap_or_default();
-            let value_types = function
-                .parameters
-                .iter()
-                .map(|row| (row.value, row.scalar_type))
-                .chain(function.blocks.iter().flat_map(|block| {
-                    block
-                        .parameters
-                        .iter()
-                        .map(|row| (row.value, row.scalar_type))
-                }))
-                .chain(function.blocks.iter().flat_map(|block| {
-                    block.nodes.iter().flat_map(|node| {
-                        node.definitions
-                            .iter()
-                            .map(|row| (row.value, row.scalar_type))
-                    })
-                }))
-                .collect::<BTreeMap<_, _>>();
+            let value_types = super::function_value_types(function);
             let mut leaders = Vec::new();
             let mut redundants = Vec::new();
             for block in &function.blocks {

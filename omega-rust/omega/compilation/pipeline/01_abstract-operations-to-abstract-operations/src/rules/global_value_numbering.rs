@@ -8,12 +8,14 @@
 //! `total_scalar_identities` the identity rules' shared traversal, and
 //! `phi_translated_accounting` the join-parameter provenance accounting.
 
+use std::collections::BTreeMap;
+
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::PsiOptimizationUnit;
-use semantic_vocabulary::{BlockId, MachineId};
+use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+use semantic_vocabulary::{BlockId, MachineId, ScalarType, ValueId};
 
 use crate::EffectSummaryAnalysis;
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
@@ -151,4 +153,27 @@ pub(super) fn exact_pure_scalar_effect(
             && row.crash == crate::EffectKnowledge::No
             && row.suspension == crate::EffectKnowledge::No
     })
+}
+
+/// Build a fresh rule-local type roster in declaration order. Later block
+/// parameters and node definitions keep the original last-write-wins behavior.
+fn function_value_types(function: &PsiOptimizationFunction) -> BTreeMap<ValueId, ScalarType> {
+    function
+        .parameters
+        .iter()
+        .map(|row| (row.value, row.scalar_type))
+        .chain(function.blocks.iter().flat_map(|block| {
+            block
+                .parameters
+                .iter()
+                .map(|row| (row.value, row.scalar_type))
+        }))
+        .chain(function.blocks.iter().flat_map(|block| {
+            block.nodes.iter().flat_map(|node| {
+                node.definitions
+                    .iter()
+                    .map(|row| (row.value, row.scalar_type))
+            })
+        }))
+        .collect()
 }

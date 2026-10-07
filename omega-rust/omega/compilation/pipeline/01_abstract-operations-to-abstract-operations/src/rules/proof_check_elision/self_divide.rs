@@ -14,7 +14,7 @@ use semantic_vocabulary::{IntegerCarrier, IntegerSign};
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::proof_check_elision::identity_rewrite::integer_one;
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LiveProofCertifiedIntegerSelfDivideEliminationRule;
@@ -48,20 +48,7 @@ impl PsiOptimizationRule for LiveProofCertifiedIntegerSelfDivideEliminationRule 
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
-            analyses.get(AnalysisKind::UseDefinition)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::UseDefinition,
-            ));
-        };
-        let Some(AnalysisProduct::EffectSummaries(effects)) =
-            analyses.get(AnalysisKind::EffectSummaries)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::EffectSummaries,
-            ));
-        };
+        let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
         let mut candidates = Vec::new();
         for function in &unit.functions {
             for block in &function.blocks {
