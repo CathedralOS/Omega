@@ -15,12 +15,11 @@ use calling_conventions::{
     BoundaryEntryPlan, CallbackBinderRequirement, CallbackMaterializationContext,
     CallbackRequirementId, EntryStack, MachineRegime, MachineState, MachineStateSet,
     NativeCallbackDemand, NativeParameterApplication, NativeParameterId, Preemption, StatePlan,
-    StaticMachineBinderId, encode_state_plan_identity,
+    StaticMachineBinderId,
 };
 use function_identity::{MachineFunctionIdentity, StateKey};
 use legalized_operations::{
-    LegalizedNormalizedForeignCall, encode_call_binding, encode_call_plan,
-    encode_machine_function_identity, encode_native_place, encode_placement,
+    LegalizedNormalizedForeignCall, encode_call_binding, encode_placement,
     encode_provider_execution, encode_shape,
 };
 use selected_instructions::effects::program::identity::encode_ownership;
@@ -45,7 +44,7 @@ use super::{
     declarations::{decode_string, decode_target_argument, encode_target_argument},
     settlements::{decode_effect, decode_ownership, decode_provider_execution, encode_effect},
 };
-use legalized_operations::encode_integer;
+use legalized_operations::{encode_integer, encode_native_callback_argument};
 
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, length},
@@ -206,41 +205,7 @@ pub(super) fn decode_normalized_foreign_call(
     })
 }
 
-/// The retained registrar roster row is indivisible custody: the authored-use
-/// operation, thunk slot, private function identity, exact native
-/// application, registrar entry plan, binder/demand context, and sealed
-/// application commitment decode through the same constructors that issued
-/// them.
-fn encode_native_callback_argument(bytes: &mut Vec<u8>, callback: &TargetNativeCallbackArgument) {
-    bytes.extend_from_slice(&callback.terminal_operation.get().to_le_bytes());
-    bytes.extend_from_slice(&(callback.placement_index as u64).to_le_bytes());
-    encode_machine_function_identity(bytes, &callback.callback_function);
-    bytes.extend_from_slice(&callback.application.parameter.get().to_le_bytes());
-    bytes.extend_from_slice(&callback.application.native_ordinal.to_le_bytes());
-    encode_shape(bytes, callback.application.shape);
-    encode_placement(bytes, &callback.application.placement);
-    encode_native_place(bytes, &callback.destination);
-    match callback.field_byte_offset {
-        Some(offset) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&(offset as u64).to_le_bytes());
-        }
-        None => bytes.push(0),
-    }
-    encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
-    encode_state_plan_identity(bytes, &callback.registrar_boundary_entry_plan.state);
-    length(bytes, callback.registrar_context.binders.len());
-    for row in &callback.registrar_context.binders {
-        bytes.extend_from_slice(&row.binder.get().to_le_bytes());
-        bytes.extend_from_slice(&row.requirement.get().to_le_bytes());
-    }
-    length(bytes, callback.registrar_context.demands.len());
-    for demand in &callback.registrar_context.demands {
-        encode_native_place(bytes, &demand.destination);
-        bytes.extend_from_slice(&demand.requirement.get().to_le_bytes());
-    }
-    bytes.extend_from_slice(&callback.registrar_application_commitment);
-}
+
 
 fn decode_native_callback_argument(
     cursor: &mut Cursor<'_>,

@@ -79,7 +79,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
 /// private function identity, the exact native application, the registrar's
 /// own boundary-entry plan, its binder/demand context, and the sealed
 /// application commitment. Every field is retained custody, not derivation.
-fn encode_native_callback_argument(
+pub fn encode_native_callback_argument(
     bytes: &mut Vec<u8>,
     callback: &target_operations::TargetNativeCallbackArgument,
 ) {
