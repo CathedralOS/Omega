@@ -3,8 +3,8 @@
 
 use super::{
     CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-    ExpressionNode, StatementPlanner, assignment_target_primitive_type, lower_call_arguments,
-    lower_index_expression, lower_return_expression, retain_call_arguments,
+    ExpressionNode, StatementPlanner, assignment_target_primitive_type, located_binding_symbols,
+    lower_call_arguments, lower_index_expression, lower_return_expression, retain_call_arguments,
     retain_subslice_endpoints, scalar_qualified_call_expression,
 };
 
@@ -83,17 +83,8 @@ pub(super) fn plan(
             statement_ordinal,
             role: CheckedScalarExpressionRole::AssignmentIndex { depth },
             expression: index,
-            symbols: binding_symbols.insert_many(
-                scalar_parameters
-                    .iter()
-                    .map(|parameter| parameter.symbol)
-                    .chain(
-                        locals
-                            .iter()
-                            .filter(|local| local.is_value_binding())
-                            .map(|local| local.symbol),
-                    ),
-            ),
+            symbols: binding_symbols
+                .insert_many(located_binding_symbols(scalar_parameters, locals)),
         });
         expressions.push(CheckedLocatedScalarExpression {
             state: state.symbol,
@@ -177,17 +168,7 @@ pub(super) fn plan(
         statement_ordinal,
         role: CheckedScalarExpressionRole::AssignmentValue,
         expression: assignment.value,
-        symbols: binding_symbols.insert_many(
-            scalar_parameters
-                .iter()
-                .map(|parameter| parameter.symbol)
-                .chain(
-                    locals
-                        .iter()
-                        .filter(|local| local.is_value_binding())
-                        .map(|local| local.symbol),
-                ),
-        ),
+        symbols: binding_symbols.insert_many(located_binding_symbols(scalar_parameters, locals)),
     });
     expressions.push(CheckedLocatedScalarExpression {
         state: state.symbol,

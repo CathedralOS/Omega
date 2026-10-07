@@ -4,8 +4,8 @@
 
 use super::{
     CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-    ExpressionHandle, ExpressionNode, StatementPlanner, lower_call_arguments,
-    lower_return_expression, retain_call_arguments,
+    ExpressionHandle, ExpressionNode, StatementPlanner, located_binding_symbols,
+    lower_call_arguments, lower_return_expression, retain_call_arguments,
 };
 
 pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHandle) {
@@ -77,8 +77,7 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
                 role,
                 expression: field.value,
                 symbols: binding_symbols.insert_many(
-                    scalar_parameters.iter().map(|parameter| parameter.symbol)
-                        .chain(locals.iter().filter(|local| local.is_value_binding()).map(|local| local.symbol)),
+                    located_binding_symbols(scalar_parameters, locals),
                 ),
             });
             expressions.push(CheckedLocatedScalarExpression {
@@ -136,17 +135,8 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
             statement_ordinal,
             role: CheckedScalarExpressionRole::Return,
             expression,
-            symbols: binding_symbols.insert_many(
-                scalar_parameters
-                    .iter()
-                    .map(|parameter| parameter.symbol)
-                    .chain(
-                        locals
-                            .iter()
-                            .filter(|local| local.is_value_binding())
-                            .map(|local| local.symbol),
-                    ),
-            ),
+            symbols: binding_symbols
+                .insert_many(located_binding_symbols(scalar_parameters, locals)),
         });
         expressions.push(CheckedLocatedScalarExpression {
             state: state.symbol,

@@ -2,7 +2,7 @@
 //! calls, direct call bindings and qualified call expressions.
 
 use crate::values::scalar::expression_facts::is_integer;
-use crate::values::scalar::expression_plans::ScalarLocal;
+use crate::values::scalar::expression_plans::{ScalarLocal, located_binding_symbols};
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use checked_trees::{
     CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedOperatorFacts,
@@ -38,14 +38,7 @@ pub(crate) fn retain_call_arguments(
             statement_ordinal: argument.statement_ordinal,
             role: argument.role,
             expression: authored_argument,
-            symbols: binding_symbols.insert_many(
-                parameters.iter().map(|parameter| parameter.symbol).chain(
-                    locals
-                        .iter()
-                        .filter(|local| local.is_value_binding())
-                        .map(|local| local.symbol),
-                ),
-            ),
+            symbols: binding_symbols.insert_many(located_binding_symbols(parameters, locals)),
         });
         expressions.push(argument);
     }

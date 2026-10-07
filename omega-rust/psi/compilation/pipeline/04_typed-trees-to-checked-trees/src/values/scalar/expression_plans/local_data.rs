@@ -8,9 +8,9 @@
 
 use super::{
     CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-    ExpressionNode, LoweredCallArguments, ScalarLocal, StatementPlanner, lower_call_arguments,
-    lower_direct_call_binding_arguments, lower_return_expression, lower_selected_operator_operands,
-    retain_call_arguments, scalar_qualified_call_expression,
+    ExpressionNode, LoweredCallArguments, ScalarLocal, StatementPlanner, located_binding_symbols,
+    lower_call_arguments, lower_direct_call_binding_arguments, lower_return_expression,
+    lower_selected_operator_operands, retain_call_arguments, scalar_qualified_call_expression,
 };
 
 pub(super) fn plan(
@@ -185,17 +185,8 @@ pub(super) fn plan(
                 statement_ordinal,
                 role,
                 expression: local.initial_value,
-                symbols: binding_symbols.insert_many(
-                    scalar_parameters
-                        .iter()
-                        .map(|parameter| parameter.symbol)
-                        .chain(
-                            locals
-                                .iter()
-                                .filter(|local| local.is_value_binding())
-                                .map(|local| local.symbol),
-                        ),
-                ),
+                symbols: binding_symbols
+                    .insert_many(located_binding_symbols(scalar_parameters, locals)),
             });
             expressions.push(CheckedLocatedScalarExpression {
                 state: state.symbol,

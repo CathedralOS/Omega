@@ -4,7 +4,7 @@
 
 use super::{
     CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-    StatementNode, StatementPlanner, lower_return_expression,
+    StatementNode, StatementPlanner, located_binding_symbols, lower_return_expression,
 };
 
 pub(super) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode) {
@@ -72,17 +72,8 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
                 statement_ordinal,
                 role,
                 expression: element,
-                symbols: binding_symbols.insert_many(
-                    scalar_parameters
-                        .iter()
-                        .map(|parameter| parameter.symbol)
-                        .chain(
-                            locals
-                                .iter()
-                                .filter(|local| local.is_value_binding())
-                                .map(|local| local.symbol),
-                        ),
-                ),
+                symbols: binding_symbols
+                    .insert_many(located_binding_symbols(scalar_parameters, locals)),
             });
             expressions.push(CheckedLocatedScalarExpression {
                 state: state.symbol,

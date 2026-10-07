@@ -56,6 +56,23 @@ impl ScalarLocal {
     }
 }
 
+/// The scalar-parameter plus value-binding-local symbol roster every
+/// located expression binding carries.
+pub(super) fn located_binding_symbols<'a>(
+    scalar_parameters: &'a [typed_trees::signature::StateParameter],
+    locals: &'a [ScalarLocal],
+) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
+    scalar_parameters
+        .iter()
+        .map(|parameter| parameter.symbol)
+        .chain(
+            locals
+                .iter()
+                .filter(|local| local.is_value_binding())
+                .map(|local| local.symbol),
+        )
+}
+
 /// One statement's place in the plan walk: the program facts every
 /// statement kind reads, the state's scalar signature and the rosters each
 /// statement's plans extend.
@@ -224,17 +241,8 @@ fn retain_subslice_endpoints(
             statement_ordinal,
             role,
             expression: endpoint,
-            symbols: binding_symbols.insert_many(
-                scalar_parameters
-                    .iter()
-                    .map(|parameter| parameter.symbol)
-                    .chain(
-                        locals
-                            .iter()
-                            .filter(|local| local.is_value_binding())
-                            .map(|local| local.symbol),
-                    ),
-            ),
+            symbols: binding_symbols
+                .insert_many(located_binding_symbols(scalar_parameters, locals)),
         });
         expressions.push(CheckedLocatedScalarExpression {
             state,
