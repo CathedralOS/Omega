@@ -257,26 +257,34 @@ fn state_equation<'program>(
         let mut relative = AggregateOrigins::default();
         let mut edges = Vec::new();
         let mut returns = false;
+        let merge_result = |result: ExpressionHandle,
+                                statement: &StatementNode,
+                                index: usize,
+                                returns: &mut bool,
+                                relative: &mut AggregateOrigins,
+                                inference: &mut FrameInference| {
+            *returns = true;
+            merge_result_arm(
+                program,
+                machine,
+                state,
+                statement,
+                index,
+                result,
+                expected_result,
+                relative,
+                symbols,
+                inference,
+                include_shared,
+                prefixes.get(index).and_then(Option::as_ref),
+            )
+        };
         for (index, statement) in statements.iter().enumerate() {
             match statement {
                 // A non-final expression is a discarded statement and never a
                 // result route.
                 StatementNode::Expression(result) if index + 1 == statements.len() => {
-                    returns = true;
-                    merge_result_arm(
-                        program,
-                        machine,
-                        state,
-                        statement,
-                        index,
-                        *result,
-                        expected_result,
-                        &mut relative,
-                        symbols,
-                        inference,
-                        include_shared,
-                        prefixes.get(index).and_then(Option::as_ref),
-                    )?;
+                    merge_result(*result, statement, index, &mut returns, &mut relative, inference)?;
                 }
                 // A crash route never produces an ordinary result.
                 StatementNode::Transition(transition)
@@ -288,21 +296,7 @@ fn state_equation<'program>(
                         }
                         match program.statement_table.transition_target(edge) {
                             TransitionTargetNode::Value(result) => {
-                                returns = true;
-                                merge_result_arm(
-                                    program,
-                                    machine,
-                                    state,
-                                    statement,
-                                    index,
-                                    *result,
-                                    expected_result,
-                                    &mut relative,
-                                    symbols,
-                                    inference,
-                                    include_shared,
-                                    prefixes.get(index).and_then(Option::as_ref),
-                                )?;
+                                merge_result(*result, statement, index, &mut returns, &mut relative, inference)?;
                             }
                             TransitionTargetNode::Named { arguments, .. } => merge_named_edge(
                                 program,
