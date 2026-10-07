@@ -132,21 +132,8 @@ pub(crate) fn has_observation_free_checked_closure(
                 }
             }
         }
-        let summaries = operational
-            .machines()
-            .iter()
-            .filter(|summary| summary.symbol == current)
-            .collect::<Vec<_>>();
-        let [summary] = summaries.as_slice() else {
+        if !push_checked_machine_call_targets(operational, current, &mut pending) {
             return false;
-        };
-        for state in operational.states.span_or_empty(summary.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                if !call.target_machine_symbol.is_valid() {
-                    return false;
-                }
-                pending.push(call.target_machine_symbol);
-            }
         }
     }
     true
@@ -306,21 +293,35 @@ pub(crate) fn has_pure_effect_closure(
             continue;
         }
         visited.push(current);
-        let summaries = operational
-            .machines()
-            .iter()
-            .filter(|summary| summary.symbol == current)
-            .collect::<Vec<_>>();
-        let [summary] = summaries.as_slice() else {
+        if !push_checked_machine_call_targets(operational, current, &mut pending) {
             return false;
-        };
-        for state in operational.states.span_or_empty(summary.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                if !call.target_machine_symbol.is_valid() {
-                    return false;
-                }
-                pending.push(call.target_machine_symbol);
+        }
+    }
+    true
+}
+
+/// Push every checked call target a reachable machine's operational
+/// summary names; `false` when the machine has no single summary or an
+/// unresolveable target.
+fn push_checked_machine_call_targets(
+    operational: &flow_effects::OperationalPlan,
+    current: symbols::SymbolHandle,
+    pending: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    let summaries = operational
+        .machines()
+        .iter()
+        .filter(|summary| summary.symbol == current)
+        .collect::<Vec<_>>();
+    let [summary] = summaries.as_slice() else {
+        return false;
+    };
+    for state in operational.states.span_or_empty(summary.states) {
+        for call in operational.calls.span_or_empty(state.calls) {
+            if !call.target_machine_symbol.is_valid() {
+                return false;
             }
+            pending.push(call.target_machine_symbol);
         }
     }
     true
@@ -366,21 +367,8 @@ pub(crate) fn has_no_crash_routes(
         if crashes {
             return false;
         }
-        let summaries = operational
-            .machines()
-            .iter()
-            .filter(|summary| summary.symbol == current)
-            .collect::<Vec<_>>();
-        let [summary] = summaries.as_slice() else {
+        if !push_checked_machine_call_targets(operational, current, &mut pending) {
             return false;
-        };
-        for state in operational.states.span_or_empty(summary.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                if !call.target_machine_symbol.is_valid() {
-                    return false;
-                }
-                pending.push(call.target_machine_symbol);
-            }
         }
     }
     true
