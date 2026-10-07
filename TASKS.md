@@ -2872,14 +2872,6 @@ of a check the same flow already performed, not the check itself.
   fields hold no `String`, plan digests (and so package-review records) are
   unchanged, and the provider and native corpus slices are unchanged.
 
-- **PRE-ALLOCATION-BATCH-COMMIT.** (new-scope) Stage 04's
-  `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs`
-  commits the first admissible candidate and restarts the whole sweep. Commit
-  every non-conflicting candidate in a sweep and restart only when a commit
-  enables another family. Acceptance: the same fixed point is reached in at
-  most as many sweeps as family interactions require, and native corpus
-  `--filter optimizer/` is unchanged.
-
 - **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) `CheckedTrees` embeds the
   typed program, but stage 04 rewrites it in place first, so the embedded
   value is a checking-time variant rather than typing's output.

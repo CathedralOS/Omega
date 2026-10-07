@@ -3071,6 +3071,7 @@ pass/optimizer/join_invariant_copy_transport_selected checked 8325ms rollback:re
 pass/optimizer/join_invariant_dead_scalar_transport_selected checked 8278ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:ecb5b1dba9c53e56 rolled-back-semantic:0e964a0d2f52b4a4 module:differs check-target:macos_arm64 @d83ae44b78cd
 pass/optimizer/join_invariant_transport_control checked 3561ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/ordinary_copy_membership_selected checked 3131ms check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/pre_allocation_joint_frontier_exit checked 1588ms check-target:macos_arm64 @f0aee5097235
 pass/optimizer/redundant_compare_selection_compile checked 2367ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/rollback_composed_partial_control checked 8242ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:a203a092b04bbd67 rolled-back-semantic:a203a092b04bbd67 module:same check-target:macos_arm64 @d83ae44b78cd
 pass/optimizer/rollback_composed_partial_selected checked 8262ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:1c8a661aa7e1fab8 rolled-back-semantic:a203a092b04bbd67 module:differs check-target:macos_arm64 @d83ae44b78cd

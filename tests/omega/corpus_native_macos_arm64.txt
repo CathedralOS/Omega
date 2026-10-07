@@ -1099,6 +1099,7 @@ pass/optimizer/join_invariant_copy_transport_selected built 3588ms rollback:requ
 pass/optimizer/join_invariant_dead_scalar_transport_selected built 3375ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] exit:0 @9beb2be72f2d+wt
 pass/optimizer/join_invariant_transport_control built 3338ms exit:0 @9beb2be72f2d+wt
 pass/optimizer/ordinary_copy_membership_selected built 3257ms exit:0 @9beb2be72f2d+wt
+pass/optimizer/pre_allocation_joint_frontier_exit built 1624ms exit:0 @f0aee5097235
 pass/optimizer/redundant_compare_selection_compile built 3337ms exit:0 @693920652f41
 pass/optimizer/rollback_composed_partial_control built 3282ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] exit:0 @9beb2be72f2d+wt
 pass/optimizer/rollback_composed_partial_selected built 3278ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] exit:0 @9beb2be72f2d+wt

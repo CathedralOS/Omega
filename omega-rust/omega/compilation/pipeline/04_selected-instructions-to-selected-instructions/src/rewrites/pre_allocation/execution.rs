@@ -325,7 +325,7 @@ fn is_family_candidate(
                 | SelectedInstructionKind::Load32 { .. }
                 | SelectedInstructionKind::Load16 { .. }
                 | SelectedInstructionKind::Load8 { .. }
-                | SelectedInstructionKind::Load8Indexed { .. }
+                | SelectedInstructionKind::Load8Indexed
         ),
         _ => false,
     }
