@@ -15,7 +15,7 @@ pub(super) fn emit(
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let result = operation
         .result
-        .ok_or_else(SelectedInstructionError::custody)?;
+        .ok_or(SelectedInstructionError::custody())?;
     let LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
         operation: arithmetic,
         format,
@@ -46,7 +46,7 @@ pub(super) fn emit(
     for value in values {
         let (_, register, _, value_type) = state
             .resolve(*value)
-            .ok_or_else(SelectedInstructionError::custody)?;
+            .ok_or(SelectedInstructionError::custody())?;
         if value_type != operand {
             return Err(SelectedInstructionError::custody());
         }
@@ -55,7 +55,7 @@ pub(super) fn emit(
     let keys = &state.constraints.keys;
     let key = keys
         .for_semantic(selected_instructions::MachineSemanticKind::NearestIeeeFloatArithmetic(form))
-        .ok_or_else(SelectedInstructionError::custody)?;
+        .ok_or(SelectedInstructionError::custody())?;
     let output = state.register(result.value, result.definition_site, scalar)?;
     registers.push(output);
     state.emit(

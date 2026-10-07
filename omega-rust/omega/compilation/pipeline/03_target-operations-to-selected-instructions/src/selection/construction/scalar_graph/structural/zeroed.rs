@@ -17,7 +17,7 @@ pub(super) fn establish(
 ) -> Result<(), SelectedInstructionError> {
     let (established, shape, stores) =
         crate::selection::zeroed_structural_input::storage(source, row)
-            .ok_or_else(SelectedInstructionError::custody)?;
+            .ok_or(SelectedInstructionError::custody())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: established.place,
@@ -79,7 +79,7 @@ pub(super) fn establish(
                 .constraints
                 .keys
                 .store
-                .ok_or_else(SelectedInstructionError::custody)?,
+                .ok_or(SelectedInstructionError::custody())?,
             &[pointer, zero],
             provenance(row),
         )?;

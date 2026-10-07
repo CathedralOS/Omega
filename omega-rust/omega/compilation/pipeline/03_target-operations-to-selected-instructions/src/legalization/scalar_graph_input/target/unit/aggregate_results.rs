@@ -426,6 +426,6 @@ fn owned_projected_field_source(
     }
     let (_, selected) =
         terminal_semantics::canonical_static_projection(types.iter(), root, &argument.path)
-            .ok_or_else(LegalizationError::custody)?;
+            .ok_or(LegalizationError::custody())?;
     Ok((selected.id, multiplicity))
 }

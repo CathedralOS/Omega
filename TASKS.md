@@ -878,12 +878,14 @@ defines the complete product bar.
     non-consumption, untouched tails, alias rejection.
 
   The `gui/window_app` and `gui/windowed_calculator` sweep timeouts are
-  compile cost, not interactive waiting. On macOS ARM64 (debug CLI at
-  656ca090aaf, light load), `omega --timings --target macos_arm64
-  samples/gui/windowed_calculator/main.omg` from a scratch copy spent 9 s
-  checking std and 277 s checking the sample package, then had not finished
-  Psi lowering and native realization when a 3000 s limit stopped it. Profile
-  those phases before attributing the cost.
+  compile cost, not interactive waiting. On macOS ARM64 (debug CLI,
+  2026-10-07 main), a scratch copy of `samples/gui/windowed_calculator`
+  reviews in 503 s, and `omega --timings --target macos_arm64` then
+  publishes `windowed_calculator.app` in 463 s: 9 s checking std, 142 s
+  checking the sample package, 136 s in settle (CheckedTrees ->
+  SelectedExecution) and about 175 s after the native-realization proposal,
+  which `--timings` does not break down. Its runtime oracle still needs a
+  desktop session.
 
   Acceptance: every maintained sample checks, every applicable native product
   builds, and documented runtime oracles pass on every required matching host.
@@ -5807,9 +5809,13 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   Current blocker: `OMEGA_CLI=<fresh debug CLI> OMEGA_TARGET=macos_arm64
   tests/psi/parser/test-parser.sh` reviews and checks the gate's three
   packages (the gate package's check takes 113 s) and produces Terminal Psi;
-  Omega selection then refuses machine 1 with `SourceCustodyMismatch`
-  (`OMEGA_COMPILER_CHECK_SITES=1` names the site). Reduce it to a corpus
-  fixture and repair the general route. `omega --check source/omega/main.omg`
+  Omega selection then refuses `ParserHarness::main`'s zero-initialized
+  `let mut lexer: Lexer;` at `selection/construction/scalar_graph/structural/zeroed.rs`:
+  zeroing stores one instruction per scalar leaf, and the Lexer's roughly
+  230k leaves (two 64 KiB byte arrays and 16,384 tokens) exceed
+  `MAX_ZEROED_LEAVES` (131,072). A zero-constructible home is all zero
+  bytes, so large homes need a bulk zero form, realized as a backend loop
+  like `CopyBytes`, rather than a higher leaf budget. `omega --check source/omega/main.omg`
   is unverified on current main. Then run all 75 gate cases, keeping the
   acceptance/rejection, lexical handoff, structural identity, capacity and
   determinism controls. Keep range-proven narrowing casts.

@@ -39,7 +39,7 @@ pub(super) fn project(
                     } if edge == psi_edge => Some((arguments, binding)),
                     _ => None,
                 });
-            let (arguments, binding) = matches.next().ok_or_else(Error::custody)?;
+            let (arguments, binding) = matches.next().ok_or(Error::custody())?;
             if matches.next().is_some() {
                 return Err(Error::custody());
             }
@@ -185,7 +185,7 @@ pub(super) fn project(
                 &mut cases
                     .iter_mut()
                     .find(|case| owner.edge() == Some(case.edge))
-                    .ok_or_else(Error::custody)?
+                    .ok_or(Error::custody())?
                     .cleanup_calls
             }
             _ => return Err(Error::custody()),

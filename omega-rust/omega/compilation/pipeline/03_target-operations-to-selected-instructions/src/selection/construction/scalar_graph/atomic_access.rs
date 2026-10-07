@@ -30,7 +30,7 @@ pub(super) fn emit(
         return Ok(false);
     };
     let form = crate::selection::atomic_access::form(source, row)
-        .ok_or_else(SelectedInstructionError::custody)?;
+        .ok_or(SelectedInstructionError::custody())?;
     // The catalog admitting no constraint for an atomic form names the
     // target's implementation limit, not a producer or consumer defect.
     let constraint = builder
@@ -46,7 +46,7 @@ pub(super) fn emit(
     for value in &values {
         let (_, register, _, actual_type) = builder
             .resolve(*value)
-            .ok_or_else(SelectedInstructionError::custody)?;
+            .ok_or(SelectedInstructionError::custody())?;
         if actual_type != scalar_type {
             return Err(SelectedInstructionError::custody());
         }

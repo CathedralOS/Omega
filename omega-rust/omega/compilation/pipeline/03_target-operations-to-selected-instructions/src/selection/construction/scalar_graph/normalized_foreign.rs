@@ -267,7 +267,7 @@ pub(super) fn emit_invocation(
             builder.registers[register.0 as usize].class = constraint
                 .operands
                 .get(operands.len())
-                .ok_or_else(SelectedInstructionError::custody)?
+                .ok_or(SelectedInstructionError::custody())?
                 .class;
             operands.push(register);
             result_registers.push(register);

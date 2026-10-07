@@ -1048,7 +1048,7 @@ fn trapping_constraint(
     keys: &SelectedConstraintKeys,
 ) -> Result<RegisterConstraintKey, SelectedInstructionError> {
     keys.for_semantic(MachineSemanticKind::TrappingInteger(form))
-        .ok_or_else(SelectedInstructionError::custody)
+        .ok_or(SelectedInstructionError::custody())
 }
 
 // An encoding-defined early-clobber scratch register: a Trapping form's

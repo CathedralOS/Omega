@@ -468,7 +468,7 @@ fn memory_pointer(
             .constraints
             .keys
             .address_offset
-            .ok_or_else(SelectedInstructionError::custody)?,
+            .ok_or(SelectedInstructionError::custody())?,
         &[pointer, address],
         provenance(row),
     )?;

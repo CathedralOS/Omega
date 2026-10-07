@@ -592,21 +592,21 @@ pub(super) fn callee_plan(
         let mut parameters = (0..signature.scalar_parameter_count())
             .map(|position| scalar_shape(signature.scalar_parameter(position)?))
             .collect::<Option<Vec<_>>>()
-            .ok_or_else(LegalizationError::custody)?;
+            .ok_or(LegalizationError::custody())?;
         for position in 0..signature.structural_parameter_count() {
             let formal = signature
                 .structural_parameter(position)
-                .ok_or_else(LegalizationError::custody)?;
+                .ok_or(LegalizationError::custody())?;
             parameters.push(
                 crate::structural_inputs::structural_reference_input::parameter_shape(
                     formal,
                     &plan.structural_types,
                 )
-                .ok_or_else(LegalizationError::custody)?,
+                .ok_or(LegalizationError::custody())?,
             );
         }
         let result = match signature.scalar_result() {
-            Some(result) => Some(scalar_shape(result).ok_or_else(LegalizationError::custody)?),
+            Some(result) => Some(scalar_shape(result).ok_or(LegalizationError::custody())?),
             None => None,
         };
         return evaluate_call_plan(

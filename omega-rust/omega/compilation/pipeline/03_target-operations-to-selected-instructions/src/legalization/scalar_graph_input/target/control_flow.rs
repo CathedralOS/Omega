@@ -289,13 +289,12 @@ pub(super) fn validate(
                     .boundary_machines
                     .iter()
                     .find(|declaration| declaration.id == *boundary)
-                    .ok_or_else(LegalizationError::custody)?;
+                    .ok_or(LegalizationError::custody())?;
                 let parameters = declaration
                     .scalar_parameters
                     .iter()
                     .map(|scalar_type| {
-                        super::super::scalar_shape(*scalar_type)
-                            .ok_or_else(LegalizationError::custody)
+                        super::super::scalar_shape(*scalar_type).ok_or(LegalizationError::custody())
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let signature = calling_conventions::CallSignature {

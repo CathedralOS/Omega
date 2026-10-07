@@ -16,7 +16,7 @@ pub(super) fn emit(
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let result = operation
         .result
-        .ok_or_else(SelectedInstructionError::custody)?;
+        .ok_or(SelectedInstructionError::custody())?;
     let LegalizedScalarInstructionKind::FloatResultPolicy { format, policy } = operation.kind
     else {
         return Err(SelectedInstructionError::custody());
@@ -37,7 +37,7 @@ pub(super) fn emit(
     for value in &values {
         let (_, register, _, value_type) = state
             .resolve(*value)
-            .ok_or_else(SelectedInstructionError::custody)?;
+            .ok_or(SelectedInstructionError::custody())?;
         if value_type != scalar_type {
             return Err(SelectedInstructionError::custody());
         }
@@ -47,7 +47,7 @@ pub(super) fn emit(
         .constraints
         .keys
         .for_semantic(MachineSemanticKind::FloatResultPolicy(form))
-        .ok_or_else(SelectedInstructionError::custody)?;
+        .ok_or(SelectedInstructionError::custody())?;
     let output = state.register(result.value, result.definition_site, scalar_type)?;
     registers.push(output);
     state.emit(

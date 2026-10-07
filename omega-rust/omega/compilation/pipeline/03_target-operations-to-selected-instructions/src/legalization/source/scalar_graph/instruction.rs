@@ -45,7 +45,7 @@ pub(super) fn project(
         AbstractOperation::AtomicEvent { event, .. } => {
             let access =
                 scalar_graph_input::atomic_access::access(event, optimized, &unit.structural_types)
-                    .ok_or_else(Error::custody)?;
+                    .ok_or(Error::custody())?;
             LegalizedScalarInstructionKind::AtomicAccess {
                 location: access.location,
                 field: access.field,

@@ -17,7 +17,7 @@ pub(super) fn establish(
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let (established, shape) = crate::selection::structural_local_input::storage(source, row)
-        .ok_or_else(SelectedInstructionError::custody)?;
+        .ok_or(SelectedInstructionError::custody())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: established.place,

@@ -18,19 +18,19 @@ pub(in crate::legalization) fn signature(
             .iter()
             .find(|function| function.machine == machine)
             .map(AbstractCallSignature::Machine)
-            .ok_or_else(LegalizationError::custody),
+            .ok_or(LegalizationError::custody()),
         AbstractCallTarget::Dynamic {
             interface, slot, ..
         } => {
             let interface = plan
                 .dynamic_dispatch
                 .interface(interface)
-                .ok_or_else(LegalizationError::custody)?;
+                .ok_or(LegalizationError::custody())?;
             let row = interface
                 .slots
                 .get(slot as usize)
                 .filter(|row| row.slot == slot)
-                .ok_or_else(LegalizationError::custody)?;
+                .ok_or(LegalizationError::custody())?;
             Ok(AbstractCallSignature::Requirement(row))
         }
     }
@@ -62,7 +62,7 @@ pub(in crate::legalization) fn parameter(
 ) -> Result<terminal_psi::StructuralParameterDeclaration, LegalizationError> {
     let formal = signature
         .structural_parameter(position)
-        .ok_or_else(LegalizationError::custody)?;
+        .ok_or(LegalizationError::custody())?;
     Ok(terminal_psi::StructuralParameterDeclaration {
         place,
         position: formal.position,

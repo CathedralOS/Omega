@@ -139,7 +139,7 @@ pub(super) fn validate_operation(
                 source_value: result.value,
                 scalar_type: result.scalar_type,
                 shape: super::super::scalar_shape(result.scalar_type)
-                    .ok_or_else(LegalizationError::custody)?,
+                    .ok_or(LegalizationError::custody())?,
             };
             if result.scalar_type != target_operations::selector_carrier_type()
                 || result_home != &expected
@@ -169,7 +169,7 @@ pub(super) fn validate_operation(
         ) => {
             let expected =
                 super::super::atomic_access::access(source, optimized, &unit.structural_types)
-                    .ok_or_else(LegalizationError::custody)?;
+                    .ok_or(LegalizationError::custody())?;
             if super::super::reference_custody::is_suspended_root(custody, location.place)
                 || psi_operation != expected_operation
                 || location != &expected.location

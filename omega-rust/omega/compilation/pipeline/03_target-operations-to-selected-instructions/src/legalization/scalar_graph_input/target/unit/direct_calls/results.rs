@@ -79,7 +79,7 @@ pub(super) fn validate(
                 ..
             },
         ) => {
-            let callee = callee.ok_or_else(LegalizationError::custody)?;
+            let callee = callee.ok_or(LegalizationError::custody())?;
             let expected_home = Some(aggregate_results::result_home(
                 caller,
                 expected_result.place,

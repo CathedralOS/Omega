@@ -758,7 +758,7 @@ pub(super) fn validate(
         }
         if let AbstractOperation::AtomicEvent { event, .. } = &node.operation {
             let (_, observed) =
-                super::atomic_access::event(event).ok_or_else(LegalizationError::custody)?;
+                super::atomic_access::event(event).ok_or(LegalizationError::custody())?;
             if observed.is_none() {
                 if result.is_some() || !node.definitions.is_empty() {
                     return Err(LegalizationError::custody());
@@ -783,7 +783,7 @@ pub(super) fn validate(
             AbstractOperation::AtomicEvent { event, .. } => {
                 super::atomic_access::event(event)
                     .and_then(|(_, result)| result)
-                    .ok_or_else(LegalizationError::custody)?
+                    .ok_or(LegalizationError::custody())?
                     .scalar_type
             }
             AbstractOperation::FloatResultPolicy { format, policy, .. } => {

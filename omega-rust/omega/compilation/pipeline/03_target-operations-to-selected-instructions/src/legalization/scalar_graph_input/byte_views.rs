@@ -361,7 +361,7 @@ pub(in crate::legalization) fn call_descriptor_origins(
         return Ok(Vec::new());
     }
     optimization_unit_semantics::descriptor_results::call_origins(unit, caller, result.place)
-        .ok_or_else(LegalizationError::custody)?
+        .ok_or(LegalizationError::custody())?
         .into_iter()
         .map(|origin| match origin {
             terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty => {

@@ -78,7 +78,7 @@ fn collect_calls(
                 .iter()
                 .flat_map(|block| &block.instructions)
                 .find(|row| row.operation == producer)
-                .ok_or_else(SelectedInstructionError::custody)?;
+                .ok_or(SelectedInstructionError::custody())?;
             match &row.kind {
                 I::ByteSequenceSubslice { source: parent, .. }
                 | I::ElementViewSubslice { source: parent, .. }
@@ -109,7 +109,7 @@ fn collect_calls(
                 let mut follow = |successor: &legalized_operations::LegalizedScalarSuccessor| -> Result<(), SelectedInstructionError> {
                     if successor.target == block {
                         let binding = successor.structural_bindings.iter().find(|binding| binding.parameter == place)
-                            .ok_or_else(SelectedInstructionError::custody)?;
+                            .ok_or(SelectedInstructionError::custody())?;
                         collect_calls(source, binding.argument.place, visited, calls)?;
                     }
                     Ok(())

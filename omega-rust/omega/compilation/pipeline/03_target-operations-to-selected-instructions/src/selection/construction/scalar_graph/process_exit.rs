@@ -39,7 +39,7 @@ pub(super) fn build(
     let source = argument.source.source_value();
     let (_, input, _, scalar_type) = builder
         .resolve(source)
-        .ok_or_else(SelectedInstructionError::custody)?;
+        .ok_or(SelectedInstructionError::custody())?;
     if *kind != semantic_vocabulary::ExternalCompletionKind::ProcessExit
         || binding.boundary != *boundary
         || !matches!(
@@ -124,7 +124,7 @@ pub(super) fn build(
                     .instructions
                     .len()
                     .checked_sub(start)
-                    .ok_or_else(SelectedInstructionError::custody)?,
+                    .ok_or(SelectedInstructionError::custody())?,
             )
             .map_err(|_| SelectedInstructionError::custody())?,
             settlement: SelectedBoundarySettlementPayload::HostedExitProcessI32 {
@@ -140,7 +140,7 @@ pub(super) fn build(
             .constraints
             .keys
             .hosted_exit_process_i32
-            .ok_or_else(SelectedInstructionError::custody)?,
+            .ok_or(SelectedInstructionError::custody())?,
         &[input],
         SelectedInstructionProvenance {
             edges: vec![*psi_edge],
@@ -154,7 +154,7 @@ pub(super) fn build(
             .instructions
             .last()
             .cloned()
-            .ok_or_else(SelectedInstructionError::custody)?,
+            .ok_or(SelectedInstructionError::custody())?,
         completion_edge: *psi_edge,
     }))
 }

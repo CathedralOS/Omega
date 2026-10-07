@@ -74,7 +74,7 @@ pub(super) fn emit(
     if let Some(selector) = call.target.selector() {
         let (_, input, site, scalar_type) = builder
             .resolve(selector)
-            .ok_or_else(SelectedInstructionError::custody)?;
+            .ok_or(SelectedInstructionError::custody())?;
         if scalar_type != target_operations::selector_carrier_type() {
             return Err(SelectedInstructionError::custody());
         }
@@ -82,7 +82,7 @@ pub(super) fn emit(
         let inputs = operands
             .len()
             .checked_sub(result_registers.len())
-            .ok_or_else(SelectedInstructionError::custody)?;
+            .ok_or(SelectedInstructionError::custody())?;
         operands.insert(inputs, dispatch);
     }
     builder.transport.calls.push(SelectedCallContract {
@@ -235,7 +235,7 @@ pub(super) fn retain_result(
                 )?;
                 builder.emit(
                     kind,
-                    key.ok_or_else(SelectedInstructionError::custody)?,
+                    key.ok_or(SelectedInstructionError::custody())?,
                     &[value, output],
                     Default::default(),
                 )?;

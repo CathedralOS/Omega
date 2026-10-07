@@ -648,13 +648,13 @@ impl Builder<'_> {
                     .normalized_foreign_calls
                     .get(ordinal as usize)
                     .filter(|record| record.instruction == id && record.call.boundary == boundary)
-                    .ok_or_else(SelectedInstructionError::custody)?;
+                    .ok_or(SelectedInstructionError::custody())?;
                 std::borrow::Cow::Owned(
                     super::super::scalar_call_abi::normalized_foreign::call_constraint(
                         &record.call,
                         self.environment,
                     )
-                    .ok_or_else(SelectedInstructionError::custody)?,
+                    .ok_or(SelectedInstructionError::custody())?,
                 )
             } else if matches!(
                 kind.call_target(),
@@ -665,7 +665,7 @@ impl Builder<'_> {
                         row(self.catalog, key)?,
                         self.environment.physical(),
                     )
-                    .ok_or_else(SelectedInstructionError::custody)?,
+                    .ok_or(SelectedInstructionError::custody())?,
                 )
             } else {
                 std::borrow::Cow::Borrowed(row(self.catalog, key)?)
