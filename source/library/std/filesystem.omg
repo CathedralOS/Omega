@@ -971,6 +971,13 @@ reaches FilesystemHost
     // host-call result; a transition-guard chain read the pre-store ZII zero in an
     // inlined value-call (see TASKS_FS.md "terminal-value completion").
     filesystem.err_code = filesystem.host.errno();
+    Filesystem::kind_of_stored_error_code(filesystem)
+}
+
+/// errno values 1..=35 map onto the portable ErrorKind set; the caller stores
+/// the code first so the selected target's error-code reader can differ per
+/// result width. Shared by the errno() reader and the i32/i64 decoders.
+machine Filesystem::kind_of_stored_error_code(filesystem: &mut Filesystem) -> ErrorKind {
     filesystem.err_kind = match filesystem.err_code {
         2 -> ErrorKind::NotFound,
         13 -> ErrorKind::PermissionDenied,
@@ -991,32 +998,12 @@ reaches FilesystemHost
 // this common map (notably WouldBlock = 35).
 machine Filesystem::last_error_i32(filesystem: &mut Filesystem, result: i32) -> ErrorKind {
     filesystem.err_code = Filesystem::native_error_code_i32(filesystem, result);
-    filesystem.err_kind = match filesystem.err_code {
-        2 -> ErrorKind::NotFound,
-        13 -> ErrorKind::PermissionDenied,
-        1 -> ErrorKind::PermissionDenied,
-        17 -> ErrorKind::AlreadyExists,
-        9 -> ErrorKind::BadDescriptor,
-        21 -> ErrorKind::IsADirectory,
-        35 -> ErrorKind::WouldBlock,
-        _ -> ErrorKind::Other
-    };
-    ErrorKind::reconstruct(&filesystem.err_kind)
+    Filesystem::kind_of_stored_error_code(filesystem)
 }
 
 machine Filesystem::last_error_i64(filesystem: &mut Filesystem, result: i64) -> ErrorKind {
     filesystem.err_code = Filesystem::native_error_code_i64(filesystem, result);
-    filesystem.err_kind = match filesystem.err_code {
-        2 -> ErrorKind::NotFound,
-        13 -> ErrorKind::PermissionDenied,
-        1 -> ErrorKind::PermissionDenied,
-        17 -> ErrorKind::AlreadyExists,
-        9 -> ErrorKind::BadDescriptor,
-        21 -> ErrorKind::IsADirectory,
-        35 -> ErrorKind::WouldBlock,
-        _ -> ErrorKind::Other
-    };
-    ErrorKind::reconstruct(&filesystem.err_kind)
+    Filesystem::kind_of_stored_error_code(filesystem)
 }
 
 // Create a directory.
