@@ -2,6 +2,18 @@ use super::CheckedEvidenceTerm;
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
 use symbols::SymbolHandle;
 
+/// Facts carried by one state signature's contracts.
+fn signature_fact_total(
+    program: &typed_trees::TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+) -> usize {
+    program
+        .state_signature_contracts(signature)
+        .iter()
+        .map(|contract| contract.facts.len())
+        .sum()
+}
+
 pub(crate) fn estimated_contract_fact_capacity(program: &typed_trees::TypedTrees) -> usize {
     program
         .machines()
@@ -24,13 +36,7 @@ pub(crate) fn estimated_contract_fact_capacity(program: &typed_trees::TypedTrees
             program
                 .trait_machine_signatures(trait_definition)
                 .iter()
-                .map(|signature| {
-                    program
-                        .state_signature_contracts(signature)
-                        .iter()
-                        .map(|contract| contract.facts.len())
-                        .sum::<usize>()
-                })
+                .map(|signature| signature_fact_total(program, signature))
                 .sum::<usize>()
         }))
         .chain(
@@ -61,13 +67,7 @@ pub(crate) fn estimated_contract_fact_capacity(program: &typed_trees::TypedTrees
                         .map(typed_trees::data::MachineParameterContractView::signature),
                     _ => None,
                 })
-                .map(|signature| {
-                    program
-                        .state_signature_contracts(signature)
-                        .iter()
-                        .map(|contract| contract.facts.len())
-                        .sum::<usize>()
-                })
+                .map(|signature| signature_fact_total(program, signature))
                 .sum::<usize>()
         }))
         .chain(
