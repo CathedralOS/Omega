@@ -12,12 +12,13 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
-use super::{SelectedFormEncodedRowDraft, validate_operand_footprint, validate_size};
+use super::{
+    SelectedFormEncodedRowDraft, decoded_footprint, validate_operand_footprint, validate_size,
+};
 use crate::OptimizedSelectedFormEncodingError;
 use machine_code::{
-    SelectedFormDecodedFootprint, SelectedFormEncodingState,
-    SelectedFormNormalizedForeignCallFixup, SelectedFormNormalizedForeignCallFixupKind,
-    SelectedFormNormalizedForeignCallFixupState,
+    SelectedFormEncodingState, SelectedFormNormalizedForeignCallFixup,
+    SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
 
 /// Encode the selected entry mechanism. Kernel entries materialize the exact
@@ -356,36 +357,4 @@ fn callback_destinations(
             }
         })
         .collect()
-}
-
-fn decoded_footprint(
-    machine: &PostAllocationMachineInstruction,
-    effects: &selected_instructions::MachineEncodedEffects,
-) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
-    let resolve = |operand: u16| {
-        machine
-            .operands
-            .iter()
-            .find(|row| row.operand == operand)
-            .map(|row| row.view)
-    };
-    let register_reads = effects
-        .external_operand_reads
-        .iter()
-        .map(|operand| resolve(*operand))
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(machine.instruction))?;
-    let register_writes = effects
-        .external_operand_writes
-        .iter()
-        .map(|operand| resolve(*operand))
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(machine.instruction))?;
-    Ok(SelectedFormDecodedFootprint {
-        register_reads,
-        register_writes,
-        implicit_defs: effects.implicit_unit_defs.clone(),
-        implicit_clobbers: effects.implicit_unit_clobbers.clone(),
-        encoded: effects.clone(),
-    })
 }

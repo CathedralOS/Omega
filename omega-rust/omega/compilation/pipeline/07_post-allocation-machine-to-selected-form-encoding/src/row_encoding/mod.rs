@@ -472,6 +472,38 @@ fn encode_scalar(
     ))
 }
 
+fn decoded_footprint(
+    machine: &PostAllocationMachineInstruction,
+    effects: &selected_instructions::MachineEncodedEffects,
+) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
+    let resolve = |operand: u16| {
+        machine
+            .operands
+            .iter()
+            .find(|row| row.operand == operand)
+            .map(|row| row.view)
+    };
+    let register_reads = effects
+        .external_operand_reads
+        .iter()
+        .map(|operand| resolve(*operand))
+        .collect::<Option<Vec<_>>>()
+        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(machine.instruction))?;
+    let register_writes = effects
+        .external_operand_writes
+        .iter()
+        .map(|operand| resolve(*operand))
+        .collect::<Option<Vec<_>>>()
+        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(machine.instruction))?;
+    Ok(SelectedFormDecodedFootprint {
+        register_reads,
+        register_writes,
+        implicit_defs: effects.implicit_unit_defs.clone(),
+        implicit_clobbers: effects.implicit_unit_clobbers.clone(),
+        encoded: effects.clone(),
+    })
+}
+
 fn validate_operand_footprint(
     instruction: SelectedInstructionId,
     machine: &PostAllocationMachineInstruction,
