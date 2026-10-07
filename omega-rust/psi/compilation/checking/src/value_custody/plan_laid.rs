@@ -184,7 +184,7 @@ fn normalized_schema_report_fingerprint(
     program: &TypedTrees,
     data: &typed_trees::data::DataDefinition,
 ) -> u64 {
-    use typed_trees::data::DataMember;
+    use typed_trees::data::{DataField, DataMember};
 
     fn byte(hash: &mut u64, value: u8) {
         *hash ^= u64::from(value);
@@ -217,6 +217,20 @@ fn normalized_schema_report_fingerprint(
     }
 
     let mut hash = 0xcbf29ce484222325u64;
+    /// A member field's fingerprint row: position-bearing name, relevance
+    /// bit, and spelled declared type.
+    fn field_row(hash: &mut u64, program: &TypedTrees, field: &DataField, position: usize) {
+        member_name(hash, field.identity, field.name.as_str(), position);
+        byte(
+            hash,
+            match field.relevance {
+                language_core::BindingRelevance::Relevant => 0,
+                language_core::BindingRelevance::Erased => 1,
+            },
+        );
+        text(hash, program.display_type_reference(field.type_reference).as_str());
+    }
+
     bytes(&mut hash, b"omega.schema.v2");
     let members = program.data_members(data);
     let mut fields = members
@@ -241,20 +255,7 @@ fn normalized_schema_report_fingerprint(
     }
     uint(&mut hash, fields.len() as u64);
     for (position, field) in fields.iter().enumerate() {
-        member_name(&mut hash, field.identity, field.name.as_str(), position);
-        byte(
-            &mut hash,
-            match field.relevance {
-                language_core::BindingRelevance::Relevant => 0,
-                language_core::BindingRelevance::Erased => 1,
-            },
-        );
-        text(
-            &mut hash,
-            program
-                .display_type_reference(field.type_reference)
-                .as_str(),
-        );
+        field_row(&mut hash, program, field, position);
     }
     uint(&mut hash, cases.len() as u64);
     for (position, case) in cases.iter().enumerate() {
@@ -265,25 +266,7 @@ fn normalized_schema_report_fingerprint(
         }
         uint(&mut hash, payload.len() as u64);
         for (payload_position, field) in payload.iter().enumerate() {
-            member_name(
-                &mut hash,
-                field.identity,
-                field.name.as_str(),
-                payload_position,
-            );
-            byte(
-                &mut hash,
-                match field.relevance {
-                    language_core::BindingRelevance::Relevant => 0,
-                    language_core::BindingRelevance::Erased => 1,
-                },
-            );
-            text(
-                &mut hash,
-                program
-                    .display_type_reference(field.type_reference)
-                    .as_str(),
-            );
+            field_row(&mut hash, program, field, payload_position);
         }
         let mut retired = case.retired_payload_identities.clone();
         retired.sort_unstable();
