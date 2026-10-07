@@ -17,7 +17,7 @@ pub(super) fn encode_artifact_content(record: &OptimizedObjectArtifactRecord) ->
     encode_psi(&mut bytes, record.psi);
     encode_optional_array(&mut bytes, record.debug_section);
     bytes.extend_from_slice(&record.selections.bytes());
-    encode_target(&mut bytes, record.target);
+    bytes.extend_from_slice(&record.target.wire_identity_bytes());
     bytes.extend_from_slice(&record.semantic_entry.get().to_le_bytes());
     bytes.extend_from_slice(&record.pre_physical_manifest.bytes());
     bytes.extend_from_slice(&record.post_allocation_manifest.bytes());
@@ -70,7 +70,7 @@ pub(super) fn encode_manifest_content(record: &OptimizedObjectArtifactManifest) 
     bytes.extend_from_slice(&record.psi_artifact);
     encode_psi(&mut bytes, record.psi);
     bytes.extend_from_slice(&record.selections.bytes());
-    encode_target(&mut bytes, record.target);
+    bytes.extend_from_slice(&record.target.wire_identity_bytes());
     bytes.extend_from_slice(&record.semantic_entry.get().to_le_bytes());
     bytes.extend_from_slice(&record.object_container_manifest.bytes());
     bytes.extend_from_slice(&record.object.bytes());
@@ -116,20 +116,6 @@ pub(super) fn decode_psi(
         )?,
         program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
     })
-}
-
-pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
-    bytes.push(match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    });
-    bytes.push(match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    });
-    bytes.extend_from_slice(&(target.pointer_size as u64).to_le_bytes());
-    bytes.extend_from_slice(&(target.pointer_alignment as u64).to_le_bytes());
 }
 
 pub(super) fn decode_target(

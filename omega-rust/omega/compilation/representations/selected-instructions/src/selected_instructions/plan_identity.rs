@@ -28,7 +28,7 @@ pub fn selected_instruction_plan_identity(
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
-    encode_target(&mut bytes, plan.target);
+    bytes.extend_from_slice(&plan.target.identity_bytes());
     bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
@@ -581,20 +581,6 @@ fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
         }
         bytes.extend_from_slice(&settlement.units.to_le_bytes());
     }
-}
-
-fn encode_target(bytes: &mut Vec<u8>, target: target::NativeTarget) {
-    bytes.push(match target.architecture {
-        target::Architecture::X86_64 => 0,
-        target::Architecture::Aarch64 => 1,
-    });
-    bytes.push(match target.object_format {
-        target::ObjectFormat::Elf => 0,
-        target::ObjectFormat::MachO => 1,
-        target::ObjectFormat::Coff => 2,
-    });
-    bytes.extend_from_slice(&(target.pointer_size as u64).to_le_bytes());
-    bytes.extend_from_slice(&(target.pointer_alignment as u64).to_le_bytes());
 }
 
 fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {

@@ -1,6 +1,6 @@
 //! Canonical legalized-plan roster encoding shared by current and legacy identities.
 
-use super::encoding::{encode_len, encode_target};
+use super::encoding::encode_len;
 use crate::legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
 
 pub(super) fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanIdentity {
@@ -10,7 +10,7 @@ pub(super) fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanI
     bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
-    encode_target(&mut bytes, plan.target);
+    bytes.extend_from_slice(&plan.target.identity_bytes());
     bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
     {
         bytes.extend_from_slice(b"ordinary-scalar-graph.v30\0");

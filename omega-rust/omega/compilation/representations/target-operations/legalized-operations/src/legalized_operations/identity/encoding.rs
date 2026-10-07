@@ -4,7 +4,6 @@
 //! the shared scalar shapes are laid down.
 
 use optimization_unit::{FuelSettlement, PsiProvenance};
-use target::NativeTarget;
 
 pub(super) fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
     encode_len(bytes, fuel.len());
@@ -21,20 +20,6 @@ pub(super) fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
         }
         bytes.extend_from_slice(&settlement.units.to_le_bytes());
     }
-}
-
-pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
-    bytes.push(match target.architecture {
-        target::Architecture::X86_64 => 0,
-        target::Architecture::Aarch64 => 1,
-    });
-    bytes.push(match target.object_format {
-        target::ObjectFormat::Elf => 0,
-        target::ObjectFormat::MachO => 1,
-        target::ObjectFormat::Coff => 2,
-    });
-    bytes.extend_from_slice(&(target.pointer_size as u64).to_le_bytes());
-    bytes.extend_from_slice(&(target.pointer_alignment as u64).to_le_bytes());
 }
 
 pub(super) fn encode_option_id(bytes: &mut Vec<u8>, value: Option<u64>) {

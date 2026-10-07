@@ -655,20 +655,48 @@ pub struct NativeTarget {
 
 impl NativeTarget {
     /// The canonical identity bytes this target contributes to an
-    /// identity hash: architecture, object format, pointer size and
+    /// identity encoding: architecture, object format, pointer size and
     /// alignment, in that order.
-    pub fn encode_identity(&self, hasher: &mut Sha256) {
-        hasher.update([match self.architecture {
+    pub fn identity_bytes(&self) -> [u8; 18] {
+        let mut bytes = [0u8; 18];
+        bytes[0] = match self.architecture {
             Architecture::Aarch64 => 0,
             Architecture::X86_64 => 1,
-        }]);
-        hasher.update([match self.object_format {
+        };
+        bytes[1] = match self.object_format {
             ObjectFormat::Elf => 0,
             ObjectFormat::MachO => 1,
             ObjectFormat::Coff => 2,
-        }]);
-        hasher.update((self.pointer_size as u64).to_le_bytes());
-        hasher.update((self.pointer_alignment as u64).to_le_bytes());
+        };
+        bytes[2..10].copy_from_slice(&(self.pointer_size as u64).to_le_bytes());
+        bytes[10..18].copy_from_slice(&(self.pointer_alignment as u64).to_le_bytes());
+        bytes
+    }
+
+    /// The wire identity bytes persisted by artifact and fragment codecs:
+    /// one-based discriminants reserving zero for "unset", then pointer
+    /// size and alignment.
+    pub fn wire_identity_bytes(&self) -> [u8; 18] {
+        let mut bytes = [0u8; 18];
+        bytes[0] = match self.architecture {
+            Architecture::Aarch64 => 1,
+            Architecture::X86_64 => 2,
+        };
+        bytes[1] = match self.object_format {
+            ObjectFormat::Elf => 1,
+            ObjectFormat::MachO => 2,
+            ObjectFormat::Coff => 3,
+        };
+        bytes[2..10].copy_from_slice(&(self.pointer_size as u64).to_le_bytes());
+        bytes[10..18].copy_from_slice(&(self.pointer_alignment as u64).to_le_bytes());
+        bytes
+    }
+
+    /// The canonical identity bytes this target contributes to an
+    /// identity hash: architecture, object format, pointer size and
+    /// alignment, in that order.
+    pub fn encode_identity(&self, hasher: &mut Sha256) {
+        hasher.update(self.identity_bytes());
     }
 
     pub fn host() -> Self {

@@ -144,7 +144,7 @@ pub(super) fn encode_manifest_content(record: &FunctionFragmentObjectContainerMa
     bytes.extend_from_slice(&record.fuel_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&record.selections.bytes());
     bytes.extend_from_slice(&record.selected.bytes());
-    encode_target(&mut bytes, record.target);
+    bytes.extend_from_slice(&record.target.wire_identity_bytes());
     bytes.extend_from_slice(&record.semantic_entry.get().to_le_bytes());
     bytes.extend_from_slice(&record.semantic_entry_symbol.get().to_le_bytes());
     bytes.push(1);
@@ -166,20 +166,6 @@ pub(super) fn encode_manifest_content(record: &FunctionFragmentObjectContainerMa
     bytes.extend_from_slice(&record.statistics.relocation_records.to_le_bytes());
     bytes.extend_from_slice(&[1; 4]);
     bytes
-}
-
-pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
-    bytes.push(match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    });
-    bytes.push(match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    });
-    bytes.extend_from_slice(&(target.pointer_size as u64).to_le_bytes());
-    bytes.extend_from_slice(&(target.pointer_alignment as u64).to_le_bytes());
 }
 
 pub(super) fn decode_target(
