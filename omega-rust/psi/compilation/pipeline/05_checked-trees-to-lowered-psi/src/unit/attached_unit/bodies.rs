@@ -12,13 +12,15 @@ use checked_trees::{CheckedComposedUnitControlMachinePlan, CheckedUnitStructural
 /// begins at a dispatcher the checked trees publish in its own lane
 /// (`terminal_nominal_affine_unit_cleanups` or
 /// `terminal_partial_affine_unit_cleanups`), beside the ordinary roster
-/// rather than inside it, together with the structural shapes that lane
-/// owns. This view joins that one staged plan and those shapes onto the
-/// ordinary roster so the emitter resolves them like any other body, without
-/// the cleanup lowering cloning the checked trees to push them in. A staged
+/// rather than inside it. The shapes that dispatcher names already live in
+/// the ordinary roster's one structural type namespace, where stage 04
+/// adopted them. This view joins the one staged dispatcher onto the ordinary
+/// roster so the emitter resolves it like any other body, without the
+/// cleanup lowering cloning the checked trees to push it in. A staged
 /// machine that the ordinary roster also publishes is a duplicate, exactly
-/// as two published rows would be; a staged shape whose identity the roster
-/// already carries yields to the published shape.
+/// as two published rows would be. A caller outside the Unit lanes may
+/// stage extra declaration roots from its own roster; a staged shape whose
+/// identity the roster already carries yields to the published shape.
 #[derive(Clone, Copy)]
 pub(crate) struct UnitPlans<'a> {
     checked: &'a checked_trees::CheckedUnitEffectPlans,
@@ -36,17 +38,15 @@ impl<'a> UnitPlans<'a> {
         }
     }
 
-    /// The ordinary roster joined with one cleanup lane's dispatcher plan and
-    /// the shapes that lane owns.
+    /// The ordinary roster joined with one cleanup lane's dispatcher plan.
     pub(crate) fn with_staged(
         checked: &'a checked_trees::CheckedUnitEffectPlans,
         machine: &'a CheckedUnitEffectMachinePlan,
-        structural_types: &'a [checked_trees::CheckedUnitStructuralTypePlan],
     ) -> Self {
         Self {
             checked,
             staged_machine: Some(machine),
-            staged_structural_types: structural_types,
+            staged_structural_types: &[],
         }
     }
 

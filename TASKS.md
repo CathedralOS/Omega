@@ -2574,17 +2574,19 @@ code and preserve check/native behavior for the named customer slices.
   (exit 70) still hold; and the full check corpus and the native corpus are
   unchanged.
 
-- **UNIT-PLAN-ASSEMBLY-ONCE.** (new-scope) Stage 04 assembles the Unit plan
-  twice in places:
-  - nominal cleanup is built both in the Unit candidates and in
-    `finalize_execution`;
-  - each roster keeps its own `ShapeCollector` namespace;
-  - `UnitPlans::with_staged` (`.../05_checked-trees-to-lowered-psi/src/unit/attached_unit/bodies.rs`)
-    unions them by hand.
-
-  Build nominal cleanup once and keep one type namespace in the existing
-  representations. Acceptance: `with_staged` and the per-roster namespaces are
-  gone; corpus `--filter drops,ownership/,cleanup` is unchanged.
+- **UNIT-PLAN-ASSEMBLY-ONCE.** (new-scope) Stage 04 still builds nominal
+  cleanup twice: the Unit candidates pass in
+  `execution/terminal_unit/mod.rs` builds free `drop<T>` consumers on the
+  shared shapes and keeps only their `.machine`, and
+  `build_checked_nominal_affine_unit_cleanup_plans` (finalize) rebuilds every
+  candidate. Stage 05 depends on the two builds agreeing (`admission.rs`
+  compares `nominal.machine == *machine`). The Unit-family rosters now share
+  one structural type namespace (`CheckedUnitEffectPlans::adopt_structural_types`),
+  and `UnitPlans::with_staged` stages only the cleanup dispatcher. Publish the
+  candidates pass's complete nominal plans and build only attached callers at
+  finalize, keeping its requirement diagnostics over every machine.
+  Acceptance: one nominal build per machine, no dispatcher staging outside
+  the published roster, corpus `--filter drops,ownership/,cleanup` unchanged.
 
 - **STORE-OPERATIONS-GENERALIZED.** (new-scope) The checked plan vocabulary
   splits stores by shape into nine variants

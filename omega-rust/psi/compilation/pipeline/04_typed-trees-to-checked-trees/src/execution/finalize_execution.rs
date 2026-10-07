@@ -48,38 +48,36 @@ pub(crate) fn finalize_execution(
         &facts,
         call_frames.as_ref(),
     );
-    facts.flow.terminal_partial_affine_unit_cleanups =
+    // Both cleanup lanes keep their dispatchers apart from the ordinary
+    // roster, but every shape a Unit body names lives in that roster's one
+    // type namespace. A body that kills a same-statement temporary on a shared
+    // call continuation lowers through the ordinary lane and replays residual
+    // reconstruction against these shapes, so a type referenced only by a
+    // cleanup machine must still resolve there. Identities are deterministic:
+    // a lane that registered a different shape under a published identity is
+    // a planning defect, not a choice for lowering to make.
+    let (partial_cleanups, partial_types) =
         crate::execution::terminal_unit::build_checked_partial_affine_unit_cleanup_plans(
             program,
             &facts,
             &terminal_unit_effects,
         );
-    // Partial-carrier machines leave the ordinary roster, but a body that
-    // kills a same-statement temporary on a shared call continuation still
-    // lowers through the ordinary lane's continuation path — which replays
-    // residual reconstruction against this catalog. Union the carrier's
-    // type table so a type referenced only by partial-carrier machines
-    // still resolves there.
-    for plan in &facts
-        .flow
-        .terminal_partial_affine_unit_cleanups
-        .structural_types
-    {
-        if terminal_unit_effects
-            .structural_types
-            .iter()
-            .all(|existing| existing.identity != plan.identity)
-        {
-            terminal_unit_effects.structural_types.push(plan.clone());
-        }
-    }
-    facts.flow.terminal_nominal_affine_unit_cleanups =
+    facts.flow.terminal_partial_affine_unit_cleanups = partial_cleanups;
+    let (nominal_cleanups, nominal_types) =
         crate::execution::terminal_unit::build_checked_nominal_affine_unit_cleanup_plans(
             program,
             &facts,
             &terminal_unit_effects,
             &mut cleanup_diagnostics,
         );
+    facts.flow.terminal_nominal_affine_unit_cleanups = nominal_cleanups;
+    if let Err(identity) =
+        terminal_unit_effects.adopt_structural_types(partial_types.into_iter().chain(nominal_types))
+    {
+        cleanup_diagnostics.push(Diagnostic::error(format!(
+            "Unit cleanup plans register structural type `{identity}` with a shape the ordinary Unit roster does not carry"
+        )));
+    }
     if !cleanup_diagnostics.is_empty() {
         return Err(cleanup_diagnostics);
     }
@@ -92,7 +90,13 @@ pub(crate) fn finalize_execution(
                 "cannot plan contextual temporary cleanup against the executable hook roster",
             )]
         })?;
-    crate::execution::terminal_unit::retain_structural_value_calls(program, &mut facts);
+    crate::execution::terminal_unit::retain_structural_value_calls(program, &mut facts).map_err(
+        |identity| {
+            vec![Diagnostic::error(format!(
+                "structural value calls register structural type `{identity}` with a shape the ordinary Unit roster does not carry"
+            ))]
+        },
+    )?;
 
     Ok(facts)
 }

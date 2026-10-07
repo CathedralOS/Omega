@@ -8,7 +8,10 @@ use super::types::ShapeCollector;
 use super::{CheckFacts, ScalarCalleePlans};
 use checked_trees::{CheckedStructuralValueRoot, CheckedUnitEffectOperationPlan};
 
-pub(crate) fn retain(program: &dyn ::validation::CheckingInput, facts: &mut CheckFacts) {
+pub(crate) fn retain(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut CheckFacts,
+) -> Result<(), String> {
     let mut shapes = ShapeCollector::new(program);
     let mut schedules = Vec::new();
     for (_, root) in facts.values.structural_values.roots.iter() {
@@ -59,21 +62,10 @@ pub(crate) fn retain(program: &dyn ::validation::CheckingInput, facts: &mut Chec
     // A temporary's result type need not occur in its caller's signature.
     // Retain the ordinary call builder's type declarations under the same
     // namespace as all other structural operation results.
-    for declaration in shapes.types.into_values() {
-        if !facts
-            .flow
-            .terminal_unit_effects
-            .structural_types
-            .iter()
-            .any(|existing| existing.identity == declaration.identity)
-        {
-            facts
-                .flow
-                .terminal_unit_effects
-                .structural_types
-                .push(declaration);
-        }
-    }
+    facts
+        .flow
+        .terminal_unit_effects
+        .adopt_structural_types(shapes.types.into_values())?;
     for domain in shapes.domains {
         if !facts
             .flow
@@ -89,6 +81,7 @@ pub(crate) fn retain(program: &dyn ::validation::CheckingInput, facts: &mut Chec
                 .push(domain);
         }
     }
+    Ok(())
 }
 
 /// Catalog calls execute in scalar/value continuations, while the preceding

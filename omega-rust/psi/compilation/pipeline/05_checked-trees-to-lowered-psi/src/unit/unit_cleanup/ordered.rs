@@ -27,44 +27,28 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         return unsupported("ordered nominal cleanup caller operation sequence drifted");
     };
 
-    let nominal_types = &checked
-        .facts
-        .flow
-        .terminal_nominal_affine_unit_cleanups
-        .structural_types;
-    if nominal_types
-        .iter()
-        .any(|candidate| candidate.identity.is_empty())
-        || nominal_types.iter().enumerate().any(|(index, candidate)| {
-            nominal_types[..index]
-                .iter()
-                .any(|earlier| earlier.identity == candidate.identity)
-        })
-    {
-        return unsupported("ordered nominal cleanup structural types are empty or duplicated");
-    }
+    // Stage 04 adopted the nominal lane's shapes into the ordinary roster's
+    // one type namespace, rejecting any conflicting registration there.
+    let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     // A receiver-free caller, qualified or not, retains no attachment
     // storage. A retained owner must be an empty record: the dispatcher
     // carries no attachment state across its cleanup edges.
     if let Some(attachment) = plan.attachment_type_identity.as_deref() {
-        let attachment_shape = nominal_types
-            .iter()
-            .find(|candidate| candidate.identity == attachment)
-            .ok_or(LoweringError::Unsupported(
-                "ordered nominal cleanup attachment shape is absent",
-            ))?;
+        let attachment_shape =
+            published
+                .structural_type(attachment)
+                .ok_or(LoweringError::Unsupported(
+                    "ordered nominal cleanup attachment shape is absent",
+                ))?;
         if !matches!(&attachment_shape.shape, CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty())
         {
             return unsupported("ordered nominal cleanup attachment is not an empty record");
         }
     }
     for parameter in &plan.structural_parameters {
-        let shape = nominal_types
-            .iter()
-            .find(|candidate| candidate.identity == parameter.type_identity)
-            .ok_or(LoweringError::Unsupported(
-                "ordered nominal cleanup parameter shape is absent",
-            ))?;
+        let shape = published.structural_type(&parameter.type_identity).ok_or(
+            LoweringError::Unsupported("ordered nominal cleanup parameter shape is absent"),
+        )?;
         if !is_bounded_nominal_cleanup_record(&shape.shape) {
             return unsupported("ordered nominal cleanup parameter shape is outside the bound");
         }
@@ -73,7 +57,6 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     super::contexts::validate_requirements(checked, nominal)?;
     super::custody::validate_checked_dispositions(checked, nominal)?;
 
-    let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut roots = Vec::new();
     for cleanup in &nominal.cleanups {
         super::checked_hook_entry(checked, cleanup)?;
@@ -94,21 +77,9 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         }
     }
 
-    // The nominal lane's dispatcher and shapes join the ordinary roster for
-    // this closure; a shape both lanes publish must agree.
-    for shape in nominal_types {
-        if published
-            .structural_type(&shape.identity)
-            .is_some_and(|existing| existing != shape)
-        {
-            return unsupported("ordered nominal cleanup structural type conflicts");
-        }
-    }
-    let plans = UnitPlans::with_staged(
-        &checked.facts.flow.terminal_unit_effects,
-        plan,
-        nominal_types,
-    );
+    // The nominal lane's dispatcher joins the ordinary roster for this
+    // closure.
+    let plans = UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan);
     // The dispatcher plus each unique cleanup root anchors a transitive call
     // closure; ordinary machines reached by a hook body lower beside it.
     let mut unit_roots = Vec::with_capacity(roots.len() + 1);

@@ -945,7 +945,10 @@ pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
-) -> CheckedPartialAffineUnitCleanupPlans {
+) -> (
+    CheckedPartialAffineUnitCleanupPlans,
+    Vec<CheckedUnitStructuralTypePlan>,
+) {
     let mut shapes = ShapeCollector::new(program);
     let machines = program
         .machines()
@@ -977,10 +980,10 @@ pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
         })
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
-    CheckedPartialAffineUnitCleanupPlans {
-        structural_types: shapes.types.into_values().collect(),
-        machines,
-    }
+    (
+        CheckedPartialAffineUnitCleanupPlans { machines },
+        shapes.types.into_values().collect(),
+    )
 }
 
 /// Build the checked front of the first executable nominal-cleanup slice.
@@ -997,7 +1000,10 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
     diagnostics: &mut Vec<Diagnostic>,
-) -> CheckedNominalAffineUnitCleanupPlans {
+) -> (
+    CheckedNominalAffineUnitCleanupPlans,
+    Vec<CheckedUnitStructuralTypePlan>,
+) {
     let mut shapes = ShapeCollector::new(program);
     let targets = unit_effects
         .machines
@@ -1046,10 +1052,10 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
         })
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
-    CheckedNominalAffineUnitCleanupPlans {
-        structural_types: shapes.types.into_values().collect(),
-        machines,
-    }
+    (
+        CheckedNominalAffineUnitCleanupPlans { machines },
+        shapes.types.into_values().collect(),
+    )
 }
 
 // Shape and signature admission shared by the plan builders above.

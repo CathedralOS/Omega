@@ -3,7 +3,7 @@
 
 use crate::checked_trees::flow::terminal::{
     CheckedUnitEffectMachinePlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralPathSegment,
 };
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
@@ -32,12 +32,12 @@ impl Default for CheckedUnitPartialAffineDiscardPlan {
     }
 }
 
-/// Checked-only carrier for direct-record-field partial cleanup. It remains
-/// separate from `CheckedUnitEffectPlans` because its return cleanup is
-/// path-sensitive rather than a whole-root discard.
+/// Checked-only carrier for direct-record-field partial cleanup. Its machines
+/// stay separate from `CheckedUnitEffectPlans` because their return cleanup is
+/// path-sensitive rather than a whole-root discard; the shapes they name live
+/// in that roster's one structural type namespace.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedPartialAffineUnitCleanupPlans {
-    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub machines: Vec<CheckedPartialAffineUnitCleanupMachinePlan>,
 }
 
@@ -65,13 +65,13 @@ pub struct CheckedPartialAffineUnitCleanupMachinePlan {
     pub residual_affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
 }
 
-/// Checked-only carrier for the first whole-root nominal-cleanup slice. It is
-/// intentionally separate from `CheckedUnitEffectPlans`: a nominal cleanup is
-/// executable edge work and must never be reinterpreted as a trivial affine
-/// discard by an older terminal producer.
+/// Checked-only carrier for the first whole-root nominal-cleanup slice. Its
+/// machines are intentionally separate from `CheckedUnitEffectPlans`: a
+/// nominal cleanup is executable edge work and must never be reinterpreted as
+/// a trivial affine discard by an older terminal producer. The shapes they
+/// name live in that roster's one structural type namespace.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedNominalAffineUnitCleanupPlans {
-    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub machines: Vec<CheckedNominalAffineUnitCleanupMachinePlan>,
 }
 

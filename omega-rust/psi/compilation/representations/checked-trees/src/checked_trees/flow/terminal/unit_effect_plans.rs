@@ -81,6 +81,32 @@ pub enum CheckedUnitPlanGapReason {
 }
 
 impl CheckedUnitEffectPlans {
+    /// Adopt shapes another Unit-family builder collected into this roster,
+    /// the one structural type namespace every Unit body lowers against.
+    /// Identities are deterministic, so a shape already present must be the
+    /// same shape; the conflicting identity is returned otherwise, as is an
+    /// empty identity, and the roster keeps every shape adopted before it.
+    pub fn adopt_structural_types(
+        &mut self,
+        types: impl IntoIterator<Item = CheckedUnitStructuralTypePlan>,
+    ) -> Result<(), String> {
+        for shape in types {
+            if shape.identity.is_empty() {
+                return Err(shape.identity);
+            }
+            match self
+                .structural_types
+                .iter()
+                .find(|existing| existing.identity == shape.identity)
+            {
+                Some(existing) if *existing != shape => return Err(shape.identity),
+                Some(_) => {}
+                None => self.structural_types.push(shape),
+            }
+        }
+        Ok(())
+    }
+
     /// One published callable entry, independent of operation or graph body.
     /// Competing bodies do not select a fallback signature.
     pub fn callable_entry_for_machine(

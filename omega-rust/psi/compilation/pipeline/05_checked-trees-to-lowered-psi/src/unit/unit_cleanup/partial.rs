@@ -153,22 +153,9 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         }
     }
 
-    let partial_plans = &checked
-        .facts
-        .flow
-        .terminal_partial_affine_unit_cleanups
-        .structural_types;
-    if partial_plans
-        .iter()
-        .any(|candidate| candidate.identity.is_empty())
-        || partial_plans.iter().enumerate().any(|(index, candidate)| {
-            partial_plans[..index]
-                .iter()
-                .any(|earlier| earlier.identity == candidate.identity)
-        })
-    {
-        return unsupported("partial affine Unit structural types are empty or duplicated");
-    }
+    // The partial lane's shapes live in the ordinary roster's one type
+    // namespace, where stage 04 adopted them.
+    let partial_plans = &checked.facts.flow.terminal_unit_effects.structural_types;
     checked_partial_affine_residuals(
         partial_plans,
         &root_source,
@@ -187,24 +174,12 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     }
 
     // Reuse the ordinary closure lowerer only after validating the separate
-    // checked lane: the lane's dispatcher and shapes join the ordinary roster
-    // for this closure, and a shape both lanes publish must agree.
-    for shape in partial_plans {
-        if published
-            .structural_type(&shape.identity)
-            .is_some_and(|existing| existing != shape)
-        {
-            return unsupported("partial affine Unit structural type conflicts with its closure");
-        }
-    }
+    // checked lane: the lane's dispatcher joins the ordinary roster for this
+    // closure.
     let closure = lower_unit_closure(
         checked,
         &UnitClosureRequest {
-            plans: UnitPlans::with_staged(
-                &checked.facts.flow.terminal_unit_effects,
-                plan,
-                partial_plans,
-            ),
+            plans: UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan),
             ..UnitClosureRequest::unit(checked, plan.machine, &[plan.machine])
         },
     )?;
@@ -361,22 +336,9 @@ fn lower_general_partial_affine_unit_cleanup_machine(
             );
         }
     }
-    let partial_plans = &checked
-        .facts
-        .flow
-        .terminal_partial_affine_unit_cleanups
-        .structural_types;
-    if partial_plans
-        .iter()
-        .any(|candidate| candidate.identity.is_empty())
-        || partial_plans.iter().enumerate().any(|(index, candidate)| {
-            partial_plans[..index]
-                .iter()
-                .any(|earlier| earlier.identity == candidate.identity)
-        })
-    {
-        return unsupported("partial affine Unit structural types are empty or duplicated");
-    }
+    // The partial lane's shapes live in the ordinary roster's one type
+    // namespace, where stage 04 adopted them.
+    let partial_plans = &checked.facts.flow.terminal_unit_effects.structural_types;
     // Any other projected parameter must be fully consumed by its moves;
     // a nonempty complement would be a second residual root this terminator
     // cannot name.
@@ -410,23 +372,10 @@ fn lower_general_partial_affine_unit_cleanup_machine(
             &moved_paths,
         )?;
     }
-    let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
-    for shape in partial_plans {
-        if published
-            .structural_type(&shape.identity)
-            .is_some_and(|existing| existing != shape)
-        {
-            return unsupported("partial affine Unit structural type conflicts with its closure");
-        }
-    }
     let closure = lower_unit_closure(
         checked,
         &UnitClosureRequest {
-            plans: UnitPlans::with_staged(
-                &checked.facts.flow.terminal_unit_effects,
-                plan,
-                partial_plans,
-            ),
+            plans: UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan),
             ..UnitClosureRequest::unit(checked, plan.machine, &[plan.machine])
         },
     )?;

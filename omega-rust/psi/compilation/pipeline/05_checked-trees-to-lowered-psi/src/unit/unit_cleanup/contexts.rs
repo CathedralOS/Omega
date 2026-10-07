@@ -69,7 +69,7 @@ pub(super) fn validate_requirements(
         let shape = checked
             .facts
             .flow
-            .terminal_nominal_affine_unit_cleanups
+            .terminal_unit_effects
             .structural_types
             .iter()
             .find(|shape| shape.identity == parameter.type_identity)

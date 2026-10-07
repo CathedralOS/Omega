@@ -274,20 +274,10 @@ pub(crate) fn finalize_scalar_actions(
             .actions = actions.insert_many(selected);
     }
     facts.values.scalar_computations.temporary_cleanup_actions = actions;
-    for shape in shapes.types.into_values() {
-        if !facts
-            .flow
-            .terminal_unit_effects
-            .structural_types
-            .iter()
-            .any(|existing| existing.identity == shape.identity)
-        {
-            facts
-                .flow
-                .terminal_unit_effects
-                .structural_types
-                .push(shape);
-        }
-    }
+    facts
+        .flow
+        .terminal_unit_effects
+        .adopt_structural_types(shapes.types.into_values())
+        .ok()?;
     Some(())
 }

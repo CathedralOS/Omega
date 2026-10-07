@@ -1,9 +1,10 @@
 //! The one Unit-bodied plan a checked machine carries.
 //!
-//! The affine cleanup rosters and the composed control roster remain separate
-//! tables because each retains the structural-type roster its lowering emits
-//! and the cleanup kinds must never be reread as a trivial discard by another
-//! producer. This view names the family once, so a consumer asks which Unit
+//! The affine cleanup rosters remain separate machine tables because the
+//! cleanup kinds must never be reread as a trivial discard by another
+//! producer; every shape any of them names lives in the ordinary
+//! `CheckedUnitEffectPlans` type namespace, which stage 04 fills once with a
+//! conflict check. This view names the family once, so a consumer asks which Unit
 //! plan a machine lowers instead of walking three rosters and repeating the
 //! same attachment admission beside each. Every multi-state Unit control graph
 //! is a composed plan; no separate structural control roster competes for it.
