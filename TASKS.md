@@ -248,8 +248,7 @@ helper that passes does not close an item.
     secondary-processor canaries) are named implementations whose rows name
     existing entry machines; provider planning installs each through the
     implementation's own plan and resolves installation reach from its rows.
-    Remaining: `Trait::member<Args, Impl>(...)` explicit-application calls
-    are unimplemented; trait-header evidence binders parse but have no
+    Remaining: trait-header evidence binders parse but have no
     positional application, so std's `Calling<C>` names the policy type and
     plan computation checks its exact `CallingPolicy::plan` edge; reflection
     selection rejects a named implementation as a member's operation until

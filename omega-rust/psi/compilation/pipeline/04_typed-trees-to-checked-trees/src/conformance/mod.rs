@@ -3,3 +3,4 @@
 
 pub(crate) mod conformance_application_lifetimes;
 pub(crate) mod conformance_applications;
+pub(crate) mod explicit_requirement_calls;

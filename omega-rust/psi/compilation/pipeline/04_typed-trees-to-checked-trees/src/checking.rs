@@ -510,6 +510,7 @@ fn specialize_generated_static_machine_calls(
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,
     )?;
+    crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
     let mut selections = ::validation::validate_static_machine_selections_with_facts(program)?;
     crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections(
         program,
@@ -527,6 +528,7 @@ pub(crate) fn specialize_static_machine_calls_with_selections(
         program,
     )?;
     crate::conformance::conformance_applications::validate_conformance_applications(program)?;
+    crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
     let mut selections = ::validation::validate_static_machine_selections_with_facts(program)?;
     ::validation::validate_generic_machine_contract_entailment(program)?;
     crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections(

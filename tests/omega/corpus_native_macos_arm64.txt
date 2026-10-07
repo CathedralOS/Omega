@@ -1560,6 +1560,7 @@ pass/traits/runtime_dyn_requirement_contract_exit built 2729ms exit:70 @e83cb166
 pass/traits/runtime_dyn_selector_record_field_exit built 1099ms exit:70 @fc55f70a381c
 pass/traits/runtime_dyn_two_impl_dispatch_exit built 1039ms exit:70 @fc55f70a381c
 pass/traits/runtime_exact_requirement_edge_exit built 2028ms exit:1 @e3131e3bcd65+wt
+pass/traits/runtime_explicit_implementation_requirement_call_exit built 1415ms exit:70
 pass/traits/runtime_generic_exact_application_exit built 1627ms exit:0 @b5a9b4a9eef4+wt
 pass/traits/runtime_inherited_trait_default_exit built 3776ms exit:70 @c4e45d3dda38+wt
 pass/traits/runtime_named_implementation_selection_exit built 1238ms exit:70 @65c3b89f46f4+wt

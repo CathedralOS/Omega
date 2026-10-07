@@ -16,6 +16,7 @@ mod type_parameter_substitution;
 
 pub(crate) use cloned_calls::{rewrite_cloned_calls, statement_span_handles};
 pub(crate) use const_substitution::collect_statement_expression_trees;
+pub(crate) use evidence_rewrites::collect_evidence_requirement_closure;
 pub(crate) use machine_arguments::{
     remap_machine_argument_symbols, static_const_literal_from_type_reference,
 };
@@ -106,7 +107,7 @@ pub(super) fn cloned_runtime_call_subjects(
     calls
 }
 
-pub(super) fn insert_subject_name(
+pub(crate) fn insert_subject_name(
     table: &mut typed_trees::expression::ExpressionTable,
     member: typed_trees::name::Identifier,
     symbol: SymbolHandle,

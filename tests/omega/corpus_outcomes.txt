@@ -1889,6 +1889,14 @@ fail/traits/exact_edge_invocation_kind_mismatch rejected 321ms expected @774eaac
 fail/traits/exact_requirement_edge_wrong_data_rejected rejected 385ms expected @e3131e3bcd65+wt
 	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
 	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
+fail/traits/explicit_implementation_binder_trait_arguments rejected 55ms expected
+	`Order` is bound as `Ranked<T>`, not the `Ranked<Card>` this call of `Ranked::compare` names
+fail/traits/explicit_implementation_inherited_trait_arguments rejected 56ms expected
+	`CardDescending` implements `Descending<Card>`, not the `Ranked<Gem>` this call of `Ranked::compare` names
+fail/traits/explicit_implementation_unrelated_trait rejected 55ms expected
+	`Heavier` implements `Weighed<Card>`, which neither is nor inherits `Ranked`, the trait that declares `Ranked::compare`
+fail/traits/explicit_implementation_wrong_trait_arguments rejected 55ms expected
+	`PowerOrder` implements `Ranked<Card>`, not the `Ranked<Gem>` this call of `Ranked::compare` names
 fail/traits/generic_reference_forwarding_carrier_mismatch rejected 1304ms expected @f3a79ef091a9
 	argument `subject` for state `entry` expects `&mut T`, got `named value`
 	argument `subject` for state `entry` expects `&mut Counter`, got `named value`
@@ -3508,6 +3516,7 @@ pass/traits/runtime_dyn_requirement_contract_exit checked 2818ms check-target:ma
 pass/traits/runtime_dyn_selector_record_field_exit checked 909ms check-target:macos_arm64 @fc55f70a381c
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 921ms check-target:macos_arm64 @fc55f70a381c
 pass/traits/runtime_exact_requirement_edge_exit checked 2044ms check-target:macos_arm64 @e3131e3bcd65+wt
+pass/traits/runtime_explicit_implementation_requirement_call_exit checked 1137ms check-target:macos_arm64
 pass/traits/runtime_generic_exact_application_exit checked 1674ms check-target:macos_arm64 @b5a9b4a9eef4+wt
 pass/traits/runtime_inherited_trait_default_exit checked 3274ms check-target:macos_arm64 @c4e45d3dda38+wt
 pass/traits/runtime_named_implementation_selection_exit checked 1127ms check-target:macos_arm64 @65c3b89f46f4+wt

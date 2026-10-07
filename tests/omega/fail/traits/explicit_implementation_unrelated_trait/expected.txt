@@ -1,0 +1,1 @@
+`Heavier` implements `Weighed<Card>`, which neither is nor inherits `Ranked`
