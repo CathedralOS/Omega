@@ -1063,18 +1063,7 @@ where
         {
             // Operand calls embedded in any statement may reach the binding
             // before its store replays; an unnamed frame fails the hop.
-            let writes = flow::frame_storage_writes(
-                program,
-                machine.symbol,
-                state.state_symbol,
-                index,
-                &frames.statement_value_write_frame(machine, statement),
-                Some(frames),
-            )?;
-            if writes
-                .iter()
-                .any(|write| places_may_overlap(program, &slot, write))
-            {
+            if statement_may_touch_slot(program, machine, state, index, frames, statement, &slot)? {
                 return None;
             }
             if let StatementNode::Assignment(assignment) = statement {
@@ -1459,18 +1448,7 @@ where
         // Operand calls embedded in any statement — including the supplying
         // store itself — run first; a frame that may touch the slot keeps the
         // leaf's contents unproven.
-        let writes = flow::frame_storage_writes(
-            program,
-            machine.symbol,
-            state.state_symbol,
-            index,
-            &frames.statement_value_write_frame(machine, statement),
-            Some(frames),
-        )?;
-        if writes
-            .iter()
-            .any(|write| places_may_overlap(program, &slot, write))
-        {
+        if statement_may_touch_slot(program, machine, state, index, frames, statement, &slot)? {
             return None;
         }
         let arrival = match statement {
@@ -1730,4 +1708,30 @@ fn reference_type(
             _ => return None,
         }
     }
+}
+
+/// Whether `statement`'s own write frame may touch `slot` — operand calls
+/// embedded in any statement run first, so the frame's writes decide.
+fn statement_may_touch_slot(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &FlowStateFact,
+    index: usize,
+    frames: &validation::CallFrameResolver<'_>,
+    statement: &StatementNode,
+    slot: &CanonicalPlace,
+) -> Option<bool> {
+    let writes = flow::frame_storage_writes(
+        program,
+        machine.symbol,
+        state.state_symbol,
+        index,
+        &frames.statement_value_write_frame(machine, statement),
+        Some(frames),
+    )?;
+    Some(
+        writes
+            .iter()
+            .any(|write| places_may_overlap(program, slot, write)),
+    )
 }
