@@ -35,7 +35,7 @@ use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::PrimitiveType;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum DirectLiftPreconditionProof {
@@ -471,22 +471,14 @@ fn arithmetic_bindings_for_runtime(
         .zip(&representative.parameters)
         .enumerate()
     {
-        let Some((primitive, unsigned)) =
-            exact_integer_parameter(program, representative_parameter.type_reference)
-        else {
-            continue;
-        };
-        match &position.source {
-            DirectLiftArgumentSource::PublicParameter(_) | DirectLiftArgumentSource::Literal(_)
-            => push_position_arithmetic_bindings(
-                &mut bindings,
-                position,
-                representative_parameter,
-                primitive,
-                unsigned,
-                || format!("$runtime_parameter_{position_index}"),
-            ),
-        }
+        push_exact_position_arithmetic_bindings(
+            program,
+            &mut bindings,
+            position,
+            representative_parameter,
+            representative_parameter.type_reference,
+            || format!("$runtime_parameter_{position_index}"),
+        );
     }
     append_static_integer_bindings(&mut bindings, representative);
     bindings
@@ -509,22 +501,14 @@ fn arithmetic_bindings_for_application(
         let Some(parameter) = expected.parameters.get(*theorem_position) else {
             continue;
         };
-        let Some((primitive, unsigned)) =
-            exact_integer_parameter(program, parameter.type_reference)
-        else {
-            continue;
-        };
-        match &position.source {
-            DirectLiftArgumentSource::PublicParameter(_) | DirectLiftArgumentSource::Literal(_)
-            => push_position_arithmetic_bindings(
-                &mut bindings,
-                position,
-                representative_parameter,
-                primitive,
-                unsigned,
-                || format!("$theorem_parameter_{theorem_position}"),
-            ),
-        }
+        push_exact_position_arithmetic_bindings(
+            program,
+            &mut bindings,
+            position,
+            representative_parameter,
+            parameter.type_reference,
+            || format!("$theorem_parameter_{theorem_position}"),
+        );
     }
     append_static_integer_bindings(&mut bindings, representative);
     bindings
@@ -555,6 +539,35 @@ fn append_static_integer_bindings(
 }
 
 /// The shared per-position arithmetic binding arms: a public parameter
+
+/// Push one position's arithmetic bindings when its peeled parameter type is
+/// an exact integer and the position sources a public parameter or literal —
+/// other positions contribute no bindings.
+fn push_exact_position_arithmetic_bindings(
+    program: &TypedTrees,
+    bindings: &mut Vec<StrictArithmeticSymbolBinding>,
+    position: &DirectLiftRuntimePosition,
+    representative_parameter: &RepresentativeRuntimeParameter,
+    type_reference: TypeReferenceHandle,
+    atom_identity: impl FnOnce() -> String,
+) {
+    let Some((primitive, unsigned)) = exact_integer_parameter(program, type_reference)
+    else {
+        return;
+    };
+    match &position.source {
+        DirectLiftArgumentSource::PublicParameter(_) | DirectLiftArgumentSource::Literal(_)
+        => push_position_arithmetic_bindings(
+            bindings,
+            position,
+            representative_parameter,
+            primitive,
+            unsigned,
+            atom_identity,
+        ),
+    }
+}
+
 /// reuses or mints the `atom_identity` atom binding for itself and the
 /// representative parameter; an exact-domain integer literal binds its
 /// value on the representative parameter.
