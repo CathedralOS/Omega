@@ -46,19 +46,7 @@ fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
             let proof_fact = program.proof_facts.get(fact_handle);
             let dependencies = domain_fact_dependency_places(program, facts, domain, proof_fact);
             let place = append_proof_fact_place(program, facts, proof_fact);
-            let payload = match proof_fact {
-                ProofFact::Expression(expression) => FactPayload::BooleanExpression(*expression),
-                ProofFact::Membership(membership) => FactPayload::DomainMembership {
-                    value: membership.value,
-                    domain: membership.domain,
-                    domain_symbol: membership.domain_symbol,
-                    semantic_domain: membership.semantic_domain,
-                },
-                ProofFact::Proposition(application) => FactPayload::PropositionApplication {
-                    fact: fact_handle,
-                    proposition: application.proposition,
-                },
-            };
+            let payload = fact_payload(proof_fact, fact_handle);
             let fact = facts.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point: ProgramPoint::Definition {
@@ -97,19 +85,7 @@ fn append_data_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
             let proof_fact = program.proof_facts.get(fact_handle);
             let dependencies = data_fact_dependency_places(program, facts, data, proof_fact);
             let place = append_data_proof_fact_place(program, facts, data, proof_fact);
-            let payload = match proof_fact {
-                ProofFact::Expression(expression) => FactPayload::BooleanExpression(*expression),
-                ProofFact::Membership(membership) => FactPayload::DomainMembership {
-                    value: membership.value,
-                    domain: membership.domain,
-                    domain_symbol: membership.domain_symbol,
-                    semantic_domain: membership.semantic_domain,
-                },
-                ProofFact::Proposition(application) => FactPayload::PropositionApplication {
-                    fact: fact_handle,
-                    proposition: application.proposition,
-                },
-            };
+            let payload = fact_payload(proof_fact, fact_handle);
             let semantic_fact = facts.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point: ProgramPoint::Definition {
@@ -798,4 +774,22 @@ fn proof_fact_handles(facts: HandleSpan<ProofFact>) -> impl Iterator<Item = Hand
             facts.start().generation(),
         )
     })
+}
+
+/// The payload every recorded definition fact carries: the proof term's
+/// expression, membership, or proposition application verbatim.
+fn fact_payload(proof_fact: &ProofFact, fact_handle: Handle<ProofFact>) -> FactPayload {
+    match proof_fact {
+        ProofFact::Expression(expression) => FactPayload::BooleanExpression(*expression),
+        ProofFact::Membership(membership) => FactPayload::DomainMembership {
+            value: membership.value,
+            domain: membership.domain,
+            domain_symbol: membership.domain_symbol,
+            semantic_domain: membership.semantic_domain,
+        },
+        ProofFact::Proposition(application) => FactPayload::PropositionApplication {
+            fact: fact_handle,
+            proposition: application.proposition,
+        },
+    }
 }
