@@ -248,29 +248,7 @@ fn contract_contains_expression(
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    match program.proof_facts.get(fact) {
-        typed_trees::domain::ProofFact::Expression(root) => {
-            crate::authored_selections::member_targets::expression_contains(
-                program, *root, expression,
-            )
-        }
-        typed_trees::domain::ProofFact::Membership(membership) => {
-            crate::authored_selections::member_targets::expression_contains(
-                program,
-                membership.value,
-                expression,
-            )
-        }
-        typed_trees::domain::ProofFact::Proposition(application) => program
-            .expression_table
-            .expression_handles(application.arguments)
-            .iter()
-            .any(|root| {
-                crate::authored_selections::member_targets::expression_contains(
-                    program, *root, expression,
-                )
-            }),
-    }
+    super::contexts::proof_fact_contains_expression(program, fact, expression)
 }
 
 fn resultless_state_signature(

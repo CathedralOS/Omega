@@ -701,7 +701,7 @@ fn environment_from_parameters(
     }
 }
 
-fn proof_fact_contains_expression(
+pub(super) fn proof_fact_contains_expression(
     program: &TypedTrees,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     expression: ExpressionHandle,
