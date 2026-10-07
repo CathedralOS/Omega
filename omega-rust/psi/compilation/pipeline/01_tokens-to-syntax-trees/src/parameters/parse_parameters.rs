@@ -175,26 +175,37 @@ pub(crate) fn parse_callable_signature<'tokens, 'source>(
     Ok((
         StateSignature {
             name,
-            spelling: None,
-            lifetime_parameters: Vec::new(),
-            type_parameters: HandleSpan::empty(),
-            is_default: false,
             parameters,
-            native_callback_parameters: Vec::new(),
             return_type,
-            service_reach_is_installation_bound: false,
-            service_reach_keyword_source_spans: Vec::new(),
-            service_reaches: HandleSpan::empty(),
-            invokes: HandleSpan::empty(),
-            suspends_keyword_source_spans: Vec::new(),
-            blocks_keyword_source_spans: Vec::new(),
-            suspends: false,
-            blocks: false,
-            contracts: HandleSpan::empty(),
-            default_body: HandleSpan::empty(),
-            terminates_guarantee: false,
-            where_facts: HandleSpan::empty(),
+            ..blank_state_signature()
         },
         input,
     ))
+}
+
+/// A `StateSignature` carrying only defaults — the parse sites spread it
+/// and name the fields their signature really sets.
+pub(crate) fn blank_state_signature() -> syntax_trees::item::StateSignature {
+    syntax_trees::item::StateSignature {
+        name: syntax_trees::identifier::Identifier::generated("*"),
+        spelling: None,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        is_default: false,
+        parameters: HandleSpan::empty(),
+        native_callback_parameters: Vec::new(),
+        return_type: Handle::invalid(),
+        service_reach_is_installation_bound: false,
+        service_reach_keyword_source_spans: Vec::new(),
+        service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
+        suspends: false,
+        blocks: false,
+        contracts: HandleSpan::empty(),
+        default_body: HandleSpan::empty(),
+        terminates_guarantee: false,
+        where_facts: HandleSpan::empty(),
+    }
 }

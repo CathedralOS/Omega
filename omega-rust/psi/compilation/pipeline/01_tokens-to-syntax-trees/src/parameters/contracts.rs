@@ -170,14 +170,11 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
 
         let contract = syntax_trees::item::StateSignature {
             name: name.clone(),
-            spelling: None,
             lifetime_parameters: nested_generic_parameters.lifetime_parameters,
             type_parameters: nested_type_parameters,
-            is_default: false,
             parameters,
             native_callback_parameters: Vec::new(),
             return_type,
-            service_reach_is_installation_bound: false,
             service_reach_keyword_source_spans,
             service_reaches,
             invokes,
@@ -186,9 +183,9 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             suspends,
             blocks,
             contracts,
-            default_body: HandleSpan::empty(),
             terminates_guarantee,
             where_facts,
+            ..crate::parameters::parse_parameters::blank_state_signature()
         };
         let parameter =
             &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];

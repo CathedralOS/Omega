@@ -325,30 +325,10 @@ fn parse_refinement_clause<'tokens, 'source>(
             "a refinement clause names an existing base requirement; it declares no parameters, generics, or result",
         ));
     }
-    let mut signature = StateSignature {
-        name: requirement
-            .clone()
-            .unwrap_or_else(|| Identifier::generated("*")),
-        spelling: None,
-        lifetime_parameters: Vec::new(),
-        type_parameters: HandleSpan::empty(),
-        is_default: false,
-        parameters: HandleSpan::empty(),
-        native_callback_parameters: Vec::new(),
-        return_type: Handle::invalid(),
-        service_reach_is_installation_bound: false,
-        service_reach_keyword_source_spans: Vec::new(),
-        service_reaches: HandleSpan::empty(),
-        invokes: HandleSpan::empty(),
-        suspends_keyword_source_spans: Vec::new(),
-        blocks_keyword_source_spans: Vec::new(),
-        suspends: false,
-        blocks: false,
-        contracts: HandleSpan::empty(),
-        default_body: HandleSpan::empty(),
-        terminates_guarantee: false,
-        where_facts: HandleSpan::empty(),
-    };
+    let mut signature = crate::parameters::parse_parameters::blank_state_signature();
+    signature.name = requirement
+        .clone()
+        .unwrap_or_else(|| Identifier::generated("*"));
     let mut authored_suspends = false;
     let mut authored_blocks = false;
     let mut authored_terminates = false;
@@ -597,25 +577,12 @@ fn parse_trait_machine_signature<'tokens, 'source>(
     Ok((
         StateSignature {
             name,
-            spelling: None,
             lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters: generic_parameters.type_parameters,
-            is_default: false,
             parameters,
             native_callback_parameters,
             return_type,
-            service_reach_is_installation_bound: false,
-            service_reach_keyword_source_spans: Vec::new(),
-            service_reaches: HandleSpan::empty(),
-            invokes: HandleSpan::empty(),
-            suspends_keyword_source_spans: Vec::new(),
-            blocks_keyword_source_spans: Vec::new(),
-            suspends: false,
-            blocks: false,
-            contracts: HandleSpan::empty(),
-            default_body: HandleSpan::empty(),
-            terminates_guarantee: false,
-            where_facts: HandleSpan::empty(),
+            ..crate::parameters::parse_parameters::blank_state_signature()
         },
         input,
     ))
