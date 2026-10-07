@@ -41,10 +41,6 @@ impl Builder<'_, '_> {
     /// One `[copy]` record element copied out of a borrowed view: the same
     /// element selection an element read takes, then one read per scalar
     /// field of the element in declaration order.
-
-    /// One `[copy]` record element copied out of a borrowed view: the same
-    /// element selection an element read takes, then one read per scalar
-    /// field of the element in declaration order.
     pub(super) fn view_element_copy(
         &self,
         expression: ExpressionHandle,
@@ -120,9 +116,6 @@ impl Builder<'_, '_> {
 
     /// Copy one `Unrestricted` leaf from readable storage into a fresh owned
     /// place. The source root and its ownership or loan remain unchanged.
-
-    /// Copy one `Unrestricted` leaf from readable storage into a fresh owned
-    /// place. The source root and its ownership or loan remain unchanged.
     pub(super) fn copied_place(
         &mut self,
         expression: ExpressionHandle,
@@ -140,10 +133,6 @@ impl Builder<'_, '_> {
         let (source, leaf) = self.borrowed_leaf_argument(expression, expected)?;
         Some(CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf })
     }
-
-    /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
-    /// named root as a parameter/local/`self` source plus the canonical
-    /// member path, with `type_identity` naming the projected leaf.
 
     /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
     /// named root as a parameter/local/`self` source plus the canonical
@@ -233,12 +222,6 @@ impl Builder<'_, '_> {
     /// must equal the authored place, and the projected type must be the
     /// enclosing result type. The root source is built as a whole `Place` (or
     /// `Call` product) node carrying the exact root identity.
-
-    /// One selected projected child of an existing owner. The owned-selection
-    /// transfer is the authoritative admission: its recorded canonical path
-    /// must equal the authored place, and the projected type must be the
-    /// enclosing result type. The root source is built as a whole `Place` (or
-    /// `Call` product) node carrying the exact root identity.
     pub(super) fn projected_selection_place(
         &mut self,
         expression: ExpressionHandle,
@@ -301,17 +284,6 @@ impl Builder<'_, '_> {
                 .into_string(),
         })
     }
-
-    /// One shared borrow of an exact place selected as a `&T` result. The
-    /// referent stays owned by its established root; the authored target's
-    /// canonical root and path become a `SharedBorrow` source so lowering can
-    /// rejoin borrowed custody at the selection's block parameter instead of
-    /// moving a child. `shared_record_reference` pins the referent to a
-    /// carrier the pipeline can build -- a record, or a primitive whose
-    /// structural shape is its own scalar -- and the target must be the exact
-    /// place semantics admitted: a named root under record fields and literal
-    /// fixed indexes, whose projected leaf type has to equal the declared
-    /// referent.
 
     /// One shared borrow of an exact place selected as a `&T` result. The
     /// referent stays owned by its established root; the authored target's

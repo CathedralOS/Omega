@@ -58,17 +58,6 @@ pub(super) const REFERENCE_BOUNDARY_HOPS: usize = 16;
 /// the literal place, which the scan then proves or refuses under its
 /// ordinary rules; a resolved place may still cross another boundary, which
 /// the next frontier's rebase — or the leaf scan's own relocation — resolves.
-
-/// The per-frontier rebase the shared trace applies to each demanded place.
-/// `rebase_exact_local_place` covers a write-capable leaf carried inside an
-/// owned local through the prefix's stored origins; a shared leaf has no
-/// write origins — nothing may write through it — so
-/// `shared_reference_leaf_origin` resolves the store that supplied its
-/// referent instead. `bound` is the frontier: one past the statement the scan
-/// is examining, so stores at that statement count. An unresolved hop keeps
-/// the literal place, which the scan then proves or refuses under its
-/// ordinary rules; a resolved place may still cross another boundary, which
-/// the next frontier's rebase — or the leaf scan's own relocation — resolves.
 pub(super) fn reference_boundary_before_statement<Resolve>(
     program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,

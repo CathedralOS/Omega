@@ -108,11 +108,6 @@ impl Builder<'_, '_> {
     /// consumer accesses it. A shared temporary owns its referent, not a
     /// reference-shaped constructor. Existing places keep their loan/storage
     /// route; retaining a value does not itself authorize lending or cleanup.
-
-    /// Retain the value established by an argument, independent of how the
-    /// consumer accesses it. A shared temporary owns its referent, not a
-    /// reference-shaped constructor. Existing places keep their loan/storage
-    /// route; retaining a value does not itself authorize lending or cleanup.
     pub(super) fn retain_structural_argument(
         &mut self,
         expression: ExpressionHandle,
@@ -207,18 +202,6 @@ impl Builder<'_, '_> {
     /// boundary: stage 05's `parameter_declaration` omits the `[erased]`
     /// predicate, so a state that mixes an erased structural binding with a
     /// later structural formal is the one shape where the two sides disagree.
-
-    /// The dense structural position `symbol` occupies in this state's
-    /// signature, with the parameter's declared type, or `None` when the name
-    /// is not a carried structural formal. Dense positions count only the
-    /// parameters that own a structural ingress slot: a `const` or `[erased]`
-    /// binding owns none, and a primitive parameter travels the scalar roster
-    /// instead. Consumers resolve `Parameter { parameter_index }` against the
-    /// retained structural parameter roster, which counts the same way, so the
-    /// index is a shared coordinate rather than a local convention. One known
-    /// boundary: stage 05's `parameter_declaration` omits the `[erased]`
-    /// predicate, so a state that mixes an erased structural binding with a
-    /// later structural formal is the one shape where the two sides disagree.
     fn structural_parameter(&self, symbol: SymbolHandle) -> Option<(u32, TypeReferenceHandle)> {
         let (index, parameter) = self
             .authored_parameters
@@ -235,14 +218,6 @@ impl Builder<'_, '_> {
             .find(|(_, parameter)| parameter.symbol == symbol)?;
         Some((u32::try_from(index).ok()?, parameter.type_reference))
     }
-
-    /// The source plan naming where `symbol`'s storage lives: its dense
-    /// signature position when the name resolves to a carried structural
-    /// formal, and the operation sequence's local slot otherwise. Every whole
-    /// owned structural source this builder plans classifies through here,
-    /// because a parameter root described as a local has no consumption owner:
-    /// the returned-value walk looks for a result binding that a formal never
-    /// mints, and the affine residual routes key on the dense position.
 
     /// The source plan naming where `symbol`'s storage lives: its dense
     /// signature position when the name resolves to a carried structural

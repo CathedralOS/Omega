@@ -43,11 +43,6 @@ pub(super) fn borrowed_place_leaf_type(
 /// the authored root's own declaration: a whole local's declared type, or a
 /// producing call's declared return type. Only exact field and literal-index
 /// segments keep a statically checkable identity.
-
-/// The declared type of a field/fixed-index projection leaf, resolved through
-/// the authored root's own declaration: a whole local's declared type, or a
-/// producing call's declared return type. Only exact field and literal-index
-/// segments keep a statically checkable identity.
 pub(super) fn projected_leaf_type(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
@@ -90,12 +85,6 @@ pub(super) fn projected_leaf_type(
 /// exactly the carrier `borrowed_place` can rebuild into a `SharedBorrow`
 /// source -- a computed root cannot be re-derived at replay, and a dynamic
 /// index or range segment has no statically checkable ordinal.
-
-/// The place shape a shared-borrow arm target must canonicalize to: a named
-/// root reached through record fields and literal fixed indexes only. That is
-/// exactly the carrier `borrowed_place` can rebuild into a `SharedBorrow`
-/// source -- a computed root cannot be re-derived at replay, and a dynamic
-/// index or range segment has no statically checkable ordinal.
 pub(in crate::values::scalar::computations) fn canonical_place_is_borrowable(
     place: &crate::flow::CanonicalPlace,
 ) -> bool {
@@ -107,14 +96,6 @@ pub(in crate::values::scalar::computations) fn canonical_place_is_borrowable(
             )
         })
 }
-
-/// `canonical_place_is_borrowable` widened with a runtime `Index` segment
-/// for the copied-leaf lane: `self.pointer_scan_nodes[position]` has no
-/// static ordinal, but the argument-path mint records the selector as a
-/// `RuntimeIndex` coordinate the terminal verifier re-proves against the
-/// enclosing array's extent. The `&place` borrow and scalar-case lanes keep
-/// the static shape — a loan or a case read replays the place, not a runtime
-/// element.
 
 /// `canonical_place_is_borrowable` widened with a runtime `Index` segment
 /// for the copied-leaf lane: `self.pointer_scan_nodes[position]` has no
@@ -165,12 +146,6 @@ pub(super) fn symbol_declared_type(
 /// Membership observation can reconstruct such a leaf without reading any
 /// storage contents, which is exactly what a `self.bitness`-shape read needs;
 /// anything with payload storage or affine custody needs move semantics.
-
-/// A copyable payloadless case-sum leaf: a named `data` whose members are all
-/// variants carrying no payload fields, under `Unrestricted` multiplicity.
-/// Membership observation can reconstruct such a leaf without reading any
-/// storage contents, which is exactly what a `self.bitness`-shape read needs;
-/// anything with payload storage or affine custody needs move semantics.
 pub(super) fn scalar_case_place_type(
     program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
@@ -202,11 +177,6 @@ pub(super) fn scalar_case_place_type(
             _ => false,
         })
 }
-
-/// `self.bitness`-shape admission: a member/fixed-index projection rooted at
-/// shared-borrowed storage whose leaf is a copyable payloadless case sum. The
-/// value keeps the exact canonical path so lowering can observe the held case
-/// and re-establish it -- never moving borrowed storage.
 
 /// `self.bitness`-shape admission: a member/fixed-index projection rooted at
 /// shared-borrowed storage whose leaf is a copyable payloadless case sum. The
@@ -259,12 +229,6 @@ pub(in crate::values::scalar::computations) fn is_scalar_case_place_value(
 /// owned place reproduces the read a `self.scan_compare_type`-shape member
 /// access needs where moving or case-fan-out cannot apply; anything affine
 /// still needs move semantics.
-
-/// A copyable `Unrestricted` leaf of any structural shape: a named `data`
-/// under `Unrestricted` multiplicity. Copying its contents into a fresh
-/// owned place reproduces the read a `self.scan_compare_type`-shape member
-/// access needs where moving or case-fan-out cannot apply; anything affine
-/// still needs move semantics.
 pub(super) fn copied_place_type(
     program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
@@ -308,15 +272,6 @@ pub(super) fn copied_place_type(
         .iter()
         .any(|data| data.symbol == *symbol)
 }
-
-/// A member/index projection rooted at readable owned or borrowed storage
-/// whose leaf is a copyable `Unrestricted` named type or fixed primitive array.
-/// It shares the scalar-case read's root/path contract, but retains contents
-/// that cannot be reconstructed by case fan-out. A bare
-/// whole-root name is the degenerate path: an owned root's `Unrestricted`
-/// contents copy out whole, no loan involved.
-/// Retain that snapshot at the operand's evaluation point; passing an earlier
-/// constructor's result would confuse mutable storage with its initial value.
 
 /// A member/index projection rooted at readable owned or borrowed storage
 /// whose leaf is a copyable `Unrestricted` named type or fixed primitive array.

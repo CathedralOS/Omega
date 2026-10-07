@@ -41,14 +41,6 @@ impl Builder<'_, '_> {
     /// literal. Lowering establishes the whole roster as one scalar array, so
     /// the array contributes no element custody of its own. Constant-array
     /// projections retain their exact builtin indexing selection.
-
-    /// A closed primitive array supplied as one member of a structural value.
-    /// The ordinary scalar-array producer flattens it to its row-major leaves;
-    /// each leaf evaluates in authored order as its own scalar computation,
-    /// keyed by this array expression the way record fields key by their
-    /// literal. Lowering establishes the whole roster as one scalar array, so
-    /// the array contributes no element custody of its own. Constant-array
-    /// projections retain their exact builtin indexing selection.
     /// Element-wise array literal establishment: each element registers as
     /// its own structural value under the declared element type, exactly as
     /// record fields do inside a constructor.
@@ -371,12 +363,6 @@ impl Builder<'_, '_> {
             fields: self.structural_values.record_fields.insert_many(fields),
         })
     }
-
-    /// A case literal composes its payload fields exactly like a record's:
-    /// authored initializers pair against the selected case's declarations in
-    /// authored order, and each operand is a scalar computation or a nested
-    /// structural value. The case tag stays with the construction, so the
-    /// value keeps its discriminated identity a record cannot spell.
 
     /// A case literal composes its payload fields exactly like a record's:
     /// authored initializers pair against the selected case's declarations in

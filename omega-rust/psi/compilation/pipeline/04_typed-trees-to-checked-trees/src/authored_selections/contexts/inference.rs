@@ -98,10 +98,6 @@ pub(super) fn member_target_in_environment(
 /// The measure a member selects on its inferred receiver, asked of
 /// [`crate::semantic::calls::collection_measure_member`] in that query's
 /// receiver vocabulary. A nominal or compiler-text receiver has no measure.
-
-/// The measure a member selects on its inferred receiver, asked of
-/// [`crate::semantic::calls::collection_measure_member`] in that query's
-/// receiver vocabulary. A nominal or compiler-text receiver has no measure.
 pub(super) fn collection_measure_in_environment(
     program: &dyn ::validation::CheckingInput,
     member: &TableMemberExpression,

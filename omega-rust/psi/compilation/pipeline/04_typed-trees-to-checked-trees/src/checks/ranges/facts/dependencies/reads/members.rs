@@ -118,22 +118,6 @@ pub(super) fn collect_member_reads<'a, 'b>(
 /// supply), or a member name no field of the agreed declaration owns all stay
 /// unproven. The footprint itself still comes from the receiver's own read
 /// scan — this answers only which field the projection selects.
-
-/// The declared field identity of a member whose receiver produces a
-/// temporary. `effective_member_symbol` already answers receivers that keep a
-/// place position — names, calls, literals, indexed chains — plus any
-/// binder-stamped `member_symbol`. A `match` receiver has neither: value
-/// dispatch is a control-flow join the member binder never walked, so the
-/// identity must come from the arms' declared result types instead, and the
-/// same holds for a member receiver whose own receiver bottoms out below the
-/// binder's reach — `match { .. }.inner.a` resolves `a` on the declared type
-/// of the `inner` field the arm agreement supplied, so deeper chains keep
-/// resolving while each hop names a declared field of the previous hop's
-/// leaf. An arm whose result type cannot be recovered, leaves that disagree,
-/// a case-qualified hop (whose variant disambiguation the leaf alone cannot
-/// supply), or a member name no field of the agreed declaration owns all stay
-/// unproven. The footprint itself still comes from the receiver's own read
-/// scan — this answers only which field the projection selects.
 pub(super) fn temporary_member_symbol(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -164,20 +148,6 @@ pub(super) fn temporary_member_symbol_at(
     crate::flow::resolve_member_symbol_from_type_symbol(program, leaf, member.member.as_str())
         .unwrap_or_else(SymbolHandle::invalid)
 }
-
-/// The declaration leaf a temporary-producing receiver's value stands on when
-/// the member binder's contextual walk cannot type it. A `match` receiver's
-/// leaf is the arm agreement: the checker's own result oracle is what
-/// `validate_match_dispatch` consults for arm compatibility, so requiring
-/// every arm's recovered leaf to name the same declaration is the
-/// member-level statement of that agreement — judged on leaf symbols rather
-/// than type handles, because separately authored references to one
-/// declaration intern separately. A member receiver whose own receiver is
-/// temporary recurses through the hop's declared type: `match { .. }.inner`
-/// stands on the leaf of the `inner` field the agreement supplied. Receivers
-/// the ordinary walk already types never reach this scan — the caller's
-/// `effective_member_symbol` answer came first — and every other kind keeps
-/// the leaf unproven.
 
 /// The declaration leaf a temporary-producing receiver's value stands on when
 /// the member binder's contextual walk cannot type it. A `match` receiver's
@@ -244,16 +214,6 @@ pub(super) fn temporary_receiver_leaf(
 /// applies. Each operand recurses through the ordinary read scan, so a
 /// nested call or a selected nested indexing still has to prove its own
 /// complete footprint.
-
-/// A selected `[]`/`[..]` application is a checked occurrence, not a place:
-/// the exact `CheckedOperatorUseFact` at this statement authenticates which
-/// declaration the occurrence resolved to, and the operand expressions
-/// recovered from that row enumerate the caller storage the callee can
-/// observe. Missing, ambiguous, or inconsistent selection custody leaves the
-/// read set incomplete — the same evidence floor the checked-call join
-/// applies. Each operand recurses through the ordinary read scan, so a
-/// nested call or a selected nested indexing still has to prove its own
-/// complete footprint.
 pub(super) fn collect_selected_index_reads<'a, 'b>(
     program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -303,18 +263,6 @@ pub(super) fn collect_selected_index_reads<'a, 'b>(
         )
     })
 }
-
-/// The operand expressions a selected operator application hands its
-/// declaration, authenticated by the exact `CheckedOperatorUseFact` at this
-/// statement occurrence. Use rows carry the enclosing statement's origin
-/// even for nested operands, so this join covers selector and
-/// subexpression positions; custody must agree across every recorded row
-/// for the occurrence, resolve to a single valid declaration under the
-/// expected spelling, and retain the candidate roster it was selected
-/// from. The operand count still has to match the retained signature so a
-/// drifted row cannot rename storage the operand scan never saw. Missing,
-/// ambiguous, or inconsistent custody yields no operands — the same
-/// evidence floor the checked-call join applies.
 
 /// The operand expressions a selected operator application hands its
 /// declaration, authenticated by the exact `CheckedOperatorUseFact` at this
@@ -532,20 +480,6 @@ pub(super) fn collect_selector_reads<'a, 'b>(
         _ => false,
     }
 }
-
-/// Whether a member's receiver chain escaped the typed member binder, so an
-/// unset `member_symbol` on the member marks a hop the binder never typed
-/// rather than a name it saw and refused. The binder descends a member chain
-/// only while each hop resolves on the previous hop's declared type: a
-/// case-qualified hop is never stamped, so every member stacked above it —
-/// and above any earlier unwalked hop, recursively — keeps the contextual
-/// `effective_member_symbol` floor. An explicit `&`/`&mut` receiver peels
-/// before the binder's coverage test, so it escapes the same way. A receiver
-/// the binder did resolve (or whose own refusal was reachable) returns false:
-/// an unset symbol above it stays a refusal that contextual lookup must not
-/// repair — an unqualified `subject.f` naming a payload field, for example,
-/// cannot borrow `f@Case`'s identity merely because the name happens to
-/// resolve inside one variant.
 
 /// Whether a member's receiver chain escaped the typed member binder, so an
 /// unset `member_symbol` on the member marks a hop the binder never typed

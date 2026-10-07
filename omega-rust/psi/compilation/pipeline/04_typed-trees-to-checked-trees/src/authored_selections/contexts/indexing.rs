@@ -64,10 +64,6 @@ pub(super) fn build_owner_environment_index(
 /// Every expression handle a proof fact's roots reach — the indexed shape of
 /// `proof_fact_value_contains_expression`, which asks membership in exactly
 /// this set.
-
-/// Every expression handle a proof fact's roots reach — the indexed shape of
-/// `proof_fact_value_contains_expression`, which asks membership in exactly
-/// this set.
 pub(super) fn proof_fact_reachable_expressions(
     program: &dyn ::validation::CheckingInput,
     fact: &typed_trees::domain::ProofFact,
@@ -109,10 +105,6 @@ pub(super) fn proof_fact_handle_reachable_expressions(
 ) -> HashSet<ExpressionHandle> {
     proof_fact_reachable_expressions(program, program.proof_facts.get(fact))
 }
-
-/// Every expression a type reference's embedded roots reach — the indexed
-/// shape of `type_reference_contains_expression`, whose recursion this walk
-/// mirrors arm for arm.
 
 /// Every expression a type reference's embedded roots reach — the indexed
 /// shape of `type_reference_contains_expression`, whose recursion this walk

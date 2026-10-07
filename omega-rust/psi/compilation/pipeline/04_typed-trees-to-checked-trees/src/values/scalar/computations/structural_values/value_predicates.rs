@@ -195,14 +195,6 @@ pub(in crate::values::scalar::computations) fn is_record_value(
 /// pre-classification only -- `borrowed_place` re-checks every condition when
 /// constructing the node, and it does no plan mutation before that admission,
 /// so a rejected borrow still leaves no partial structural plan.
-
-/// A `let view: &T = &place` establishment admits the same shared-borrow
-/// carrier a selection arm does, at statement scope: the referent's owner is
-/// never moved, and `borrowed_place` rebuilds the authored target's canonical
-/// root and path into a `SharedBorrow` source. This is the driver's
-/// pre-classification only -- `borrowed_place` re-checks every condition when
-/// constructing the node, and it does no plan mutation before that admission,
-/// so a rejected borrow still leaves no partial structural plan.
 pub(in crate::values::scalar::computations) fn is_shared_borrow_value(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
@@ -226,11 +218,6 @@ pub(in crate::values::scalar::computations) fn is_shared_borrow_value(
 /// value itself is adjudicated by `slice_view_place`, which rejoins
 /// the checked loan the view holds; this only decides that the destination is
 /// a view at all, so the ordinary owned classifications keep every other local.
-
-/// A LocalData initializer whose declared type is a shared or mutable slice. The
-/// value itself is adjudicated by `slice_view_place`, which rejoins
-/// the checked loan the view holds; this only decides that the destination is
-/// a view at all, so the ordinary owned classifications keep every other local.
 pub(in crate::values::scalar::computations) fn is_borrowed_slice_view_value(
     program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
@@ -242,13 +229,6 @@ pub(in crate::values::scalar::computations) fn is_borrowed_slice_view_value(
             Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
         )
 }
-
-/// A LocalData initializer copying one element of a borrowed view
-/// (`let chosen: Entry = tail[index]`): a single-element index over a bare
-/// name whose declared type is a view of exactly the copyable record the
-/// local declares. This is `view_element_copy`'s own admission, consulted by
-/// the builder branch that owns it -- the owned-place arm in `computations`
-/// offers every projected place and does not re-derive this shape.
 
 /// A LocalData initializer copying one element of a borrowed view
 /// (`let chosen: Entry = tail[index]`): a single-element index over a bare
@@ -291,12 +271,6 @@ pub(super) fn is_view_element_copy(
 /// stored bits, so the element read and the fresh record carry the same
 /// scalar; a range or any other qualification needs its own evidence and
 /// keeps the copy declined.
-
-/// A view-copied record field's carrier: a bare primitive, or a primitive
-/// under exactly one arithmetic policy. A policy changes operations, not the
-/// stored bits, so the element read and the fresh record carry the same
-/// scalar; a range or any other qualification needs its own evidence and
-/// keeps the copy declined.
 pub(super) fn plain_or_policy_scalar_field(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
@@ -322,10 +296,6 @@ pub(super) fn plain_or_policy_scalar_field(
 /// A fixed-array construction of structural elements spelled as a literal. Primitive arrays keep
 /// their scalar-element route; structural elements each register their own
 /// value node, the same way record fields do inside a constructor.
-
-/// A fixed-array construction of structural elements spelled as a literal. Primitive arrays keep
-/// their scalar-element route; structural elements each register their own
-/// value node, the same way record fields do inside a constructor.
 pub(in crate::values::scalar::computations) fn is_fixed_array_value(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
@@ -341,18 +311,6 @@ pub(in crate::values::scalar::computations) fn is_fixed_array_value(
         )
     }) && !validation::is_closed_primitive_array_type(program, expected)
 }
-
-/// The referent of a shared-borrow result type (`&T` where `T` is a named
-/// record, or a primitive, that the structural pipeline can carry). `None` for
-/// owned results and for borrows the structural pipeline cannot carry. The
-/// carrier rule is linear-tolerant: a shared borrow observes the referent
-/// without moving it, so a linear declaration's claim never reaches this join
-/// and the referent's own owner keeps the whole discharge obligation.
-///
-/// A primitive referent resolves to no data declaration, so the record rule
-/// cannot name its shape. `add_type` registers it as a `PrimitiveScalar`
-/// structural carrier exactly as it does for a borrowed primitive elsewhere,
-/// and the borrow still denotes the original storage rather than a snapshot.
 
 /// The referent of a shared-borrow result type (`&T` where `T` is a named
 /// record, or a primitive, that the structural pipeline can carry). `None` for
@@ -439,9 +397,6 @@ pub(super) fn zeroed_scalar_array_parts(
     }
     Some((primitive_type, u64::try_from(*length).ok()?))
 }
-
-/// The checked literal-zero computation one synthesized zeroed field
-/// element contributes: a landed `0` in the declared element carrier.
 
 /// The checked literal-zero computation one synthesized zeroed field
 /// element contributes: a landed `0` in the declared element carrier.

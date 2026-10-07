@@ -179,18 +179,6 @@ pub(super) fn collect_operand_reads<'a, 'b>(
 /// the recorded coordinate would be builtin arithmetic's value rather than
 /// whatever the selected declaration produces, and the read set would
 /// claim disjointness the declaration never established.
-
-/// A selected `+`/`-`/`*`/`/`/`%` application is a checked occurrence, not
-/// builtin arithmetic: the exact `CheckedOperatorUseFact` at this statement
-/// authenticates which declaration governs it, and that declaration can
-/// observe only the operands it receives, so its footprint is the operands'
-/// own reads — each recursing through the operand gate, so a nested
-/// authored application still proves its own custody. A constant-shaped
-/// application (`1u64 + 0u64`) is refused even with custody: the place
-/// algebra folds such a selector syntactically (`index_place_segment`), so
-/// the recorded coordinate would be builtin arithmetic's value rather than
-/// whatever the selected declaration produces, and the read set would
-/// claim disjointness the declaration never established.
 pub(super) fn collect_selected_arithmetic_reads<'a, 'b>(
     program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -237,12 +225,6 @@ pub(super) fn collect_selected_arithmetic_reads<'a, 'b>(
         )
     })
 }
-
-/// A read place counts only when its root is current storage and every
-/// segment carries resolved selector geometry. Normalization runs before the
-/// current-root check so attached fields answer through the machine root.
-/// The returned symbol is the pre-normalization root for callers that
-/// distinguish a place's own root from a rebased copy identity.
 
 /// A read place counts only when its root is current storage and every
 /// segment carries resolved selector geometry. Normalization runs before the
@@ -337,12 +319,6 @@ pub(super) fn collect_place_read<'a, 'b>(
         bound_lookup,
     )
 }
-
-/// The tail of a place read once the canonical place is computed:
-/// validation, the frozen-integer copy rewrite, and deduped capture.
-/// `collect_member_reads` and the selector-chain split call this with the
-/// place they already resolved for their root-kind gate, so the read is
-/// canonicalized once instead of twice.
 
 /// The tail of a place read once the canonical place is computed:
 /// validation, the frozen-integer copy rewrite, and deduped capture.

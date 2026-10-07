@@ -70,24 +70,6 @@ pub(super) fn static_application_carries_no_caller_storage(
 /// receives; they are never scanned as local reads. A missing carrier or a
 /// result destination that is not current local storage leaves the
 /// footprint incomplete.
-
-/// The footprint of a writing atomic (`store`, `swap`, fetch, or decisive
-/// compare-exchange). All four exist only as an assignment carrier: the
-/// parser desugars `place.store(v, ord)` and the `let r = place.op(..)`
-/// forms into `target = Atomic { .. }`, so the resident place is that
-/// carrier statement's `target`, never a child of `value`. The admitted
-/// read set is every storage position the carrier names: the resident
-/// place, the operand expressions the instruction consults besides the
-/// resident place (`value` for store/swap, the fetch operand for
-/// read-modify-write, the expected and replacement operands for a decisive
-/// compare-exchange whose `value` is the exact prior-shaped update model),
-/// and the `result` destination the carrier materializes into — a slot the
-/// carrier owns, so a write reaching it can never slip past the recorded
-/// label. The model's prior positions are placeholders for the
-/// instruction-observed pre-write value naming the same local `result`
-/// receives; they are never scanned as local reads. A missing carrier or a
-/// result destination that is not current local storage leaves the
-/// footprint incomplete.
 pub(super) fn collect_atomic_write_reads<'a, 'b>(
     program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -196,10 +178,6 @@ pub(super) fn collect_atomic_write_reads<'a, 'b>(
 /// The resident place of a writing atomic is its carrier assignment's
 /// target. An atomic not carried by the exact assignment at this statement
 /// index has no provable resident place.
-
-/// The resident place of a writing atomic is its carrier assignment's
-/// target. An atomic not carried by the exact assignment at this statement
-/// index has no provable resident place.
 pub(super) fn atomic_carrier_target(
     program: &dyn ::validation::CheckingInput,
     state: &State,
@@ -215,13 +193,6 @@ pub(super) fn atomic_carrier_target(
     };
     (assignment.value == expression).then_some(assignment.target)
 }
-
-/// A single-member name's storage identity in this state: the resolved
-/// symbol when the path carries one, else the nearest current local binding
-/// the member text — the same name binding the desugar's generated result
-/// and placeholder names receive, since those never carry resolved symbols.
-/// The root must still be current storage at this statement; a member path,
-/// an unresolved name, or a name bound only later is not a destination.
 
 /// A single-member name's storage identity in this state: the resolved
 /// symbol when the path carries one, else the nearest current local binding
@@ -279,10 +250,6 @@ pub(super) fn atomic_local_name_symbol(
 /// The fetch update model the parser's desugar builds is `prior OP operand`:
 /// its left operand is the observed-prior placeholder naming the result
 /// destination, and its right operand is the authored operand `d`.
-
-/// The fetch update model the parser's desugar builds is `prior OP operand`:
-/// its left operand is the observed-prior placeholder naming the result
-/// destination, and its right operand is the authored operand `d`.
 pub(super) fn atomic_fetch_operand(
     program: &dyn ::validation::CheckingInput,
     atomic: &typed_trees::expression::TableAtomicExpression,
@@ -292,11 +259,6 @@ pub(super) fn atomic_fetch_operand(
     };
     Some(binary.right)
 }
-
-/// The decisive compare-exchange update model the parser's desugar builds is
-/// `prior + (prior == expected) * (replacement - prior)`: the resident prior
-/// is read through placeholder positions naming the result destination, and
-/// the remaining reads are exactly the expected and replacement operands.
 
 /// The decisive compare-exchange update model the parser's desugar builds is
 /// `prior + (prior == expected) * (replacement - prior)`: the resident prior

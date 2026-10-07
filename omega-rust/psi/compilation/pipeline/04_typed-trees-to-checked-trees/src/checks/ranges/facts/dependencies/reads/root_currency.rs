@@ -19,12 +19,6 @@ pub(super) struct RootCurrencyIndex {
 /// in one program can share a symbol in malformed input, but they can never
 /// share either span start — the spans are disjoint — and the program's
 /// identity separates instances across passes.
-
-/// One state's identity inside a program for the slot key: its declared
-/// symbol plus the starts of its parameter and statement spans. Two states
-/// in one program can share a symbol in malformed input, but they can never
-/// share either span start — the spans are disjoint — and the program's
-/// identity separates instances across passes.
 type StateKey = (u32, u32, u32);
 
 pub(super) fn state_key(state: &State) -> StateKey {
@@ -41,22 +35,12 @@ pub(super) fn state_key(state: &State) -> StateKey {
 /// parameters or statements, a roster re-point, or a different program
 /// entirely all move the key, so no state can ever inherit another's index.
 /// The scope's lifetime additionally keeps the cache inside one check pass.
-
-/// `None` outside a [`RootCurrencyScope`]; inside one, the index built for
-/// the state last consulted, keyed by that state's stable identity and the
-/// program's structural fingerprint — an in-place rewrite of the state's
-/// parameters or statements, a roster re-point, or a different program
-/// entirely all move the key, so no state can ever inherit another's index.
-/// The scope's lifetime additionally keeps the cache inside one check pass.
 type RootCurrencySlot = Option<Option<(u64, u64, StateKey, RootCurrencyIndex)>>;
 
 thread_local! {
     static ROOT_CURRENCY: std::cell::RefCell<RootCurrencySlot> =
         const { std::cell::RefCell::new(None) };
 }
-
-/// The root-currency memo scope for one check pass; the cache is empty when
-/// it opens and restored to the enclosing scope when it drops.
 
 /// The root-currency memo scope for one check pass; the cache is empty when
 /// it opens and restored to the enclosing scope when it drops.

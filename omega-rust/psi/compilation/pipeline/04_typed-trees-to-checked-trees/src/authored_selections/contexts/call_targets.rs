@@ -58,11 +58,6 @@ pub(super) fn authored_member_source_span(
 /// contain it. Contract copies can intentionally leave parameter/result path
 /// symbols unresolved; the retained checked contract owner is the authority
 /// for those bindings.
-
-/// Recover one expression type from the exact checked owner environments that
-/// contain it. Contract copies can intentionally leave parameter/result path
-/// symbols unresolved; the retained checked contract owner is the authority
-/// for those bindings.
 pub(in crate::authored_selections) fn checked_expression_type_reference_from_exact_owner(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -226,11 +221,6 @@ pub(super) fn checked_machine_call_target_from_executable_owner(
     }
     target
 }
-
-/// The call target one executable site answers for `call`: the state's
-/// direct resolution, then the machine's type-parameter arm for a receiverless
-/// spelling, then the attached-machine lookup off the receiver's type
-/// inferred in the environment the statement's prefix bindings establish.
 
 /// The call target one executable site answers for `call`: the state's
 /// direct resolution, then the machine's type-parameter arm for a receiverless
