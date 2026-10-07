@@ -13,7 +13,7 @@ use crate::{
 };
 use calling_conventions::{callback_layout_plan_id, callback_plan_laid_layout_id};
 use diagnostics::Diagnostic;
-use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
+use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
 
 impl<'program> LayoutBuilder<'program> {
     pub(crate) fn compute_data_layout(
@@ -86,20 +86,7 @@ impl<'program> LayoutBuilder<'program> {
                 DataMember::Field(_) => None,
                 DataMember::Variant(_) => None,
             })
-            .map(|field| {
-                let layout = self.layout_type_reference_handle(field.type_reference, bindings)?;
-                Ok(PlannedField {
-                    symbol: field.symbol,
-                    name: field.name.clone(),
-                    type_symbol: self.program.type_reference_symbol(field.type_reference),
-                    type_name: self
-                        .program
-                        .display_type_reference_with_constraints(field.type_reference)
-                        .into(),
-                    type_descriptor: self.type_descriptor(field.type_reference, bindings),
-                    layout,
-                })
-            })
+            .map(|field| self.plan_field(field, bindings))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
 
         // PLAN-LAID VALUE TYPES (layouts L4): a synthesized `Policy<Schema>`
@@ -309,6 +296,26 @@ impl<'program> LayoutBuilder<'program> {
         })
     }
 
+    /// Resolve recursive geometry before deriving this field's metadata.
+    fn plan_field(
+        &mut self,
+        field: &DataField,
+        bindings: &[GenericLayoutBinding<'program>],
+    ) -> Result<PlannedField, Diagnostic> {
+        let layout = self.layout_type_reference_handle(field.type_reference, bindings)?;
+        Ok(PlannedField {
+            symbol: field.symbol,
+            name: field.name.clone(),
+            type_symbol: self.program.type_reference_symbol(field.type_reference),
+            type_name: self
+                .program
+                .display_type_reference_with_constraints(field.type_reference)
+                .into(),
+            type_descriptor: self.type_descriptor(field.type_reference, bindings),
+            layout,
+        })
+    }
+
     /// Lay out a case-bearing shape (sum OR mixed) as a TAG-PREFIXED OVERLAY:
     /// the i32 tag sits at offset 0, the COMMON fields (mixed shapes only) pack
     /// immediately after the tag, and every case's payload fields pack from a
@@ -341,20 +348,7 @@ impl<'program> LayoutBuilder<'program> {
                 DataMember::Field(_) => None,
                 DataMember::Variant(_) => None,
             })
-            .map(|field| {
-                let layout = self.layout_type_reference_handle(field.type_reference, bindings)?;
-                Ok(PlannedField {
-                    symbol: field.symbol,
-                    name: field.name.clone(),
-                    type_symbol: self.program.type_reference_symbol(field.type_reference),
-                    type_name: self
-                        .program
-                        .display_type_reference_with_constraints(field.type_reference)
-                        .into(),
-                    type_descriptor: self.type_descriptor(field.type_reference, bindings),
-                    layout,
-                })
-            })
+            .map(|field| self.plan_field(field, bindings))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         let (common_fields, common_layout) =
             pack_fields_at(&mut self.fields, planned_common, TAG_LAYOUT.size)?;
@@ -373,21 +367,7 @@ impl<'program> LayoutBuilder<'program> {
                 .data_payload_fields(variant)
                 .iter()
                 .filter(|field| !field.relevance.is_erased())
-                .map(|field| {
-                    let layout =
-                        self.layout_type_reference_handle(field.type_reference, bindings)?;
-                    Ok(PlannedField {
-                        symbol: field.symbol,
-                        name: field.name.clone(),
-                        type_symbol: self.program.type_reference_symbol(field.type_reference),
-                        type_name: self
-                            .program
-                            .display_type_reference_with_constraints(field.type_reference)
-                            .into(),
-                        type_descriptor: self.type_descriptor(field.type_reference, bindings),
-                        layout,
-                    })
-                })
+                .map(|field| self.plan_field(field, bindings))
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
             for field in &planned {
                 payload_alignment = payload_alignment.max(field.layout.alignment);
