@@ -1,11 +1,11 @@
+// Callers select one statement before entering traversal. Ordinals belong to
+// that walk; source statement coordinates remain on the authored call facts.
 pub(in crate::semantic::calls) struct CallSiteTraversal<'program, 'ordinal> {
     pub(super) program: &'program typed_trees::TypedTrees,
     pub(super) machine: &'program typed_trees::machine::Machine,
     pub(super) state: &'program typed_trees::state::State,
-    pub(super) current_statement_index: usize,
-    pub(super) target_statement_index: usize,
     pub(super) target_call_ordinal: usize,
-    pub(super) current_ordinal: &'ordinal mut usize,
+    pub(super) current_ordinal: usize,
     /// When set, every reached call site is pushed in ordinal order instead
     /// of stopping at `target_call_ordinal` — one statement walk binds all of
     /// a statement's call sites at once.
@@ -23,19 +23,14 @@ impl<'program> CallSiteTraversal<'program, '_> {
         program: &'program typed_trees::TypedTrees,
         machine: &'program typed_trees::machine::Machine,
         state: &'program typed_trees::state::State,
-        current_statement_index: usize,
-        target_statement_index: usize,
         target_call_ordinal: usize,
-        current_ordinal: &'ordinal mut usize,
     ) -> CallSiteTraversal<'program, 'ordinal> {
         CallSiteTraversal {
             program,
             machine,
             state,
-            current_statement_index,
-            target_statement_index,
             target_call_ordinal,
-            current_ordinal,
+            current_ordinal: 0,
             collected: None,
             conditional: false,
             matched_conditionally: false,
@@ -49,18 +44,14 @@ impl<'program> CallSiteTraversal<'program, '_> {
         program: &'program typed_trees::TypedTrees,
         machine: &'program typed_trees::machine::Machine,
         state: &'program typed_trees::state::State,
-        statement_index: usize,
-        current_ordinal: &'ordinal mut usize,
         collected: &'ordinal mut Vec<super::super::CallSite<'program>>,
     ) -> CallSiteTraversal<'program, 'ordinal> {
         CallSiteTraversal {
             program,
             machine,
             state,
-            current_statement_index: statement_index,
-            target_statement_index: statement_index,
             target_call_ordinal: usize::MAX,
-            current_ordinal,
+            current_ordinal: 0,
             collected: Some(collected),
             conditional: false,
             matched_conditionally: false,
@@ -107,11 +98,10 @@ impl<'program> CallSiteTraversal<'program, '_> {
     }
 
     pub(super) fn is_target_call_site(&self) -> bool {
-        self.current_statement_index == self.target_statement_index
-            && *self.current_ordinal == self.target_call_ordinal
+        self.current_ordinal == self.target_call_ordinal
     }
 
     pub(super) fn advance_call_ordinal(&mut self) {
-        *self.current_ordinal = self.current_ordinal.saturating_add(1);
+        self.current_ordinal = self.current_ordinal.saturating_add(1);
     }
 }

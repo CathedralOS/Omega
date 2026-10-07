@@ -256,16 +256,7 @@ pub(crate) fn call_is_unconditional(
         return None;
     }
     let statement = statements.get(statement_index)?;
-    let mut ordinal = 0;
-    let mut traversal = CallSiteTraversal::new(
-        program,
-        machine,
-        state,
-        statement_index,
-        statement_index,
-        call_ordinal,
-        &mut ordinal,
-    );
+    let mut traversal = CallSiteTraversal::new(program, machine, state, call_ordinal);
     find_call_site_in_statement(&mut traversal, statement)?;
     (!traversal.matched_conditionally).then_some(())
 }
@@ -284,16 +275,7 @@ pub(crate) fn find_call_site_in_state<'program>(
         .statement_table
         .statements(state.statement_nodes)
         .get(statement_index)?;
-    let mut current_ordinal = 0usize;
-    let mut traversal = CallSiteTraversal::new(
-        program,
-        machine,
-        state,
-        statement_index,
-        statement_index,
-        call_ordinal,
-        &mut current_ordinal,
-    );
+    let mut traversal = CallSiteTraversal::new(program, machine, state, call_ordinal);
     find_call_site_in_statement(&mut traversal, statement)
 }
 
@@ -314,15 +296,7 @@ pub(crate) fn collect_call_sites_in_statement<'program>(
     else {
         return collected;
     };
-    let mut current_ordinal = 0usize;
-    let mut traversal = CallSiteTraversal::collecting(
-        program,
-        machine,
-        state,
-        statement_index,
-        &mut current_ordinal,
-        &mut collected,
-    );
+    let mut traversal = CallSiteTraversal::collecting(program, machine, state, &mut collected);
     let _ = find_call_site_in_statement(&mut traversal, statement);
     collected
 }
@@ -343,16 +317,7 @@ pub(crate) fn transition_call_target(
     else {
         return None;
     };
-    let mut current_ordinal = 0;
-    let mut traversal = CallSiteTraversal::new(
-        program,
-        machine,
-        state,
-        statement_index,
-        statement_index,
-        call_ordinal,
-        &mut current_ordinal,
-    );
+    let mut traversal = CallSiteTraversal::new(program, machine, state, call_ordinal);
     traversal::transition_call_target(&mut traversal, transition)
 }
 
