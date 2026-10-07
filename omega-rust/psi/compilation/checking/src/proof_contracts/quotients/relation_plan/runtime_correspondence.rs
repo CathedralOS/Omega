@@ -486,26 +486,13 @@ pub(super) fn closed_lift_literal_for_representative(
                         row_elements
                             .iter()
                             .map(|element| {
-                                let ExpressionNode::Integer(literal) =
-                                    program.expression_table.expression(*element)
-                                else {
-                                    return Err(
-                                        RelationPlanError::DirectLiftLiteralTargetMismatch(
-                                            position,
-                                        ),
-                                    );
-                                };
-                                let landing = exact_integer_landing(
+                                closed_integer_array_element(
                                     program,
+                                    *element,
                                     *row_element_type,
                                     row_primitive,
-                                    literal,
                                     position,
-                                )?;
-                                Ok(ClosedIntegerArrayElement {
-                                    spelling: literal.text().to_owned(),
-                                    landing,
-                                })
+                                )
                             })
                             .collect::<Result<Vec<_>, _>>()
                             .map(std::sync::Arc::from)
@@ -537,21 +524,12 @@ pub(super) fn closed_lift_literal_for_representative(
                         row_elements
                             .iter()
                             .map(|element| {
-                                let ExpressionNode::Float(literal) =
-                                    program.expression_table.expression(*element)
-                                else {
-                                    return Err(
-                                        RelationPlanError::DirectLiftLiteralTargetMismatch(
-                                            position,
-                                        ),
-                                    );
-                                };
-                                let landing =
-                                    exact_float_landing(row_primitive, literal, position)?;
-                                Ok(ClosedFloatArrayElement {
-                                    spelling: literal.text().to_owned(),
-                                    landing,
-                                })
+                                closed_float_array_element(
+                                    program,
+                                    *element,
+                                    row_primitive,
+                                    position,
+                                )
                             })
                             .collect::<Result<Vec<_>, _>>()
                             .map(std::sync::Arc::from)
@@ -577,17 +555,7 @@ pub(super) fn closed_lift_literal_for_representative(
                     if row_elements.len() != *row_width {
                         return None;
                     }
-                    row_elements
-                        .iter()
-                        .map(|element| {
-                            let ExpressionNode::Boolean(value) =
-                                program.expression_table.expression(*element)
-                            else {
-                                return None;
-                            };
-                            Some(*value)
-                        })
-                        .collect::<Option<Vec<_>>>()
+                    closed_boolean_array_elements(program, row_elements)
                         .map(std::sync::Arc::from)
                 })
                 .collect::<Option<Vec<_>>>()
@@ -600,17 +568,7 @@ pub(super) fn closed_lift_literal_for_representative(
         let element_primitive = exact_primitive_type(program, *element_type)
             .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
         if element_primitive == PrimitiveType::Bool {
-            let values = elements
-                .iter()
-                .map(|element| {
-                    let ExpressionNode::Boolean(value) =
-                        program.expression_table.expression(*element)
-                    else {
-                        return None;
-                    };
-                    Some(*value)
-                })
-                .collect::<Option<Vec<_>>>()
+            let values = closed_boolean_array_elements(program, elements)
                 .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
             return Ok(Some(ClosedLiftLiteral::BooleanArray {
                 values: values.into(),
@@ -629,22 +587,13 @@ pub(super) fn closed_lift_literal_for_representative(
             let elements = elements
                 .iter()
                 .map(|element| {
-                    let ExpressionNode::Integer(literal) =
-                        program.expression_table.expression(*element)
-                    else {
-                        return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
-                    };
-                    let landing = exact_integer_landing(
+                    closed_integer_array_element(
                         program,
+                        *element,
                         *element_type,
                         element_primitive,
-                        literal,
                         position,
-                    )?;
-                    Ok(ClosedIntegerArrayElement {
-                        spelling: literal.text().to_owned(),
-                        landing,
-                    })
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             return Ok(Some(ClosedLiftLiteral::IntegerArray {
@@ -656,16 +605,7 @@ pub(super) fn closed_lift_literal_for_representative(
             let elements = elements
                 .iter()
                 .map(|element| {
-                    let ExpressionNode::Float(literal) =
-                        program.expression_table.expression(*element)
-                    else {
-                        return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
-                    };
-                    let landing = exact_float_landing(element_primitive, literal, position)?;
-                    Ok(ClosedFloatArrayElement {
-                        spelling: literal.text().to_owned(),
-                        landing,
-                    })
+                    closed_float_array_element(program, *element, element_primitive, position)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             return Ok(Some(ClosedLiftLiteral::FloatArray {
@@ -884,6 +824,60 @@ fn closed_recursive_array_element(
         }
         _ => Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
     }
+}
+
+/// The shared integer-element arm of the flat and nested integer array
+/// lifts: unwrap the literal and land it under `element_type`.
+fn closed_integer_array_element(
+    program: &TypedTrees,
+    element: ExpressionHandle,
+    element_type: TypeReferenceHandle,
+    primitive: PrimitiveType,
+    position: usize,
+) -> Result<ClosedIntegerArrayElement, RelationPlanError> {
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(element) else {
+        return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+    };
+    let landing = exact_integer_landing(program, element_type, primitive, literal, position)?;
+    Ok(ClosedIntegerArrayElement {
+        spelling: literal.text().to_owned(),
+        landing,
+    })
+}
+
+/// The shared float-element arm of the flat and nested float array lifts.
+fn closed_float_array_element(
+    program: &TypedTrees,
+    element: ExpressionHandle,
+    primitive: PrimitiveType,
+    position: usize,
+) -> Result<ClosedFloatArrayElement, RelationPlanError> {
+    let ExpressionNode::Float(literal) = program.expression_table.expression(element) else {
+        return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+    };
+    let landing = exact_float_landing(primitive, literal, position)?;
+    Ok(ClosedFloatArrayElement {
+        spelling: literal.text().to_owned(),
+        landing,
+    })
+}
+
+/// The shared boolean-element arm of the flat and nested boolean array
+/// lifts: every element an exact boolean literal.
+fn closed_boolean_array_elements(
+    program: &TypedTrees,
+    elements: &[ExpressionHandle],
+) -> Option<Vec<bool>> {
+    elements
+        .iter()
+        .map(|element| {
+            let ExpressionNode::Boolean(value) = program.expression_table.expression(*element)
+            else {
+                return None;
+            };
+            Some(*value)
+        })
+        .collect()
 }
 
 fn canonical_fixed_bytes(program: &TypedTrees, elements: &[ExpressionHandle]) -> Option<Vec<u8>> {
