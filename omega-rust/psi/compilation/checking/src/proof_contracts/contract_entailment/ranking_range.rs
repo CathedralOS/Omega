@@ -10,6 +10,7 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 
 mod calls;
+mod coordinate;
 mod field_coordinates;
 mod fields;
 mod lengths;
@@ -305,9 +306,7 @@ pub(super) fn constrained_parameter_bound_expressions(
     for parameter in program
         .state_parameters(root)
         .iter()
-        .filter(|parameter| {
-            exact_integer_parameter(program, parameter.type_reference).is_some()
-        })
+        .filter(|parameter| exact_integer_parameter(program, parameter.type_reference).is_some())
     {
         let mut reference = parameter.type_reference;
         while let TypeReferenceNode::Constrained {
@@ -333,7 +332,6 @@ pub(super) fn constrained_parameter_bound_expressions(
     }
 }
 
-
 fn subject_field_coordinates<'program>(
     program: &'program TypedTrees,
     root: &'program State,
@@ -344,10 +342,9 @@ fn subject_field_coordinates<'program>(
     let mut coordinates = field_coordinates::FieldCoordinates::empty();
     for subject in subjects {
         if let Some(coordinate) =
-            fields::FieldCoordinate::resolve_projection(program, root, *subject)
+            fields::FieldCoordinate::resolve_field_projection(program, root, *subject)
         {
-            let coordinate =
-                coordinate.at_entry_arrival(program, state, entry_parameters)?;
+            let coordinate = coordinate.at_entry_arrival(program, state, entry_parameters)?;
             coordinates.include(coordinate);
             continue;
         }
@@ -451,9 +448,9 @@ fn prove_edge(
             // Scalar telescope compatibility says nothing about records.
             // Rebind the selected field only after proving its unique
             // nominal arrival; template spellings cannot supply that proof.
-            let coordinate = fields::FieldCoordinate::resolve(program, root, subject, measure)?;
             let coordinate =
-                coordinate.at_entry_arrival(program, state, entry_parameters)?;
+                fields::FieldCoordinate::resolve_field(program, root, subject, measure)?;
+            let coordinate = coordinate.at_entry_arrival(program, state, entry_parameters)?;
             Some(field_coordinates::FieldCoordinates::new(coordinate))
         }
         // A declared scalar view may read projected storage: the subject's
@@ -517,7 +514,7 @@ fn prove_edge(
     // `length_bindings` coordinate below.
     let mut slice_rank = match measure {
         RankingRangeMeasure::SliceLength(subject) => {
-            match lengths::SliceCoordinate::resolve(program, root, subject) {
+            match lengths::SliceCoordinate::resolve_length(program, root, subject) {
                 Some(coordinate) => {
                     let coordinate =
                         coordinate.at_entry_arrival(program, state, entry_parameters)?;
@@ -957,7 +954,7 @@ fn prove_edge(
                 // length arrives at the record's unique slice leaf, read off
                 // the actual exactly as a projected subject does.
                 let coordinate = lengths::slice_leaf_coordinate(program, parameter)?;
-                coordinate.arrived(
+                coordinate.arrived_length(
                     program,
                     machine,
                     state,
@@ -982,7 +979,7 @@ fn prove_edge(
         let actual = match fields::integer_leaf_coordinate(program, parameter) {
             // The destination slot is a record carrier: the role's produced
             // value is the leaf its declaration names, read off the actual.
-            Some(coordinate) => coordinate.actual(
+            Some(coordinate) => coordinate.field_actual(
                 program,
                 machine,
                 state,
@@ -1148,9 +1145,8 @@ pub(super) fn hypothesis_landed_endpoints(
             } else {
                 ceiling
             };
-            if !fields::endpoint_lands_under(
-                engine, program, machine, state, *endpoint, polynomial,
-            ) {
+            if !fields::endpoint_lands_under(engine, program, machine, state, *endpoint, polynomial)
+            {
                 return None;
             }
         }
@@ -1302,10 +1298,7 @@ fn parameter_comparisons(
             continue;
         }
         for (minimum, maximum, end_inclusive) in
-            crate::program_scope::type_shape::range_constraints(
-                program,
-                parameter.type_reference,
-            )
+            crate::program_scope::type_shape::range_constraints(program, parameter.type_reference)
         {
             // Missing or ambiguous aliases cannot contribute an auxiliary
             // invariant, even when another premise makes the edge dead.
@@ -1472,7 +1465,6 @@ fn integer_bindings(
     Some(bindings)
 }
 
-
 /// The `ProofFact::Expression` bodies every `Requires` contract on `machine`
 /// carries — the premise vocabulary a view's read surface always includes.
 pub(super) fn required_contract_expressions(
@@ -1514,8 +1506,7 @@ fn exact_integer_parameter(
         reference = *base_type;
     }
     let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;
-    primitive.is_fixed_integer()
-    .then_some(primitive)
+    primitive.is_fixed_integer().then_some(primitive)
 }
 
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
