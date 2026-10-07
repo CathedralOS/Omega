@@ -186,20 +186,15 @@ pub(crate) fn judge_scalar_recast(
                     );
                     return;
                 }
-                let Some(end) = offset.checked_add(target_representation.size as i64) else {
-                    return;
-                };
-                if end > region_length {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "{context}: the recast target `{target_name}` needs {} bytes at offset \
-                             {offset}, but the region holds {region_length} -- the view would read \
-                             past the buffer (§5b rule 1 is byte-granular)",
-                            target_representation.size,
-                        ))
-                        .with_source_span(source_span),
-                    );
-                }
+                reject_when_target_overruns_region(
+                    diagnostics,
+                    &context,
+                    &target_name,
+                    target_representation.size,
+                    offset,
+                    region_length,
+                    source_span,
+                );
                 return;
             }
             let source_type = crate::value_custody::places::declared_place_type_raw(
@@ -336,17 +331,15 @@ pub(crate) fn judge_scalar_recast(
         let Some(target_size) = target.scalar_byte_size() else {
             return;
         };
-        let Some(end) = offset.checked_add(target_size as i64) else {
-            return;
-        };
-        if end > region_length {
-            diagnostics.push(
-                Diagnostic::error(format!(
-                    "{context}: the recast target `{target_name}` needs {target_size} bytes at offset {offset}, but the region holds {region_length} -- the view would read past the buffer (§5b rule 1 is byte-granular)",
-                ))
-                .with_source_span(source_span),
-            );
-        }
+        reject_when_target_overruns_region(
+            diagnostics,
+            &context,
+            &target_name,
+            target_size,
+            offset,
+            region_length,
+            source_span,
+        );
         return;
     }
     let source_type = crate::value_custody::places::declared_place_type_raw(
@@ -471,6 +464,30 @@ fn interior_offset_unproven_rejected(
         return true;
     }
     false
+}
+
+/// A bounded interior region must leave room for `size` target bytes inside
+/// `offset..region_length` — the byte-granular view may not read past it.
+fn reject_when_target_overruns_region(
+    diagnostics: &mut Vec<Diagnostic>,
+    context: &str,
+    target_name: &str,
+    size: usize,
+    offset: i64,
+    region_length: i64,
+    source_span: source::SourceSpan,
+) {
+    let Some(end) = offset.checked_add(size as i64) else {
+        return;
+    };
+    if end > region_length {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "{context}: the recast target `{target_name}` needs {size} bytes at offset {offset}, but the region holds {region_length} -- the view would read past the buffer (§5b rule 1 is byte-granular)",
+            ))
+            .with_source_span(source_span),
+        );
+    }
 }
 
 fn judge_slice_recast(
