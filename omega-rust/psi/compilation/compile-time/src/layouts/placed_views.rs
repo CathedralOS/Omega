@@ -90,9 +90,9 @@ struct Application {
 }
 
 #[derive(Debug, Clone)]
-struct PendingRewrite {
-    type_reference: TypeReferenceHandle,
-    synthetic_name: String,
+pub(crate) struct PendingRewrite {
+    pub(crate) type_reference: TypeReferenceHandle,
+    pub(crate) synthetic_name: String,
 }
 
 type Discovery = (

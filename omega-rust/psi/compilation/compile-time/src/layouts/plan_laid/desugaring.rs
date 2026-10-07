@@ -17,10 +17,7 @@ struct IndexedData {
     properties: DataProperties,
 }
 
-struct PendingRewrite {
-    type_reference: TypeReferenceHandle,
-    synthetic_name: String,
-}
+use crate::layouts::placed_views::PendingRewrite;
 
 /// Find `Policy<Schema>` type applications where `Policy` is a non-generic
 /// data definition with an attached `plan` machine, synthesize the instance
