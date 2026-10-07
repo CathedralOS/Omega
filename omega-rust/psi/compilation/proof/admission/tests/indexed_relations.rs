@@ -26,15 +26,13 @@
 //!   (`B' a = IW[done] zero → Two`) is checked and constructs.
 
 use proof_admission::{
-    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, INDEXED_W, IndexedFamily,
+    Budget, Context, CoreError, Declaration, INDEXED_W, IndexedFamily,
     Level, MathematicalCertificate, Signature, Sort, Term, TermArena, TermHandle,
     certificate_assumption_closure, check_signature, check_type, indexed_scheme, infer_sort,
     infer_type, verify_mathematical_certificate, weak_head_normalize,
 };
+use crate::common::*;
 
-fn budget() -> Budget {
-    Budget::new(DEFAULT_CONVERSION_STEPS)
-}
 
 /// The eliminator ceiling: `iindW`'s typing and computation unfold the
 /// whole `IndexedAt`/`IW` encoding — the `J` transport, the repacked
@@ -44,102 +42,27 @@ fn budget() -> Budget {
 /// `iindW` application (which re-decides the step type against the
 /// instantiated statement) dominates and stays far below the bound —
 /// `StepCeiling` remains the decidability witness.
-fn measure_budget() -> Budget {
-    Budget::new(1 << 18)
-}
 
-fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
-}
 
-fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
-}
 
-fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
-    arena.insert(Term::Variable(index))
-}
 
-fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-    arena.insert(Term::Pi { domain, codomain })
-}
 
-fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
-    arena.insert(Term::Lambda { domain, body })
-}
 
-fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> TermHandle {
-    arena.insert(Term::Apply { function, argument })
-}
 
-fn two(arena: &mut TermArena) -> TermHandle {
-    arena.insert(Term::Two)
-}
 
-fn two_zero(arena: &mut TermArena) -> TermHandle {
-    arena.insert(Term::TwoZero)
-}
 
-fn two_one(arena: &mut TermArena) -> TermHandle {
-    arena.insert(Term::TwoOne)
-}
 
-fn id(arena: &mut TermArena, ty: TermHandle, left: TermHandle, right: TermHandle) -> TermHandle {
-    arena.insert(Term::Id { ty, left, right })
-}
 
-fn refl(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
-    arena.insert(Term::Refl { ty, value })
-}
 
-fn squash(arena: &mut TermArena, ty: TermHandle) -> TermHandle {
-    arena.insert(Term::Squash { ty })
-}
 
-fn squash_intro(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
-    arena.insert(Term::SquashIntro { ty, value })
-}
 
-fn squash_elim(
-    arena: &mut TermArena,
-    proposition: TermHandle,
-    function: TermHandle,
-    scrutinee: TermHandle,
-) -> TermHandle {
-    arena.insert(Term::SquashElim {
-        proposition,
-        function,
-        scrutinee,
-    })
-}
 
-fn boxed(arena: &mut TermArena, ty: TermHandle) -> TermHandle {
-    arena.insert(Term::Box { ty })
-}
 
 fn box_intro(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
     arena.insert(Term::BoxIntro { ty, value })
 }
 
-fn box_elim(
-    arena: &mut TermArena,
-    motive: TermHandle,
-    body: TermHandle,
-    scrutinee: TermHandle,
-) -> TermHandle {
-    arena.insert(Term::BoxElim {
-        motive,
-        body,
-        scrutinee,
-    })
-}
 
-fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
-    arena.insert(Term::Constant {
-        declaration,
-        levels: Vec::new(),
-    })
-}
 
 /// `Id Two one one` — the dead child position: no closed inhabitant, so
 /// every node of the leaf family is a leaf.
@@ -680,11 +603,11 @@ fn iw_spine(arena: &mut TermArena, children: u32, next: u32, index: TermHandle) 
         levels: vec![Level::Constant(0), Level::Constant(0), Level::Constant(0)],
     });
     let parameters = [
-        constant(arena, D_INDEX),
-        constant(arena, D_CARRIER),
-        constant(arena, children),
-        constant(arena, D_OUT),
-        constant(arena, next),
+        constant(arena, D_INDEX, Vec::new()),
+        constant(arena, D_CARRIER, Vec::new()),
+        constant(arena, children, Vec::new()),
+        constant(arena, D_OUT, Vec::new()),
+        constant(arena, next, Vec::new()),
         index,
     ];
     let mut spine = head;
@@ -920,11 +843,11 @@ fn a_family_description_cannot_name_itself() {
     // `g' : Π(_ : dBNeg zero). IW' (dNextNeg zero _)`.
     let embedded = IndexedFamily {
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
-        index: constant(&mut arena, D_INDEX),
-        carrier: constant(&mut arena, D_CARRIER),
-        children: constant(&mut arena, D_CHILDREN_NEG),
-        out: constant(&mut arena, D_OUT),
-        next: constant(&mut arena, D_NEXT_NEG),
+        index: constant(&mut arena, D_INDEX, Vec::new()),
+        carrier: constant(&mut arena, D_CARRIER, Vec::new()),
+        children: constant(&mut arena, D_CHILDREN_NEG, Vec::new()),
+        out: constant(&mut arena, D_OUT, Vec::new()),
+        next: constant(&mut arena, D_NEXT_NEG, Vec::new()),
     };
     let context = Context::empty().with_signature(signature);
     let index = two_zero(&mut arena);
@@ -938,12 +861,12 @@ fn a_family_description_cannot_name_itself() {
         // `dNextNeg zero b` computes to `zero`; spelling it unreduced
         // keeps the expected shape visible.
         let domain = {
-            let children = constant(&mut arena, D_CHILDREN_NEG);
+            let children = constant(&mut arena, D_CHILDREN_NEG, Vec::new());
             let index = two_zero(&mut arena);
             apply(&mut arena, children, index)
         };
         let codomain = {
-            let next = constant(&mut arena, D_NEXT_NEG);
+            let next = constant(&mut arena, D_NEXT_NEG, Vec::new());
             let label = two_zero(&mut arena);
             let at = apply(&mut arena, next, label);
             let bound = variable(&mut arena, 0);

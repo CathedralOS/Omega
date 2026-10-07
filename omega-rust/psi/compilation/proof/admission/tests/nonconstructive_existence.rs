@@ -35,95 +35,27 @@
 use std::collections::BTreeSet;
 
 use proof_admission::{
-    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, Level, Sort, Term,
+    Context, CoreError, Declaration, Level, Sort, Term,
     TermArena, TermHandle, check_signature, check_type, infer_type, judgment_assumption_closure,
     weak_head_normalize,
 };
+use crate::common::*;
 
-fn budget() -> Budget {
-    Budget::new(DEFAULT_CONVERSION_STEPS)
-}
 
-fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
-}
 
-fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
-}
 
-fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
-    arena.insert(Term::Variable(index))
-}
 
-fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-    arena.insert(Term::Pi { domain, codomain })
-}
 
-fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
-    arena.insert(Term::Lambda { domain, body })
-}
 
-fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> TermHandle {
-    arena.insert(Term::Apply { function, argument })
-}
 
-fn sigma(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-    arena.insert(Term::Sigma { domain, codomain })
-}
 
-fn fst(arena: &mut TermArena, pair: TermHandle) -> TermHandle {
-    arena.insert(Term::Fst { pair })
-}
 
-fn snd(arena: &mut TermArena, pair: TermHandle) -> TermHandle {
-    arena.insert(Term::Snd { pair })
-}
 
-fn squash(arena: &mut TermArena, ty: TermHandle) -> TermHandle {
-    arena.insert(Term::Squash { ty })
-}
 
-fn squash_intro(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
-    arena.insert(Term::SquashIntro { ty, value })
-}
 
-fn squash_elim(
-    arena: &mut TermArena,
-    proposition: TermHandle,
-    function: TermHandle,
-    scrutinee: TermHandle,
-) -> TermHandle {
-    arena.insert(Term::SquashElim {
-        proposition,
-        function,
-        scrutinee,
-    })
-}
 
-fn boxed(arena: &mut TermArena, ty: TermHandle) -> TermHandle {
-    arena.insert(Term::Box { ty })
-}
 
-fn box_elim(
-    arena: &mut TermArena,
-    motive: TermHandle,
-    body: TermHandle,
-    scrutinee: TermHandle,
-) -> TermHandle {
-    arena.insert(Term::BoxElim {
-        motive,
-        body,
-        scrutinee,
-    })
-}
 
-fn constant(arena: &mut TermArena, declaration: u32, levels: Vec<Level>) -> TermHandle {
-    arena.insert(Term::Constant {
-        declaration,
-        levels,
-    })
-}
 
 // ── The declaration positions ───────────────────────────────────────
 //

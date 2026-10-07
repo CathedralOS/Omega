@@ -3,6 +3,7 @@
 //! runs them all. A new `tests/<topic>.rs` joins by one `mod` line below.
 
 mod equality_symmetry;
+mod common;
 mod indexed_derivation;
 mod indexed_levels;
 mod indexed_mutual;

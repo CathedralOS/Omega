@@ -48,14 +48,12 @@
 //! is still re-decided by the checker.
 
 use proof_admission::{
-    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Level,
-    Signature, Sort, Term, TermArena, TermHandle, check_signature, check_type, convertible,
+    Context, CoreError, Declaration, IndexedFamily, Level,
+    Signature, TermArena, TermHandle, check_signature, check_type, convertible,
     indexed_scheme, infer_type,
 };
+use crate::common::*;
 
-fn budget() -> Budget {
-    Budget::new(DEFAULT_CONVERSION_STEPS)
-}
 
 /// The eliminator tests' ceiling: `iindW`'s typing and computation
 /// unfold the whole `IndexedAt`/`IW` encoding — the `J` transport, the
@@ -65,49 +63,16 @@ fn budget() -> Budget {
 /// ~25.1 thousand steps); this bound leaves an order of magnitude of
 /// headroom so the run stays budgeted rather than open-ended —
 /// `StepCeiling` is still the decidability witness.
-fn measure_budget() -> Budget {
-    Budget::new(1 << 18)
-}
 
-fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
-}
 
-fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
-}
 
-fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
-    arena.insert(Term::Variable(index))
-}
 
-fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-    arena.insert(Term::Pi { domain, codomain })
-}
 
-fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
-    arena.insert(Term::Lambda { domain, body })
-}
 
-fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> TermHandle {
-    arena.insert(Term::Apply { function, argument })
-}
 
-fn sigma(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-    arena.insert(Term::Sigma { domain, codomain })
-}
 
-fn pair(arena: &mut TermArena, first: TermHandle, second: TermHandle) -> TermHandle {
-    arena.insert(Term::Pair { first, second })
-}
 
-fn fst(arena: &mut TermArena, pair: TermHandle) -> TermHandle {
-    arena.insert(Term::Fst { pair })
-}
 
-fn snd(arena: &mut TermArena, pair: TermHandle) -> TermHandle {
-    arena.insert(Term::Snd { pair })
-}
 
 /// One side of a nested pair projection, innermost step first:
 /// `project(arena, p, &[Side::Snd, Side::Fst])` is `fst (snd p)`.
@@ -127,47 +92,12 @@ fn project(arena: &mut TermArena, mut term: TermHandle, path: &[Side]) -> TermHa
     term
 }
 
-fn two(arena: &mut TermArena) -> TermHandle {
-    arena.insert(Term::Two)
-}
 
-fn two_zero(arena: &mut TermArena) -> TermHandle {
-    arena.insert(Term::TwoZero)
-}
 
-fn two_one(arena: &mut TermArena) -> TermHandle {
-    arena.insert(Term::TwoOne)
-}
 
-fn case_two(
-    arena: &mut TermArena,
-    motive: TermHandle,
-    zero_branch: TermHandle,
-    one_branch: TermHandle,
-    scrutinee: TermHandle,
-) -> TermHandle {
-    arena.insert(Term::CaseTwo {
-        motive,
-        zero_branch,
-        one_branch,
-        scrutinee,
-    })
-}
 
-fn id(arena: &mut TermArena, ty: TermHandle, left: TermHandle, right: TermHandle) -> TermHandle {
-    arena.insert(Term::Id { ty, left, right })
-}
 
-fn refl(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
-    arena.insert(Term::Refl { ty, value })
-}
 
-fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
-    arena.insert(Term::Constant {
-        declaration,
-        levels: Vec::new(),
-    })
-}
 
 // ── The producer signature ────────────────────────────────────────────
 //
@@ -185,23 +115,23 @@ const CONS: u32 = 7;
 const IMP: u32 = 8;
 
 fn ctx(arena: &mut TermArena) -> TermHandle {
-    constant(arena, CTX)
+    constant(arena, CTX, Vec::new())
 }
 
 fn frm(arena: &mut TermArena) -> TermHandle {
-    constant(arena, FRM)
+    constant(arena, FRM, Vec::new())
 }
 
 /// `consF φ Γ : Ctx` — the context extended by hypothesis `φ`.
 fn cons_f(arena: &mut TermArena, formula: TermHandle, context: TermHandle) -> TermHandle {
-    let cons = constant(arena, CONS);
+    let cons = constant(arena, CONS, Vec::new());
     let at_formula = apply(arena, cons, formula);
     apply(arena, at_formula, context)
 }
 
 /// `impF φ ψ : Frm` — the implication `φ ⇒ ψ`.
 fn imp_f(arena: &mut TermArena, antecedent: TermHandle, consequent: TermHandle) -> TermHandle {
-    let imp = constant(arena, IMP);
+    let imp = constant(arena, IMP, Vec::new());
     let at_antecedent = apply(arena, imp, antecedent);
     apply(arena, at_antecedent, consequent)
 }
@@ -250,27 +180,10 @@ fn carrier(arena: &mut TermArena) -> TermHandle {
 
 /// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
 /// *types* here shares.
-fn type_motive(arena: &mut TermArena) -> TermHandle {
-    let domain = two(arena);
-    let codomain = type_sort(arena, 0);
-    lambda(arena, domain, codomain)
-}
 
 /// `Id Two zero one` — the dead child position: no closed inhabitant.
-fn empty_positions(arena: &mut TermArena) -> TermHandle {
-    let ty = two(arena);
-    let left = two_zero(arena);
-    let right = two_one(arena);
-    id(arena, ty, left, right)
-}
 
 /// `Id Two zero zero` — the single live child position.
-fn unit_position(arena: &mut TermArena) -> TermHandle {
-    let ty = two(arena);
-    let left = two_zero(arena);
-    let right = two_zero(arena);
-    id(arena, ty, left, right)
-}
 
 /// `⟨zero, ⟨zero, ⟨φ, ⟨φ, Γ⟩⟩⟩⟩` — an `assm` label: the head hypothesis
 /// `φ`, a dummy `ψ` slot (set to `φ`), and the ambient context `Γ`.

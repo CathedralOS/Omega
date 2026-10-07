@@ -37,14 +37,12 @@
 //! with the exact typed error.
 
 use proof_admission::{
-    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Level,
+    Context, CoreError, Declaration, IndexedFamily, Level,
     Signature, Sort, Term, TermArena, TermHandle, check_signature, convertible, indexed_scheme,
     infer_sort, infer_type, shift,
 };
+use crate::common::*;
 
-fn budget() -> Budget {
-    Budget::new(DEFAULT_CONVERSION_STEPS)
-}
 
 fn sort_level(arena: &mut TermArena, level: Level) -> TermHandle {
     arena.insert(Term::Sort(Sort::Type(level)))
@@ -54,75 +52,19 @@ fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     sort_level(arena, Level::Constant(level))
 }
 
-fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
-    arena.insert(Term::Variable(index))
-}
 
-fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-    arena.insert(Term::Pi { domain, codomain })
-}
 
-fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
-    arena.insert(Term::Lambda { domain, body })
-}
 
-fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> TermHandle {
-    arena.insert(Term::Apply { function, argument })
-}
 
-fn sigma(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-    arena.insert(Term::Sigma { domain, codomain })
-}
 
-fn pair(arena: &mut TermArena, first: TermHandle, second: TermHandle) -> TermHandle {
-    arena.insert(Term::Pair { first, second })
-}
 
-fn fst(arena: &mut TermArena, pair: TermHandle) -> TermHandle {
-    arena.insert(Term::Fst { pair })
-}
 
-fn snd(arena: &mut TermArena, pair: TermHandle) -> TermHandle {
-    arena.insert(Term::Snd { pair })
-}
 
-fn two(arena: &mut TermArena) -> TermHandle {
-    arena.insert(Term::Two)
-}
 
-fn two_zero(arena: &mut TermArena) -> TermHandle {
-    arena.insert(Term::TwoZero)
-}
 
-fn two_one(arena: &mut TermArena) -> TermHandle {
-    arena.insert(Term::TwoOne)
-}
 
-fn case_two(
-    arena: &mut TermArena,
-    motive: TermHandle,
-    zero_branch: TermHandle,
-    one_branch: TermHandle,
-    scrutinee: TermHandle,
-) -> TermHandle {
-    arena.insert(Term::CaseTwo {
-        motive,
-        zero_branch,
-        one_branch,
-        scrutinee,
-    })
-}
 
-fn id(arena: &mut TermArena, ty: TermHandle, left: TermHandle, right: TermHandle) -> TermHandle {
-    arena.insert(Term::Id { ty, left, right })
-}
 
-fn constant(arena: &mut TermArena, declaration: u32, levels: Vec<Level>) -> TermHandle {
-    arena.insert(Term::Constant {
-        declaration,
-        levels,
-    })
-}
 
 // ── The producer signature ────────────────────────────────────────────
 //
@@ -130,27 +72,11 @@ fn constant(arena: &mut TermArena, declaration: u32, levels: Vec<Level>) -> Term
 // the three appended assumptions; positions 8 and 9 are the
 // universe-polymorphic producer declarations:
 
-/// `Nat : Type 0` — the index type, declaration 5.
-const NAT: u32 = 5;
-/// `zeroN : Nat` — declaration 6.
-const NAT_ZERO: u32 = 6;
-/// `succN : Π(_ : Nat). Nat` — declaration 7.
-const NAT_SUCC: u32 = 7;
 /// `vecOf : Π(E : Type u). Π(n : Nat). Type u` — declaration 8.
 const VEC_OF: u32 = 8;
 
-fn nat(arena: &mut TermArena) -> TermHandle {
-    constant(arena, NAT, Vec::new())
-}
 
-fn nat_zero(arena: &mut TermArena) -> TermHandle {
-    constant(arena, NAT_ZERO, Vec::new())
-}
 
-fn nat_succ(arena: &mut TermArena, predecessor: TermHandle) -> TermHandle {
-    let succ = constant(arena, NAT_SUCC, Vec::new());
-    apply(arena, succ, predecessor)
-}
 
 /// `vecOf[u] · E · n` — the declared family applied at instantiation `u`.
 fn vec_at(arena: &mut TermArena, u: Level, element: TermHandle, length: TermHandle) -> TermHandle {
@@ -168,20 +94,8 @@ fn position_motive(arena: &mut TermArena) -> TermHandle {
 }
 
 /// `Id Two zero one` — the dead child position under the nil tag.
-fn empty_positions(arena: &mut TermArena) -> TermHandle {
-    let ty = two(arena);
-    let left = two_zero(arena);
-    let right = two_one(arena);
-    id(arena, ty, left, right)
-}
 
 /// `Id Two zero zero` — the single live child position under cons.
-fn unit_position(arena: &mut TermArena) -> TermHandle {
-    let ty = two(arena);
-    let left = two_zero(arena);
-    let right = two_zero(arena);
-    id(arena, ty, left, right)
-}
 
 // ── The description, parameterized by element type and level ──────────
 //
