@@ -777,16 +777,10 @@ pub(crate) fn validate_structural_root_operations(
                                     // A byte-carrier copy mints the overlaid
                                     // record out of a `u8` element window
                                     // instead of the spelled leaf type.
-                                    let expected = structural_types
-                                        .get(&result.structural_type)
-                                        .and_then(|declaration| match declaration.shape {
-                                            terminal_psi::StructuralTypeShape::Reference {
-                                                referent,
-                                                access: terminal_psi::StructuralAccess::SharedBorrow,
-                                            } => Some(referent),
-                                            _ => None,
-                                        })
-                                        .unwrap_or(result.structural_type);
+                                    let expected = shared_borrow_referent_or_self(
+                                        structural_types,
+                                        result.structural_type,
+                                    );
                                     let selected = crate::unit_validation::structural_catalog::resolve_leaf_copy_path(structural_types, signature.structural_type, path);
                                     selected == Some(expected)
                                         || crate::unit_validation::structural_catalog::byte_carrier_leaf_window(structural_types, signature.structural_type, path, expected)
@@ -796,16 +790,10 @@ pub(crate) fn validate_structural_root_operations(
                                     // descriptor over the selected payload:
                                     // the compared type is the referent, not
                                     // the `SharedBorrow` declaration itself.
-                                    let expected = structural_types
-                                        .get(&result.structural_type)
-                                        .and_then(|declaration| match declaration.shape {
-                                            terminal_psi::StructuralTypeShape::Reference {
-                                                referent,
-                                                access: terminal_psi::StructuralAccess::SharedBorrow,
-                                            } => Some(referent),
-                                            _ => None,
-                                        })
-                                        .unwrap_or(result.structural_type);
+                                    let expected = shared_borrow_referent_or_self(
+                                        structural_types,
+                                        result.structural_type,
+                                    );
                                     terminal_semantics::canonical_case_leaf_type(structural_types.values().copied(), signature.structural_type, path) == Some(expected)
                                 }
                             }
@@ -1292,4 +1280,22 @@ fn window_field_type(
         field,
     )
     .map(|projection| projection.structural_type)
+}
+
+/// The type a leaf copy actually mints: the referent when `structural_type`
+/// is a `SharedBorrow` reference declaration, the type itself otherwise.
+fn shared_borrow_referent_or_self(
+    structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+) -> StructuralTypeId {
+    structural_types
+        .get(&structural_type)
+        .and_then(|declaration| match declaration.shape {
+            terminal_psi::StructuralTypeShape::Reference {
+                referent,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            } => Some(referent),
+            _ => None,
+        })
+        .unwrap_or(structural_type)
 }
