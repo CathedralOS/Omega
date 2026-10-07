@@ -1,7 +1,5 @@
-use crate::contracts::parameter_domains::{build_domain_membership_contract, domain_constraints};
 use crate::expressions::statement::lower_statement_node;
 use crate::lowerer::Lowerer;
-use crate::signatures::parameters::lower_state_parameter;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -31,61 +29,25 @@ pub(crate) fn lower_state_declaration(
     // callable state boundary. Keeping the synthesized contract state-local is
     // essential for graph machines: a qualification introduced in one state
     // must not become a prerequisite of the machine's unrelated entry state.
-    let mut domain_constrained_parameters: Vec<(
-        symbols::SymbolHandle,
-        typed::name::Identifier,
-        symbols::SymbolHandle,
-        String,
-        Vec<typed::types::TypeReferenceHandle>,
-        language_semantics::SemanticDomainId,
-    )> = Vec::new();
-    for parameter in lowerer.source_trees.state_parameters(state.parameters) {
-        let parameter = lower_state_parameter(lowerer, parameter)?;
-        for (domain_symbol, domain_full_name, domain_arguments, semantic_domain) in
-            domain_constraints(&lowerer.typed_trees, parameter.type_reference)
-        {
-            domain_constrained_parameters.push((
-                parameter.symbol,
-                parameter.name.clone(),
-                domain_symbol,
-                domain_full_name,
-                domain_arguments,
-                semantic_domain,
-            ));
-        }
-        lowerer
-            .typed_trees
-            .push_state_parameter(&mut typed_state, parameter);
-    }
+    let domain_constrained_parameters =
+        crate::contracts::parameter_domains::lower_state_parameters_collecting_domain_constraints(
+            lowerer,
+            state.parameters,
+            |typed_trees, parameter| typed_trees.push_state_parameter(&mut typed_state, parameter),
+        )?;
 
     for contract in lowerer.source_trees.signature_contracts(state.contracts) {
-        let contract =
-            crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
-        lowerer.typed_trees.push_state_contract(&mut typed_state, contract);
-    }
-
-    for (
-        param_symbol,
-        param_name,
-        domain_symbol,
-        domain_full_name,
-        domain_arguments,
-        semantic_domain,
-    ) in domain_constrained_parameters
-    {
-        let contract = build_domain_membership_contract(
-            lowerer,
-            param_symbol,
-            param_name,
-            domain_symbol,
-            &domain_full_name,
-            domain_arguments,
-            semantic_domain,
-        );
+        let contract = crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
         lowerer
             .typed_trees
             .push_state_contract(&mut typed_state, contract);
     }
+
+    crate::contracts::parameter_domains::push_domain_membership_contracts(
+        lowerer,
+        domain_constrained_parameters,
+        |typed_trees, contract| typed_trees.push_state_contract(&mut typed_state, contract),
+    );
 
     Ok(typed_state)
 }

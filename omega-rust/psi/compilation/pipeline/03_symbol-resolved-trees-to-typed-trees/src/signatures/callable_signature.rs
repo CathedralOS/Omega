@@ -5,9 +5,8 @@ use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
 use crate::contracts::invocations::lower_authored_invocations;
-use crate::contracts::parameter_domains::{build_domain_membership_contract, domain_constraints};
+
 use crate::contracts::proof_facts::lower_proof_facts;
-use crate::signatures::parameters::lower_state_parameter;
 
 pub(crate) fn lower_state_signature(
     lowerer: &mut Lowerer,
@@ -70,32 +69,14 @@ pub(crate) fn lower_state_signature(
     // Each desugars below into its own implicit `requires <param> in <domain>`
     // membership contract. Predicate-bearing domains discharge by proof;
     // bodyless domains require retained qualification evidence.
-    let mut domain_constrained_parameters: Vec<(
-        symbols::SymbolHandle,
-        typed::name::Identifier,
-        symbols::SymbolHandle,
-        String,
-        Vec<typed::types::TypeReferenceHandle>,
-        language_semantics::SemanticDomainId,
-    )> = Vec::new();
-    for parameter in lowerer.source_trees.state_parameters(signature.parameters) {
-        let parameter = lower_state_parameter(lowerer, parameter)?;
-        for (domain_symbol, domain_full_name, domain_arguments, semantic_domain) in
-            domain_constraints(&lowerer.typed_trees, parameter.type_reference)
-        {
-            domain_constrained_parameters.push((
-                parameter.symbol,
-                parameter.name.clone(),
-                domain_symbol,
-                domain_full_name,
-                domain_arguments,
-                semantic_domain,
-            ));
-        }
-        lowerer
-            .typed_trees
-            .push_state_signature_parameter(&mut typed_signature, parameter);
-    }
+    let domain_constrained_parameters =
+        crate::contracts::parameter_domains::lower_state_parameters_collecting_domain_constraints(
+            lowerer,
+            signature.parameters,
+            |typed_trees, parameter| {
+                typed_trees.push_state_signature_parameter(&mut typed_signature, parameter)
+            },
+        )?;
 
     let invocations = lower_authored_invocations(
         lowerer.source_trees,
@@ -113,36 +94,22 @@ pub(crate) fn lower_state_signature(
         .source_trees
         .signature_contracts(signature.contracts)
     {
-        let contract =
-            crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
-        lowerer.typed_trees.push_state_signature_contract(&mut typed_signature, contract);
+        let contract = crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
+        lowerer
+            .typed_trees
+            .push_state_signature_contract(&mut typed_signature, contract);
     }
 
     // #66/DOM1/P1a: desugar each declared domain into an implicit `requires
     // <param> in <domain>` membership contract (here on a trait/platform
     // signature; the regular-machine path is `lower_machine`).
-    for (
-        param_symbol,
-        param_name,
-        domain_symbol,
-        domain_full_name,
-        domain_arguments,
-        semantic_domain,
-    ) in domain_constrained_parameters
-    {
-        let contract = build_domain_membership_contract(
-            lowerer,
-            param_symbol,
-            param_name,
-            domain_symbol,
-            &domain_full_name,
-            domain_arguments,
-            semantic_domain,
-        );
-        lowerer
-            .typed_trees
-            .push_state_signature_contract(&mut typed_signature, contract);
-    }
+    crate::contracts::parameter_domains::push_domain_membership_contracts(
+        lowerer,
+        domain_constrained_parameters,
+        |typed_trees, contract| {
+            typed_trees.push_state_signature_contract(&mut typed_signature, contract)
+        },
+    );
 
     Ok(typed_signature)
 }
