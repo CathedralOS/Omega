@@ -15,7 +15,8 @@ use crate::{
 };
 use machine_code::{CallbackAddressEncoding, NormalizedForeignCallResolutionKind};
 use object_file::{
-    NormalizedImportPlan, ObjectPlan, RelocationKind, RelocationOrigin, RelocationPlan,
+    NormalizedImportPlan, ObjectPlan, RelocationKind, RelocationPlan,
+    boundary_relocation_origin,
     RelocationRecord, SectionKind, StagedOptimizedRelocationFreeObjectContainer, SymbolKind,
     SymbolPlan, SymbolSection, normalized_foreign_import_symbol_name, object_function_symbol,
     object_symbol_handle_by_foreign_locator,
@@ -54,7 +55,7 @@ pub(super) fn publish(
             .iter()
             .find(|function| function.machine == field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
-        let origin = import_field_origin(function.symbol, field.invocation_site);
+        let origin = boundary_relocation_origin(function.symbol, field.invocation_site);
         // A callback argument's address is a compiler-private relocation: it
         // binds the private thunk's symbol, not the import tail.
         for callback in &call.callback_addresses {
@@ -235,7 +236,7 @@ pub(super) fn validate(
             .iter()
             .find(|function| function.machine == field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
-        let origin = import_field_origin(function.symbol, field.invocation_site);
+        let origin = boundary_relocation_origin(function.symbol, field.invocation_site);
         for callback in &call.callback_addresses {
             let Some((callback_symbol, callback_plan)) =
                 object_function_symbol(&artifact.object, callback.target.callback_function)
@@ -350,22 +351,4 @@ fn relocation_kind(kind: NormalizedForeignCallResolutionKind) -> RelocationKind 
     }
 }
 
-fn import_field_origin(
-    symbol: object_file::ObjectSymbolHandle,
-    site: semantic_vocabulary::BoundaryInvocationSite,
-) -> RelocationOrigin {
-    match site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
-            RelocationOrigin::SemanticOperation {
-                function_symbol_handle: symbol,
-                operation_identity: operation.get(),
-            }
-        }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
-            RelocationOrigin::SemanticEdge {
-                function_symbol_handle: symbol,
-                edge_identity: edge.get(),
-            }
-        }
-    }
-}
+

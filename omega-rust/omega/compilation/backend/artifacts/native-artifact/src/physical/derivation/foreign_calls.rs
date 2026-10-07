@@ -26,7 +26,7 @@ use crate::physical::normalized_foreign_call_relocation;
 use crate::physical::normalized_foreign_callback_relocation;
 use installation_evidence::ProviderExecutionEvidence;
 use object_file::RelocationKind;
-use object_file::RelocationOrigin;
+use object_file::boundary_relocation_origin;
 use object_file::SectionKind;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::ScalarType;
@@ -731,7 +731,7 @@ pub(crate) fn derive_normalized_foreign_child(
                     ),
                 )
             } else {
-                let expected_origin = foreign_relocation_origin(function.symbol, invocation_site);
+                let expected_origin = boundary_relocation_origin(function.symbol, invocation_site);
                 let import_records = object
                     .relocations()
                     .records()
@@ -913,7 +913,7 @@ pub(crate) fn derive_normalized_foreign_child(
                         && intervals.overlaps_object_span(relocation.offset, relocation.byte_width)
                 })
                 .collect::<Vec<_>>();
-            let expected_origin = foreign_relocation_origin(function.symbol, invocation_site);
+            let expected_origin = boundary_relocation_origin(function.symbol, invocation_site);
             let matching_import_relocations = overlapping_relocations
                 .iter()
                 .copied()
@@ -1254,22 +1254,4 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
     Ok(Some(shapes))
 }
 
-fn foreign_relocation_origin(
-    symbol: object_file::ObjectSymbolHandle,
-    site: semantic_vocabulary::BoundaryInvocationSite,
-) -> RelocationOrigin {
-    match site {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
-            RelocationOrigin::SemanticOperation {
-                function_symbol_handle: symbol,
-                operation_identity: operation.get(),
-            }
-        }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
-            RelocationOrigin::SemanticEdge {
-                function_symbol_handle: symbol,
-                edge_identity: edge.get(),
-            }
-        }
-    }
-}
+

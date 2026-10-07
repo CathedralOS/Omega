@@ -207,3 +207,27 @@ mod tests {
         assert_ne!(operation, edge);
     }
 }
+
+/// The semantic origin a boundary invocation pins a relocation to: the
+/// enclosing symbol plus the operation or completion-edge identity the site
+/// names. Both namespaces stay full-width so origins from different
+/// representations never collide as raw integers.
+pub fn boundary_relocation_origin(
+    symbol: ObjectSymbolHandle,
+    site: semantic_vocabulary::BoundaryInvocationSite,
+) -> RelocationOrigin {
+    match site {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            RelocationOrigin::SemanticOperation {
+                function_symbol_handle: symbol,
+                operation_identity: operation.get(),
+            }
+        }
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            RelocationOrigin::SemanticEdge {
+                function_symbol_handle: symbol,
+                edge_identity: edge.get(),
+            }
+        }
+    }
+}

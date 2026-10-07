@@ -154,6 +154,7 @@ pub use object_plan::relocations::admission::{
 };
 pub use object_plan::relocations::{
     RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, RelocationRecordSet,
+    boundary_relocation_origin,
 };
 pub use object_plan::sections::{SectionKind, SectionPlan};
 pub use object_plan::symbols::{
