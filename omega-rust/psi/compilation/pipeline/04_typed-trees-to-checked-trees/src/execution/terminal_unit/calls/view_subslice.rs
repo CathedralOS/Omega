@@ -428,31 +428,12 @@ fn shape_of_kind(
     expression: ExpressionHandle,
     statement_index: usize,
 ) -> Option<ViewRange> {
-    let access = structural_access_for_type_reference(program, target)?;
-    if !matches!(
-        access,
-        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-    ) {
-        return None;
-    }
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
-        let authored = match borrow.access {
-            language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
-            language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-            language_core::ReferenceAccess::WriteOnly => return None,
-        };
-        if authored != access {
-            return None;
-        }
-    }
+    let access = borrowed_view_access(program, target, expression)?;
     let expression = validation::subslice_expression(program, expression)?;
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
-    let type_identity = match kind {
-        ViewKind::Bytes => byte_sequence_type_identity(program, target, &[], &[])?,
-        ViewKind::Elements => borrowed_slice_view_type_identity(program, target, &[], &[]),
-    };
+    let type_identity = view_kind_type_identity(program, target, kind)?;
     if let Some((root, collection, storage)) = array_collection(
         program,
         machine,
@@ -690,27 +671,8 @@ pub(in crate::execution) fn whole_extent(
     let kind = view_kind(program, target).or_else(|| {
         borrowed_slice_view_element(program, target, &[]).map(|_| ViewKind::Elements)
     })?;
-    let access = structural_access_for_type_reference(program, target)?;
-    if !matches!(
-        access,
-        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-    ) {
-        return None;
-    }
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
-        let authored = match borrow.access {
-            language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
-            language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-            language_core::ReferenceAccess::WriteOnly => return None,
-        };
-        if authored != access {
-            return None;
-        }
-    }
-    let type_identity = match kind {
-        ViewKind::Bytes => byte_sequence_type_identity(program, target, &[], &[])?,
-        ViewKind::Elements => borrowed_slice_view_type_identity(program, target, &[], &[]),
-    };
+    let access = borrowed_view_access(program, target, expression)?;
+    let type_identity = view_kind_type_identity(program, target, kind)?;
     let (root, collection, storage) = array_collection(
         program,
         machine,
@@ -856,4 +818,44 @@ pub(in crate::execution) fn view_identity(
             &[],
         )),
     }
+}
+
+/// A view root's declared access must itself be a borrow, and when the view
+/// expression is spelled `&`/`&mut` its authored flavor must match exactly —
+/// a mismatched spelling selects no subslice.
+fn borrowed_view_access(
+    program: &TypedTrees,
+    target: TypeReferenceHandle,
+    expression: ExpressionHandle,
+) -> Option<CheckedStructuralAccess> {
+    let access = structural_access_for_type_reference(program, target)?;
+    if !matches!(
+        access,
+        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+    ) {
+        return None;
+    }
+    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+        let authored = match borrow.access {
+            language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
+            language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+            language_core::ReferenceAccess::WriteOnly => return None,
+        };
+        if authored != access {
+            return None;
+        }
+    }
+    Some(access)
+}
+
+/// The collection type identity a `ViewKind` reads elements through.
+fn view_kind_type_identity(
+    program: &TypedTrees,
+    target: TypeReferenceHandle,
+    kind: ViewKind,
+) -> Option<String> {
+    Some(match kind {
+        ViewKind::Bytes => byte_sequence_type_identity(program, target, &[], &[])?,
+        ViewKind::Elements => borrowed_slice_view_type_identity(program, target, &[], &[]),
+    })
 }
