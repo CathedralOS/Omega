@@ -390,13 +390,12 @@ fn bound_leaf_initializer(
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(symbol) =
+        crate::expression_traversal::single_segment_name_symbol(program, expression)
+    else {
         return None;
     };
-    if !path.symbol.is_valid() || path.head_symbol != path.symbol {
-        return None;
-    }
-    let LocalLookup::Found(local) = local_by_symbol(lookup, path.symbol) else {
+    let LocalLookup::Found(local) = local_by_symbol(lookup, symbol) else {
         return None;
     };
     if local.is_mutable || !local.initial_value.is_valid() {
