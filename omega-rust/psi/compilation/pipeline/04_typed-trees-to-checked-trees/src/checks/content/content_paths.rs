@@ -351,7 +351,8 @@ pub(crate) fn content_path(
             facts::PlaceSegment::Field { symbol } => {
                 Some(ContentPlaceSegment::Field(ContentFieldSegment {
                     symbol: *symbol,
-                    name: data_field_name(program, *symbol)?.to_owned(),
+                    name: crate::checks::multiplicity::data_field_name(program, *symbol)?
+                        .to_owned(),
                 }))
             }
             facts::PlaceSegment::FixedIndex { index } => Some(ContentPlaceSegment::FixedIndex(
@@ -372,25 +373,6 @@ fn data_variant_name(program: &TypedTrees, variant_symbol: SymbolHandle) -> Opti
                     (variant.symbol == variant_symbol).then_some(variant.name.as_str())
                 }
                 typed_trees::data::DataMember::Field(_) => None,
-            })
-    })
-}
-
-fn data_field_name(program: &TypedTrees, field_symbol: SymbolHandle) -> Option<&str> {
-    program.data_definitions().iter().find_map(|definition| {
-        program
-            .data_members(definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => {
-                    (field.symbol == field_symbol).then_some(field.name.as_str())
-                }
-                typed_trees::data::DataMember::Variant(variant) => program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find_map(|field| {
-                        (field.symbol == field_symbol).then_some(field.name.as_str())
-                    }),
             })
     })
 }

@@ -823,7 +823,8 @@ fn static_path_frame_aliases(
     for segment in &path.segments {
         match *segment {
             StaticPersistentSegment::Field(symbol) => {
-                let Some(name) = data_field_name(program, symbol) else {
+                let Some(name) = crate::checks::multiplicity::data_field_name(program, symbol)
+                else {
                     break;
                 };
                 suffix.push('.');
@@ -870,29 +871,6 @@ fn static_path_frame_aliases(
         Some(rooted_path) => vec![field_path, rooted_path],
         None => vec![field_path],
     }
-}
-
-fn data_field_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> Option<&str> {
-    for definition in program.data_definitions() {
-        for member in program.data_members(definition) {
-            match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    return Some(field.name.as_str());
-                }
-                typed_trees::data::DataMember::Variant(variant) => {
-                    if let Some(field) = program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find(|field| field.symbol == symbol)
-                    {
-                        return Some(field.name.as_str());
-                    }
-                }
-                typed_trees::data::DataMember::Field(_) => {}
-            }
-        }
-    }
-    None
 }
 
 fn owner_path_place_segments(
