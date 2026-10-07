@@ -13,7 +13,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
+use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Record a successfully checked literal store at its statement point. Cast
 /// predicates read this live fact; searching declarations later would ignore
@@ -71,29 +71,12 @@ pub(crate) fn validate_range_cast_at_use(
     if cast.form.is_recast() {
         return;
     }
-    let mut reference = cast.target_type;
-    let mut visited = Vec::new();
     let mut has_range = false;
-    while program
-        .type_reference_table
-        .contains_type_reference(reference)
-        && !visited.contains(&reference)
-    {
-        visited.push(reference);
-        let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(reference)
-        else {
-            break;
-        };
-        has_range |= program
-            .type_reference_table
-            .constraints(*constraints)
+    walk_constrained_bases(program, cast.target_type, |constraints| {
+        has_range |= constraints
             .iter()
             .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }));
-        reference = *base_type;
-    }
+    });
     // A bare integer target still demands an exact fit. In call arguments the
     // expression scanner is the validation owner; collecting successful cast
     // facts afterward cannot diagnose missing evidence. Reuse the same live
@@ -168,22 +151,8 @@ pub(super) fn validate_target_ranges(
                 })?,
         ))
     });
-    let mut reference = cast.target_type;
-    let mut visited = Vec::new();
-    while program
-        .type_reference_table
-        .contains_type_reference(reference)
-        && !visited.contains(&reference)
-    {
-        visited.push(reference);
-        let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(reference)
-        else {
-            break;
-        };
-        for constraint in program.type_reference_table.constraints(*constraints) {
+    walk_constrained_bases(program, cast.target_type, |constraints| {
+        for constraint in constraints {
             let TypeConstraintNode::Range {
                 minimum,
                 maximum,
@@ -236,8 +205,7 @@ pub(super) fn validate_target_ranges(
                 )).with_source_span(program.expression_table.source_span(cast.value)));
             }
         }
-        reference = *base_type;
-    }
+    });
 }
 
 fn float_membership(
@@ -291,4 +259,30 @@ fn integer_bound(
         .to_i64()
         .map(i128::from)
         .or_else(|| value.to_u64().map(i128::from))
+}
+
+/// Walk the `Constrained` base chain once: `visit` sees each level's
+/// constraint roster until a non-Constrained reference or a revisit.
+fn walk_constrained_bases(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+    mut visit: impl FnMut(&[TypeConstraintNode]),
+) {
+    let mut visited = Vec::new();
+    while program
+        .type_reference_table
+        .contains_type_reference(reference)
+        && !visited.contains(&reference)
+    {
+        visited.push(reference);
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        else {
+            break;
+        };
+        visit(program.type_reference_table.constraints(*constraints));
+        reference = *base_type;
+    }
 }
