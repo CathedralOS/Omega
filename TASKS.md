@@ -992,20 +992,16 @@ defines the complete product bar.
   exit 70. The program reads four bytes, completes a mutable call, then
   observes its writes in transition arguments.
 
-  Windows-target realization on macOS builds the Loader and five
-  `host/runtime_console_bounded_line*` controls, but that host cannot execute
-  their Windows images. Current Terminal execution declines before effects
-  on the exact selected `_read` import. Std's Windows `read_byte`/`write_byte`
-  are checked bodies over msvcrt `_read`/`_write`; the Terminal interpreter
-  must supply input operations from those exact selected imports through
-  `omega-rust/omega/compilation/realization/provider-planning/` and
-  `omega-rust/psi/interpreter/terminal-interpreter/`, coordinated with
-  **TERMINAL-RUNTIME-DRIVERS**. Execute the checked adapter;
-  a provider spelling or matching signature cannot bypass its body or grant
-  host behavior. Distinguish input bytes, EOF, transient empty pipe reads and
-  failures without treating every successful zero-byte read as EOF.
-  Complete ordinary package review before claiming the Loader's
-  `omega run --both` acceptance; pending admission is not an execution result.
+  Qualify native input/output and CLI comparison on Windows; macOS can build
+  these images but cannot execute them. Owners: std's selected Windows Console
+  providers and **TERMINAL-RUNTIME-DRIVERS**. Exercise the actual CRT descriptor
+  initialization and mode against the raw-byte contract, including NUL and CR;
+  text-mode conversion cannot count as preserving authored bytes. Distinguish
+  EOF, transient empty pipe reads and failures without treating every
+  successful zero-byte read as EOF. Complete ordinary package review before
+  claiming the Loader's `omega run --both` acceptance; pending admission is not
+  an execution result. Keep the exact selected imports and checked wrappers;
+  provider spelling or matching signature grants no host behavior.
 
   Acceptance: `python tools/corpus_gate.py --both --filter
   calls/runtime_mutable_call_before_transition_args_exit,host/runtime_console_bounded_line`
@@ -1729,11 +1725,14 @@ then independent claimed restoration slices -> final closure.
   isolated instance. Complete external demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar arguments, placed host loans,
-  non-hosted roots and required receiver qualifications. Windows input still
-  needs exact selected foreign read/write bindings and general primitive-loan
-  writeback while executing the checked Console adapter. Hosted byte input uses
+  non-hosted roots and required receiver qualifications. Hosted byte input uses
   an explicit finite replay stream shared by selected input slots; CLI and
   corpus give each engine the same authored bytes with independent positions.
+  Stored local-array primitive references passed to returning helpers still
+  fail Terminal production with `structural argument has the wrong concrete
+  type`: stage 04's `calls/computation_arguments/` peels the Reference but
+  omits its descriptor crossing. Preserve that crossing independently of the
+  initializer shape; do not relax Terminal's concrete-type validation.
   Virtual clocks and stderr support remain. The original
   `runtime_float_integer_conversion_boundaries_exit` has no exact established
   root ProcessExit Binding occurrence and declines before effects; resolve its
@@ -3413,10 +3412,8 @@ to the remaining arrivals and product-source implementation.
   - [normalized foreign-call custody](omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact/normalized_foreign_calls.rs)
     accepts scalar homes only from call-result producers; transport a general
     computed status argument;
-  - **WINDOWS-CONSOLE-INPUT** owns native Windows qualification and the
-    interpreter's exact foreign read/write adapters. Execute std's checked
-    Console bodies over their selected msvcrt leaves, not a synthetic line
-    reader. A native cross-build is not Windows execution acceptance;
+  - **WINDOWS-CONSOLE-INPUT** owns native Windows qualification. A native
+    cross-build is not Windows execution acceptance;
   - replace the fixed 256 KiB foreign-call reserve (`SAME_STACK_BYTES`) in
     [source-evaluated bindings](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_bindings.rs)
     with per-callee stack demand.
@@ -3438,8 +3435,8 @@ substitutes, cleanup exits and unsupported survivor contracts reject.
 `tests/omega/pass/host/process_exit_i32_status_ordered` exits 70 after one
 stdout line and `process_exit_i32_status_mapped` presents status -44 as 212
 (interpreter keeps -44), matching their `expected_native_exit.<target>.txt`
-on macOS ARM64 and on Linux x86-64/AArch64 hosts; on Windows `ordered` still
-rejects at build and `mapped` needs a Windows full-i32 measurement.
+on macOS ARM64 and on Linux x86-64/AArch64 hosts; Windows native `ordered`
+and `mapped` need matching-host measurements, including the full-i32 status.
 **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns further receiver admission.
 
 ## P1 - Authority, roots, and entry

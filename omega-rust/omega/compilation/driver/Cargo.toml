@@ -47,6 +47,7 @@ terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 target-operations = { path = "../representations/target-operations" }
+calling-conventions = { path = "../backend/calling-conventions" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
 selected-instructions-to-selected-instructions = { path = "../pipeline/04_selected-instructions-to-selected-instructions" }
@@ -66,7 +67,6 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-calling-conventions = { path = "../backend/calling-conventions" }
 task-plans = { path = "../backend/runtime/task-plans" }
 source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 effects = { path = "../backend/plans/provider-evidence" }

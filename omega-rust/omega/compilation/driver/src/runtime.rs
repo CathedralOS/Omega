@@ -14,6 +14,9 @@
 //! Selected hosted byte imports consume an explicit finite replay stream;
 //! absence is not fabricated EOF. Scalar sum completions retain actual case
 //! payloads, so checked line readers execute their own byte-by-byte loop.
+//! Explicit MSVCRT descriptor adapters join complete admitted locator/ABI rows
+//! and operate on captured primitive loans. They share the invocation's finite
+//! input and ordered private output; checked Console wrappers still run in Psi.
 
 mod entry;
 mod host_imports;
@@ -145,7 +148,7 @@ pub fn execute(
     let mut instance = program
         .instantiate_installed(&[], inputs, &installation)
         .map_err(TerminalRuntimeError::Artifact)?;
-    let output_slots = host_imports::bind(
+    let output = host_imports::bind(
         &program,
         &mut instance,
         request.provisions,
@@ -177,6 +180,6 @@ pub fn execute(
     let status = instance
         .invoke(&mut fuel)
         .map_err(TerminalRuntimeError::Execution)?;
-    let stdout = host_imports::collect_stdout(instance.effects(), &output_slots)?;
+    let stdout = output.snapshot()?;
     Ok(TerminalRuntimeObservation { status, stdout })
 }

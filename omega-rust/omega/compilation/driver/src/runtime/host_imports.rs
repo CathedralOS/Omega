@@ -4,21 +4,21 @@
 //! Output stays buffered; input consumes only the caller's finite replay stream
 //! with an instance-private cursor. Checked compound operations remain guest code.
 
+mod buffered_output;
+mod descriptor_io;
 mod numeric;
 mod standard_input;
 
 use compilation_products::TerminalRuntimeProvisions;
-use semantic_vocabulary::{BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, ScalarType};
+use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
-use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalImportAdapter,
-    TerminalImportSignature, TerminalInstance, TerminalProgram, TerminalScalarValue,
-};
+use terminal_interpreter::{TerminalImportSignature, TerminalInstance, TerminalProgram};
 use terminal_psi::BoundaryCompletion;
 
 use super::TerminalRuntimeError;
 
-pub(super) enum OutputKind {
+#[derive(Clone, Copy)]
+enum OutputKind {
     Line,
     Byte,
 }
@@ -29,8 +29,8 @@ pub(super) fn bind<'host>(
     provisions: Option<&TerminalRuntimeProvisions>,
     imports: &[BoundaryMachineId],
     input: Option<Box<dyn std::io::Read + Send + 'host>>,
-) -> Result<Vec<(BoundaryMachineId, OutputKind)>, TerminalRuntimeError> {
-    let mut output = Vec::new();
+) -> Result<buffered_output::BufferedBytes, TerminalRuntimeError> {
+    let output = buffered_output::BufferedBytes::new();
     // Every selected stdin leaf in this instance consumes the same logical
     // stream. Independent adapter cursors would replay bytes after a slot switch.
     let input = input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader)));
@@ -93,6 +93,25 @@ pub(super) fn bind<'host>(
                     .map_err(TerminalRuntimeError::Binding)?;
                 continue;
             }
+            BoundarySettlementRealization::NormalizedForeignCall(ref binding) => {
+                let declaration =
+                    instance
+                        .import(*slot)
+                        .ok_or(TerminalRuntimeError::InvalidProvision(
+                            "foreign host provision names no demanded import",
+                        ))?;
+                let adapter = descriptor_io::DescriptorIoImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    input.as_ref().cloned(),
+                    output.clone(),
+                )?;
+                instance
+                    .bind_import(*slot, adapter)
+                    .map_err(TerminalRuntimeError::Binding)?;
+                continue;
+            }
             _ => {
                 return Err(TerminalRuntimeError::missing(
                     "runtime-host-import-bindings",
@@ -128,106 +147,11 @@ pub(super) fn bind<'host>(
             ));
         }
         instance
-            .bind_import(*slot, BufferedOutput { signature })
+            .bind_import(
+                *slot,
+                buffered_output::BufferedOutput::new(signature, kind, output.clone()),
+            )
             .map_err(TerminalRuntimeError::Binding)?;
-        output.push((*slot, kind));
     }
     Ok(output)
-}
-
-struct BufferedOutput {
-    signature: TerminalImportSignature,
-}
-
-impl TerminalImportAdapter for BufferedOutput {
-    fn implemented_signature(&self) -> TerminalImportSignature {
-        self.signature.clone()
-    }
-}
-
-impl TerminalEffectHandler for BufferedOutput {
-    fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            byte_sequence_arguments,
-            ..
-        } = effect
-        else {
-            return Err(TerminalEffectRejection::new(
-                "buffered output received a non-boundary operation",
-            ));
-        };
-        if arguments.len() != self.signature.scalar_parameters.len()
-            || !arguments
-                .iter()
-                .zip(&self.signature.scalar_parameters)
-                .all(|(value, expected)| value.scalar_type() == *expected)
-            || structural_arguments.len() != self.signature.structural_parameters.len()
-            || byte_sequence_arguments.iter().any(Option::is_none)
-        {
-            return Err(TerminalEffectRejection::new(
-                "buffered output operands differ from its bound contract",
-            ));
-        }
-        Ok(())
-    }
-}
-
-pub(super) fn collect_stdout(
-    effects: &[TerminalEffect],
-    output: &[(BoundaryMachineId, OutputKind)],
-) -> Result<Vec<u8>, TerminalRuntimeError> {
-    let mut stdout = Vec::new();
-    for effect in effects {
-        let TerminalEffect::BoundaryCall {
-            boundary,
-            arguments,
-            byte_sequence_arguments,
-            ..
-        } = effect
-        else {
-            continue;
-        };
-        let Some((_, kind)) = output.iter().find(|(slot, _)| slot == boundary) else {
-            continue;
-        };
-        match kind {
-            OutputKind::Line => {
-                let [Some(bytes)] = byte_sequence_arguments.as_slice() else {
-                    return Err(TerminalRuntimeError::InvalidProvision(
-                        "committed line output has no exact byte payload",
-                    ));
-                };
-                stdout.extend_from_slice(bytes);
-                stdout.push(b'\n');
-            }
-            OutputKind::Byte => {
-                let [TerminalScalarValue::Integer { scalar_type, value }] = arguments.as_slice()
-                else {
-                    return Err(TerminalRuntimeError::InvalidProvision(
-                        "committed byte output has no exact integer argument",
-                    ));
-                };
-                let expected = IntegerType::new(IntegerSign::Signed, 32)
-                    .map_err(|_| TerminalRuntimeError::InvalidProvision("i32 unavailable"))?;
-                if *scalar_type != expected {
-                    return Err(TerminalRuntimeError::InvalidProvision(
-                        "byte output argument is not i32",
-                    ));
-                }
-                let IntegerValue::Signed(value) = value else {
-                    return Err(TerminalRuntimeError::InvalidProvision(
-                        "byte output argument is not signed",
-                    ));
-                };
-                stdout.push(u8::try_from(*value).map_err(|_| {
-                    TerminalRuntimeError::InvalidProvision(
-                        "byte output argument is outside its contract",
-                    )
-                })?);
-            }
-        }
-    }
-    Ok(stdout)
 }
