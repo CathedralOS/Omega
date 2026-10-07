@@ -8,8 +8,8 @@
 //! This avoids forming the unrepresentable signed factor `2^(width - 1)`.
 //! The generated shifts are total wrapping operations over those bounded
 //! counts, not a weakening of the authored count obligation. Emission binds
-//! both operands once before expanding this recipe and retains an exact
-//! right shift as the independently checked count-range obligation.
+//! both operands once before expanding this recipe. Source checking owns the
+//! authored count condition; these generated total operations need no replay.
 
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;

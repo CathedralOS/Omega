@@ -5,7 +5,6 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     validate_anonymous_integer_primitive_range, validate_value_range,
 };
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
-use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap;
 use crate::proof_contracts::arithmetic_domains::range_constraints::range_constraint_interval;
 use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
 use diagnostics::Diagnostic;
@@ -34,53 +33,7 @@ pub(crate) fn record_assignment(
         // A new payload retires float range/non-NaN facts as well as integer
         // facts. Literal recording may establish fresh facts after the store
         // has passed its ordinary validation.
-        environment
-            .float_intervals
-            .retain(|known, _| !place_paths_overlap(known, &path));
-        environment
-            .non_nan
-            .retain(|known| !place_paths_overlap(known, &path));
-        environment
-            .ordered_values
-            .retain(|relation| relation.survives(std::slice::from_ref(&path)));
-        environment
-            .known_u64_values
-            .retain(|known, _| !place_paths_overlap(known, &path));
-        environment.joint_add_upper_bounds.retain(|(left, right)| {
-            !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
-        });
-        environment.joint_add_lower_bounds.retain(|(left, right)| {
-            !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
-        });
-        environment.joint_subtract_bounds.retain(|(left, right)| {
-            !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
-        });
-        environment
-            .signed_joint_subtract_lower_bounds
-            .retain(|(left, right)| {
-                !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
-            });
-        environment
-            .signed_joint_subtract_upper_bounds
-            .retain(|(left, right)| {
-                !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
-            });
-        environment.joint_multiply_bounds.retain(|(left, right)| {
-            !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
-        });
-        environment
-            .signed_joint_multiply_lower_bounds
-            .retain(|(left, right)| {
-                !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
-            });
-        environment
-            .signed_joint_multiply_upper_bounds
-            .retain(|(left, right)| {
-                !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
-            });
-        environment
-            .signed_joint_multiply_negation_bounds
-            .retain(|value| !place_paths_overlap(value, &path));
+        environment.invalidate_written_paths(std::slice::from_ref(&path));
         let interval = match declared_range {
             Some(declared) => interval.intersect(declared),
             None => interval,

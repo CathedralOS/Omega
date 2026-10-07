@@ -54,6 +54,7 @@ impl FloatInterval {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct ValueEnvironment {
+    pub(super) boolean_values: Vec<super::guard_narrowing::BooleanValue>,
     pub(super) ordered_values: Vec<ordered_values::Relation>,
     pub(super) intervals: BTreeMap<String, Interval>,
     pub(super) known_u64_values: BTreeMap<String, u64>,
@@ -161,6 +162,7 @@ impl ValueEnvironment {
     /// Drop all tracked values when no incoming environment can be retained.
     /// Unknown mutation instead preserves existing immutable scalar snapshots.
     pub(crate) fn clear(&mut self) {
+        self.boolean_values.clear();
         self.intervals.clear();
         self.known_u64_values.clear();
         self.float_intervals.clear();
@@ -227,6 +229,18 @@ impl ValueEnvironment {
             relation.left.is_immutable_snapshot(program, state)
                 && relation.right.is_immutable_snapshot(program, state)
         });
+        self.boolean_values.retain_mut(|value| {
+            if !value.binding.is_immutable_snapshot(program, state) {
+                return false;
+            }
+            for relations in &mut value.alternatives {
+                relations.retain(|relation| {
+                    relation.left.is_immutable_snapshot(program, state)
+                        && relation.right.is_immutable_snapshot(program, state)
+                });
+            }
+            true
+        });
         self.clear_joint_relations();
     }
 
@@ -234,6 +248,15 @@ impl ValueEnvironment {
     /// A write to a parent invalidates descendants; a write to a descendant
     /// also invalidates any fact recorded for the parent value itself.
     pub(crate) fn invalidate_written_paths(&mut self, written: &[String]) {
+        self.boolean_values.retain_mut(|value| {
+            if !value.binding.survives(written) {
+                return false;
+            }
+            for relations in &mut value.alternatives {
+                relations.retain(|relation| relation.survives(written));
+            }
+            true
+        });
         self.ordered_values
             .retain(|relation| relation.survives(written));
         let overlaps = |path: &str| {
@@ -520,6 +543,19 @@ impl ValueEnvironment {
     /// state from its incoming edge guards.
     pub(crate) fn join(&self, other: &ValueEnvironment) -> ValueEnvironment {
         let mut joined = ValueEnvironment::new();
+        for value in &self.boolean_values {
+            if let Some(other) = other
+                .boolean_values
+                .iter()
+                .find(|other| other.binding == value.binding)
+            {
+                let mut common = value.clone();
+                for (relations, other) in common.alternatives.iter_mut().zip(&other.alternatives) {
+                    relations.retain(|relation| other.contains(relation));
+                }
+                joined.boolean_values.push(common);
+            }
+        }
         joined.ordered_values.extend(
             self.ordered_values
                 .iter()

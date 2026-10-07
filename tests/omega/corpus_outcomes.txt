@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 4.96, "load1_start": 4.96, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 3.54, "load1_start": 3.54, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -20,6 +20,16 @@ fail/arithmetic/bitwise_numeric_into_bool_rejected rejected 291ms expected @2d8e
 	machine `Main::main` state `main` local `x` stores a numeric value into a `bool` local, which holds a boolean
 fail/arithmetic/bitwise_result_declared_range rejected 242ms expected @2d8ed253669f
 	machine `run` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
+fail/arithmetic/boolean_shift_guard_authored_comparison rejected 211ms expected @50b7e26fea31+wt
+	shift count in machine `shift` state `calculate` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/arithmetic/boolean_shift_guard_missing_arrival rejected 206ms expected @50b7e26fea31+wt
+	shift count in machine `shift` state `calculate` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/arithmetic/boolean_shift_guard_missing_lower_bound rejected 206ms expected @50b7e26fea31+wt
+	shift count in machine `shift` state `calculate` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/arithmetic/boolean_shift_guard_overwritten rejected 205ms expected @50b7e26fea31+wt
+	shift count in machine `shift` state `calculate` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/arithmetic/boolean_shift_guard_subject_written rejected 178ms expected @50b7e26fea31+wt
+	shift count in machine `shift` state `entry` return value is provably out of range and can never execute for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
 fail/arithmetic/bounded_assignment_unproven rejected 141ms expected @c08960bee2b1+wt
 	cannot prove assignment value `9999` satisfies bounded target `main.x` in `Main::main.main`; expected 0..=100
 fail/arithmetic/bounded_call_unproven rejected 264ms expected @c08960bee2b1+wt
@@ -1797,6 +1807,10 @@ pass/arithmetic/exact_integer_cast_proven checked 306ms @2d8ed253669f
 pass/arithmetic/narrowing_flow_and_widen_permitted checked 1602ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 5261ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 1514ms check-target:macos_arm64 @2d8ed253669f
+pass/arithmetic/runtime_boolean_alias_shift_count_exit checked 1789ms check-target:macos_arm64 @50b7e26fea31+wt
+pass/arithmetic/runtime_boolean_divisor_state_exit checked 1789ms check-target:macos_arm64 @50b7e26fea31+wt
+pass/arithmetic/runtime_boolean_field_shift_count_exit checked 1789ms check-target:macos_arm64 @50b7e26fea31+wt
+pass/arithmetic/runtime_boolean_state_shift_count_exit checked 1789ms check-target:macos_arm64 @50b7e26fea31+wt
 pass/arithmetic/runtime_comparison_signedness_exit checked 1321ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_dispatch_cast_decisions_exit checked 3169ms check-target:macos_arm64 @6dd207b5fbb6+wt
 pass/arithmetic/runtime_domain_boundaries_exit checked 1285ms check-target:macos_arm64 @2d8ed253669f

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 4.58, "load1_start": 4.58, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 6.14, "load1_start": 6.14, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -17,6 +17,10 @@ pass/arithmetic/exact_integer_cast_proven checked 176ms
 pass/arithmetic/narrowing_flow_and_widen_permitted built 1132ms exit:5
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit built 2060ms exit:70
 pass/arithmetic/runtime_bitwise_high_ops_exit built 1132ms exit:70
+pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1829ms exit:0 @50b7e26fea31+wt
+pass/arithmetic/runtime_boolean_divisor_state_exit built 1829ms exit:0 @50b7e26fea31+wt
+pass/arithmetic/runtime_boolean_field_shift_count_exit built 1829ms exit:0 @50b7e26fea31+wt
+pass/arithmetic/runtime_boolean_state_shift_count_exit built 1829ms exit:0 @50b7e26fea31+wt
 pass/arithmetic/runtime_comparison_signedness_exit built 1120ms exit:70
 pass/arithmetic/runtime_dispatch_cast_decisions_exit built 3145ms exit:70 @9beb2be72f2d+wt
 pass/arithmetic/runtime_domain_boundaries_exit built 1107ms exit:70

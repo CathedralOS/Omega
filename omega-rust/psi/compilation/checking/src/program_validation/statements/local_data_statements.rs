@@ -277,6 +277,13 @@ pub(super) fn validate(
                 .flatten(),
         );
         if diagnostics.len() == before {
+            arithmetic_domains::record_boolean_local(
+                program,
+                machine,
+                current_state,
+                value_environment,
+                local_data,
+            );
             arithmetic_domains::record_unsigned_literal_assignment(
                 program,
                 value_environment,

@@ -73,7 +73,8 @@ pub use guard_narrowing::{
 };
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,
-    requires_value_environment, seed_out_param_ensures, short_circuit_operand_environment,
+    record_boolean_assignment, record_boolean_local, requires_value_environment,
+    seed_out_param_ensures, short_circuit_operand_environment,
 };
 pub use integer_ranges::integer_widen_is_total;
 pub(crate) use integer_ranges::{

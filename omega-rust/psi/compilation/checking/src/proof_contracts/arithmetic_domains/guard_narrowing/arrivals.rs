@@ -664,7 +664,7 @@ impl ArrivalWalk<'_, '_> {
             if let Some(path) = self.bound_place(source, *argument) {
                 bindings.push((path, parameter.name.as_str().to_owned()));
             }
-            if !environment.ordered_values.is_empty()
+            if (!environment.ordered_values.is_empty() || !environment.boolean_values.is_empty())
                 && let Some(value) = ordered_values::operand_with_frames(
                     self.program,
                     self.machine,
@@ -677,6 +677,11 @@ impl ArrivalWalk<'_, '_> {
             }
         }
         let mut rebound = environment.rebind(&bindings);
+        for value in &environment.boolean_values {
+            rebound
+                .boolean_values
+                .extend(value.rebound(&exact_bindings));
+        }
         for relation in &environment.ordered_values {
             for relation in relation.rebound(&exact_bindings) {
                 if !rebound.ordered_values.contains(&relation) {
@@ -804,6 +809,13 @@ impl ArrivalWalk<'_, '_> {
                     let path = local.name.as_str().to_owned();
                     environment.invalidate_written_paths(std::slice::from_ref(&path));
                     environment.set(path.clone(), interval);
+                    super::boolean_values::record_boolean_local(
+                        self.program,
+                        self.machine,
+                        Some(source),
+                        environment,
+                        local,
+                    );
                     record_unsigned_literal_assignment(
                         self.program,
                         environment,
@@ -864,6 +876,14 @@ impl ArrivalWalk<'_, '_> {
                         );
                         let primitive = reference
                             .and_then(|reference| self.program.primitive_type_reference(reference));
+                        super::boolean_values::record_boolean_assignment(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            environment,
+                            assignment.target,
+                            assignment.value,
+                        );
                         record_unsigned_literal_assignment(
                             self.program,
                             environment,

@@ -12,6 +12,7 @@ use super::{
 use std::collections::BTreeMap;
 
 mod arrivals;
+mod boolean_values;
 use crate::proof_contracts::arithmetic_domains::float_arithmetic::{
     float_bound_from, float_literal_value, float_range_constraint_interval,
 };
@@ -19,6 +20,8 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     known_u64_value, literal_u64, primitive_range,
 };
 use crate::proof_contracts::bound_expression_meaning as meaning;
+pub(super) use boolean_values::BooleanValue;
+pub(crate) use boolean_values::{record_boolean_assignment, record_boolean_local};
 mod case_facts;
 mod parameter_bounds;
 mod projected_facts;
@@ -434,6 +437,9 @@ pub(super) fn narrow_environment_by_condition(
     condition: ExpressionHandle,
     positive: bool,
 ) {
+    if boolean_values::select(program, machine, state, environment, condition, positive) {
+        return;
+    }
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(condition)
         && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
     {

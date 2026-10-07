@@ -3168,7 +3168,7 @@ deletions, which the commit lists.
     semantic-to-storage casts. Synthesized widenings and generated scalar-graph
     casts still need exact source-decision transport. Join the exact checked
     occurrence rather than performing another syntax walk.
-  - Cover shift counts, representation geometry, capacities
+  - Cover representation geometry, capacities
     and remaining bounded stores outside completed bounded-integer field
     replacements and interval-refined element-view writes, including generated
     indexed stores. Finish the formation audit across aggregate and proposition
@@ -3210,6 +3210,11 @@ deletions, which the commit lists.
   constrain evaluated exclusive descriptors, Unit/scalar call completion and
   original backing; `slices/inline_mutable_call_windows_overlap` and
   `slices/inline_shared_window_mutable_call` must reject independently.
+  `arithmetic/runtime_boolean_{alias,field,state}_shift_count_exit` (0) constrain
+  conditional arithmetic observations across Boolean stores, copies, polarity
+  and state transfers; `arithmetic/boolean_shift_guard_{subject_written,overwritten}`
+  must not reuse withdrawn count facts. Exact left shifts still independently
+  owe result representability; Saturating never admits an invalid count.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.

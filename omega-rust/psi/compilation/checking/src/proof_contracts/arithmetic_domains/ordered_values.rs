@@ -150,7 +150,7 @@ impl Operand {
         }
     }
 
-    fn rebound(&self, bindings: &[(Operand, Operand)]) -> Vec<Self> {
+    pub(super) fn rebound(&self, bindings: &[(Operand, Operand)]) -> Vec<Self> {
         let direct = bindings
             .iter()
             .filter(|(source, _)| source == self)

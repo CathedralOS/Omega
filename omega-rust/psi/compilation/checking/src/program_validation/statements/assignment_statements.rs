@@ -335,6 +335,14 @@ pub(super) fn validate<'a, 'p>(
             .and_then(|handle| arithmetic_domains::enforced_declared_range(program, handle)),
     );
     if diagnostics.len() == before {
+        arithmetic_domains::record_boolean_assignment(
+            program,
+            machine,
+            current_state,
+            value_environment,
+            assignment.target,
+            assignment.value,
+        );
         arithmetic_domains::record_unsigned_literal_assignment(
             program,
             value_environment,

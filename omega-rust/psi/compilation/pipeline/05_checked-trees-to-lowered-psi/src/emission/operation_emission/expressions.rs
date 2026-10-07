@@ -814,19 +814,9 @@ pub(crate) fn emit_direct_expression(
                 position: 1,
                 scalar_type: right.scalar_type(),
             };
-            // Right shift has exactly the authored formation condition: a
-            // representable count below the value width, without a value-
-            // overflow condition. Keep that certificate even though scaling
-            // uses total masked shifts. An optimizer may erase this unused
-            // result only after independent Terminal verification.
-            let count_witness = LoweredDirectExpression::IntegerBinary {
-                kind: LoweredIntegerBinaryKind::ExactShiftRight,
-                scalar_type: *scalar_type,
-                left: Box::new(left.clone()),
-                right: Box::new(right.clone()),
-                formation_decided: false,
-            };
-            emit_direct_expression(&count_witness, &bindings, next_value_identity, operations);
+            // Source checking already discharged the authored count condition.
+            // The generated masked shifts and saturating products are total;
+            // do not manufacture an unused Exact shift to recheck that judgment.
             let expanded = crate::expression_preparation::saturating_shift::expansion(
                 *scalar_type,
                 left,

@@ -173,6 +173,7 @@ pub(super) fn analyze(
     }
     let policy_bridge = integer_policy_primitive(operator)
         .map(|primitive| integer_policy_bridge(primitive, effective_domain));
+    let mut result_representable = false;
     if let Some(bridge) = policy_bridge
         && let Some(primitive) = primitive
     {
@@ -184,6 +185,7 @@ pub(super) fn analyze(
             exact_result_proven,
             diagnostics,
         );
+        result_representable = representable;
         // A shift also owes its count bound, decided below; record only the
         // sum, difference and product whose one condition this proved.
         if representable
@@ -198,7 +200,15 @@ pub(super) fn analyze(
     if operation.is_shift()
         && let Some(bridge) = policy_bridge
     {
-        operation.require_shift_count_within_width(bridge, effective_domain, diagnostics);
+        let count_proven =
+            operation.require_shift_count_within_width(bridge, effective_domain, diagnostics);
+        if count_proven
+            && (operator == BinaryOperator::ShiftRight
+                || effective_domain == ArithmeticDomain::Saturating
+                || result_representable)
+        {
+            decisions.decided_formations.push(expression);
+        }
     }
     Analysis {
         domain,
@@ -770,21 +780,38 @@ impl Operation<'_, '_> {
         bridge: IntegerPolicyBridge,
         effective_domain: ArithmeticDomain,
         diagnostics: &mut Vec<Diagnostic>,
-    ) {
+    ) -> bool {
         if bridge.shift_count_law != ShiftCountLaw::MustBeWithinWidth {
-            return;
+            return false;
         }
         let Some(shift_primitive) = self.left.primitive.or(self.walk.target_primitive) else {
-            return;
+            return false;
         };
         let Some(width) = integer_bit_width(shift_primitive) else {
-            return;
+            return false;
         };
         let count = self.right.interval;
         let provably_in_range = matches!(count.low, Some(low) if low >= 0)
             && matches!(count.high, Some(high) if high < width);
         if provably_in_range {
-            return;
+            return true;
+        }
+        // Saved Boolean values contribute the same live resolved relations as
+        // direct guards. Ask the common integer judgment for both complements;
+        // count validity never supplies left-shift result representability.
+        let relationally_in_range = self.walk.state.is_some_and(|state| {
+            super::super::live_integer_constraints::proves_range(
+                self.walk.program,
+                self.walk.machine,
+                state,
+                self.walk.environment,
+                self.binary.right,
+                Some(&numerics::bignum::BigInt::from_i64(0)),
+                Some(&numerics::bignum::BigInt::from_i64(width - 1)),
+            )
+        });
+        if relationally_in_range {
+            return true;
         }
         // A count that can NEVER be legal (a spelled `1 << 40` on u32) reads
         // differently from an unproven one.
@@ -812,6 +839,7 @@ impl Operation<'_, '_> {
             prim = primitive_name(shift_primitive),
             mask = width - 1,
         )));
+        false
     }
 
     /// Parents observe this node's policy result, not its unbounded

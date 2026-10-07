@@ -58,7 +58,8 @@ pub(crate) struct ArithmeticDecisions {
     /// Integer operations whose every formation condition under their
     /// selected policy was proven: a nonzero divisor and, for an Exact signed
     /// division, the excluded `MIN / -1` pair; a representable Exact sum,
-    /// difference or product.
+    /// difference or product; an in-width shift count plus any Exact
+    /// left-shift representability condition.
     pub(crate) decided_formations: Vec<ExpressionHandle>,
     /// The interval of each integer expression this walk checked, in the
     /// branch-local environment it was checked in: the left operand of `&&`

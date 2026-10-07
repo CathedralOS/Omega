@@ -148,7 +148,8 @@ impl LoweredIntegerBinaryKind {
 
     /// The kinds whose formation checking records as a decision: division
     /// and remainder definedness under every policy, and Exact sum,
-    /// difference and product representability. Shifts are not yet recorded.
+    /// difference and product representability; Exact shift formation includes
+    /// count validity and, for left shifts, result representability.
     pub(crate) const fn formation_is_checker_decided(self) -> bool {
         matches!(
             self,
@@ -161,6 +162,8 @@ impl LoweredIntegerBinaryKind {
                 | Self::ExactAdd
                 | Self::ExactSubtract
                 | Self::ExactMultiply
+                | Self::ExactShiftLeft
+                | Self::ExactShiftRight
         )
     }
 
