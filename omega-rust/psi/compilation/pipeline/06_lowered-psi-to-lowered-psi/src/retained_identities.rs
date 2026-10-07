@@ -11,3 +11,23 @@
 
 pub(crate) mod proof_values;
 pub(crate) mod ranked_coverage;
+
+/// Unsealed source custody names either an ordinary operation or a terminal
+/// invocation edge. Their namespaces remain distinct, even at equal markers.
+pub(crate) fn contains_source_call(
+    machine: &terminal_psi::TerminalMachine,
+    occurrence: &lowered_psi::LoweredSourceCallOccurrence,
+) -> bool {
+    match occurrence.terminal_site {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => machine
+            .blocks
+            .iter()
+            .any(|block| block.operations.iter().any(|row| row.id == operation)),
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            machine.blocks.iter().any(|block| {
+                matches!(block.terminator,
+                terminal_psi::Terminator::ExternalCompletion { edge: actual, .. } if actual == edge)
+            })
+        }
+    }
+}

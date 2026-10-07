@@ -29,6 +29,13 @@ pub(crate) fn retain_suspension_call_plans(
         let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
             "possibly-suspending checked call has no exact Terminal operation join",
         ))?;
+        let terminal_operation =
+            occurrence
+                .terminal_site
+                .operation()
+                .ok_or(LoweringError::Unsupported(
+                    "external completion cannot park a continuing activation",
+                ))?;
         // Emission and checking name the same callee differently: scalar and
         // structural-result calls record the callee machine symbol while Unit
         // calls and `call.target_symbol` carry the resolved entry state.
@@ -57,7 +64,7 @@ pub(crate) fn retain_suspension_call_plans(
                         )
                     })
             })
-            .find(|(.., operation)| operation.id == occurrence.terminal_operation)
+            .find(|(.., operation)| operation.id == terminal_operation)
             .map(|(machine_index, block_index, operation_index, _)| {
                 (machine_index, block_index, operation_index)
             })
@@ -113,11 +120,7 @@ pub(crate) fn retain_suspension_call_plans(
                         .ok_or(LoweringError::Unsupported(
                             "suspension frontier local environment position is unavailable",
                         ))?;
-                    if !scalar_operation_result_before(
-                        module,
-                        occurrence.terminal_operation,
-                        value.id,
-                    ) {
+                    if !scalar_operation_result_before(module, terminal_operation, value.id) {
                         return unsupported(
                             "threaded local suspension frontier lacks exact source-storage provenance",
                         );
@@ -183,7 +186,7 @@ pub(crate) fn retain_suspension_call_plans(
         module.machines[machine_index].blocks[block_index].operations[operation_index]
             .suspension_crossing = Some(crossing_id);
         plans.push(terminal_psi::TerminalSuspensionCallPlan {
-            operation: occurrence.terminal_operation,
+            operation: terminal_operation,
             crossing: crossing_id,
             target,
             effective: crossing.effective,

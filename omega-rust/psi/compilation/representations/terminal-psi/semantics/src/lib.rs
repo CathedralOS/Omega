@@ -142,7 +142,8 @@ pub use structural_window::{
     StructuralWindowProjection, structural_window_projection, structural_window_selects_child,
 };
 pub use zeroed_structural::{
-    ZeroedStructuralLeaf, zeroed_structural_leaves, zeroed_structural_shape,
+    EstablishedErasedStructuralField, ZeroedStructuralLeaf, zeroed_structural_leaves,
+    zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
 };
 
 pub mod descriptor_lifetimes;

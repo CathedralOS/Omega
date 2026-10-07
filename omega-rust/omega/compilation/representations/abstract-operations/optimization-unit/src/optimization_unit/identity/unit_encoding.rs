@@ -558,6 +558,10 @@ fn encode_ownership(bytes: &mut CanonicalBytes, event: &OwnershipEvent) {
             bytes.u8(5);
             encode_ids(bytes, claims);
         }
+        OwnershipEvent::ExternalCompletionFrontier(claims) => {
+            bytes.u8(6);
+            encode_ids(bytes, claims);
+        }
     }
 }
 

@@ -57,7 +57,6 @@ pub(in crate::lowering) fn lower_boundary_call(
     scalar_block_parameters: &BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
-    nonreturning_boundary: &mut bool,
 ) -> Result<(), LoweringError> {
     match operation {
         AbstractOperation::BoundaryCall {
@@ -431,8 +430,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }
                 }
-                BoundaryRealization::HostedWriteByteI32(_)
-                | BoundaryRealization::HostedExitProcessI32(_) => {
+                BoundaryRealization::HostedWriteByteI32(_) => {
                     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
                     let [source_value] = arguments.as_slice() else {
                         return Err(LoweringError::InvalidHostedExitProcessShape(
@@ -458,19 +456,8 @@ pub(in crate::lowering) fn lower_boundary_call(
                             function.machine,
                         ));
                     };
-                    let exits_process =
-                        matches!(realization, BoundaryRealization::HostedExitProcessI32(_));
-                    let supports_target = if exits_process {
-                        target_operations::HostedExitProcessI32Realization::supports_target(target)
-                    } else {
-                        target_operations::HostedWriteByteI32Realization::supports_target(target)
-                    };
-                    if exits_process && !supports_target {
-                        return Err(LoweringError::HostedExitProcessUnsupportedTarget {
-                            machine: function.machine,
-                            target,
-                        });
-                    }
+                    let supports_target =
+                        target_operations::HostedWriteByteI32Realization::supports_target(target);
                     if !supports_target
                         || declaration.scalar_parameters.as_slice()
                             != [ScalarType::Integer(i32_type)]
@@ -489,7 +476,9 @@ pub(in crate::lowering) fn lower_boundary_call(
                         source: known.into_target_source(*source_value),
                         placement: placement.clone(),
                     });
-                    *nonreturning_boundary = exits_process;
+                }
+                BoundaryRealization::HostedExitProcessI32(_) => {
+                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 }
                 BoundaryRealization::NearestIeeeFloatArithmetic(_) => {
                     // Float arithmetic realizes inline on the control-flow

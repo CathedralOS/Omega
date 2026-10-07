@@ -280,10 +280,13 @@ pub(crate) fn resolve_direct_float_source_binding(
             if occurrences.next().is_some() {
                 return Err(invalid_source());
             }
+            let Some(operation) = occurrence.terminal_site.operation() else {
+                return Err(invalid_source());
+            };
             resolve_float_operation_result_source(
                 terminal_machine,
                 *terminal_owner,
-                occurrence.terminal_operation,
+                operation,
                 format,
                 true,
             )

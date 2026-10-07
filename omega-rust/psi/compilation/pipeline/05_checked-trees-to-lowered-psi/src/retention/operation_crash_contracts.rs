@@ -288,7 +288,7 @@ fn validate_named_site_carrier(
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
-        .find(|operation| operation.id == join.terminal_operation)
+        .find(|operation| join.terminal_site.operation() == Some(operation.id))
         .ok_or(LoweringError::Unsupported(
             "named operator crash invocation joins an operation outside its Terminal machine",
         ))?;

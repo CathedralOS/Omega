@@ -511,19 +511,49 @@ impl TerminalExecution {
         {
             return Err(malformed());
         }
-        let leaves = terminal_semantics::zeroed_structural_leaves(
-            self.program.structural_types.values(),
-            result.structural_type,
-        )
-        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-            "zeroed structural storage exceeds supported leaf materialization",
-        ))?;
         let value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
             path: Vec::new(),
         };
+        self.materialize_zeroed_structural_storage(&value)?;
+        self.structural_values.insert(result.place, value);
+        // Zeroing establishes payload; it does not discharge the nominal
+        // owner's affine debt. The verified continuation still disposes it.
+        if result.multiplicity == StructuralMultiplicity::Affine {
+            self.live_affine_frontier.insert(StructuralAffineDiscard {
+                place: result.place,
+                path: Vec::new(),
+                structural_type: result.structural_type,
+            });
+        }
+        Ok(OperationFlow::Advance)
+    }
+
+    /// One materializer for both local zero establishments and explicit host
+    /// zero-backed entry inputs. It creates storage, never qualifications,
+    /// authority, claims, or release receipts.
+    pub(crate) fn materialize_zeroed_structural_storage(
+        &mut self,
+        value: &TerminalStructuralValue,
+    ) -> Result<(), TerminalInterpretError> {
+        self.materialize_zeroed_structural_storage_with_established_fields(value, &[])
+    }
+
+    pub(crate) fn materialize_zeroed_structural_storage_with_established_fields(
+        &mut self,
+        value: &TerminalStructuralValue,
+        established_fields: &[terminal_semantics::EstablishedErasedStructuralField],
+    ) -> Result<(), TerminalInterpretError> {
+        let leaves = terminal_semantics::zeroed_structural_leaves_with_established_erased_fields(
+            self.program.structural_types.values(),
+            value.structural_type,
+            established_fields,
+        )
+        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+            "zeroed structural backing or erased establishment cannot be materialized",
+        ))?;
         let zero = |scalar_type: ScalarType| -> Option<TerminalScalarValue> {
             match scalar_type {
                 ScalarType::Boolean => Some(TerminalScalarValue::Boolean(false)),
@@ -547,28 +577,31 @@ impl TerminalExecution {
             }
         };
         for leaf in &leaves {
+            let storage_path = || {
+                let mut path = value.path.clone();
+                path.extend_from_slice(leaf.path());
+                path
+            };
             match leaf {
                 terminal_semantics::ZeroedStructuralLeaf::RecordField {
-                    path,
+                    path: _,
                     field,
                     scalar_type,
                 } => {
                     let parent = StructuralRuntimePlace {
                         opaque_identity: value.opaque_identity,
-                        path: path.clone(),
+                        path: storage_path(),
                     };
                     let cell = StructuralScalarRuntimeField::member(parent, *field);
                     self.structural_scalar_fields
                         .insert(cell, zero(*scalar_type).ok_or_else(malformed)?);
                 }
-                terminal_semantics::ZeroedStructuralLeaf::ByteSequenceField {
-                    path, field, ..
-                } => {
+                terminal_semantics::ZeroedStructuralLeaf::ByteSequenceField { field, .. } => {
                     self.structural_byte_sequence_fields.insert(
                         StructuralByteSequenceRuntimeField {
                             parent: StructuralRuntimePlace {
                                 opaque_identity: value.opaque_identity,
-                                path: path.clone(),
+                                path: storage_path(),
                             },
                             field: *field,
                         },
@@ -576,14 +609,14 @@ impl TerminalExecution {
                     );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::CaseField {
-                    path,
+                    path: _,
                     field,
                     scalar_type,
                     ..
                 } => {
                     let parent = StructuralRuntimePlace {
                         opaque_identity: value.opaque_identity,
-                        path: path.clone(),
+                        path: storage_path(),
                     };
                     self.structural_scalar_fields.insert(
                         StructuralScalarRuntimeField::case_payload(parent, *field),
@@ -598,7 +631,7 @@ impl TerminalExecution {
                         && let Some(array_type) =
                             crate::structural_inputs::byte_arrays::array_path_type(
                                 &self.program.structural_types,
-                                result.structural_type,
+                                value.structural_type,
                                 parent,
                             )
                         && let Some(length) =
@@ -611,7 +644,11 @@ impl TerminalExecution {
                         self.structural_byte_storage
                             .entry(StructuralRuntimePlace {
                                 opaque_identity: value.opaque_identity,
-                                path: parent.to_vec(),
+                                path: {
+                                    let mut path = value.path.clone();
+                                    path.extend_from_slice(parent);
+                                    path
+                                },
                             })
                             .or_insert_with(|| ByteSequenceView::new(vec![0; length]));
                         continue;
@@ -619,13 +656,13 @@ impl TerminalExecution {
                     self.structural_primitive_storage.insert(
                         StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,
-                            path: path.clone(),
+                            path: storage_path(),
                         },
                         zero(*scalar_type).ok_or_else(malformed)?,
                     );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::SumSelection {
-                    path,
+                    path: _,
                     structural_type,
                     case,
                     ..
@@ -635,7 +672,7 @@ impl TerminalExecution {
                     self.structural_cases.insert(
                         StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,
-                            path: path.clone(),
+                            path: storage_path(),
                         },
                         StructuralCaseContents {
                             structural_type: *structural_type,
@@ -645,17 +682,7 @@ impl TerminalExecution {
                 }
             }
         }
-        self.structural_values.insert(result.place, value);
-        // Zeroing establishes payload; it does not discharge the nominal
-        // owner's affine debt. The verified continuation still disposes it.
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            });
-        }
-        Ok(OperationFlow::Advance)
+        Ok(())
     }
 
     /// Establish a declared structural local's home: the place materializes

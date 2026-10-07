@@ -11,5 +11,6 @@ pub(crate) fn is_terminator(operation: &abstract_operations::AbstractOperation) 
             | O::ReturnUnit { .. }
             | O::ReturnStructural { .. }
             | O::Crash { .. }
+            | O::ExternalCompletion { .. }
     )
 }

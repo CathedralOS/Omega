@@ -56,6 +56,7 @@ pub(crate) fn rewrite_block_parameter_operation(
             }
         }
         O::Call { arguments, .. }
+        | O::ExternalCompletion { arguments, .. }
         | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
                 replace(argument);

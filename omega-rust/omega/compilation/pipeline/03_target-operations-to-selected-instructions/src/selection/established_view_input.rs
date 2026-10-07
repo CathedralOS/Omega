@@ -46,6 +46,7 @@ pub(super) fn transferred(source: &LegalizedScalarFunction, place: PlaceId) -> b
     source.blocks.iter().any(|block| {
         let successors = match &block.terminator {
             legalized_operations::LegalizedScalarTerminator::Crash { .. }
+            | legalized_operations::LegalizedScalarTerminator::ExternalCompletion { .. }
             | legalized_operations::LegalizedScalarTerminator::Return(_)
             | legalized_operations::LegalizedScalarTerminator::ReturnCleanup { .. }
             | legalized_operations::LegalizedScalarTerminator::StructuralCase { .. } => {

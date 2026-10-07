@@ -1,29 +1,36 @@
 //! One ordinary, boundary or dynamic call from a Unit-effect body.
 //!
-//! A call has three independent axes. Its route reaches an ordinary checked
+//! A call has four independent axes. Its route reaches an ordinary checked
 //! machine in this module, a bodyless boundary, or whichever implementation a
 //! runtime selector names. Its result binds nothing, a primitive in the dense
 //! scalar namespace, or a whole value in the structural namespace. Its
-//! transfers carry existing claims through completion. Only eight (route,
-//! result, transfers) combinations exist, and `CheckedUnitCallPlan::new`
-//! admits exactly those eight:
+//! completion distinguishes a normal return from a closed external outcome;
+//! transfers carry existing claims through normal completion or explicitly
+//! abandon them. `CheckedUnitCallPlan::new` admits these nine combinations:
 //!
-//! | route    | result     | transfers            | contract commitment | source site  |
-//! |----------|------------|----------------------|---------------------|--------------|
-//! | module   | Unit       | `Claims`             | absent              | not retained |
-//! | module   | scalar     | `Claims`             | present             | not retained |
-//! | module   | structural | `StructuralCustody`  | present             | retained     |
-//! | boundary | Unit       | `CompletionReceipts` | absent              | retained     |
-//! | boundary | scalar     | `CompletionReceipts` | absent              | retained     |
-//! | boundary | structural | `CompletionReceipts` | absent              | retained     |
-//! | dynamic  | Unit       | `Claims`             | absent              | not retained |
-//! | dynamic  | scalar     | `Claims`             | absent              | not retained |
+//! | route    | completion     | result     | transfers            | contract commitment | source site  |
+//! |----------|----------------|------------|----------------------|---------------------|--------------|
+//! | module   | `NormalReturn` | Unit       | `Claims`             | absent              | not retained |
+//! | module   | `NormalReturn` | scalar     | `Claims`             | present             | not retained |
+//! | module   | `NormalReturn` | structural | `StructuralCustody`  | present             | retained     |
+//! | boundary | `NormalReturn` | Unit       | `CompletionReceipts` | absent              | retained     |
+//! | boundary | `NormalReturn` | scalar     | `CompletionReceipts` | absent              | retained     |
+//! | boundary | `NormalReturn` | structural | `CompletionReceipts` | absent              | retained     |
+//! | dynamic  | `NormalReturn` | Unit       | `Claims`             | absent              | not retained |
+//! | dynamic  | `NormalReturn` | scalar     | `Claims`             | absent              | not retained |
+//! | boundary | `External`     | Unit       | `Abandonment`        | absent              | retained     |
+//!
+//! These eight rows have `NormalReturn` completion. The ninth row has
+//! `External` completion, boundary route, source Unit omission, `Abandonment`
+//! transfers, no contract commitment, and a retained source site. Unit denotes
+//! omitted source result syntax here, never a normal external result. Actual
+//! domain-bound authority remains an unsatisfied entry/runtime demand.
 //!
 //! A dynamic call's target is its instantiated slot; no single machine's
 //! contract commitment describes every implementation it can reach, and a
 //! structural result through a selector is not yet planned.
 //!
-//! The route, result, transfers and source site are private so that no later
+//! The route, completion, result, transfers and source site are private so that no later
 //! edit can separate them. Each has an accessor, and the parts a pass edits
 //! have mutators that cannot change their kind. The target identity (machine,
 //! state, contract fingerprint and reach) sits beside the route, not inside
@@ -37,6 +44,7 @@
 //! call, the record's own fields and accessors are the shared reading.
 
 use language_semantics::ServiceReachSummary;
+use semantic_vocabulary::BoundaryCompletion;
 use symbols::SymbolHandle;
 
 use crate::checked_trees::flow::terminal::{
@@ -117,10 +125,13 @@ pub enum CheckedUnitCallTransfers {
     StructuralCustody(CheckedStructuralCallCustodyPlan),
     /// A boundary call's completion receipts.
     CompletionReceipts(Vec<CheckedUnitClaimTransferPlan>),
+    /// External completion abandons in-domain claims without normal receipts.
+    /// This decision grants no containing-process-domain authority.
+    Abandonment,
 }
 
 /// Every field of one call, unchecked. [`CheckedUnitCallPlan::new`] admits
-/// the parts only in one of the six shapes in the module table, and
+/// the parts only in one of the nine shapes in the module table, and
 /// [`CheckedUnitCallPlan::into_parts`] returns them for a rebuild.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitCallParts {
@@ -131,19 +142,21 @@ pub struct CheckedUnitCallParts {
     pub source_site: Option<NominalMachineUseSite>,
     pub target: CheckedUnitCallTarget,
     pub route: CheckedUnitCallRoute,
+    pub completion: BoundaryCompletion,
     pub scalar_arguments: Vec<CheckedCallScalarArgument>,
     pub structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
     pub result: CheckedUnitCallResult,
     pub transfers: CheckedUnitCallTransfers,
 }
 
-/// One call operation in one of the six admitted shapes.
+/// One call operation in one of the nine admitted shapes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitCallPlan {
     pub coordinate: CheckedUnitCallCoordinate,
     source_site: Option<NominalMachineUseSite>,
     pub target: CheckedUnitCallTarget,
     route: CheckedUnitCallRoute,
+    completion: BoundaryCompletion,
     /// Runtime primitive actuals: in the target's retained scalar-parameter
     /// order, or the boundary declaration's dense scalar-parameter order.
     /// Structural actuals keep their separate custody namespace.
@@ -155,7 +168,7 @@ pub struct CheckedUnitCallPlan {
 }
 
 impl CheckedUnitCallPlan {
-    /// Admit one of the six call shapes in the module table. Returns `None`
+    /// Admit one of the nine call shapes in the module table. Returns `None`
     /// for any other combination of route, result, transfers, contract
     /// commitment and source site.
     pub fn new(parts: CheckedUnitCallParts) -> Option<Self> {
@@ -166,49 +179,61 @@ impl CheckedUnitCallPlan {
             source_site,
             target,
             route,
+            completion,
             scalar_arguments,
             structural_arguments,
             result,
             transfers,
         } = parts;
-        let admitted = match (&route, &result, &transfers) {
-            (
-                CheckedUnitCallRoute::Module {
-                    contract_commitment,
-                    ..
-                },
-                Result::Unit,
-                Transfers::Claims(_),
-            ) => contract_commitment.is_none() && source_site.is_none(),
-            (
-                CheckedUnitCallRoute::Module {
-                    contract_commitment,
-                    ..
-                },
-                Result::Scalar(_),
-                Transfers::Claims(_),
-            ) => contract_commitment.is_some() && source_site.is_none(),
-            (
-                CheckedUnitCallRoute::Module {
-                    contract_commitment,
-                    ..
-                },
-                Result::Structural { .. },
-                Transfers::StructuralCustody(_),
-            ) => contract_commitment.is_some(),
-            (CheckedUnitCallRoute::Boundary, _, Transfers::CompletionReceipts(_)) => true,
-            (
-                CheckedUnitCallRoute::Dynamic { .. },
-                Result::Unit | Result::Scalar(_),
-                Transfers::Claims(_),
-            ) => source_site.is_none(),
-            _ => false,
+        let admitted = match completion {
+            BoundaryCompletion::External(_) => matches!(
+                (&route, &result, &transfers),
+                (
+                    CheckedUnitCallRoute::Boundary,
+                    Result::Unit,
+                    Transfers::Abandonment
+                )
+            ),
+            BoundaryCompletion::NormalReturn => match (&route, &result, &transfers) {
+                (
+                    CheckedUnitCallRoute::Module {
+                        contract_commitment,
+                        ..
+                    },
+                    Result::Unit,
+                    Transfers::Claims(_),
+                ) => contract_commitment.is_none() && source_site.is_none(),
+                (
+                    CheckedUnitCallRoute::Module {
+                        contract_commitment,
+                        ..
+                    },
+                    Result::Scalar(_),
+                    Transfers::Claims(_),
+                ) => contract_commitment.is_some() && source_site.is_none(),
+                (
+                    CheckedUnitCallRoute::Module {
+                        contract_commitment,
+                        ..
+                    },
+                    Result::Structural { .. },
+                    Transfers::StructuralCustody(_),
+                ) => contract_commitment.is_some(),
+                (CheckedUnitCallRoute::Boundary, _, Transfers::CompletionReceipts(_)) => true,
+                (
+                    CheckedUnitCallRoute::Dynamic { .. },
+                    Result::Unit | Result::Scalar(_),
+                    Transfers::Claims(_),
+                ) => source_site.is_none(),
+                _ => false,
+            },
         };
         admitted.then_some(Self {
             coordinate,
             source_site,
             target,
             route,
+            completion,
             scalar_arguments,
             structural_arguments,
             result,
@@ -223,6 +248,7 @@ impl CheckedUnitCallPlan {
             source_site: self.source_site,
             target: self.target,
             route: self.route,
+            completion: self.completion,
             scalar_arguments: self.scalar_arguments,
             structural_arguments: self.structural_arguments,
             result: self.result,
@@ -245,6 +271,13 @@ impl CheckedUnitCallPlan {
 
     pub fn route(&self) -> &CheckedUnitCallRoute {
         &self.route
+    }
+
+    /// The exact checked requirement's completion, independent of provider
+    /// selection and source result omission. External completion demands actual
+    /// domain-bound authority from the admitted entry/runtime environment.
+    pub fn completion(&self) -> BoundaryCompletion {
+        self.completion
     }
 
     pub fn result(&self) -> &CheckedUnitCallResult {
@@ -366,12 +399,14 @@ impl CheckedUnitCallPlan {
 
     /// The claims the call carries through completion: an ordinary call's
     /// transfers (a structural call keeps them in its custody record) or a
-    /// boundary call's completion receipts.
+    /// boundary call's normal completion receipts. Abandonment has none; an
+    /// empty slice does not establish normal completion or discharge claims.
     pub fn claim_transfers(&self) -> &[CheckedUnitClaimTransferPlan] {
         match &self.transfers {
             CheckedUnitCallTransfers::Claims(claims)
             | CheckedUnitCallTransfers::CompletionReceipts(claims) => claims,
             CheckedUnitCallTransfers::StructuralCustody(custody) => &custody.claim_transfers,
+            CheckedUnitCallTransfers::Abandonment => &[],
         }
     }
 

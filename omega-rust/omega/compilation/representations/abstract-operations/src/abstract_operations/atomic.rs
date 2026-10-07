@@ -665,6 +665,10 @@ fn invalidates_location(
         | AbstractOperation::BoundaryCall {
             structural_arguments,
             ..
+        }
+        | AbstractOperation::ExternalCompletion {
+            structural_arguments,
+            ..
         } => structural_arguments.as_slice(),
         _ => &[],
     };

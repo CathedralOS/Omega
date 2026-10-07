@@ -105,12 +105,6 @@ pub(super) fn project_boundary_call(
                     source: *source,
                 }
             }
-            target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
-                LegalizedScalarInstructionKind::HostedExitProcessI32 {
-                    boundary: *boundary,
-                    source: *source,
-                }
-            }
             _ => return Err(Error::custody()),
         }
     };

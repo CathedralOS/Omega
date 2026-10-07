@@ -57,10 +57,7 @@ pub(super) fn propagate(
         retain_erased_arguments(call_erased_arguments(&operation.kind), retained_values);
     }
     for occurrence in source_calls {
-        if operations
-            .iter()
-            .any(|operation| operation.id == occurrence.terminal_operation)
-        {
+        if crate::retained_identities::contains_source_call(machine, occurrence) {
             retained_values.extend(
                 occurrence
                     .source_values_before_call
@@ -108,7 +105,8 @@ pub(super) fn propagate(
             }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnStructural { .. } => {}
+            | Terminator::ReturnStructural { .. }
+            | Terminator::ExternalCompletion { .. } => {}
         }
     }
     // A parameter resolves only when its block has inventoried incoming scalar

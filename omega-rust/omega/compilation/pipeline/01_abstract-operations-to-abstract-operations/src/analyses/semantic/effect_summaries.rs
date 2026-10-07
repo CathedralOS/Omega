@@ -328,6 +328,7 @@ fn operation_effect(
         O::CallStructural { .. }
         | O::Call { .. } => (EffectClass::InternalCall, May, May, May, May),
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),
+        O::ExternalCompletion { .. } => (EffectClass::BoundaryCall, Yes, May, No, No),
         O::PortWrite { .. } => (EffectClass::Service, Yes, No, No, No),
         O::Crash { .. } => (EffectClass::Control, Yes, No, Yes, No),
         // A Trapping primitive defines a scalar but may leave through its own

@@ -848,7 +848,7 @@ impl ChainExit<'_> {
             | Terminator::ReturnUnit {
                 cleanup_actions, ..
             } => self.insert_actions(cleanup_actions),
-            Terminator::Crash { .. } => Ok(()),
+            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => Ok(()),
         }
     }
 

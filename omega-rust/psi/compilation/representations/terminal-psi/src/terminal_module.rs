@@ -43,7 +43,8 @@ pub use control_flow::{
 pub use identity::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 pub use observation::{
     TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalTraceBoundaryCrashSiteRow,
-    TerminalTraceCrashSiteRow, TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
+    TerminalTraceCrashSiteRow, TerminalTraceExternalCompletionSiteRow,
+    TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
     TerminalTraceOrdinaryEventRow, TerminalTraceResultKind, TerminalTraceResultSchema,
     TerminalTraceResultValue, TerminalTraceRootRow, TerminalTraceScalarSchema,
     TerminalTraceScalarValue, TerminalTraceStructuralSchema, TerminalTraceStructuralValue,

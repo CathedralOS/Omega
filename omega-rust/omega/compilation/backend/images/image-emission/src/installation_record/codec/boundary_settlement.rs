@@ -56,7 +56,16 @@ pub(crate) fn encode_boundary_settlements(
     for installed in installed {
         let settlement = &installed.settlement;
         push_u64(bytes, installed.machine.get());
-        push_u64(bytes, settlement.psi_operation.get());
+        match settlement.invocation_site {
+            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+                bytes.push(0);
+                push_u64(bytes, operation.get());
+            }
+            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                bytes.push(1);
+                push_u64(bytes, edge.get());
+            }
+        }
         push_u64(bytes, settlement.boundary.get());
         encode_boundary_execution(bytes, settlement.execution)?;
         match settlement.realization {
@@ -258,8 +267,17 @@ pub(crate) fn decode_boundary_settlements(
     for _ in 0..count {
         let machine = MachineId::new(reader.u64()?)
             .ok_or(InstallationError::ZeroSettlementIdentity("MachineId"))?;
-        let psi_operation = OperationId::new(reader.u64()?)
-            .ok_or(InstallationError::ZeroSettlementIdentity("OperationId"))?;
+        let invocation_site = match reader.u8()? {
+            0 => semantic_vocabulary::BoundaryInvocationSite::Operation(
+                OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroSettlementIdentity("OperationId"))?,
+            ),
+            1 => semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
+                EdgeId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroSettlementIdentity("EdgeId"))?,
+            ),
+            _ => return Err(InstallationError::InvalidBoundaryRealizationTag),
+        };
         let boundary = BoundaryMachineId::new(reader.u64()?).ok_or(
             InstallationError::ZeroSettlementIdentity("BoundaryMachineId"),
         )?;
@@ -455,7 +473,7 @@ pub(crate) fn decode_boundary_settlements(
         boundary_settlements.push(ObjectBoundarySettlement {
             machine,
             settlement: BoundarySettlementRecord {
-                psi_operation,
+                invocation_site,
                 boundary,
                 execution,
                 realization,

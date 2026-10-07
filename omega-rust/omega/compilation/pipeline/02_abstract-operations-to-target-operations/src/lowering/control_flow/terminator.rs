@@ -260,20 +260,17 @@ pub(super) fn lower_terminator(
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &mut LiveDefinitions,
     structural_types: &StructuralTypeLookup<'_>,
+    target: target::NativeTarget,
+    boundary_machines: &std::collections::BTreeMap<
+        semantic_vocabulary::BoundaryMachineId,
+        &terminal_psi::BoundaryMachineDeclaration,
+    >,
+    settlements: &std::collections::BTreeMap<
+        semantic_vocabulary::BoundaryMachineId,
+        target_operations::BoundarySettlementBinding,
+    >,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
-    // A nonreturning settlement permits only custody-only discards afterward.
-    // The ReturnUnit arm still validates their exact homes and residual paths.
-    if live.nonreturning
-        && !matches!(operation, AbstractOperation::ReturnUnit { cleanup_actions, .. }
-            if cleanup_actions.iter().all(|action| matches!(action,
-                TerminalAffineCleanupAction::DiscardRoot(_)
-                    | TerminalAffineCleanupAction::DiscardResidual(_))))
-    {
-        return Err(LoweringError::InvalidHostedExitProcessShape(
-            function.machine,
-        ));
-    }
     // Plain aggregate homes need no executable destructor, but their exact
     // edge-local disposition remains in the source-selected action stream.
     // A constructor temporary can die before a join, not only at function exit.
@@ -298,6 +295,76 @@ pub(super) fn lower_terminator(
         })
     };
     match operation {
+        AbstractOperation::ExternalCompletion {
+            psi_edge,
+            boundary,
+            kind,
+            arguments,
+            structural_arguments,
+            requirement_obligations,
+            frontier_lower_bound,
+        } => {
+            let declaration = boundary_machines
+                .get(boundary)
+                .copied()
+                .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
+            let binding = settlements
+                .get(boundary)
+                .cloned()
+                .ok_or(LoweringError::MissingBoundarySettlement(*boundary))?;
+            if declaration.completion != semantic_vocabulary::BoundaryCompletion::External(*kind)
+                || !declaration.result.is_unit()
+                || declaration.scalar_parameters.len() != arguments.len()
+                || declaration.structural_parameters.len() != structural_arguments.len()
+            {
+                return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+            }
+            let shapes = declaration
+                .scalar_parameters
+                .iter()
+                .map(|scalar_type| {
+                    crate::lowering::scalar_abi::fixed_native_scalar_shape(*scalar_type)
+                        .ok_or(LoweringError::BoundaryRealizationMismatch(*boundary))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let call_plan = calling_conventions::evaluate_call_plan(
+                calling_conventions::CallingPolicy::native_for_target(target),
+                &calling_conventions::CallSignature {
+                    parameters: shapes,
+                    result: None,
+                },
+            )
+            .map_err(LoweringError::AbiPlan)?;
+            let arguments = arguments
+                .iter()
+                .zip(&call_plan.parameters)
+                .zip(&declaration.scalar_parameters)
+                .enumerate()
+                .map(|(position, ((source, placement), expected))| {
+                    let source = super::scalar_sources::source(*source, function, live)?;
+                    if source.scalar_type() != *expected {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    }
+                    Ok(target_operations::TargetUnitScalarCallArgument {
+                        parameter_index: u32::try_from(position)
+                            .map_err(|_| LoweringError::BoundaryRealizationMismatch(*boundary))?,
+                        source,
+                        placement: placement.clone(),
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            provenance.edges.push(*psi_edge);
+            Ok(TargetControlTerminator::ExternalCompletion {
+                psi_edge: *psi_edge,
+                boundary: *boundary,
+                kind: *kind,
+                binding,
+                arguments,
+                structural_arguments: structural_arguments.clone(),
+                requirement_obligations: requirement_obligations.clone(),
+                frontier_lower_bound: frontier_lower_bound.clone(),
+            })
+        }
         AbstractOperation::Crash {
             psi_edge,
             cause,

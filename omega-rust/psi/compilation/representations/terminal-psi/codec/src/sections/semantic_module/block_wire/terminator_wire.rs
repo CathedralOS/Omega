@@ -16,13 +16,50 @@ use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_arguments, encode_structural_arguments,
 };
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
-use terminal_psi::{CrashCause, StructuralCaseSuccessorEdge, Terminator};
+use terminal_psi::{CrashCause, ExternalCompletionKind, StructuralCaseSuccessorEdge, Terminator};
 
 pub(super) fn encode_terminator(
     writer: &mut Writer,
     terminator: &Terminator,
 ) -> Result<(), CodecError> {
     match terminator {
+        Terminator::ExternalCompletion {
+            edge,
+            boundary,
+            kind,
+            arguments,
+            structural_arguments,
+            requirement_obligations,
+            frontier_lower_bound,
+        } => {
+            // A distinct tag prevents legacy Unit calls from acquiring terminal
+            // semantics by changing their declaration alone.
+            writer.u8(17);
+            writer.id(*edge);
+            writer.id(*boundary);
+            writer.u8(match kind {
+                ExternalCompletionKind::ProcessExit => 1,
+            });
+            writer.len("external completion arguments", arguments.len())?;
+            for argument in arguments {
+                writer.id(*argument);
+            }
+            encode_structural_arguments(writer, structural_arguments)?;
+            writer.len(
+                "external completion requirements",
+                requirement_obligations.len(),
+            )?;
+            for obligation in requirement_obligations {
+                writer.id(*obligation);
+            }
+            writer.len(
+                "external completion frontier lower bound",
+                frontier_lower_bound.len(),
+            )?;
+            for claim in frontier_lower_bound {
+                writer.id(*claim);
+            }
+        }
         Terminator::Jump {
             edge,
             target,
@@ -147,6 +184,23 @@ pub(super) fn encode_terminator(
 
 pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, CodecError> {
     Ok(match reader.u8()? {
+        17 => {
+            let edge = reader.id("EdgeId")?;
+            let boundary = reader.id("BoundaryMachineId")?;
+            let kind = match reader.u8()? {
+                1 => ExternalCompletionKind::ProcessExit,
+                tag => return Err(CodecError::InvalidTag("ExternalCompletionKind", tag)),
+            };
+            Terminator::ExternalCompletion {
+                edge,
+                boundary,
+                kind,
+                arguments: decode_ids(reader, "ValueId")?,
+                structural_arguments: decode_structural_arguments(reader)?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+                frontier_lower_bound: decode_ids(reader, "ClaimId")?,
+            }
+        }
         14 => {
             let edge = reader.id("EdgeId")?;
             let target = reader.id("BlockId")?;

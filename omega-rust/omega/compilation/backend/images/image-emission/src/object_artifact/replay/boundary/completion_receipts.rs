@@ -215,7 +215,9 @@ mod tests {
         )
         .unwrap_or_default();
         BoundarySettlementRecord {
-            psi_operation: semantic_vocabulary::OperationId::new(1).expect("operation"),
+            invocation_site: semantic_vocabulary::OperationId::new(1)
+                .expect("operation")
+                .into(),
             boundary: semantic_vocabulary::BoundaryMachineId::new(1).expect("boundary"),
             execution: machine_code::BoundaryExecutionRecord::AdmittedProvider(provider_execution),
             realization: target_operations::BoundaryRealization::MetadataOnlyPort(

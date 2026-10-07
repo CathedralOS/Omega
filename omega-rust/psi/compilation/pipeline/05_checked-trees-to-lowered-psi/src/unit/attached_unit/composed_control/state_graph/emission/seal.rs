@@ -115,7 +115,9 @@ impl StateGraphEmission<'_, '_> {
                 }
                 // Ordinary successors already partitioned each edge's residual
                 // custody inside `successor`; no global return splice applies.
-                Terminator::Jump { .. } | Terminator::Conditional { .. } => {}
+                Terminator::Jump { .. }
+                | Terminator::Conditional { .. }
+                | Terminator::ExternalCompletion { .. } => {}
                 _ => {
                     return unsupported(
                         "owned selection residuals crossing authored states require retained cleanup transfer correspondence",

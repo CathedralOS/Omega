@@ -28,10 +28,10 @@ use target_operations::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, CompilerBuiltinExecution, NativeCallOrigin, NativeCallTarget,
     NormalizedForeignCallBinding, ProviderExecutionBinding, ScalarAbiValue, ScalarFunctionAbi,
-    TargetBoundaryResult, TargetControlTerminator, TargetFunction, TargetNativeCallbackArgument,
-    TargetReferenceResult, TargetStructuralArgument, TargetStructuralArgumentSource,
-    TargetStructuralHomeRequirement, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    TargetBoundaryResult, TargetFunction, TargetNativeCallbackArgument, TargetReferenceResult,
+    TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralHomeRequirement,
+    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, CrashRouteBucket, StructuralAccess,
@@ -100,9 +100,6 @@ enum EmbeddedCall<'a> {
     /// `BoundarySettlement`: a compiler-builtin settlement retains its closed
     /// realization, admitted execution custody, verbatim semantic rosters,
     /// and the runtime scalar lane its hosted realization consumes.
-    /// `nonreturning_tail` records whether the row is its block's last
-    /// operation followed by a plain `Return` — the shape the producer's
-    /// exit settlement requires.
     Settlement {
         boundary: BoundaryMachineId,
         result: &'a TargetBoundaryResult,
@@ -114,7 +111,6 @@ enum EmbeddedCall<'a> {
         byte_sequence_arguments: &'a [BoundaryByteSequenceArgument],
         completion_claim_sources: &'a [CompletionClaimSource],
         completion_receipts: &'a [terminal_psi::CompletionReceipt],
-        nonreturning_tail: bool,
     },
 }
 
@@ -183,13 +179,8 @@ pub(super) fn validate(
         .graph
         .blocks
         .iter()
-        .flat_map(|block| {
-            block
-                .operations
-                .iter()
-                .map(move |operation| (block, operation))
-        })
-        .filter_map(|(block, operation)| {
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| {
             let call = match operation {
                 TargetUnitOperation::Call {
                     origin,
@@ -286,21 +277,6 @@ pub(super) fn validate(
                         byte_sequence_arguments,
                         completion_claim_sources,
                         completion_receipts,
-                        // An exit settlement ends its block: the producer
-                        // rejects any later operation and admits only a plain
-                        // `Return` terminator after a `HostedExitProcessI32`
-                        // row.
-                        nonreturning_tail: block
-                            .operations
-                            .last()
-                            .is_some_and(|last| std::ptr::eq(last, operation))
-                            && matches!(
-                                &block.terminator,
-                                TargetControlTerminator::Return {
-                                    cleanup_actions,
-                                    ..
-                                } if no_code_cleanup(cleanup_actions)
-                            ),
                     },
                 ),
                 _ => return None,
@@ -371,7 +347,7 @@ pub(super) fn validate(
         .unwrap_or_default(),
     };
 
-    for (position, operation) in source.operations.iter().enumerate() {
+    for operation in &source.operations {
         match operation {
             AbstractOperation::CallStructural {
                 psi_operation,
@@ -427,7 +403,6 @@ pub(super) fn validate(
                 completion_receipts,
             } => replay.boundary_call(
                 *psi_operation,
-                position,
                 result,
                 *boundary,
                 arguments,
@@ -682,7 +657,6 @@ impl Replay<'_> {
     fn boundary_call(
         &self,
         psi_operation: OperationId,
-        position: usize,
         result: &AbstractBoundaryResult,
         boundary: semantic_vocabulary::BoundaryMachineId,
         arguments: &[ValueId],
@@ -709,7 +683,6 @@ impl Replay<'_> {
         if let EmbeddedCall::Settlement { .. } = call {
             return self.boundary_settlement(
                 psi_operation,
-                position,
                 result,
                 boundary,
                 arguments,
@@ -1534,7 +1507,6 @@ impl Replay<'_> {
     fn boundary_settlement(
         &self,
         psi_operation: OperationId,
-        position: usize,
         result: &AbstractBoundaryResult,
         boundary: BoundaryMachineId,
         arguments: &[ValueId],
@@ -1554,7 +1526,6 @@ impl Replay<'_> {
             byte_sequence_arguments,
             completion_claim_sources: actual_sources,
             completion_receipts: actual_receipts,
-            nonreturning_tail,
         } = call
         else {
             return Err(psi_operation);
@@ -1650,8 +1621,7 @@ impl Replay<'_> {
             _ => return Err(psi_operation),
         };
         match realization {
-            BoundaryRealization::HostedWriteByteI32(_)
-            | BoundaryRealization::HostedExitProcessI32(_) => {
+            BoundaryRealization::HostedWriteByteI32(_) => {
                 // The hosted scalar lane forwards exactly one signed i32
                 // argument through the evaluated one-parameter native plan;
                 // the retained source's provenance replays independently.
@@ -1670,16 +1640,10 @@ impl Replay<'_> {
                 let [placement] = call_plan.parameters.as_slice() else {
                     return Err(psi_operation);
                 };
-                let exits = matches!(realization, BoundaryRealization::HostedExitProcessI32(_));
-                let supports_target = if exits {
-                    target_operations::HostedExitProcessI32Realization::supports_target(
-                        self.native_target,
-                    )
-                } else {
+                let supports_target =
                     target_operations::HostedWriteByteI32Realization::supports_target(
                         self.native_target,
-                    )
-                };
+                    );
                 let [row] = *runtime_scalar_arguments else {
                     return Err(psi_operation);
                 };
@@ -1692,14 +1656,6 @@ impl Replay<'_> {
                     || !structural_arguments.is_empty()
                     || row.parameter_index != 0
                     || row.placement != *placement
-                {
-                    return Err(psi_operation);
-                }
-                // `HostedExitProcessI32` never returns: the settlement is the
-                // last operation of its block and the block closes on a plain
-                // `Return`, and the source call must end its own block on a
-                // cleanup-free `ReturnUnit`.
-                if exits && (!*nonreturning_tail || !hosted_exit_source_tail(self.source, position))
                 {
                     return Err(psi_operation);
                 }

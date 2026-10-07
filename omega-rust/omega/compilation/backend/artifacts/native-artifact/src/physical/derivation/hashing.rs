@@ -94,7 +94,16 @@ pub(crate) fn hash_boundary_settlement_record(
     digest: &mut Sha256,
     settlement: &machine_code::BoundarySettlementRecord,
 ) -> Result<(), &'static str> {
-    digest.update(settlement.psi_operation.get().to_le_bytes());
+    match settlement.invocation_site {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            digest.update([0]);
+            digest.update(operation.get().to_le_bytes());
+        }
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            digest.update([1]);
+            digest.update(edge.get().to_le_bytes());
+        }
+    }
     digest.update(settlement.boundary.get().to_le_bytes());
     match settlement.execution {
         BoundaryExecutionRecord::AdmittedProvider(record) => {

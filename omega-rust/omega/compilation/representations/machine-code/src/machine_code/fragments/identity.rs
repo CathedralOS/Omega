@@ -286,11 +286,9 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
             hasher.update([2]);
             hasher.update(psi_return_edge.get().to_le_bytes());
         }
-        FunctionFragmentControlProvenance::HostedExitProcess {
-            nominal_return_edge,
-        } => {
+        FunctionFragmentControlProvenance::HostedExitProcess { completion_edge } => {
             hasher.update([5]);
-            hasher.update(nominal_return_edge.get().to_le_bytes());
+            hasher.update(completion_edge.get().to_le_bytes());
         }
     }
 }

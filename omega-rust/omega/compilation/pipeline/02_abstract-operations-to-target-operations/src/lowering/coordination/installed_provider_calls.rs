@@ -9,7 +9,7 @@ use installation_evidence::{
     InstalledProviderCallEvidence, InstalledProviderCompletionClaimSource,
     ProviderInstallationEvidence,
 };
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+use semantic_vocabulary::{BoundaryInvocationSite, BoundaryMachineId, MachineId, OperationId};
 use std::collections::BTreeMap;
 
 /// Identity of one boundary call occurrence: the caller machine, the Terminal
@@ -20,7 +20,8 @@ pub(super) type BoundaryCallKey = (MachineId, OperationId, BoundaryMachineId);
 pub(super) type InstalledCallsByCall = BTreeMap<BoundaryCallKey, InstalledProviderCallEvidence>;
 
 /// The plan's boundary call operations keyed by the same occurrence identity.
-pub(super) type BoundaryCallsByKey<'a> = BTreeMap<BoundaryCallKey, &'a AbstractOperation>;
+pub(super) type BoundaryCallsByKey<'a> =
+    BTreeMap<(MachineId, BoundaryInvocationSite, BoundaryMachineId), &'a AbstractOperation>;
 
 pub(super) fn index_installed_provider_calls(
     plan: &AbstractOperationPlan,
@@ -65,7 +66,20 @@ pub(super) fn index_boundary_calls(plan: &AbstractOperationPlan) -> BoundaryCall
                         psi_operation,
                         boundary,
                         ..
-                    } => Some(((function.machine, *psi_operation, *boundary), operation)),
+                    } => Some((
+                        (function.machine, (*psi_operation).into(), *boundary),
+                        operation,
+                    )),
+                    AbstractOperation::ExternalCompletion {
+                        psi_edge, boundary, ..
+                    } => Some((
+                        (
+                            function.machine,
+                            BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                            *boundary,
+                        ),
+                        operation,
+                    )),
                     _ => None,
                 })
         })
@@ -85,7 +99,7 @@ pub(super) fn validate_installed_provider_calls(
             completion_claim_sources,
             completion_receipts,
             ..
-        }) = boundary_calls.get(key).copied()
+        }) = boundary_calls.get(&(key.0, key.1.into(), key.2)).copied()
         else {
             return Err(LoweringError::UnknownInstalledProviderCall {
                 machine: key.0,

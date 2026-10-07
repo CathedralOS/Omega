@@ -78,7 +78,7 @@ pub(super) fn settlement(
     );
     let (execution, realization) = target_settlement(container, machine, operation, boundary)?;
     let settlement = BoundarySettlementRecord {
-        psi_operation: operation,
+        invocation_site: operation.into(),
         boundary,
         execution: execution.into(),
         realization,
@@ -204,7 +204,7 @@ pub(super) fn validate(
             != host(placed.section_offset)?
                 .checked_add(offset)
                 .ok_or(Error::Overflow)?
-        || settlement.psi_operation != operation
+        || settlement.invocation_site != operation.into()
         || settlement.boundary != boundary
         || settlement.operation_ordinal
             != attribution::ordinal(abstracted, SemanticCodeSite::Operation(operation))?

@@ -209,8 +209,7 @@ pub(super) fn check(
                             && crash.bytes == resolved.bytes,
                     )?;
                 } else if let SelectedTerminator::HostedExitProcess {
-                    nominal_return_edge,
-                    ..
+                    completion_edge, ..
                 } = &block.terminator
                     && terminal
                 {
@@ -239,7 +238,7 @@ pub(super) fn check(
                     validate_process_exit(instruction, encoding_row, resolved, end, encoded)?;
                     require(
                         exited.block == block.id
-                            && exited.nominal_return_edge == *nominal_return_edge
+                            && exited.completion_edge == *completion_edge
                             && exited.instruction == instruction.id
                             && exited.offset == resolved.offset
                             && exited.bytes == resolved.bytes,

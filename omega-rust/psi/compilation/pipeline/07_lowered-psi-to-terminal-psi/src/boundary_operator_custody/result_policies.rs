@@ -61,7 +61,7 @@ pub(super) fn replay(checked: &CheckedTrees, lowered: &LoweredPsi) -> Result<(),
                 let mut sources = lowered
                     .source_call_occurrences
                     .iter()
-                    .filter(|source| source.terminal_operation == operation.id);
+                    .filter(|source| source.terminal_site.operation() == Some(operation.id));
                 let (Some(source), None) = (sources.next(), sources.next()) else {
                     return Err("float boundary call has no unique source occurrence");
                 };

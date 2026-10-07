@@ -90,6 +90,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => None,
+        O::ExternalCompletion { .. } => None,
     }
 }
 

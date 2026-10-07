@@ -327,7 +327,8 @@ pub enum SelectedBoundarySettlementPayload {
         layout: calling_conventions::ConventionalSumLayout,
     },
     HostedExitProcessI32 {
-        operation: OperationId,
+        edge: semantic_vocabulary::EdgeId,
+        execution: target_operations::BoundaryExecutionBinding,
         boundary: semantic_vocabulary::BoundaryMachineId,
         source: semantic_vocabulary::ValueId,
     },
@@ -340,12 +341,15 @@ pub enum SelectedBoundarySettlementPayload {
 }
 
 impl SelectedBoundarySettlementPayload {
-    pub fn operation(&self) -> OperationId {
+    pub fn invocation_site(&self) -> semantic_vocabulary::BoundaryInvocationSite {
         match self {
-            Self::ClaimCompletion(settlement) => settlement.operation,
-            Self::HostedReadByte { operation, .. }
-            | Self::HostedWriteByteI32 { operation, .. }
-            | Self::HostedExitProcessI32 { operation, .. } => *operation,
+            Self::ClaimCompletion(settlement) => settlement.operation.into(),
+            Self::HostedReadByte { operation, .. } | Self::HostedWriteByteI32 { operation, .. } => {
+                (*operation).into()
+            }
+            Self::HostedExitProcessI32 { edge, .. } => {
+                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*edge)
+            }
         }
     }
 
@@ -368,12 +372,16 @@ impl SelectedBoundarySettlementPayload {
                 bytes.extend_from_slice(&settlement.canonical_bytes());
             }
             Self::HostedExitProcessI32 {
-                operation,
+                edge,
+                execution,
                 boundary,
                 source,
             } => {
                 bytes.push(2);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                bytes.extend_from_slice(&edge.get().to_le_bytes());
+                legalized_operations::identity::encode_boundary_execution_identity(
+                    &mut bytes, *execution,
+                );
                 bytes.extend_from_slice(&boundary.get().to_le_bytes());
                 bytes.extend_from_slice(&source.get().to_le_bytes());
             }

@@ -12,7 +12,8 @@ pub(super) fn validate(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
     match (&node.operation, &function.result) {
-        (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
+        (AbstractOperation::ExternalCompletion { psi_edge, .. }, _)
+        | (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
         (AbstractOperation::StructuralCase { .. }, _) => {
             super::structural_case::validate(node, function, structural_types)
         }

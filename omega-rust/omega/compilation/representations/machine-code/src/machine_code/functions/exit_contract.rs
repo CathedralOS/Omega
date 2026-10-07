@@ -141,7 +141,7 @@ pub struct WholeFunctionReturnEvidence {
 pub struct WholeFunctionProcessExitEvidence {
     pub block: SelectedBlockId,
     /// Retained source edge, not a physical return or successful termination claim.
-    pub nominal_return_edge: EdgeId,
+    pub completion_edge: EdgeId,
     pub instruction: SelectedInstructionId,
     pub offset: u64,
     pub bytes: Vec<u8>,

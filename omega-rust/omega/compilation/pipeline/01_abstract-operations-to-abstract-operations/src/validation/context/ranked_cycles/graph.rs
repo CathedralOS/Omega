@@ -65,6 +65,7 @@ pub(super) fn terminal_graph(machine: &terminal_psi::TerminalMachine) -> Canonic
             terminal_psi::Terminator::Return { .. }
             | terminal_psi::Terminator::ReturnUnit { .. }
             | terminal_psi::Terminator::ReturnStructural { .. }
+            | terminal_psi::Terminator::ExternalCompletion { .. }
             | terminal_psi::Terminator::Crash { .. } => {}
         }
     }

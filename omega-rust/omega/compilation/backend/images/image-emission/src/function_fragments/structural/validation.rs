@@ -456,7 +456,7 @@ pub(in crate::function_fragments) fn validate_settlements(
                     != host(placed.section_offset)?
                         .checked_add(row.code_offset)
                         .ok_or(Error::Overflow)?
-                || row.psi_operation != expected.operation
+                || row.invocation_site != expected.operation.into()
                 || row.boundary != expected.boundary
                 || row.execution
                     != machine_code::BoundaryExecutionRecord::AdmittedProvider(
@@ -523,7 +523,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
     let invalid = || Error::Mismatch("settlement attribution differs from admitted operation");
     let mut sites = Vec::new();
     for located in &function.boundary_settlements {
-        let site = SemanticCodeSite::Operation(located.settlement.operation());
+        let site = SemanticCodeSite::from(located.settlement.invocation_site());
         if sites.contains(&site) {
             return Err(invalid());
         }
@@ -580,7 +580,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
                 matches!(
                     located.settlement,
                     selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(_)
-                ) && row.site == SemanticCodeSite::Operation(located.settlement.operation())
+                ) && row.site == SemanticCodeSite::from(located.settlement.invocation_site())
             })
         })
         .copied()

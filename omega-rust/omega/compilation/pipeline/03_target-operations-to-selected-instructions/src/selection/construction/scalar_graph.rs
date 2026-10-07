@@ -251,15 +251,6 @@ fn select_function(
         structural::block_entry(source, block, &mut builder)?;
         for (operation_index, operation) in block.instructions.iter().enumerate() {
             *current_operation = Some(operation.operation);
-            if matches!(
-                operation.kind,
-                LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
-            ) {
-                if operation_index + 1 != block.instructions.len() {
-                    return Err(invalid());
-                }
-                continue;
-            }
             if byte_input::emit(operation, block_id, start, &mut builder)?
                 || byte_output::emit(operation, block_id, start, &mut builder)?
             {
@@ -429,7 +420,6 @@ fn select_function(
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
-                    | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                     | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }
                     | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }

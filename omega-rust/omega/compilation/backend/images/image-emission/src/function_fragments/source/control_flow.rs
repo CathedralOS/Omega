@@ -14,6 +14,12 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
             .iter()
             .filter(|block| match (source, &block.terminator) {
                 (
+                    AbstractOperation::ExternalCompletion { psi_edge, .. },
+                    TargetControlTerminator::ExternalCompletion {
+                        psi_edge: actual, ..
+                    },
+                ) => psi_edge == actual,
+                (
                     AbstractOperation::Crash { psi_edge, .. },
                     TargetControlTerminator::Crash {
                         psi_edge: actual, ..
@@ -58,6 +64,37 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
         return false;
     }
     match (source, &candidate.terminator) {
+        (
+            AbstractOperation::ExternalCompletion {
+                psi_edge,
+                boundary,
+                kind,
+                arguments,
+                structural_arguments,
+                requirement_obligations,
+                frontier_lower_bound,
+            },
+            TargetControlTerminator::ExternalCompletion {
+                psi_edge: actual_edge,
+                boundary: actual_boundary,
+                kind: actual_kind,
+                arguments: actual_arguments,
+                structural_arguments: actual_structural,
+                requirement_obligations: actual_obligations,
+                frontier_lower_bound: actual_frontier,
+                ..
+            },
+        ) => {
+            psi_edge == actual_edge
+                && boundary == actual_boundary
+                && kind == actual_kind
+                && arguments.iter().copied().eq(actual_arguments
+                    .iter()
+                    .map(|argument| argument.source.source_value()))
+                && structural_arguments == actual_structural
+                && requirement_obligations == actual_obligations
+                && frontier_lower_bound == actual_frontier
+        }
         (
             AbstractOperation::Crash {
                 psi_edge,

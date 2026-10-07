@@ -339,9 +339,9 @@ helper that passes does not close an item.
     selected implementation's rows in the closure and assembles the module's
     interface/table catalog from the slot plans. Mixed scalar/structural slots
     retain dense positions in each ordinary ABI lane. The `pass/traits/runtime_dyn_*`
-    customers execute natively on macOS ARM64; interpretation still needs
-    **TERMINAL-RUNTIME-DRIVERS**' closed ProcessExit invocation and exact entry/
-    provider provisions, not a selector-specific execution adapter.
+    customers use the shared native and Terminal execution routes. Keep their
+    result/output agreement while extending the remaining slot contracts;
+    no selector-specific execution adapter is needed.
   - Requirement contracts hold at selector calls: checking discharges the
     requirement's `requires` against the slot's operands and imports its
     `ensures` (`pass/traits/runtime_dyn_requirement_contract_exit`), and a
@@ -1751,27 +1751,32 @@ then independent claimed restoration slices -> final closure.
   A native compilation failure or comparison decline cannot count as agreement.
   Current frontier: the corpus adapter consumes the produced Terminal artifact
   and uses the common core; it no longer calls the checked-tree interpreter.
-  Unit completion and typed Trap outcomes execute. Exact entry arrival values,
-  provider installation and general host bindings remain unimplemented. Bound
-  normal imports execute once across fuel pauses; unsupported external completion
-  is refused before callbacks, including demands through possible dynamic-call
-  rows, and normal adapters cannot accept its signature.
-  The unchanged selector-call store canary is reviewed as
-  `external-completion-invocation`, not an interpreted exit 70. Selected-reference
-  backing retains its separate capability attribution. CLI comparison still
-  uses trees. A same-target native failure returns no retained intermediate
+  The shared `driver/src/runtime.rs` consumes retained native entry/provider
+  provisions, establishes fresh private hosted backing and erased root fields,
+  binds typed buffered line/byte output and delegates ProcessExit to that
+  isolated instance. Complete external demands, including possible dynamic
+  rows, are admitted before effects; normal imports cannot accept external
+  signatures. Remaining arrivals include scalar arguments, placed host loans,
+  non-hosted roots and required receiver qualifications. General host bindings
+  still need stdin/read-byte, virtual clocks, float imports and stderr support.
+  Selected-reference backing retains its separate capability attribution.
+  CLI comparison still uses trees. A same-target native failure returns no
+  retained intermediate
   artifact; observing that Terminal program requires intermediate-artifact error
   custody rather than a second source compilation. Windows Console write-byte
   production separately lacks a closed native intrinsic catalog identity; a
   Linux-selected FTHN effect control executes portably through the core on Windows.
 
-  Refresh `tests/omega/corpus_both_macos_arm64.txt` after external-completion
-  support: it currently records
+  Correct the stale agreement in `tests/omega/corpus_both_macos_arm64.txt`:
+  it currently records
   `pass/borrows/transition_shared_borrow_result` as
   `built ... exit:181 interpreter-exit:181 interpreter:agrees`. Its native leg
   delivers `exit:181`, but its interpreter leg reports
-  `unimplemented: capability=external-completion-invocation` for
-  `Console::exit_process` demanding `External(ProcessExit)`.
+  `unimplemented: capability=process-exit-domain-binding`. This context-free
+  entry names Console reach but establishes no root Binding occurrence for
+  exit; a runtime driver must not manufacture authority from that reach.
+  Resolve its source authority contract under [Process-exit contract](#process-exit-contract)
+  before claiming agreement or refreshing the row as successful.
   Note `--cross-golden` compares only the check and native goldens, so it
   cannot see a stale both-leg row at all -- this class has no detector.
 
@@ -3435,17 +3440,13 @@ execution and retained outputs.
 ## Process-exit contract
 
 Finish the [canonical process-exit contract](wiki/spec/language/process_exit.md)
-through source-produced Terminal Psi. Core/std declarations, checked-interpreter
-recognition and native `SelectedProcessExit` custody exist. The common Terminal
-core refuses reachable external completion before callbacks; normal import
-adapters authenticate completion kind and reject external signatures. This
-prevents a process exit from being reported as normal Unit completion, but does
-not execute it. The Terminal
-[terminator](omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/termination.rs)
-has no external-completion variant, and the
-[observation profile](omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/observation/profile.rs)
-has an empty external-termination roster. A native nonreturning
-operation does not fill this gap.
+through source-produced Terminal Psi. Remaining source authority, provider
+conformance and survivor-crossing checks must use the closed external edge,
+not an ordinary Unit call. Checking/lowering, Terminal codec and observations,
+the common core and native custody retain that edge and its exact i32 operand.
+The hosted reference driver explicitly establishes an isolated containing domain;
+ordinary import bindings cannot confer exit authority. Extend the same contract
+to the remaining arrivals and product-source implementation.
 
 - Native gaps (need not wait for the Terminal representation):
   - [normalized foreign-call custody](omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact/normalized_foreign_calls.rs)
@@ -3458,16 +3459,17 @@ operation does not fill this gap.
   - replace the fixed 256 KiB foreign-call reserve (`SAME_STACK_BYTES`) in
     [source-evaluated bindings](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_bindings.rs)
     with per-callee stack demand.
-- Carry the exact canonical requirement, domain-bound authority, status and a
-  closed terminal invocation with no normal result/successor through checking,
-  lowering, Terminal, codec and interpreter. Console reach and provider
-  selection do not grant exit authority. Keep the semantic `i32` status and
-  preceding output independent of the host's status mapping.
-- Conditional helpers keep results, cleanup and postconditions on returning
-  paths. Exit paths abandon in-domain obligations without discharge receipts.
-  Automatic cleanup must return; normal root completion settles outstanding
-  task custody. Survivor crossing contracts account for domain death without a
-  whole-process resource census.
+- Finish source-level containing-domain authority admission and migrate the
+  transitional Console convenience reach. Console reach, imports and provider
+  selection must not grant exit authority; reject missing authority/reach/progress
+  and lookalike or returning/aborting substitutes.
+- Exercise conditional helpers with both returning and exiting paths, preserving
+  results, cleanup and postconditions only on returns. Keep
+  `pass/host/process_exit_preserves_scalar_contract` as the unreachable-suffix
+  control: exit cannot erase a declared scalar result or demand dead literals.
+  Enforce transitive normal return for automatic cleanup and task settlement on
+  normal root completion. Survivor crossing contracts must account for domain
+  death without a whole-process resource census or invented discharge receipts.
 
 Acceptance: unconditional and conditional/helper exits run in the interpreter
 and natively. Missing authority/reach/progress, lookalikes, returning/aborting
@@ -5335,13 +5337,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     public requirement ABI and separate ordinary data operands through the
     shared call, register and image owners; keep that mechanism rather than
     reintroducing a subject or representative implementation signature.
-  - Interpretation of these same programs refuses
-    `external-completion-invocation` for ProcessExit before any callback.
-    **TERMINAL-RUNTIME-DRIVERS** owns the closed completion invocation and
-    genuine entry/provider/import provisions needed for result agreement.
-    Reproduce with `python3 tools/corpus_gate.py --both --filter
-    pass/traits/runtime_dyn_`; native-only acceptance on macOS ARM64 is
-    `python3 tools/corpus_gate.py --native --filter pass/traits/runtime_dyn_`.
+  - Preserve shared Terminal/native result and output agreement with
+    `python3 tools/corpus_gate.py --both --filter pass/traits/runtime_dyn_`.
+    Extend retained entry/provider/import provisions through the common runtime,
+    not a selector-specific interpretation path.
   - Preserve complete 8-byte tables, zero trap slots, exact private callable
     identities and patched image targets. Public slot metadata does not yet
     express structural result origins, qualification preconditions or ingress

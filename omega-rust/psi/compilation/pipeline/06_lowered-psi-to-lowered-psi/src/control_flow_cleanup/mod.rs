@@ -52,9 +52,17 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
     // inventory cannot see: an occurrence keeps its Terminal operation and
     // captured scalar environment live while both representations exist.
     let mut sidecar_operations = BTreeSet::new();
+    let mut sidecar_edges = BTreeSet::new();
     let mut sidecar_values = BTreeSet::new();
     for occurrence in &before.source_call_occurrences {
-        sidecar_operations.insert(occurrence.terminal_operation);
+        match occurrence.terminal_site {
+            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+                sidecar_operations.insert(operation);
+            }
+            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                sidecar_edges.insert(edge);
+            }
+        }
         for declaration in &occurrence.source_values_before_call {
             sidecar_values.insert(declaration.id);
         }
@@ -65,13 +73,15 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
     for occurrence in &before.selected_integer_comparison_occurrences {
         sidecar_operations.insert(occurrence.terminal_operation);
     }
-    let evidence = retention::block_local_evidence(&before.semantic_module);
+    let mut evidence = retention::block_local_evidence(&before.semantic_module);
+    evidence.edges.extend(sidecar_edges.iter().copied());
     for machine in &mut after.semantic_module.machines {
         cleanup::cleanup(machine, &evidence, &sidecar_operations, &sidecar_values);
     }
     machines::prune(
         &mut after.semantic_module,
         &sidecar_operations,
+        &sidecar_edges,
         &sidecar_values,
     );
     if let Err(error) =

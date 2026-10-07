@@ -295,8 +295,13 @@ pub(crate) fn retain_closed_reach_applications(
                 if matches.next().is_some() {
                     return unsupported("closed reach call has ambiguous emitted occurrences");
                 }
+                let operation = occurrence.terminal_site.operation().ok_or(
+                    LoweringError::Unsupported(
+                        "closed reach machine argument names an external completion instead of a body call",
+                    ),
+                )?;
                 calls.push(ClosedReachCall {
-                    operation: occurrence.terminal_operation,
+                    operation,
                     binder: binder as u32,
                     application: match &telescope[binder] {
                         ClosedReachParameter::Machine(binding) if binding.schema.is_some() => {

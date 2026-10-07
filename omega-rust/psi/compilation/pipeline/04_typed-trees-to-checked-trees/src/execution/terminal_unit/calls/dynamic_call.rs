@@ -146,6 +146,7 @@ pub(super) fn build(
     )?;
     CheckedUnitCallPlan::new(CheckedUnitCallParts {
         coordinate,
+        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
         source_site: None,
         // No single implementation's contract report describes the call;
         // the slot is the target identity.

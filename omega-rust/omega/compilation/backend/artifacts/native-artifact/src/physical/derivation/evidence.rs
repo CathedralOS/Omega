@@ -113,7 +113,7 @@ pub(crate) fn derive_physical_evidence(
     for installed in object.boundary_settlements() {
         let key = (
             installed.machine,
-            installed.settlement.psi_operation,
+            installed.settlement.invocation_site,
             installed.settlement.boundary,
             installed.settlement.operation_ordinal,
         );
@@ -128,7 +128,7 @@ pub(crate) fn derive_physical_evidence(
         .map(|occurrence| {
             (
                 occurrence.machine(),
-                occurrence.operation(),
+                occurrence.invocation_site(),
                 occurrence.boundary(),
                 occurrence.operation_ordinal(),
             )
@@ -173,7 +173,11 @@ pub(crate) fn derive_physical_evidence(
     let foreign_occurrence_keys = projection
         .boundary_occurrences()
         .iter()
-        .map(|occurrence| (occurrence.machine(), occurrence.operation()))
+        .filter_map(|occurrence| {
+            occurrence
+                .operation()
+                .map(|operation| (occurrence.machine(), operation))
+        })
         .collect::<BTreeSet<_>>();
     if foreign_calls
         .keys()
@@ -192,12 +196,14 @@ pub(crate) fn derive_physical_evidence(
     for occurrence in projection.boundary_occurrences() {
         let key = (
             occurrence.machine(),
-            occurrence.operation(),
+            occurrence.invocation_site(),
             occurrence.boundary(),
             occurrence.operation_ordinal(),
         );
         let installed = settlements.get(&key);
-        let foreign = foreign_calls.get(&(occurrence.machine(), occurrence.operation()));
+        let foreign = occurrence
+            .operation()
+            .and_then(|operation| foreign_calls.get(&(occurrence.machine(), operation)));
         let internal_call = boundary_internal_call_exists(object, occurrence);
         if [installed.is_some(), foreign.is_some(), internal_call]
             .into_iter()
@@ -539,6 +545,26 @@ fn derive_identity_projection(
                     .checked_add(1)
                     .ok_or("native optimization projection operation ordinal overflow")?;
             }
+            if let terminal_psi::Terminator::ExternalCompletion { edge, boundary, .. } =
+                &block.terminator
+            {
+                let site = semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*edge);
+                let identity = boundary_occurrence_identity(
+                    terminal,
+                    machine.id,
+                    site,
+                    *boundary,
+                    operation_ordinal,
+                );
+                boundary_occurrences.push(optimized_boundary_occurrence(
+                    terminal,
+                    machine.id,
+                    site,
+                    *boundary,
+                    operation_ordinal,
+                    identity,
+                ));
+            }
             operation_ordinal = operation_ordinal
                 .checked_add(1)
                 .ok_or("native optimization projection terminator ordinal overflow")?;
@@ -583,13 +609,22 @@ pub(crate) fn operator_occurrence_identity(
 pub(crate) fn boundary_occurrence_identity(
     terminal: terminal_psi::TerminalPsiIdentity,
     machine: semantic_vocabulary::MachineId,
-    operation: semantic_vocabulary::OperationId,
+    site: impl Into<semantic_vocabulary::BoundaryInvocationSite>,
     boundary: semantic_vocabulary::BoundaryMachineId,
     operation_ordinal: usize,
 ) -> OptimizedBoundaryOccurrenceIdentity {
     let mut canonical = terminal_identity_bytes(terminal);
     canonical.extend_from_slice(&machine.get().to_le_bytes());
-    canonical.extend_from_slice(&operation.get().to_le_bytes());
+    match site.into() {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            canonical.push(0);
+            canonical.extend_from_slice(&operation.get().to_le_bytes());
+        }
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&edge.get().to_le_bytes());
+        }
+    }
     canonical.extend_from_slice(&boundary.get().to_le_bytes());
     canonical.extend_from_slice(&canonical_usize(operation_ordinal));
     OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(&canonical)

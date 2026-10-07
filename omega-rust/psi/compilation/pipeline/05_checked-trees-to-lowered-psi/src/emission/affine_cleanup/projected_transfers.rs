@@ -151,7 +151,7 @@ pub(super) fn complete(
                 }
                 complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
             }
-            Terminator::Crash { .. } => {}
+            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
         }
         for (target, mut outgoing) in successors {
             // Empty ownership complements do not end the storage occurrence:

@@ -35,11 +35,11 @@ pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTermin
 
         SelectedTerminator::HostedExitProcess {
             instruction,
-            nominal_return_edge,
+            completion_edge,
         } => {
             bytes.push(5);
             encode_instruction(bytes, instruction);
-            bytes.extend_from_slice(&nominal_return_edge.get().to_le_bytes());
+            bytes.extend_from_slice(&completion_edge.get().to_le_bytes());
         }
         SelectedTerminator::Jump {
             instruction,

@@ -28,10 +28,10 @@ pub(super) fn validate_boundary_settlements(
         {
             return Err(InstallationError::NonCanonicalBoundarySettlementOrder);
         }
-        if !operations.insert((installed.machine, installed.settlement.psi_operation)) {
+        if !operations.insert((installed.machine, installed.settlement.invocation_site)) {
             return Err(InstallationError::DuplicateBoundarySettlementOperation {
                 machine: installed.machine,
-                operation: installed.settlement.psi_operation,
+                operation: installed.settlement.invocation_site,
             });
         }
         let function = function_by_machine
@@ -50,7 +50,7 @@ pub(super) fn validate_boundary_settlements(
         {
             return Err(InstallationError::InvalidBoundarySettlementOffset {
                 machine: installed.machine,
-                operation: installed.settlement.psi_operation,
+                operation: installed.settlement.invocation_site,
             });
         }
         if let Err(error) = validate_completion_custody(&installed.settlement) {
@@ -61,19 +61,19 @@ pub(super) fn validate_boundary_settlements(
                 CompletionCustodyError::ReceiptArgumentIndex => {
                     InstallationError::InvalidCompletionReceiptArgumentIndex {
                         machine: installed.machine,
-                        operation: installed.settlement.psi_operation,
+                        operation: installed.settlement.invocation_site,
                     }
                 }
                 CompletionCustodyError::ReceiptCustody => {
                     InstallationError::InvalidCompletionReceiptCustody {
                         machine: installed.machine,
-                        operation: installed.settlement.psi_operation,
+                        operation: installed.settlement.invocation_site,
                     }
                 }
                 CompletionCustodyError::ProviderCustody => {
                     InstallationError::InvalidCompletionProviderCustody {
                         machine: installed.machine,
-                        operation: installed.settlement.psi_operation,
+                        operation: installed.settlement.invocation_site,
                     }
                 }
             });
@@ -181,7 +181,7 @@ pub(super) fn validate_boundary_settlements(
                 let [argument] = installed.settlement.scalar_arguments.as_slice() else {
                     return Err(InstallationError::BoundaryRealizationMismatch {
                         machine: installed.machine,
-                        operation: installed.settlement.psi_operation,
+                        operation: installed.settlement.invocation_site,
                     });
                 };
                 let i32_type = semantic_vocabulary::IntegerType::new(
@@ -350,7 +350,7 @@ pub(super) fn validate_boundary_settlements(
         {
             return Err(InstallationError::BoundaryRealizationMismatch {
                 machine: installed.machine,
-                operation: installed.settlement.psi_operation,
+                operation: installed.settlement.invocation_site,
             });
         }
         previous_machine = Some(installed.machine);

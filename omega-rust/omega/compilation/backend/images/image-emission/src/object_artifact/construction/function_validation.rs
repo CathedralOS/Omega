@@ -1266,23 +1266,26 @@ fn validate_boundary_settlements(
         if settlement.code_offset > function.bytes.len() {
             return Err(ObjectError::BoundarySettlementOutsideFunction {
                 machine: function.machine,
-                operation: settlement.psi_operation,
+                operation: settlement.invocation_site,
             });
         }
-        if !function
-            .provenance
-            .operations
-            .contains(&settlement.psi_operation)
-        {
+        if !match settlement.invocation_site {
+            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+                function.provenance.operations.contains(&operation)
+            }
+            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                function.provenance.edges.contains(&edge)
+            }
+        } {
             return Err(ObjectError::BoundarySettlementOperationNotInProvenance {
                 machine: function.machine,
-                operation: settlement.psi_operation,
+                operation: settlement.invocation_site,
             });
         }
-        if !settlement_operations.insert(settlement.psi_operation) {
+        if !settlement_operations.insert(settlement.invocation_site) {
             return Err(ObjectError::DuplicateBoundarySettlementOperation {
                 machine: function.machine,
-                operation: settlement.psi_operation,
+                operation: settlement.invocation_site,
             });
         }
         if let Err(error) = validate_completion_custody(settlement) {
@@ -1290,25 +1293,25 @@ fn validate_boundary_settlements(
                 CompletionCustodyError::ArgumentPath => {
                     ObjectError::InvalidBoundarySettlementArgumentPath {
                         machine: function.machine,
-                        operation: settlement.psi_operation,
+                        operation: settlement.invocation_site,
                     }
                 }
                 CompletionCustodyError::ReceiptArgumentIndex => {
                     ObjectError::InvalidCompletionReceiptArgumentIndex {
                         machine: function.machine,
-                        operation: settlement.psi_operation,
+                        operation: settlement.invocation_site,
                     }
                 }
                 CompletionCustodyError::ReceiptCustody => {
                     ObjectError::InvalidCompletionReceiptCustody {
                         machine: function.machine,
-                        operation: settlement.psi_operation,
+                        operation: settlement.invocation_site,
                     }
                 }
                 CompletionCustodyError::ProviderCustody => {
                     ObjectError::InvalidCompletionProviderCustody {
                         machine: function.machine,
-                        operation: settlement.psi_operation,
+                        operation: settlement.invocation_site,
                     }
                 }
             });
@@ -1411,7 +1414,7 @@ fn validate_boundary_settlements(
                 let [argument] = settlement.scalar_arguments.as_slice() else {
                     return Err(ObjectError::BoundaryRealizationMismatch {
                         machine: function.machine,
-                        operation: settlement.psi_operation,
+                        operation: settlement.invocation_site,
                     });
                 };
                 let i32_type = semantic_vocabulary::IntegerType::new(
@@ -1563,7 +1566,7 @@ fn validate_boundary_settlements(
         {
             return Err(ObjectError::BoundaryRealizationMismatch {
                 machine: function.machine,
-                operation: settlement.psi_operation,
+                operation: settlement.invocation_site,
             });
         }
     }

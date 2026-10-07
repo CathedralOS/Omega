@@ -27,7 +27,7 @@ fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch
     let block = &mut function.blocks[0];
     block.terminator = SelectedTerminator::HostedExitProcess {
         instruction,
-        nominal_return_edge: semantic_vocabulary::EdgeId::new(311).unwrap(),
+        completion_edge: semantic_vocabulary::EdgeId::new(311).unwrap(),
     };
     function
         .boundary_settlements
@@ -36,7 +36,10 @@ fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch
             instruction_index: block.instructions.len() as u32,
             settlement:
                 selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
-                    operation: semantic_vocabulary::OperationId::new(313).unwrap(),
+                    edge: semantic_vocabulary::EdgeId::new(311).unwrap(),
+                    execution: target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                        target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                    ),
                     boundary: semantic_vocabulary::BoundaryMachineId::new(317).unwrap(),
                     source: semantic_vocabulary::ValueId::new(331).unwrap(),
                 },

@@ -500,16 +500,28 @@ pub(in crate::execution) fn build_call_operation(
         );
     }
     phase("call operation: claim transfers");
-    let transfers = call_claim_transfers(
-        facts,
-        machine.symbol,
-        state.symbol,
-        call,
-        caller_parameters,
-        entry_claims,
-        caller_structural_results,
-        &structural_arguments,
-    )?;
+    let completion = if boundary {
+        validation::boundary_requirement_completion(program, call_target.machine)
+    } else {
+        semantic_vocabulary::BoundaryCompletion::NormalReturn
+    };
+    let transfers = if matches!(
+        completion,
+        semantic_vocabulary::BoundaryCompletion::External(_)
+    ) {
+        Vec::new()
+    } else {
+        call_claim_transfers(
+            facts,
+            machine.symbol,
+            state.symbol,
+            call,
+            caller_parameters,
+            entry_claims,
+            caller_structural_results,
+            &structural_arguments,
+        )?
+    };
 
     if boundary {
         CheckedUnitCallPlan::new(CheckedUnitCallParts {
@@ -517,10 +529,18 @@ pub(in crate::execution) fn build_call_operation(
             source_site,
             target: call_target,
             route: CheckedUnitCallRoute::Boundary,
+            completion,
             scalar_arguments,
             structural_arguments,
             result: CheckedUnitCallResult::Unit,
-            transfers: CheckedUnitCallTransfers::CompletionReceipts(transfers),
+            transfers: match completion {
+                semantic_vocabulary::BoundaryCompletion::NormalReturn => {
+                    CheckedUnitCallTransfers::CompletionReceipts(transfers)
+                }
+                semantic_vocabulary::BoundaryCompletion::External(_) => {
+                    CheckedUnitCallTransfers::Abandonment
+                }
+            },
         })
         .map(CheckedUnitEffectOperationPlan::Call)
     } else if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
@@ -572,6 +592,7 @@ pub(in crate::execution) fn build_call_operation(
             coordinate,
             source_site: None,
             target: call_target,
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             route: CheckedUnitCallRoute::Module {
                 contract_commitment: None,
                 erased_scalar_arguments,

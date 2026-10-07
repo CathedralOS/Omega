@@ -48,7 +48,9 @@ impl LoweredMachineProvenance {
         let mut provenance = Self::default();
         provenance.name(checked, module.entry, entry_machine_symbol);
         for occurrence in &lowered.source_call_occurrences {
-            if let Some(callee) = callee_by_operation.get(&occurrence.terminal_operation) {
+            if let Some(operation) = occurrence.terminal_site.operation()
+                && let Some(callee) = callee_by_operation.get(&operation)
+            {
                 provenance.name(checked, *callee, occurrence.source_target);
             }
         }

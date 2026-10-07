@@ -553,6 +553,21 @@ pub(super) fn adapt(
                 graph.normal_exits.push(position);
             }
             Terminator::Crash { .. } => {}
+            Terminator::ExternalCompletion {
+                structural_arguments,
+                ..
+            } => {
+                // External completion observes its actuals but never contributes
+                // a normal-return descriptor or a post-call ownership frontier.
+                for argument in structural_arguments {
+                    if let Some(source) = location(argument.place, &argument.path, None) {
+                        step.inputs.push(source);
+                    } else {
+                        step.inputs.push(DescriptorLocation::whole(argument.place));
+                    }
+                }
+                step.may_escape = true;
+            }
             _ => {
                 graph.normal_exits.push(position);
             }

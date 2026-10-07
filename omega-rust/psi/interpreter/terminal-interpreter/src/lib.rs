@@ -61,7 +61,9 @@ pub use adapters::{
     TerminalAdapterError, TerminalImportAdapter, TerminalImportSignature,
     TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
 };
-pub use capabilities::{TerminalExecutionRequirements, TerminalUnsupportedCapability};
+pub use capabilities::{
+    TerminalExecutionRequirements, TerminalExternalCompletionDemand, TerminalUnsupportedCapability,
+};
 pub use effects::byte_buffers::TerminalBoundaryByteBuffer;
 pub use effects::results::TerminalEffectResult;
 pub use effects::{
@@ -76,11 +78,13 @@ pub use errors::{
 pub use execution::TerminalExecution;
 pub use instance::{
     TerminalBindingRejection, TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
+    TerminalProcessExitAdmission,
 };
 pub use program::{TerminalProgram, TerminalProgramEntry};
 pub use results::{
     MeasuredTerminalExecution, TerminalCrash, TerminalCrashSite, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalScalarCaseResult, TerminalStructuralResult,
+    TerminalExecutionStatus, TerminalExternalCompletion, TerminalScalarCaseResult,
+    TerminalStructuralResult,
 };
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 pub use semantic_value_comparison::{
@@ -88,11 +92,11 @@ pub use semantic_value_comparison::{
     TerminalTraceStructuralComparisonError, TerminalTraceStructuralValueSide,
     compare_terminal_trace_scalar_values, compare_terminal_trace_structural_values,
 };
-pub use structural_inputs::TerminalStructuralInputs;
 pub use structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
 pub use structural_inputs::case_membership::TerminalStructuralCaseValue;
 pub use structural_inputs::placed_views::TerminalPlacedViewEstablishment;
 pub use structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
+pub use structural_inputs::{TerminalEstablishedErasedField, TerminalStructuralInputs};
 pub use terminal_interpreter::{
     admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,

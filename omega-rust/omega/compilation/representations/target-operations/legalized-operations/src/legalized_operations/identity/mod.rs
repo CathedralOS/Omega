@@ -1,7 +1,9 @@
 //! Optimizer module role: stage group. Canonical identity construction for legalized-operation custody.
 
 use crate::legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
+mod boundary_invocations;
 mod calling;
+pub use boundary_invocations::encode_boundary_execution_identity;
 mod canonical;
 mod encoding;
 mod normalized_foreign;

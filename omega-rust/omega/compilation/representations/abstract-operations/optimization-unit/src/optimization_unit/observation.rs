@@ -34,6 +34,7 @@ pub enum ObservationEventClass {
     ControlTransfer,
     NormalExit,
     CrashExit,
+    ExternalCompletion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -463,6 +464,7 @@ fn operation_observations(
             No,
             No,
         ),
+        O::ExternalCompletion { .. } => (vec![event(C::ExternalCompletion)], No, No),
         O::Crash { .. } => (vec![event(C::CrashExit)], Yes, No),
         // A Trapping primitive may leave through its own `Trap` crash: the
         // event keeps it from being erased, duplicated or moved as pure

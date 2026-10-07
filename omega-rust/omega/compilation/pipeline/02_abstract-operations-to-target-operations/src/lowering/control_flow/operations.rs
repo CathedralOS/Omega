@@ -37,11 +37,6 @@ pub(super) fn lower_operation(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    if live.nonreturning {
-        return Err(LoweringError::InvalidHostedExitProcessShape(
-            function.machine,
-        ));
-    }
     let installed = if let AbstractOperation::BoundaryCall {
         psi_operation,
         boundary,
@@ -683,7 +678,6 @@ pub(super) fn lower_operation(
                 &live.scalar_block_parameters,
                 operations,
                 provenance,
-                &mut live.nonreturning,
             )?;
             if let Some(
                 TargetUnitOperation::BoundarySettlement {

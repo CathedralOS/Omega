@@ -92,6 +92,11 @@ pub fn interpret_terminal_artifact_measured(
                 TerminalInterpretError::Crash(crash),
             ));
         }
+        TerminalExecutionStatus::ExternalCompletion(completion) => {
+            return Err(TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::ExternalCompletion(completion),
+            ));
+        }
     };
     let structural_primitive_values = execution.final_structural_primitive_values();
     Ok(MeasuredTerminalExecution {

@@ -2,9 +2,9 @@
 //!
 //! A valid selected reference result can retain several possible ingress
 //! backings; the current reference runtime transports only singleton origins.
-//! External completions also need a closed terminal invocation; the transitional
-//! Unit result is not a normal return the runtime can commit. Reject these
-//! missing capabilities before any entry operation, rather than after
+//! External completions demand a distinct host delegation roster; the
+//! transitional Unit boundary operation is not a terminal invocation and stays
+//! unsupported. Reject missing capabilities before any entry operation, rather than after
 //! a preceding boundary effect. This is not semantic verification: admission
 //! already authenticated these signatures. Walk possible executable calls from
 //! the chosen entry, preserving installed providers, so unrelated retained
@@ -45,6 +45,15 @@ pub enum TerminalUnsupportedCapability {
 pub struct TerminalExecutionRequirements {
     pub imports: Vec<BoundaryMachineId>,
     pub missing_providers: Vec<BoundaryMachineId>,
+    /// Closed terminal invocations demand host-delegated domain authority,
+    /// independently of normal import adapters and provider selection.
+    pub external_completions: Vec<TerminalExternalCompletionDemand>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TerminalExternalCompletionDemand {
+    pub boundary: BoundaryMachineId,
+    pub kind: ExternalCompletionKind,
 }
 
 pub(crate) fn check(
@@ -57,6 +66,7 @@ pub(crate) fn check(
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
     let mut external_completion = None;
+    let mut external_demands = BTreeSet::new();
     let mut pending = vec![program.catalogs.entry];
     let mut visited = BTreeSet::new();
     while let Some(machine_id) = pending.pop() {
@@ -164,6 +174,12 @@ pub(crate) fn check(
                 }
             }
             match &block.terminator {
+                Terminator::ExternalCompletion { boundary, kind, .. } => {
+                    external_demands.insert(TerminalExternalCompletionDemand {
+                        boundary: *boundary,
+                        kind: *kind,
+                    });
+                }
                 Terminator::Jump { target, .. } => blocks.push(*target),
                 Terminator::Conditional {
                     when_true,
@@ -202,6 +218,7 @@ pub(crate) fn check(
     Ok(TerminalExecutionRequirements {
         imports: imports.into_iter().collect(),
         missing_providers: missing_providers.into_iter().collect(),
+        external_completions: external_demands.into_iter().collect(),
     })
 }
 
@@ -552,6 +569,7 @@ mod tests {
             Ok(TerminalExecutionRequirements {
                 imports: vec![provider_import],
                 missing_providers: Vec::new(),
+                external_completions: Vec::new(),
             })
         );
     }
@@ -583,6 +601,40 @@ mod tests {
     }
 
     #[test]
+    fn capability_graph_dynamic_call_demands_closed_external_completion_in_later_table() {
+        let mut program = dynamic_program();
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        let kind = ExternalCompletionKind::ProcessExit;
+        program
+            .boundary_machines
+            .get_mut(&boundary)
+            .unwrap()
+            .completion = terminal_psi::BoundaryCompletion::External(kind);
+        let mut external = machine(0, Vec::new());
+        external.blocks.get_mut(&external.entry).unwrap().terminator =
+            Terminator::ExternalCompletion {
+                edge: EdgeId::new(2).unwrap(),
+                boundary,
+                kind,
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                requirement_obligations: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            };
+        program
+            .machines
+            .insert(MachineId::new(2).unwrap(), external);
+        assert_eq!(
+            check(&program, None),
+            Ok(TerminalExecutionRequirements {
+                imports: Vec::new(),
+                missing_providers: Vec::new(),
+                external_completions: vec![TerminalExternalCompletionDemand { boundary, kind }],
+            })
+        );
+    }
+
+    #[test]
     fn capability_graph_dynamic_call_ignores_trap_and_unreachable_rows() {
         let program = dynamic_program();
         assert_eq!(
@@ -590,6 +642,7 @@ mod tests {
             Ok(TerminalExecutionRequirements {
                 imports: Vec::new(),
                 missing_providers: Vec::new(),
+                external_completions: Vec::new(),
             })
         );
     }

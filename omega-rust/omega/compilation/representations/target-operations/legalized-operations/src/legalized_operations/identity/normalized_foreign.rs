@@ -141,7 +141,7 @@ fn encode_machine_function_identity(
 /// The complete evaluated binding: mechanism, boundary-entry plan and custody.
 /// Only imports carry an admitted same-stack claim. Kernel identity instead
 /// retains its target, number, exact requirement and provider-plan commitment.
-fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
+pub(super) fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
     // Empty target names cannot be import locators. Reserve that discriminant
     // for kernel entries while keeping existing import bytes unchanged.
     let (locator, contribution) = match &binding.mechanism {
@@ -228,7 +228,7 @@ fn encode_scalar_home(bytes: &mut Vec<u8>, home: &TargetUnitScalarHomeRequiremen
     encode_shape(bytes, home.shape);
 }
 
-fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalarArgumentSource) {
+pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalarArgumentSource) {
     match source {
         TargetUnitScalarArgumentSource::IeeeFloatImmediate {
             defining_operation,

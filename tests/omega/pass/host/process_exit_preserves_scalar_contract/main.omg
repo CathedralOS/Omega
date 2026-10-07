@@ -1,0 +1,31 @@
+// Exit abandons runtime completion, not the machine's scalar return contract.
+// The unexecuted suffix owns no literal establishment or normal-result producer.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    exit: Binding<ProcessExit>;
+}
+
+machine finish(main: &mut Main) -> i32
+reaches
+    Console + ProcessExit
+ensures
+    result == 7;
+{
+    main.exit.exit_process(70);
+    main.console.write_line("unreachable literal");
+    transition { _ -> (7) }
+}
+
+machine Main::main(main: &mut Main)
+reaches
+    Console + ProcessExit
+{
+    main.console.write_line("process-exit scalar contract");
+    let status: i32 = finish(main);
+    main.exit.exit_process(status);
+}

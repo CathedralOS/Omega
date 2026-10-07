@@ -16,7 +16,7 @@
 //! independent verifier then re-derives the whole relation from the
 //! rewritten module rather than trusting this proposal.
 
-use semantic_vocabulary::{OperationId, ValueId};
+use semantic_vocabulary::{EdgeId, OperationId, ValueId};
 use std::collections::BTreeSet;
 use terminal_psi::{TerminalMachine, TerminalModule};
 
@@ -30,6 +30,7 @@ use terminal_psi::{TerminalMachine, TerminalModule};
 pub(super) fn prune(
     module: &mut TerminalModule,
     sidecar_operations: &BTreeSet<OperationId>,
+    sidecar_edges: &BTreeSet<EdgeId>,
     sidecar_values: &BTreeSet<ValueId>,
 ) {
     let mut kept = super::retention::retained_machines(module);
@@ -45,13 +46,14 @@ pub(super) fn prune(
         // lists, and the module-level evidence carriers name their rows by
         // module-unique identity: reading the evidence over the kept machines
         // answers exactly what the module with the others removed publishes.
-        let evidence = super::retention::block_local_evidence_over_machines(
+        let mut evidence = super::retention::block_local_evidence_over_machines(
             module,
             module
                 .machines
                 .iter()
                 .filter(|machine| kept.contains(&machine.id)),
         );
+        evidence.edges.extend(sidecar_edges.iter().copied());
         let bound = module.machines.iter().filter(|machine| {
             !kept.contains(&machine.id)
                 && machine_bound(machine, &evidence, sidecar_operations, sidecar_values)

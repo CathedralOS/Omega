@@ -37,6 +37,12 @@ pub(crate) fn expected_ownership(
             OwnershipEvent::StructuralReturn(returned_claims.clone()),
             OwnershipEvent::Cleanup(cleanup_actions.clone()),
         ],
+        O::ExternalCompletion {
+            frontier_lower_bound,
+            ..
+        } => vec![OwnershipEvent::ExternalCompletionFrontier(
+            frontier_lower_bound.clone(),
+        )],
         O::Crash {
             frontier_lower_bound,
             ..

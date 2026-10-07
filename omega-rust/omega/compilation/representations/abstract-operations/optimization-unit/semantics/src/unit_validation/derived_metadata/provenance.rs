@@ -8,7 +8,10 @@ pub(crate) fn expected_provenance(
     use abstract_operations::AbstractOperation as O;
     match operation {
         O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => Vec::new(),
-        O::Return { psi_edge, .. } | O::ReturnUnit { psi_edge, .. } | O::Crash { psi_edge, .. } => {
+        O::Return { psi_edge, .. }
+        | O::ReturnUnit { psi_edge, .. }
+        | O::ExternalCompletion { psi_edge, .. }
+        | O::Crash { psi_edge, .. } => {
             vec![PsiProvenance::Edge(*psi_edge)]
         }
         O::ReturnStructural {

@@ -88,7 +88,7 @@ use codec::wire::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u12
 /// result source rosters. Marker 97 seals complete placed-region inventory
 /// identities for the bound image; marker 96 records carry no complete-custody
 /// digests.
-pub const INSTALLATION_FORMAT_MARKER: u16 = 107;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 108;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer

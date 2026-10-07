@@ -442,6 +442,8 @@ pub(crate) fn bind_structural_primitive_values(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     structural_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralPrimitiveValue],
+    mut storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
+    zero_initialized_arguments: &[u32],
 ) -> Result<
     (
         BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
@@ -463,15 +465,30 @@ pub(crate) fn bind_structural_primitive_values(
             .then_some((argument_index as u32, parameter))
         })
         .collect::<BTreeMap<_, _>>();
-    if primitive_parameters.len() != arguments.len() {
+    let expected = primitive_parameters
+        .keys()
+        .filter(|position| !zero_initialized_arguments.contains(position))
+        .count();
+    if expected != arguments.len() {
         return Err(TerminalInterpretError::StructuralPrimitiveValueCount {
-            expected: primitive_parameters.len(),
+            expected,
             actual: arguments.len(),
         });
     }
 
-    let mut storage = BTreeMap::new();
     let mut entry_places = BTreeMap::new();
+    for (position, parameter) in &primitive_parameters {
+        if zero_initialized_arguments.contains(position) {
+            let root = structural_values
+                .get(&parameter.place)
+                .ok_or_else(malformed)?;
+            let place = StructuralRuntimePlace::from(root);
+            if !storage.contains_key(&place) {
+                return Err(malformed());
+            }
+            entry_places.insert(*position, place);
+        }
+    }
     for argument in arguments {
         let parameter = primitive_parameters
             .get(&argument.argument_index)

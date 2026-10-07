@@ -42,6 +42,7 @@ pub(crate) fn validate_places_and_claims(
                     | optimization_unit::OwnershipEvent::ClaimCompletion(claims)
                     | optimization_unit::OwnershipEvent::StructuralReturn(claims)
                     | optimization_unit::OwnershipEvent::CrashFrontier(claims) => claims,
+                    optimization_unit::OwnershipEvent::ExternalCompletionFrontier(claims) => claims,
                     optimization_unit::OwnershipEvent::Cleanup(_) => continue,
                 };
                 for claim in claims {

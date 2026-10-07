@@ -67,10 +67,7 @@ pub(super) fn deduplicate(
         }
     }
     for occurrence in source_calls {
-        if operations
-            .iter()
-            .any(|operation| operation.id == occurrence.terminal_operation)
-        {
+        if crate::retained_identities::contains_source_call(machine, occurrence) {
             retained_values.extend(
                 occurrence
                     .source_values_before_call
@@ -166,7 +163,8 @@ fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
                 Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
                 | Terminator::ReturnStructural { .. }
-                | Terminator::Crash { .. } => Vec::new(),
+                | Terminator::Crash { .. }
+                | Terminator::ExternalCompletion { .. } => Vec::new(),
             };
             (block.id, targets)
         })
@@ -219,7 +217,8 @@ fn dominators(machine: &TerminalMachine) -> BTreeMap<BlockId, BTreeSet<BlockId>>
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnStructural { .. }
-            | Terminator::Crash { .. } => Vec::new(),
+            | Terminator::Crash { .. }
+            | Terminator::ExternalCompletion { .. } => Vec::new(),
         };
         for target in targets {
             if let Some(incoming) = predecessors.get_mut(&target) {

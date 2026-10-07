@@ -99,11 +99,11 @@ pub(super) fn check(
         ),
         SelectedTerminator::HostedExitProcess {
             instruction: terminal,
-            nominal_return_edge,
+            completion_edge,
         } => {
             return if terminal.id == instruction.id {
                 require(
-                    matches!(actual, Control::HostedExitProcess { nominal_return_edge: edge } if edge == nominal_return_edge),
+                    matches!(actual, Control::HostedExitProcess { completion_edge: edge } if edge == completion_edge),
                 )
             } else {
                 require(matches!(actual, Control::None))

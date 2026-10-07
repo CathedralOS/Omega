@@ -10,5 +10,5 @@ mod lowered_psi;
 pub use lowered_psi::{
     CallbackTerminalLoweringReceipt, LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
     LoweredSelectedIntegerComparisonOccurrence, LoweredSelectedIntegerComparisonOperandOrder,
-    LoweredSelectedIntegerComparisonOperation, LoweredSourceCallOccurrence,
+    LoweredSelectedIntegerComparisonOperation, LoweredSourceCallOccurrence, LoweredSourceCallSite,
 };

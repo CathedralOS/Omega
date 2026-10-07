@@ -370,7 +370,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         bytes: resolved_row.bytes.clone(),
                     });
                 } else if let SelectedTerminator::HostedExitProcess {
-                    nominal_return_edge,
+                    completion_edge,
                     instruction: terminal,
                 } = &block.terminator
                     && terminal.id == instruction.id
@@ -393,7 +393,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     validate_process_exit(instruction, encoding_row, resolved_row, end, encoded)?;
                     process_exits.push(machine_code::WholeFunctionProcessExitEvidence {
                         block: block.id,
-                        nominal_return_edge: *nominal_return_edge,
+                        completion_edge: *completion_edge,
                         instruction: instruction.id,
                         offset: resolved_row.offset,
                         bytes: resolved_row.bytes.clone(),

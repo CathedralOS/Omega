@@ -109,7 +109,7 @@ pub enum SelectedTerminator {
     /// Physical termination or trap, never an executable return successor.
     HostedExitProcess {
         instruction: SelectedInstruction,
-        nominal_return_edge: EdgeId,
+        completion_edge: EdgeId,
     },
     /// Unconditional control, with semantic versus implementation role on the
     /// successor. Argument transfers are not inferred from physical fallthrough.

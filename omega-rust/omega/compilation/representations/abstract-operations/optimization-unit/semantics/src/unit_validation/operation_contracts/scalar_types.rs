@@ -405,13 +405,19 @@ pub(crate) fn operation_scalar_types_match(
                     abstract_operations::AbstractFunctionResult::Structural(_)
                 )
         }),
+        O::ExternalCompletion { boundary, kind, arguments, .. } => boundary_machines.get(boundary).is_some_and(|boundary| {
+            boundary.completion == semantic_vocabulary::BoundaryCompletion::External(*kind)
+                && boundary.result.is_unit()
+                && arguments.len() == boundary.scalar_parameters.len()
+                && arguments.iter().zip(&boundary.scalar_parameters).all(|(argument, parameter)| scalar(*argument) == Some(*parameter))
+        }),
         O::BoundaryCall {
             result,
             boundary,
             arguments,
             ..
         } => boundary_machines.get(boundary).is_some_and(|boundary| {
-            (match (&boundary.result, result) {
+            boundary.completion == semantic_vocabulary::BoundaryCompletion::NormalReturn && (match (&boundary.result, result) {
                 (
                     terminal_psi::BoundaryMachineResult::Unit,
                     abstract_operations::AbstractBoundaryResult::Unit,

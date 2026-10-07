@@ -682,6 +682,7 @@ fn interpret_fixture(
     let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
     terminal_execution::interpret(
         leg.artifact.artifact(),
+        None,
         expected_stdout.as_deref(),
         1_000_000,
     )
@@ -708,7 +709,12 @@ fn interpret_native_report(
         );
     };
     let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
-    terminal_execution::interpret(artifact, expected_stdout.as_deref(), 1_000_000)
+    terminal_execution::interpret(
+        artifact,
+        report.runtime_provisions(),
+        expected_stdout.as_deref(),
+        1_000_000,
+    )
 }
 
 /// With both legs, whether the native exit is this host's presentation of

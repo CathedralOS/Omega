@@ -828,6 +828,10 @@ fn scan_operation(
         O::BoundaryCall {
             structural_arguments,
             ..
+        }
+        | O::ExternalCompletion {
+            structural_arguments,
+            ..
         } => {
             for argument in structural_arguments {
                 let (reads, writes) = declared_access(argument.access);

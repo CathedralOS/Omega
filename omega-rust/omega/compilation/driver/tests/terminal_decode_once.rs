@@ -139,7 +139,7 @@ fn native_realization_decodes_the_terminal_module_once() {
         panic!("{FIXTURE} must realize its native artifact: {diagnostics:#?}")
     });
     let realization_decodes = terminal_codec::module_decode_count() - before;
-    let native_artifact::RequestedNativeArtifact::Direct(artifact) = product else {
+    let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
         panic!("{FIXTURE} emits a direct native artifact")
     };
 

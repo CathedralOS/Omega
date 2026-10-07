@@ -14,6 +14,7 @@ pub(super) fn derive(
     for block in &source.blocks {
         let targets = match &block.terminator {
             LegalizedScalarTerminator::Crash { .. }
+            | LegalizedScalarTerminator::ExternalCompletion { .. }
             | LegalizedScalarTerminator::Return(_)
             | LegalizedScalarTerminator::ReturnCleanup { .. } => Vec::new(),
             LegalizedScalarTerminator::Jump { successor, .. } => vec![successor.target],

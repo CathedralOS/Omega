@@ -166,30 +166,30 @@ pub enum InstallationError {
     NonCanonicalBoundarySettlementOrder,
     DuplicateBoundarySettlementOperation {
         machine: MachineId,
-        operation: OperationId,
+        operation: semantic_vocabulary::BoundaryInvocationSite,
     },
     InvalidBoundarySettlementOffset {
         machine: MachineId,
-        operation: OperationId,
+        operation: semantic_vocabulary::BoundaryInvocationSite,
     },
     InvalidCompletionReceiptArgumentIndex {
         machine: MachineId,
-        operation: OperationId,
+        operation: semantic_vocabulary::BoundaryInvocationSite,
     },
     InvalidCompletionReceiptCustody {
         machine: MachineId,
-        operation: OperationId,
+        operation: semantic_vocabulary::BoundaryInvocationSite,
     },
     InvalidCompletionProviderCustody {
         machine: MachineId,
-        operation: OperationId,
+        operation: semantic_vocabulary::BoundaryInvocationSite,
     },
     InvalidCompletionClaimSource,
     InvalidBoundaryResult,
     InvalidBoundaryScalarArgument,
     BoundaryRealizationMismatch {
         machine: MachineId,
-        operation: OperationId,
+        operation: semantic_vocabulary::BoundaryInvocationSite,
     },
     CountNotRepresentable(&'static str),
     MissingCompilerTextValidation,

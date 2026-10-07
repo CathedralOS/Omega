@@ -1,14 +1,13 @@
-//! Collapse an admitted final boundary and its nominal source return into native exit.
+//! Realize an admitted external completion at its exact terminal edge.
 use super::{
-    Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedBlockId,
-    SelectedInstructionKind, SelectedInstructionProvenance,
+    Builder, IntegerSign, ScalarType, SelectedBlockId, SelectedInstructionKind,
+    SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
-use legalized_operations::{
-    LegalizedScalarBlock, LegalizedScalarReturnValue, LegalizedScalarTerminator,
+use legalized_operations::{LegalizedScalarBlock, LegalizedScalarTerminator};
+use selected_instructions::{
+    SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedTerminator,
 };
-use selected_instructions::SelectedTerminator;
-use selected_instructions::{SelectedBoundarySettlement, SelectedBoundarySettlementPayload};
 
 pub(super) fn build(
     block: &LegalizedScalarBlock,
@@ -16,27 +15,42 @@ pub(super) fn build(
     start: usize,
     builder: &mut Builder<'_>,
 ) -> Result<Option<SelectedTerminator>, SelectedInstructionError> {
-    let Some(row) = block.instructions.last() else {
+    let LegalizedScalarTerminator::ExternalCompletion {
+        psi_edge,
+        boundary,
+        kind,
+        arguments,
+        binding,
+        structural_arguments,
+        fuel,
+        ..
+    } = &block.terminator
+    else {
         return Ok(None);
     };
-    let LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source } = row.kind else {
-        return Ok(None);
-    };
-    let LegalizedScalarTerminator::Return(returned) = &block.terminator else {
+    let [argument] = arguments.as_slice() else {
         return Err(SelectedInstructionError::custody());
     };
+    let source = argument.source.source_value();
     let (_, input, _, scalar_type) = builder
         .resolve(source)
-        .ok_or_else(|| SelectedInstructionError::custody())?;
-    // Legalization has replayed the exact cleanup frontier; these discards
-    // carry custody only and emit no instruction after the process exit.
-    if returned.value != LegalizedScalarReturnValue::Unit
-        || !matches!(returned.ownership.as_slice(), [optimization_unit::OwnershipEvent::Cleanup(actions)]
-            if actions.iter().all(|action| matches!(action,
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
-                    | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_))))
-        || row.result.is_some()
-        || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+        .ok_or_else(SelectedInstructionError::custody)?;
+    if *kind != semantic_vocabulary::ExternalCompletionKind::ProcessExit
+        || binding.boundary != *boundary
+        || !matches!(
+            binding.execution,
+            target_operations::BoundaryExecutionBinding::AdmittedProvider(_)
+                | target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::HostedExitProcessI32
+                )
+        )
+        || !matches!(
+            binding.realization,
+            target_operations::BoundarySettlementRealization::Builtin(
+                target_operations::BoundaryRealization::HostedExitProcessI32(_)
+            )
+        )
+        || !structural_arguments.is_empty()
         || !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
     {
         return Err(SelectedInstructionError::custody());
@@ -51,12 +65,13 @@ pub(super) fn build(
                     .instructions
                     .len()
                     .checked_sub(start)
-                    .ok_or_else(|| SelectedInstructionError::custody())?,
+                    .ok_or_else(SelectedInstructionError::custody)?,
             )
             .map_err(|_| SelectedInstructionError::custody())?,
             settlement: SelectedBoundarySettlementPayload::HostedExitProcessI32 {
-                operation: row.operation,
-                boundary,
+                edge: *psi_edge,
+                execution: binding.execution,
+                boundary: *boundary,
                 source,
             },
         });
@@ -66,12 +81,12 @@ pub(super) fn build(
             .constraints
             .keys
             .hosted_exit_process_i32
-            .ok_or_else(|| SelectedInstructionError::custody())?,
+            .ok_or_else(SelectedInstructionError::custody)?,
         &[input],
         SelectedInstructionProvenance {
-            operations: vec![row.operation],
+            edges: vec![*psi_edge],
             values: vec![source],
-            fuel: row.fuel.clone(),
+            fuel: fuel.clone(),
             ..Default::default()
         },
     )?;
@@ -80,7 +95,7 @@ pub(super) fn build(
             .instructions
             .last()
             .cloned()
-            .ok_or_else(|| SelectedInstructionError::custody())?,
-        nominal_return_edge: returned.edge,
+            .ok_or_else(SelectedInstructionError::custody)?,
+        completion_edge: *psi_edge,
     }))
 }

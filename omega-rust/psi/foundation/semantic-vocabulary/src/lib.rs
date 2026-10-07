@@ -43,13 +43,13 @@ pub use content::{
     content_conservation_report_fingerprint,
 };
 pub use identity::{
-    AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
-    ClaimId, ContentDomainId, ContractId, CycleComponentId, DomainSemanticId, EdgeId,
-    EvidenceIdentity, EvidenceTermId, ExternalCompletionKind, FuelScheduleIdentity, MachineId,
-    ObligationId, OperationId, PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId,
-    PsiSemanticId, RankingRelationId, RecursiveComponentId, ScalarDomainId,
-    ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId, SuspensionCrossingId, ValueId,
+    AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryInvocationSite, BoundaryMachineId,
+    BoundaryRequirementKind, ClaimId, ContentDomainId, ContractId, CycleComponentId,
+    DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId, ExternalCompletionKind,
+    FuelScheduleIdentity, MachineId, ObligationId, OperationId, PackageKeyIdentity, PlaceId,
+    ProfileDecisionId, PropositionId, PsiSemanticId, RankingRelationId, RecursiveComponentId,
+    ScalarDomainId, ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId,
+    StructuralFieldId, StructuralTypeId, SuspensionCrossingId, ValueId,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,

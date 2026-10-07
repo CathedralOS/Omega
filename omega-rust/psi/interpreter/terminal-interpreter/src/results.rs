@@ -53,6 +53,21 @@ pub enum TerminalExecutionStatus {
     Complete(TerminalExecutionResult),
     SponsorExhausted(FuelExhaustion),
     Crashed(TerminalCrash),
+    ExternalCompletion(TerminalExternalCompletion),
+}
+
+/// Domain-ending abandonment, not a normal value or discharge receipt.
+/// Preceding effects remain on the execution; the frontier is machine-local,
+/// not a census of suspended frames or the containing domain.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalExternalCompletion {
+    pub machine: MachineId,
+    pub block: BlockId,
+    pub edge: semantic_vocabulary::EdgeId,
+    pub boundary: BoundaryMachineId,
+    pub kind: semantic_vocabulary::ExternalCompletionKind,
+    pub return_code: i32,
+    pub frontier_lower_bound: Vec<ClaimId>,
 }
 
 /// The explicit terminal-Psi crash outcome reached by an execution.

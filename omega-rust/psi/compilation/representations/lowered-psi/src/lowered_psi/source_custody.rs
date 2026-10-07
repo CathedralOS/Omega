@@ -1,6 +1,7 @@
 //! Ephemeral source joins retained alongside, never inside, portable Terminal artifacts.
 
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
+pub use semantic_vocabulary::BoundaryInvocationSite as LoweredSourceCallSite;
 use terminal_psi::ValueDeclaration;
 
 /// Exact selected source comparison joined to one emitted operation. Provider
@@ -138,7 +139,7 @@ pub struct CallbackTerminalLoweringReceipt {
     pub terminal_entry: BlockId,
 }
 
-/// One exact checked source call joined to its emitted Terminal operation.
+/// One exact checked source call joined to its emitted Terminal control site.
 /// Source handles are deliberately confined to the producer result and never
 /// enter the canonical Terminal artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,7 +148,7 @@ pub struct LoweredSourceCallOccurrence {
     pub source_state: symbols::SymbolHandle,
     pub statement_index: usize,
     pub call_ordinal: usize,
-    pub terminal_operation: OperationId,
+    pub terminal_site: LoweredSourceCallSite,
     pub source_target: symbols::SymbolHandle,
     /// Scalar environment immediately before this call, ordered as checked
     /// state parameters followed by established local bindings. Empty means

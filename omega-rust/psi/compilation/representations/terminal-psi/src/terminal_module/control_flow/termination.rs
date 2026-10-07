@@ -1,11 +1,28 @@
 use crate::{CrashPredicateTerm, StructuralArgument, TerminalAffineCleanupAction};
 use semantic_vocabulary::{
-    BlockId, ClaimId, EdgeId, PlaceId, ProofTerm, ScalarTerm, StructuralCaseId, StructuralFieldId,
-    ValueId,
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, ExternalCompletionKind, ObligationId, PlaceId,
+    ProofTerm, ScalarTerm, StructuralCaseId, StructuralFieldId, ValueId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Terminator {
+    /// Invoke the exact boundary's closed external completion without a normal
+    /// result, successor, cleanup, or disposition receipt. This demands actual
+    /// delegated authority bound to the instance's containing process domain;
+    /// the terminator itself grants none. Admission must establish that binding
+    /// for this exact slot before execution.
+    ///
+    /// `frontier_lower_bound` retains only reconstructible machine-local claims,
+    /// not a complete process-wide obligation census or a discharge claim.
+    ExternalCompletion {
+        edge: EdgeId,
+        boundary: BoundaryMachineId,
+        kind: ExternalCompletionKind,
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        requirement_obligations: Vec<ObligationId>,
+        frontier_lower_bound: Vec<ClaimId>,
+    },
     /// Simultaneously bind target block parameters from the listed values.
     Jump {
         edge: EdgeId,
@@ -120,7 +137,7 @@ impl Terminator {
                 &[],
             ),
             Self::StructuralCase { cases, .. } => (None, None, cases),
-            Self::Crash { .. } => (None, None, &[]),
+            Self::Crash { .. } | Self::ExternalCompletion { .. } => (None, None, &[]),
         };
         first.into_iter().chain(second).chain(
             cases
@@ -139,7 +156,8 @@ impl Terminator {
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
             | Self::ReturnStructural { edge, .. }
-            | Self::Crash { edge, .. } => *edge,
+            | Self::Crash { edge, .. }
+            | Self::ExternalCompletion { edge, .. } => *edge,
             Self::Conditional { .. } | Self::StructuralCase { .. } => {
                 panic!("a branching terminator has multiple successor edges")
             }
@@ -152,7 +170,8 @@ impl Terminator {
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
             | Self::ReturnStructural { edge, .. }
-            | Self::Crash { edge, .. } => vec![*edge],
+            | Self::Crash { edge, .. }
+            | Self::ExternalCompletion { edge, .. } => vec![*edge],
             Self::Conditional {
                 when_true,
                 when_false,
@@ -165,8 +184,8 @@ impl Terminator {
 
     /// Rewrite every scalar `ValueId` use site through `map`.
     ///
-    /// Jump and conditional successor arguments, the conditional condition, and
-    /// the returned value are uses. Structural-case payload bindings are
+    /// Jump, conditional successor and external-completion arguments, the
+    /// conditional condition, and the returned value are uses. Structural-case payload bindings are
     /// positional implicit bindings rather than listed uses, and `Crash` proof
     /// sites (`site_guard` predicates, claim frontiers) carry value identities
     /// inside propositions rather than direct uses — consumers replacing a
@@ -174,7 +193,7 @@ impl Terminator {
     /// them separately.
     pub fn map_scalar_uses(&mut self, map: &mut impl FnMut(ValueId) -> ValueId) {
         match self {
-            Self::Jump { arguments, .. } => {
+            Self::Jump { arguments, .. } | Self::ExternalCompletion { arguments, .. } => {
                 for argument in arguments {
                     *argument = map(*argument);
                 }

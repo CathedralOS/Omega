@@ -283,6 +283,14 @@ pub(crate) fn forward_private_state_borrows(
             // Guards and proof propositions keep their original storage
             // identities. Edge aliases establish the fresh runtime names;
             // no operation or proof result is manufactured by this transfer.
+            Terminator::ExternalCompletion {
+                structural_arguments,
+                ..
+            } => {
+                for argument in structural_arguments {
+                    argument.place = mapped(names, argument.place);
+                }
+            }
             Terminator::Crash { .. } => {}
         }
     }

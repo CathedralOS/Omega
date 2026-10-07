@@ -378,7 +378,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
             return_edge: EdgeId::new(71).unwrap(),
         });
     let completion = machine_code::BoundarySettlementRecord {
-        psi_operation: OperationId::new(41).unwrap(),
+        invocation_site: OperationId::new(41).unwrap().into(),
         boundary: BoundaryMachineId::new(43).unwrap(),
         execution: machine_code::BoundaryExecutionRecord::AdmittedProvider(record),
         realization: target_operations::BoundaryRealization::ClaimCompletionOnly(
@@ -419,7 +419,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
     for mutation in 0..22 {
         let mut changed = completion.clone();
         match mutation {
-            0 => changed.psi_operation = OperationId::new(53).unwrap(),
+            0 => changed.invocation_site = OperationId::new(53).unwrap().into(),
             1 => changed.boundary = BoundaryMachineId::new(59).unwrap(),
             2 => {
                 changed.execution = machine_code::BoundaryExecutionRecord::AdmittedProvider(
@@ -2041,7 +2041,7 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
         },
         NativePhysicalEvidenceGapSubject::UnownedPortEffect {
             machine,
-            psi_operation: boundary.operation(),
+            psi_operation: boundary.operation().expect("ordinary boundary operation"),
             service: ServiceId::new(5).expect("service"),
             port: 7,
             value: 9,
@@ -2155,7 +2155,7 @@ fn physical_evidence_gap_names_the_blocking_occurrence() {
     assert_eq!(
         gap(NativePhysicalEvidenceGapSubject::UnownedPortEffect {
             machine,
-            psi_operation: boundary.operation(),
+            psi_operation: boundary.operation().expect("ordinary boundary operation"),
             service: semantic_vocabulary::ServiceId::new(5).expect("service"),
             port: 7,
             value: 9,

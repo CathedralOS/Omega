@@ -278,6 +278,9 @@ pub(super) fn emit_call_operations(
             }
         }
         catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+        if operations.external_completion.is_some() {
+            break;
+        }
     }
     windows.require_closed()
 }

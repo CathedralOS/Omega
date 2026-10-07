@@ -4,7 +4,8 @@ mod profile;
 
 pub use profile::{
     TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalTraceBoundaryCrashSiteRow,
-    TerminalTraceCrashSiteRow, TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
+    TerminalTraceCrashSiteRow, TerminalTraceExternalCompletionSiteRow,
+    TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
     TerminalTraceOrdinaryEventRow, TerminalTraceResultKind, TerminalTraceResultSchema,
     TerminalTraceResultValue, TerminalTraceRootRow, TerminalTraceScalarSchema,
     TerminalTraceScalarValue, TerminalTraceStructuralSchema, TerminalTraceStructuralValue,

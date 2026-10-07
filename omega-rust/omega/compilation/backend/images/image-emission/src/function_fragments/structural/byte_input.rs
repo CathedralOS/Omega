@@ -153,7 +153,7 @@ pub(super) fn settlement(
     let code_offset = host(span.offset)?;
     let (abstracted, _) = source::function(container, machine)?;
     let record = BoundarySettlementRecord {
-        psi_operation: *operation,
+        invocation_site: (*operation).into(),
         boundary: *boundary,
         execution: BoundaryExecutionRecord::CompilerBuiltin(
             CompilerBuiltinExecution::HostedReadByte,
@@ -262,7 +262,7 @@ pub(super) fn validate(
             != host(placed.section_offset)?
                 .checked_add(code_offset)
                 .ok_or(Error::Overflow)?
-        || record.psi_operation != *operation
+        || record.invocation_site != (*operation).into()
         || record.boundary != *boundary
         || record.operation_ordinal
             != attribution::ordinal(abstracted, SemanticCodeSite::Operation(*operation))?
@@ -521,7 +521,10 @@ mod tests {
                 5 => {
                     selected.boundary_settlements[0].settlement =
                         SelectedBoundarySettlementPayload::HostedExitProcessI32 {
-                            operation: OperationId::new(2).unwrap(),
+                            edge: semantic_vocabulary::EdgeId::new(2).unwrap(),
+                            execution: target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                                target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                            ),
                             boundary: BoundaryMachineId::new(1).unwrap(),
                             source: ValueId::new(1).unwrap(),
                         }

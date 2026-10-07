@@ -110,8 +110,7 @@ impl LegalizedScalarInstruction {
                     }
                 }
             }
-            LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
-            | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => visit(*source),
+            LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. } => visit(*source),
             // A runtime-projected access reads each run's selector before
             // the stored value, the order its address instructions use them.
             LegalizedScalarInstructionKind::StructuralScalarFieldStore {
@@ -544,11 +543,6 @@ pub enum LegalizedScalarInstructionKind {
         boundary: semantic_vocabulary::BoundaryMachineId,
         source: ValueId,
     },
-    /// Terminates the process; the following Unit return is nominal source custody only.
-    HostedExitProcessI32 {
-        boundary: semantic_vocabulary::BoundaryMachineId,
-        source: ValueId,
-    },
     /// One scalar field write: `byte_offset` is the carrier's static part
     /// plus the field, and `indices` adds each runtime element of the
     /// carrier, in path order.
@@ -903,7 +897,6 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::WriteOnlyPrimitiveStore { .. }
             | Self::HostedWriteByteI32 { .. }
-            | Self::HostedExitProcessI32 { .. }
             | Self::StructuralScalarFieldStore { .. }
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::ByteSequenceWrite { .. }
@@ -1115,6 +1108,19 @@ impl LegalizedStructuralCaseSource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
+    ExternalCompletion {
+        psi_edge: EdgeId,
+        boundary: BoundaryMachineId,
+        kind: semantic_vocabulary::ExternalCompletionKind,
+        arguments: Vec<target_operations::TargetUnitScalarCallArgument>,
+        binding: target_operations::BoundarySettlementBinding,
+        structural_arguments: Vec<terminal_psi::StructuralArgument>,
+        requirement_obligations: Vec<ObligationId>,
+        frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
+        fuel: Vec<FuelSettlement>,
+        effect: EffectLink,
+        ownership: Vec<OwnershipEvent>,
+    },
     /// Exact source crash custody; audit predicates are not executable reads.
     Crash {
         psi_edge: semantic_vocabulary::EdgeId,
@@ -1187,6 +1193,9 @@ impl LegalizedScalarTerminator {
                 .any(|binding| binding.argument == value)
         };
         match self {
+            Self::ExternalCompletion { arguments, .. } => arguments
+                .iter()
+                .any(|argument| argument.source.source_value() == value),
             Self::Crash { .. } => false,
             Self::StructuralCase { .. } => false,
             Self::Return(returned) | Self::ReturnCleanup { returned, .. } => {

@@ -616,7 +616,7 @@ mod tests {
         let machine = source.entry;
         let row = &mut source.functions[0].blocks[0].instructions[1];
         row.control = FunctionFragmentControlProvenance::HostedExitProcess {
-            nominal_return_edge: EdgeId::new(1).unwrap(),
+            completion_edge: EdgeId::new(1).unwrap(),
         };
         // This tests frame projection only; ISA admission belongs to the source stage.
         row.alternative.family = MachineAlternativeFamily::HostedExitProcessI32;
@@ -638,7 +638,7 @@ mod tests {
         let mut changed = application.clone();
         changed.fragments.functions[0].blocks[0].instructions[1].control =
             FunctionFragmentControlProvenance::HostedExitProcess {
-                nominal_return_edge: EdgeId::new(2).unwrap(),
+                completion_edge: EdgeId::new(2).unwrap(),
             };
         assert!(
             super::super::validate_frame_protocol_application(
@@ -652,7 +652,7 @@ mod tests {
         );
         source.functions[0].blocks[0].instructions[0].control =
             FunctionFragmentControlProvenance::HostedExitProcess {
-                nominal_return_edge: EdgeId::new(2).unwrap(),
+                completion_edge: EdgeId::new(2).unwrap(),
             };
         assert!(apply(&source, manifest, &protocol(machine), &physical()).is_err());
     }

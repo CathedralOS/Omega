@@ -379,7 +379,11 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 return Err(LoweringError::ContentPartitionProducerTargetMismatch);
             }
             Ok(ContentPartitionComposition {
-                producer_operation: occurrence.terminal_operation,
+                producer_operation: occurrence.terminal_site.operation().ok_or(
+                    LoweringError::Unsupported(
+                        "external completion cannot produce content-partition composition",
+                    ),
+                )?,
                 source_report_fingerprint: composition.source_report_fingerprint,
                 source_structural_places: composition.source_structural_places,
                 source: composition.source,

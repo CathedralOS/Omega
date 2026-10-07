@@ -263,7 +263,7 @@ impl Evaluation {
                 || !operations.source_calls.iter().any(|occurrence| {
                     occurrence.source_state == state
                         && occurrence.statement_index == result.statement_index as usize
-                        && occurrence.terminal_operation == producer.id
+                        && occurrence.terminal_site.operation() == Some(producer.id)
                 })
             {
                 return unsupported("linear local lost its exact call result custody");
@@ -496,6 +496,19 @@ impl Evaluation {
         };
         for operation in &mut operations.operations {
             remap(operation);
+        }
+        if let Some(completion) = &mut operations.external_completion {
+            for cleanup in cleanups {
+                for argument in &mut completion.structural_arguments {
+                    if let Some((_, target)) = cleanup
+                        .pass_through
+                        .iter()
+                        .find(|(source, _)| *source == argument.place)
+                    {
+                        argument.place = *target;
+                    }
+                }
+            }
         }
         for block in &mut self.blocks {
             for operation in &mut block.operations {

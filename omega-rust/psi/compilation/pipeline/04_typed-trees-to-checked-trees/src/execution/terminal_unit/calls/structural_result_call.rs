@@ -356,6 +356,7 @@ pub(super) fn build(
         state.symbol,
         CheckedUnitCallParts {
             coordinate,
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             source_site,
             target: call_target,
             route: CheckedUnitCallRoute::Module {
@@ -393,6 +394,7 @@ pub(super) fn structural_custody_parts(
 ) -> checked_trees::CheckedUnitCallParts {
     checked_trees::CheckedUnitCallParts {
         coordinate,
+        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
         source_site,
         target,
         route: CheckedUnitCallRoute::Module {

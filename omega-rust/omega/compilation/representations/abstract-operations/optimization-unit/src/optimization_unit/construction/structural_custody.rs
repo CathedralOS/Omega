@@ -307,6 +307,14 @@ pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<Ownershi
                 OwnershipEvent::Cleanup(cleanup_actions.clone()),
             ]
         }
+        O::ExternalCompletion {
+            frontier_lower_bound,
+            ..
+        } => {
+            vec![OwnershipEvent::ExternalCompletionFrontier(
+                frontier_lower_bound.clone(),
+            )]
+        }
         O::Crash {
             frontier_lower_bound,
             ..

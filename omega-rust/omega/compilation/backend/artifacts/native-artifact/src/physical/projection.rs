@@ -108,10 +108,9 @@ fn derive_optimized_scope(
     let mut boundary_occurrences = Vec::new();
     for function in &final_plan.functions {
         for (operation_ordinal, operation) in function.operations.iter().enumerate() {
-            let Some(psi_operation) = operation.psi_operation() else {
-                continue;
-            };
-            if d29_operations.contains(&psi_operation) {
+            if let Some(psi_operation) = operation.psi_operation()
+                && d29_operations.contains(&psi_operation)
+            {
                 let identity = optimized_operator_occurrence_identity(
                     authority,
                     function.machine,
@@ -126,24 +125,36 @@ fn derive_optimized_scope(
                     identity,
                 ));
             }
-            if let AbstractOperation::BoundaryCall {
-                boundary,
-                psi_operation,
-                ..
-            } = operation
-            {
+            let invocation = match operation {
+                AbstractOperation::BoundaryCall {
+                    boundary,
+                    psi_operation,
+                    ..
+                } => Some((
+                    *boundary,
+                    semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation),
+                )),
+                AbstractOperation::ExternalCompletion {
+                    boundary, psi_edge, ..
+                } => Some((
+                    *boundary,
+                    semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                )),
+                _ => None,
+            };
+            if let Some((boundary, site)) = invocation {
                 let identity = optimized_boundary_occurrence_identity(
                     authority,
                     function.machine,
-                    *psi_operation,
-                    *boundary,
+                    site,
+                    boundary,
                     operation_ordinal,
                 );
                 boundary_occurrences.push(optimized_boundary_occurrence(
                     authority.terminal,
                     function.machine,
-                    *psi_operation,
-                    *boundary,
+                    site,
+                    boundary,
                     operation_ordinal,
                     identity,
                 ));
@@ -227,13 +238,22 @@ fn optimized_operator_occurrence_identity(
 fn optimized_boundary_occurrence_identity(
     authority: ValidatedProjectionCoordinates,
     machine: semantic_vocabulary::MachineId,
-    operation: OperationId,
+    site: impl Into<semantic_vocabulary::BoundaryInvocationSite>,
     boundary: semantic_vocabulary::BoundaryMachineId,
     operation_ordinal: usize,
 ) -> OptimizedBoundaryOccurrenceIdentity {
     let mut canonical = validated_authority_bytes(authority);
     canonical.extend_from_slice(&machine.get().to_le_bytes());
-    canonical.extend_from_slice(&operation.get().to_le_bytes());
+    match site.into() {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            canonical.push(0);
+            canonical.extend_from_slice(&operation.get().to_le_bytes());
+        }
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&edge.get().to_le_bytes());
+        }
+    }
     canonical.extend_from_slice(&boundary.get().to_le_bytes());
     canonical.extend_from_slice(&canonical_usize(operation_ordinal));
     OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(&canonical)

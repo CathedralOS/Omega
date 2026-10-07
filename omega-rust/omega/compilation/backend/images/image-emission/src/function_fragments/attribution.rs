@@ -24,6 +24,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 match operation {
                     AbstractOperation::Return { psi_edge, .. }
                     | AbstractOperation::ReturnUnit { psi_edge, .. }
+                    | AbstractOperation::ExternalCompletion { psi_edge, .. }
                     | AbstractOperation::Crash { psi_edge, .. }
                     | AbstractOperation::ReturnStructural { psi_edge, .. }
                     | AbstractOperation::Jump { psi_edge, .. } => {
@@ -77,14 +78,8 @@ pub(super) fn produce(
             Control::Crash { psi_edge, .. } => {
                 push(SemanticCodeSite::Edge(*psi_edge), offset, length)?
             }
-            Control::HostedExitProcess {
-                nominal_return_edge,
-            } => {
-                push(
-                    SemanticCodeSite::Edge(*nominal_return_edge),
-                    offset.checked_add(length).ok_or(Error::Overflow)?,
-                    0,
-                )?;
+            Control::HostedExitProcess { completion_edge } => {
+                push(SemanticCodeSite::Edge(*completion_edge), offset, length)?;
             }
             Control::Return { psi_return_edge } => {
                 push(SemanticCodeSite::Edge(*psi_return_edge), offset, length)?
@@ -215,9 +210,7 @@ pub(super) fn validate(
         }
         let edges: Vec<_> = match &instruction.control {
             Control::Crash { psi_edge, .. } => vec![*psi_edge],
-            Control::HostedExitProcess {
-                nominal_return_edge,
-            } => vec![*nominal_return_edge],
+            Control::HostedExitProcess { completion_edge } => vec![*completion_edge],
             Control::Return { psi_return_edge } => vec![*psi_return_edge],
             Control::Jump { successor } => {
                 if successor.role == SelectedSuccessorRole::Semantic {
@@ -277,16 +270,7 @@ fn supports(
         }
         SemanticCodeSite::Edge(edge) => match &instruction.control {
             Control::Crash { psi_edge, .. } => ordinary && edge == *psi_edge,
-            Control::HostedExitProcess {
-                nominal_return_edge,
-            } => {
-                edge == *nominal_return_edge
-                    && length == 0
-                    && instruction
-                        .offset
-                        .checked_add(instruction.bytes.len() as u64)
-                        == u64::try_from(offset).ok()
-            }
+            Control::HostedExitProcess { completion_edge } => edge == *completion_edge && ordinary,
             Control::Return { psi_return_edge } => ordinary && edge == *psi_return_edge,
             Control::Jump { successor } => {
                 successor.role == SelectedSuccessorRole::Semantic

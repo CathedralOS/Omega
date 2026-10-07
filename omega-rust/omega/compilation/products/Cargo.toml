@@ -34,6 +34,10 @@ package-compilation = { path = "../../packages/compilation-inputs" }
 platform-custody = { path = "../../foundation/platform-custody" }
 target = { path = "../backend/target" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
+terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
+program-entry-plan = { path = "../backend/plans/program-entry-plan" }
+target-operations = { path = "../representations/target-operations" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 trust-model = { path = "../realization/trust-model" }
 sha2 = "0.10.9"

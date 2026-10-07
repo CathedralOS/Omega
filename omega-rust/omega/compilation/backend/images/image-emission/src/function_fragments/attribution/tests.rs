@@ -428,7 +428,7 @@ fn case_edges_share_the_authored_case_ordinal_without_fabricated_operations() {
 }
 
 #[test]
-fn process_exit_nominal_edge_is_zero_width_and_never_a_return_span() {
+fn process_exit_completion_edge_owns_its_terminal_span() {
     let (mut fragment, source) = fixture();
     let terminal = fragment.blocks[0].instructions.last_mut().unwrap();
     let Control::Return { psi_return_edge } = &terminal.control else {
@@ -436,22 +436,23 @@ fn process_exit_nominal_edge_is_zero_width_and_never_a_return_span() {
     };
     let psi_return_edge = *psi_return_edge;
     terminal.control = Control::HostedExitProcess {
-        nominal_return_edge: psi_return_edge,
+        completion_edge: psi_return_edge,
     };
-    let end = usize::try_from(terminal.offset).unwrap() + terminal.bytes.len();
+    let start = usize::try_from(terminal.offset).unwrap();
+    let byte_count = terminal.bytes.len();
     let rows = produce(&fragment, &source).unwrap();
     validate(&fragment, &source, &rows).unwrap();
     let position = rows
         .iter()
         .position(|row| row.site == SemanticCodeSite::Edge(psi_return_edge))
         .unwrap();
-    assert_eq!(rows[position].code_offset, end);
-    assert_eq!(rows[position].byte_count, 0);
+    assert_eq!(rows[position].code_offset, start);
+    assert_eq!(rows[position].byte_count, byte_count);
     let mut changed = rows.clone();
-    changed[position].byte_count = 1;
+    changed[position].byte_count = 0;
     assert!(validate(&fragment, &source, &changed).is_err());
     let mut changed = rows;
-    changed[position].code_offset -= 1;
+    changed[position].code_offset += 1;
     assert!(validate(&fragment, &source, &changed).is_err());
 }
 

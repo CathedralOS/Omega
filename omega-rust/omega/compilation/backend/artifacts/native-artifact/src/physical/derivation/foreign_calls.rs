@@ -54,13 +54,16 @@ pub(crate) fn derive_normalized_foreign_child(
     foreign: &image_emission::ObjectForeignCall,
     publication: Option<&FragmentPublicationBinding>,
 ) -> Result<Option<NativePhysicalChild>, &'static str> {
+    let source_operation = occurrence
+        .operation()
+        .ok_or("returning foreign call requires an operation invocation")?;
     let matching_operations = module
         .machines
         .iter()
         .filter(|machine| machine.id == occurrence.machine())
         .flat_map(|machine| &machine.blocks)
         .flat_map(|block| &block.operations)
-        .filter(|operation| operation.id == occurrence.operation())
+        .filter(|operation| operation.id == source_operation)
         .collect::<Vec<_>>();
     let [operation] = matching_operations.as_slice() else {
         return Err("normalized foreign D41 occurrence does not rejoin one Terminal operation");
@@ -204,7 +207,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 return Err("normalized foreign D41 child changed its scalar result custody");
             };
             if value.scalar_type != *declared
-                || home.defining_operation != occurrence.operation()
+                || home.defining_operation != source_operation
                 || home.source_value != value.id
                 || home.scalar_type != *declared
             {
@@ -258,7 +261,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 })
                 .and_then(|function| function.structural.as_ref())
                 .ok_or("normalized foreign D41 child lost its structural declarations")?;
-            if home.operation_result() != Some((occurrence.operation(), result))
+            if home.operation_result() != Some((source_operation, result))
                 || result.structural_type != declared.structural_type
                 || result.multiplicity != declared.multiplicity
                 || result.qualifications != declared.qualifications
@@ -425,7 +428,7 @@ pub(crate) fn derive_normalized_foreign_child(
         {
             return Err("normalized foreign D41 child changed its callback target custody");
         }
-        if callback.target.terminal_operation != occurrence.operation()
+        if callback.target.terminal_operation != source_operation
             || callback.target.registrar_boundary_entry_plan != foreign.binding.boundary_entry_plan
             || callback
                 .target
@@ -563,7 +566,7 @@ pub(crate) fn derive_normalized_foreign_child(
         .filter(|attribution| {
             attribution.machine == occurrence.machine()
                 && attribution.attribution.site
-                    == machine_code::SemanticCodeSite::Operation(occurrence.operation())
+                    == machine_code::SemanticCodeSite::Operation(source_operation)
                 && attribution.attribution.operation_ordinal == occurrence.operation_ordinal()
         })
         .collect::<Vec<_>>();
@@ -684,7 +687,7 @@ pub(crate) fn derive_normalized_foreign_child(
                             locator.identity_digest().as_bytes(),
                             boundary_plan_identity,
                             occurrence.machine(),
-                            occurrence.operation(),
+                            source_operation,
                             field.boundary,
                             field.ordinal,
                             import.symbol,
@@ -699,7 +702,7 @@ pub(crate) fn derive_normalized_foreign_child(
             } else {
                 let expected_origin = RelocationOrigin::SemanticOperation {
                     function_symbol_handle: function.symbol,
-                    operation_identity: occurrence.operation().get(),
+                    operation_identity: source_operation.get(),
                 };
                 let import_records = object
                     .relocations()
@@ -889,7 +892,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 .collect::<Vec<_>>();
             let expected_origin = RelocationOrigin::SemanticOperation {
                 function_symbol_handle: function.symbol,
-                operation_identity: occurrence.operation().get(),
+                operation_identity: source_operation.get(),
             };
             let matching_import_relocations = overlapping_relocations
                 .iter()

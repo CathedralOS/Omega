@@ -587,7 +587,7 @@ pub(super) fn settlement_attributions(
             )
         })
         .map(|row| {
-            let site = SemanticCodeSite::Operation(row.settlement.operation());
+            let site = SemanticCodeSite::from(row.settlement.invocation_site());
             Ok(SemanticCodeAttribution {
                 site,
                 operation_ordinal: attribution::ordinal(abstracted, site)?,
@@ -626,7 +626,7 @@ pub(super) fn settlements(
                     .checked_add(offset)
                     .ok_or(Error::Overflow)?,
                 settlement: machine_code::BoundarySettlementRecord {
-                    psi_operation: row.operation,
+                    invocation_site: row.operation.into(),
                     boundary: row.boundary,
                     execution,
                     realization: target_operations::BoundaryRealization::ClaimCompletionOnly(

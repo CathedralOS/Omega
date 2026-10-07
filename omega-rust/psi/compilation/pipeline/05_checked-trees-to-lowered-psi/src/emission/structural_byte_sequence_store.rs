@@ -88,7 +88,7 @@ pub(crate) fn completed_call_result(
     if bindings.next().is_some()
         || occurrences.next().is_some()
         || !operations.operations.iter().any(|operation| {
-            operation.id == occurrence.terminal_operation
+            occurrence.terminal_site.operation() == Some(operation.id)
                 && operation.result.structural() == Some(produced)
         })
     {

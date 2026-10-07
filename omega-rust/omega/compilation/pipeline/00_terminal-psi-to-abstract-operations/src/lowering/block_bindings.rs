@@ -116,6 +116,7 @@ pub(super) fn validate_structural_block_bindings(
                 | Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
                 | Terminator::ReturnStructural { .. }
+                | Terminator::ExternalCompletion { .. }
                 | Terminator::Crash { .. } => None,
             };
             if let Some(edge) = unsupported_edge {

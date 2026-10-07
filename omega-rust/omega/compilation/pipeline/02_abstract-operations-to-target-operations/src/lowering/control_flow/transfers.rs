@@ -520,6 +520,7 @@ pub(super) fn validate_successors(
             )
         }
         AbstractOperation::Return { .. }
+        | AbstractOperation::ExternalCompletion { .. }
         | AbstractOperation::Crash { .. }
         | AbstractOperation::ReturnStructural { .. }
         | AbstractOperation::ReturnUnit { .. }

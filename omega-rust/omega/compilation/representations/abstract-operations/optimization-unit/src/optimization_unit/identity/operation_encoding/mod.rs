@@ -92,6 +92,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::Return { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
+        | O::ExternalCompletion { .. }
         | O::Crash { .. } => control::encode(bytes, operation),
     }
 }

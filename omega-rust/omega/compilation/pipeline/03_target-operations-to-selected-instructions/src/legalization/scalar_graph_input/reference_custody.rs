@@ -2106,6 +2106,7 @@ pub(in crate::legalization) fn block_entry_states(
                     | AbstractOperation::Jump { .. }
                     | AbstractOperation::Conditional { .. }
                     | AbstractOperation::StructuralCase { .. }
+                    | AbstractOperation::ExternalCompletion { .. }
             ) {
                 apply_terminator(&mut custody, &node.operation, function, plan)?;
             } else {

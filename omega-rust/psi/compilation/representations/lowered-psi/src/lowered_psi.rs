@@ -4,7 +4,7 @@ mod source_custody;
 pub use source_custody::{
     CallbackTerminalLoweringReceipt, LoweredSelectedIeeeFloatComparisonOccurrence,
     LoweredSelectedIntegerComparisonOccurrence, LoweredSelectedIntegerComparisonOperandOrder,
-    LoweredSelectedIntegerComparisonOperation, LoweredSourceCallOccurrence,
+    LoweredSelectedIntegerComparisonOperation, LoweredSourceCallOccurrence, LoweredSourceCallSite,
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 

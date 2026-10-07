@@ -26,6 +26,38 @@ pub enum ExternalCompletionKind {
     ProcessExit,
 }
 
+/// Exact location of a boundary invocation. Terminal completions are edges,
+/// not result-producing operations; the two namespaces never alias.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryInvocationSite {
+    Operation(OperationId),
+    ExternalCompletion(EdgeId),
+}
+
+impl BoundaryInvocationSite {
+    pub const fn operation(self) -> Option<OperationId> {
+        match self {
+            Self::Operation(operation) => Some(operation),
+            Self::ExternalCompletion(_) => None,
+        }
+    }
+}
+
+impl From<OperationId> for BoundaryInvocationSite {
+    fn from(operation: OperationId) -> Self {
+        Self::Operation(operation)
+    }
+}
+
+impl fmt::Display for BoundaryInvocationSite {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Operation(operation) => write!(formatter, "operation {operation}"),
+            Self::ExternalCompletion(edge) => write!(formatter, "completion edge {edge}"),
+        }
+    }
+}
+
 /// Completion premise of an exact opaque requirement, independent of its
 /// normal-result shape and service ceiling. Provider admission must preserve it.
 /// The transitional Unit exit encoding retains `External(ProcessExit)` here;

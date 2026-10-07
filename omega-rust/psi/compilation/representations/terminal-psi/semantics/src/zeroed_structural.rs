@@ -58,6 +58,34 @@ pub enum ZeroedStructuralLeaf {
     },
 }
 
+/// An already established erased field occurrence. This identifies host
+/// custody supplied independently of zero storage; it never creates a Binding
+/// or determines an omitted proof term from its carrier's spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EstablishedErasedStructuralField {
+    pub field_path: Vec<String>,
+    pub carrier_type_identity: String,
+}
+
+fn established_field_identity<'types>(
+    declarations: &[&'types StructuralTypeDeclaration],
+    field: &'types StructuralFieldDeclaration,
+) -> Option<&'types str> {
+    match &field.field_type {
+        StructuralFieldType::Erased { type_identity } if !type_identity.is_empty() => {
+            Some(type_identity)
+        }
+        StructuralFieldType::Structural(child) if !field.relevance.is_erased() => {
+            let declaration = declarations
+                .iter()
+                .find(|declaration| declaration.id == *child)?;
+            matches!(declaration.shape, StructuralTypeShape::FusedServiceBinding)
+                .then_some(declaration.identity.as_str())
+        }
+        _ => None,
+    }
+}
+
 impl ZeroedStructuralLeaf {
     /// The leaf's canonical static path below the established root.
     pub fn path(&self) -> &[StructuralPathSegment] {
@@ -100,12 +128,13 @@ pub fn zeroed_structural_shape<'types>(
     root: StructuralTypeId,
 ) -> bool {
     let declarations: Vec<_> = types.collect();
-    zeroed_declaration_graph(&declarations, root)
+    zeroed_declaration_graph(&declarations, root, false)
 }
 
 fn zeroed_declaration_graph(
     declarations: &[&StructuralTypeDeclaration],
     root: StructuralTypeId,
+    allow_established_fields: bool,
 ) -> bool {
     // Declaration-indexed DFS marks distinguish a backedge from a shared
     // child reached by several fields. Array extents do not grow this walk.
@@ -170,6 +199,14 @@ fn zeroed_declaration_graph(
         active[position] = true;
         pending.push((current, true));
         for field in fields {
+            // This permissive shape walk only rejects cycles and invalid data
+            // leaves. The materialization walk below independently requires
+            // exact supplied custody for every such occurrence and consumes
+            // each establishment once; no field is established here.
+            if allow_established_fields && established_field_identity(declarations, field).is_some()
+            {
+                continue;
+            }
             if field.relevance.is_erased() {
                 return false;
             }
@@ -210,10 +247,24 @@ pub fn zeroed_structural_leaves<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> Option<Vec<ZeroedStructuralLeaf>> {
+    zeroed_structural_leaves_with_established_erased_fields(types, root, &[])
+}
+
+/// Enumerate zero data around exact erased occurrences whose actual custody
+/// the host has already established. Empty input is ordinary zeroing and
+/// refuses every erased/Fused field. Paths are root-relative record/common
+/// routes, matching admitted root establishment receipts; array/case service
+/// establishment is not manufactured by this input vocabulary.
+pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    established_fields: &[EstablishedErasedStructuralField],
+) -> Option<Vec<ZeroedStructuralLeaf>> {
     let declarations: Vec<&StructuralTypeDeclaration> = types.collect();
-    if !zeroed_declaration_graph(&declarations, root) {
+    if !zeroed_declaration_graph(&declarations, root, !established_fields.is_empty()) {
         return None;
     }
+    let mut consumed = vec![false; established_fields.len()];
     let mut leaves = Vec::new();
     // (type id, path to its runtime place root)
     let mut pending = vec![(root, Vec::new())];
@@ -232,6 +283,30 @@ pub fn zeroed_structural_leaves<'types>(
             &declaration.shape
         {
             for field in fields {
+                if let Some(carrier) = established_field_identity(&declarations, field) {
+                    let mut field_path = path
+                        .iter()
+                        .map(|segment| match segment {
+                            StructuralPathSegment::Field(identity) => Some(identity.clone()),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    field_path.push(field.identity.clone());
+                    let mut matching =
+                        established_fields
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, established)| {
+                                established.field_path == field_path
+                                    && established.carrier_type_identity == carrier
+                            });
+                    let (index, _) = matching.next()?;
+                    if matching.next().is_some() || consumed[index] {
+                        return None;
+                    }
+                    consumed[index] = true;
+                    continue;
+                }
                 if let StructuralFieldType::Structural(member) = field.field_type {
                     let mut member_path = path.clone();
                     member_path.push(StructuralPathSegment::Field(field.identity.clone()));
@@ -317,5 +392,5 @@ pub fn zeroed_structural_leaves<'types>(
             return None;
         }
     }
-    Some(leaves)
+    consumed.iter().all(|consumed| *consumed).then_some(leaves)
 }

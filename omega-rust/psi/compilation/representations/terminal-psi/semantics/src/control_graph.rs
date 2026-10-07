@@ -40,7 +40,8 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
                 Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
                 | Terminator::ReturnStructural { .. }
-                | Terminator::Crash { .. } => Vec::new(),
+                | Terminator::Crash { .. }
+                | Terminator::ExternalCompletion { .. } => Vec::new(),
             };
             (block.id, edges)
         })

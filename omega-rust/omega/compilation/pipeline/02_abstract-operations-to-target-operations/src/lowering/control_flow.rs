@@ -62,7 +62,6 @@ struct LiveDefinitions {
     borrowed_reference_sources: references::BorrowedSources,
     // Dominating definitions only. Abstract-unit validation owns edge liveness.
     structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
-    nonreturning: bool,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
     scalar_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
@@ -366,9 +365,9 @@ pub(super) fn lower(
         }
         ranges.push(entry.operation_offset..end);
         let targets = match &function.operations[end - 1] {
-            AbstractOperation::ReturnStructural { .. } | AbstractOperation::Crash { .. } => {
-                Vec::new()
-            }
+            AbstractOperation::ReturnStructural { .. }
+            | AbstractOperation::ExternalCompletion { .. }
+            | AbstractOperation::Crash { .. } => Vec::new(),
             AbstractOperation::Return {
                 cleanup_actions, ..
             }
@@ -424,7 +423,6 @@ pub(super) fn lower(
     let initial = LiveDefinitions {
         borrowed_reference_sources,
         structural_homes: BTreeMap::new(),
-        nonreturning: false,
         integers: super::function_signature::integer_parameters(
             function.machine,
             &prepared.scalar_parameters,
@@ -456,7 +454,6 @@ pub(super) fn lower(
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                 .clone(),
         };
-        live.nonreturning = false;
         live.enter_reference_edge(entries[position].block);
         if position != entry_position {
             transfers::enter(&entries[position], &mut live);
@@ -582,6 +579,9 @@ pub(super) fn lower(
             &prepared,
             &mut live,
             structural_types,
+            target,
+            boundary_machines,
+            settlements,
             provenance,
         )?;
         lowered[position] = Some(TargetControlBlock {

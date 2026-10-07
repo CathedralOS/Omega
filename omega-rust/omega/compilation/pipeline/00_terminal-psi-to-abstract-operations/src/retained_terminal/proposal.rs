@@ -216,7 +216,7 @@ fn project_callback_occurrences(
                     })?;
             Ok(crate::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
-                occurrence.terminal_operation,
+                occurrence.terminal_site.operation().ok_or_else(|| vec![Diagnostic::error("callback registrar requires a normally returning operation occurrence")])?,
                 placement
                     .private_materialization
                     .as_ref()

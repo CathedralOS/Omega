@@ -502,20 +502,28 @@ pub(super) fn build(
     // contract fingerprint below, so a blocking boundary is planned
     // exactly like a nonblocking one.
     let capsule = facts.contract_plans.crash_capsule(owner, target)?;
-    // The common caller-custody join accounts for each owned argument.
-    // Here those rows are normal-completion receipts because the selected
-    // destination is a boundary, rather than a checked body's entry roster.
+    // Completion belongs to the exact source requirement, never its provider.
+    // Ordinary calls retain normal receipts; external completion abandons
+    // in-domain obligations and demands independently admitted runtime authority.
     phase("call operation: boundary claim transfers");
-    let completion_receipts = call_claim_transfers(
-        facts,
-        machine.symbol,
-        state.symbol,
-        call,
-        caller_parameters,
-        entry_claims,
-        caller_structural_results,
-        &structural_arguments,
-    )?;
+    let completion = validation::boundary_requirement_completion(program, target);
+    let transfers = match completion {
+        semantic_vocabulary::BoundaryCompletion::External(_) => {
+            checked_trees::CheckedUnitCallTransfers::Abandonment
+        }
+        semantic_vocabulary::BoundaryCompletion::NormalReturn => {
+            checked_trees::CheckedUnitCallTransfers::CompletionReceipts(call_claim_transfers(
+                facts,
+                machine.symbol,
+                state.symbol,
+                call,
+                caller_parameters,
+                entry_claims,
+                caller_structural_results,
+                &structural_arguments,
+            )?)
+        }
+    };
     checked_trees::CheckedUnitCallPlan::new(checked_trees::CheckedUnitCallParts {
         coordinate,
         source_site,
@@ -526,6 +534,7 @@ pub(super) fn build(
             service_reach: call.service_reach,
         },
         route: checked_trees::CheckedUnitCallRoute::Boundary,
+        completion,
         scalar_arguments: checked_call_scalar_arguments(
             facts,
             state.symbol,
@@ -535,7 +544,7 @@ pub(super) fn build(
         )?,
         structural_arguments,
         result: checked_trees::CheckedUnitCallResult::Unit,
-        transfers: checked_trees::CheckedUnitCallTransfers::CompletionReceipts(completion_receipts),
+        transfers,
     })
     .map(CheckedUnitEffectOperationPlan::Call)
 }

@@ -36,6 +36,9 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     foreign: &image_emission::ObjectForeignCall,
     structural_arguments: &[terminal_psi::StructuralArgument],
 ) -> Result<FragmentForeignCallRejoin<'a>, &'static str> {
+    let source_operation = occurrence
+        .operation()
+        .ok_or("returning foreign fragment requires an operation invocation")?;
     let plan = publication.relocation_free_object();
     let selected = publication.selected_plan();
     let mut functions = selected
@@ -50,8 +53,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
         .iter()
         .enumerate()
         .filter(|(_, record)| {
-            record.operation == occurrence.operation()
-                && record.call.boundary == occurrence.boundary()
+            record.operation == source_operation && record.call.boundary == occurrence.boundary()
         });
     let (Some((ordinal, record)), None) = (records.next(), records.next()) else {
         return Err("normalized foreign D41 child cannot rejoin one selected call");
@@ -78,7 +80,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
         .iter()
         .filter(|candidate| {
             candidate.resolution.caller == occurrence.machine()
-                && candidate.resolution.operation == occurrence.operation()
+                && candidate.resolution.operation == source_operation
         });
     let import = match (record.call.binding.import(), fields.next(), fields.next()) {
         (Some(_), Some(field), None) => {

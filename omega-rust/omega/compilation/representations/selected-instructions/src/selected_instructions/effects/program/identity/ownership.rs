@@ -30,6 +30,10 @@ pub fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
                 bytes.push(5);
                 encode_ids(bytes, claims.iter().map(|id| id.get()));
             }
+            OwnershipEvent::ExternalCompletionFrontier(claims) => {
+                bytes.push(6);
+                encode_ids(bytes, claims.iter().map(|id| id.get()));
+            }
         }
     }
 }

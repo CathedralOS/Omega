@@ -160,9 +160,9 @@ pub(super) fn provenance(
         },
         SelectedTerminator::HostedExitProcess {
             instruction: exited,
-            nominal_return_edge,
+            completion_edge,
         } if exited.id == instruction.id => FunctionFragmentControlProvenance::HostedExitProcess {
-            nominal_return_edge: *nominal_return_edge,
+            completion_edge: *completion_edge,
         },
         SelectedTerminator::Return {
             instruction: returned,

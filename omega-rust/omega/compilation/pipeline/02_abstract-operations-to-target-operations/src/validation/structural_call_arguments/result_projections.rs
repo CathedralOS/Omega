@@ -1,52 +1,10 @@
 //! Source-side result and cleanup projections: reconstruct the scalar result
-//! each operation claims and the tails a hosted-exit or affine cleanup must
-//! carry.
+//! each ordinary operation claims.
 
 use abstract_operations::{
-    AbstractBoundaryResult, AbstractFunction, AbstractOperation, AbstractResult,
-    AbstractStructuralCallResult,
+    AbstractBoundaryResult, AbstractOperation, AbstractResult, AbstractStructuralCallResult,
 };
 use semantic_vocabulary::{IntegerType, OperationId, ScalarType, ValueId};
-use terminal_psi::TerminalAffineCleanupAction;
-
-pub(super) fn no_code_cleanup(actions: &[TerminalAffineCleanupAction]) -> bool {
-    actions.iter().all(|action| {
-        matches!(
-            action,
-            TerminalAffineCleanupAction::DiscardRoot(_)
-                | TerminalAffineCleanupAction::DiscardResidual(_)
-        )
-    })
-}
-
-/// A `HostedExitProcessI32` settlement never returns: the source boundary
-/// call is the last non-terminator operation of its block and the block
-/// closes on a `ReturnUnit` with only no-code discards. Independent graph
-/// replay checks their exact source equality, owned homes and residual paths.
-pub(super) fn hosted_exit_source_tail(source: &AbstractFunction, position: usize) -> bool {
-    let mut block_end = None;
-    for (index, entry) in source.block_entries.iter().enumerate() {
-        let end = source
-            .block_entries
-            .get(index + 1)
-            .map_or(source.operations.len(), |next| next.operation_offset);
-        if entry.operation_offset <= position && position < end {
-            block_end = Some(end);
-            break;
-        }
-    }
-    let Some(end) = block_end else {
-        return false;
-    };
-    position + 2 == end
-        && matches!(
-            source.operations.get(end - 1),
-            Some(AbstractOperation::ReturnUnit {
-                cleanup_actions,
-                ..
-            }) if no_code_cleanup(cleanup_actions)
-        )
-}
 
 /// The integer-result operations whose durable scalar home enters the
 /// producer's known-integer map: scalar definitions, structural scalar

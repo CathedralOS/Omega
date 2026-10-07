@@ -10,42 +10,21 @@ use crate::LegalizationError;
 use semantic_vocabulary::OperationId;
 use target_operations::{BoundaryRealization, TargetUnitOperation};
 
-pub(super) fn validate_tails(
-    native: &TargetOperationPlan,
+pub(super) fn validate_normal_call_completions(
+    _native: &TargetOperationPlan,
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     for block in &optimized.blocks {
-        for (position, node) in block.nodes.iter().enumerate() {
-            let AbstractOperation::BoundaryCall { psi_operation, .. } = node.operation else {
+        for node in &block.nodes {
+            let AbstractOperation::BoundaryCall { boundary, .. } = node.operation else {
                 continue;
             };
-            // Installed checked code has an ordinary call/return edge. Only an
-            // explicit hosted process-exit settlement has this no-return tail.
-            if super::call_origin::installed_operation(node, optimized, native, plan)?.is_some() {
-                continue;
-            }
-            // An evaluated normalized foreign call carries its own admitted
-            // provider execution; it is never a hosted process-exit tail.
-            if super::normalized_foreign::row(native, optimized.machine, psi_operation)?.is_some() {
-                continue;
-            }
-            // Inline float arithmetic is an ordinary value definition.
-            if super::ieee_float_arithmetic::row(native, optimized.machine, psi_operation)?
-                .is_some()
-            {
-                continue;
-            }
-            // Ending owned aggregate custody emits no instruction after exit.
-            // Replay the ordinary cleanup contract, including exact owner shape.
-            if matches!(
-                hosted_realization(native, optimized.machine, psi_operation)?,
-                BoundaryRealization::HostedExitProcessI32(_)
-            ) && (position + 2 != block.nodes.len()
-                || !matches!(&block.nodes[position + 1].operation,
-                        AbstractOperation::ReturnUnit { cleanup_actions, .. }
-                            if super::aggregate_results::cleanup(optimized, cleanup_actions, &plan.structural_types)))
-            {
+            if !plan.boundary_machines.iter().any(|declaration| {
+                declaration.id == boundary
+                    && declaration.completion
+                        == semantic_vocabulary::BoundaryCompletion::NormalReturn
+            }) {
                 return Err(LegalizationError::custody());
             }
         }

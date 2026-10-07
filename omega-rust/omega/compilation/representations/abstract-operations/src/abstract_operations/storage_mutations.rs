@@ -51,6 +51,10 @@ impl AbstractOperation {
             | Self::BoundaryCall {
                 structural_arguments,
                 ..
+            }
+            | Self::ExternalCompletion {
+                structural_arguments,
+                ..
             } => exclusive(structural_arguments),
             Self::EstablishReference { source, .. } | Self::EstablishElementView { source, .. } => {
                 exclusive(std::slice::from_ref(source))

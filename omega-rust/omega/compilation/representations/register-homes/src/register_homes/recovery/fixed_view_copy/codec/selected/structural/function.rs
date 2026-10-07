@@ -258,7 +258,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
     for row in &function.boundary_settlements {
         bytes.extend_from_slice(&row.block.0.to_le_bytes());
         bytes.extend_from_slice(&row.instruction_index.to_le_bytes());
-        encode_boundary_settlement(bytes, &row.settlement);
+        encode_boundary_settlement(bytes, &row.settlement)?;
     }
     Ok(())
 }

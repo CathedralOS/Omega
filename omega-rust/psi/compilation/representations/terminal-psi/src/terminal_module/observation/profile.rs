@@ -2,8 +2,9 @@
 //! and the checked construction of the runtime traces they observe.
 
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
-    MachineId, OperationId, ScalarType, ServiceId, StructuralDomainId, StructuralTypeId,
+    BlockId, BoundaryMachineId, EdgeId, ExternalCompletionKind, IeeeFloatFormat, IeeeFloatValue,
+    IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ServiceId,
+    StructuralDomainId, StructuralTypeId,
 };
 
 use crate::StructuralPathQualification;
@@ -168,6 +169,23 @@ pub struct TerminalTraceOrdinaryEventRow {
     pub result: TerminalTraceResultSchema,
 }
 
+/// One closed external-completion terminator site, reconstructed from Terminal
+/// semantics rather than an ordinary Unit boundary call. The exact requirement
+/// owns the public identity; this roster observes a demand and grants no
+/// authority to end the instance's containing process execution domain.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalTraceExternalCompletionSiteRow {
+    pub machine: MachineId,
+    pub block: BlockId,
+    pub edge: EdgeId,
+    pub boundary: BoundaryMachineId,
+    pub boundary_identity: String,
+    pub kind: ExternalCompletionKind,
+    /// ProcessExit observes exactly one fixed signed i32 status, independent
+    /// of the host's physical status presentation.
+    pub status: TerminalTraceScalarSchema,
+}
+
 /// Verifier-derived rows before the canonical codec binds the module identity.
 /// This is not an independently reusable observation-profile instance.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -177,6 +195,7 @@ pub struct TerminalTraceV1Rows {
     pub boundary_crash_sites: Vec<TerminalTraceBoundaryCrashSiteRow>,
     pub operation_crash_sites: Vec<TerminalTraceOperationCrashSiteRow>,
     pub ordinary_events: Vec<TerminalTraceOrdinaryEventRow>,
+    pub external_completion_sites: Vec<TerminalTraceExternalCompletionSiteRow>,
 }
 
 /// First bounded `TerminalTraceV1` instance.
@@ -184,8 +203,8 @@ pub struct TerminalTraceV1Rows {
 /// This bounded rung contains the root, the terminator-edge crash-site roster,
 /// every declared boundary crash route at its exact call operation, every
 /// Trapping primitive's operation-level crash site, and every ordinary
-/// `BoundaryCall` and `PortWrite` event. Its canonical codec still
-/// includes a zero terminal-external count. The interpreter may consume its
+/// `BoundaryCall` and `PortWrite` event, and every closed external-completion
+/// terminator. The interpreter may consume its
 /// exact scalar schemas for the bounded semantic-value comparator and
 /// [`Self::begin_trace`] for checked runtime trace construction; profile
 /// refinement remains a separate later rung.
@@ -198,6 +217,7 @@ pub struct TerminalTraceV1Profile {
     pub boundary_crash_sites: Vec<TerminalTraceBoundaryCrashSiteRow>,
     pub operation_crash_sites: Vec<TerminalTraceOperationCrashSiteRow>,
     pub ordinary_events: Vec<TerminalTraceOrdinaryEventRow>,
+    pub external_completion_sites: Vec<TerminalTraceExternalCompletionSiteRow>,
 }
 
 impl TerminalTraceV1Profile {
@@ -317,6 +337,17 @@ pub struct TerminalTraceV1Event {
 /// The resolved outcome ending a finite `TerminalTraceV1` runtime trace.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalTraceV1Outcome {
+    /// No-successor external completion at the exact declared site. This
+    /// carries the semantic status without claiming cleanup, normal
+    /// postconditions, or discharge of abandoned obligations.
+    ExternalCompletion {
+        machine: MachineId,
+        block: BlockId,
+        edge: EdgeId,
+        boundary: BoundaryMachineId,
+        kind: ExternalCompletionKind,
+        return_code: i32,
+    },
     /// Root return carrying the exact semantic value the root result schema
     /// describes; unit return is a value-free outcome distinct from every
     /// other.
@@ -355,8 +386,8 @@ pub enum TerminalTraceV1Outcome {
 /// `events` preserve execution order. A `None` outcome is the finite
 /// observable prefix of a continuing (possibly divergent) execution: an
 /// infinite maximal execution is observed only through such prefixes. The
-/// profile's empty terminal-external roster means a V1 trace cannot carry an
-/// `ExternalTerminate` outcome.
+/// external-completion outcome retains the same preceding ordered events and
+/// the exact semantic status, never a normal return value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TerminalTraceV1RuntimeTrace {
     pub schema: TerminalObservationSchema,
@@ -376,6 +407,16 @@ impl TerminalTraceV1RuntimeTrace {
 /// Rejection of one trace-construction step against the bound profile.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTraceV1ConstructionError {
+    UnknownExternalCompletionSite {
+        machine: MachineId,
+        block: BlockId,
+        edge: EdgeId,
+    },
+    ExternalCompletionContractMismatch {
+        boundary: BoundaryMachineId,
+        kind: ExternalCompletionKind,
+    },
+    UnsupportedExternalCompletionSchema,
     /// No ordinary-event row exists at the event's site coordinates.
     UnknownOrdinaryEventSite {
         machine: MachineId,
@@ -472,6 +513,63 @@ pub struct TerminalTraceV1TraceBuilder<'profile> {
 }
 
 impl<'profile> TerminalTraceV1TraceBuilder<'profile> {
+    /// Observe completion at an exact closed terminator site, preserving all
+    /// preceding events. The admitted runtime must separately establish actual
+    /// delegated domain authority; trace construction does not issue it.
+    pub fn finish_external_completion(
+        self,
+        machine: MachineId,
+        block: BlockId,
+        edge: EdgeId,
+        boundary: BoundaryMachineId,
+        kind: ExternalCompletionKind,
+        return_code: i32,
+    ) -> Result<TerminalTraceV1RuntimeTrace, TerminalTraceV1ConstructionError> {
+        let mut rows = self
+            .profile
+            .external_completion_sites
+            .iter()
+            .filter(|row| row.machine == machine && row.block == block && row.edge == edge);
+        let row = rows.next().ok_or(
+            TerminalTraceV1ConstructionError::UnknownExternalCompletionSite {
+                machine,
+                block,
+                edge,
+            },
+        )?;
+        if rows.next().is_some() || row.boundary != boundary || row.kind != kind {
+            return Err(
+                TerminalTraceV1ConstructionError::ExternalCompletionContractMismatch {
+                    boundary,
+                    kind,
+                },
+            );
+        }
+        // Each closed kind owns its semantic argument schema; adding a kind
+        // must add an explicit observation contract here.
+        match kind {
+            ExternalCompletionKind::ProcessExit => {}
+        }
+        if row.boundary_identity.is_empty()
+            || !matches!(row.status.scalar_type, ScalarType::Integer(integer)
+                if integer.sign() == IntegerSign::Signed && integer.bits() == 32 && !integer.is_address())
+        {
+            return Err(TerminalTraceV1ConstructionError::UnsupportedExternalCompletionSchema);
+        }
+        match row.status.comparison {
+            TerminalTraceValueComparison::ExactSemanticValue => {}
+        }
+        Ok(
+            self.complete(Some(TerminalTraceV1Outcome::ExternalCompletion {
+                machine,
+                block,
+                edge,
+                boundary,
+                kind,
+                return_code,
+            })),
+        )
+    }
     /// Admit one ordinary external event at a declared site.
     ///
     /// Events must be pushed in execution order; revisiting a site is a new
@@ -900,6 +998,7 @@ mod tests {
                     operand_type: integer_type(IntegerSign::Unsigned, 8),
                 },
             }],
+            external_completion_sites: Vec::new(),
             ordinary_events: vec![
                 TerminalTraceOrdinaryEventRow {
                     machine,

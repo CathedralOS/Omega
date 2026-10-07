@@ -135,6 +135,13 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 "restored reborrow call use does not name one exact Terminal call occurrence",
             );
         };
+        let terminal_operation =
+            occurrence
+                .terminal_site
+                .operation()
+                .ok_or(LoweringError::Unsupported(
+                    "external completion cannot establish a restored reborrow receipt",
+                ))?;
         let caller = terminal_machines
             .iter()
             .find(|machine| machine.id == terminal_machine)
@@ -145,7 +152,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             .blocks
             .iter()
             .flat_map(|block| &block.operations)
-            .filter(|operation| operation.id == occurrence.terminal_operation)
+            .filter(|operation| operation.id == terminal_operation)
             .collect::<Vec<_>>();
         let [operation] = operations.as_slice() else {
             return unsupported(
@@ -185,7 +192,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
         let child_weakening = boundary(checked, child_weakening.source)?;
         rows.push(TerminalReborrowRestoredCallUse {
             machine: terminal_machine,
-            operation: occurrence.terminal_operation,
+            operation: terminal_operation,
             restoration_class: if shared_freeze_cohort {
                 TerminalReborrowRestorationClass::SharedFreezeRestoration
             } else {

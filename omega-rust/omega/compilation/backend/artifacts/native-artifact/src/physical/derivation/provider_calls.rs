@@ -73,6 +73,9 @@ pub(crate) fn boundary_internal_call_exists(
     object: &image_emission::ObjectArtifact,
     occurrence: &OptimizedBoundaryOccurrence,
 ) -> bool {
+    let Some(operation) = occurrence.operation() else {
+        return false;
+    };
     object
         .functions()
         .iter()
@@ -83,7 +86,7 @@ pub(crate) fn boundary_internal_call_exists(
                 .iter()
                 .map(|call| call.owner)
                 .chain(function.scalar_call_stacks.iter().map(|call| call.owner))
-                .any(|owner| owner == CallSiteOwner::Operation(occurrence.operation()))
+                .any(|owner| owner == CallSiteOwner::Operation(operation))
         })
 }
 
@@ -107,6 +110,9 @@ pub(crate) fn derive_installed_provider_internal_call_child(
     selected_plan: &NativeSelectedProviderPlan,
     target: NativeTarget,
 ) -> Result<Option<NativePhysicalChild>, &'static str> {
+    let source_operation = occurrence
+        .operation()
+        .ok_or("returning provider call requires an operation invocation")?;
     // The emitted call must still rejoin exactly one Terminal boundary call
     // on the occurrence's machine. This lane binds the plain internal-call
     // custody only: structural-argument and completion-receipt shapes retain
@@ -117,7 +123,7 @@ pub(crate) fn derive_installed_provider_internal_call_child(
         .filter(|machine| machine.id == occurrence.machine())
         .flat_map(|machine| &machine.blocks)
         .flat_map(|block| &block.operations)
-        .filter(|operation| operation.id == occurrence.operation())
+        .filter(|operation| operation.id == source_operation)
         .collect::<Vec<_>>();
     let [operation] = matching_operations.as_slice() else {
         return Err("installed provider internal call does not rejoin one Terminal operation");
@@ -142,11 +148,7 @@ pub(crate) fn derive_installed_provider_internal_call_child(
         .iter()
         .find(|function| function.machine == occurrence.machine())
         .ok_or("installed provider internal call names an absent object function")?;
-    if !function
-        .provenance
-        .operations
-        .contains(&occurrence.operation())
-    {
+    if !function.provenance.operations.contains(&source_operation) {
         return Err("installed provider internal call left its function provenance");
     }
     let calls = function
@@ -159,7 +161,7 @@ pub(crate) fn derive_installed_provider_internal_call_child(
                 .iter()
                 .map(InternalCallRow::Scalar),
         )
-        .filter(|call| call.owner() == CallSiteOwner::Operation(occurrence.operation()))
+        .filter(|call| call.owner() == CallSiteOwner::Operation(source_operation))
         .collect::<Vec<_>>();
     let [call] = calls.as_slice() else {
         return if calls.is_empty() {
@@ -209,8 +211,7 @@ pub(crate) fn derive_installed_provider_internal_call_child(
     // call carries no relocation of its own.
     let mut attribution = object.semantic_code_attribution().iter().filter(|row| {
         row.machine == function.machine
-            && row.attribution.site
-                == machine_code::SemanticCodeSite::Operation(occurrence.operation())
+            && row.attribution.site == machine_code::SemanticCodeSite::Operation(source_operation)
             && row.attribution.operation_ordinal == occurrence.operation_ordinal()
             && row.text_offset <= opcode
             && row

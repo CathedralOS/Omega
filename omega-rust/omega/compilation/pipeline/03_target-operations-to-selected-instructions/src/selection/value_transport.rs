@@ -24,6 +24,13 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
             }
         };
         match &block.terminator {
+            Terminator::ExternalCompletion { arguments, .. } => {
+                pending.extend(
+                    arguments
+                        .iter()
+                        .map(|argument| argument.source.source_value()),
+                );
+            }
             Terminator::Return(returned) | Terminator::ReturnCleanup { returned, .. } => {
                 if let LegalizedScalarReturnValue::Value { value, .. } = returned.value {
                     pending.push(value);

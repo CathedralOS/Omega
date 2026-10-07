@@ -15,6 +15,13 @@ use native_artifact::RequestedNativeArtifact;
 use self::object_emission::emit_realization_object;
 use terminal_psi_to_abstract_operations::{AdmittedNativeRealization, admit_native_realization};
 
+/// Image and the exact source-free runtime provisions admitted beside it.
+/// The backend image does not own host interpretation policy or runtime state.
+pub struct RealizedNativeProduct {
+    pub artifact: RequestedNativeArtifact,
+    pub runtime_provisions: Option<compilation_products::TerminalRuntimeProvisions>,
+}
+
 /// Realize one Terminal artifact using explicit image, custody, reuse, and
 /// behavior-exclusion inputs. The request's retained behavior-exclusion union
 /// is adjudicated against the mechanism-closure review by stage 00,
@@ -24,14 +31,14 @@ use terminal_psi_to_abstract_operations::{AdmittedNativeRealization, admit_nativ
 pub fn realize_native_artifact(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,
-) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
+) -> Result<RealizedNativeProduct, RequestedNativeArtifactError> {
     realize_image(artifact, &request).map_err(|diagnostics| request.into_failure(diagnostics))
 }
 
 fn realize_image(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
-) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
+) -> Result<RealizedNativeProduct, Vec<Diagnostic>> {
     let AdmittedNativeRealization {
         input,
         mut providers,
@@ -43,6 +50,36 @@ fn realize_image(
         request.admission.providers.program_entry,
         request.admission.providers.target,
     )?;
+    // Capture before emission takes the installation. These are the admitted
+    // rows of this same image request, not reconstructed provider-name hints.
+    let entry = request.admission.providers.program_entry;
+    let runtime_provisions = entry
+        .checked_entry
+        .map(|checked| {
+            compilation_products::TerminalRuntimeProvisions::capture_native_admission(
+                checked,
+                entry.fused_service_establishments(),
+                providers
+                    .installation
+                    .as_ref()
+                    .map(|installation| installation.psi_installation()),
+                providers
+                    .settlements
+                    .iter()
+                    .map(
+                        |settlement| compilation_products::TerminalRuntimeHostProvision {
+                            boundary: settlement.boundary,
+                            realization: settlement.realization.clone(),
+                        },
+                    )
+                    .collect(),
+                &input.plan().boundary_machines,
+                request.admission.providers.selected_provider_plans,
+                entry.source().target_slot(),
+            )
+        })
+        .transpose()
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     let emitted = emit_realization_object(
         input,
         providers.installation.take(),
@@ -59,7 +96,7 @@ fn realize_image(
         .clone()
         .settle_elf_loader(&emitted.object, request.elf_interpreter)
         .map_err(|error| vec![error.diagnostic().clone()])?;
-    RequestedNativeArtifact::emit_admitted(
+    let artifact = RequestedNativeArtifact::emit_admitted(
         request.admission.providers.target,
         artifact,
         emitted,
@@ -67,5 +104,9 @@ fn realize_image(
         request.admission.providers.selected_provider_plans,
         providers,
         boundary_application_coverage,
-    )
+    )?;
+    Ok(RealizedNativeProduct {
+        artifact,
+        runtime_provisions,
+    })
 }

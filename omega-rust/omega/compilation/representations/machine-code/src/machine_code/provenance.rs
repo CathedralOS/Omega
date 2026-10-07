@@ -9,6 +9,19 @@ pub enum SemanticCodeSite {
     Edge(EdgeId),
 }
 
+impl From<semantic_vocabulary::BoundaryInvocationSite> for SemanticCodeSite {
+    fn from(site: semantic_vocabulary::BoundaryInvocationSite) -> Self {
+        match site {
+            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+                Self::Operation(operation)
+            }
+            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                Self::Edge(edge)
+            }
+        }
+    }
+}
+
 /// Source-free semantic-to-code custody used by independent object replay.
 /// It carries no runtime budget, charge, meter, or execution policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

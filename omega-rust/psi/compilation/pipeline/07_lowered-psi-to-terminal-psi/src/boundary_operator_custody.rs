@@ -122,7 +122,7 @@ fn checked_boundary_operator_occurrences(
         let mut sources = lowered
             .source_call_occurrences
             .iter()
-            .filter(|source| source.terminal_operation == operation.id);
+            .filter(|source| source.terminal_site.operation() == Some(operation.id));
         let (Some(source), None) = (sources.next(), sources.next()) else {
             return unsupported("named boundary application has no unique source-call occurrence");
         };

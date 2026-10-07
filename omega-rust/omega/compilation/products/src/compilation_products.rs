@@ -50,6 +50,7 @@ struct TerminalProduct {
 #[derive(Debug)]
 struct NativeProduct {
     artifact: RetainedNativeArtifact,
+    runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
     /// Exact subtractive release overlay applied after build selection and
     /// before native realization. Ordinary requests retain `None`.
     optimization_rollback: Option<OptimizationRollbackReceipt>,
@@ -61,6 +62,7 @@ struct NativeProduct {
 /// over so the package/executable cross-binding can be replayed.
 #[derive(Debug)]
 struct PublishedNativeProduct {
+    runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
     /// Exact checked publication receipt for a native executable image.
     executable: ExecutablePublicationReceipt,
     /// Exact checked receipt for a macOS application package publication;
@@ -80,6 +82,7 @@ struct PublishedNativeProduct {
 #[derive(Debug)]
 struct DynamicElfProduct {
     artifact: DynamicElfNativeArtifact,
+    runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
     /// Exact subtractive release overlay applied after build selection and
     /// before native realization. Ordinary requests retain `None`.
     optimization_rollback: Option<OptimizationRollbackReceipt>,
@@ -90,6 +93,7 @@ struct DynamicElfProduct {
 /// dynamic ELF payload. It grants no loader or execution authority.
 #[derive(Debug)]
 struct PublishedDynamicElfProduct {
+    runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
     executable: DynamicElfPublicationReceipt,
     optimization_rollback: Option<OptimizationRollbackReceipt>,
     application: NativeApplicationMetadata,
@@ -296,6 +300,7 @@ impl CompileReport {
             return Err("native publication requires exactly one retained native artifact".into());
         }
         self.product = CompileProduct::NativeExecutable(PublishedNativeProduct {
+            runtime_provisions: product.runtime_provisions,
             executable: receipt,
             package,
             optimization_rollback: product.optimization_rollback,
@@ -322,6 +327,7 @@ impl CompileReport {
             );
         }
         self.product = CompileProduct::DynamicElfExecutable(PublishedDynamicElfProduct {
+            runtime_provisions: product.runtime_provisions,
             executable: receipt,
             optimization_rollback: product.optimization_rollback,
             application: product.application,
@@ -374,6 +380,7 @@ impl CompileReport {
             CompileOutputKind::ObjectContainer => CompileProduct::ObjectContainer,
             CompileOutputKind::NativeExecutable => match executable_publication {
                 Some(executable) => CompileProduct::NativeExecutable(PublishedNativeProduct {
+                    runtime_provisions: None,
                     executable,
                     package: None,
                     optimization_rollback: None,
@@ -409,6 +416,7 @@ impl CompileReport {
             source_file_count,
             CompileProduct::RetainedNativeArtifact(NativeProduct {
                 artifact,
+                runtime_provisions: None,
                 optimization_rollback,
                 application: NativeApplicationMetadata::default(),
             }),
@@ -429,6 +437,7 @@ impl CompileReport {
             source_file_count,
             CompileProduct::RetainedDynamicElfArtifact(DynamicElfProduct {
                 artifact,
+                runtime_provisions: None,
                 optimization_rollback,
                 application: NativeApplicationMetadata::default(),
             }),
@@ -492,6 +501,37 @@ impl CompileReport {
 
     pub const fn optimization_rollback_receipt(&self) -> Option<&OptimizationRollbackReceipt> {
         self.product.optimization_rollback()
+    }
+
+    /// Attach the provisions captured by this native production before image
+    /// emission consumed the entry and provider records. The runtime consumer
+    /// joins their identity to its admitted program before creating an instance.
+    pub fn with_runtime_provisions(
+        mut self,
+        provisions: Option<crate::TerminalRuntimeProvisions>,
+    ) -> Result<Self, &'static str> {
+        let destination = match &mut self.product {
+            CompileProduct::RetainedNativeArtifact(product) => &mut product.runtime_provisions,
+            CompileProduct::RetainedDynamicElfArtifact(product) => &mut product.runtime_provisions,
+            _ => return Err("runtime provisions require a retained native product"),
+        };
+        if destination.is_some() {
+            return Err("runtime provisions are already attached to this product");
+        }
+        *destination = provisions;
+        Ok(self)
+    }
+
+    pub const fn runtime_provisions(&self) -> Option<&crate::TerminalRuntimeProvisions> {
+        match &self.product {
+            CompileProduct::RetainedNativeArtifact(product) => product.runtime_provisions.as_ref(),
+            CompileProduct::RetainedDynamicElfArtifact(product) => {
+                product.runtime_provisions.as_ref()
+            }
+            CompileProduct::NativeExecutable(product) => product.runtime_provisions.as_ref(),
+            CompileProduct::DynamicElfExecutable(product) => product.runtime_provisions.as_ref(),
+            _ => None,
+        }
     }
 
     pub fn with_timings(mut self, timings: Vec<PhaseTiming>) -> Self {

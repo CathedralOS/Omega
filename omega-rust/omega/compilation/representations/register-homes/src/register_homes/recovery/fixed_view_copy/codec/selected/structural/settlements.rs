@@ -30,7 +30,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
 pub(super) fn encode_boundary_settlement(
     bytes: &mut Vec<u8>,
     payload: &selected_instructions::SelectedBoundarySettlementPayload,
-) {
+) -> Result<(), terminal_codec::CodecError> {
     let settlement = match payload {
         selected_instructions::SelectedBoundarySettlementPayload::HostedReadByte {
             operation,
@@ -42,18 +42,33 @@ pub(super) fn encode_boundary_settlement(
             bytes.extend_from_slice(&operation.get().to_le_bytes());
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             super::read_result::encode(bytes, result, layout);
-            return;
+            return Ok(());
         }
         selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
-            operation,
+            edge,
+            execution,
             boundary,
             source,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            bytes.extend_from_slice(&edge.get().to_le_bytes());
+            match execution {
+                target_operations::BoundaryExecutionBinding::AdmittedProvider(provider) => {
+                    bytes.push(0);
+                    encode_provider_execution(bytes, *provider);
+                }
+                target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                ) => bytes.push(1),
+                _ => {
+                    return Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+                        "process exit settlement has an incompatible execution binding",
+                    ));
+                }
+            }
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&source.get().to_le_bytes());
-            return;
+            return Ok(());
         }
         selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(settlement) => {
             bytes.push(0);
@@ -68,7 +83,7 @@ pub(super) fn encode_boundary_settlement(
             bytes.extend_from_slice(&operation.get().to_le_bytes());
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&source.get().to_le_bytes());
-            return;
+            return Ok(());
         }
     };
     bytes.extend_from_slice(&settlement.operation.get().to_le_bytes());
@@ -91,6 +106,7 @@ pub(super) fn encode_boundary_settlement(
     encode_fuel(bytes, &settlement.fuel);
     encode_effect(bytes, settlement.effect);
     encode_ownership(bytes, &settlement.ownership);
+    Ok(())
 }
 
 pub(super) fn decode_boundary_settlement(
@@ -113,7 +129,18 @@ pub(super) fn decode_boundary_settlement(
         2 => {
             return Ok(
                 selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
-                    operation: decode_id(cursor, semantic_vocabulary::OperationId::new)?,
+                    edge: decode_id(cursor, semantic_vocabulary::EdgeId::new)?,
+                    execution: match cursor.byte()? {
+                        0 => target_operations::BoundaryExecutionBinding::AdmittedProvider(
+                            decode_provider_execution(cursor)?,
+                        ),
+                        1 => target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                            target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                        ),
+                        tag => {
+                            return Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag));
+                        }
+                    },
                     boundary: decode_id(cursor, BoundaryMachineId::new)?,
                     source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 },
@@ -451,6 +478,10 @@ pub(super) fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]
                 bytes.push(5);
                 encode_ids(bytes, claims.iter().map(|claim| claim.get()));
             }
+            OwnershipEvent::ExternalCompletionFrontier(claims) => {
+                bytes.push(6);
+                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
+            }
         }
     }
 }
@@ -474,6 +505,7 @@ pub(super) fn decode_ownership(
             }
             4 => OwnershipEvent::StructuralReturn(decode_ids(cursor, ClaimId::new)?),
             5 => OwnershipEvent::CrashFrontier(decode_ids(cursor, ClaimId::new)?),
+            6 => OwnershipEvent::ExternalCompletionFrontier(decode_ids(cursor, ClaimId::new)?),
             tag => return Err(FixedViewCopyDecodeError::UnknownOwnershipEvent(tag)),
         });
     }

@@ -16,8 +16,15 @@ pub(crate) fn validate(
     types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     roots: &BTreeMap<PlaceId, TerminalStructuralValue>,
     values: &BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
+    zero_initialized_arguments: &[u32],
 ) -> Result<(), TerminalInterpretError> {
     for (position, parameter) in machine.structural_parameters.iter().enumerate() {
+        // These roots already have actual storage from the shared zero
+        // materializer, which authenticated every instantiated restriction and
+        // selected sum payload. This is not eligibility inferred from a type.
+        if zero_initialized_arguments.contains(&(position as u32)) {
+            continue;
+        }
         let root = roots.get(&parameter.place).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
         )?;

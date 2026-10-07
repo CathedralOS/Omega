@@ -29,6 +29,72 @@ use crate::execution::TerminalExecution;
 use crate::program::TerminalProgram;
 use crate::results::TerminalExecutionStatus;
 
+/// Identity only: creating a domain grants no exit authority. Each instance
+/// owns a fresh simulated domain; no host or sibling process belongs to it.
+pub(crate) struct SimulatedProcessDomain;
+
+/// Explicit trusted host admission of domain-death crossing safety and exit
+/// delegation to one exact instance and slot. This is an affine host premise,
+/// not proof inferred from a declaration, reach, provider, or Binding roster.
+pub struct TerminalProcessExitAdmission {
+    program: terminal_psi::TerminalPsiIdentity,
+    domain: std::sync::Arc<SimulatedProcessDomain>,
+    demand: crate::capabilities::TerminalExternalCompletionDemand,
+}
+
+impl TerminalProcessExitAdmission {
+    /// The host asserts that this instance's isolated simulated domain may
+    /// abandon its in-domain custody without invalidating surviving owners'
+    /// guarantees: all actual crossings, including subsequent ordinary host
+    /// adapter invocations, admit death through isolation, retained custody,
+    /// recovery, or reset. Merely selecting a provider or
+    /// reading the artifact cannot justify this assertion. No external domain
+    /// is ended, and no release or protocol receipt is created.
+    ///
+    /// Placed-view host loans have no domain-death admission carrier yet and
+    /// are conservatively refused here. Ordinary in-domain loans are not.
+    pub fn admit_isolated_simulated_domain(
+        instance: &TerminalInstance<'_>,
+        boundary: BoundaryMachineId,
+    ) -> Result<Self, TerminalBindingRejection> {
+        if instance.closed {
+            return Err(TerminalBindingRejection::InstanceClosed);
+        }
+        let execution = instance
+            .execution
+            .as_ref()
+            .ok_or(TerminalBindingRejection::InstanceClosed)?;
+        if !execution.placed_view_occurrences.is_empty() {
+            return Err(TerminalBindingRejection::DomainDeathCrossingAdmissionMissing { boundary });
+        }
+        let demand = execution
+            .external_demands
+            .iter()
+            .find(|demand| demand.boundary == boundary)
+            .copied()
+            .ok_or(TerminalBindingRejection::NotRequiredImport { boundary })?;
+        match demand.kind {
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit => {}
+        }
+        Ok(Self {
+            program: instance.program.terminal_psi(),
+            domain: std::sync::Arc::clone(&instance.process_domain),
+            demand,
+        })
+    }
+
+    pub(crate) fn answers(
+        &self,
+        program: terminal_psi::TerminalPsiIdentity,
+        domain: Option<&std::sync::Arc<SimulatedProcessDomain>>,
+        demand: crate::capabilities::TerminalExternalCompletionDemand,
+    ) -> bool {
+        self.program == program
+            && self.demand == demand
+            && domain.is_some_and(|domain| std::sync::Arc::ptr_eq(domain, &self.domain))
+    }
+}
+
 /// One established boundary-requirement binding — the `Binding<R>` carrier at
 /// this surface: an exact import slot joined at establishment to the checked
 /// host adapter that answers it. The instance roster owns it; it cannot
@@ -44,21 +110,40 @@ struct TerminalImportBinding<'host> {
 /// Why a host adapter cannot establish an import slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalBindingRejection {
+    ExternalCompletionRequiresDomainAdmission {
+        boundary: BoundaryMachineId,
+    },
+    ExternalCompletionDomainMismatch {
+        boundary: BoundaryMachineId,
+    },
+    DomainDeathCrossingAdmissionMissing {
+        boundary: BoundaryMachineId,
+    },
     /// The slot names no boundary machine this program declares — the
     /// occurrence simply does not exist.
-    UnknownImport { boundary: BoundaryMachineId },
+    UnknownImport {
+        boundary: BoundaryMachineId,
+    },
     /// A declared catalog slot is not demanded by this entry/installation.
-    NotRequiredImport { boundary: BoundaryMachineId },
+    NotRequiredImport {
+        boundary: BoundaryMachineId,
+    },
     /// The slot is realized by a checked provider candidate. An admitted
     /// provider installation supplies it; a host binding may not substitute.
-    ProviderRealized { boundary: BoundaryMachineId },
+    ProviderRealized {
+        boundary: BoundaryMachineId,
+    },
     /// The slot already holds an established binding. `Binding<R>` is affine:
     /// rebinding requires a fresh instance, not a second supply.
-    DuplicateBinding { boundary: BoundaryMachineId },
+    DuplicateBinding {
+        boundary: BoundaryMachineId,
+    },
     /// The adapter's declared signature differs from the slot's exact
     /// contract — a wrong or incompatible host object, rejected before any
     /// guest effect can reach it.
-    SignatureMismatch { boundary: BoundaryMachineId },
+    SignatureMismatch {
+        boundary: BoundaryMachineId,
+    },
     /// The instance is closed; its binding roster is consumed.
     InstanceClosed,
 }
@@ -72,6 +157,9 @@ pub enum TerminalInstanceError {
     /// must be established before guest code runs — the roster is checked
     /// whole, before the first operation.
     UnboundImports { missing: Vec<BoundaryMachineId> },
+    UnboundExternalCompletions {
+        missing: Vec<crate::capabilities::TerminalExternalCompletionDemand>,
+    },
     /// An execution-level failure from the interpreter.
     Execution(TerminalInterpretError),
 }
@@ -94,6 +182,7 @@ pub enum TerminalInstanceCloseError {
 /// adapters cannot outlive the instance that bound them.
 pub struct TerminalInstance<'host> {
     program: TerminalProgram,
+    process_domain: std::sync::Arc<SimulatedProcessDomain>,
     /// The interpreter state while this instance owns it. `close` releases it
     /// early; `None` after close.
     execution: Option<TerminalExecution>,
@@ -112,11 +201,14 @@ pub struct TerminalInstance<'host> {
 impl<'host> TerminalInstance<'host> {
     pub(crate) fn new(
         program: TerminalProgram,
-        execution: TerminalExecution,
+        mut execution: TerminalExecution,
         required_imports: Vec<BoundaryMachineId>,
     ) -> Self {
+        let process_domain = std::sync::Arc::new(SimulatedProcessDomain);
+        execution.process_domain = Some(std::sync::Arc::clone(&process_domain));
         Self {
             program,
+            process_domain,
             execution: Some(execution),
             required_imports,
             bindings: BTreeMap::new(),
@@ -145,6 +237,24 @@ impl<'host> TerminalInstance<'host> {
         if self.closed {
             return Err(TerminalBindingRejection::InstanceClosed);
         }
+        if self
+            .program
+            .program
+            .boundary_machines
+            .get(&slot)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.completion,
+                    terminal_psi::BoundaryCompletion::External(_)
+                )
+            })
+        {
+            return Err(
+                TerminalBindingRejection::ExternalCompletionRequiresDomainAdmission {
+                    boundary: slot,
+                },
+            );
+        }
         let Some(declaration) = self.program.import(slot) else {
             return if self.program.program.boundary_machines.contains_key(&slot) {
                 // A declared boundary a provider candidate realizes — the
@@ -172,6 +282,71 @@ impl<'host> TerminalInstance<'host> {
             },
         );
         Ok(())
+    }
+
+    /// Consume an explicit trusted host delegation. The program, exact slot,
+    /// completion kind, and fresh containing domain must all rejoin this
+    /// instance before the binding roster changes. Provider candidates do not
+    /// supply this authority and do not override a closed external demand.
+    pub fn bind_external_completion(
+        &mut self,
+        boundary: BoundaryMachineId,
+        admission: TerminalProcessExitAdmission,
+    ) -> Result<(), TerminalBindingRejection> {
+        if self.closed {
+            return Err(TerminalBindingRejection::InstanceClosed);
+        }
+        let execution = self
+            .execution
+            .as_mut()
+            .ok_or(TerminalBindingRejection::InstanceClosed)?;
+        let demand = execution
+            .external_demands
+            .iter()
+            .find(|demand| demand.boundary == boundary)
+            .copied()
+            .ok_or(TerminalBindingRejection::NotRequiredImport { boundary })?;
+        if !admission.answers(
+            self.program.terminal_psi(),
+            Some(&self.process_domain),
+            demand,
+        ) {
+            return Err(TerminalBindingRejection::ExternalCompletionDomainMismatch { boundary });
+        }
+        if execution.external_bindings.contains_key(&boundary) {
+            return Err(TerminalBindingRejection::DuplicateBinding { boundary });
+        }
+        execution.external_bindings.insert(boundary, admission);
+        Ok(())
+    }
+
+    /// Exact pending terminal demands, including every reachable dynamic row.
+    pub fn unbound_external_completions(
+        &self,
+    ) -> impl Iterator<Item = crate::capabilities::TerminalExternalCompletionDemand> + '_ {
+        self.execution.iter().flat_map(|execution| {
+            execution
+                .external_demands
+                .iter()
+                .copied()
+                .filter(|demand| !execution.external_bindings.contains_key(&demand.boundary))
+        })
+    }
+
+    pub fn external_completion(&self) -> Option<&crate::results::TerminalExternalCompletion> {
+        self.execution
+            .as_ref()
+            .and_then(|execution| execution.external_completion.as_ref())
+    }
+
+    /// Actual host-established erased occurrence custody retained beside data
+    /// storage. Domain exit creates no discharge receipt for these rows.
+    pub fn established_erased_fields(
+        &self,
+    ) -> &[crate::structural_inputs::TerminalEstablishedErasedField] {
+        self.execution.as_ref().map_or(&[], |execution| {
+            execution.established_erased_fields.as_slice()
+        })
     }
 
     /// Demanded imports still awaiting an established binding, in slot order.
@@ -217,6 +392,10 @@ impl<'host> TerminalInstance<'host> {
         let missing = self.unbound_imports().collect::<Vec<_>>();
         if !missing.is_empty() {
             return Err(TerminalInstanceError::UnboundImports { missing });
+        }
+        let missing = self.unbound_external_completions().collect::<Vec<_>>();
+        if !missing.is_empty() {
+            return Err(TerminalInstanceError::UnboundExternalCompletions { missing });
         }
         let execution = self
             .execution

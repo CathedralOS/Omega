@@ -27,7 +27,7 @@ pub(super) fn validate_target(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<super::BlockEntryCustody, LegalizationError> {
-    super::hosted_scalar::validate_tails(native, optimized, plan)?;
+    super::hosted_scalar::validate_normal_call_completions(native, optimized, plan)?;
     let operations = optimized
         .blocks
         .iter()
@@ -42,6 +42,7 @@ pub(super) fn validate_target(
             AbstractOperation::Return { psi_edge, .. }
             | AbstractOperation::ReturnStructural { psi_edge, .. }
             | AbstractOperation::ReturnUnit { psi_edge, .. }
+            | AbstractOperation::ExternalCompletion { psi_edge, .. }
             | AbstractOperation::Crash { psi_edge, .. }
             | AbstractOperation::Jump { psi_edge, .. } => vec![*psi_edge],
             AbstractOperation::Conditional {

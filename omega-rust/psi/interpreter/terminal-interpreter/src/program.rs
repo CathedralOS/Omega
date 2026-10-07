@@ -239,6 +239,24 @@ impl TerminalProgram {
         self.program.import_declaration(slot)
     }
 
+    /// Exact external requirement contract, independent of ordinary provider
+    /// candidates. This is only a description: no containing-domain authority
+    /// or crossing-safety premise follows from finding the slot.
+    pub fn external_completion_requirement(
+        &self,
+        slot: BoundaryMachineId,
+    ) -> Option<&BoundaryMachineDeclaration> {
+        self.program
+            .boundary_machines
+            .get(&slot)
+            .filter(|declaration| {
+                matches!(
+                    declaration.completion,
+                    terminal_psi::BoundaryCompletion::External(_)
+                )
+            })
+    }
+
     /// Resolve an import's display name to its exact slot. A matching name
     /// identifies the slot; it establishes neither interface compatibility
     /// nor call authority — binding still checks the full declared contract.
@@ -321,6 +339,8 @@ impl TerminalProgram {
                 TerminalInterpretError::ProviderInstallationMissing(*boundary),
             ));
         }
+        crate::structural_inputs::zero_initialized::validate(structural_inputs)
+            .map_err(TerminalArtifactInterpretError::Execution)?;
         let converted_boolean_fields;
         let scalar_fields = if structural_inputs.boolean_fields.is_empty() {
             structural_inputs.scalar_fields
@@ -339,6 +359,8 @@ impl TerminalProgram {
             scalar_fields,
             structural_inputs.primitive_values,
             structural_inputs.placed_view_establishments,
+            structural_inputs.zero_initialized_arguments,
+            structural_inputs.established_erased_fields,
             installation,
         )
         .map_err(TerminalArtifactInterpretError::Execution)
@@ -366,6 +388,7 @@ impl TerminalProgram {
                 .bind_byte_arrays(structural_inputs.byte_arrays)
                 .map_err(TerminalArtifactInterpretError::Execution)?;
         }
+        execution.external_demands = requirements.external_completions.clone();
         Ok((execution, requirements))
     }
 

@@ -40,7 +40,7 @@ pub enum FunctionFragmentControlProvenance {
         cause: terminal_psi::CrashCause,
     },
     HostedExitProcess {
-        nominal_return_edge: EdgeId,
+        completion_edge: EdgeId,
     },
     None,
     Jump {

@@ -86,7 +86,7 @@ pub enum NativeCompilerBuiltinCatalogIdentity {
 pub struct OptimizedBoundaryOccurrence {
     terminal: TerminalPsiIdentity,
     machine: MachineId,
-    operation: OperationId,
+    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
     boundary: BoundaryMachineId,
     operation_ordinal: usize,
     identity: OptimizedBoundaryOccurrenceIdentity,
@@ -101,8 +101,12 @@ impl OptimizedBoundaryOccurrence {
         self.machine
     }
 
-    pub const fn operation(&self) -> OperationId {
-        self.operation
+    pub const fn operation(&self) -> Option<OperationId> {
+        self.invocation_site.operation()
+    }
+
+    pub const fn invocation_site(&self) -> semantic_vocabulary::BoundaryInvocationSite {
+        self.invocation_site
     }
 
     pub const fn boundary(&self) -> BoundaryMachineId {
@@ -916,9 +920,9 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
             NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization { occurrence } => {
                 write!(
                     formatter,
-                    "boundary occurrence on machine {} operation {} boundary {} ordinal {} has no supported settlement realization",
+                    "boundary occurrence on machine {} site {} boundary {} ordinal {} has no supported settlement realization",
                     occurrence.machine(),
-                    occurrence.operation(),
+                    occurrence.invocation_site(),
                     occurrence.boundary(),
                     occurrence.operation_ordinal(),
                 )
@@ -926,9 +930,9 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
             NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall { occurrence } => {
                 write!(
                     formatter,
-                    "boundary occurrence on machine {} operation {} boundary {} ordinal {} declined the normalized-foreign child derivation",
+                    "boundary occurrence on machine {} site {} boundary {} ordinal {} declined the normalized-foreign child derivation",
                     occurrence.machine(),
-                    occurrence.operation(),
+                    occurrence.invocation_site(),
                     occurrence.boundary(),
                     occurrence.operation_ordinal(),
                 )
@@ -936,9 +940,9 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
             NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence { occurrence } => {
                 write!(
                     formatter,
-                    "boundary occurrence on machine {} operation {} boundary {} ordinal {} retained no supported boundary realization",
+                    "boundary occurrence on machine {} site {} boundary {} ordinal {} retained no supported boundary realization",
                     occurrence.machine(),
-                    occurrence.operation(),
+                    occurrence.invocation_site(),
                     occurrence.boundary(),
                     occurrence.operation_ordinal(),
                 )
@@ -1069,7 +1073,7 @@ fn normalized_foreign_callback_relocation(
 fn optimized_boundary_occurrence(
     terminal: TerminalPsiIdentity,
     machine: MachineId,
-    operation: OperationId,
+    invocation_site: impl Into<semantic_vocabulary::BoundaryInvocationSite>,
     boundary: BoundaryMachineId,
     operation_ordinal: usize,
     identity: OptimizedBoundaryOccurrenceIdentity,
@@ -1077,7 +1081,7 @@ fn optimized_boundary_occurrence(
     OptimizedBoundaryOccurrence {
         terminal,
         machine,
-        operation,
+        invocation_site: invocation_site.into(),
         boundary,
         operation_ordinal,
         identity,

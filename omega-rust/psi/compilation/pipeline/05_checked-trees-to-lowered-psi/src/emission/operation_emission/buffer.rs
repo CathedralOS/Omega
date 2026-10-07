@@ -2,7 +2,7 @@
 
 use crate::lowering_error::LoweringError;
 use crate::terminal_identities::operation_id;
-use lowered_psi::LoweredSourceCallOccurrence;
+use lowered_psi::{LoweredSourceCallOccurrence, LoweredSourceCallSite};
 use semantic_vocabulary::{
     ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, ValueId,
 };
@@ -13,6 +13,20 @@ pub(crate) struct SourceCallCoordinate {
     pub(crate) state: symbols::SymbolHandle,
     pub(crate) statement_index: usize,
     pub(crate) call_ordinal: usize,
+}
+
+/// Evaluated operands of a domain-ending call, before its owner allocates the
+/// terminating edge. Keeping this separate from operations prevents a Unit
+/// result, normal completion receipts or implicit cleanup from being invented.
+pub(crate) struct PendingExternalCompletion {
+    pub(crate) coordinate: SourceCallCoordinate,
+    pub(crate) source_site: Option<checked_trees::NominalMachineUseSite>,
+    pub(crate) target: symbols::SymbolHandle,
+    pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
+    pub(crate) kind: semantic_vocabulary::ExternalCompletionKind,
+    pub(crate) arguments: Vec<ValueId>,
+    pub(crate) structural_arguments: Vec<terminal_psi::StructuralArgument>,
+    pub(crate) requirement_obligations: Vec<ObligationId>,
 }
 
 /// One authored structural binding. Literal storage is established by a Unit
@@ -151,6 +165,7 @@ pub(crate) fn structural_result_declaration(
 /// uses the historical one-based range; additional machines receive disjoint
 /// ranges when source call-closure production composes them.
 pub(crate) struct OperationBuffer {
+    pub(crate) external_completion: Option<PendingExternalCompletion>,
     /// Authored structural bindings may complete at a control join rather than
     /// a call operation. Keep those places in the same state-local namespace.
     pub(crate) structural_values: Vec<(u32, StructuralBinding)>,
@@ -192,6 +207,7 @@ impl OperationBuffer {
         dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     ) -> Self {
         Self {
+            external_completion: None,
             dynamic_dispatch,
             structural_values: Vec::new(),
             scalar_block_invariants: Vec::new(),
@@ -249,6 +265,23 @@ impl OperationBuffer {
         target: symbols::SymbolHandle,
         source_values_before_call: &[ValueDeclaration],
     ) -> Result<(), LoweringError> {
+        self.record_source_call_site(
+            coordinate,
+            source_site,
+            LoweredSourceCallSite::Operation(operation),
+            target,
+            source_values_before_call,
+        )
+    }
+
+    fn record_source_call_site(
+        &mut self,
+        coordinate: SourceCallCoordinate,
+        source_site: Option<checked_trees::NominalMachineUseSite>,
+        terminal_site: LoweredSourceCallSite,
+        target: symbols::SymbolHandle,
+        source_values_before_call: &[ValueDeclaration],
+    ) -> Result<(), LoweringError> {
         if self.source_calls.iter().any(|existing| {
             existing.source_state == coordinate.state
                 && existing.statement_index == coordinate.statement_index
@@ -261,11 +294,42 @@ impl OperationBuffer {
             source_state: coordinate.state,
             statement_index: coordinate.statement_index,
             call_ordinal: coordinate.call_ordinal,
-            terminal_operation: operation,
+            terminal_site,
             source_target: target,
             source_values_before_call: source_values_before_call.to_vec(),
         });
         Ok(())
+    }
+
+    /// Seal abandonment on the current evaluation path. The empty audit lower
+    /// bound does not assert an empty frontier: verification reconstructs live
+    /// custody, and runtime domain delegation is a separate admission demand.
+    pub(crate) fn take_external_completion(
+        &mut self,
+        next_edge: &mut u64,
+    ) -> Result<Option<terminal_psi::Terminator>, LoweringError> {
+        let Some(completion) = self.external_completion.take() else {
+            return Ok(None);
+        };
+        let edge = crate::terminal_identities::edge_id(crate::terminal_identities::allocate_dense(
+            next_edge,
+        )?);
+        self.record_source_call_site(
+            completion.coordinate,
+            completion.source_site,
+            LoweredSourceCallSite::ExternalCompletion(edge),
+            completion.target,
+            &[],
+        )?;
+        Ok(Some(terminal_psi::Terminator::ExternalCompletion {
+            edge,
+            boundary: completion.boundary,
+            kind: completion.kind,
+            arguments: completion.arguments,
+            structural_arguments: completion.structural_arguments,
+            requirement_obligations: completion.requirement_obligations,
+            frontier_lower_bound: Vec::new(),
+        }))
     }
 }
 

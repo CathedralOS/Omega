@@ -226,6 +226,10 @@ pub(super) fn encode_ownership_roster(bytes: &mut Vec<u8>, ownership: &[Ownershi
                 bytes.push(5);
                 encode_ids(bytes, claims.iter().map(|claim| claim.get()));
             }
+            OwnershipEvent::ExternalCompletionFrontier(claims) => {
+                bytes.push(6);
+                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
+            }
         }
     }
 }

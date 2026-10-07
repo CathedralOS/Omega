@@ -57,6 +57,9 @@ pub(super) fn eliminate(
                 }
             }
             Terminator::Return { value, .. } => pending.push(*value),
+            Terminator::ExternalCompletion { arguments, .. } => {
+                pending.extend(arguments.iter().copied());
+            }
             Terminator::Crash { .. } => return, // Retain exact guard-term inputs.
             Terminator::StructuralCase { cases, .. } => {
                 structural_case_targets.extend(cases.iter().map(|case| case.target));
@@ -85,10 +88,7 @@ pub(super) fn eliminate(
         }
     }
     for occurrence in source_calls {
-        if operations
-            .iter()
-            .any(|operation| operation.id == occurrence.terminal_operation)
-        {
+        if crate::retained_identities::contains_source_call(machine, occurrence) {
             pending.extend(
                 occurrence
                     .source_values_before_call

@@ -44,6 +44,28 @@ impl OperationFrame<'_, '_> {
             return unsupported("boundary Unit call custody drifted before emission");
         };
         let operands = self.boundary_operands(operation, inputs)?;
+        if let semantic_vocabulary::BoundaryCompletion::External(kind) = call.completion() {
+            if self.operations.external_completion.is_some() {
+                return unsupported("one evaluation path cannot have two external completions");
+            }
+            self.operations.external_completion = Some(
+                crate::emission::operation_emission::buffer::PendingExternalCompletion {
+                    coordinate: SourceCallCoordinate {
+                        state: self.state,
+                        statement_index: call.coordinate.statement_index as usize,
+                        call_ordinal: call.coordinate.call_ordinal as usize,
+                    },
+                    source_site: call.source_site().flatten(),
+                    target: call.target.machine,
+                    boundary: operands.boundary,
+                    kind,
+                    arguments: operands.arguments,
+                    structural_arguments: operands.structural_arguments,
+                    requirement_obligations: operands.requirement_obligations,
+                },
+            );
+            return Ok(());
+        }
         let id = self.operations.allocate();
         self.record_source_call(
             call.coordinate,

@@ -17,7 +17,7 @@ mod physical_pipeline;
 mod retained_native_product;
 
 pub use native_product::{ProducedNativeProduct, produce_native_product};
-pub use native_realization::realize_native_artifact;
+pub use native_realization::{RealizedNativeProduct, realize_native_artifact};
 pub use physical_pipeline::{
     OptimizedVerifiedPhysicalPipelineError, stage_optimized_verified_physical_pipeline,
 };

@@ -356,6 +356,8 @@ fn compile_one_prepared_target<Observation>(
                 settlement
                     .with_timings(produced.timings)
                     .finish_native(produced.artifact, produced.rollback_receipt)
+                    .and_then(|report| report.with_runtime_provisions(produced.runtime_provisions)
+                        .map_err(|message| vec![Diagnostic::error(message)]))
             })
         }
         compilation_products::CheckedProductReport::Terminal(_) => Err(vec![Diagnostic::error(

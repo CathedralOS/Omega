@@ -80,6 +80,9 @@ impl<'source> CallbackRegistrarOccurrences<'source> {
         requested.dedup_by(|left, right| left.0 == right.0);
         if !requested.is_empty() {
             for occurrence in source_calls {
+                if occurrence.terminal_site.operation().is_none() {
+                    continue;
+                }
                 let Some(site) = occurrence.source_site else {
                     continue;
                 };

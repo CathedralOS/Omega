@@ -6,9 +6,10 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => {
             return Vec::new();
         }
-        O::Return { psi_edge, .. } | O::ReturnUnit { psi_edge, .. } | O::Crash { psi_edge, .. } => {
-            PsiProvenance::Edge(*psi_edge)
-        }
+        O::Return { psi_edge, .. }
+        | O::ReturnUnit { psi_edge, .. }
+        | O::ExternalCompletion { psi_edge, .. }
+        | O::Crash { psi_edge, .. } => PsiProvenance::Edge(*psi_edge),
         O::ReturnStructural {
             psi_edge,
             trivial_affine_locals,

@@ -130,6 +130,7 @@ fn successors(terminator: &Terminator) -> Vec<BlockId> {
         Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
         | Terminator::ReturnStructural { .. }
-        | Terminator::Crash { .. } => Vec::new(),
+        | Terminator::Crash { .. }
+        | Terminator::ExternalCompletion { .. } => Vec::new(),
     }
 }

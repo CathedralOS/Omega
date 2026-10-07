@@ -398,6 +398,81 @@ pub(super) fn validate_call_structural(
     Ok(())
 }
 
+/// Authenticate the terminal invocation's representation, not its runtime
+/// authority. The instance must separately establish actual delegated
+/// containing-process-domain authority for this exact boundary slot.
+pub(super) fn validate_external_completion(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+) -> Result<(), CodecError> {
+    let Terminator::ExternalCompletion {
+        boundary,
+        kind,
+        arguments,
+        structural_arguments,
+        requirement_obligations,
+        ..
+    } = &block.terminator
+    else {
+        return Ok(());
+    };
+    let Some(declaration) = module
+        .boundary_machines
+        .iter()
+        .find(|candidate| candidate.id == *boundary)
+    else {
+        return malformed("external completion references an unknown boundary");
+    };
+    if declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
+        || declaration.result != BoundaryMachineResult::Unit
+        || declaration.scalar_parameters.len() != 1
+        || !matches!(declaration.scalar_parameters.first(),
+            Some(semantic_vocabulary::ScalarType::Integer(integer))
+                if integer.sign() == semantic_vocabulary::IntegerSign::Signed
+                    && integer.bits() == 32 && !integer.is_address())
+        || !declaration.structural_parameters.is_empty()
+    {
+        return malformed(
+            "external completion disagrees with the canonical process-exit signature",
+        );
+    }
+    if arguments.len() != declaration.scalar_parameters.len()
+        || structural_arguments.len() != declaration.structural_parameters.len()
+        || requirement_obligations.len() != declaration.scalar_requires.len()
+    {
+        return malformed("external completion has the wrong argument or obligation arity");
+    }
+    for (argument, expected) in arguments.iter().zip(&declaration.scalar_parameters) {
+        let mut declarations = machine
+            .parameters
+            .iter()
+            .copied()
+            .chain(block.parameters.iter().copied())
+            .chain(
+                block
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.result.scalar()),
+            )
+            .filter(|candidate| candidate.id == *argument);
+        if declarations
+            .next()
+            .is_none_or(|candidate| candidate.scalar_type != *expected)
+            || declarations.next().is_some()
+        {
+            return malformed("external completion status has no exact runtime scalar declaration");
+        }
+    }
+    validate_structural_arguments(
+        module,
+        machine,
+        structural_arguments,
+        &declaration.structural_parameters,
+        StructuralArgumentPresentation::Boundary,
+    )
+}
+
 pub(super) fn validate_boundary_call(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -420,6 +495,9 @@ pub(super) fn validate_boundary_call(
     else {
         return malformed("boundary call references an unknown boundary");
     };
+    if boundary.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
+        return malformed("external completion requires a closed terminal invocation");
+    }
     let actual_result = match &operation.result {
         OperationResult::Unit => Some(BoundaryMachineResult::Unit),
         OperationResult::Scalar(result) => Some(BoundaryMachineResult::Scalar(result.scalar_type)),

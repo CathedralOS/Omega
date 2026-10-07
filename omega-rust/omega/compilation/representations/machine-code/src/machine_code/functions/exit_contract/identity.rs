@@ -98,7 +98,7 @@ pub fn whole_function_exit_contract_identity(
         hasher.update((function.process_exits.len() as u64).to_le_bytes());
         for exited in &function.process_exits {
             hasher.update(exited.block.0.to_le_bytes());
-            hasher.update(exited.nominal_return_edge.get().to_le_bytes());
+            hasher.update(exited.completion_edge.get().to_le_bytes());
             hasher.update(exited.instruction.0.to_le_bytes());
             hasher.update(exited.offset.to_le_bytes());
             hasher.update((exited.bytes.len() as u64).to_le_bytes());

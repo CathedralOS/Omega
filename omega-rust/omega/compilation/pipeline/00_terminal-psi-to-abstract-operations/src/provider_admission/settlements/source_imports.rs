@@ -212,13 +212,24 @@ fn join_import_coverage_rows<'input>(
         .iter()
         .flat_map(|function| &function.operations)
     {
-        let abstract_operations::AbstractOperation::BoundaryCall {
-            boundary,
-            psi_operation,
-            ..
-        } = operation
-        else {
-            continue;
+        let (boundary, site) = match operation {
+            abstract_operations::AbstractOperation::BoundaryCall {
+                boundary,
+                psi_operation,
+                ..
+            } => (
+                boundary,
+                semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation),
+            ),
+            abstract_operations::AbstractOperation::ExternalCompletion {
+                boundary,
+                psi_edge,
+                ..
+            } => (
+                boundary,
+                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+            ),
+            _ => continue,
         };
         let Some(requirement) = boundary_identities.get(boundary) else {
             return Err(vec![Diagnostic::error(format!(
@@ -236,7 +247,10 @@ fn join_import_coverage_rows<'input>(
                 external_count: 0,
                 callbacks: Vec::new(),
             });
-        if let Some(matching) = callback_boundaries.get_mut(psi_operation) {
+        if let Some(matching) = site
+            .operation()
+            .and_then(|operation| callback_boundaries.get_mut(&operation))
+        {
             let (count, _) = matching.get_or_insert((0usize, *boundary));
             *count += 1;
         }

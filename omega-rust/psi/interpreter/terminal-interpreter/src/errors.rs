@@ -12,6 +12,14 @@ use terminal_psi::CrashCause;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
+    ZeroInitializedArgumentInvalid {
+        argument_index: u32,
+    },
+    /// A raw execution cannot acquire exit authority from its effect handler.
+    UnboundExternalCompletions {
+        missing: Vec<crate::capabilities::TerminalExternalCompletionDemand>,
+    },
+    ExternalCompletion(crate::results::TerminalExternalCompletion),
     ScalarEntryQualificationUnsupported,
     UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability),
     UnsupportedSemanticVariant(&'static str),

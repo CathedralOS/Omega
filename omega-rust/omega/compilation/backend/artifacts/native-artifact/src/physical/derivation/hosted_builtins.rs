@@ -184,7 +184,7 @@ fn read_byte_result_bytes(
     occurrence: &OptimizedBoundaryOccurrence,
     target: NativeTarget,
 ) -> Result<Vec<u8>, &'static str> {
-    if result.defining_operation != occurrence.operation()
+    if Some(result.defining_operation) != occurrence.operation()
         || result.layout.tag_byte_offset != 0
         || result.layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
         || result.layout.shape != calling_conventions::ValueShape::integer(8, 4)

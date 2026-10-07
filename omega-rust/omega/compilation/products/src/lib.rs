@@ -36,6 +36,7 @@ mod package_build;
 mod prepared_build;
 mod prepared_source;
 pub mod publication;
+mod runtime_provisions;
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
@@ -67,6 +68,7 @@ pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedBuilds};
 pub use prepared_source::{
     PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier, TypedFrontierRetention,
 };
+pub use runtime_provisions::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,

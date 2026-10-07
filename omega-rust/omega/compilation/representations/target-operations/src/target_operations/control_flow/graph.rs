@@ -35,6 +35,17 @@ pub struct TargetScalarBlockParameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetControlTerminator {
+    /// An exact admitted boundary invocation with no normal continuation.
+    ExternalCompletion {
+        psi_edge: EdgeId,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        kind: semantic_vocabulary::ExternalCompletionKind,
+        binding: crate::BoundarySettlementBinding,
+        arguments: Vec<crate::TargetUnitScalarCallArgument>,
+        structural_arguments: Vec<terminal_psi::StructuralArgument>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
+    },
     /// No successor or cleanup. Retain semantic evidence independently of the
     /// target's chosen terminating instruction.
     Crash {

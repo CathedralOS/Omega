@@ -19,7 +19,9 @@ fn occurrence(
         source_state: SymbolHandle::invalid(),
         statement_index: 0,
         call_ordinal: 0,
-        terminal_operation: semantic_vocabulary::OperationId::new(operation).unwrap(),
+        terminal_site: semantic_vocabulary::BoundaryInvocationSite::Operation(
+            semantic_vocabulary::OperationId::new(operation).unwrap(),
+        ),
         source_target: target,
         source_values_before_call: Vec::new(),
     }

@@ -16,6 +16,47 @@ pub(super) fn project(
     let cleanup_calls =
         scalar_graph_input::cleanup_calls::expected(&node.operation, function, native, plan, unit)?;
     let mut result = match &node.operation {
+        AbstractOperation::ExternalCompletion {
+            psi_edge,
+            boundary,
+            kind,
+            structural_arguments,
+            requirement_obligations,
+            frontier_lower_bound,
+            ..
+        } => {
+            let mut matches = native
+                .functions
+                .iter()
+                .filter(|row| row.machine == function.machine)
+                .flat_map(|row| &row.graph.blocks)
+                .filter_map(|block| match &block.terminator {
+                    target_operations::TargetControlTerminator::ExternalCompletion {
+                        psi_edge: edge,
+                        arguments,
+                        binding,
+                        ..
+                    } if edge == psi_edge => Some((arguments, binding)),
+                    _ => None,
+                });
+            let (arguments, binding) = matches.next().ok_or_else(Error::custody)?;
+            if matches.next().is_some() {
+                return Err(Error::custody());
+            }
+            Ok(LegalizedScalarTerminator::ExternalCompletion {
+                psi_edge: *psi_edge,
+                boundary: *boundary,
+                kind: *kind,
+                arguments: arguments.clone(),
+                binding: binding.clone(),
+                structural_arguments: structural_arguments.clone(),
+                requirement_obligations: requirement_obligations.clone(),
+                frontier_lower_bound: frontier_lower_bound.clone(),
+                fuel: node.fuel.clone(),
+                effect: node.effect,
+                ownership: node.ownership.clone(),
+            })
+        }
         AbstractOperation::Crash {
             psi_edge,
             cause,

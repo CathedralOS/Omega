@@ -128,50 +128,55 @@ impl StateGraphEmission<'_, '_> {
                     next_edge,
                     operations,
                 )?;
-                let result = operation
-                    .call()
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph call arm lost its call result",
-                    ))?
-                    .result();
-                match result {
-                    checked_trees::CheckedUnitCallResult::Structural { .. } => {
-                        super::super::guarded::complete_structural_return(
-                            checked,
-                            state,
-                            super::super::cleanup::coordinate(
+                arm_evaluation.remap_transported_call_operands(operations);
+                if let Some(terminator) = operations.take_external_completion(next_edge)? {
+                    terminator
+                } else {
+                    let result = operation
+                        .call()
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph call arm lost its call result",
+                        ))?
+                        .result();
+                    match result {
+                        checked_trees::CheckedUnitCallResult::Structural { .. } => {
+                            super::super::guarded::complete_structural_return(
                                 checked,
                                 state,
-                                return_arm
-                                    .statement_ordinal()
-                                    .ok_or(LoweringError::Unsupported(
-                                        "return arm lost its source coordinate",
-                                    ))? as usize,
-                                false,
-                            )?,
-                            operation,
-                            self.catalogs,
-                            state_parameters,
-                            &mut arm_evaluation,
-                            next_edge,
-                            operations,
-                        )?
-                    }
-                    checked_trees::CheckedUnitCallResult::Unit => Terminator::ReturnUnit {
-                        edge: edge_id(allocate_dense(next_edge)?),
-                        cleanup_actions: Vec::new(),
-                    },
-                    checked_trees::CheckedUnitCallResult::Scalar(binding) => {
-                        let value = arm_call_result(
-                            binding,
-                            state.scalar_parameters.len(),
-                            &arm_evaluation,
-                            &arm_values,
-                        )?;
-                        Terminator::Return {
+                                super::super::cleanup::coordinate(
+                                    checked,
+                                    state,
+                                    return_arm.statement_ordinal().ok_or(
+                                        LoweringError::Unsupported(
+                                            "return arm lost its source coordinate",
+                                        ),
+                                    )? as usize,
+                                    false,
+                                )?,
+                                operation,
+                                self.catalogs,
+                                state_parameters,
+                                &mut arm_evaluation,
+                                next_edge,
+                                operations,
+                            )?
+                        }
+                        checked_trees::CheckedUnitCallResult::Unit => Terminator::ReturnUnit {
                             edge: edge_id(allocate_dense(next_edge)?),
-                            value: value.id,
                             cleanup_actions: Vec::new(),
+                        },
+                        checked_trees::CheckedUnitCallResult::Scalar(binding) => {
+                            let value = arm_call_result(
+                                binding,
+                                state.scalar_parameters.len(),
+                                &arm_evaluation,
+                                &arm_values,
+                            )?;
+                            Terminator::Return {
+                                edge: edge_id(allocate_dense(next_edge)?),
+                                value: value.id,
+                                cleanup_actions: Vec::new(),
+                            }
                         }
                     }
                 }

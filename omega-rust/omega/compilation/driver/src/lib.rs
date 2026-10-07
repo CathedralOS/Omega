@@ -18,6 +18,7 @@ pub use identity::compiler_identity;
 
 pub mod checked;
 pub mod native;
+pub mod runtime;
 pub mod terminal;
 
 pub use crate::checked::{

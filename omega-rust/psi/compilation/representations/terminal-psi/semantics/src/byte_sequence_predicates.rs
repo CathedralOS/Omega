@@ -579,6 +579,10 @@ pub fn byte_copied_field_predicates_at_transfer(
         terminal_psi::Terminator::Jump {
             structural_arguments,
             ..
+        }
+        | terminal_psi::Terminator::ExternalCompletion {
+            structural_arguments,
+            ..
         } => carries(structural_arguments),
         terminal_psi::Terminator::Conditional {
             when_true,

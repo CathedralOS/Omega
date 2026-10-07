@@ -43,6 +43,7 @@ pub(super) fn validate_machine(
     }
     validate_operation_result_places(machine)?;
     for block in &machine.blocks {
+        super::call_foundations::validate_external_completion(module, machine, block)?;
         validate_partial_affine_discards(module, machine, block)?;
     }
     Ok(())

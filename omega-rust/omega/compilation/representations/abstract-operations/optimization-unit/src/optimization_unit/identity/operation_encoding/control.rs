@@ -3,7 +3,8 @@
 use super::super::AbstractSuccessor;
 use super::{AbstractOperation, CanonicalBytes};
 use crate::optimization_unit::identity::carrier_encoding::{
-    encode_binding, encode_ids, encode_scalar_type, encode_structural_binding,
+    encode_binding, encode_ids, encode_scalar_type, encode_structural_argument,
+    encode_structural_binding,
 };
 use crate::optimization_unit::identity::structural_encoding::{
     encode_cleanup, encode_crash_cause, encode_crash_predicate, encode_place_declaration,
@@ -93,6 +94,26 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 encode_structural_type(bytes, structural_type);
             }
             bytes.slice(cleanup_actions, encode_cleanup);
+        }
+        O::ExternalCompletion {
+            psi_edge,
+            boundary,
+            kind,
+            arguments,
+            structural_arguments,
+            requirement_obligations,
+            frontier_lower_bound,
+        } => {
+            bytes.u8(101);
+            bytes.id(*psi_edge);
+            bytes.id(*boundary);
+            match kind {
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit => bytes.u8(1),
+            }
+            encode_ids(bytes, arguments);
+            bytes.slice(structural_arguments, encode_structural_argument);
+            encode_ids(bytes, requirement_obligations);
+            encode_ids(bytes, frontier_lower_bound);
         }
         O::Crash {
             psi_edge,

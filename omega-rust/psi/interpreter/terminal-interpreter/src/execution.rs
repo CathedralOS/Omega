@@ -134,6 +134,15 @@ pub struct TerminalExecution {
     pub(crate) call_stack: Vec<SuspendedCall>,
     pub(crate) result: Option<TerminalExecutionResult>,
     pub(crate) crash: Option<TerminalCrash>,
+    pub(crate) external_completion: Option<crate::results::TerminalExternalCompletion>,
+    pub(crate) external_demands: Vec<crate::capabilities::TerminalExternalCompletionDemand>,
+    pub(crate) external_bindings:
+        BTreeMap<BoundaryMachineId, crate::instance::TerminalProcessExitAdmission>,
+    pub(crate) process_domain: Option<std::sync::Arc<crate::instance::SimulatedProcessDomain>>,
+    /// Host-established erased occurrence custody, separate from initialized
+    /// data storage and retained through abandonment without discharge.
+    pub(crate) established_erased_fields:
+        Vec<crate::structural_inputs::TerminalEstablishedErasedField>,
     pub(crate) effects: Vec<TerminalEffect>,
 }
 
@@ -230,6 +239,8 @@ impl TerminalExecution {
         structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
         structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
         placed_view_establishments: &[TerminalPlacedViewEstablishment],
+        zero_initialized_arguments: &[u32],
+        established_erased_fields: &[crate::structural_inputs::TerminalEstablishedErasedField],
         installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
         // A nonempty placed-view roster declares direct entry inputs whose
@@ -270,19 +281,6 @@ impl TerminalExecution {
         let values = bind_arguments(&machine.parameters, scalar_arguments)?;
         let structural_values =
             bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
-        let (structural_primitive_storage, structural_primitive_entry_places) =
-            bind_structural_primitive_values(
-                machine,
-                &program.structural_types,
-                &structural_values,
-                structural_primitive_value_arguments,
-            )?;
-        let structural_scalar_fields = scalar_fields::bind(
-            machine,
-            &program.structural_types,
-            &structural_values,
-            structural_scalar_field_arguments,
-        )?;
         let live_affine_frontier =
             bind_affine_frontier(&machine.structural_parameters, &structural_values)?;
         let live_claims = bind_entry_claims(
@@ -291,8 +289,8 @@ impl TerminalExecution {
             &machine.structural_parameters,
             &structural_values,
         )?;
-        Ok(Self {
-            program,
+        let mut execution = Self {
+            program: std::sync::Arc::clone(&program),
             provider_installation: installation
                 .map(|installation| installation.installed.clone())
                 .unwrap_or_default(),
@@ -303,10 +301,10 @@ impl TerminalExecution {
             structural_values,
             reference_referents: BTreeMap::new(),
             structural_element_view_fields: BTreeMap::new(),
-            structural_primitive_storage,
-            structural_primitive_entry_places,
+            structural_primitive_storage: BTreeMap::new(),
+            structural_primitive_entry_places: BTreeMap::new(),
             local_structural_identities,
-            structural_scalar_fields,
+            structural_scalar_fields: BTreeMap::new(),
             structural_byte_sequence_fields: BTreeMap::new(),
             structural_byte_storage: BTreeMap::new(),
             structural_cases: BTreeMap::new(),
@@ -323,8 +321,63 @@ impl TerminalExecution {
             call_stack: Vec::new(),
             result: None,
             crash: None,
+            external_completion: None,
+            external_demands: Vec::new(),
+            external_bindings: BTreeMap::new(),
+            process_domain: None,
+            established_erased_fields: established_erased_fields.to_vec(),
             effects: Vec::new(),
-        })
+        };
+        for argument_index in zero_initialized_arguments {
+            let parameter = machine
+                .structural_parameters
+                .get(*argument_index as usize)
+                .ok_or(TerminalInterpretError::ZeroInitializedArgumentInvalid {
+                    argument_index: *argument_index,
+                })?;
+            let value = execution
+                .structural_values
+                .get(&parameter.place)
+                .cloned()
+                .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                    parameter.place,
+                ))?;
+            let established_fields = established_erased_fields
+                .iter()
+                .filter(|field| field.argument_index == *argument_index)
+                .map(
+                    |field| terminal_semantics::EstablishedErasedStructuralField {
+                        field_path: field.field_path.clone(),
+                        carrier_type_identity: field.carrier_type_identity.clone(),
+                    },
+                )
+                .collect::<Vec<_>>();
+            execution.materialize_zeroed_structural_storage_with_established_fields(
+                &value,
+                &established_fields,
+            )?;
+        }
+        let primitive_storage = std::mem::take(&mut execution.structural_primitive_storage);
+        let (storage, entry_places) = bind_structural_primitive_values(
+            machine,
+            &program.structural_types,
+            &execution.structural_values,
+            structural_primitive_value_arguments,
+            primitive_storage,
+            zero_initialized_arguments,
+        )?;
+        execution.structural_primitive_storage = storage;
+        execution.structural_primitive_entry_places = entry_places;
+        let scalar_fields = std::mem::take(&mut execution.structural_scalar_fields);
+        execution.structural_scalar_fields = scalar_fields::bind(
+            machine,
+            &program.structural_types,
+            &execution.structural_values,
+            structural_scalar_field_arguments,
+            scalar_fields,
+            zero_initialized_arguments,
+        )?;
+        Ok(execution)
     }
 
     pub fn effects(&self) -> &[TerminalEffect] {
@@ -335,7 +388,7 @@ impl TerminalExecution {
     /// committed result or a crash. An unfinished execution still holds
     /// custody; it is not reclaimable by `TerminalInstance::close`.
     pub(crate) fn is_finished(&self) -> bool {
-        self.result.is_some() || self.crash.is_some()
+        self.result.is_some() || self.crash.is_some() || self.external_completion.is_some()
     }
 
     /// The committed result once the entry invocation has produced one.
@@ -403,6 +456,11 @@ impl TerminalExecution {
         meter: &mut TerminalFuelMeter,
         handler: &mut impl TerminalEffectHandler,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+        if let Some(completion) = &self.external_completion {
+            return Ok(TerminalExecutionStatus::ExternalCompletion(
+                completion.clone(),
+            ));
+        }
         if self.result.is_some() {
             self.retire_placed_view_occurrences();
             let result = self.result.clone().expect("checked above");
@@ -410,6 +468,27 @@ impl TerminalExecution {
         }
         if let Some(crash) = &self.crash {
             return Ok(TerminalExecutionStatus::Crashed(crash.clone()));
+        }
+
+        let missing = self
+            .external_demands
+            .iter()
+            .copied()
+            .filter(|demand| {
+                !self
+                    .external_bindings
+                    .get(&demand.boundary)
+                    .is_some_and(|admission| {
+                        admission.answers(
+                            self.program.identity,
+                            self.process_domain.as_ref(),
+                            *demand,
+                        )
+                    })
+            })
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            return Err(TerminalInterpretError::UnboundExternalCompletions { missing });
         }
 
         let program = std::sync::Arc::clone(&self.program);
@@ -720,6 +799,9 @@ impl TerminalExecution {
                     self.settle_return_structural(terminator, meter)?
                 }
                 Terminator::Crash { .. } => self.settle_crash(terminator, meter)?,
+                Terminator::ExternalCompletion { .. } => {
+                    self.settle_external_completion(terminator, meter)?
+                }
             };
             match flow {
                 TerminatorFlow::Continue => {}

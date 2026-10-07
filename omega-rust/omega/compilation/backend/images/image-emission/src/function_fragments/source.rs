@@ -448,11 +448,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     callee,
                     ..
                 } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
-                AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.operation() == *psi_operation)
+                AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
                     || ieee_float_arithmetic_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.operation == *psi_operation),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
+                AbstractOperation::ExternalCompletion { psi_edge, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge)) && control_flow::retained(operation, targeted),
                 AbstractOperation::Return {
                     cleanup_actions, ..
                 } => cleanup_actions.is_empty()

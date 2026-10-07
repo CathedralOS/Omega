@@ -46,6 +46,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
             }
         }
         O::Call { arguments, .. }
+        | O::ExternalCompletion { arguments, .. }
         | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
                 replace(argument);

@@ -10,6 +10,7 @@ use compilation_products::NativeProductRequest;
 /// post-production timing ladder.
 pub struct ProducedNativeProduct {
     pub artifact: native_artifact::RequestedNativeArtifact,
+    pub runtime_provisions: Option<compilation_products::TerminalRuntimeProvisions>,
     pub rollback_receipt: Option<optimization_core::OptimizationRollbackReceipt>,
     pub timings: Vec<artifacts::compile_timings::PhaseTiming>,
 }
@@ -34,7 +35,7 @@ pub fn produce_native_product(
     let terminal =
         crate::terminal::produce_retained_terminal_artifact(&mut checked, rollback.effective())?;
     let post_terminal = rollback.effective().project_post_terminal();
-    let artifact = crate::native::realize_retained_native_artifact(
+    let realized = crate::native::realize_retained_native_artifact(
         terminal.artifact,
         compilation_products::RetainedNativeRealizationRequest {
             optimization_selections: post_terminal.selections(),
@@ -49,7 +50,8 @@ pub fn produce_native_product(
     )
     .map_err(|(_, diagnostics)| diagnostics)?;
     Ok(ProducedNativeProduct {
-        artifact,
+        artifact: realized.artifact,
+        runtime_provisions: realized.runtime_provisions,
         rollback_receipt: rollback.into_receipt(),
         timings: checked.timings().phases().to_vec(),
     })

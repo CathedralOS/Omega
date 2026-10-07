@@ -184,7 +184,9 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             .into_iter()
             .chain(arguments.iter().copied())
             .collect(),
-        O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => arguments.clone(),
+        O::Call { arguments, .. }
+        | O::BoundaryCall { arguments, .. }
+        | O::ExternalCompletion { arguments, .. } => arguments.clone(),
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }

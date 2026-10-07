@@ -127,9 +127,12 @@ compare the exact semantic `i32` status. A host exposing fewer status bits does
 not authorize truncation of that trace; physical presentation belongs to the
 target contract.
 
-This is the required contract, not a claim of implemented support. The bundled
-Unit `Console::exit_process` path and the zero terminal-external codec group
-remain transitional. The source, capability, provider, and verifier migration
-is tracked by [PROCESS-EXIT-CONTRACT](../../../TASKS.md#process-exit-contract).
+This is the required contract, not a claim of complete support. The Rust producer,
+Terminal codec/observations, common core and native lowering carry a closed
+external edge; the hosted reference driver ends only its explicitly isolated
+simulated domain. The bundled `Console::exit_process` convenience reach remains
+transitional. Remaining source authority, provider conformance, survivor contracts
+and product-source parity are tracked by
+[PROCESS-EXIT-CONTRACT](../../../TASKS.md#process-exit-contract).
 General completion annotations, separately named terminal effects, thread exit,
 reboot, and arbitrary process killing are outside this decision.

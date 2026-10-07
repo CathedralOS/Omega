@@ -56,7 +56,7 @@ pub enum LoweringError {
     BoundarySettlementOverlapsInstalledProvider(BoundaryMachineId),
     PartialInstalledProviderBoundary {
         machine: MachineId,
-        operation: OperationId,
+        invocation_site: semantic_vocabulary::BoundaryInvocationSite,
         boundary: BoundaryMachineId,
     },
     DuplicateBoundarySettlement(BoundaryMachineId),

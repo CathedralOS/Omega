@@ -518,7 +518,7 @@ mod tests {
         bytes.extend_from_slice(&suffix);
         (
             BoundarySettlementRecord {
-                psi_operation: OperationId::new(2).unwrap(),
+                invocation_site: OperationId::new(2).unwrap().into(),
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 execution: BoundaryExecutionRecord::CompilerBuiltin(
                     CompilerBuiltinExecution::HostedWriteByteI32,

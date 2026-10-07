@@ -110,6 +110,7 @@ pub enum OwnershipEvent {
     Cleanup(Vec<TerminalAffineCleanupAction>),
     StructuralReturn(Vec<ClaimId>),
     CrashFrontier(Vec<ClaimId>),
+    ExternalCompletionFrontier(Vec<ClaimId>),
 }
 
 /// A proof/range fact is always indexed by its exact source support. The first

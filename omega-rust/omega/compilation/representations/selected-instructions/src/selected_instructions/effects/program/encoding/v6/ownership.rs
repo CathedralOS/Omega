@@ -21,6 +21,7 @@ pub fn decode_ownership(
             }
             4 => OwnershipEvent::StructuralReturn(decode_claim_ids(cursor)?),
             5 => OwnershipEvent::CrashFrontier(decode_claim_ids(cursor)?),
+            6 => OwnershipEvent::ExternalCompletionFrontier(decode_claim_ids(cursor)?),
             _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
         };
         ownership.push(event);

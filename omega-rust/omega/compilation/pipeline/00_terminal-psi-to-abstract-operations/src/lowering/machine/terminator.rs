@@ -207,6 +207,23 @@ pub(super) fn lower_terminator(
                 edge: *edge,
             });
         }
+        Terminator::ExternalCompletion {
+            edge,
+            boundary,
+            kind,
+            arguments,
+            structural_arguments,
+            requirement_obligations,
+            frontier_lower_bound,
+        } => operations.push(AbstractOperation::ExternalCompletion {
+            psi_edge: *edge,
+            boundary: *boundary,
+            kind: *kind,
+            arguments: arguments.clone(),
+            structural_arguments: structural_arguments.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            frontier_lower_bound: frontier_lower_bound.clone(),
+        }),
         Terminator::Crash {
             edge,
             cause,

@@ -12,7 +12,7 @@ pub fn realize_retained_native_artifact(
     retained: compilation_products::RetainedTerminalArtifact,
     mut request: RetainedNativeRealizationRequest<'_>,
 ) -> Result<
-    native_artifact::RequestedNativeArtifact,
+    super::RealizedNativeProduct,
     (
         image_emission::ExecutableImageEmissionRequest,
         Vec<Diagnostic>,

@@ -265,6 +265,81 @@ pub(super) fn validate(
                     }
             }
             (
+                TargetControlTerminator::ExternalCompletion {
+                    psi_edge,
+                    boundary,
+                    kind,
+                    arguments,
+                    binding,
+                    structural_arguments,
+                    requirement_obligations,
+                    frontier_lower_bound,
+                },
+                AbstractOperation::ExternalCompletion {
+                    psi_edge: expected_edge,
+                    boundary: expected_boundary,
+                    kind: expected_kind,
+                    arguments: expected_arguments,
+                    structural_arguments: expected_structural,
+                    requirement_obligations: expected_obligations,
+                    frontier_lower_bound: expected_frontier,
+                },
+            ) => {
+                let declaration = plan
+                    .boundary_machines
+                    .iter()
+                    .find(|declaration| declaration.id == *boundary)
+                    .ok_or_else(LegalizationError::custody)?;
+                let parameters = declaration
+                    .scalar_parameters
+                    .iter()
+                    .map(|scalar_type| {
+                        super::super::scalar_shape(*scalar_type)
+                            .ok_or_else(LegalizationError::custody)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let expected_plan = calling_conventions::evaluate_call_plan(
+                    calling_conventions::CallingPolicy::native_for_target(native.target),
+                    &calling_conventions::CallSignature {
+                        parameters,
+                        result: None,
+                    },
+                )
+                .map_err(|_| LegalizationError::custody())?;
+                psi_edge == expected_edge
+                    && boundary == expected_boundary
+                    && kind == expected_kind
+                    && structural_arguments == expected_structural
+                    && requirement_obligations == expected_obligations
+                    && frontier_lower_bound == expected_frontier
+                    && binding.boundary == *boundary
+                    && declaration.completion
+                        == semantic_vocabulary::BoundaryCompletion::External(*kind)
+                    && declaration.result.is_unit()
+                    && arguments.len() == expected_arguments.len()
+                    && arguments.len() == expected_plan.parameters.len()
+                    && structural_arguments.len() == declaration.structural_parameters.len()
+                    && arguments
+                        .iter()
+                        .zip(expected_arguments)
+                        .zip(&expected_plan.parameters)
+                        .zip(&declaration.scalar_parameters)
+                        .enumerate()
+                        .all(
+                            |(position, (((argument, value), placement), scalar_type))| {
+                                argument.parameter_index as usize == position
+                                    && argument.placement == *placement
+                                    && argument.source.source_value() == *value
+                                    && argument.source.scalar_type() == *scalar_type
+                                    && available
+                                        .iter()
+                                        .rev()
+                                        .find(|(candidate, _)| candidate == value)
+                                        .is_some_and(|(_, source)| source == &argument.source)
+                            },
+                        )
+            }
+            (
                 TargetControlTerminator::Crash {
                     psi_edge,
                     cause,

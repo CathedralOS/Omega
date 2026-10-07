@@ -50,8 +50,9 @@ pub(crate) fn bind(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     structural_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralScalarFieldValue],
+    mut values: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
+    zero_initialized_arguments: &[u32],
 ) -> Result<BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>, TerminalInterpretError> {
-    let mut values = BTreeMap::new();
     for argument in arguments {
         let invalid = || TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
             argument_index: argument.argument_index,
@@ -86,7 +87,13 @@ pub(crate) fn bind(
             return Err(invalid());
         }
     }
-    entry::validate(machine, structural_types, structural_values, &values)?;
+    entry::validate(
+        machine,
+        structural_types,
+        structural_values,
+        &values,
+        zero_initialized_arguments,
+    )?;
     for operation in machine.blocks.values().flat_map(|block| &block.operations) {
         // Preserve the Boolean entry contract. Integer fields can be initialized
         // by earlier stores; their existing runtime read checks missing contents.

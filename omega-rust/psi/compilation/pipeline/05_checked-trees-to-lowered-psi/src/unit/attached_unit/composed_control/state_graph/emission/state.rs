@@ -248,6 +248,30 @@ impl StateGraphEmission<'_, '_> {
             &mut next_edge,
             &mut operations,
         )?;
+        if operations.external_completion.is_some() {
+            evaluation.remap_transported_call_operands(&mut operations);
+            let terminator = operations.take_external_completion(&mut next_edge)?.ok_or(
+                LoweringError::Unsupported("external completion lost its evaluated invocation"),
+            )?;
+            let body_end = operations.len();
+            return self.seal_state(
+                position,
+                terminator,
+                Vec::new(),
+                evaluation,
+                operations,
+                super::seal::SealFrame {
+                    state_parameters: &state_parameters,
+                    current_rank,
+                    is_guarded_return: false,
+                    dispatches: false,
+                    body_end,
+                    next_value,
+                    next_block,
+                    next_edge,
+                },
+            );
+        }
         let bindings = evaluation
             .scalar_bindings
             .clone()

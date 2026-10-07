@@ -255,7 +255,7 @@ pub(in crate::unit::attached_unit) fn result<'a>(
     }
     let operation = operations
         .iter()
-        .find(|operation| operation.id == occurrence.terminal_operation)
+        .find(|operation| occurrence.terminal_site.operation() == Some(operation.id))
         .ok_or(LoweringError::Unsupported(
             "Unit graph result operation missing",
         ))?;

@@ -479,4 +479,91 @@ impl TerminalExecution {
             crash,
         )))
     }
+
+    /// Commit an authorized domain-ending edge without running any cleanup,
+    /// returning caller frames, retiring host loans, or manufacturing receipts.
+    pub(crate) fn settle_external_completion(
+        &mut self,
+        terminator: &Terminator,
+        meter: &mut TerminalFuelMeter,
+    ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        let Terminator::ExternalCompletion {
+            edge,
+            boundary,
+            kind,
+            arguments,
+            structural_arguments,
+            frontier_lower_bound,
+            ..
+        } = terminator
+        else {
+            return Err(malformed());
+        };
+        let demand = crate::capabilities::TerminalExternalCompletionDemand {
+            boundary: *boundary,
+            kind: *kind,
+        };
+        if !self
+            .external_bindings
+            .get(boundary)
+            .is_some_and(|admission| {
+                admission.answers(self.program.identity, self.process_domain.as_ref(), demand)
+            })
+        {
+            return Err(TerminalInterpretError::UnboundExternalCompletions {
+                missing: vec![demand],
+            });
+        }
+        let declaration = self.program.boundary_machines.get(boundary).ok_or(
+            TerminalInterpretError::VerifiedBoundaryMachineMissing(*boundary),
+        )?;
+        if declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
+            || arguments.len() != 1
+            || !structural_arguments.is_empty()
+            || frontier_lower_bound
+                .windows(2)
+                .any(|claims| claims[0] >= claims[1])
+            || frontier_lower_bound
+                .iter()
+                .any(|claim| !self.live_claims.contains_key(claim))
+        {
+            return Err(malformed());
+        }
+        let actual = self.scalar_value(arguments[0])?;
+        crate::custody::bind_boundary_arguments(&declaration.scalar_parameters, &[actual])?;
+        crate::custody::validate_boundary_requirements(declaration, &[])?;
+        let TerminalScalarValue::Integer {
+            scalar_type,
+            value: semantic_vocabulary::IntegerValue::Signed(value),
+        } = actual
+        else {
+            return Err(malformed());
+        };
+        if scalar_type
+            != semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                .map_err(|_| malformed())?
+        {
+            return Err(malformed());
+        }
+        let return_code = i32::try_from(value).map_err(|_| malformed())?;
+        match kind {
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit => {}
+        }
+        if let Err(error) = meter.charge_terminator(terminator) {
+            return meter_status(error).map(TerminatorFlow::Yield);
+        }
+        let completion = crate::results::TerminalExternalCompletion {
+            machine: self.current_machine,
+            block: self.current,
+            edge: *edge,
+            boundary: *boundary,
+            kind: *kind,
+            return_code,
+            frontier_lower_bound: frontier_lower_bound.clone(),
+        };
+        self.external_completion = Some(completion.clone());
+        Ok(TerminatorFlow::Yield(
+            TerminalExecutionStatus::ExternalCompletion(completion),
+        ))
+    }
 }

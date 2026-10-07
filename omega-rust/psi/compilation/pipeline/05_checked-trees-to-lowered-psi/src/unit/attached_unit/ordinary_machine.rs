@@ -428,6 +428,9 @@ pub(super) fn emit(
     };
     for step in argument_schedule::build(checked, plan)? {
         emission.lower_step(step)?;
+        if emission.operations.external_completion.is_some() {
+            break;
+        }
     }
     let MachineEmission {
         structural_types,
@@ -449,283 +452,14 @@ pub(super) fn emit(
         mut scalar_calls,
         ..
     } = emission;
+    // Open borrowed holes can affect surviving owners. External completion
+    // grants no crossing-safety admission, so keep that missing case fail-closed
+    // instead of inventing restoration or cleanup on an abandoned path.
     borrowed_windows.require_closed()?;
 
     if next_literal_argument != call_literal_count {
         return unsupported("byte-sequence literal argument consumption is incomplete");
     }
-    let controlled_result = if let Some(control) = &plan.scalar_control {
-        // Prefix values and structural locals are already established. The
-        // completion adds only the selected guard/arm evaluation and join.
-        scalar_calls.next_obligation_identity = next_call_obligation;
-        let result = evaluation.scalar_control_result(
-            checked,
-            plan.machine,
-            plan.state,
-            control,
-            &[],
-            &mut scalar_result_values,
-            &mut next_value_identity,
-            &mut next_block,
-            &mut next_edge,
-            &mut operations,
-            &mut scalar_calls,
-        )?;
-        next_call_obligation = scalar_calls.next_obligation_identity;
-        Some(result)
-    } else {
-        None
-    };
-    next_operation = operations.next_identity;
-    let CheckedUnitEffectOperationPlan::Complete {
-        trivial_affine_local_discard_ordinals,
-        trivial_affine_discards,
-        ..
-    } = plan.operations.last().expect("Unit sequence was validated")
-    else {
-        unreachable!()
-    };
-    let local_discards = trivial_affine_local_discard_ordinals.iter().map(|ordinal| {
-        local_places
-            .get(usize::try_from(*ordinal).map_err(|_| {
-                LoweringError::Unsupported("Unit local cleanup ordinal exceeds usize")
-            })?)
-            .map(|local| local.id)
-            .ok_or(LoweringError::Unsupported(
-                "Unit local cleanup ordinal is not dense",
-            ))
-    });
-    // Preserve the checker's disposal authority, but delegate its scheduling
-    // to the complete operation graph. Entry order is declaration order;
-    // affine_cleanup reverses it for cleanup and reconciles selected transfers.
-    let mut parameter_cleanup = trivial_affine_discards
-        .iter()
-        .map(|parameter_index| {
-            parameters
-                .get(usize::try_from(*parameter_index).map_err(|_| {
-                    LoweringError::Unsupported("Unit affine discard parameter index exceeds usize")
-                })?)
-                .cloned()
-                .ok_or(LoweringError::Unsupported(
-                    "Unit affine discard has an invalid parameter index",
-                ))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    parameter_cleanup.sort_by_key(|parameter| parameter.position);
-    // Legacy locals are a leading constructor prefix; operation results
-    // therefore die before those locals, and all locals before parameters.
-    // Admitting interleaved legacy constructors requires one declaration-
-    // ordered cleanup roster instead of concatenating these two groups.
-    // Parameter selection sources have no result row: they follow the
-    // result rows in descending authored position so the splice replaces
-    // each row with its residual join parameter.
-    // A projected owned argument can move the complete subtree roster out
-    // of a result carrier, in which case the frontier retires the place at
-    // the consuming call and the return roster must not discard its root.
-    let moved_subtrees = projected_moves::moved_subtrees(&operations.operations);
-    // A projected owned alias row owns no place: its storage is the root's,
-    // which keeps its own row and its own residual schedule.
-    let mut selection_roster = structural_result_places
-        .iter()
-        .rev()
-        .filter_map(|(place, discard)| Some((place.as_ref()?, discard)))
-        .map(|(place, discard)| {
-            let retired = moved_subtrees
-                .get(&evaluation.current_structural_place(place.id))
-                .is_some_and(|moved| {
-                    projected_moves::retires(structural_types, &operations.operations, place, moved)
-                });
-            (place.id, *discard && !retired)
-        })
-        .collect::<Vec<_>>();
-    let mut parameter_sources = Vec::new();
-    for cleanup in &evaluation.selection_cleanups {
-        for source in &cleanup.sources {
-            if let Some((position, _)) = evaluation
-                .structural_parameters
-                .iter()
-                .find(|(_, declaration)| declaration.place == *source)
-            {
-                parameter_sources.push((*position, *source));
-            }
-        }
-    }
-    parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
-    parameter_sources.dedup_by_key(|(_, place)| *place);
-    selection_roster.extend(
-        parameter_sources
-            .into_iter()
-            .map(|(_, place)| (place, false)),
-    );
-    let trivial_affine_discards = evaluation
-        .selection_return_discards(selection_roster)?
-        .into_iter()
-        .map(Ok)
-        .chain(local_discards)
-        .collect::<Result<Vec<_>, _>>()?;
-    let block = evaluation.current;
-    let mut scalar_return = plan
-        .scalar_result
-        .as_ref()
-        .map(|result| {
-            let position = scalar_parameter_count
-                .checked_add(result.binding_ordinal as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar completion binding position overflows",
-                ))?;
-            let source = scalar_result_values
-                .get(position)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar completion binding is absent",
-                ))?;
-            let scalar_type = terminal_scalar_type(result.primitive_type)?;
-            if source.scalar_type != scalar_type {
-                return unsupported("scalar completion binding has a different carrier");
-            }
-            Ok::<_, LoweringError>((
-                source.id,
-                ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: value_id(allocate_dense(&mut next_value_identity)?),
-                    scalar_type,
-                },
-            ))
-        })
-        .transpose()?;
-    if let Some(source) = controlled_result {
-        scalar_return = Some((
-            source.id,
-            ValueDeclaration {
-                qualifications: Default::default(),
-                id: value_id(allocate_dense(&mut next_value_identity)?),
-                scalar_type: source.scalar_type,
-            },
-        ));
-    }
-    // Completion reserves its own scalar result identity after the body.
-    // Include it before the next helper borrows the shared value allocator.
-    next_value = next_value_identity;
-    let structural_return = plan
-        .structural_result
-        .as_ref()
-        .map(|result| {
-            let source = match result.source {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                    structural_result_places
-                        .get(binding_ordinal as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "returned structural binding is absent",
-                        ))?
-                        .0
-                        .as_ref()
-                        // Returning a projected owned alias would forward the
-                        // root place and silently widen the returned subtree
-                        // to the whole root.
-                        .ok_or(LoweringError::Unsupported(
-                            "returned structural binding is a projected alias",
-                        ))?
-                        .id
-                }
-                CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                    parameters
-                        .get(parameter_index as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "returned structural parameter is absent",
-                        ))?
-                        .place
-                }
-                CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { ref bytes } => {
-                    // A literal return establishes its own immutable storage in
-                    // place: the declaration joins the machine's literal roster
-                    // and the establishment runs in this block before the
-                    // terminator forwards the place.
-                    let source = place_id(allocate_dense(&mut next_place)?);
-                    let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
-                    let declaration_ordinal =
-                        crate::emission::next_byte_sequence_literal_ordinal(&private_places)?;
-                    private_places.push(StructuralPlaceDeclaration {
-                        id: source,
-                        kind: StructuralPlaceKind::ByteSequenceLiteral {
-                            declaration_ordinal,
-                            structural_type,
-                        },
-                    });
-                    let id = operations.allocate();
-                    operations.push(Operation {
-                        static_reach_binding: None,
-                        suspension_crossing: None,
-                        id,
-                        result: terminal_psi::OperationResult::Unit,
-                        kind: OperationKind::EstablishByteSequenceLiteral {
-                            destination: source,
-                            bytes: bytes.clone(),
-                            qualifications: Vec::new(),
-                        },
-                    });
-                    source
-                }
-                _ => {
-                    return unsupported("structural return source is not an owned whole value");
-                }
-            };
-            let source = evaluation.current_structural_place(source);
-            let place = place_id(allocate_dense(&mut next_place)?);
-            let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
-            let return_type = checked
-                .typed
-                .machine_states(
-                    checked
-                        .typed
-                        .machines()
-                        .iter()
-                        .find(|machine| machine.symbol == plan.machine)
-                        .ok_or(LoweringError::Unsupported(
-                            "structural result has no exact machine",
-                        ))?,
-                )
-                .iter()
-                .find(|state| state.symbol == plan.state)
-                .ok_or(LoweringError::Unsupported(
-                    "structural result has no exact state",
-                ))?
-                .return_type;
-            // A byte view result's inside-borrow domains ride the same peeled
-            // carrier identity the result spells, so the machine publishes them
-            // as its own qualifications.
-            let qualifications =
-                validation::view_result_carrier_qualifications(&checked.typed, return_type)
-                    .map_err(LoweringError::Unsupported)?
-                    .iter()
-                    .map(|domain| {
-                        lookup_domain_id_for_carrier(domain_ids, *domain, structural_type)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-            Ok::<_, LoweringError>((
-                source,
-                terminal_psi::StructuralResultDeclaration {
-                    place,
-                    structural_type,
-                    multiplicity: match result.multiplicity {
-                        Multiplicity::Affine => StructuralMultiplicity::Affine,
-                        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                        Multiplicity::Linear => {
-                            return unsupported(
-                                "structural completion requires retained linear result claims",
-                            );
-                        }
-                    },
-                    qualifications,
-                    projected_qualifications: Vec::new(),
-                    reference_sources: parameters::lower_reference_result_sources(
-                        &result.reference_sources,
-                        structural_types,
-                        parameters,
-                    )?,
-                },
-            ))
-        })
-        .transpose()?;
-    let edge = edge_id(allocate_dense(&mut next_edge)?);
     let crash_routes = {
         let effective = crate::unit::effective_crash_routes(checked, plan.machine)?;
         if parameters.is_empty() {
@@ -741,53 +475,360 @@ pub(super) fn emit(
         }
     };
     evaluation.remap_transported_call_operands(&mut operations);
-    evaluation.blocks.push(Block {
-        id: block,
-        parameters: evaluation.parameters,
-        erased_scalar_formals: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        structural_parameters: evaluation.block_structural_parameters,
-        operations: operations[evaluation.operation_start..].to_vec(),
-        terminator: if let Some((source, _)) = &scalar_return {
-            Terminator::Return {
-                edge,
-                value: *source,
-                cleanup_actions: trivial_affine_discards
-                    .into_iter()
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                    .collect(),
-            }
-        } else if let Some((source, _)) = &structural_return {
-            Terminator::ReturnStructural {
-                edge,
-                source: *source,
-                returned_claims: Vec::new(),
-                cleanup_actions: trivial_affine_discards
-                    .into_iter()
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                    .collect(),
-            }
+    let mut external_result = None;
+    let (scalar_return, structural_return) = if let Some(terminator) =
+        operations.take_external_completion(&mut next_edge)?
+    {
+        external_result = Some(if let Some(result) = &plan.structural_result {
+            TerminalMachineResult::Structural(lower_structural_result_declaration(
+                checked,
+                plan,
+                result,
+                parameters,
+                structural_types,
+                type_ids,
+                domain_ids,
+                &mut next_place,
+            )?)
+        } else if let Some(primitive_type) = plan
+            .scalar_result
+            .as_ref()
+            .map(|result| result.primitive_type)
+            .or_else(|| {
+                plan.scalar_control
+                    .as_ref()
+                    .map(|control| control.primitive_type)
+            })
+        {
+            TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(allocate_dense(&mut next_value_identity)?),
+                scalar_type: terminal_scalar_type(primitive_type)?,
+            })
         } else {
-            Terminator::ReturnUnit {
-                edge,
-                cleanup_actions: trivial_affine_discards
-                    .into_iter()
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                    .collect(),
+            TerminalMachineResult::Unit
+        });
+        // Result declarations describe the machine's normal-return contract,
+        // not a runtime producer on this abandoned path.
+        // Abandonment seals this path without evaluating a later result,
+        // manufacturing normal receipts, or scheduling implicit cleanup.
+        evaluation.remap_transported_call_operands(&mut operations);
+        evaluation.blocks.push(Block {
+            id: evaluation.current,
+            parameters: evaluation.parameters,
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: evaluation.block_structural_parameters,
+            operations: operations[evaluation.operation_start..].to_vec(),
+            terminator,
+        });
+        next_value = next_value_identity;
+        (None, None)
+    } else {
+        let controlled_result = if let Some(control) = &plan.scalar_control {
+            // Prefix values and structural locals are already established. The
+            // completion adds only the selected guard/arm evaluation and join.
+            scalar_calls.next_obligation_identity = next_call_obligation;
+            let result = evaluation.scalar_control_result(
+                checked,
+                plan.machine,
+                plan.state,
+                control,
+                &[],
+                &mut scalar_result_values,
+                &mut next_value_identity,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+                &mut scalar_calls,
+            )?;
+            next_call_obligation = scalar_calls.next_obligation_identity;
+            Some(result)
+        } else {
+            None
+        };
+        let Some(CheckedUnitEffectOperationPlan::Complete {
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+            ..
+        }) = plan.operations.last()
+        else {
+            return Err(LoweringError::Unsupported(
+                "returning Unit sequence has no checked completion plan",
+            ));
+        };
+        let local_discards = trivial_affine_local_discard_ordinals.iter().map(|ordinal| {
+            local_places
+                .get(usize::try_from(*ordinal).map_err(|_| {
+                    LoweringError::Unsupported("Unit local cleanup ordinal exceeds usize")
+                })?)
+                .map(|local| local.id)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit local cleanup ordinal is not dense",
+                ))
+        });
+        // Preserve the checker's disposal authority, but delegate its scheduling
+        // to the complete operation graph. Entry order is declaration order;
+        // affine_cleanup reverses it for cleanup and reconciles selected transfers.
+        let mut parameter_cleanup = trivial_affine_discards
+            .iter()
+            .map(|parameter_index| {
+                parameters
+                    .get(usize::try_from(*parameter_index).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "Unit affine discard parameter index exceeds usize",
+                        )
+                    })?)
+                    .cloned()
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit affine discard has an invalid parameter index",
+                    ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        parameter_cleanup.sort_by_key(|parameter| parameter.position);
+        // Legacy locals are a leading constructor prefix; operation results
+        // therefore die before those locals, and all locals before parameters.
+        // Admitting interleaved legacy constructors requires one declaration-
+        // ordered cleanup roster instead of concatenating these two groups.
+        // Parameter selection sources have no result row: they follow the
+        // result rows in descending authored position so the splice replaces
+        // each row with its residual join parameter.
+        // A projected owned argument can move the complete subtree roster out
+        // of a result carrier, in which case the frontier retires the place at
+        // the consuming call and the return roster must not discard its root.
+        let moved_subtrees = projected_moves::moved_subtrees(&operations.operations);
+        // A projected owned alias row owns no place: its storage is the root's,
+        // which keeps its own row and its own residual schedule.
+        let mut selection_roster = structural_result_places
+            .iter()
+            .rev()
+            .filter_map(|(place, discard)| Some((place.as_ref()?, discard)))
+            .map(|(place, discard)| {
+                let retired = moved_subtrees
+                    .get(&evaluation.current_structural_place(place.id))
+                    .is_some_and(|moved| {
+                        projected_moves::retires(
+                            structural_types,
+                            &operations.operations,
+                            place,
+                            moved,
+                        )
+                    });
+                (place.id, *discard && !retired)
+            })
+            .collect::<Vec<_>>();
+        let mut parameter_sources = Vec::new();
+        for cleanup in &evaluation.selection_cleanups {
+            for source in &cleanup.sources {
+                if let Some((position, _)) = evaluation
+                    .structural_parameters
+                    .iter()
+                    .find(|(_, declaration)| declaration.place == *source)
+                {
+                    parameter_sources.push((*position, *source));
+                }
             }
-        },
+        }
+        parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
+        parameter_sources.dedup_by_key(|(_, place)| *place);
+        selection_roster.extend(
+            parameter_sources
+                .into_iter()
+                .map(|(_, place)| (place, false)),
+        );
+        let trivial_affine_discards = evaluation
+            .selection_return_discards(selection_roster)?
+            .into_iter()
+            .map(Ok)
+            .chain(local_discards)
+            .collect::<Result<Vec<_>, _>>()?;
+        let block = evaluation.current;
+        let mut scalar_return = plan
+            .scalar_result
+            .as_ref()
+            .map(|result| {
+                let position = scalar_parameter_count
+                    .checked_add(result.binding_ordinal as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar completion binding position overflows",
+                    ))?;
+                let source =
+                    scalar_result_values
+                        .get(position)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar completion binding is absent",
+                        ))?;
+                let scalar_type = terminal_scalar_type(result.primitive_type)?;
+                if source.scalar_type != scalar_type {
+                    return unsupported("scalar completion binding has a different carrier");
+                }
+                Ok::<_, LoweringError>((
+                    source.id,
+                    ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: value_id(allocate_dense(&mut next_value_identity)?),
+                        scalar_type,
+                    },
+                ))
+            })
+            .transpose()?;
+        if let Some(source) = controlled_result {
+            scalar_return = Some((
+                source.id,
+                ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: value_id(allocate_dense(&mut next_value_identity)?),
+                    scalar_type: source.scalar_type,
+                },
+            ));
+        }
+        // Completion reserves its own scalar result identity after the body.
+        // Include it before the next helper borrows the shared value allocator.
+        next_value = next_value_identity;
+        let structural_return = plan
+            .structural_result
+            .as_ref()
+            .map(|result| {
+                let source = match result.source {
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => {
+                        structural_result_places
+                            .get(binding_ordinal as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "returned structural binding is absent",
+                            ))?
+                            .0
+                            .as_ref()
+                            // Returning a projected owned alias would forward the
+                            // root place and silently widen the returned subtree
+                            // to the whole root.
+                            .ok_or(LoweringError::Unsupported(
+                                "returned structural binding is a projected alias",
+                            ))?
+                            .id
+                    }
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                        parameters
+                            .get(parameter_index as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "returned structural parameter is absent",
+                            ))?
+                            .place
+                    }
+                    CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { ref bytes } => {
+                        // A literal return establishes its own immutable storage in
+                        // place: the declaration joins the machine's literal roster
+                        // and the establishment runs in this block before the
+                        // terminator forwards the place.
+                        let source = place_id(allocate_dense(&mut next_place)?);
+                        let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
+                        let declaration_ordinal =
+                            crate::emission::next_byte_sequence_literal_ordinal(&private_places)?;
+                        private_places.push(StructuralPlaceDeclaration {
+                            id: source,
+                            kind: StructuralPlaceKind::ByteSequenceLiteral {
+                                declaration_ordinal,
+                                structural_type,
+                            },
+                        });
+                        let id = operations.allocate();
+                        operations.push(Operation {
+                            static_reach_binding: None,
+                            suspension_crossing: None,
+                            id,
+                            result: terminal_psi::OperationResult::Unit,
+                            kind: OperationKind::EstablishByteSequenceLiteral {
+                                destination: source,
+                                bytes: bytes.clone(),
+                                qualifications: Vec::new(),
+                            },
+                        });
+                        source
+                    }
+                    _ => {
+                        return unsupported("structural return source is not an owned whole value");
+                    }
+                };
+                let source = evaluation.current_structural_place(source);
+                Ok::<_, LoweringError>((
+                    source,
+                    lower_structural_result_declaration(
+                        checked,
+                        plan,
+                        result,
+                        parameters,
+                        structural_types,
+                        type_ids,
+                        domain_ids,
+                        &mut next_place,
+                    )?,
+                ))
+            })
+            .transpose()?;
+        let edge = edge_id(allocate_dense(&mut next_edge)?);
+        evaluation.remap_transported_call_operands(&mut operations);
+        evaluation.blocks.push(Block {
+            id: block,
+            parameters: evaluation.parameters,
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: evaluation.block_structural_parameters,
+            operations: operations[evaluation.operation_start..].to_vec(),
+            terminator: if let Some((source, _)) = &scalar_return {
+                Terminator::Return {
+                    edge,
+                    value: *source,
+                    cleanup_actions: trivial_affine_discards
+                        .into_iter()
+                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                        .collect(),
+                }
+            } else if let Some((source, _)) = &structural_return {
+                Terminator::ReturnStructural {
+                    edge,
+                    source: *source,
+                    returned_claims: Vec::new(),
+                    cleanup_actions: trivial_affine_discards
+                        .into_iter()
+                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                        .collect(),
+                }
+            } else {
+                Terminator::ReturnUnit {
+                    edge,
+                    cleanup_actions: trivial_affine_discards
+                        .into_iter()
+                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                        .collect(),
+                }
+            },
+        });
+        evaluation.blocks.sort_by_key(|block| block.id);
+        // Local/result cleanup retains its established schedule. Parameter cleanup
+        // uses its authenticated completion rows exactly once through the emitted
+        // frontier, after every selected scalar operand and call has run.
+        crate::emission::affine_cleanup::complete(
+            &parameter_cleanup,
+            parameters,
+            evaluation.entry,
+            &mut evaluation.blocks,
+            structural_types,
+        )?;
+        (scalar_return, structural_return)
+    };
+    next_operation = operations.next_identity;
+    let declared_result = external_result.unwrap_or_else(|| {
+        if let Some((_, result)) = scalar_return {
+            TerminalMachineResult::Scalar(result)
+        } else {
+            structural_return
+                .as_ref()
+                .map_or(TerminalMachineResult::Unit, |(_, result)| {
+                    TerminalMachineResult::Structural(result.clone())
+                })
+        }
     });
-    evaluation.blocks.sort_by_key(|block| block.id);
-    // Local/result cleanup retains its established schedule. Parameter cleanup
-    // uses its authenticated completion rows exactly once through the emitted
-    // frontier, after every selected scalar operand and call has run.
-    crate::emission::affine_cleanup::complete(
-        &parameter_cleanup,
-        parameters,
-        evaluation.entry,
-        &mut evaluation.blocks,
-        structural_types,
-    )?;
     crate::scalar_graph::scalar_computations::literals::retain_declarations(
         &evaluation.literals,
         evaluation.blocks.iter().flat_map(|block| &block.operations),
@@ -868,7 +909,7 @@ pub(super) fn emit(
         }
     }
     structural_places.sort_by_key(|place| place.id);
-    if let Some((_, result)) = &structural_return {
+    if let TerminalMachineResult::Structural(result) = &declared_result {
         structural_places.push(StructuralPlaceDeclaration {
             id: result.place,
             kind: StructuralPlaceKind::Result,
@@ -878,7 +919,10 @@ pub(super) fn emit(
         checked,
         plan.state,
         &scalar_parameters,
-        scalar_return.map(|(_, result)| result),
+        match &declared_result {
+            TerminalMachineResult::Scalar(result) => Some(*result),
+            _ => None,
+        },
         &signature.erased_scalar_parameters,
         &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
             parameters: &evaluation.structural_parameters,
@@ -903,13 +947,7 @@ pub(super) fn emit(
         parameters: scalar_parameters.clone(),
         structural_parameters: parameters.clone(),
         ranked_scc: None,
-        result: if let Some((_, result)) = scalar_return {
-            TerminalMachineResult::Scalar(result)
-        } else {
-            structural_return.map_or(TerminalMachineResult::Unit, |(_, result)| {
-                TerminalMachineResult::Structural(result)
-            })
-        },
+        result: declared_result,
         structural_places,
         entry_claims: entry_claims.clone(),
         published_service_ceiling: if let Some(provider) = provider_candidate_plans
@@ -961,6 +999,68 @@ pub(super) fn emit(
     })
 }
 
+/// Publish the checked normal-result carrier without evaluating its source.
+/// A declaration remains necessary when every emitted path abandons the domain.
+#[allow(clippy::too_many_arguments)]
+fn lower_structural_result_declaration(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+    result: &checked_trees::CheckedUnitStructuralReturnPlan,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+    type_ids: &[(String, StructuralTypeId)],
+    domain_ids: &[StructuralDomainBinding],
+    next_place: &mut u64,
+) -> Result<terminal_psi::StructuralResultDeclaration, LoweringError> {
+    let place = place_id(allocate_dense(next_place)?);
+    let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
+    let return_type = checked
+        .typed
+        .machine_states(
+            checked
+                .typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == plan.machine)
+                .ok_or(LoweringError::Unsupported(
+                    "structural result has no exact machine",
+                ))?,
+        )
+        .iter()
+        .find(|state| state.symbol == plan.state)
+        .ok_or(LoweringError::Unsupported(
+            "structural result has no exact state",
+        ))?
+        .return_type;
+    // A byte view result's inside-borrow domains ride the same peeled
+    // carrier identity the result spells, so the machine publishes them
+    // as its own qualifications.
+    let qualifications =
+        validation::view_result_carrier_qualifications(&checked.typed, return_type)
+            .map_err(LoweringError::Unsupported)?
+            .iter()
+            .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
+            .collect::<Result<Vec<_>, _>>()?;
+    Ok(terminal_psi::StructuralResultDeclaration {
+        place,
+        structural_type,
+        multiplicity: match result.multiplicity {
+            Multiplicity::Affine => StructuralMultiplicity::Affine,
+            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+            Multiplicity::Linear => {
+                return unsupported("structural completion requires retained linear result claims");
+            }
+        },
+        qualifications,
+        projected_qualifications: Vec::new(),
+        reference_sources: parameters::lower_reference_result_sources(
+            &result.reference_sources,
+            structural_types,
+            parameters,
+        )?,
+    })
+}
+
 /// Establish every byte-sequence literal the body passes as a structural
 /// call argument: one private place per literal, qualified with the domain
 /// memberships the target parameter declares, and one establishment
@@ -993,6 +1093,14 @@ fn establish_call_literals(
                 .filter(|(_, argument)| argument.byte_sequence_literal().is_some())
                 .map(|(index, argument)| (argument, target_machine, index)),
         );
+        // Only the emitted straight-line prefix owns literal establishments.
+        // A terminal invocation has no operand schedule or effects after it.
+        if matches!(
+            call.completion(),
+            semantic_vocabulary::BoundaryCompletion::External(_)
+        ) {
+            break;
+        }
     }
     let mut operand_places = Vec::new();
     let operation_identity_base =

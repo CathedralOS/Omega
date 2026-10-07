@@ -1,9 +1,9 @@
 //! Executable abstract vocabulary, including moves, drops, calls and control.
 
 use crate::{
-    AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult, AbstractStructuralCallResult,
-    AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicModificationAfter, AtomicReadsFrom,
-    CompletionClaimSource, ValueBinding,
+    AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
+    AbstractStructuralCallResult, AbstractStructuralCaseSuccessor, AbstractSuccessor,
+    AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -693,9 +693,19 @@ pub enum AbstractOperation {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
     },
-    /// A verified no-successor terminal. The audit-only site guard and frontier
-    /// remain attached at the Omega boundary even though native realization
-    /// only needs the closed cause and edge identity.
+    /// An external invocation that settles the activation without a successor.
+    /// Data arguments and the authored frontier retain the completion edge,
+    /// independently of ordinary operation identity.
+    ExternalCompletion {
+        psi_edge: EdgeId,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        kind: semantic_vocabulary::ExternalCompletionKind,
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<terminal_psi::StructuralArgument>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        frontier_lower_bound: Vec<ClaimId>,
+    },
+    /// A verified no-successor crash retains its cause, site guard and frontier.
     Crash {
         psi_edge: EdgeId,
         cause: CrashCause,
@@ -838,6 +848,10 @@ impl AbstractOperation {
             | Self::BoundaryCall {
                 structural_arguments,
                 ..
+            }
+            | Self::ExternalCompletion {
+                structural_arguments,
+                ..
             } => structural_arguments
                 .iter()
                 .map(|argument| argument.path.as_slice())
@@ -921,6 +935,7 @@ impl AbstractOperation {
             | Self::Return { .. }
             | Self::ReturnUnit { .. }
             | Self::ReturnStructural { .. }
+            | Self::ExternalCompletion { .. }
             | Self::Crash { .. } => None,
         }
     }

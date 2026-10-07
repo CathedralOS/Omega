@@ -478,11 +478,6 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(*byte_size);
                     encode_runtime_indices(bytes, indices);
                 }
-                LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source } => {
-                    bytes.push(14);
-                    bytes.extend_from_slice(&boundary.get().to_le_bytes());
-                    bytes.extend_from_slice(&source.get().to_le_bytes());
-                }
                 LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } => {
                     bytes.push(11);
                     bytes.extend_from_slice(&boundary.get().to_le_bytes());
@@ -1082,6 +1077,50 @@ fn encode_cleanup_calls(
 
 fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator) {
     match terminator {
+        LegalizedScalarTerminator::ExternalCompletion {
+            psi_edge,
+            boundary,
+            kind,
+            arguments,
+            binding,
+            structural_arguments,
+            requirement_obligations,
+            frontier_lower_bound,
+            fuel,
+            effect,
+            ownership,
+        } => {
+            bytes.push(6);
+            bytes.extend_from_slice(&psi_edge.get().to_le_bytes());
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            match kind {
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit => bytes.push(1),
+            }
+            super::boundary_invocations::encode_binding(bytes, binding);
+            encode_len(bytes, arguments.len());
+            for argument in arguments {
+                bytes.extend_from_slice(&argument.parameter_index.to_le_bytes());
+                super::normalized_foreign::encode_scalar_source(bytes, argument.source);
+                encode_placement(bytes, &argument.placement);
+            }
+            encode_len(bytes, structural_arguments.len());
+            for argument in structural_arguments {
+                super::structural_types::encode_structural_argument(bytes, argument);
+            }
+            encode_ids(
+                bytes,
+                requirement_obligations
+                    .iter()
+                    .map(|identity| identity.get()),
+            );
+            encode_ids(
+                bytes,
+                frontier_lower_bound.iter().map(|identity| identity.get()),
+            );
+            encode_fuel(bytes, fuel);
+            encode_effect(bytes, *effect);
+            encode_ownership_roster(bytes, ownership);
+        }
         LegalizedScalarTerminator::ReturnCleanup { returned, calls } => {
             bytes.push(5);
             encode_terminator(bytes, &LegalizedScalarTerminator::Return(returned.clone()));

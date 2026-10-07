@@ -74,7 +74,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         .filter(|machine| machine.id == occurrence.machine())
         .flat_map(|machine| &machine.blocks)
         .flat_map(|block| &block.operations)
-        .filter(|operation| operation.id == occurrence.operation())
+        .filter(|operation| Some(operation.id) == occurrence.operation())
         .collect::<Vec<_>>();
     let [operation] = matching_operations.as_slice() else {
         return Err("installed D41 settlement does not rejoin one Terminal operation");
@@ -96,7 +96,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         .find(|declaration| declaration.id == *boundary)
         .ok_or("installed D41 settlement names an absent boundary")?;
     if *boundary != occurrence.boundary()
-        || settlement.psi_operation != occurrence.operation()
+        || settlement.invocation_site != occurrence.invocation_site()
         || settlement.boundary != *boundary
         || declaration.identity != requirement_identity
         || !arguments.is_empty()
@@ -113,11 +113,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         .iter()
         .find(|function| function.machine == occurrence.machine())
         .ok_or("installed D41 settlement names an absent object function")?;
-    if !function
-        .provenance
-        .operations
-        .contains(&settlement.psi_operation)
-    {
+    if !function.provenance.operations.contains(&operation.id) {
         return Err("installed D41 settlement operation left its function provenance");
     }
     let port_effect = match &settlement.realization {

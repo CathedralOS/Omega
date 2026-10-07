@@ -440,6 +440,16 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     for machine in &module.machines {
         validate_parameter_order(&machine.structural_parameters)?;
         for block in &machine.blocks {
+            if let Terminator::ExternalCompletion {
+                frontier_lower_bound,
+                ..
+            } = &block.terminator
+                && !strictly_increasing(frontier_lower_bound.iter().copied())
+            {
+                return Err(CodecError::NonCanonicalOrder(
+                    "external completion frontier lower bound by ClaimId",
+                ));
+            }
             validate_parameter_order(&block.structural_parameters)?;
         }
         if !strictly_increasing(machine.entry_claims.iter().map(|claim| claim.claim)) {
