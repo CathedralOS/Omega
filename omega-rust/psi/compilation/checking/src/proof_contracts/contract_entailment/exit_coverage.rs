@@ -29,8 +29,16 @@ pub(crate) fn entailment_covers_all_exits(program: &TypedTrees, machine: &Machin
     })
 }
 
-fn complementary_boolean_guards(program: &TypedTrees, guards: &[TransitionGuardNode]) -> bool {
-    let comparisons: Vec<_> = guards
+
+/// The `when` guards' equality comparisons as (left, mapped-right) pairs: a
+/// non-`when`, non-binary, or non-`==` guard contributes nothing, and
+/// `map_right` decides which right-operand shapes each caller reads.
+fn equality_comparisons<T>(
+    program: &TypedTrees,
+    guards: &[TransitionGuardNode],
+    map_right: impl Fn(&typed_trees::expression::TableBinaryExpression) -> Option<T>,
+) -> Vec<(ExpressionHandle, T)> {
+    guards
         .iter()
         .filter_map(|guard| {
             let TransitionGuardNode::When(expression) = guard else {
@@ -41,14 +49,23 @@ fn complementary_boolean_guards(program: &TypedTrees, guards: &[TransitionGuardN
             else {
                 return None;
             };
-            let ExpressionNode::Boolean(polarity) =
-                program.expression_table.expression(comparison.right)
-            else {
-                return None;
-            };
-            (comparison.operator == BinaryOperator::Equal).then_some((comparison.left, *polarity))
+            (comparison.operator == BinaryOperator::Equal)
+                .then(|| map_right(comparison))
+                .flatten()
+                .map(|right| (comparison.left, right))
         })
-        .collect();
+        .collect()
+}
+
+fn complementary_boolean_guards(program: &TypedTrees, guards: &[TransitionGuardNode]) -> bool {
+    let comparisons = equality_comparisons(program, guards, |comparison| {
+        let ExpressionNode::Boolean(polarity) =
+            program.expression_table.expression(comparison.right)
+        else {
+            return None;
+        };
+        Some(*polarity)
+    });
     comparisons.iter().any(|(left, polarity)| {
         comparisons.iter().any(|(right, other_polarity)| {
             polarity != other_polarity && same_condition(program, *left, *right)
@@ -57,24 +74,13 @@ fn complementary_boolean_guards(program: &TypedTrees, guards: &[TransitionGuardN
 }
 
 fn complete_case_guards(program: &TypedTrees, guards: &[TransitionGuardNode]) -> bool {
-    let comparisons: Vec<_> = guards
-        .iter()
-        .filter_map(|guard| {
-            let TransitionGuardNode::When(expression) = guard else {
-                return None;
-            };
-            let ExpressionNode::Binary(comparison) =
-                program.expression_table.expression(*expression)
-            else {
-                return None;
-            };
-            let ExpressionNode::Name(case) = program.expression_table.expression(comparison.right)
-            else {
-                return None;
-            };
-            (comparison.operator == BinaryOperator::Equal).then_some((comparison.left, case.symbol))
-        })
-        .collect();
+    let comparisons = equality_comparisons(program, guards, |comparison| {
+        let ExpressionNode::Name(case) = program.expression_table.expression(comparison.right)
+        else {
+            return None;
+        };
+        Some(case.symbol)
+    });
     comparisons.iter().any(|(subject, _)| {
         program.data_definitions().iter().any(|data| {
             let cases: Vec<_> = program
