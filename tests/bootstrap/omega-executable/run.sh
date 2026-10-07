@@ -2,13 +2,7 @@
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
-export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/omega/compiler_env.sh"
+. "$GATE_DIR/../gate_env.sh"
 
 # --identity is a lone flag: it materializes every bound artifact and checks
 # every wrapper-side identity without executing the seed, so any Python-3
