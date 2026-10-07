@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.75, "load1_start": 2.75, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 3.28, "load1_start": 3.31, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_field_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -109,6 +109,7 @@ pass/calls/runtime_computed_case_terminal_payload_result_exit built 1318ms exit:
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 4619ms exit:0 interpreter-exit:0 interpreter:agrees @a9ea4297a1a9
 pass/calls/runtime_constructed_copy_payload_arguments_exit built 3370ms exit:0 interpreter-exit:0 interpreter:agrees @6a3a2f5cba58
 pass/calls/runtime_constructed_payload_arguments_exit built 3370ms exit:0 interpreter-exit:0 interpreter:agrees @6a3a2f5cba58
+pass/calls/runtime_constructor_child_declared_membership_exit built 1646ms exit:0 interpreter-exit:0 interpreter:agrees @7b3ac815c2b7
 pass/calls/runtime_constructor_child_equal_captures_exit built 1621ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
 pass/calls/runtime_constructor_child_inherited_captures_exit built 1621ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
 pass/calls/runtime_constructor_child_membership_snapshot_exit built 1621ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
@@ -191,6 +192,7 @@ pass/domains/record_interval_domain_member_exit built 1277ms exit:70 interpreter
 pass/domains/record_literal_view_member_store_exit built 1699ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @3b6b4258b4af+wt
 pass/domains/record_predicate_domain_member_exit built 1214ms exit:70 interpreter-exit:70 interpreter:agrees @2efb222df04d
 pass/domains/runtime_computed_qualification_exit built 4482ms exit:0 interpreter-exit:0 interpreter:agrees @27dfa182e550
+pass/domains/runtime_nested_record_membership_transport_exit built 1646ms exit:0 interpreter-exit:0 interpreter:agrees @7b3ac815c2b7
 pass/domains/runtime_qualified_borrowed_gated_input_exit built 1513ms exit:0 interpreter-exit:0 interpreter:agrees @f20b8ea3bb8d
 pass/domains/runtime_qualified_view_field_parameter_store_exit built 2494ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @f76d8aa42d2a
 pass/domains/utf8_field_write_from_param built 469ms @6949147699f7

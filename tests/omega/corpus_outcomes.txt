@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.9, "load1_start": 2.9, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 3.31, "load1_start": 2.82, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -972,6 +972,13 @@ fail/domains/qualified_mutable_invalid_field rejected 148ms expected @b027f59996
 	cannot prove default-domain field requirement for call consume from main::entry: parameter packet.label.text requires [u8; N]::NonEmpty
 fail/domains/qualified_scalar_record_call_unestablished rejected 507ms expected @0bb2f2c02dae+wt
 	cannot prove requires contract for call make_gauge from invalid: 5 in i32::NotFive
+fail/domains/record_child_membership_requires_issuance rejected 346ms expected @7b3ac815c2b7
+	cannot prove default-domain field requirement for call observe from literal::entry: parameter value.ticket requires Ticket::Issued
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for call observe from stale::entry: parameter value.ticket requires Ticket::Issued
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for call observe from sibling::entry: parameter value.ticket requires Ticket::Issued
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/domains/record_interval_member_out_of_range rejected 66ms expected @aff5e029f28c+wt
 	construction of `Gauge` field `level`: value 11 is outside its declared range `0..=10`
 fail/domains/refinement_chain_routed_provenance_forge rejected 720ms expected @2d8ed253669f
@@ -2272,6 +2279,7 @@ pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 1957ms ch
 pass/calls/runtime_constructed_copy_payload_arguments_exit checked 6100ms check-target:macos_arm64 @b2906d953be
 pass/calls/runtime_constructed_payload_arguments_exit checked 6944ms check-target:macos_arm64 @b2906d953be
 pass/calls/runtime_constructor_byte_predicate_snapshot_exit checked 1200ms check-target:macos_arm64 @1a0d1c0cd491+wt
+pass/calls/runtime_constructor_child_declared_membership_exit checked 1648ms check-target:macos_arm64 @7b3ac815c2b7
 pass/calls/runtime_constructor_child_equal_captures_exit checked 1282ms check-target:macos_arm64 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_inherited_captures_exit checked 1233ms check-target:macos_arm64 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_membership_snapshot_exit checked 1205ms check-target:macos_arm64 @8093eb34a6ed+wt
@@ -2690,6 +2698,7 @@ pass/domains/record_predicate_domain_member_exit checked 791ms check-target:maco
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
 pass/domains/runtime_computed_qualification_exit checked 4558ms check-target:macos_arm64 @27dfa182e550
+pass/domains/runtime_nested_record_membership_transport_exit checked 1648ms check-target:macos_arm64 @7b3ac815c2b7
 pass/domains/runtime_qualified_borrowed_gated_input_exit checked 1704ms check-target:macos_arm64 @f20b8ea3bb8d
 pass/domains/runtime_qualified_view_field_parameter_store_exit checked 1334ms check-target:macos_arm64 @6949147699f7
 pass/domains/runtime_result_domain_machine_overload_exit checked 8050ms check-target:macos_arm64 @0a22a3b7fdb

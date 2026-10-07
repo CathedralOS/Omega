@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.9, "load1_start": 2.9, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 3.31, "load1_start": 3.31, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -318,6 +318,7 @@ pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 1975ms exit
 pass/calls/runtime_constructed_copy_payload_arguments_exit built 1361ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_constructed_payload_arguments_exit built 3617ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_constructor_byte_predicate_snapshot_exit built 1340ms exit:0 @1a0d1c0cd491+wt
+pass/calls/runtime_constructor_child_declared_membership_exit built 1655ms exit:0 @7b3ac815c2b7
 pass/calls/runtime_constructor_child_equal_captures_exit built 1370ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_inherited_captures_exit built 1328ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_membership_snapshot_exit built 1306ms exit:0 @8093eb34a6ed+wt
@@ -733,6 +734,7 @@ pass/domains/record_predicate_domain_member_exit built 970ms exit:70 @2efb222df0
 pass/domains/refinement_chain_predicates checked 148ms
 pass/domains/refinement_chain_routed_provenance checked 167ms
 pass/domains/runtime_computed_qualification_exit built 4477ms exit:0 @27dfa182e550
+pass/domains/runtime_nested_record_membership_transport_exit built 1655ms exit:0 @7b3ac815c2b7
 pass/domains/runtime_qualified_borrowed_gated_input_exit built 1510ms exit:0 @f20b8ea3bb8d
 pass/domains/runtime_qualified_view_field_parameter_store_exit built 3287ms exit:70 stdout:match @9beb2be72f2d+wt
 pass/domains/runtime_result_domain_machine_overload_exit built 1950ms exit:70 @48008365d839
