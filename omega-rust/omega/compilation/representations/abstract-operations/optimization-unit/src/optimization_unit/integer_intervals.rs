@@ -1,30 +1,33 @@
-//! Closed conjunctive integer-interval extraction from canonical propositions.
-
-use std::collections::BTreeMap;
-
-use semantic_vocabulary::{
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
-    ValueId,
+//! Closed conjunctive integer-interval extraction from canonical propositions,
+//! plus the exact proof-bearing operations whose accepted obligations carry them.
+use abstract_operations::{
+    AbstractOperation as O, IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy,
 };
+use semantic_vocabulary::{
+    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, OperationId, Proposition, ScalarTerm,
+    ScalarType, ValueId,
+};
+use std::collections::BTreeMap;
+use terminal_semantics::CanonicalScalarGoal;
 
 #[derive(Debug, Clone, Copy, Default)]
-pub(super) struct PartialIntegerBounds {
-    pub(super) lower: Option<IntegerValue>,
-    pub(super) upper: Option<IntegerValue>,
+pub struct PartialIntegerBounds {
+    pub lower: Option<IntegerValue>,
+    pub upper: Option<IntegerValue>,
 }
 
-pub(super) enum IntervalExtraction {
+pub enum IntervalExtraction {
     Unsupported,
     Contradiction,
     Bounds(BTreeMap<(ValueId, IntegerType), PartialIntegerBounds>),
 }
 
-pub(super) fn extract(proposition: &Proposition) -> IntervalExtraction {
+pub fn extract_integer_intervals(proposition: &Proposition) -> IntervalExtraction {
     if proposition.validate().is_err() {
         return IntervalExtraction::Unsupported;
     }
     let mut bounds = BTreeMap::new();
-    if !extract_conjunct(proposition, &mut bounds) {
+    if !extract_integer_interval_conjunct(proposition, &mut bounds) {
         return IntervalExtraction::Contradiction;
     }
     for ((_, scalar_type), interval) in &bounds {
@@ -45,7 +48,7 @@ pub(super) fn extract(proposition: &Proposition) -> IntervalExtraction {
     }
 }
 
-fn extract_conjunct(
+fn extract_integer_interval_conjunct(
     proposition: &Proposition,
     bounds: &mut BTreeMap<(ValueId, IntegerType), PartialIntegerBounds>,
 ) -> bool {
@@ -54,7 +57,7 @@ fn extract_conjunct(
         Proposition::Falsehood => false,
         Proposition::Conjunction(conjuncts) => conjuncts
             .iter()
-            .all(|conjunct| extract_conjunct(conjunct, bounds)),
+            .all(|conjunct| extract_integer_interval_conjunct(conjunct, bounds)),
         Proposition::Equal(left, right) => {
             let Some((value, scalar_type, literal)) =
                 value_and_literal(left, right).or_else(|| value_and_literal(right, left))
@@ -195,4 +198,61 @@ fn successor(scalar_type: IntegerType, value: IntegerValue) -> Option<IntegerVal
         IntegerSign::Unsigned => IntegerValue::Unsigned(1),
     };
     scalar_type.exact_add(value, one)
+}
+
+pub fn proof_range_goal(
+    operation: &O,
+) -> Option<(
+    OperationId,
+    semantic_vocabulary::ObligationId,
+    CanonicalScalarGoal,
+)> {
+    let value_term = |id, scalar_type| ScalarTerm::value(id, ScalarType::Integer(scalar_type));
+    match operation {
+        O::IntegerShift {
+            psi_operation,
+            value_type,
+            count_type,
+            policy: IntegerShiftPolicy::Exact { obligation },
+            direction: IntegerShiftDirection::Right,
+            count,
+            ..
+        } => Some((
+            *psi_operation,
+            *obligation,
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type: *value_type,
+                count_type: *count_type,
+                count: value_term(*count, *count_type),
+            },
+        )),
+        O::IntegerArithmetic {
+            psi_operation,
+            scalar_type,
+            arithmetic,
+            left,
+            right,
+            ..
+        } if arithmetic.operator().is_division() => {
+            let obligation = arithmetic.obligation()?;
+            // An exact quotient also excludes the signed `MIN / -1` overflow;
+            // wrapping and saturating division define that case and only
+            // need a nonzero divisor.
+            let goal = match arithmetic.policy() {
+                IntegerOverflowPolicy::Exact => CanonicalScalarGoal::ExactDivisionDefined {
+                    integer_type: *scalar_type,
+                    left: value_term(*left, *scalar_type),
+                    right: value_term(*right, *scalar_type),
+                },
+                IntegerOverflowPolicy::Wrapping | IntegerOverflowPolicy::Saturating => {
+                    CanonicalScalarGoal::NonzeroDivisor {
+                        integer_type: *scalar_type,
+                        divisor: value_term(*right, *scalar_type),
+                    }
+                }
+            };
+            Some((*psi_operation, obligation, goal))
+        }
+        _ => None,
+    }
 }

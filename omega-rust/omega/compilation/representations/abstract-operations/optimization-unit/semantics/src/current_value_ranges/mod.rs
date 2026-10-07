@@ -10,8 +10,6 @@ use semantic_vocabulary::{BlockId, MachineId};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 
 mod availability;
-mod intervals;
-mod proof_goals;
 mod reconstruction;
 
 pub(super) use reconstruction::independently_reconstruct_value_range_fact_at;

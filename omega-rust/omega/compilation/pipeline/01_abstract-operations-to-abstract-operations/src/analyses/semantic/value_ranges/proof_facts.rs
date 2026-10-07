@@ -1,18 +1,15 @@
 //! Dominated ranges reconstructed from exact accepted operation proofs.
 
 use optimization_unit::{
-    OptimizationFact, ProofQuestionOwner, PsiOptimizationUnit, ValueRangeFact, ValueRangeRegion,
-    ValueRangeScope, ValueRangeSupport,
+    IntervalExtraction, OptimizationFact, ProofQuestionOwner, PsiOptimizationUnit, ValueRangeFact,
+    ValueRangeRegion, ValueRangeScope, ValueRangeSupport,
 };
 use semantic_vocabulary::ScalarType;
 
 use crate::analyses::control_flow::DominatorAnalysis;
 
 use super::super::scalar_value_definition;
-use super::{
-    control_flow::{dominated_blocks, reachable_blocks},
-    intervals::IntervalExtraction,
-};
+use super::control_flow::{dominated_blocks, reachable_blocks};
 
 pub(super) fn extend(
     unit: &PsiOptimizationUnit,
@@ -27,7 +24,7 @@ pub(super) fn extend(
             }
             for (node_index, node) in block.nodes.iter().enumerate() {
                 let Some((operation, obligation, goal)) =
-                    super::proof_goals::for_operation(&node.operation)
+                    optimization_unit::proof_range_goal(&node.operation)
                 else {
                     continue;
                 };
@@ -36,7 +33,7 @@ pub(super) fn extend(
                     .iter()
                     .flat_map(|candidate| &candidate.nodes)
                     .filter(|candidate| {
-                        super::proof_goals::for_operation(&candidate.operation)
+                        optimization_unit::proof_range_goal(&candidate.operation)
                             .is_some_and(|(candidate, _, _)| candidate == operation)
                     })
                     .count()
@@ -98,7 +95,8 @@ pub(super) fn extend(
                 if question_matches.next().is_some() {
                     continue;
                 }
-                let IntervalExtraction::Bounds(bounds) = super::intervals::extract(&proposition)
+                let IntervalExtraction::Bounds(bounds) =
+                    optimization_unit::extract_integer_intervals(&proposition)
                 else {
                     continue;
                 };

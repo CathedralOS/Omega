@@ -14,3 +14,4 @@ abstract-operations = { path = ".." }
 language-core = { path = "../../../../../psi/foundation/language-core" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }

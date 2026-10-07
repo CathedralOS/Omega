@@ -18,6 +18,7 @@ mod cycles;
 mod evidence;
 mod graph;
 mod identity;
+mod integer_intervals;
 mod ledger;
 mod manifest;
 mod observation;
@@ -208,4 +209,8 @@ pub use structural_places::{
     establishment_producer, field_evidence, function_analysis, matches_constant_kind,
     matches_observed_kind, observed_field_declaration, record_initializer, root_producer, shape,
     structural_child, zeroed_fold,
+};
+
+pub use integer_intervals::{
+    IntervalExtraction, PartialIntegerBounds, extract_integer_intervals, proof_range_goal,
 };

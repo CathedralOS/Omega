@@ -11,8 +11,7 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, IntegerType, IntegerValue, MachineId, ScalarType, ValueId};
 
 use super::availability::{scope_applies_at, value_available_at};
-use super::intervals::{IntervalExtraction, extract_integer_intervals};
-use super::proof_goals::proof_range_goal;
+use optimization_unit::{IntervalExtraction, extract_integer_intervals, proof_range_goal};
 
 pub(super) fn reconstruct_value_range_fact(
     unit: &PsiOptimizationUnit,

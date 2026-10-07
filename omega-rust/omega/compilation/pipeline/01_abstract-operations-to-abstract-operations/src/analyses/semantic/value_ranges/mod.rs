@@ -8,9 +8,7 @@
 mod constant_facts;
 mod control_flow;
 mod facts;
-mod intervals;
 mod proof_facts;
-mod proof_goals;
 
 use optimization_unit::{PsiOptimizationUnit, ValueRangeFact};
 use optimization_unit_semantics::validate_current_value_range_fact_at;

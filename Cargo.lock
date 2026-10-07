@@ -1189,6 +1189,7 @@ dependencies = [
  "optimization-core",
  "semantic-vocabulary",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
