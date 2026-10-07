@@ -4,7 +4,7 @@
 //! structural field paths, and decode-time constructor validation. Scalar
 //! primitive encodings remain in the sibling scalar wire module.
 
-use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarTerm};
+use semantic_vocabulary::ScalarTerm;
 
 use super::scalar_wire::{
     decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
@@ -631,60 +631,15 @@ pub(crate) fn decode_scalar_term(
                 .map_err(CodecError::MalformedProposition)?
         }
         34 => {
-            let root = reader.id("PlaceId")?;
-            let count = reader.count()?;
-            let mut path = Vec::new();
-            for _ in 0..count {
-                path.push(match reader.u8()? {
-                    1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
-                    2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
-                    3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
-                    tag => {
-                        return Err(CodecError::InvalidTag(
-                            "CanonicalStructuralPathSegment",
-                            tag,
-                        ));
-                    }
-                });
-            }
+            let (root, path) = decode_canonical_structural_field(reader)?;
             ScalarTerm::boolean_field_path(root, path)
         }
         35 => {
-            let root = reader.id("PlaceId")?;
-            let count = reader.count()?;
-            let mut path = Vec::new();
-            for _ in 0..count {
-                path.push(match reader.u8()? {
-                    1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
-                    2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
-                    3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
-                    tag => {
-                        return Err(CodecError::InvalidTag(
-                            "CanonicalStructuralPathSegment",
-                            tag,
-                        ));
-                    }
-                });
-            }
+            let (root, path) = decode_canonical_structural_field(reader)?;
             ScalarTerm::integer_field_path(root, path, decode_integer_type(reader)?)
         }
         36 => {
-            let root = reader.id("PlaceId")?;
-            let count = reader.count()?;
-            let mut path = Vec::new();
-            for _ in 0..count {
-                path.push(match reader.u8()? {
-                    1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
-                    2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
-                    3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
-                    tag => {
-                        return Err(CodecError::InvalidTag(
-                            "CanonicalStructuralPathSegment",
-                            tag,
-                        ));
-                    }
-                });
-            }
+            let (root, path) = decode_canonical_structural_field(reader)?;
             ScalarTerm::view_extent(root, path, decode_integer_type(reader)?)
         }
         37 => ScalarTerm::IeeeFloatLiteral(match reader.u8()? {
