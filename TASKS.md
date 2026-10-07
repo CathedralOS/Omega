@@ -2254,31 +2254,6 @@ crash and native exit behavior.
   failures as in **PROVIDER-SELECTION-AFTER-TERMINAL**. Prefix consumers stop at
   their checkpoint; stage counters distinguish execution from reused reports.
 
-- **DRIVER-EARNS-ITS-LINES.** (new-scope) The product driver reads as
-  "`build.omg` in, program out": prepare sources, run the stages, publish.
-  Remaining API gap: `omega-rust/omega/application/cli/src/compilation/mod.rs`
-  assembles `TargetCompileConfiguration`s, duplicates shared snapshot and
-  rollback configuration, and branches between single- and multi-target
-  request construction. Move product request assembly to the compiler owner;
-  callers supply the package root, requested targets, product and policy,
-  not the pipeline's per-target bookkeeping. Keep explicit per-target output
-  directories and isolated outcomes; do not replace them with hidden defaults.
-
-  Coordinate with, rather than duplicate, the other assignments: checked-tree sidecars past Terminal
-  (source-call, IEEE and integer comparison occurrences,
-  `CheckedBoundaryOperatorApplicationScope`) with
-  **PROVIDER-SELECTION-AFTER-TERMINAL**; reuse caches in `driver/src/checked`
-  with **ONE-DRIVER-PER-STAGE**; product re-admissions with
-  **COMPILE-REPORT-PRODUCTS**.
-
-  Acceptance: CLI and library callers compile a package root through the same
-  request API without assembling per-target configurations. Single-target,
-  targetless Check and two-target native requests preserve their output paths,
-  policy, rollback, timings and per-target outcomes. The driver visibly composes
-  stages, reports and publication; moving plumbing to an opaque helper merely
-  to reduce file length does not satisfy this task. Preserve the single timing
-  ladder and the producing stage's carried `ProgramEntry` receipt.
-
 - **GUI-CANARY-HAS-NO-PROVIDER.** (new-scope)
   Supply providers for `pass/host/runtime_gui_window_lifecycle_exit` and
   `pass/host/runtime_gui_foreground_window_exit`. Their local `Gui`

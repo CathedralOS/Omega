@@ -24,7 +24,7 @@ function runs one target loop: checking, trust admission, observations, then the
 requested product. There is no stateless wrapper object, finalizer callback, or
 second native scheduler.
 The independent [product request owner](../products/src/compile_request.rs)
-normalizes configurations, rejects staging collisions and incompatible rollback,
+expands explicit destinations over one invocation policy, rejects staging collisions and incompatible rollback,
 and admits evaluated Build requirements. It returns immutable per-target inputs;
 the coordinator owns the loop, not those policy decisions.
 It prepares immutable source once, then drives each target's ordinary continuation.
@@ -42,10 +42,13 @@ Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked
 Package inputs, build staging and session sponsors are request
 data, not alternate compilation entrypoints. The request enters the same prepared
 source continuation used by production and target batches.
-Ordinary production accepts `CompileRequest::with_build_snapshot`, or distinct
-`TargetCompileConfiguration::with_build_snapshot` requests. Each target retains
-its caller-declared inventory and required-output roster; unequal build inputs
-evaluate independently, without merging inputs or suppressing a sibling's failure.
+Ordinary production accepts one `CompileRequest::with_build_snapshot` inventory
+and required-output roster. `CompileRequest::for_destinations` takes the package
+root and explicit target/output placements for one or several targets; callers
+do not assemble pipeline configurations or duplicate policy. Targetless Check
+uses a destination with no target. Different caller inventories are different
+invocations, not target variants of one compilation. Each target independently
+admits the supplied custody without suppressing a sibling's failure.
 Package [compilation reuse](../../packages/compilation-inputs/src/compilation_reuse.rs)
 owns both input comparisons: source assembly observes imported content and entry
 bindings; unsponsored build reuse additionally observes all bindings, component

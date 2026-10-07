@@ -28,7 +28,10 @@ requests) that cannot live in the shared configuration. Build evaluation
 produces them; product consumers do not depend on the evaluator.
 
 [compile_request.rs](src/compile_request.rs) owns request normalization:
-target-local policies, separate staging directories, package input joins, and
+one root, requested product and invocation policy, plus explicit target/output
+destinations. Callers do not construct per-target pipeline configurations;
+admission expands the destinations into execution records sharing immutable
+policy, checks separate staging directories, joins package inputs, and checks
 rollback eligibility for the requested stop. Its validated target records expose
 read-only inputs to the coordinator. Evaluated Build requirements are admitted
 by the same product owner before production dispatch. Exact target-name set

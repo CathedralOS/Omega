@@ -33,8 +33,8 @@ pub use crate::native::realize_retained_native_artifact;
 pub use build_evaluation::BuildSnapshotRequest;
 pub use compilation_products::RetainedNativeRealizationRequest;
 pub use compilation_products::{
-    CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome, CompilerRequestOutcome,
-    RequestedCompileProduct, TargetCompileConfiguration,
+    CompileDestination, CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome,
+    CompilerRequestOutcome, RequestedCompileProduct,
 };
 pub use compilation_products::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, OptimizationRollbackReceipt,

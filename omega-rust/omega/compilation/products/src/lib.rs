@@ -2,7 +2,7 @@
 
 //! Compilation requests, retained products, identities, and publication receipts.
 //!
-//! `compile_request` validates target configurations and product eligibility
+//! `compile_request` admits target destinations, invocation policy and product eligibility
 //! without executing a compiler phase. `compile_outcomes` retains every result,
 //! classifies each as the compiler request's `Complete`, `Reject` or
 //! `Incomplete` outcome, and binds its batch commitment; the compiler owns the
@@ -46,9 +46,9 @@ pub use compile_outcomes::{
 };
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{
-    CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeProductRequest,
-    NativeRealizationRequest, RequestedCompileProduct, RequestedNativeArtifactError,
-    RetainedNativeRealizationRequest, SettledCheckReuse, TargetCompileConfiguration,
+    CheckedCompileRequest, CheckedExecutionRequest, CompileDestination, CompileRequest,
+    NativeProductRequest, NativeRealizationRequest, RequestedCompileProduct,
+    RequestedNativeArtifactError, RetainedNativeRealizationRequest, SettledCheckReuse,
 };
 pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery,

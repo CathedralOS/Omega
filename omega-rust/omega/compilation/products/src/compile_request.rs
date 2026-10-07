@@ -1,4 +1,4 @@
-//! One invocation owns shared input and independently configured target products.
+//! One invocation owns source, product and policy; destinations own only placement.
 
 use self::options::CompileOptions;
 use diagnostics::Diagnostic;
@@ -99,12 +99,25 @@ pub struct SharedCompileInputs {
     pub package_sources: Option<Arc<PackageCompilationSourceInputs>>,
 }
 
-/// Target-local policy, generated inputs and output placement. Source roots and
-/// the requested product belong to the invocation, not to this configuration.
+/// An explicitly requested target and its caller-selected staging directory.
+/// `None` preserves targetless checking; native admission resolves it to the host.
+/// These are destinations, not independently assembled pipeline configurations.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetCompileConfiguration {
+pub struct CompileDestination {
+    pub target: Option<TargetProfile>,
+    pub build_directory: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RequestedDestination {
     target_name: Option<String>,
     build_dir: Option<PathBuf>,
+}
+
+/// Invocation policy is supplied once, before execution records are expanded.
+/// Per-target Build/provider settlement still belongs to the producing stages.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CompilePolicy {
     pub(super) build_snapshot: Option<BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
     /// The receiver-admission axis, supplied only by an explicit
@@ -117,15 +130,9 @@ pub struct TargetCompileConfiguration {
     pub(super) optimization_rollback: OptimizationRollback,
 }
 
-impl TargetCompileConfiguration {
-    pub fn new(target: TargetProfile) -> Self {
-        Self::from_options(Some(target.target_name().to_owned()), None)
-    }
-
-    fn from_options(target_name: Option<String>, build_dir: Option<PathBuf>) -> Self {
+impl Default for CompilePolicy {
+    fn default() -> Self {
         Self {
-            target_name,
-            build_dir,
             build_snapshot: None,
             terminal_authority_policy: current_terminal_authority_policy(),
             // Ordinary production supplies no receiving permission policy: the
@@ -136,46 +143,6 @@ impl TargetCompileConfiguration {
             optimization_rollback: OptimizationRollback::default(),
         }
     }
-
-    pub fn with_build_dir(mut self, directory: PathBuf) -> Self {
-        self.build_dir = Some(directory);
-        self
-    }
-    /// Set this target's caller-authorized build input inventory and required
-    /// outputs. Unequal requests never share build results; equal captured
-    /// inputs may share one evaluation after each child's custody admission.
-    /// This grants neither output sponsorship nor publication authority.
-    /// Omission retains the automatic snapshot for canonical package inputs.
-    pub fn with_build_snapshot(mut self, snapshot: BuildSnapshotRequest) -> Self {
-        self.build_snapshot = Some(snapshot);
-        self
-    }
-    /// Supply the receiving mechanism-classification policy for this target.
-    /// Rows classify exact normalized-foreign, syscall, or checked-physical
-    /// mechanisms; the closed compiler-intrinsic inventory is never configured
-    /// here. Missing demanded rows reject at terminal-authority review.
-    pub fn with_terminal_authority_policy(mut self, policy: TerminalAuthorityPolicy) -> Self {
-        self.terminal_authority_policy = policy;
-        self
-    }
-    /// Supply an explicit receiving permission policy for this target. This is
-    /// the only way a configuration claims receiver admission; the policy is
-    /// adjudicated exactly as supplied, including an explicit empty policy.
-    pub fn with_terminal_authority_permission_policy(
-        mut self,
-        policy: TerminalAuthorityPermissionPolicy,
-    ) -> Self {
-        self.terminal_authority_permission_policy = Some(policy);
-        self
-    }
-    pub fn with_package_target_inputs(mut self, inputs: PackageCompilationTargetInputs) -> Self {
-        self.package_target_inputs = inputs;
-        self
-    }
-    pub fn with_optimization_rollback(mut self, rollback: OptimizationRollback) -> Self {
-        self.optimization_rollback = rollback;
-        self
-    }
 }
 
 /// One production invocation, including the one-target case. This Rust-host
@@ -183,7 +150,8 @@ impl TargetCompileConfiguration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileRequest {
     shared: SharedCompileInputs,
-    configurations: Vec<TargetCompileConfiguration>,
+    policy: CompilePolicy,
+    destinations: Vec<RequestedDestination>,
 }
 
 impl CompileRequest {
@@ -200,36 +168,46 @@ impl CompileRequest {
 
                 package_sources: None,
             },
-            configurations: vec![TargetCompileConfiguration::from_options(
-                options.target_name,
-                options.build_dir,
-            )],
+            policy: CompilePolicy::default(),
+            destinations: vec![RequestedDestination {
+                target_name: options.target_name,
+                build_dir: options.build_dir,
+            }],
         }
     }
 
-    /// Replace the initial configuration with the explicitly supplied targets.
-    /// Each configuration owns its policies; this does not inherit discarded
-    /// configuration defaults. Empty, duplicate and colliding targets reject.
-    pub fn with_target_configurations(
-        mut self,
-        configurations: Vec<TargetCompileConfiguration>,
-    ) -> Self {
-        self.configurations = configurations;
-        self
+    /// Compile one package root to explicit destinations under one product and
+    /// policy. The same API serves one or several targets; it never invents
+    /// output directories or resets policy when selecting destinations.
+    /// Empty, duplicate, targetless multi-target and colliding placements reject
+    /// during admission, before source acquisition or Build effects.
+    pub fn for_destinations(root_path: PathBuf, destinations: Vec<CompileDestination>) -> Self {
+        let mut request = Self::new(CompileOptions {
+            root_path,
+            target_name: None,
+            build_dir: None,
+        });
+        request.destinations = destinations
+            .into_iter()
+            .map(|destination| RequestedDestination {
+                target_name: destination
+                    .target
+                    .map(|target| target.target_name().to_owned()),
+                build_dir: Some(destination.build_directory),
+            })
+            .collect();
+        request
     }
     pub fn with_requested_product(mut self, product: RequestedCompileProduct) -> Self {
         self.shared.requested_product = product;
         self
     }
 
-    /// Apply the same capture intent to every current target configuration.
+    /// Supply one capture intent to the invocation.
     /// Each child checks its own custody; equal captured inputs may share one
-    /// evaluation. Distinct inventories and output rosters belong on their
-    /// target configurations and never reuse a sibling's build result.
+    /// evaluation. This grants neither output sponsorship nor publication authority.
     pub fn with_build_snapshot(mut self, snapshot: BuildSnapshotRequest) -> Self {
-        for configuration in &mut self.configurations {
-            configuration.build_snapshot = Some(snapshot.clone());
-        }
+        self.policy.build_snapshot = Some(snapshot);
         self
     }
 
@@ -238,46 +216,33 @@ impl CompileRequest {
         self
     }
 
-    /// Supply shared sources and the same target inputs to every current
-    /// configuration. Distinct target bundles belong on their configurations.
+    /// Supply the package's sources and accepted input policy once. Each
+    /// target independently admits the resulting package custody.
     pub fn with_package_inputs(mut self, inputs: PackageCompilationInputs) -> Self {
         let (source, target) = inputs.into_parts();
         self.shared.package_sources = Some(source);
-        if let Some((last, earlier)) = self.configurations.split_last_mut() {
-            for configuration in earlier {
-                configuration.package_target_inputs = target.clone();
-            }
-            last.package_target_inputs = target;
-        }
+        self.policy.package_target_inputs = target;
         self
     }
 
     /// Apply a common receiving mechanism-classification policy to every
-    /// current configuration. Distinct per-target policies belong on their
-    /// configurations.
+    /// selected target. Missing demanded rows still reject during authority review.
     pub fn with_terminal_authority_policy(mut self, policy: TerminalAuthorityPolicy) -> Self {
-        for configuration in &mut self.configurations {
-            configuration.terminal_authority_policy = policy.clone();
-        }
+        self.policy.terminal_authority_policy = policy;
         self
     }
     /// Supply an explicit receiving permission policy to every current
-    /// configuration. Distinct per-target policies belong on their
-    /// configurations; calling this is the only way a request claims receiver
-    /// admission.
+    /// destination; calling this is the only way a request claims receiver
+    /// admission, including when the supplied policy is explicitly empty.
     pub fn with_terminal_authority_permission_policy(
         mut self,
         policy: TerminalAuthorityPermissionPolicy,
     ) -> Self {
-        for configuration in &mut self.configurations {
-            configuration.terminal_authority_permission_policy = Some(policy.clone());
-        }
+        self.policy.terminal_authority_permission_policy = Some(policy);
         self
     }
     pub fn with_optimization_rollback(mut self, rollback: OptimizationRollback) -> Self {
-        for configuration in &mut self.configurations {
-            configuration.optimization_rollback = rollback.clone();
-        }
+        self.policy.optimization_rollback = rollback;
         self
     }
 
@@ -288,29 +253,29 @@ impl CompileRequest {
     }
 
     pub fn validate_for_execution(self) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
-        if self.configurations.is_empty() {
+        if self.destinations.is_empty() {
             return Err(vec![Diagnostic::error(
                 "compilation requires at least one target configuration",
             )]);
         }
-        let multiple = self.configurations.len() > 1;
+        let multiple = self.destinations.len() > 1;
         let shared = Arc::new(self.shared);
-        let mut targets =
-            Vec::<ValidatedTargetCompilation>::with_capacity(self.configurations.len());
+        let policy = Arc::new(self.policy);
+        let mut targets = Vec::<ValidatedTargetCompilation>::with_capacity(self.destinations.len());
         let mut diagnostics = Vec::new();
-        for mut configuration in self.configurations {
-            if multiple && configuration.target_name.is_none() {
+        for mut destination in self.destinations {
+            if multiple && destination.target_name.is_none() {
                 diagnostics.push(Diagnostic::error(
                     "multiple configurations must each name an exact target",
                 ));
                 continue;
             }
             if shared.requested_product == RequestedCompileProduct::NativeArtifact
-                && configuration.target_name.is_none()
+                && destination.target_name.is_none()
             {
                 match TargetProfile::host_if_supported() {
                     Some(host) => {
-                        configuration.target_name = Some(host.target_name().to_owned());
+                        destination.target_name = Some(host.target_name().to_owned());
                     }
                     None => {
                         let catalogued = TargetProfile::ALL
@@ -328,7 +293,7 @@ impl CompileRequest {
                     }
                 }
             }
-            let profile = match configuration
+            let profile = match destination
                 .target_name
                 .as_deref()
                 .map(|name| TargetProfile::from_omega_target_name(Some(name)))
@@ -342,7 +307,7 @@ impl CompileRequest {
             };
             if let Err(error) = shared
                 .requested_product
-                .validate_optimization_rollback(&configuration.optimization_rollback)
+                .validate_optimization_rollback(&policy.optimization_rollback)
             {
                 diagnostics.push(error);
                 continue;
@@ -350,7 +315,7 @@ impl CompileRequest {
             let options = CompileOptions {
                 root_path: shared.root_path.clone(),
                 target_name: profile.map(|profile| profile.target_name().to_owned()),
-                build_dir: configuration.build_dir.clone(),
+                build_dir: destination.build_dir,
             };
             if targets.iter().any(|target| target.profile == profile) {
                 diagnostics.push(Diagnostic::error(format!(
@@ -365,7 +330,7 @@ impl CompileRequest {
             {
                 diagnostics.push(Diagnostic::error(format!("target configurations name the same build directory `{}`; each target requires separate staging", options.build_dir().display())));
             }
-            let target_inputs = std::mem::take(&mut configuration.package_target_inputs);
+            let target_inputs = policy.package_target_inputs.clone();
             let package_inputs = match &shared.package_sources {
                 Some(source) => {
                     match PackageCompilationInputs::from_parts(source.clone(), target_inputs) {
@@ -390,7 +355,7 @@ impl CompileRequest {
             };
             targets.push(ValidatedTargetCompilation {
                 options,
-                configuration,
+                policy: policy.clone(),
                 package_inputs,
                 profile,
             });
@@ -426,7 +391,7 @@ impl ValidatedCompileRequest {
 #[derive(Debug)]
 pub struct ValidatedTargetCompilation {
     options: CompileOptions,
-    configuration: TargetCompileConfiguration,
+    policy: Arc<CompilePolicy>,
     package_inputs: Option<PackageCompilationInputs>,
     profile: Option<TargetProfile>,
 }
@@ -436,10 +401,10 @@ impl ValidatedTargetCompilation {
         self.profile
     }
     pub fn build_snapshot(&self) -> Option<&BuildSnapshotRequest> {
-        self.configuration.build_snapshot.as_ref()
+        self.policy.build_snapshot.as_ref()
     }
     pub fn optimization_rollback(&self) -> &OptimizationRollback {
-        &self.configuration.optimization_rollback
+        &self.policy.optimization_rollback
     }
     pub fn options(&self) -> &CompileOptions {
         &self.options
@@ -452,11 +417,12 @@ impl ValidatedTargetCompilation {
     /// keeps only what native production needs.
     pub fn into_native_product_request(self) -> NativeProductRequest {
         NativeProductRequest {
-            terminal_authority_policy: self.configuration.terminal_authority_policy,
+            terminal_authority_policy: self.policy.terminal_authority_policy.clone(),
             terminal_authority_permission_policy: self
-                .configuration
-                .terminal_authority_permission_policy,
-            optimization_rollback: self.configuration.optimization_rollback,
+                .policy
+                .terminal_authority_permission_policy
+                .clone(),
+            optimization_rollback: self.policy.optimization_rollback.clone(),
         }
     }
 }

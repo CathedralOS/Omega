@@ -7,8 +7,8 @@ mod build_directory;
 use crate::temporary_directory::TemporaryDirectory;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use compiler::{
-    CompileOptions, CompileReport, CompileRequest, OptimizationRollback, RequestedCompileProduct,
-    compile,
+    CompileDestination, CompileOptions, CompileReport, CompileRequest, OptimizationRollback,
+    RequestedCompileProduct, compile,
 };
 use diagnostics::Diagnostic;
 use package_manager::operations as packages;
@@ -344,50 +344,27 @@ fn compile_project_targets(
                                 RequestedCompileProduct::NativeArtifact
                             }
                         };
-                        // A lone target keeps the caller's verbatim options —
-                        // including a targetless check's absent name — while a
-                        // unioned request configures each exact target with its
-                        // own staging directory and shared policy.
-                        let mut request = if !per_target_directories {
-                            let mut single_options = options.clone();
-                            single_options.build_dir =
-                                Some(target_directories[0].clone());
-                            CompileRequest::new(single_options)
-                                .with_requested_product(product)
-                                .with_optimization_rollback(optimization_rollback.clone())
-                                .with_timings(collect_timings)
-                        } else {
-                            let configurations = active_profiles
-                                .iter()
-                                .map(|profile| {
-                                    let index = profiles
-                                        .iter()
-                                        .position(|candidate| candidate == profile)
-                                        .expect(
-                                            "active profiles come from the requested roster",
-                                        );
-                                    let mut configuration =
-                                        compiler::TargetCompileConfiguration::new(*profile)
-                                            .with_build_dir(target_directories[index].clone())
-                                            .with_optimization_rollback(
-                                                optimization_rollback.clone(),
-                                            );
-                                    if let Some(snapshot) = &build_snapshot {
-                                        configuration = configuration
-                                            .with_build_snapshot(snapshot.clone());
-                                    }
-                                    configuration
-                                })
-                                .collect();
-                            CompileRequest::new(CompileOptions {
-                                root_path: options.root_path.clone(),
-                                build_dir: None,
-                                target_name: None,
+                        // The caller supplies placement, not pipeline child
+                        // configurations. Preserve a lone targetless Check;
+                        // explicit batches name every selected target.
+                        let destinations = profiles
+                            .iter()
+                            .zip(&target_directories)
+                            .zip(&refused)
+                            .filter(|(_, refusal)| refusal.is_none())
+                            .map(|((profile, directory), _)| CompileDestination {
+                                target: (per_target_directories || options.target_name.is_some())
+                                    .then_some(*profile),
+                                build_directory: directory.clone(),
                             })
-                            .with_requested_product(product)
-                            .with_target_configurations(configurations)
-                            .with_timings(collect_timings)
-                        };
+                            .collect();
+                        let mut request = CompileRequest::for_destinations(
+                            options.root_path.clone(),
+                            destinations,
+                        )
+                        .with_requested_product(product)
+                        .with_optimization_rollback(optimization_rollback.clone())
+                        .with_timings(collect_timings);
                         if let Some(snapshot) = &build_snapshot {
                             request = request.with_build_snapshot(snapshot.clone());
                         }
