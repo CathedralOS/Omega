@@ -209,17 +209,5 @@ pub(super) fn has_fixed_integer_meaning(
         .and_then(|reference| {
             crate::value_custody::recasts::exact_primitive_type(program, reference)
         })
-        .is_some_and(|primitive| {
-            matches!(
-                primitive,
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            )
-        })
+        .is_some_and(|primitive| primitive.is_fixed_integer())
 }
