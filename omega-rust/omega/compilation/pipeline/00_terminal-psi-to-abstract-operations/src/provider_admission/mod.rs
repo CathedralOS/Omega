@@ -25,6 +25,7 @@ pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
 mod terminal_authority_review;
 
+pub use diagnostics::realization_error;
 pub use callback_arguments::admit_native_callback_arguments;
 pub use compiler_builtins::{
     CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal, demanded_boundary_identities,

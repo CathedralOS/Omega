@@ -1,9 +1,8 @@
 //! One abstract-to-object sequence, independent of optimization selection.
 
 use crate::native::native_realization::callback_thunks::lower_callback_thunks;
-use crate::native::native_realization::realization_diagnostics::{
-    realization_error, selected_physical_pipeline_failed,
-};
+use terminal_psi_to_abstract_operations::provider_admission::realization_error;
+use crate::native::native_realization::realization_diagnostics::selected_physical_pipeline_failed;
 use crate::native::stage_optimized_verified_physical_pipeline;
 use abstract_operations_to_target_operations::{
     AdmittedBoundarySettlement, OptimizedTargetLoweringRequest,

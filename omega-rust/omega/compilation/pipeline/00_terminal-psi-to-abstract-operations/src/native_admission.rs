@@ -168,7 +168,7 @@ pub fn admit_native_realization<'request>(
     })
 }
 
-pub(crate) fn artifact_lowering_error(error: ArtifactLoweringError) -> Vec<Diagnostic> {
+pub fn artifact_lowering_error(error: ArtifactLoweringError) -> Vec<Diagnostic> {
     match error {
         ArtifactLoweringError::CanonicalArtifact(error) => {
             realization_error("canonical artifact replay", error)

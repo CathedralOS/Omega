@@ -59,6 +59,7 @@ pub use retained_terminal::{
 
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
+    artifact_lowering_error,
 };
 pub use native_execution_scope::NativeExecutionScopeError;
 pub use provider_admission::{

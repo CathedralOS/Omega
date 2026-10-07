@@ -399,7 +399,9 @@ pub const fn primitive_float_operation_tag(operation: CompilerPrimitiveFloatBina
     }
 }
 
-const fn primitive_integer_comparison_operation_tag(
+/// Wire tag for a primitive integer-comparison operation — the six-row
+/// encoding every authority table and its checker spells identically.
+pub const fn primitive_integer_comparison_operation_tag(
     operation: CompilerPrimitiveIntegerComparisonOperation,
 ) -> u8 {
     match operation {

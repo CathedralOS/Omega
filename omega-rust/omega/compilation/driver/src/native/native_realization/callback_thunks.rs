@@ -13,8 +13,8 @@
 //! materializes as a `CompilerPrivateMachineCodeFunction` the retained
 //! object's private-function channel can publish.
 
-use crate::native::native_realization::realization_diagnostics::{
-    artifact_lowering_error, realization_error,
+use terminal_psi_to_abstract_operations::{
+    artifact_lowering_error, provider_admission::realization_error,
 };
 use backend_plan::NativeCallbackThunkSettlement;
 use compilation_products::NativeRealizationRequest;

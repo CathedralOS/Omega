@@ -4,6 +4,7 @@ use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, TerminalAuthorityClass,
     TerminalAuthorityDisposition, numeric_type_tag, primitive_float_operation_tag,
+    primitive_integer_comparison_operation_tag,
 };
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
 use symbols::BuiltinFunction;
@@ -216,18 +217,6 @@ fn empty_disposition() -> TerminalAuthorityDisposition {
     disposition([])
 }
 
-const fn primitive_integer_comparison_operation_tag(
-    operation: CompilerPrimitiveIntegerComparisonOperation,
-) -> u8 {
-    match operation {
-        CompilerPrimitiveIntegerComparisonOperation::Equal => 0,
-        CompilerPrimitiveIntegerComparisonOperation::NotEqual => 1,
-        CompilerPrimitiveIntegerComparisonOperation::Less => 2,
-        CompilerPrimitiveIntegerComparisonOperation::LessOrEqual => 3,
-        CompilerPrimitiveIntegerComparisonOperation::Greater => 4,
-        CompilerPrimitiveIntegerComparisonOperation::GreaterOrEqual => 5,
-    }
-}
 
 const fn float_format_tag(format: FloatFormat) -> u8 {
     match format {
