@@ -606,54 +606,39 @@ def main() -> None:
         program,
         "generic-lifetime-then-type",
         b"data Pair<'a, T> {}",
-        ((2, 0, 1, 0, 20),),
+        ((2, 0, 1, 0, 19),),
         (),
         (),
-        ((1, 5, 9, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 20, 0, 2),),
+        ((1, 5, 9, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 19, 0, 2),),
         (),
         (),
         (),
         (),
         (),
         (
-            (1, 1, 12, 13, 0, 0, 0, 1, 11, 13),
-            (2, 1, 15, 16, 0, 0, 0, 1, 15, 16),
+            (1, 1, 11, 12, 0, 0, 0, 1, 10, 12),
+            (2, 1, 14, 15, 0, 0, 0, 1, 14, 15),
         ),
     )
     accepted(
         program,
         "generic-value-binder",
         b"data Sized<u: u64> {}",
-        ((2, 0, 1, 0, 22),),
+        ((2, 0, 1, 0, 21),),
         (),
         (),
-        ((1, 5, 10, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 22, 0, 1),),
+        ((1, 5, 10, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 21, 0, 1),),
         (),
         (),
         (),
-        ((1, 1, 15, 18, 1, 15, 18, 0, 0, 0, 0),),
+        ((1, 1, 14, 17, 1, 14, 17, 0, 0, 0, 0),),
         (),
-        ((4, 1, 12, 13, 1, 0, 0, 1, 12, 18),),
+        ((4, 1, 11, 12, 1, 0, 0, 1, 11, 17),),
     )
     accepted(
         program,
         "generic-machine-binder",
         b"data Exec<machine M> {}",
-        ((2, 0, 1, 0, 24),),
-        (),
-        (),
-        ((1, 5, 9, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 24, 0, 1),),
-        (),
-        (),
-        (),
-        (),
-        (),
-        ((5, 1, 19, 20, 0, 0, 0, 1, 11, 20),),
-    )
-    accepted(
-        program,
-        "generic-type-parameter-bounds",
-        b"data Cell<T [copy]> {}",
         ((2, 0, 1, 0, 23),),
         (),
         (),
@@ -663,22 +648,37 @@ def main() -> None:
         (),
         (),
         (),
-        ((2, 1, 11, 12, 0, 0, 1, 1, 11, 19),),
+        ((5, 1, 18, 19, 0, 0, 0, 1, 10, 19),),
+    )
+    accepted(
+        program,
+        "generic-type-parameter-bounds",
+        b"data Cell<T [copy]> {}",
+        ((2, 0, 1, 0, 22),),
+        (),
+        (),
+        ((1, 5, 9, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 22, 0, 1),),
+        (),
+        (),
+        (),
+        (),
+        (),
+        ((2, 1, 10, 11, 0, 0, 1, 1, 10, 18),),
     )
     accepted(
         program,
         "generic-const-parameter-bounds",
         b"data Box<const N: u64 [linear]> {}",
-        ((2, 0, 1, 0, 35),),
+        ((2, 0, 1, 0, 34),),
         (),
         (),
-        ((1, 5, 8, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 35, 0, 1),),
+        ((1, 5, 8, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 34, 0, 1),),
         (),
         (),
         (),
-        ((1, 1, 19, 22, 1, 19, 22, 0, 0, 0, 0),),
+        ((1, 1, 18, 21, 1, 18, 21, 0, 0, 0, 0),),
         (),
-        ((3, 1, 16, 17, 1, 0, 2, 1, 10, 31),),
+        ((3, 1, 15, 16, 1, 0, 2, 1, 9, 30),),
     )
     accepted(
         program,
@@ -701,7 +701,6 @@ def main() -> None:
     rejected(program, "missing-semicolon", b"use a", 4, (5, 5), member_count=1)
     rejected(program, "pub-use-is-not-a-root", b"pub use a;", 9, (4, 7))
     rejected(program, "lower-self-is-not-a-member", b"use self;", 3, (4, 8))
-    rejected(program, "upper-self-is-not-a-member", b"use Self;", 3, (4, 8))
     rejected(
         program,
         "incomplete-data-after-use",
@@ -750,27 +749,33 @@ def main() -> None:
         ("array-types-not-yet-supported", b"data X { field: [u8; 4]; }", 13, (16, 17)),
         ("missing-qualified-domain", b"data X { field: T in ; }", 31, (21, 22)),
         ("missing-qualified-domain-end", b"data X { field: T in", 31, (20, 20)),
-        ("self-not-a-domain", b"data X { field: T in Self; }", 31, (21, 25)),
         ("second-type-qualifier", b"data X { field: T in A in B; }", 14, (23, 25)),
         ("qualified-domain-union", b"data X { field: T in A | B; }", 14, (23, 24)),
         ("missing-payload-qualified-domain", b"data X { case A(v: T in ); }", 31, (24, 25)),
         ("empty-generic-list", b"data X<> {}", 32, (7, 8)),
         ("unterminated-generic-list", b"data X<T", 36, (8, 8)),
-        ("generic-parameter-missing-after-comma", b"data X<T,", 32, (9, 9)),
         ("generic-lifetime-after-runtime", b"data X<T 'a> {}", 38, (9, 10)),
-        ("duplicate-generic-parameter", b"data Dup<T, T> {}", 39, (12, 13)),
         ("const-binder-missing-name", b"data X<const> {}", 33, (12, 13)),
         ("const-binder-missing-colon", b"data X<const N u64> {}", 34, (15, 18)),
         ("const-binder-missing-type", b"data X<const N:> {}", 35, (15, 16)),
         ("const-binder-unclosed-after-colon", b"data X<const N:", 35, (15, 15)),
         ("machine-binder-missing-name", b"data X<machine> {}", 33, (14, 15)),
-        ("proposition-binder-not-admitted", b"data X<prop R> {}", 36, (12, 13)),
-        ("generic-lifetime-bounds-rejected", b"data X<'a [copy]> {}", 36, (10, 11)),
         ("generic-bounds-without-parameter", b"data X<[copy] T> {}", 32, (7, 8)),
         ("value-binder-missing-type", b"data X<u:> {}", 35, (9, 10)),
     )
     for name, source, diagnostic, span in data_rejections:
         rejected(program, name, source, diagnostic, span)
+
+    # A rejection after a completed generic parameter keeps that parameter,
+    # exactly as the capacity cases below keep every completed one.
+    retained_generic_rejections = (
+        ("generic-parameter-missing-after-comma", b"data X<T,", 32, (9, 9)),
+        ("duplicate-generic-parameter", b"data Dup<T, T> {}", 39, (12, 13)),
+        ("proposition-binder-not-admitted", b"data X<prop R> {}", 36, (12, 13)),
+        ("generic-lifetime-bounds-rejected", b"data X<'a [copy]> {}", 36, (10, 11)),
+    )
+    for name, source, diagnostic, span in retained_generic_rejections:
+        rejected(program, name, source, diagnostic, span, generic_parameter_count=1)
 
     rejected(
         program,

@@ -1425,18 +1425,19 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         let byte1: u64 [0..=65532] = decoded_start + 1;
+        let byte2: u64 [0..=65533] = decoded_start + 2;
         transition input.decoded[decoded_start] == 99 && input.decoded[byte1] == 111 {
-            true -> generic_const_byte2(parser, input, byte1, start, end)
+            true -> generic_const_byte2(parser, input, byte2, start, end)
             _ -> generic_bare_name(parser, input, start, end)
         }
     }
 
     state generic_const_byte2(parser: &mut Parser, input: &TokenStream,
-        decoded_start: u64 [0..=65532],
+        decoded_start: u64 [0..=65533],
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        let byte1: u64 [0..=65533] = decoded_start + 1;
+        let byte1: u64 [0..=65534] = decoded_start + 1;
         transition input.decoded[decoded_start] == 110 && input.decoded[byte1] == 115 {
             true -> generic_const_byte4(parser, input, byte1, start, end)
             _ -> generic_bare_name(parser, input, start, end)
@@ -1444,11 +1445,11 @@ machine Parser::parse_data(
     }
 
     state generic_const_byte4(parser: &mut Parser, input: &TokenStream,
-        decoded_start: u64 [0..=65533],
+        decoded_start: u64 [0..=65534],
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        let byte1: u64 [0..=65534] = decoded_start + 1;
+        let byte1: u64 [0..=65535] = decoded_start + 1;
         transition input.decoded[decoded_start] == 115 && input.decoded[byte1] == 116 {
             true -> generic_const_name_start(parser, input, start)
             _ -> generic_bare_name(parser, input, start, end)
@@ -1647,8 +1648,8 @@ machine Parser::parse_data(
     state generic_after_dup_load(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
         transition parser.generic_pending_kind {
-            GenericParameterKind::Lifetime -> generic_separator(parser, input)
-            GenericParameterKind::Machine -> generic_separator(parser, input)
+            GenericParameterKind::Lifetime -> generic_retain_parameter(parser, input, parser.generic_name_end)
+            GenericParameterKind::Machine -> generic_retain_parameter(parser, input, parser.generic_name_end)
             GenericParameterKind::Const -> generic_const_colon(parser, input)
             GenericParameterKind::Type -> generic_type_tail(parser, input)
             GenericParameterKind::Value -> generic_separator(parser, input)
@@ -1671,12 +1672,17 @@ machine Parser::parse_data(
     }
 
     // A type parameter tail: `,`/`>` retain it, `:` turns it into a value
-    // binder, and `[` opens its property bounds.
+    // binder, and `[` opens its property bounds. A tick here starts a
+    // lifetime after a runtime binder, which the ordering rule rejects.
     state generic_type_tail(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Colon } -> generic_value_colon(parser, input)
             Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> generic_bounds_start(parser, input)
+            Token::Punctuation { punctuation: PunctuationKind::Apostrophe } -> generic_lifetime_ordering(parser,
+                token.start,
+                token.end
+            )
             _ -> generic_retain_parameter(parser, input, parser.generic_name_end)
         }
     }
