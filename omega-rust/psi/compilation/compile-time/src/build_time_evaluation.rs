@@ -436,10 +436,9 @@ impl PreCheckEvaluation {
     /// never rewrite it, even when provider-dependent work remains deferred.
     pub fn evaluate_extension_or_defer(
         pre_checks: Vec<Self>,
-        retained: &typed_trees::TypedTrees,
+        mut wire_schema_frontier: usize,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Vec<Self>, Vec<diagnostics::Diagnostic>> {
-        let mut wire_schema_frontier = retained.wire_schemas().len();
         let mut pending = Vec::new();
         for mut pre_check in pre_checks {
             pre_check.wire_schema_frontier = wire_schema_frontier;

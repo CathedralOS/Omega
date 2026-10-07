@@ -348,7 +348,7 @@ fn continue_generated_sources(
     Vec<Diagnostic>,
 > {
     let (sources, units) = extension.parse(base_sources, timings)?;
-    let retained_prefix = base.typed().clone();
+    let wire_schema_frontier = base.typed().wire_schemas().len();
     let resolved_base = base.resolved_base_for_extension()?;
     let (mut extension_syntax, pre_checks) =
         build_time_evaluation::PreResolutionEvaluation::evaluate_extension(
@@ -383,7 +383,7 @@ fn continue_generated_sources(
     let pending_pre_checks =
         build_time_evaluation::PreCheckEvaluation::evaluate_extension_or_defer(
             pre_checks,
-            &retained_prefix,
+            wire_schema_frontier,
             &mut typed,
         )?;
     Ok((
