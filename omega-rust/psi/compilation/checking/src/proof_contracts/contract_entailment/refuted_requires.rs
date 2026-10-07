@@ -172,35 +172,7 @@ fn caller_requires_judge<'program>(
     caller_machine: &'program Machine,
     caller_state: &'program typed_trees::state::State,
 ) -> StructuralJudge<'program> {
-    let mut caller_requires = Vec::new();
-    for contract in program.machine_contracts(caller_machine) {
-        if contract.kind == SignatureContractKind::Requires {
-            caller_requires.extend(
-                program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .iter()
-                    .filter_map(|fact| match fact {
-                        ProofFact::Expression(expression) => Some(*expression),
-                        ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
-                    }),
-            );
-        }
-    }
-    for contract in program.state_contracts(caller_state) {
-        if contract.kind == SignatureContractKind::Requires {
-            caller_requires.extend(
-                program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .iter()
-                    .filter_map(|fact| match fact {
-                        ProofFact::Expression(expression) => Some(*expression),
-                        ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
-                    }),
-            );
-        }
-    }
+    let caller_requires = requires_expressions(program, caller_machine, caller_state);
     StructuralJudge::from_requires(program, caller_machine, &caller_requires)
 }
 
