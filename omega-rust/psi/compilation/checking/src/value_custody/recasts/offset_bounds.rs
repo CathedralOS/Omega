@@ -7,12 +7,14 @@ enum BoundSide {
     Lower,
 }
 
-/// Bounds that hold at every read, independently of arrival and prefix effects.
-fn standing_upper_bound(
+/// Bounds that hold at every read, independently of arrival and prefix
+/// effects — the declared-range or standing-interval bound for `side`.
+fn standing_bound(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     name: ExpressionHandle,
+    side: BoundSide,
 ) -> Option<i64> {
     let declared =
         crate::value_custody::places::declared_place_type_raw(program, machine, Some(source), name)
@@ -21,9 +23,17 @@ fn standing_upper_bound(
                     crate::proof_contracts::arithmetic_domains::range_constraint_interval(
                         program, raw,
                     )?;
-                interval.high()
+                match side {
+                    BoundSide::Upper => interval.high(),
+                    BoundSide::Lower => interval.low(),
+                }
             });
-    declared.or_else(|| standing_place_high(program, machine, source, name))
+    match side {
+        BoundSide::Upper => declared.or_else(|| standing_place_high(program, machine, source, name)),
+        BoundSide::Lower => declared
+            .or_else(|| standing_place_low(program, machine, source, name))
+            .or_else(|| unsigned_place_floor(program, machine, source, name)),
+    }
 }
 
 /// The place's standing interval: its declared range, an immutable
@@ -56,26 +66,7 @@ fn standing_place_low(
     .low()
 }
 
-/// Standing lower bound, including an exact unsigned carrier's zero floor.
-fn standing_lower_bound(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    source: &typed_trees::state::State,
-    name: ExpressionHandle,
-) -> Option<i64> {
-    let declared =
-        crate::value_custody::places::declared_place_type_raw(program, machine, Some(source), name)
-            .and_then(|raw| {
-                let interval =
-                    crate::proof_contracts::arithmetic_domains::range_constraint_interval(
-                        program, raw,
-                    )?;
-                interval.low()
-            });
-    declared
-        .or_else(|| standing_place_low(program, machine, source, name))
-        .or_else(|| unsigned_place_floor(program, machine, source, name))
-}
+
 
 /// An EXACT unsigned place's floor is 0 by its carrier, with no range,
 /// `requires` or `where` needed. The composite walk asks for a floor before it
@@ -123,10 +114,7 @@ fn standing_expression_bound(
     if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
         return literal.value_i64();
     }
-    match side {
-        BoundSide::Upper => standing_upper_bound(program, machine, source, expression),
-        BoundSide::Lower => standing_lower_bound(program, machine, source, expression),
-    }
+    standing_bound(program, machine, source, expression, side)
 }
 
 /// One operand's inclusive bound: a literal at its value, a place's
