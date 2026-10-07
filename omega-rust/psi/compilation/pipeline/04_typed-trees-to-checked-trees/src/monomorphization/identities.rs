@@ -231,11 +231,21 @@ pub fn generic_machine_template_report_fingerprint(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<u64> {
+    let bytes = canonical_template_bytes_for_symbol(program, machine_symbol)?;
+    Some(fnv1a_report_fingerprint(&bytes))
+}
+
+/// Canonical contract bytes for `machine_symbol`'s universal template —
+/// `None` when the machine carries no template, `Err` flattened to `None`
+/// when the reachability computation cannot encode one.
+fn canonical_template_bytes_for_symbol(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+) -> Option<Vec<u8>> {
     let machine_index = generic_machine_index(program, machine_symbol)?;
     let operational = validation::infer_operational_may(program);
     let service_reaches = validation::infer_service_reaches(program, &operational);
-    let bytes = canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()?;
-    Some(fnv1a_report_fingerprint(&bytes))
+    canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()
 }
 
 /// Index of `machine_symbol` when the machine declares type parameters —
@@ -260,10 +270,7 @@ pub fn generic_machine_template_commitment(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<typed_trees::typed_trees::MachineTemplateCommitment> {
-    let machine_index = generic_machine_index(program, machine_symbol)?;
-    let operational = validation::infer_operational_may(program);
-    let service_reaches = validation::infer_service_reaches(program, &operational);
-    let bytes = canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()?;
+    let bytes = canonical_template_bytes_for_symbol(program, machine_symbol)?;
     Some(machine_template_commitment(&bytes))
 }
 
