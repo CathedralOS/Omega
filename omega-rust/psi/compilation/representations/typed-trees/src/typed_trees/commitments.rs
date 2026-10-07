@@ -4,6 +4,30 @@
 use crate::{data, types};
 use arena::HandleSpan;
 
+/// `[u8; 32]` digest newtype — one nominal commitment identity per
+/// contract domain, sharing the `from_digest`/`as_bytes`/`is_zero`
+/// surface.
+macro_rules! digest_commitment {
+    ($(#[$attr:meta])* $name:ident) => {
+        $(#[$attr])*
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            pub const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(self) -> [u8; 32] {
+                self.0
+            }
+
+            pub fn is_zero(self) -> bool {
+                self.0 == [0; 32]
+            }
+        }
+    };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanIdentity {
     pub boundary_trait: symbols::SymbolHandle,
@@ -27,21 +51,9 @@ pub struct FusedServiceErasureAuthorization {
     pub requirement: symbols::SymbolHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BoundaryCallingPlanCommitment([u8; 32]);
-
-impl BoundaryCallingPlanCommitment {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
+digest_commitment! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    BoundaryCallingPlanCommitment
 }
 
 /// One compile-time machine specialization. Const arguments are canonical
@@ -111,38 +123,14 @@ pub struct MachineSpecialization {
     pub commitment: MachineSpecializationCommitment,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MachineSpecializationCommitment([u8; 32]);
-
-impl MachineSpecializationCommitment {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
+digest_commitment! {
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    MachineSpecializationCommitment
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MachineTemplateCommitment([u8; 32]);
-
-impl MachineTemplateCommitment {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
+digest_commitment! {
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    MachineTemplateCommitment
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -188,21 +176,9 @@ pub enum ClosedConformanceConstArgument {
     },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ClosedConformanceApplicationCommitment([u8; 32]);
-
-impl ClosedConformanceApplicationCommitment {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
+digest_commitment! {
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    ClosedConformanceApplicationCommitment
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
