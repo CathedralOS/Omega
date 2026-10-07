@@ -4,9 +4,10 @@
 //! the selected edge, not one global return flag, owns their transfer or
 //! disposal. Every remaining operation must then carry custody a composed
 //! state can replay; one that does not names its kind in the trace.
+use super::result_custody::{call_owns_result, retained_structural_result};
 use super::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, StatementNode, TypedTrees,
-    call_argument_admitted, call_custody_refusal, control,
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    Multiplicity, StatementNode, TypedTrees, control,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
 
@@ -210,4 +211,70 @@ pub(super) fn call_custody_admitted(
         ) => !discard_result_on_return,
         (_, _) => arguments_admitted(),
     }
+}
+
+/// The call sequencer already joined each operand to its loan or consumption.
+/// A state edge does not change that call's argument custody. Boundary and
+/// ordinary calls share this rule; their receipts and claim transfers remain
+/// separate obligations at their respective consumers.
+fn call_argument_admitted(
+    argument: &CheckedUnitStructuralArgumentPlan,
+    earlier: &[CheckedUnitEffectOperationPlan],
+) -> bool {
+    if argument.access != CheckedStructuralAccess::Owned {
+        // Loan lifetime and restoration remain the sequencer's obligations;
+        // borrowing does not consume a graph-owned structural result.
+        return true;
+    }
+    let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
+        // Parameters, checked local storage and inline operands retain their
+        // sequencer custody. In particular an inline value is established at
+        // the call, not by a fictitious earlier result. Only an explicit result
+        // binding introduces the additional graph disposition checked below.
+        return true;
+    };
+    let mut producers = earlier.iter().filter_map(|operation| {
+        let result = operation.structural_result_binding()?;
+        (result.binding_ordinal == ordinal).then_some((operation, result))
+    });
+    let Some((producer, result)) = producers.next() else {
+        return false;
+    };
+    producers.next().is_none()
+        && retained_structural_result(producer).is_some()
+        // The argument planner matched the selected subtree's declaration
+        // and exact transfer. Graph custody retains its owner binding; a
+        // projection does not turn that binding into a whole-value argument.
+        // Copies leave the original for its existing state-exit accounting;
+        // affine/linear transfers use the same consumption rule as that
+        // accounting, which independently requires exactly one disposition.
+        && (result.multiplicity == Multiplicity::Unrestricted || call_owns_result(producer))
+}
+
+/// Name the first unmet call requirement using the same argument admission
+/// as the operation guard, then distinguish its unsupported custody.
+fn call_custody_refusal(
+    structural_arguments: &[CheckedUnitStructuralArgumentPlan],
+    earlier: &[CheckedUnitEffectOperationPlan],
+) -> &'static str {
+    for argument in structural_arguments {
+        if call_argument_admitted(argument, earlier) {
+            continue;
+        }
+        if argument.access == CheckedStructuralAccess::Owned
+            && let Some(ordinal) = argument.source_structural_result_binding_ordinal()
+        {
+            let producer = earlier.iter().rev().find_map(|operation| {
+                operation
+                    .structural_result_binding()
+                    .filter(|result| result.binding_ordinal == ordinal)
+            });
+            return match producer.map(|result| result.multiplicity) {
+                None => "state graph: operation custody: call owned result without a producer",
+                Some(_) => "state graph: operation custody: call owned local result",
+            };
+        }
+        return "state graph: operation custody: unit call arguments";
+    }
+    "state graph: operation custody: unit call arguments"
 }
