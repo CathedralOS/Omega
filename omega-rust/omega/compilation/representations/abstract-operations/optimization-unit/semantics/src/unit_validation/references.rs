@@ -503,8 +503,8 @@ pub(crate) fn storage_projection_type(
         return projected_carrier_type(function, types, source);
     }
     let contract = structural_source_contract(function, source.place)?;
-    super::structural_catalog::resolve_structural_path(
-        types,
+    super::structural_catalog::structural_projection_type(
+        types.values().copied(),
         contract.structural_type,
         &source.path,
     )
