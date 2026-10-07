@@ -540,7 +540,8 @@ pub(super) fn whole_local_bounded_owner_loan(
         || parameter.multiplicity != Multiplicity::Unrestricted
         || (!shared_view && argument.type_identity != result.type_identity)
         || parameter.type_identity != argument.type_identity
-        || checked.normalized_type_identity(referent).as_str() != argument.type_identity
+        || validation::structural_type_identity(&checked.typed, formal, &[], &[])
+            != argument.type_identity
         || !parameter
             .qualifications
             .iter()

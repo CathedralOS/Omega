@@ -187,11 +187,11 @@ impl Builder<'_, '_> {
                                 _ => (checked_trees::CheckedStructuralAccess::Owned, parameter.type_reference),
                             };
                             let (expression, owner_type, path) = self.retained_argument_owner(value, referent)?;
-                            let contract = validation::structural_result_contract(self.program, referent).ok()?;
+                            validation::structural_result_contract(self.program, referent).ok()?;
                             let argument_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
                                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
                                 path,
-                                type_identity: self.program.normalized_type_identity(contract.carrier).into_string(),
+                                type_identity: validation::structural_type_identity(self.program, referent, &[], &[]),
                                 access,
                             };
                             let mut discards = None;

@@ -73,12 +73,12 @@ pub(super) fn validate(
                                 root.statement_ordinal,
                                 expression,
                             )?;
-                            let contract = validation::structural_result_contract(program, value.type_reference).ok()?;
+                            validation::structural_result_contract(program, value.type_reference).ok()?;
                             if value.machine != machine
                                 || !structural_values.nodes.is_valid(value.root)
                                 || structural_values.nodes.get(value.root).expression != expression
                                 || (argument.path.is_empty()
-                                    && program.normalized_type_identity(contract.carrier).as_str()
+                                    && validation::structural_type_identity(program, value.type_reference, &[], &[])
                                         != argument.type_identity)
                             {
                                 return None;

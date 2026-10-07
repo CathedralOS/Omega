@@ -32,8 +32,12 @@ pub(crate) use source_path::{
     expression_producer, source_path, source_place_path, statement_receiver_path,
 };
 
-/// Qualifications have their own retained row; carrier comparisons preserve
-/// reference presentation rather than silently turning a view into ownership.
+/// The carrier beneath a type's qualification shells, for contents
+/// classification and shape inspection. Qualifications have their own
+/// retained row, and reference presentation is preserved rather than silently
+/// turning a view into ownership. Rejoining a structural plan compares
+/// identities through `validation::stored_structural_type_identity` instead,
+/// which keeps the qualification a bounded byte owner's plan is named by.
 pub(crate) fn structural_carrier_type(
     checked: &CheckedTrees,
     mut reference: checked_trees::types::TypeReferenceHandle,

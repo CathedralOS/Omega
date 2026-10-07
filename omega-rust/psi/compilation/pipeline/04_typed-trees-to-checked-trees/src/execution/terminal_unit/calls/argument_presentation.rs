@@ -4,7 +4,7 @@
 //! source access, multiplicity, predicate obligations and live-loan custody.
 use crate::execution::terminal_unit::types::{
     base_type_identity, base_type_identity_with_substitutions, byte_sequence_carrier,
-    byte_sequence_type_identity, substituted_formal_type,
+    lent_storage_identity, substituted_formal_type,
 };
 use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode, TypedTrees};
 
@@ -39,17 +39,17 @@ pub(crate) fn is_admitted(
         byte_sequence_carrier(program, formal, substitutions),
     ) {
         // A fixed byte reference preserves its pointer carrier identity,
-        // while caller storage names the exact array referent. Equal base
-        // identity proves the element and declared extent; the formal's
+        // while caller storage names the exact array referent. Equal lent
+        // storage proves the element and declared extent; the formal's
         // carrier identity remains authoritative at the receiving boundary.
         (
             None | Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }),
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }),
         ) => {
-            byte_sequence_type_identity(program, formal, &[], substitutions)
+            base_type_identity_with_substitutions(program, formal, &[], substitutions)
                 .is_some_and(|identity| identity == target_identity)
-                && base_type_identity(program, projected_type, &[]).is_some_and(|identity| {
-                    base_type_identity_with_substitutions(program, formal, &[], substitutions)
+                && lent_storage_identity(program, projected_type, &[]).is_some_and(|identity| {
+                    lent_storage_identity(program, formal, substitutions)
                         .is_some_and(|expected| identity == expected)
                 })
         }

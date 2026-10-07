@@ -318,15 +318,12 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     .as_ref()
                         != Some(&parameter.qualifications)
                     || checked.type_multiplicity(source.type_reference) != parameter.multiplicity
-                    || checked
-                        .normalized_type_identity(
-                            crate::unit::attached_unit::parameters::structural_carrier_type(
-                                checked,
-                                source.type_reference,
-                            )?,
-                        )
-                        .as_str()
-                        != parameter.type_identity
+                    || validation::stored_structural_type_identity(
+                        &checked.typed,
+                        source.type_reference,
+                        &[],
+                        &[],
+                    ) != parameter.type_identity
                     || (parameter.multiplicity != Multiplicity::Linear
                         && !validation::has_contents(
                             &checked.typed,

@@ -313,11 +313,10 @@ fn carrier_declaration<'types>(
     types: &'types [StructuralTypeDeclaration],
     reference: checked_trees::types::TypeReferenceHandle,
 ) -> Result<&'types StructuralTypeDeclaration, LoweringError> {
-    let carrier = crate::unit::attached_unit::structural_carrier_type(checked, reference)?;
-    let identity = checked.normalized_type_identity(carrier);
+    let identity = validation::stored_structural_type_identity(&checked.typed, reference, &[], &[]);
     let mut declarations = types
         .iter()
-        .filter(|declaration| declaration.identity == identity.as_str());
+        .filter(|declaration| declaration.identity == identity);
     let declaration = declarations.next().ok_or(LoweringError::Unsupported(
         "structural value lost its declared carrier",
     ))?;

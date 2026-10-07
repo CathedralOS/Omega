@@ -132,16 +132,20 @@ pub(super) fn signature_matches(
                     .as_ref()
                         == Some(&result.projected_qualifications);
             }
+            // Contents classification reads the carrier beneath its
+            // qualifications; the plan identity follows the shared rule.
             let Ok(carrier) = crate::unit::attached_unit::parameters::structural_carrier_type(
                 checked,
                 source.return_type,
             ) else {
                 return false;
             };
-            checked
-                .normalized_type_identity(carrier)
-                .as_str()
-                == result.type_identity
+            validation::stored_structural_type_identity(
+                &checked.typed,
+                source.return_type,
+                &[],
+                &[],
+            ) == result.type_identity
                 && crate::reference_custody::result_multiplicity(checked, source.return_type) == result.multiplicity
                 && validation::structural_result_qualifications(&checked.typed, source.return_type).ok().as_ref() == Some(&result.qualifications)
                 && validation::structural_result_projected_qualifications(

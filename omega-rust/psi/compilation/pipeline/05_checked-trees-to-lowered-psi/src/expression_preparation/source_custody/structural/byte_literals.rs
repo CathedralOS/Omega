@@ -203,7 +203,7 @@ pub(crate) fn validate(
                     .contains_type_reference(*element_type)
                 && checked.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
                 && bytes.len() <= *capacity
-                && checked.normalized_type_identity(reference).as_str()
+                && validation::structural_type_identity(&checked.typed, expected, &[], &[])
                     == argument.type_identity =>
             {
                 domains.sort_by_key(|domain| domain.0);

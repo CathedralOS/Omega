@@ -676,11 +676,13 @@ pub(super) fn argument(
                 return None;
             }
             // The already matched qualified source/formal type retains its
-            // declared predicates. The result separately names the unqualified
-            // storage carrier shared by every structural producer.
-            let contract =
-                validation::structural_result_contract(program, root.type_reference).ok()?;
-            if program.normalized_type_identity(contract.carrier).as_str() != result.type_identity {
+            // declared predicates. The result separately names the storage
+            // carrier every structural producer shares, under the structural
+            // identity rule: unqualified, except a bounded byte owner's.
+            validation::structural_result_contract(program, root.type_reference).ok()?;
+            if validation::structural_type_identity(program, root.type_reference, &[], &[])
+                != result.type_identity
+            {
                 return None;
             }
         }

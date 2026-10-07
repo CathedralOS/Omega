@@ -11,11 +11,8 @@ use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::calls::view_subslice;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, byte_sequence_type_identity, is_unit, parameter_is_root,
+    ShapeCollector, base_type_identity, is_unit, parameter_is_root,
     structural_access_for_type_reference,
-};
-use crate::execution::terminal_unit::types::{
-    borrowed_slice_view_element, borrowed_slice_view_type_identity, byte_sequence_carrier,
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedTrivialAffineStructuralLocalPlan,
@@ -202,17 +199,9 @@ pub(crate) fn structural_call_arguments(
             .clone()
             .or_else(|| resolved_alias.clone())
             .unwrap_or_else(|| authored_place.clone());
-        let target_identity =
-            if byte_sequence_carrier(program, target.type_reference, &[]).is_some() {
-                byte_sequence_type_identity(program, target.type_reference, &[], &[])?
-            } else if borrowed_slice_view_element(program, target.type_reference, &[]).is_some() {
-                // A borrowed `&[T]` view names its own carrier, the way a
-                // borrowed byte view does: the reference shell is the loan, not
-                // part of the viewed type.
-                borrowed_slice_view_type_identity(program, target.type_reference, &[], &[])
-            } else {
-                base_type_identity(program, target.type_reference, &[])?
-            };
+        // Byte carriers and `&[T]` views name their own carriers under the
+        // same structural identity rule as every other formal.
+        let target_identity = base_type_identity(program, target.type_reference, &[])?;
         arm("call operation: structural arguments: caller structural result");
         if let Some((result, _)) = caller_structural_results
             .iter()

@@ -419,12 +419,8 @@ helper that passes does not close an item.
     provider or storage authority.
   - Scratch fields become ordinary locals; pass only live values across
     states. The glider sample now keeps only bindings and its grid in Main;
-    natively it stops in `Main::render`: the mutable `[u8; 24] in Utf8`
-    local `line` crosses a state edge (state graph loan transfer refuses
-    non-numeric constraints), and each `line[column] = 35` store through the
-    loan owes `valid_utf8` preservation over content the receiving state
-    does not know. Temporary-scoping design is deferred and not a
-    prerequisite.
+    its native frontier is under **SAMPLE-CORPUS**. Temporary-scoping design
+    is deferred and not a prerequisite.
     Validate `samples/cli/algorithms/maze_flood` with `omega run --both`:
     exit 0 and its documented 235-byte output. Keep search and row/input
     storage local, with only the Console binding in Main. Preserve the
@@ -846,13 +842,13 @@ defines the complete product bar.
     natively (`pass/borrows/runtime_shared_qualified_view_cycle_exit`).
     Result custody and nested-field initialization stay with
     **STATE-LOCAL-VALUE-FRONTIER**.
-  - `simulation/game_of_life_glider`: `Main::render` plans since
-    fca4c94e177. Its native build now stops in Omega legalization:
-    `scalar_graph_input/structural_call.rs` refuses a structural call
-    argument with `SourceCustodyMismatch` (`OMEGA_COMPILER_CHECK_SITES=1`
-    names the site). Its earlier stage 04 refusal was
-    **BYTE-ARRAY-SHAPE-IDENTITY**. **STATIC-MACHINE-MIGRATION** records the
-    glider shape.
+  - `simulation/game_of_life_glider`: Psi lowers every machine, including
+    `Main::render`'s `line: &mut [u8; 24] in Utf8` state loan. A verbatim
+    corpus copy now stops in Omega selection: legalization refuses a
+    structural call argument with `SourceCustodyMismatch`
+    (`legalization/scalar_graph_input/structural_call.rs`) on the
+    `advance_generation(&mut main.grid)` path. Removing that one call builds
+    and exits 0. **STATIC-MACHINE-MIGRATION** records the glider shape.
 
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):
@@ -2650,25 +2646,6 @@ code and preserve check/native behavior for the named customer slices.
   operation keyed by the value's representation. Acceptance: one binding
   variant and one lowering remain; corpus `--filter expressions/,borrows/,calls/`
   is unchanged.
-
-- **BYTE-ARRAY-SHAPE-IDENTITY.** (new-scope) Stage 04's `ShapeCollector`
-  keys structural types by an identity that peels byte qualifications, so a
-  plain `[u8; N]` record field (registered as `FixedArray`) and a qualified
-  bounded byte buffer `[u8; N] in Utf8` (registered as
-  `ByteSequence(BoundedOwned)`) share `array(named(name(u8)),literal(N))`.
-  `add_type`'s fixed-array branch overwrites an existing plan without
-  comparing it, and its byte-carrier branch refuses a different existing
-  plan, so the machine planned first decides: one order silently retypes the
-  qualified buffer, the other refuses the second body at "state signature:
-  parameter signature: structural parameter type". Before fca4c94e177 this
-  refused `Main::render` in `samples/cli/simulation/game_of_life_glider`
-  after a record with a plain `[u8; 24]` field nested two records deep was
-  planned first; adding unrelated declarations to a reduced copy flipped the
-  outcome. Give each identity one representation, or the two
-  representations distinct identities, so registration is order-independent.
-  Acceptance: a fixture with a plain `[u8; N]` record field and a
-  `[u8; N] in Utf8` state loan plans and executes in either declaration
-  order; check and native corpus unchanged.
 
 - **SHAPE-RUNGS-GENERALIZED.** (new-scope) Replace these stage 04 shape
   recognizers with their general operation:

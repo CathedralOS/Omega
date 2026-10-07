@@ -300,7 +300,7 @@ pub(crate) fn storage(
         checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
         | checked_trees::CheckedStorageRoot::ViewLocal { symbol } => symbol,
     };
-    let mut reference = validation::declared_place_type_raw(
+    let reference = validation::declared_place_type_raw(
         &checked.typed,
         machine,
         Some(authored),
@@ -309,6 +309,8 @@ pub(crate) fn storage(
     .ok_or(LoweringError::Unsupported(
         "range collection has no declared type",
     ))?;
+    let mut identity =
+        validation::stored_structural_type_identity(&checked.typed, reference, &[], &[]);
     // A root reference is represented by its parameter/view-local custody.
     // A stored reference needs an explicit Referent projection, not erasure.
     if source.path.is_empty()
@@ -328,20 +330,13 @@ pub(crate) fn storage(
         {
             return unsupported("range collection is not readable");
         }
-        // Bounded byte references are pointer carriers with their own exact
-        // identity. Other root references use their referent representation.
-        if !matches!(
-            validation::byte_sequence_carrier(&checked.typed, reference, &[]),
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. })
-        ) {
-            reference = shell.referee;
-        }
+        // A root reference names the storage it lends; the structural
+        // identity rule keeps a bounded byte view's own pointer carrier.
+        identity = validation::structural_type_identity(&checked.typed, reference, &[], &[]);
     }
-    let reference = super::parameters::structural_carrier_type(checked, reference)?;
-    let identity = checked.normalized_type_identity(reference);
     let collection = declarations
         .iter()
-        .find(|declaration| declaration.identity == identity.as_str())
+        .find(|declaration| declaration.identity == identity)
         .ok_or(LoweringError::Unsupported(
             "range collection has no exact Terminal type",
         ))?;

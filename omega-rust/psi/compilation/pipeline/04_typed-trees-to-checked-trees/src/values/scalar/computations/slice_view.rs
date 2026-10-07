@@ -164,12 +164,7 @@ impl Builder<'_, '_> {
                 // the loan's access binds on the member, not on the shape.
                 (
                     source,
-                    crate::execution::terminal_unit::types::borrowed_slice_view_type_identity(
-                        self.program,
-                        expected,
-                        &[],
-                        &[],
-                    ),
+                    validation::structural_type_identity(self.program, expected, &[], &[]),
                 )
             } else {
                 (

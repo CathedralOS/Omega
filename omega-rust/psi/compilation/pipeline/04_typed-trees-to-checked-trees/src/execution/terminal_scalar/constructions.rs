@@ -295,12 +295,12 @@ pub(super) fn retain_shapes(
                             (root.state == state && root.expression == expression).then_some(root)
                         });
                         let root = roots.next()?;
-                        let contract = validation::structural_result_contract(program, root.type_reference).ok()?;
+                        validation::structural_result_contract(program, root.type_reference).ok()?;
                         if roots.next().is_some()
                             || !structural_values.nodes.is_valid(root.root)
                             || structural_values.nodes.get(root.root).expression != expression
                             || (argument.path.is_empty()
-                                && program.normalized_type_identity(contract.carrier).as_str()
+                                && validation::structural_type_identity(program, root.type_reference, &[], &[])
                                     != argument.type_identity)
                             || !matches!(argument.access,
                                 checked_trees::CheckedStructuralAccess::Owned

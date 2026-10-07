@@ -31,6 +31,7 @@ pub(crate) mod reference_local_establishment;
 pub(crate) mod source_liveness;
 pub(crate) mod storage_contents;
 pub(crate) mod struct_literals;
+pub(crate) mod structural_identity;
 pub(crate) mod transition_operand_moves;
 pub(crate) mod type_references;
 pub(crate) mod wire;

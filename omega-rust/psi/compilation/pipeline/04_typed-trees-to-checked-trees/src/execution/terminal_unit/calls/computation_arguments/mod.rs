@@ -329,7 +329,9 @@ pub(crate) fn borrowed_storage_argument(
     ) {
         return None;
     }
-    let target_identity = base_type_identity(program, referee, &[])?;
+    // The formal's own referee names the plan: a bounded byte owner keeps
+    // the qualification its carrier is registered under.
+    let target_identity = base_type_identity(program, target_shell.referee, &[])?;
     let parameters = program.state_parameters(state);
     let (reference, source) = if let Some(position) = parameters
         .iter()

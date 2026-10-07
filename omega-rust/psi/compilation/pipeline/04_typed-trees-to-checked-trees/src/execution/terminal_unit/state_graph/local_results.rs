@@ -30,28 +30,21 @@ fn validate(
     let StatementNode::LocalData(local) = statements.get(result.statement_index as usize)? else {
         return None;
     };
-    // Byte results retain the canonical storage identity their constructors
-    // and call signatures publish. Qualifications are separate obligations,
-    // not part of that identity; this applies equally to owned buffers and
-    // borrowed views. Element views retain their existing carrier identity.
-    let expected_identity = if let Some(identity) =
-        super::super::types::byte_sequence_type_identity(program, local.type_reference, &[], &[])
-    {
-        identity
-    } else if super::super::types::borrowed_slice_view_element(program, local.type_reference, &[])
-        .is_some()
-    {
-        super::super::types::borrowed_slice_view_type_identity(
-            program,
-            local.type_reference,
-            &[],
-            &[],
-        )
-    } else {
-        program
-            .normalized_type_identity(local.type_reference)
-            .into_string()
-    };
+    // Byte results and element views retain the structural identity their
+    // constructors and call signatures publish: a view without its loan
+    // shell, a bounded byte owner with its qualification. Other qualifications
+    // are separate obligations on the declared type's full spelling.
+    let expected_identity =
+        if super::super::types::byte_sequence_carrier(program, local.type_reference, &[]).is_some()
+            || super::super::types::borrowed_slice_view_element(program, local.type_reference, &[])
+                .is_some()
+        {
+            validation::structural_type_identity(program, local.type_reference, &[], &[])
+        } else {
+            program
+                .normalized_type_identity(local.type_reference)
+                .into_string()
+        };
     // A reference-loaned result publishes its referent identity — the loan's
     // access mode lives on the root, not the bound value — the same peel the
     // shared-referee admission and call-result storage paths apply. An owned

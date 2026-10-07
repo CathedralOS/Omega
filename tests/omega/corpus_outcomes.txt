@@ -3386,6 +3386,8 @@ pass/text/nested_owned_byte_record_literal_exit checked 1087ms check-target:maco
 pass/text/owned_arrival_view_descriptor_forwarded_exit checked 1094ms check-target:macos_arm64 @c3ad5f6e051f+wt
 pass/text/owned_byte_call_result_field_exit checked 1039ms check-target:macos_arm64 @5826c9701ec3+wt
 pass/text/owned_record_byte_field_read_exit checked 1401ms check-target:macos_arm64 @c3ad5f6e051f+wt
+pass/text/plain_and_qualified_byte_arrays_exit checked 1221ms check-target:macos_arm64 @0142400d0e1f
+pass/text/plain_byte_field_and_qualified_state_loan_exit checked 1218ms check-target:macos_arm64 @0142400d0e1f
 pass/text/qualified_byte_owner_state_loan_cycle_exit checked 1212ms check-target:macos_arm64 @ad48a872752b+wt
 pass/text/runtime_alias_string_write checked 381ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1598ms check-target:macos_arm64 @2d8ed253669f

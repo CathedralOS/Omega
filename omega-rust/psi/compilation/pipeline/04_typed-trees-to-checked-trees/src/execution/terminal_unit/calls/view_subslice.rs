@@ -28,8 +28,8 @@ use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
 use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::types::{
-    borrowed_slice_view_element, borrowed_slice_view_type_identity, byte_sequence_carrier,
-    byte_sequence_type_identity, structural_access_for_type_reference,
+    borrowed_slice_view_element, byte_sequence_carrier, byte_sequence_type_identity,
+    structural_access_for_type_reference,
 };
 use checked_trees::{
     CheckedScalarExpressionPlans, CheckedStorageRoot, CheckedStructuralControlTransferSourcePlan,
@@ -433,7 +433,7 @@ fn shape_of_kind(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
-    let type_identity = view_kind_type_identity(program, target, kind)?;
+    let type_identity = view_identity(program, kind, target)?;
     if let Some((root, collection, storage)) = array_collection(
         program,
         machine,
@@ -448,7 +448,14 @@ fn shape_of_kind(
                 root,
                 storage: ViewStorage::FixedArray,
                 collection,
-                storage_type_identity: collection_storage_identity(program, storage),
+                // The collection's storage carrier, as the structural type
+                // table enrolls it.
+                storage_type_identity: validation::structural_type_identity(
+                    program,
+                    storage,
+                    &[],
+                    &[],
+                ),
                 kind,
                 access,
                 type_identity,
@@ -514,30 +521,6 @@ fn shape_of_kind(
         access,
         type_identity,
     })
-}
-
-/// The exact Terminal identity of the collection's storage carrier, spelled
-/// the way the checked structural type table enrolls the declared type: a
-/// byte carrier keeps its reference shell (`ref-mut(array(u8,3))`), while
-/// ordinary collections enroll under the peeled carrier spelling — the same
-/// carrier spelling lowering's `structural_carrier_type` computes.
-fn collection_storage_identity(program: &TypedTrees, storage: TypeReferenceHandle) -> String {
-    if byte_sequence_carrier(program, storage, &[]).is_some()
-        && let Some(identity) = byte_sequence_type_identity(program, storage, &[], &[])
-    {
-        return identity;
-    }
-    let mut peeled = storage;
-    loop {
-        match program.type_reference_table.type_reference(peeled) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => peeled = *referee,
-            _ => break,
-        }
-    }
-    program.normalized_type_identity(peeled).into_string()
 }
 
 /// Resolve readable fixed-array storage, including a whole parameter or an
@@ -672,7 +655,7 @@ pub(in crate::execution) fn whole_extent(
         borrowed_slice_view_element(program, target, &[]).map(|_| ViewKind::Elements)
     })?;
     let access = borrowed_view_access(program, target, expression)?;
-    let type_identity = view_kind_type_identity(program, target, kind)?;
+    let type_identity = view_identity(program, kind, target)?;
     let (root, collection, storage) = array_collection(
         program,
         machine,
@@ -688,7 +671,14 @@ pub(in crate::execution) fn whole_extent(
                 root,
                 storage: ViewStorage::FixedArray,
                 collection,
-                storage_type_identity: collection_storage_identity(program, storage),
+                // The collection's storage carrier, as the structural type
+                // table enrolls it.
+                storage_type_identity: validation::structural_type_identity(
+                    program,
+                    storage,
+                    &[],
+                    &[],
+                ),
                 kind,
                 access,
                 type_identity,
@@ -811,7 +801,7 @@ pub(in crate::execution) fn view_identity(
 ) -> Option<String> {
     match kind {
         ViewKind::Bytes => byte_sequence_type_identity(program, reference, &[], &[]),
-        ViewKind::Elements => Some(borrowed_slice_view_type_identity(
+        ViewKind::Elements => Some(validation::structural_type_identity(
             program,
             reference,
             &[],
@@ -846,16 +836,4 @@ fn borrowed_view_access(
         }
     }
     Some(access)
-}
-
-/// The collection type identity a `ViewKind` reads elements through.
-fn view_kind_type_identity(
-    program: &TypedTrees,
-    target: TypeReferenceHandle,
-    kind: ViewKind,
-) -> Option<String> {
-    Some(match kind {
-        ViewKind::Bytes => byte_sequence_type_identity(program, target, &[], &[])?,
-        ViewKind::Elements => borrowed_slice_view_type_identity(program, target, &[], &[]),
-    })
 }

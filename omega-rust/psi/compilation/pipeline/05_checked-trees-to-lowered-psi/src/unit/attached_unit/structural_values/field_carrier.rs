@@ -22,11 +22,11 @@ pub(crate) fn resolve(
     }
     match field.byte_sequence_carrier() {
         Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
-            let reference = super::super::structural_carrier_type(checked, reference)?;
-            let identity = checked.normalized_type_identity(reference);
+            let identity =
+                validation::structural_type_identity(&checked.typed, reference, &[], &[]);
             let declaration = declarations
                 .iter()
-                .find(|declaration| declaration.identity == identity.as_str())
+                .find(|declaration| declaration.identity == identity)
                 .ok_or(LoweringError::Unsupported(
                     "byte member has no retained carrier",
                 ))?;

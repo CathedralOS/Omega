@@ -1489,7 +1489,7 @@ fn validate_operand_producers(
                 // that producer; whole transfer does not mint memberships.
                 || (result.multiplicity == Multiplicity::Unrestricted
                     && crate::content_classes::plain_owned_with_represented_constraints(checked, construction_type));
-            let (contract, descriptor_access) = operand_contract(checked, construction_type)?;
+            let (_, descriptor_access) = operand_contract(checked, construction_type)?;
             let access_matches = descriptor_access.map_or_else(
                 || {
                     matches!(
@@ -1510,11 +1510,12 @@ fn validate_operand_producers(
                     || !access_matches
                     || !argument.path.is_empty()
                     || (!whole_owned_contents && descriptor_access.is_none())
-                    || checked
-                        .typed
-                        .normalized_type_identity(contract.carrier)
-                        .into_string()
-                        != result.type_identity)
+                    || validation::structural_type_identity(
+                        &checked.typed,
+                        construction_type,
+                        &[],
+                        &[],
+                    ) != result.type_identity)
             {
                 return unsupported("case argument constructor lost whole owned custody");
             }
@@ -1664,16 +1665,12 @@ fn validate_operand_producers(
                         || crate::content_classes::bounded_byte_capacity(checked,
                             local.type_reference)
                         .is_some()))
-                || checked
-                    .typed
-                    .normalized_type_identity(view_carrier.unwrap_or(
-                        crate::unit::attached_unit::parameters::structural_carrier_type(
-                            checked,
-                            binding_type,
-                        )?,
-                    ))
-                    .into_string()
-                    != result.type_identity
+                || validation::stored_structural_type_identity(
+                    &checked.typed,
+                    view_carrier.unwrap_or(binding_type),
+                    &[],
+                    &[],
+                ) != result.type_identity
             {
                 return unsupported(
                     "Unit structural result producer disagrees with its authored local",

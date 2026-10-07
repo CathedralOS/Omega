@@ -554,14 +554,13 @@ pub(super) fn collect_structural_argument_calls(
         if !values.nodes.is_valid(root.root)
             || values.nodes.get(root.root).expression != expression
             || (argument.path.is_empty()
-                && program
-                    .normalized_type_identity(
-                        validation::structural_result_contract(program, root.type_reference)
-                            .ok()?
-                            .carrier,
-                    )
-                    .as_str()
-                    != argument.type_identity)
+                && (validation::structural_result_contract(program, root.type_reference).is_err()
+                    || validation::structural_type_identity(
+                        program,
+                        root.type_reference,
+                        &[],
+                        &[],
+                    ) != argument.type_identity))
             || !matches!(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::Owned

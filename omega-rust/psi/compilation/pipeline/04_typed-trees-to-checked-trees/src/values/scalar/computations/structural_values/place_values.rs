@@ -470,11 +470,11 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        // Sequence storage has its own catalog identity: a qualified byte
-        // owner retains a byte carrier plus separate qualification evidence,
-        // not a second structural type named by the qualified source spelling.
-        // Use the same identity owner as ShapeCollector, while the comparison
-        // above still requires the complete declared types to agree.
+        // Sequence storage has its own catalog identity, which ShapeCollector
+        // registers through the shared structural identity rule: a borrowed
+        // view peels its loan and a bounded byte owner keeps its qualification.
+        // The comparison above still requires the complete declared types to
+        // agree.
         let type_identity = if crate::execution::terminal_unit::types::byte_sequence_carrier(
             self.program,
             reference,
@@ -482,12 +482,7 @@ impl Builder<'_, '_> {
         )
         .is_some()
         {
-            crate::execution::terminal_unit::types::byte_sequence_type_identity(
-                self.program,
-                reference,
-                &[],
-                &[],
-            )?
+            validation::structural_type_identity(self.program, reference, &[], &[])
         } else {
             self.program
                 .normalized_type_identity(reference)

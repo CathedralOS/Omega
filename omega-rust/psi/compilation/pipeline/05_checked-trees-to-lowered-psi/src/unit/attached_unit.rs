@@ -124,7 +124,7 @@ pub(crate) use parameters::{
     literal_argument_places, lower_boundary_parameter_order,
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
     lower_structural_arguments, lower_unit_parameters, mint_runtime_index_selectors,
-    statement_receiver_path, structural_carrier_type,
+    statement_receiver_path,
 };
 use providers::{ProviderBody, checked_unit_provider_candidates};
 

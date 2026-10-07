@@ -121,25 +121,20 @@ pub(crate) fn borrowed_view_referent(
 }
 
 /// The `type_identity` an anonymous-result plan mints for a borrowed-view
-/// result — the carrier's own identity with borrow and constraint shells
-/// peeled, exactly as `ShapeCollector::add_type` registers it.
+/// result: the structural identity of the storage the view lends, exactly as
+/// `ShapeCollector::add_type` registers it.
 pub(crate) fn borrowed_view_result_identity(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<String> {
-    if let Some(referee) = borrowed_view_referent(
+    (borrowed_view_referent(
         program,
         type_reference,
         language_semantics::ReferenceAccess::Shared,
-    ) {
-        return Some(
-            program
-                .type_identity(TypeIdentityRequest::ordinary(referee))
-                .into_string(),
-        );
-    }
-    borrowed_slice_view(program, type_reference)
-        .then(|| borrowed_slice_view_type_identity(program, type_reference, &[], &[]))
+    )
+    .is_some()
+        || borrowed_slice_view(program, type_reference))
+    .then(|| validation::structural_type_identity(program, type_reference, &[], &[]))
 }
 
 /// A named record whose fields are each either plain owned contents or a
@@ -150,31 +145,6 @@ pub(crate) fn record_with_owned_or_shared_view_fields(
     type_reference: TypeReferenceHandle,
 ) -> bool {
     validation::has_owned_or_shared_view_fields(program, type_reference)
-}
-
-/// The view's own identity is the borrowed `[T]` carrier, with the reference
-/// and constraint shells peeled exactly as the borrowed byte view peels them:
-/// borrow access belongs to the plan carrying the view, not to its shape.
-pub(crate) fn borrowed_slice_view_type_identity(
-    program: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
-    binders: &[(SymbolHandle, String)],
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> String {
-    while let TypeReferenceNode::Reference { referee, .. }
-    | TypeReferenceNode::Constrained {
-        base_type: referee, ..
-    } = program.type_reference_table.type_reference(type_reference)
-    {
-        type_reference = *referee;
-    }
-    program
-        .type_identity(TypeIdentityRequest {
-            binders,
-            substitutions,
-            ..TypeIdentityRequest::ordinary(type_reference)
-        })
-        .into_string()
 }
 
 pub(crate) use validation::byte_sequence_carrier;

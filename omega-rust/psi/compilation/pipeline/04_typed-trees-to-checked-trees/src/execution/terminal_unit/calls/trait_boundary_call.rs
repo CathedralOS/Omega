@@ -24,12 +24,11 @@ use crate::execution::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, exact_structural_argument_access,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
     base_type_identity_with_substitutions, substituted_formal_type,
 };
 use crate::execution::terminal_unit::types::{
-    byte_sequence_type_identity, is_unit, signature_contracts_are_exact_parameter_qualifications,
+    is_unit, signature_contracts_are_exact_parameter_qualifications,
     structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::{
@@ -259,13 +258,9 @@ pub(super) fn build(
             });
             continue;
         }
-        let byte_sequence = byte_sequence_carrier(program, formal, substitutions.as_slice());
         phase("call operation: boundary argument identity");
-        let target_identity = if byte_sequence.is_some() {
-            byte_sequence_type_identity(program, formal, &[], substitutions.as_slice())?
-        } else {
-            base_type_identity_with_substitutions(program, formal, &[], substitutions.as_slice())?
-        };
+        let target_identity =
+            base_type_identity_with_substitutions(program, formal, &[], substitutions.as_slice())?;
         if let Some(literal) = byte_sequence_literal_argument(program, formal, *argument) {
             structural_arguments.push(literal);
             continue;

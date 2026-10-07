@@ -463,10 +463,7 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<String> {
         let reference = substituted_formal_type(self.program, reference, substitutions);
-        if is_reference(self.program, reference)
-            && byte_sequence_carrier(self.program, reference, substitutions).is_none()
-            && element_view_shell(self.program, reference, substitutions).is_none()
-        {
+        if validation::stores_reference_shape(self.program, reference, substitutions) {
             structural_access_for_type_reference(self.program, reference)?;
             let shell = validation::reference_shell(self.program, reference)?;
             let referee = substituted_formal_type(self.program, shell.referee, substitutions);
@@ -494,6 +491,17 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<String> {
+        // One identity names one plan for the whole module, and lowering
+        // rejoins this plan by recomputing the identity from source types, so
+        // both use the one rule: a bounded byte owner keeps its qualification
+        // and a bounded view its loan, which keeps either from claiming the
+        // plain array's plan.
+        let identity = validation::structural_type_identity(
+            self.program,
+            type_reference,
+            binders,
+            substitutions,
+        );
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
             // Byte views and bounded byte carriers spell their implicit
             // element through the collection establishment operation. The
@@ -536,8 +544,6 @@ impl<'program> ShapeCollector<'program> {
                     self.byte_view_elements.insert(element);
                 }
             }
-            let identity =
-                byte_sequence_type_identity(self.program, type_reference, binders, substitutions)?;
             let plan = CheckedUnitStructuralTypePlan {
                 identity: identity.clone(),
                 // A view type's identity peels the reference shell, so
@@ -560,12 +566,6 @@ impl<'program> ShapeCollector<'program> {
         if let Some(element) =
             borrowed_slice_view_element(self.program, type_reference, substitutions)
         {
-            let identity = borrowed_slice_view_type_identity(
-                self.program,
-                type_reference,
-                binders,
-                substitutions,
-            );
             if !self.in_progress.insert(identity.clone()) {
                 return None;
             }
@@ -587,44 +587,10 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(identity.clone(), plan);
             return Some(identity);
         }
-        let mut type_reference = type_reference;
-        loop {
-            match self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
-            {
-                TypeReferenceNode::Reference { referee, .. }
-                | TypeReferenceNode::Constrained {
-                    base_type: referee, ..
-                } => type_reference = *referee,
-                TypeReferenceNode::Named { symbol, .. } => {
-                    if let Some((_, replacement)) = substitutions
-                        .iter()
-                        .rev()
-                        .find(|(parameter, _)| parameter == symbol)
-                    {
-                        // A substitution can bind a parameter to its own
-                        // reference; rewriting it again only loops.
-                        if *replacement == type_reference {
-                            break;
-                        }
-                        type_reference = *replacement;
-                        continue;
-                    }
-                    break;
-                }
-                _ => break,
-            }
-        }
-        let identity = self
-            .program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                substitutions,
-                ..TypeIdentityRequest::ordinary(type_reference)
-            })
-            .into_string();
+        // Every other carrier is the storage beneath its loan and
+        // qualification shells: the node the identity above names.
+        let type_reference =
+            validation::structural_identity_type(self.program, type_reference, substitutions);
         if self.types.contains_key(&identity) {
             return Some(identity);
         }

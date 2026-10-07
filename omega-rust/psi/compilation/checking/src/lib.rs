@@ -78,6 +78,10 @@ pub use value_custody::storage_contents::{
     ContentsRequirement, has_contents, has_owned_or_shared_view_fields,
 };
 pub use value_custody::struct_literals::selected_construction_field_type;
+pub use value_custody::structural_identity::{
+    stored_structural_type_identity, stores_reference_shape, structural_identity_type,
+    structural_type_identity,
+};
 pub use value_custody::transition_operand_moves::transition_operand_moves;
 
 /// The sealed operation an [`AtomicCarrierAccess`] names.

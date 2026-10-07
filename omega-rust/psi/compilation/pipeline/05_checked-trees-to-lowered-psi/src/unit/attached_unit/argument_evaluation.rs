@@ -366,7 +366,7 @@ impl Evaluation {
                     checked_trees::types::TypeReferenceNode::Named { .. }
                 )
             });
-            let carrier = match shared_borrow
+            let carrier = shared_borrow
                 .filter(|_| !record_call_result && !reference_carrier)
                 .or(
                     crate::expression_preparation::source_custody::structural::mutable_view_carrier(
@@ -379,10 +379,13 @@ impl Evaluation {
                         checked,
                         binding_type,
                     ),
-                ) {
-                Some(referent) => super::parameters::structural_carrier_type(checked, referent)?,
-                None => super::parameters::structural_carrier_type(checked, binding_type)?,
-            };
+                )
+                .unwrap_or(binding_type);
+            // The plan the binding stamps was registered under the shared
+            // structural identity: a reference carrier under its whole loan,
+            // a bounded byte owner with its qualification.
+            let carrier_identity =
+                validation::stored_structural_type_identity(&checked.typed, carrier, &[], &[]);
             // A materialized Reference shape always carries affine custody.
             // Other stored values use the shared recursive custody judgment,
             // including arrays of references. Source copyability alone cannot
@@ -393,7 +396,7 @@ impl Evaluation {
                 crate::reference_custody::binding_multiplicity(checked, binding_type)
             };
             if !local.symbol.is_valid()
-                || checked.normalized_type_identity(carrier).as_str() != result.type_identity
+                || carrier_identity != result.type_identity
                 || expected_multiplicity != result.multiplicity
                 || self
                     .structural_locals

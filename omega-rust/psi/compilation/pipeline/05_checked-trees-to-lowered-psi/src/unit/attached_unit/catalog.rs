@@ -50,8 +50,7 @@ fn collect_value_roots(
             // Already-projected view identities keep their existing spelling.
             let identity =
                 if checked.normalized_type_identity(*leaf).as_str() == source.type_identity {
-                    let carrier = super::structural_carrier_type(checked, *leaf)?;
-                    checked.normalized_type_identity(carrier).into_string()
+                    validation::stored_structural_type_identity(&checked.typed, *leaf, &[], &[])
                 } else {
                     source.type_identity.clone()
                 };

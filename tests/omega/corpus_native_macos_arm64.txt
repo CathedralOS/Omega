@@ -1476,6 +1476,8 @@ pass/text/nested_owned_byte_record_literal_exit built 1189ms exit:70 @ae42075f1d
 pass/text/owned_arrival_view_descriptor_forwarded_exit built 1176ms exit:70 @c3ad5f6e051f+wt
 pass/text/owned_byte_call_result_field_exit built 1201ms exit:70 @5826c9701ec3+wt
 pass/text/owned_record_byte_field_read_exit built 1454ms exit:70 @c3ad5f6e051f+wt
+pass/text/plain_and_qualified_byte_arrays_exit built 1445ms exit:70 @0142400d0e1f
+pass/text/plain_byte_field_and_qualified_state_loan_exit built 1364ms exit:70 @0142400d0e1f
 pass/text/qualified_byte_owner_state_loan_cycle_exit built 1463ms exit:70 stdout:match @ad48a872752b+wt
 pass/text/runtime_alias_string_write built 688ms @fb2178def922
 pass/text/runtime_bounded_carrier_alias_concat_exit built 1278ms exit:70

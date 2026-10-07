@@ -111,37 +111,23 @@ pub(in crate::execution::terminal_unit) fn mutable_plain_nonlinear_referent(
     .then_some(*referee)
 }
 
+/// The identity a byte carrier's structural plan registers under, or `None`
+/// when `type_reference` is not a byte carrier. The identity rule itself —
+/// which shells a view, a bounded view and a bounded owner keep — belongs to
+/// `validation::structural_type_identity`.
 pub(crate) fn byte_sequence_type_identity(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<String> {
-    let carrier = byte_sequence_carrier(program, type_reference, substitutions)?;
-    let mut identity_type = type_reference;
-    if carrier.is_borrowed_view()
-        || matches!(
-            carrier,
-            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-        )
-    {
-        while let TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } = program.type_reference_table.type_reference(identity_type)
-        {
-            identity_type = *referee;
-        }
-    }
-    Some(
-        program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                substitutions,
-                ..TypeIdentityRequest::ordinary(identity_type)
-            })
-            .into_string(),
-    )
+    byte_sequence_carrier(program, type_reference, substitutions)?;
+    Some(validation::structural_type_identity(
+        program,
+        type_reference,
+        binders,
+        substitutions,
+    ))
 }
 
 pub(in crate::execution) use validation::type_graph_requires_nominal_drop;
@@ -159,6 +145,12 @@ pub(in crate::execution::terminal_unit) fn is_unit(
     }
 }
 
+/// The structural plan identity a call operand, formal or result of
+/// `type_reference` joins, offered only when the storage beneath its loan and
+/// qualification shells is a nominal, a slice or a literal-extent array: the
+/// carriers a call presents. Other storage declines. The identity itself is
+/// the rule `validation::structural_type_identity` owns, so a bounded byte
+/// owner keeps its qualification here exactly as its registered plan does.
 pub(in crate::execution::terminal_unit) fn base_type_identity(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -167,42 +159,51 @@ pub(in crate::execution::terminal_unit) fn base_type_identity(
     base_type_identity_with_substitutions(program, type_reference, binders, &[])
 }
 
-/// The same base identity under a call edge's checked generic
-/// substitutions: the callee's `Type` parameters resolve to the actuals its
-/// admitted specialization derived, so a requirement formal's identity
-/// compares against the caller's concrete presentation.
+/// The same identity under a call edge's checked generic substitutions: the
+/// callee's `Type` parameters resolve to the actuals its admitted
+/// specialization derived, so a requirement formal's identity compares
+/// against the caller's concrete presentation.
 pub(in crate::execution::terminal_unit) fn base_type_identity_with_substitutions(
     program: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<String> {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => type_reference = *referee,
-            TypeReferenceNode::Named { .. }
+    let mut storage = type_reference;
+    while let TypeReferenceNode::Reference { referee, .. }
+    | TypeReferenceNode::Constrained {
+        base_type: referee, ..
+    } = program.type_reference_table.type_reference(storage)
+    {
+        storage = *referee;
+    }
+    matches!(
+        program.type_reference_table.type_reference(storage),
+        TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::FixedArray {
                 length: typed_trees::types::FixedArrayLength::Literal(_),
                 ..
-            } => {
-                return Some(
-                    program
-                        .type_identity(TypeIdentityRequest {
-                            binders,
-                            substitutions,
-                            ..TypeIdentityRequest::ordinary(type_reference)
-                        })
-                        .into_string(),
-                );
             }
-            _ => return None,
-        }
-    }
+    )
+    .then(|| validation::structural_type_identity(program, type_reference, binders, substitutions))
+}
+
+/// The structural identity of the storage a type lends: a loan's referent, or
+/// the type itself when it is no loan. Two types lend the same storage when
+/// these agree, whichever shell each spells — a `&mut [u8; N]` alias and the
+/// `[u8; N]` it borrows, or a plain array and the `&[u8; N]` bounded view a
+/// formal declares over it — while a qualified byte owner still lends
+/// different storage from the plain array.
+pub(in crate::execution::terminal_unit) fn lent_storage_identity(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<String> {
+    let storage = validation::reference_shell(program, type_reference)
+        .map_or(type_reference, |shell| shell.referee);
+    base_type_identity_with_substitutions(program, storage, &[], substitutions)
 }
 
 /// A call edge's checked specialization maps a bare `Type` formal to the

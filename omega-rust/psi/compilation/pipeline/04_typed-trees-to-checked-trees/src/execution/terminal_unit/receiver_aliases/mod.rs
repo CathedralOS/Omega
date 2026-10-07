@@ -4,7 +4,7 @@ use super::{
     TypeReferenceHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::types::{
-    base_type_identity, state_flow, structural_access_for_type_reference,
+    lent_storage_identity, state_flow, structural_access_for_type_reference,
 };
 
 use crate::execution::terminal_unit::calls;
@@ -90,8 +90,8 @@ fn formation(
         if parents.contains(&Some(parent_position))
             || source.root_symbol != source_root
             || source.segments != place.segments
-            || base_type_identity(program, projected_type, &[])?
-                != base_type_identity(program, local.type_reference, &[])?
+            || lent_storage_identity(program, projected_type, &[])?
+                != lent_storage_identity(program, local.type_reference, &[])?
         {
             return None;
         }
@@ -175,8 +175,8 @@ fn formation(
         )?
         .0
     };
-    if base_type_identity(program, projected_type, &[])?
-        != base_type_identity(program, local.type_reference, &[])?
+    if lent_storage_identity(program, projected_type, &[])?
+        != lent_storage_identity(program, local.type_reference, &[])?
     {
         return None;
     }
