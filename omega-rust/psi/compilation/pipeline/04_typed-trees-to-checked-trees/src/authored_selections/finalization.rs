@@ -622,25 +622,35 @@ fn undeclared_checked_call_callee(
             if name.contains("::") {
                 return None;
             }
-            program
-                .symbols
-                .find_top_level_declaration_or_operator_family_from_source(
-                    name,
-                    &[
-                        SymbolKind::Machine,
-                        SymbolKind::Data,
-                        SymbolKind::MathematicalDefinition,
-                        SymbolKind::Proposition,
-                        SymbolKind::BuiltinFunction,
-                        SymbolKind::Operator,
-                        SymbolKind::Measure,
-                        SymbolKind::Domain,
-                    ],
-                    selection.source_span(),
-                )
-                .is_none()
+            (!top_level_declaration_exists(program, name, selection.source_span()))
                 .then(|| name.to_string())
         })
+}
+
+/// The undeclared-callee check's declaration roster: every top-level kind
+/// that could still carry the call's target name in the selected program.
+fn top_level_declaration_exists(
+    program: &TypedTrees,
+    name: &str,
+    reference: source::SourceSpan,
+) -> bool {
+    program
+        .symbols
+        .find_top_level_declaration_or_operator_family_from_source(
+            name,
+            &[
+                SymbolKind::Machine,
+                SymbolKind::Data,
+                SymbolKind::MathematicalDefinition,
+                SymbolKind::Proposition,
+                SymbolKind::BuiltinFunction,
+                SymbolKind::Operator,
+                SymbolKind::Measure,
+                SymbolKind::Domain,
+            ],
+            reference,
+        )
+        .is_some()
 }
 
 /// The statement-call twin of `undeclared_checked_call_callee`. A statement
@@ -679,23 +689,7 @@ fn undeclared_statement_call_callee(
     if name.contains("::") {
         return None;
     }
-    let declared = program
-        .symbols
-        .find_top_level_declaration_or_operator_family_from_source(
-            name,
-            &[
-                SymbolKind::Machine,
-                SymbolKind::Data,
-                SymbolKind::MathematicalDefinition,
-                SymbolKind::Proposition,
-                SymbolKind::BuiltinFunction,
-                SymbolKind::Operator,
-                SymbolKind::Measure,
-                SymbolKind::Domain,
-            ],
-            selection.source_span(),
-        )
-        .is_some()
+    let declared = top_level_declaration_exists(program, name, selection.source_span())
         || program.machines().iter().any(|machine| {
             machine.name.as_str() == name
                 || program
