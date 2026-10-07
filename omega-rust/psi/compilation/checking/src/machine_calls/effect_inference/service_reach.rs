@@ -566,23 +566,8 @@ fn direct_service_reach_for_operational_call(
         // A binder call is not a newly authored direct boundary invocation.
         reach.boundary_services.clear();
         if let typed_trees::data::MachineParameterContractView::Structural(signature) = contract {
-            extend_service_set(
-                &mut reach.services,
-                program
-                    .service_reach_rows
-                    .services(signature.service_reach_row),
-            );
-            if !signature.service_reach_is_installation_bound {
-                extend_service_set(
-                    &mut reach.concrete_services,
-                    program
-                        .service_reach_rows
-                        .services(signature.service_reach_row),
-                );
-            }
-            record_installation_reach(signature, &mut reach);
-            extend_invoked_binding_services(program, signature, &mut reach.services);
-            extend_invoked_binding_services(program, signature, &mut reach.concrete_services);
+            extend_signature_service_rows(program, signature, &mut reach);
+            record_signature_reach(program, signature, &mut reach);
         }
     }
     reach
@@ -775,23 +760,8 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
             })
     });
     if let Some((_, signature)) = parameter_signature {
-        extend_service_set(
-            &mut reach.services,
-            program
-                .service_reach_rows
-                .services(signature.service_reach_row),
-        );
-        if !signature.service_reach_is_installation_bound {
-            extend_service_set(
-                &mut reach.concrete_services,
-                program
-                    .service_reach_rows
-                    .services(signature.service_reach_row),
-            );
-        }
-        record_installation_reach(signature, &mut reach);
-        extend_invoked_binding_services(program, signature, &mut reach.services);
-        extend_invoked_binding_services(program, signature, &mut reach.concrete_services);
+        extend_signature_service_rows(program, signature, &mut reach);
+        record_signature_reach(program, signature, &mut reach);
         return reach;
     }
 
@@ -802,20 +772,7 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
         let signature =
             &program.trait_machine_signatures(trait_definition)[signature_index as usize];
         {
-            extend_service_set(
-                &mut reach.services,
-                program
-                    .service_reach_rows
-                    .services(signature.service_reach_row),
-            );
-            if !signature.service_reach_is_installation_bound {
-                extend_service_set(
-                    &mut reach.concrete_services,
-                    program
-                        .service_reach_rows
-                        .services(signature.service_reach_row),
-                );
-            }
+            extend_signature_service_rows(program, signature, &mut reach);
             if trait_definition.is_boundary
                 && let Some(service) = program
                     .service_reaches
@@ -832,9 +789,7 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
                 reach.concrete_services.sort_by_key(|service| service.0);
                 reach.concrete_services.dedup();
             }
-            record_installation_reach(signature, &mut reach);
-            extend_invoked_binding_services(program, signature, &mut reach.services);
-            extend_invoked_binding_services(program, signature, &mut reach.concrete_services);
+            record_signature_reach(program, signature, &mut reach);
             if trait_definition.is_boundary {
                 reach.boundary_services = reach.services.clone();
             }
@@ -861,6 +816,41 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
         reach.boundary_services = reach.services.clone();
     }
     reach
+}
+
+/// The signature's declared service row joined into reach's nominal set —
+/// and its concrete set unless the reach is installation-bound.
+fn extend_signature_service_rows(
+    program: &TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+    reach: &mut DirectServiceReach,
+) {
+    extend_service_set(
+        &mut reach.services,
+        program
+            .service_reach_rows
+            .services(signature.service_reach_row),
+    );
+    if !signature.service_reach_is_installation_bound {
+        extend_service_set(
+            &mut reach.concrete_services,
+            program
+                .service_reach_rows
+                .services(signature.service_reach_row),
+        );
+    }
+}
+
+/// The signature's installation reach plus the services its invoked bindings
+/// themselves declare.
+fn record_signature_reach(
+    program: &TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+    reach: &mut DirectServiceReach,
+) {
+    record_installation_reach(signature, reach);
+    extend_invoked_binding_services(program, signature, &mut reach.services);
+    extend_invoked_binding_services(program, signature, &mut reach.concrete_services);
 }
 
 fn record_installation_reach(
