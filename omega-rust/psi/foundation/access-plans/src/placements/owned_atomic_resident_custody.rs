@@ -48,9 +48,7 @@ pub struct OwnedAtomicAdoptionError {
 }
 
 impl OwnedAtomicAdoptionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,
@@ -73,9 +71,7 @@ pub struct OwnedAtomicResidentViewEstablishmentError {
 }
 
 impl OwnedAtomicResidentViewEstablishmentError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,
@@ -97,9 +93,7 @@ pub struct OwnedAtomicResidentRetirementError {
 }
 
 impl OwnedAtomicResidentRetirementError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (EstablishedOwnedAtomicPlacement, AccessPlanDiagnostic) {
         (self.established, self.diagnostic)

@@ -92,9 +92,7 @@ impl<'extent> PlacementAdmission<'extent> {
 }
 
 impl<'extent> PlaceEstablishmentError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (PlacementAdmission<'extent>, AccessPlanDiagnostic) {
         (self.admission, self.diagnostic)
@@ -102,9 +100,7 @@ impl<'extent> PlaceEstablishmentError<'extent> {
 }
 
 impl<'extent> PlacementRejection<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (ExtentLoan<'extent>, AccessPlanDiagnostic) {
         (self.loan, self.diagnostic)

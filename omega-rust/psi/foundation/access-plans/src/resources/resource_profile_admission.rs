@@ -177,9 +177,7 @@ pub struct ResourceProfileAdmissionError {
 }
 
 impl ResourceProfileAdmissionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (ResourceProfileGrant, ResourceProfile, AccessPlanDiagnostic) {
         (*self.grant, self.profile, self.diagnostic)

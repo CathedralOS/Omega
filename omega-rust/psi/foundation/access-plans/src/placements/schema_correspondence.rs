@@ -186,9 +186,7 @@ pub struct SchemaDeviceCorrespondenceGrantError {
 }
 
 impl SchemaDeviceCorrespondenceGrantError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (Option<RuntimeDeviceRevisionEvidence>, AccessPlanDiagnostic) {
         (self.revision, self.diagnostic)
@@ -347,9 +345,7 @@ pub struct SchemaDeviceCorrespondenceAdmissionError {
 }
 
 impl SchemaDeviceCorrespondenceAdmissionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (SchemaDeviceCorrespondenceGrant, AccessPlanDiagnostic) {
         (self.grant, self.diagnostic)
@@ -641,9 +637,7 @@ pub struct SchemaCorrespondedPlaceRetirementError<'extent> {
 }
 
 impl<'extent> SchemaCorrespondedPlaceRetirementError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (SchemaCorrespondedPlacedView<'extent>, AccessPlanDiagnostic) {
         (self.view, self.diagnostic)
@@ -659,9 +653,7 @@ pub struct SchemaCorrespondedPlaceEstablishmentError<'extent> {
 }
 
 impl<'extent> SchemaCorrespondedPlaceEstablishmentError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,
@@ -683,9 +675,7 @@ pub struct SchemaCorrespondencePlacementBindingError<'extent> {
 }
 
 impl<'extent> SchemaCorrespondencePlacementBindingError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,

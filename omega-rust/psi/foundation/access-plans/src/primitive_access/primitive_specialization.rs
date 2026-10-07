@@ -94,9 +94,7 @@ pub struct StablePrimitiveAccessRejection<'view, 'extent> {
 }
 
 impl<'view, 'extent> StablePrimitiveAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
         (self.request, self.diagnostic)
@@ -220,9 +218,7 @@ pub struct StableCompoundMutationAccessRejection<'view, 'extent> {
 }
 
 impl<'view, 'extent> StableCompoundMutationAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
         (self.request, self.diagnostic)
@@ -370,9 +366,7 @@ pub struct ExternalPrimitiveAccessRejection<'view, 'extent> {
 }
 
 impl<'view, 'extent> ExternalPrimitiveAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
         (self.request, self.diagnostic)
@@ -543,9 +537,7 @@ pub struct AtomicPrimitiveAccessRejection<'view, 'extent> {
 }
 
 impl<'view, 'extent> AtomicPrimitiveAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
         (self.request, self.diagnostic)

@@ -330,9 +330,7 @@ pub struct DeviceOperationStructuralClosureError {
 }
 
 impl DeviceOperationStructuralClosureError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,

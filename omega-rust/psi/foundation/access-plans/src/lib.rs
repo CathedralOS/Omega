@@ -20,6 +20,17 @@
 //! permits, `resources/` what a provider supplies, `placements/` how a plan
 //! lands on a range, and `primitive_access/` how one access lowers.
 
+/// Every carrier in this crate reports the same diagnostic field under the
+/// same accessor name.
+macro_rules! diagnostic_accessor {
+    () => {
+        /// The diagnostic the carrier reports.
+        pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+            &self.diagnostic
+        }
+    };
+}
+
 mod access_plan;
 mod placements;
 mod plan_policy;

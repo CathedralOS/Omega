@@ -83,9 +83,7 @@ pub struct CorrespondedAtomicPrimitiveAccessRejection<'view, 'extent> {
 }
 
 impl<'view, 'extent> CorrespondedAtomicPrimitiveAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,

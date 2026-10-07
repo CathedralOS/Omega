@@ -120,9 +120,7 @@ impl OwnedPlacementAdmission {
 }
 
 impl OwnedPlacementRejection {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (Extent, AccessPlanDiagnostic) {
         (self.extent, self.diagnostic)
@@ -130,9 +128,7 @@ impl OwnedPlacementRejection {
 }
 
 impl OwnedResidentViewEstablishmentError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,
@@ -204,9 +200,7 @@ impl DormantOwnedResident {
 }
 
 impl OwnedResidentRetirementError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (EstablishedOwnedPlacement, AccessPlanDiagnostic) {
         (self.established, self.diagnostic)
@@ -313,9 +307,7 @@ impl EstablishedOwnedPlacement {
 }
 
 impl OwnedStableAdoptionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,

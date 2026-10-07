@@ -122,9 +122,7 @@ impl<'extent> PlacedView<'extent> {
 }
 
 impl<'extent> PlacedViewRetirementError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (PlacedView<'extent>, AccessPlanDiagnostic) {
         (self.view, self.diagnostic)

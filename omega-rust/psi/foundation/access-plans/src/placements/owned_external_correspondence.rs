@@ -60,9 +60,7 @@ pub struct OwnedExternalAdoptionError {
 }
 
 impl OwnedExternalAdoptionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,
@@ -85,9 +83,7 @@ pub struct OwnedExternalViewEstablishmentError {
 }
 
 impl OwnedExternalViewEstablishmentError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(
         self,
@@ -110,9 +106,7 @@ pub struct OwnedExternalRetirementError {
 }
 
 impl OwnedExternalRetirementError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
+    diagnostic_accessor!();
 
     pub fn into_parts(self) -> (EstablishedOwnedExternalPlacement, AccessPlanDiagnostic) {
         (self.established, self.diagnostic)
