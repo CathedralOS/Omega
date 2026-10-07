@@ -16,6 +16,21 @@ use selected_instructions::{
 };
 use target::NativeTarget;
 
+/// One or two payload-address words; Darwin forms the address twice.
+fn size(target: NativeTarget) -> MachineSizeKnowledge {
+    if target == NativeTarget::macos_arm64() {
+        MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 64,
+            maximum_bytes: Some(72),
+        }
+    } else {
+        MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 56,
+            maximum_bytes: Some(60),
+        }
+    }
+}
+
 pub(crate) fn effects(target: NativeTarget) -> MachineEncodedEffects {
     let physical = crate::aarch64_physical_register_model();
     let view = |name: &str| {
@@ -71,11 +86,7 @@ pub(crate) fn declaration(
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(if target == NativeTarget::macos_arm64() {
-                60
-            } else {
-                56
-            }),
+            size: size(target),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: effects(target),
         }],
@@ -91,7 +102,8 @@ fn request(
     displacement: i64,
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     // Hosted structural storage is committed caller frame space: its
-    // displacement is always a nonnegative unsigned-immediate offset.
+    // displacement is a nonnegative word offset whose payload lies within the
+    // frame reach the `sp` adjustment admits.
     if (target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64())
         || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || !matches!(
@@ -108,7 +120,9 @@ fn request(
         || !operands.is_empty()
         || displacement < 0
         || displacement % 4 != 0
-        || displacement > 4088
+        || displacement.checked_add(4).is_none_or(|payload| {
+            payload as u64 > crate::frame_protocol::MAX_STACK_POINTER_ADJUST_BYTES
+        })
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -172,58 +186,80 @@ pub fn validate_aarch64_selected_hosted_read_byte_form(
 
 /// Decode the complete target-specific read leaf, returning its structural home byte offset.
 pub fn decode_aarch64_selected_hosted_read_byte(target: NativeTarget, bytes: &[u8]) -> Option<u32> {
-    let middle: &[u32] = if target == NativeTarget::linux_arm64() {
-        &[
-            0xd280_0000,
-            0xd280_0022,
-            0xd280_07e8,
-            0xd400_0001,
-            0xb400_00e0,
-            0xf100_041f,
-            0x5400_0081,
-            0x5280_0029,
-        ]
-    } else if target == NativeTarget::macos_arm64() {
-        &[
-            0xd280_0000,
-            0xd280_0022,
-            0xd280_0070,
-            0xd400_1001,
-            0x5400_00e2,
-            0xb400_00e0,
-            0xf100_041f,
-            0x5400_0081,
-            0x5280_0029,
-        ]
-    } else {
-        return None;
-    };
-    let tag_store = 3 + middle.len();
-    if bytes.len() != (tag_store + 3) * 4 {
+    let (word_bytes, tail) = bytes.as_chunks::<4>();
+    if !tail.is_empty() {
         return None;
     }
-    let words = bytes
-        .as_chunks::<4>()
-        .0
+    let words = word_bytes
         .iter()
         .map(|word| u32::from_le_bytes(*word))
         .collect::<Vec<_>>();
-    let home = ((words[0] >> 10) & 4095) * 4;
-    let payload = home.checked_add(4)?;
-    if home > 4088
-        || words[0] & 0xffc0_03ff != 0xb900_03ff
-        || words[1] & 0xffc0_03ff != 0xb900_03ff
-        || ((words[1] >> 10) & 4095) * 4 != payload
-        || words[2] & 0xffc0_03ff != 0x9100_03e1
-        || (words[2] >> 10) & 4095 != payload
-        || &words[3..tag_store] != middle
-        || words[tag_store] & 0xffc0_03ff != 0xb900_03e9
-        || ((words[tag_store] >> 10) & 4095) * 4 != home
-        || words[tag_store + 1..] != [0x1400_0002, 0xd420_0000]
+    // The payload address in `x1`: one unshifted `add x1, sp, #imm`, or a
+    // shifted add followed by its nonzero unshifted remainder.
+    let first = *words.first()?;
+    let (payload, reach) = if first & 0xffc0_03ff == 0x9100_03e1 {
+        ((first >> 10) & 4095, 1)
+    } else if first & 0xffc0_03ff == 0x9140_03e1 {
+        let high = ((first >> 10) & 4095) << 12;
+        match words.get(1) {
+            Some(second) if second & 0xffc0_03ff == 0x9100_0021 => {
+                (high | ((second >> 10) & 4095), 2)
+            }
+            _ => (high, 1),
+        }
+    } else {
+        return None;
+    };
+    let address = &words[..reach];
+    if !payload.is_multiple_of(4)
+        || payload < 4
+        || crate::hosted_sequences::read_byte_payload_address(payload)?.as_slice() != address
     {
         return None;
     }
-    Some(home)
+    let reach = u32::try_from(reach).ok()?;
+    // Linux system calls preserve `x1`; Darwin's return writes a second
+    // result there, so its sequence forms the address again before the tag.
+    let (calls, readdress): (&[u32], bool) = if target == NativeTarget::linux_arm64() {
+        (
+            &[
+                0xd280_0000,
+                0xd280_0022,
+                0xd280_07e8,
+                0xd400_0001,
+                0xb400_00e0,
+                0xf100_041f,
+                0x5400_0081,
+                0x5280_0029,
+            ],
+            false,
+        )
+    } else if target == NativeTarget::macos_arm64() {
+        (
+            &[
+                0xd280_0000,
+                0xd280_0022,
+                0xd280_0070,
+                0xd400_1001,
+                0x5400_0002 | ((7 + reach) << 5),
+                0xb400_0000 | ((7 + reach) << 5),
+                0xf100_041f,
+                0x5400_0001 | ((4 + reach) << 5),
+                0x5280_0029,
+            ],
+            true,
+        )
+    } else {
+        return None;
+    };
+    let mut expected = address.to_vec();
+    expected.extend([0xb81f_c03f, 0xb900_003f]);
+    expected.extend_from_slice(calls);
+    if readdress {
+        expected.extend_from_slice(address);
+    }
+    expected.extend([0xb81f_c029, 0x1400_0002, 0xd420_0000]);
+    (words == expected).then_some(payload - 4)
 }
 
 #[cfg(test)]
@@ -258,7 +294,9 @@ mod tests {
             variant: 0,
         };
         for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
-            for displacement in [0, 32, 4088] {
+            // Inside the first 4 KiB, at the shifted boundary, past it with and
+            // without a remainder, and at the frame's last addressable home.
+            for displacement in [0, 32, 4088, 4092, 4096, 1_048_572, 900_000, 16_777_208] {
                 let encoded = encode_aarch64_selected_hosted_read_byte_form(
                     target,
                     &physical,
@@ -295,13 +333,15 @@ mod tests {
                         .is_err(),
                         "bit {bit}"
                     );
-                    assert_eq!(
+                    // A changed address immediate can still spell another
+                    // well-formed home; it never spells this one.
+                    assert_ne!(
                         decode_aarch64_selected_hosted_read_byte(target, &changed),
-                        None,
+                        Some(displacement),
                         "decoder bit {bit}"
                     );
                 }
-                for invalid_offset in [1, 3, 4092, u32::MAX] {
+                for invalid_offset in [1, 3, 16_777_212, u32::MAX] {
                     assert!(
                         encode_aarch64_selected_hosted_read_byte_form(
                             target,
@@ -414,9 +454,9 @@ mod tests {
     fn read_byte_linux_golden_and_darwin_return_paths() {
         let linux = crate::encode_linux_read_byte_to_stack(16, 20).unwrap();
         let golden: [u32; 14] = [
-            0xb900_13ff,
-            0xb900_17ff,
             0x9100_53e1,
+            0xb81f_c03f,
+            0xb900_003f,
             0xd280_0000,
             0xd280_0022,
             0xd280_07e8,
@@ -425,7 +465,7 @@ mod tests {
             0xf100_041f,
             0x5400_0081,
             0x5280_0029,
-            0xb900_13e9,
+            0xb81f_c029,
             0x1400_0002,
             0xd420_0000,
         ];
@@ -436,78 +476,114 @@ mod tests {
                 .flat_map(u32::to_le_bytes)
                 .collect::<Vec<_>>()
         );
-        let bytes = crate::encode_macos_read_byte_to_stack(16, 20).unwrap();
-        let words = bytes
-            .as_chunks::<4>()
-            .0
-            .iter()
-            .map(|word| u32::from_le_bytes(*word))
-            .collect::<Vec<_>>();
-        assert_eq!(&words[..5], &golden[..5]);
-        assert_eq!(&words[5..8], &[0xd280_0070, 0xd400_1001, 0x5400_00e2]);
-        assert_eq!(&words[8..], &golden[7..]);
-        for (home, payload) in [(0, 0), (0, 8), (2, 6), (4092, 4096), (u32::MAX, 3)] {
+        let darwin_words = |home: u32| {
+            crate::encode_macos_read_byte_to_stack(home, home + 4)
+                .unwrap()
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|word| u32::from_le_bytes(*word))
+                .collect::<Vec<_>>()
+        };
+        let words = darwin_words(16);
+        assert_eq!(&words[..3], &golden[..3]);
+        assert_eq!(
+            &words[3..13],
+            &[
+                0xd280_0000,
+                0xd280_0022,
+                0xd280_0070,
+                0xd400_1001,
+                0x5400_0102,
+                0xb400_0100,
+                0xf100_041f,
+                0x5400_00a1,
+                0x5280_0029,
+                0x9100_53e1,
+            ]
+        );
+        assert_eq!(&words[13..], &golden[11..]);
+        // Past the first 4 KiB the address is a shifted add and its remainder.
+        assert_eq!(&darwin_words(900_000)[..2], &[0x9143_6fe1, 0x912e_9021]);
+        for (home, payload) in [
+            (0, 0),
+            (0, 8),
+            (2, 6),
+            (16_777_212, 16_777_216),
+            (u32::MAX, 3),
+        ] {
             assert!(crate::encode_macos_read_byte_to_stack(home, payload).is_err());
+            assert!(crate::encode_linux_read_byte_to_stack(home, payload).is_err());
         }
         // Execute the branch suffix from actual words, with injected syscall
-        // results. In particular errno 1 must never manufacture a Byte.
-        for carry in [false, true] {
-            for count in [0, 1, 2, 4, u64::MAX] {
-                let mut position = 7;
-                let mut zero = false;
-                let mut tag = 0;
-                let mut trapped = false;
-                for _ in 0..8 {
-                    if position == words.len() {
-                        break;
-                    }
-                    let word = words[position];
-                    if word & 0xff00_0010 == 0x5400_0000 {
-                        let condition = word & 15;
-                        let taken = match condition {
-                            1 => !zero,
-                            2 => carry,
-                            _ => panic!("unexpected condition"),
-                        };
-                        position += if taken {
-                            ((word >> 5) & 0x7ffff) as usize
+        // results, for a one-word and a two-word payload address. In
+        // particular errno 1 must never manufacture a Byte.
+        for home in [16, 900_000] {
+            let words = darwin_words(home);
+            let address = &words[..if home < 4092 { 1 } else { 2 }];
+            for carry in [false, true] {
+                for count in [0, 1, 2, 4, u64::MAX] {
+                    let mut position = address.len() + 6;
+                    let mut zero = false;
+                    let mut tag = 0;
+                    let mut readdressed = false;
+                    let mut trapped = false;
+                    for _ in 0..10 {
+                        if position == words.len() {
+                            break;
+                        }
+                        let word = words[position];
+                        if word & 0xff00_0010 == 0x5400_0000 {
+                            let condition = word & 15;
+                            let taken = match condition {
+                                1 => !zero,
+                                2 => carry,
+                                _ => panic!("unexpected condition"),
+                            };
+                            position += if taken {
+                                ((word >> 5) & 0x7ffff) as usize
+                            } else {
+                                1
+                            };
+                        } else if word & 0xff00_001f == 0xb400_0000 {
+                            position += if count == 0 {
+                                ((word >> 5) & 0x7ffff) as usize
+                            } else {
+                                1
+                            };
+                        } else if words[position..].starts_with(address) {
+                            readdressed = true;
+                            position += address.len();
                         } else {
-                            1
-                        };
-                    } else if word & 0xff00_001f == 0xb400_0000 {
-                        position += if count == 0 {
-                            ((word >> 5) & 0x7ffff) as usize
-                        } else {
-                            1
-                        };
-                    } else {
-                        match word {
-                            0xf100_041f => {
-                                zero = count == 1;
-                                position += 1;
+                            match word {
+                                0xf100_041f => {
+                                    zero = count == 1;
+                                    position += 1;
+                                }
+                                0x5280_0029 => {
+                                    position += 1;
+                                }
+                                0xb81f_c029 => {
+                                    assert!(readdressed, "tag stored before the address");
+                                    tag = 1;
+                                    position += 1;
+                                }
+                                0x1400_0002 => {
+                                    position += (word & 0x03ff_ffff) as usize;
+                                }
+                                0xd420_0000 => {
+                                    trapped = true;
+                                    break;
+                                }
+                                _ => panic!("unexpected instruction"),
                             }
-                            0x5280_0029 => {
-                                position += 1;
-                            }
-                            0xb900_13e9 => {
-                                tag = 1;
-                                position += 1;
-                            }
-                            0x1400_0002 => {
-                                position += (word & 0x03ff_ffff) as usize;
-                            }
-                            0xd420_0000 => {
-                                trapped = true;
-                                break;
-                            }
-                            _ => panic!("unexpected instruction"),
                         }
                     }
-                }
-                assert_eq!(trapped, carry || count > 1, "carry {carry}, count {count}");
-                if !trapped {
-                    assert_eq!(position, words.len());
-                    assert_eq!(tag, u32::from(count == 1));
+                    assert_eq!(trapped, carry || count > 1, "carry {carry}, count {count}");
+                    if !trapped {
+                        assert_eq!(position, words.len());
+                        assert_eq!(tag, u32::from(count == 1));
+                    }
                 }
             }
         }
@@ -546,11 +622,18 @@ mod tests {
             assert_eq!(declaration.constraint, expected_key);
             assert_eq!(
                 declaration.alternatives[0].size,
-                MachineSizeKnowledge::ExactBytes(if target == NativeTarget::linux_arm64() {
-                    56
-                } else {
-                    60
-                })
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes: if target == NativeTarget::linux_arm64() {
+                        56
+                    } else {
+                        64
+                    },
+                    maximum_bytes: Some(if target == NativeTarget::linux_arm64() {
+                        60
+                    } else {
+                        72
+                    }),
+                }
             );
             assert_eq!(declaration.alternatives[0].encoded, effects(target));
             let mut damaged = catalog;

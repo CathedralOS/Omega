@@ -50,30 +50,56 @@ pub fn encode_hosted_write_byte_i32_from_w9() -> Result<Vec<u8>, Diagnostic> {
     Ok(bytes)
 }
 
+/// `add x1, sp, #payload`: one word inside the first 4 KiB of the frame and a
+/// shifted add, then the unshifted remainder when nonzero, past it. This is
+/// the reach `FrameAddress` and the frame protocol's `sp` adjustment share, so
+/// a read-byte home anywhere in a committable frame is addressable.
+pub(crate) fn read_byte_payload_address(payload_byte_offset: u32) -> Option<Vec<u32>> {
+    let high = payload_byte_offset >> 12;
+    let low = payload_byte_offset & 4095;
+    if high > 4095 {
+        return None;
+    }
+    Some(if high == 0 {
+        vec![0x9100_03e1 | (low << 10)]
+    } else if low == 0 {
+        vec![0x9140_03e1 | (high << 10)]
+    } else {
+        vec![0x9140_03e1 | (high << 10), 0x9100_0021 | (low << 10)]
+    })
+}
+
+/// The `x1` payload address for a `ByteRead` home whose tag word sits at
+/// `home_byte_offset` and whose `i32` payload follows it.
+fn read_byte_home_address(
+    home_byte_offset: u32,
+    payload_byte_offset: u32,
+    host: &str,
+) -> Result<Vec<u32>, Diagnostic> {
+    if !home_byte_offset.is_multiple_of(4)
+        || home_byte_offset.checked_add(4) != Some(payload_byte_offset)
+    {
+        return Err(Diagnostic::error(format!(
+            "{host} AArch64 read-byte home is not a word-aligned tag and payload"
+        )));
+    }
+    read_byte_payload_address(payload_byte_offset).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "{host} AArch64 read-byte home lies beyond the frame's addressable reach"
+        ))
+    })
+}
+
 /// Import-free Linux `read(0, &byte, 1)` realization into one canonical
-/// `ByteRead = Eof | Byte(i32)` stack home.
+/// `ByteRead = Eof | Byte(i32)` stack home. `x1` addresses the payload for the
+/// whole sequence: Linux system calls preserve every register but `x0`.
 pub fn encode_linux_read_byte_to_stack(
     home_byte_offset: u32,
     payload_byte_offset: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if !home_byte_offset.is_multiple_of(4)
-        || !payload_byte_offset.is_multiple_of(4)
-        || home_byte_offset / 4 > 0xfff
-        || payload_byte_offset / 4 > 0xfff
-        || payload_byte_offset > 0xfff
-    {
-        return Err(Diagnostic::error(
-            "Linux AArch64 read-byte home is not directly addressable",
-        ));
-    }
-
-    let mut words = Vec::with_capacity(14);
-    let str_w = |register: u8, offset: u32| {
-        0xb900_0000 | ((offset / 4) << 10) | (31 << 5) | u32::from(register)
-    };
-    words.push(str_w(31, home_byte_offset)); // canonical Eof tag
-    words.push(str_w(31, payload_byte_offset)); // zero unused payload bytes
-    words.push(0x9100_03e1 | (payload_byte_offset << 10)); // add x1, sp, #payload
+    let mut words = read_byte_home_address(home_byte_offset, payload_byte_offset, "Linux")?;
+    words.push(0xb81f_c03f); // stur wzr, [x1, #-4]: canonical Eof tag
+    words.push(0xb900_003f); // str wzr, [x1]: zero unused payload bytes
     words.push(u32::from_le_bytes(encode_movz(0, 0)));
     words.push(u32::from_le_bytes(encode_movz(2, 1)));
     words.push(u32::from_le_bytes(encode_movz(8, 63))); // SYS_read
@@ -82,44 +108,38 @@ pub fn encode_linux_read_byte_to_stack(
     words.push(u32::from_le_bytes(encode_compare_x_immediate(0, 1)?));
     words.push(0x5400_0001 | (4 << 5)); // b.ne trap
     words.push(0x5280_0029); // mov w9, #1
-    words.push(str_w(9, home_byte_offset));
+    words.push(0xb81f_c029); // stur w9, [x1, #-4]: Byte tag
     words.push(0x1400_0002); // b done
     words.push(u32::from_le_bytes(encode_brk(0)));
     Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
 }
 
 /// Import-free Darwin read into caller-owned storage, without changing SP.
+/// Darwin's system call return writes its second result into `x1`, so the
+/// payload address is formed again before the tag store.
 pub fn encode_macos_read_byte_to_stack(
     home_byte_offset: u32,
     payload_byte_offset: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if !home_byte_offset.is_multiple_of(4)
-        || home_byte_offset.checked_add(4) != Some(payload_byte_offset)
-        || payload_byte_offset > 0xfff
-    {
-        return Err(Diagnostic::error(
-            "Darwin AArch64 read-byte home is not directly addressable",
-        ));
-    }
-    let store =
-        |register: u32, offset: u32| 0xb900_0000 | ((offset / 4) << 10) | (31 << 5) | register;
-    let words = [
-        store(31, home_byte_offset),
-        store(31, payload_byte_offset),
-        0x9100_03e1 | (payload_byte_offset << 10),
-        u32::from_le_bytes(encode_movz(0, 0)),
-        u32::from_le_bytes(encode_movz(2, 1)),
-        u32::from_le_bytes(encode_movz(16, 3)),
-        u32::from_le_bytes(encode_svc(0x80)),
-        0x5400_00e2, // b.cs trap: consume syscall carry before CMP replaces NZCV
-        0xb400_00e0, // cbz x0, done
-        u32::from_le_bytes(encode_compare_x_immediate(0, 1)?),
-        0x5400_0081, // b.ne trap
-        0x5280_0029, // mov w9, #1
-        store(9, home_byte_offset),
-        0x1400_0002, // b done
-        u32::from_le_bytes(encode_brk(0)),
-    ];
+    let address = read_byte_home_address(home_byte_offset, payload_byte_offset, "Darwin")?;
+    let reach = u32::try_from(address.len()).expect("one or two address words");
+    let mut words = address.clone();
+    words.push(0xb81f_c03f); // stur wzr, [x1, #-4]: canonical Eof tag
+    words.push(0xb900_003f); // str wzr, [x1]: zero unused payload bytes
+    words.push(u32::from_le_bytes(encode_movz(0, 0)));
+    words.push(u32::from_le_bytes(encode_movz(2, 1)));
+    words.push(u32::from_le_bytes(encode_movz(16, 3)));
+    words.push(u32::from_le_bytes(encode_svc(0x80)));
+    // b.cs trap: consume syscall carry before CMP replaces NZCV.
+    words.push(0x5400_0002 | ((7 + reach) << 5));
+    words.push(0xb400_0000 | ((7 + reach) << 5)); // cbz x0, done
+    words.push(u32::from_le_bytes(encode_compare_x_immediate(0, 1)?));
+    words.push(0x5400_0001 | ((4 + reach) << 5)); // b.ne trap
+    words.push(0x5280_0029); // mov w9, #1
+    words.extend(address);
+    words.push(0xb81f_c029); // stur w9, [x1, #-4]: Byte tag
+    words.push(0x1400_0002); // b done
+    words.push(u32::from_le_bytes(encode_brk(0)));
     Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
 }
 
