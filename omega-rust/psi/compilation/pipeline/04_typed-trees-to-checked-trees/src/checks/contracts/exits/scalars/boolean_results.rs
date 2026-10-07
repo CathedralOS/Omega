@@ -183,16 +183,7 @@ impl ExitScalars<'_, '_> {
                     self.exit.machine_symbol,
                     self.exit.state_symbol,
                 )?;
-                let parameters = self
-                    .program
-                    .state_parameters(state)
-                    .iter()
-                    .filter(|parameter| {
-                        self.program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_some()
-                    })
-                    .count();
+                let parameters = super::primitive_parameters(self.program, state).count();
                 let binding_ordinal = u32::try_from(position.checked_sub(parameters)?).ok()?;
                 let (statement, local) = self
                     .program
@@ -204,13 +195,8 @@ impl ExitScalars<'_, '_> {
                         let typed_trees::statement::StatementNode::LocalData(local) = node else {
                             return None;
                         };
-                        (!local.is_mutable
-                            && local.initial_value.is_valid()
-                            && self
-                                .program
-                                .primitive_type_reference(local.type_reference)
-                                .is_some())
-                        .then_some((statement, local))
+                        super::is_scalar_roster_local(self.program, local)
+                            .then_some((statement, local))
                     })
                     .nth(binding_ordinal as usize)?;
                 let statement = u32::try_from(statement).ok()?;

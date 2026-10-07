@@ -111,6 +111,36 @@ struct ExitScalars<'program, 'facts> {
     call_frames: Option<&'facts validation::CallFrameResolver<'program>>,
 }
 
+/// Parameters typed primitive — the leading slots of a scalar binding
+/// roster at any occurrence in `state`.
+pub(crate) fn primitive_parameters<'a>(
+    program: &'a TypedTrees,
+    state: &'a typed_trees::state::State,
+) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
+    program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        })
+        .map(|parameter| parameter.symbol)
+}
+
+/// An immutable local carrying an initializer whose declared type is
+/// primitive — the only locals a scalar binding roster names.
+pub(crate) fn is_scalar_roster_local(
+    program: &TypedTrees,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    !local.is_mutable
+        && local.initial_value.is_valid()
+        && program
+            .primitive_type_reference(local.type_reference)
+            .is_some()
+}
+
 impl ExitScalars<'_, '_> {
     fn current_predicate(&self, expression: ExpressionHandle) -> bool {
         use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
@@ -541,16 +571,7 @@ impl ExitScalars<'_, '_> {
         )?;
         // Dense positions describe the declaration roster at this occurrence,
         // not a caller-chosen substitution. Check it without reading values.
-        let parameters = self
-            .program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| {
-                self.program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_some()
-            })
-            .map(|parameter| parameter.symbol);
+        let parameters = primitive_parameters(self.program, state);
         let locals = self
             .program
             .statement_table
@@ -561,13 +582,7 @@ impl ExitScalars<'_, '_> {
                 let typed_trees::statement::StatementNode::LocalData(local) = statement else {
                     return None;
                 };
-                (!local.is_mutable
-                    && local.initial_value.is_valid()
-                    && self
-                        .program
-                        .primitive_type_reference(local.type_reference)
-                        .is_some())
-                .then_some(local.symbol)
+                is_scalar_roster_local(self.program, local).then_some(local.symbol)
             });
         if !parameters.chain(locals).eq(symbols.iter().copied()) {
             return None;
