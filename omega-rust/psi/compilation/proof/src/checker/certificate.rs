@@ -655,13 +655,10 @@ fn guarded_bounds_certificate(
         return None;
     }
     let lower_leg = transitivity_leg(
-        ProofNode {
-            conclusion: Proposition::IntegerMathLessOrEqual(
-                IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.minimum)?),
-                IntegerMathTerm::IntegerLiteral(bigint_math_literal(&lower_bound)?),
-            ),
-            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-        },
+        closed_relation_node(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.minimum)?),
+            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&lower_bound)?),
+        )),
         ProofNode {
             conclusion: assumptions[lower_index].clone(),
             rule: ProofRule::Assumption { index: lower_index },
@@ -672,13 +669,10 @@ fn guarded_bounds_certificate(
             conclusion: assumptions[upper_index].clone(),
             rule: ProofRule::Assumption { index: upper_index },
         },
-        ProofNode {
-            conclusion: Proposition::IntegerMathLessOrEqual(
-                IntegerMathTerm::IntegerLiteral(bigint_math_literal(&upper_bound)?),
-                IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.maximum)?),
-            ),
-            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-        },
+        closed_relation_node(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&upper_bound)?),
+            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.maximum)?),
+        )),
     );
     let conclusion = Proposition::Conjunction(vec![
         lower_leg.conclusion.clone(),
@@ -1061,13 +1055,10 @@ fn refold_bounds_certificate(
     };
 
     let lower_leg = transitivity_leg(
-        ProofNode {
-            conclusion: Proposition::IntegerMathLessOrEqual(
-                IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.minimum)?),
-                IntegerMathTerm::IntegerLiteral(bigint_math_literal(&mapped_lower)?),
-            ),
-            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-        },
+        closed_relation_node(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.minimum)?),
+            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&mapped_lower)?),
+        )),
         affine_leg(
             &witness,
             &assumptions,
@@ -1086,13 +1077,10 @@ fn refold_bounds_certificate(
             &argument_math,
             false,
         )?,
-        ProofNode {
-            conclusion: Proposition::IntegerMathLessOrEqual(
-                IntegerMathTerm::IntegerLiteral(bigint_math_literal(&mapped_upper)?),
-                IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.maximum)?),
-            ),
-            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-        },
+        closed_relation_node(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&mapped_upper)?),
+            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.maximum)?),
+        )),
     );
     let conclusion = Proposition::Conjunction(vec![
         lower_leg.conclusion.clone(),
@@ -1269,14 +1257,8 @@ fn closed_bounds_certificate(
     let proof = ProofNode {
         conclusion: conclusion.clone(),
         rule: ProofRule::ConjunctionIntroduction(vec![
-            ProofNode {
-                conclusion: lower_conjunct,
-                rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-            },
-            ProofNode {
-                conclusion: upper_conjunct,
-                rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-            },
+            closed_relation_node(lower_conjunct),
+            closed_relation_node(upper_conjunct),
         ]),
     };
     Some(BoundedValueCertificate {
@@ -1346,13 +1328,10 @@ fn declared_interval_certificate(
     );
 
     let lower_leg = transitivity_leg(
-        ProofNode {
-            conclusion: Proposition::IntegerMathLessOrEqual(
-                IntegerMathTerm::IntegerLiteral(lower),
-                IntegerMathTerm::IntegerLiteral(declared_lower),
-            ),
-            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-        },
+        closed_relation_node(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::IntegerLiteral(lower),
+            IntegerMathTerm::IntegerLiteral(declared_lower),
+        )),
         ProofNode {
             conclusion: lower_premise.clone(),
             rule: ProofRule::Assumption { index: 0 },
@@ -1363,13 +1342,10 @@ fn declared_interval_certificate(
             conclusion: upper_premise.clone(),
             rule: ProofRule::Assumption { index: 1 },
         },
-        ProofNode {
-            conclusion: Proposition::IntegerMathLessOrEqual(
-                IntegerMathTerm::IntegerLiteral(declared_upper),
-                IntegerMathTerm::IntegerLiteral(upper),
-            ),
-            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-        },
+        closed_relation_node(Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::IntegerLiteral(declared_upper),
+            IntegerMathTerm::IntegerLiteral(upper),
+        )),
     );
     let conclusion = Proposition::Conjunction(vec![
         lower_leg.conclusion.clone(),
@@ -1393,6 +1369,15 @@ fn declared_interval_certificate(
 
 /// One `<=` transitivity step: the children's shared middle composes the
 /// node's conclusion.
+/// A closed integer-order primitive: the whole premise is the literal
+/// bounds comparison the kernel checks without cited context.
+fn closed_relation_node(conclusion: Proposition) -> ProofNode {
+    ProofNode {
+        conclusion,
+        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+    }
+}
+
 fn transitivity_leg(
     left_less_or_equal_middle: ProofNode,
     middle_less_or_equal_right: ProofNode,
