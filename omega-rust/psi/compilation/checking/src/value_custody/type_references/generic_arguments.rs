@@ -937,12 +937,18 @@ fn validate_const_integer_range(
 /// such an endpoint unbound; refusing the declaration keeps every carrier
 /// range a closed interval that index proofs read without a spelling.
 /// Preliminary checking tolerates an endpoint whose evaluation is pending.
+/// Every `const N: T` and `u: T` binder's carrier is an ordinary type
+/// reference in its declaration's scope: it must resolve like a field type,
+/// and an integer carrier's declared ranges must close over integers.
 pub(crate) fn validate_const_binder_carriers(
     program: &dyn crate::CheckingInput,
+    symbols: &TopLevelSymbols<'_>,
     owner: &str,
     parameters: &[TypeParameter],
+    scope: (&[TypeParameter], &[typed_trees::name::Identifier]),
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let (scope_type_parameters, scope_lifetime_parameters) = scope;
     for parameter in parameters {
         let (TypeParameterKind::Const {
             type_reference: carrier,
@@ -953,6 +959,19 @@ pub(crate) fn validate_const_binder_carriers(
         else {
             continue;
         };
+        super::validate_type_reference_handle_with_type_parameters(
+            program,
+            carrier,
+            symbols,
+            diagnostics,
+            TypeReferenceOwner::GenericBinder {
+                owner,
+                parameter: parameter.name.as_str(),
+                generic_depth: 0,
+            },
+            scope_type_parameters,
+            scope_lifetime_parameters,
+        );
         let Some(primitive_type) = program
             .type_reference_table
             .primitive_type(carrier)

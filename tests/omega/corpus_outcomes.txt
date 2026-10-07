@@ -1979,6 +1979,10 @@ fail/traits/transparent_refinement_widening_axis rejected 46ms expected @2d8ed25
 	refinement clause asserts `suspends` on `write`, but base trait `Logger` does not declare it — a refinement narrows, it cannot add an axis
 fail/types/addr_plus_addr_rejected rejected 320ms expected @2d8ed253669f
 	meaningless address arithmetic in machine `Main::main` state `main` local `r`: `addr` composes with counts (`addr + u64`, `addr - u64`) or differences with itself (`addr - addr` is the count between two addresses); `+` over these operands conflates the address and count axes.
+fail/types/unknown_data_binder_carrier rejected 170ms expected
+	data `Window` parameter `N` references unknown data type `Breadth`
+fail/types/unknown_machine_binder_carrier rejected 169ms expected
+	machine `scale` parameter `factor` references unknown data type `Ratio`
 fail/types/usize_rejected rejected 306ms expected @2d8ed253669f
 	data `Main` field `n` references unknown data type `usize`
 fail/wire/field_reuses_reserved_number rejected 4ms expected @2d8ed253669f

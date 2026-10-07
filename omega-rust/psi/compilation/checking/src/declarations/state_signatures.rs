@@ -24,16 +24,18 @@ pub(crate) fn validate_callable_state_signatures(
 ) {
     for machine in program.machines() {
         value_scope::validate(program, machine, symbols, diagnostics);
-        crate::value_custody::type_references::validate_const_binder_carriers(
-            program,
-            &format!("machine `{}`", machine.name),
-            program.machine_type_parameters(machine),
-            diagnostics,
-        );
         let (type_parameters, lifetime_parameters) = program
             .machine_and_attached_data_parameters(machine, |existing, parameter| {
                 existing.name == parameter.name
             });
+        crate::value_custody::type_references::validate_const_binder_carriers(
+            program,
+            symbols,
+            &format!("machine `{}`", machine.name),
+            program.machine_type_parameters(machine),
+            (&type_parameters, &lifetime_parameters),
+            diagnostics,
+        );
         validate_state_signature_types(
             program
                 .machine_states(machine)

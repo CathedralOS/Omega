@@ -128,6 +128,13 @@ pub(crate) enum TypeReferenceOwner<'program> {
         parent: &'program str,
         generic_depth: usize,
     },
+    /// The carrier of a `const N: T` or `u: T` binder; `owner` is the
+    /// declaring data or machine's display label.
+    GenericBinder {
+        owner: &'program str,
+        parameter: &'program str,
+        generic_depth: usize,
+    },
 }
 
 impl TypeReferenceOwner<'_> {
@@ -260,6 +267,15 @@ impl TypeReferenceOwner<'_> {
                 parent,
                 generic_depth: generic_depth + 1,
             },
+            Self::GenericBinder {
+                owner,
+                parameter,
+                generic_depth,
+            } => Self::GenericBinder {
+                owner,
+                parameter,
+                generic_depth: generic_depth + 1,
+            },
         }
     }
 }
@@ -359,6 +375,14 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                     formatter,
                     "trait `{trait_name}` parent `{parent}` type argument"
                 )?;
+                *generic_depth
+            }
+            Self::GenericBinder {
+                owner,
+                parameter,
+                generic_depth,
+            } => {
+                write!(formatter, "{owner} parameter `{parameter}`")?;
                 *generic_depth
             }
         };
