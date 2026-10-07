@@ -14,6 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity, validate_range};
 use crate::external_loans::ExternalLoanId;
+use crate::identities::normalized_extent_identity;
 use crate::identities::{AddressSpaceId, ExtentLineageId, ExtentProvenanceId, MappingEraId};
 use crate::mapping::MappingId;
 
@@ -50,51 +51,19 @@ impl DeviceOrderingRole {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct OrderingEventId(u64);
+normalized_extent_identity! {
 
-impl OrderingEventId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "ordering-event")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
+    OrderingEventId, "ordering-event"
 }
-
-/// The stable device instance an ordering event names — distinct from the
+normalized_extent_identity! {
+    /// The stable device instance an ordering event names — distinct from the
 /// per-transfer borrower identity an external loan carries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceInstanceId(u64);
-
-impl DeviceInstanceId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "device-instance")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
+    DeviceInstanceId, "device-instance"
 }
-
-/// The runtime queue or session scope an ordering event binds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RuntimeScopeId(u64);
-
-impl RuntimeScopeId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "runtime-scope")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
+normalized_extent_identity! {
+    /// The runtime queue or session scope an ordering event binds.
+    RuntimeScopeId, "runtime-scope"
 }
-
 /// Which coordinate family one bound range orders — roles may relate
 /// different coordinate kinds, so a uniform one-range carrier is not the
 /// public shape.

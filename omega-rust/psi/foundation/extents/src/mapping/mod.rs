@@ -9,8 +9,14 @@ use crate::roots::root_grants::ValidatedExtentGeometry;
 use crate::roots::root_origins::ExtentRootOrigin;
 use std::collections::BTreeSet;
 
-normalized_extent_identity!(MappingGrantId, "mapping-grant");
-normalized_extent_identity!(MappingId, "mapping");
+normalized_extent_identity! {
+
+    MappingGrantId, "mapping-grant"
+}
+normalized_extent_identity! {
+
+    MappingId, "mapping"
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MappingSourceMode {
     Owned,
@@ -18,7 +24,10 @@ pub enum MappingSourceMode {
     BorrowedExclusive,
 }
 
-normalized_extent_identity!(TranslationActivationFactId, "translation-activation-fact");
+normalized_extent_identity! {
+
+    TranslationActivationFactId, "translation-activation-fact"
+}
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TranslationInstallObligations(BTreeSet<TranslationActivationFactId>);
 
@@ -34,7 +43,10 @@ impl TranslationInstallObligations {
     }
 }
 
-normalized_extent_identity!(TranslationCompletionFactId, "translation-completion-fact");
+normalized_extent_identity! {
+
+    TranslationCompletionFactId, "translation-completion-fact"
+}
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TranslationReleaseObligations(BTreeSet<TranslationCompletionFactId>);
 
@@ -50,7 +62,10 @@ impl TranslationReleaseObligations {
     }
 }
 
-normalized_extent_identity!(PeerWriteRevocationFactId, "peer-write-revocation-fact");
+normalized_extent_identity! {
+
+    PeerWriteRevocationFactId, "peer-write-revocation-fact"
+}
 /// The provider-established facts a shared-custody mapping's revocation
 /// receipt must show before its payload may be read zero-copy: the hostile
 /// peer's write permission was revoked or remapped away and the resulting

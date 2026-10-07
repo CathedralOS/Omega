@@ -8,7 +8,8 @@ use std::collections::BTreeSet;
 use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
 
 macro_rules! normalized_extent_identity {
-    ($name:ident, $label:literal) => {
+    ($(#[$meta:meta])* $name:ident, $label:literal) => {
+        $(#[$meta])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name(u64);
 
@@ -27,39 +28,87 @@ macro_rules! normalized_extent_identity {
 
 pub(crate) use normalized_extent_identity;
 
-normalized_extent_identity!(AddressSpaceId, "address-space");
-normalized_extent_identity!(ExtentProvenanceId, "extent-provenance");
-normalized_extent_identity!(MappingEraId, "mapping-era");
-normalized_extent_identity!(ExtentLineageId, "extent-lineage");
+normalized_extent_identity! {
 
-normalized_extent_identity!(ExtentIssuanceId, "extent-issuance");
+    AddressSpaceId, "address-space"
+}
+normalized_extent_identity! {
 
-normalized_extent_identity!(ExtentBackingId, "extent-backing");
+    ExtentProvenanceId, "extent-provenance"
+}
+normalized_extent_identity! {
 
-normalized_extent_identity!(ExtentProviderId, "extent-provider");
+    MappingEraId, "mapping-era"
+}
+normalized_extent_identity! {
 
-normalized_extent_identity!(ExtentLiveIssuancePremiseId, "extent-live-issuance-premise");
+    ExtentLineageId, "extent-lineage"
+}
 
-normalized_extent_identity!(ExtentCustodyRootId, "extent-custody-root");
+normalized_extent_identity! {
 
-normalized_extent_identity!(ExtentAliasClassId, "extent-alias-class");
+    ExtentIssuanceId, "extent-issuance"
+}
+
+normalized_extent_identity! {
+
+    ExtentBackingId, "extent-backing"
+}
+
+normalized_extent_identity! {
+
+    ExtentProviderId, "extent-provider"
+}
+
+normalized_extent_identity! {
+
+    ExtentLiveIssuancePremiseId, "extent-live-issuance-premise"
+}
+
+normalized_extent_identity! {
+
+    ExtentCustodyRootId, "extent-custody-root"
+}
+
+normalized_extent_identity! {
+
+    ExtentAliasClassId, "extent-alias-class"
+}
 
 normalized_extent_identity!(
     ExtentProviderCorrespondenceId,
     "extent-provider-correspondence"
 );
 
-normalized_extent_identity!(ExtentTrustProvenanceId, "extent-trust-provenance");
+normalized_extent_identity! {
 
-normalized_extent_identity!(ExtentProviderPlanId, "extent-provider-plan");
+    ExtentTrustProvenanceId, "extent-trust-provenance"
+}
 
-normalized_extent_identity!(ExtentProviderInvocationId, "extent-provider-invocation");
+normalized_extent_identity! {
 
-normalized_extent_identity!(ExtentEstablishmentRouteId, "extent-establishment-route");
+    ExtentProviderPlanId, "extent-provider-plan"
+}
 
-normalized_extent_identity!(ExtentCapacityId, "extent-capacity");
+normalized_extent_identity! {
 
-normalized_extent_identity!(ExtentQualificationId, "extent-qualification");
+    ExtentProviderInvocationId, "extent-provider-invocation"
+}
+
+normalized_extent_identity! {
+
+    ExtentEstablishmentRouteId, "extent-establishment-route"
+}
+
+normalized_extent_identity! {
+
+    ExtentCapacityId, "extent-capacity"
+}
+
+normalized_extent_identity! {
+
+    ExtentQualificationId, "extent-qualification"
+}
 
 normalized_extent_identity!(
     ExtentContentInterpretationId,
@@ -76,7 +125,10 @@ normalized_extent_identity!(
     "extent-content-custody-receipt"
 );
 
-normalized_extent_identity!(ResidentClaimId, "resident-claim");
+normalized_extent_identity! {
+
+    ResidentClaimId, "resident-claim"
+}
 
 /// Exact semantic interpretation selected for provider-existing content.
 ///
@@ -109,7 +161,10 @@ impl ExtentContentInterpretation {
     }
 }
 
-normalized_extent_identity!(ExtentRightId, "extent-right");
+normalized_extent_identity! {
+
+    ExtentRightId, "extent-right"
+}
 /// An open, normalized set of grant-established rights.
 ///
 /// The compiler does not bless a READ/WRITE/EXECUTE enumeration here. Target
