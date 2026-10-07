@@ -257,6 +257,24 @@ pub fn prove_ranking_range_entry(
 /// role at this state. A bare subject names no coordinate; an authored chain
 /// that resolves but cannot arrive -- a duplicated or role-less record slot --
 /// fails the edge rather than borrowing a foreign record's lineage.
+
+/// The binary operators the endpoint-input and field-land traversals visit
+/// uniformly: both operands carry the dependency, then each site layers its
+/// own operation-specific obligation on top.
+pub(super) fn dependency_binary(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::BitwiseAnd
+    )
+}
+
 fn subject_field_coordinates<'program>(
     program: &'program TypedTrees,
     root: &'program State,

@@ -152,17 +152,7 @@ fn operations_land_under(
             return operations_land_under(engine, program, machine, state, atomic.value, arrival);
         }
         ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Add
-                    | BinaryOperator::Subtract
-                    | BinaryOperator::Multiply
-                    | BinaryOperator::Divide
-                    | BinaryOperator::Modulo
-                    | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight
-                    | BinaryOperator::BitwiseAnd
-            ) =>
+            if super::dependency_binary(binary.operator) =>
         {
             binary
         }

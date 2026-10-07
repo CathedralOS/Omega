@@ -775,16 +775,8 @@ fn endpoint_inputs<'program>(
             Some(())
         }
         ExpressionNode::Binary(binary)
-            if matches!(
+            if crate::proof_contracts::contract_entailment::ranking_range::dependency_binary(
                 binary.operator,
-                BinaryOperator::Add
-                    | BinaryOperator::Subtract
-                    | BinaryOperator::Multiply
-                    | BinaryOperator::Divide
-                    | BinaryOperator::Modulo
-                    | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight
-                    | BinaryOperator::BitwiseAnd
             ) =>
         {
             // Conservation follows both operand dependencies, not the
