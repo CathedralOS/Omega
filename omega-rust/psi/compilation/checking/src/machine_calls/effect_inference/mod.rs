@@ -16,3 +16,30 @@ pub use invocations::{
 pub use operational::{infer_operational_may, infer_operational_may_with_cleanup_dependencies};
 pub(crate) use service_reach::required_boundary_services;
 pub use service_reach::{fixed_installation_boundary_service_reach, infer_service_reaches};
+
+/// The service a call-target roster entry names: a parameter's exact bound
+/// service requirement, falling back to its type's head symbol; a service
+/// target names itself.
+pub(super) fn invocation_service_symbol(
+    program: &typed_trees::TypedTrees,
+    parameters: &[&typed_trees::signature::StateParameter],
+    target: &flow_effects::InvocationTarget,
+) -> Option<symbols::SymbolHandle> {
+    match target {
+        flow_effects::InvocationTarget::Parameter(index) => parameters
+            .get(*index as usize)
+            .map(|parameter| {
+                typed_trees::service::exact_bound_service_requirement(
+                    program,
+                    parameter.type_reference,
+                )
+                .unwrap_or_else(|| {
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                        .type_symbol(&program.type_reference_table)
+                })
+            }),
+        flow_effects::InvocationTarget::Service(symbol) => Some(*symbol),
+    }
+}

@@ -930,24 +930,8 @@ fn extend_invocation_target_services(
     services: &mut Vec<ServiceReachId>,
 ) {
     for target in invocations {
-        let symbol = match target {
-            flow_effects::InvocationTarget::Parameter(index) => parameters
-                .get(*index as usize)
-                .map(|parameter| {
-                    typed_trees::service::exact_bound_service_requirement(
-                        program,
-                        parameter.type_reference,
-                    )
-                    .unwrap_or_else(|| {
-                        program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference)
-                            .type_symbol(&program.type_reference_table)
-                    })
-                })
-                .unwrap_or_else(SymbolHandle::invalid),
-            flow_effects::InvocationTarget::Service(symbol) => *symbol,
-        };
+        let symbol = super::invocation_service_symbol(program, parameters, target)
+            .unwrap_or_else(SymbolHandle::invalid);
         let Some(service) = program.service_reaches.id_for_symbol(symbol) else {
             continue;
         };

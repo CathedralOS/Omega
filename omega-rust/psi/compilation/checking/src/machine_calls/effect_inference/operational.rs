@@ -507,23 +507,7 @@ fn signature_operational(
         .iter()
         .collect::<Vec<_>>();
     for target in super::declared_signature_invocations(program, signature) {
-        let service = match target {
-            flow_effects::InvocationTarget::Parameter(index) => {
-                parameters.get(index as usize).map(|parameter| {
-                    typed_trees::service::exact_bound_service_requirement(
-                        program,
-                        parameter.type_reference,
-                    )
-                    .unwrap_or_else(|| {
-                        program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference)
-                            .type_symbol(&program.type_reference_table)
-                    })
-                })
-            }
-            flow_effects::InvocationTarget::Service(symbol) => Some(symbol),
-        };
+        let service = super::invocation_service_symbol(program, &parameters, &target);
         let Some(service) = service else {
             continue;
         };
