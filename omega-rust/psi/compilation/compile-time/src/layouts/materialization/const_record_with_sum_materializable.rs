@@ -34,7 +34,10 @@ use typed_trees::TypedTrees;
 
 use super::BuildTimeValue;
 use crate::layouts::materialization::const_record_with_sum_materializable::derived_bytes::derive_record_with_sum_bytes;
-use crate::layouts::materialization::const_record_with_sum_materializable::report_fingerprints::non_authoritative_record_with_sum_materialization_report_fingerprint;
+pub(crate) use report_fingerprints::{
+    hash_sum_array_element_selections,
+    non_authoritative_record_with_sum_materialization_report_fingerprint,
+};
 
 /// Exact materialization custody for one direct runtime-relevant conventional
 /// pure-sum field of a closed record.

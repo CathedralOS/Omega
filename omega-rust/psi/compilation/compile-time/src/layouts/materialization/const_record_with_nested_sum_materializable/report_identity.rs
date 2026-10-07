@@ -285,26 +285,10 @@ fn hash_child_row_with_custody(
                 normalized_conventional_sum_layout_report_fingerprint(element_layout),
             );
             hash_u64(hash, custody.elements.len() as u64);
-            for element in &custody.elements {
-                hash_u64(hash, element.literal_index);
-                hash_u64(hash, element.non_authoritative_schema_report_fingerprint);
-                hash_value(hash, &element.value);
-                hash_u64(hash, element.non_authoritative_layout_report_fingerprint);
-                match element.selected_case_identity {
-                    Some(identity) => {
-                        hash_byte(hash, 1);
-                        hash_u64(hash, identity);
-                    }
-                    None => hash_byte(hash, 0),
-                }
-                hash_u64(hash, u64::from(element.selected_case_ordinal));
-                hash_u64(hash, element.bytes.len() as u64);
-                hash_bytes(hash, &element.bytes);
-                hash_u64(
-                    hash,
-                    element.non_authoritative_materialization_report_fingerprint,
-                );
-            }
+            crate::layouts::materialization::const_record_with_sum_materializable::hash_sum_array_element_selections(
+                hash,
+                &custody.elements,
+            );
         }
         ValidatedConstRecordSumChildMaterialization::Record(occurrence) => {
             hash_byte(hash, 2);
