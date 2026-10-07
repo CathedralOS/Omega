@@ -35,8 +35,6 @@ def svc(imm):
     return 0xD4000001 | (imm << 5)
 def b_cond(target, pc, cond):
     return 0x54000000 | ((((target - pc) // 4) & 0x7FFFF) << 5) | cond
-def nop():
-    return 0xD503201F
 
 NEW = []          # init sequence replacing [0x4a8,0x4b0)
 NEW += [movz(0, 0, 0)]            # x0 = NULL
