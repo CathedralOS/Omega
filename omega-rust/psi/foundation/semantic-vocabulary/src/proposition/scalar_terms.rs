@@ -401,12 +401,15 @@ pub enum ScalarTerm {
 
 macro_rules! integer_binary_term {
     ($name:ident => $variant:ident) => {
+        integer_binary_term!(@valid $name => $variant, validate_integer_operands);
+    };
+    (@valid $name:ident => $variant:ident, $validate:ident) => {
         pub fn $name(
             scalar_type: IntegerType,
             left: ScalarTerm,
             right: ScalarTerm,
         ) -> Result<Self, PropositionError> {
-            validate_integer_operands(scalar_type, &left, &right)?;
+            $validate(scalar_type, &left, &right)?;
             Ok(Self::$variant {
                 scalar_type,
                 left: Box::new(left),
@@ -564,31 +567,9 @@ impl ScalarTerm {
         })
     }
 
-    pub fn integer_less_than(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_comparison_operands(scalar_type, &left, &right)?;
-        Ok(Self::IntegerLessThan {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(@valid integer_less_than => IntegerLessThan, validate_integer_comparison_operands);
 
-    pub fn integer_less_or_equal(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_comparison_operands(scalar_type, &left, &right)?;
-        Ok(Self::IntegerLessOrEqual {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(@valid integer_less_or_equal => IntegerLessOrEqual, validate_integer_comparison_operands);
 
     /// Interpret a mixed comparison over exact values/literals in the
     /// proof-only integer vocabulary. Each `MathValue` keeps its original
