@@ -541,16 +541,44 @@ fn collect_table_call(
     state_to_machine: &StateToMachine,
 ) {
     let receiver = origin_for_statement_receiver(program, machine, state, call);
-    let arguments = program
-        .statement_table
-        .expression_handles(call.arguments)
+    collect_resolved_call(
+        program,
+        machine,
+        state,
+        call.target_symbol,
+        call.static_machine_parameter,
+        receiver,
+        program.statement_table.expression_handles(call.arguments),
+        direct,
+        calls,
+        state_to_machine,
+    );
+}
+
+/// Shared call collection for statement and expression call sites: the
+/// receiver and every argument resolve through `origin_for_expression`,
+/// then the work item lands through `push_call`.
+#[allow(clippy::too_many_arguments)]
+fn collect_resolved_call(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    target_symbol: SymbolHandle,
+    static_machine_parameter: SymbolHandle,
+    receiver: Option<InvocationTarget>,
+    argument_handles: &[ExpressionHandle],
+    direct: &mut Vec<InvocationTarget>,
+    calls: &mut Vec<CallWork>,
+    state_to_machine: &StateToMachine,
+) {
+    let arguments = argument_handles
         .iter()
         .map(|argument| origin_for_expression(program, machine, state, *argument))
         .collect::<Vec<_>>();
     push_call(
         program,
-        call.target_symbol,
-        call.static_machine_parameter,
+        target_symbol,
+        static_machine_parameter,
         receiver,
         arguments,
         direct,
@@ -666,18 +694,14 @@ fn collect_expression_call(
     state_to_machine: &StateToMachine,
 ) {
     let receiver = origin_for_expression(program, machine, state, call.receiver);
-    let arguments = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .iter()
-        .map(|argument| origin_for_expression(program, machine, state, *argument))
-        .collect::<Vec<_>>();
-    push_call(
+    collect_resolved_call(
         program,
+        machine,
+        state,
         call.target_symbol,
         call.static_machine_parameter,
         receiver,
-        arguments,
+        program.expression_table.expression_handles(call.arguments),
         direct,
         calls,
         state_to_machine,
