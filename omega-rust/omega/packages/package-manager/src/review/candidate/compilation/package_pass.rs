@@ -13,7 +13,7 @@
 //! that enforcement in one execution path without making aliases new instances.
 
 use crate::build_session::{
-    OccurrenceBuildInputs, dependency_first_package_order, package_build_root,
+    OccurrenceBuildInputs, PackageBuildSession, dependency_first_package_order,
     reconcile_build_inputs,
 };
 use compilation_products::{CheckedCompileRequest, CompileFailure};
@@ -32,10 +32,8 @@ use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 use crate::resolution::source::PackageSourceCustody;
 use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
-use checked_interpreter::BuildEvaluationSponsor;
 use compilation_products::CheckedCompileOutcome;
 use diagnostics::Diagnostic;
-use filesystem_authority::FilesystemSponsor;
 use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
@@ -169,9 +167,7 @@ pub(super) fn compile_dependency_closure(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     execution_profile: Option<target::TargetProfile>,
     roster: &PackageOccurrenceRoster,
-    build_session_root: &Path,
-    filesystem_sponsor: &FilesystemSponsor,
-    evaluation_sponsor: &BuildEvaluationSponsor,
+    session: &mut PackageBuildSession,
     semantic_bindings_by_consumer: &BTreeMap<
         (PackageKey, DependencyPurpose),
         Vec<AcceptedSemanticBinding>,
@@ -227,9 +223,7 @@ pub(super) fn compile_dependency_closure(
             target_closure,
             roster,
             execution_profile,
-            build_session_root,
-            filesystem_sponsor,
-            evaluation_sponsor,
+            session,
             semantic_bindings_by_consumer,
             root_build_snapshot,
             restricted_build_checkpoint,
@@ -254,9 +248,7 @@ fn run_closure_pass(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     roster: &PackageOccurrenceRoster,
     execution_profile: Option<target::TargetProfile>,
-    build_session_root: &Path,
-    filesystem_sponsor: &FilesystemSponsor,
-    evaluation_sponsor: &BuildEvaluationSponsor,
+    session: &mut PackageBuildSession,
     semantic_bindings_by_consumer: &BTreeMap<
         (PackageKey, DependencyPurpose),
         Vec<AcceptedSemanticBinding>,
@@ -276,9 +268,7 @@ fn run_closure_pass(
     let mut pass = ClosurePass {
         closure,
         execution_profile,
-        build_session_root,
-        filesystem_sponsor,
-        evaluation_sponsor,
+        session,
         semantic_bindings_by_consumer,
         root_build_snapshot,
         restricted_build_checkpoint,
@@ -356,9 +346,7 @@ fn run_closure_pass(
 struct ClosurePass<'pass> {
     closure: &'pass ResolvedPackageSourceClosure,
     execution_profile: Option<target::TargetProfile>,
-    build_session_root: &'pass Path,
-    filesystem_sponsor: &'pass FilesystemSponsor,
-    evaluation_sponsor: &'pass BuildEvaluationSponsor,
+    session: &'pass mut PackageBuildSession,
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
     root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
@@ -656,9 +644,9 @@ impl ClosurePass<'_> {
         // forward untouched. The carried compile must not have exercised
         // the discovery-only tolerance this pass withholds: a result
         // settled under it is not the result this pass would produce.
-        // Consumed evaluation usage stays on the carried review but was
-        // reconciled by the pass that ran it, so none of it enters this
-        // session's accounting.
+        // The pass that ran this evaluation already charged the shared
+        // invocation sponsor. Carrying its immutable result retains that
+        // charge without evaluating or charging it again.
         // The reuse key is the occurrence's complete compile input, not a
         // binding-normalized projection of it: `typed_trees_to_checked_trees`
         // provider settlement and selected-execution settlement read every
@@ -858,15 +846,14 @@ impl ClosurePass<'_> {
         let build_snapshot = &assembled.build_snapshot;
         let mut request = CheckedCompileRequest {
             build_execution_profile: execution_profile,
-            build_dir: Some(package_build_root(
-                self.build_session_root,
+            build_dir: Some(self.session.create_occurrence_directory(
                 key,
                 custody.resolution(),
                 purpose,
-            )),
+            )?),
             package_inputs: Some(unanswered_inputs.clone()),
-            filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
-            evaluation_sponsor: Some(self.evaluation_sponsor.clone()),
+            filesystem_sponsor: Some(self.session.filesystem_sponsor().clone()),
+            evaluation_sponsor: Some(self.session.evaluation_sponsor().clone()),
             build_snapshot: Some(build_snapshot.clone()),
             // An armed checkpoint binds the admitted activation's
             // restricted requests to this occurrence's granted meanings
@@ -938,15 +925,14 @@ impl ClosurePass<'_> {
                 // fence, never as a fused edge.
                 let request = CheckedCompileRequest {
                     build_execution_profile: execution_profile,
-                    build_dir: Some(package_build_root(
-                        self.build_session_root,
+                    build_dir: Some(self.session.create_occurrence_directory(
                         key,
                         custody.resolution(),
                         purpose,
-                    )),
+                    )?),
                     package_inputs: Some(inputs.clone()),
-                    filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
-                    evaluation_sponsor: Some(self.evaluation_sponsor.clone()),
+                    filesystem_sponsor: Some(self.session.filesystem_sponsor().clone()),
+                    evaluation_sponsor: Some(self.session.evaluation_sponsor().clone()),
                     build_snapshot: Some(build_snapshot.clone()),
                     // The retried activation is the same checked
                     // occurrence: consent re-arms identically.

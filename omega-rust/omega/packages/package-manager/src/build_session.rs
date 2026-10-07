@@ -1,4 +1,8 @@
-//! Private staging and aggregate Build resource grants shared by compile and review.
+//! Invocation-owned private staging and aggregate Build resource grants.
+//!
+//! Review passes borrow one session rather than replenishing its grants. Every
+//! fresh compilation attempt receives an explicitly sponsored empty directory;
+//! checked results retain immutable output custody after session disposal.
 
 mod component_publication;
 pub(crate) use component_publication::publish_checked_component;
@@ -21,14 +25,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static PACKAGE_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Deterministic evaluator work granted to one complete package
-/// closure. The sibling limits below bound retained compiler resources; none
+/// invocation. The sibling limits below bound retained compiler resources; none
 /// claims to bound CPU time or process memory.
 const PACKAGE_BUILD_FUEL_CEILING: u64 = 100_000_000;
-/// Aggregate compiler-owned BuildLog bytes across initial evaluation and
-/// replay for the complete package closure.
+/// Aggregate compiler-owned BuildLog bytes across all invocation passes.
 const PACKAGE_BUILD_LOG_CEILING: u64 = 16 * 1024 * 1024;
-/// Aggregate canonical filesystem operation attempts across initial evaluation
-/// and replay for the complete package closure.
+/// Aggregate canonical filesystem operation attempts across all invocation passes.
 const PACKAGE_FILESYSTEM_ATTEMPT_CEILING: u64 = 65_536;
 /// Compiler-owned filesystem resources live concurrently across the package
 /// closure. This does not count unrelated host-process descriptors.
@@ -39,8 +41,8 @@ const PACKAGE_LIVE_CELL_CEILING: u64 = 1_048_576;
 /// Logical bytes held by concurrently live interpreter Text backing buffers.
 /// This is not Vec capacity, allocator overhead, or a process-memory ceiling.
 const PACKAGE_LIVE_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
-/// Aggregate recursive value cells returned by successful initial and replay
-/// evaluations across the closure.
+/// Aggregate recursive value cells returned by successful evaluations across
+/// all invocation passes.
 const PACKAGE_RESULT_CELL_CEILING: u64 = 1_048_576;
 /// Aggregate Text payload bytes retained by successful build results.
 const PACKAGE_RESULT_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
@@ -50,6 +52,7 @@ pub(crate) struct PackageBuildSession {
     root: PathBuf,
     filesystem_sponsor: FilesystemSponsor,
     evaluation_sponsor: BuildEvaluationSponsor,
+    next_occurrence: u64,
     active: bool,
 }
 
@@ -99,6 +102,7 @@ impl PackageBuildSession {
                         root: canonical_root,
                         filesystem_sponsor,
                         evaluation_sponsor: BuildEvaluationSponsor::new(evaluation_limits),
+                        next_occurrence: 0,
                         active: true,
                     });
                 }
@@ -121,8 +125,46 @@ impl PackageBuildSession {
         })
     }
 
-    pub(crate) fn root(&self) -> &Path {
-        &self.root
+    /// Reserve a fresh private output root for this compilation attempt, even
+    /// when another pass already evaluated the same package occurrence.
+    pub(crate) fn create_occurrence_directory(
+        &mut self,
+        key: &crate::declarations::PackageKey,
+        resolution: &package_source::ImmutableSourceResolution,
+        purpose: crate::declarations::DependencyPurpose,
+    ) -> Result<PathBuf, CompileResolvedPackageReviewsError> {
+        let sequence = self.next_occurrence;
+        self.next_occurrence = sequence.checked_add(1).ok_or_else(|| {
+            CompileResolvedPackageReviewsError::BuildStagingCreate {
+                path: self.root.clone(),
+                error: io::Error::other("package build occurrence sequence exhausted"),
+            }
+        })?;
+        let directory = package_build_root(&self.root, key, resolution, purpose)
+            .with_extension(sequence.to_string());
+        let sponsor_error = |error| CompileResolvedPackageReviewsError::BuildStagingSponsor {
+            path: directory.clone(),
+            error,
+        };
+        let path = self
+            .filesystem_sponsor
+            .bind_path(&directory)
+            .map_err(sponsor_error)?;
+        let prepared = self
+            .filesystem_sponsor
+            .prepare_create_directory(&path)
+            .map_err(sponsor_error)?;
+        if let Err(error) = fs::create_dir(&directory) {
+            prepared.abort();
+            return Err(CompileResolvedPackageReviewsError::BuildStagingCreate {
+                path: directory,
+                error,
+            });
+        }
+        // A failed accounting commit aborts the invocation. Session disposal
+        // removes the private directory before any checked result can escape.
+        prepared.commit().map_err(sponsor_error)?;
+        Ok(directory)
     }
 
     pub(crate) fn filesystem_sponsor(&self) -> &FilesystemSponsor {

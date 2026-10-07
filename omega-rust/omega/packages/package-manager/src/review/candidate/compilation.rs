@@ -1,7 +1,8 @@
 //! Candidate review workflow: select bindings, then compile.
 //!
-//! All products share discovery and final checking. Each pass owns a disposable
-//! sponsored session; package_pass owns dependency-order compilation and projection.
+//! All products share discovery and final checking. One candidate invocation
+//! owns the disposable sponsored session borrowed by every review pass;
+//! package_pass owns dependency-order compilation and projection.
 
 mod package_pass;
 mod policy;
@@ -89,7 +90,10 @@ pub fn compile_resolved_package_reviews_reusing(
     bindings: SemanticBindingReview<'_>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    compile_candidate(candidate, bindings, preparation).map(|compiled| compiled.reviews)
+    let mut session = PackageBuildSession::create(candidate.build_root)?;
+    let result = compile_candidate(candidate, bindings, &mut session, preparation)
+        .map(|compiled| compiled.reviews);
+    session.dispose(result)
 }
 
 /// The one candidate route every review and check entry runs;
@@ -97,13 +101,14 @@ pub fn compile_resolved_package_reviews_reusing(
 fn compile_candidate(
     candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
+    session: &mut PackageBuildSession,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let CandidateCompilation {
         target_closure,
-        build_root,
         root_build_snapshot,
         restricted_build_checkpoint,
+        ..
     } = candidate;
     let _requested = timings::requested(preparation.collect_timings);
     let _stage = timings::stage("candidate_compilation");
@@ -123,7 +128,7 @@ fn compile_candidate(
         return note_pass_accounting("explicit", || {
             compile_pass(
                 target_closure,
-                build_root,
+                session,
                 inputs,
                 root_build_snapshot,
                 restricted_build_checkpoint,
@@ -148,7 +153,7 @@ fn compile_candidate(
         note_pass_accounting("discovery", || {
             compile_pass(
                 target_closure,
-                build_root,
+                session,
                 &[],
                 root_build_snapshot,
                 restricted_build_checkpoint,
@@ -185,7 +190,7 @@ fn compile_candidate(
     note_pass_accounting("bound", || {
         compile_pass(
             target_closure,
-            build_root,
+            session,
             &discovered,
             root_build_snapshot,
             restricted_build_checkpoint,
@@ -233,7 +238,7 @@ fn note_pass_accounting(
 
 fn compile_pass(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
-    build_root: &Path,
+    session: &mut PackageBuildSession,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
@@ -259,20 +264,16 @@ fn compile_pass(
     })?;
     let bindings =
         semantic_bindings_by_consumer(target_closure, execution_profile, &roster, bindings)?;
-    let session = PackageBuildSession::create(build_root)?;
-    let result = package_pass::compile_dependency_closure(
+    package_pass::compile_dependency_closure(
         target_closure,
         execution_profile,
         &roster,
-        session.root(),
-        session.filesystem_sponsor(),
-        session.evaluation_sponsor(),
+        session,
         &bindings,
         root_build_snapshot,
         restricted_build_checkpoint,
         discovery,
         prior,
         preparation,
-    );
-    session.dispose(result)
+    )
 }

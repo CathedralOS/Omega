@@ -9,8 +9,7 @@ pub(crate) use identity::compiler_input_identity;
 
 use crate::build_session::{
     PackageBuildSession, PackageSourcePreparation, PreparedPackageSource,
-    dependency_first_package_order, package_build_root, publish_checked_component,
-    reconcile_build_inputs,
+    dependency_first_package_order, publish_checked_component, reconcile_build_inputs,
 };
 use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageLockTarget, PackageOccurrenceRoster};
@@ -76,8 +75,8 @@ pub(super) fn compile_accepted_project(
             .map_err(|error| failure(root, error))?;
     }
     preparation.size_for(request.closure.source_closure());
-    let session = PackageBuildSession::create(request.build_root)?;
-    let result = compile_occurrences(&request, &session, preparation);
+    let mut session = PackageBuildSession::create(request.build_root)?;
+    let result = compile_occurrences(&request, &mut session, preparation);
     // Loaded Rust identity is immutable; the external library is not. Reject
     // edits during compilation instead of labeling mixed inputs as accepted.
     let result = result.and_then(|checked| {
@@ -95,7 +94,7 @@ pub(super) fn compile_accepted_project(
 
 fn compile_occurrences(
     request: &AcceptedCompilationRequest<'_>,
-    session: &PackageBuildSession,
+    session: &mut PackageBuildSession,
     preparation: &mut PackageSourcePreparation,
 ) -> Result<CheckedCompilation, Error> {
     let closure = request.closure.source_closure();
@@ -226,12 +225,11 @@ fn compile_occurrences(
                     retain_prepared_source: true,
                     package_inputs: Some(inputs),
                     build_execution_profile: execution_profile,
-                    build_dir: Some(package_build_root(
-                        session.root(),
+                    build_dir: Some(session.create_occurrence_directory(
                         &key,
                         custody.resolution(),
                         purpose,
-                    )),
+                    )?),
                     filesystem_sponsor: Some(session.filesystem_sponsor().clone()),
                     evaluation_sponsor: Some(session.evaluation_sponsor().clone()),
                     build_snapshot: Some(snapshot),
