@@ -28,6 +28,10 @@ import uuid
 # Sibling-script import; both files live in tools/.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import coordination
+from push_budgets import (COLLISION_BACKOFF_BASE, COLLISION_BACKOFF_CAP,
+                        COLLISION_LIMIT, PROBE_ATTEMPTS,
+                        PROBE_BACKOFF_SECONDS, PUSH_FAILURE_BACKOFF_BASE,
+                        PUSH_FAILURE_BACKOFF_CAP, PUSH_FAILURE_LIMIT)
 
 CLAIM_REF = "refs/coordination/omega-landing/main"
 MAIN_REF = "refs/heads/main"
@@ -38,18 +42,6 @@ PROVENANCE_COMMITTER = ("-c", "user.name=omega-landing", "-c", "user.email=landi
 LEASE_SECONDS = 180
 COORDINATION_FILE = re.compile(
     r"^(?:TASKS[^/]*\.md|OWNER_QUESTIONS\.md|tools/swarm/waves/.+)$")
-# Patience budgets. Collisions are lost compare-and-swap races against
-# concurrent writers; each costs one snapshot + push round. Push failures are
-# pushes rejected while the remote refs provably stayed put (network blips,
-# ref-lock contention, object-DB lag), so re-pushing the same commit is safe.
-COLLISION_LIMIT = 40
-COLLISION_BACKOFF_BASE = 0.1
-COLLISION_BACKOFF_CAP = 1.5
-PUSH_FAILURE_LIMIT = 6
-PUSH_FAILURE_BACKOFF_BASE = 0.4
-PUSH_FAILURE_BACKOFF_CAP = 3.0
-PROBE_ATTEMPTS = 3
-PROBE_BACKOFF_SECONDS = 0.3
 SNAPSHOT_ATTEMPTS = 3
 MAINTENANCE_LIMIT = 20
 
@@ -59,18 +51,15 @@ now = coordination.now
 utc = coordination.utc
 emit = coordination.emit
 
-
 def pause(attempt, base, cap):
     """Jittered exponential backoff: the ceiling doubles per attempt, the
     sleep lands in its upper half, and `cap` bounds the wait."""
     delay = min(cap, base * 2 ** (attempt - 1))
     time.sleep(random.uniform(delay / 2, delay))
 
-
 def ticket_id(value):
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
         raise LandingError("Supply the 32-character ticket returned by enqueue; enqueue before claiming.")
-
 
 def promote_head(record):
     """Only changing the head starts a new lease; claim is not a renewal."""
@@ -82,10 +71,8 @@ def promote_head(record):
         record["head_promoted_utc"] = None
         record["head_expires_utc"] = None
 
-
 def expired(record):
     return bool(record["entries"]) and datetime.now(timezone.utc) >= utc(record["head_expires_utc"])
-
 
 # Changes to these root files rebuild the world; they name the CLI package
 # directly instead of a crate-local manifest.
@@ -94,7 +81,6 @@ RUST_FILE = re.compile(r"\.rs$|(?:^|/)Cargo\.toml$|(?:^|/)build\.rs$")
 PACKAGE_TABLE = re.compile(r"(?ms)^\[package\](.*?)(?=^\[|\Z)")
 PACKAGE_NAME = re.compile(r'^\s*name\s*=\s*"([^"]+)"', re.M)
 RECEIPT_SCHEMA = "omega-landing-receipt-v1"
-
 
 def package_name(manifest: Path):
     """The `name = "..."` of the manifest's [package] table, or None for a
@@ -109,7 +95,6 @@ def package_name(manifest: Path):
         return None
     name = PACKAGE_NAME.search(table.group(1))
     return name.group(1) if name else None
-
 
 def affected_packages(repository, base, candidate):
     """Rust packages the base..candidate diff must re-check.
@@ -142,11 +127,9 @@ def affected_packages(repository, base, candidate):
         packages.add("omega")
     return packages
 
-
 def receipt_path(repository, candidate):
     return (Path(repository) / "build" / "landing_receipts"
             / f"{candidate}.json")
-
 
 def write_receipt(repository, receipt):
     path = receipt_path(repository, receipt["candidate"])
@@ -154,7 +137,6 @@ def write_receipt(repository, receipt):
     path.write_text(json.dumps(receipt, ensure_ascii=True, indent=2) + "\n",
                     encoding="utf-8")
     return path
-
 
 def verify(repository, base):
     """Build-receipt producer: `check` the affected crates at a clean HEAD.
@@ -191,7 +173,6 @@ def verify(repository, base):
     emit(receipt)
     return 0 if exit_code == 0 else 1
 
-
 def receipt_failure(repository, candidate, affected):
     """None when a valid build receipt covers `affected`; else the reason."""
     path = receipt_path(repository, candidate)
@@ -212,7 +193,6 @@ def receipt_failure(repository, candidate, affected):
         return (f"build receipt {path} covers {receipt.get('packages')}; "
                 f"the candidate also affects {sorted(missing)}")
     return None
-
 
 class Landing:
     def __init__(self, repository, remote):
@@ -645,11 +625,9 @@ class Landing:
             collisions += 1
             self.back_off_after_collision(collisions)
 
-
 class Parser(argparse.ArgumentParser):
     def error(self, message):
         raise LandingError(message)
-
 
 def main(arguments=None):
     parser = Parser(description=__doc__)
@@ -693,7 +671,6 @@ def main(arguments=None):
         identity = f" Ticket={options.ticket} Claim={options.claim}" if options else ""
         print(f"landing: {error}{identity}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

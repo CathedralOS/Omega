@@ -28,6 +28,10 @@ import uuid
 # Sibling-script import; both files live in tools/.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import coordination
+from push_budgets import (COLLISION_BACKOFF_BASE, COLLISION_BACKOFF_CAP,
+                        COLLISION_LIMIT, PROBE_ATTEMPTS,
+                        PROBE_BACKOFF_SECONDS, PUSH_FAILURE_BACKOFF_BASE,
+                        PUSH_FAILURE_BACKOFF_CAP, PUSH_FAILURE_LIMIT)
 
 CLAIMS_REF = "refs/coordination/omega-claims/main"
 PROTOCOL = "omega-claims-v1"
@@ -38,18 +42,6 @@ MIN_LEASE_MINUTES = 15
 MAX_LEASE_MINUTES = 1440
 NOTE_TEXT_LIMIT = 2000
 SWEPT_NOTE_RETENTION = 100
-# Patience budgets. Collisions are lost compare-and-swap races against
-# concurrent writers; each costs one snapshot + push round. Push failures are
-# pushes rejected while the remote ref provably stayed put (network blips,
-# ref-lock contention, object-DB lag), so re-pushing the same commit is safe.
-COLLISION_LIMIT = 40
-COLLISION_BACKOFF_BASE = 0.1
-COLLISION_BACKOFF_CAP = 1.5
-PUSH_FAILURE_LIMIT = 6
-PUSH_FAILURE_BACKOFF_BASE = 0.4
-PUSH_FAILURE_BACKOFF_CAP = 3.0
-PROBE_ATTEMPTS = 3
-PROBE_BACKOFF_SECONDS = 0.3
 SNAPSHOT_ATTEMPTS = 3
 MAINTENANCE_LIMIT = 20
 # Transport stall bounds. ls-remote, fetch, and push are the only calls that
@@ -78,11 +70,9 @@ now = coordination.now
 utc = coordination.utc
 emit = coordination.emit
 
-
 def ticket_id(value):
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
         raise ClaimsError("Supply the 32-character ticket returned by claim.")
-
 
 def normalize_path(value):
     text = value.strip().replace("\\", "/")
@@ -101,7 +91,6 @@ def normalize_path(value):
             f"Claim path must not contain a comma or whitespace: {value!r}")
     return normalized
 
-
 def split_path_values(values):
     """Flatten repeated, comma-joined or whitespace-joined --path values into
     individual paths.
@@ -117,7 +106,6 @@ def split_path_values(values):
                           "leading, trailing, or doubled comma.")
     return [path for piece in pieces for path in piece.split()]
 
-
 def path_atoms(value):
     """Explode one stored path field into the individual paths it carries.
 
@@ -129,11 +117,9 @@ def path_atoms(value):
     return [PurePosixPath(piece.replace("\\", "/"))
             for segment in value.split(",") for piece in segment.split()]
 
-
 def is_task_board(path):
     return any(PurePosixPath(path).name.casefold() == board.casefold()
                for board in BOARDS)
-
 
 def paths_overlap(first, second):
     # Legacy board-file claims cannot fence shared task lists. Keep the
@@ -141,7 +127,6 @@ def paths_overlap(first, second):
     return any(a == b or a in b.parents or b in a.parents
                for a in path_atoms(first) if not is_task_board(a)
                for b in path_atoms(second) if not is_task_board(b))
-
 
 def is_directory_fence(repository, path):
     """A claimed path that fences a whole directory: an existing directory,
@@ -159,7 +144,6 @@ def is_directory_fence(repository, path):
         pass
     return "." not in PurePosixPath(path).name
 
-
 def board_items(repository, board):
     path = Path(repository) / board
     if not path.is_file():
@@ -167,16 +151,13 @@ def board_items(repository, board):
     markers = ITEM_MARKER.findall(path.read_text(encoding="utf-8", errors="replace"))
     return [name.strip() for marker in markers for name in marker.split("/")]
 
-
 def expired_claims(record):
     instant = datetime.now(timezone.utc)
     return [claim for claim in record["claims"] if instant >= utc(claim["expires_utc"])]
 
-
 def live_claims(record):
     instant = datetime.now(timezone.utc)
     return [claim for claim in record["claims"] if instant < utc(claim["expires_utc"])]
-
 
 def validate_claim(claim):
     ticket_id(claim["ticket"])
@@ -194,7 +175,6 @@ def validate_claim(claim):
     utc(claim["claimed_utc"])
     utc(claim["expires_utc"])
 
-
 def validate_note(note):
     ticket_id(note["ticket"])
     if not isinstance(note["item"], str) or not note["item"].strip():
@@ -208,7 +188,6 @@ def validate_note(note):
     if note.get("swept_utc") is not None:
         utc(note["swept_utc"])
 
-
 def trim_notes(record):
     """Bound the ledger: pending notes always stay; only swept history trims."""
     swept_seen = 0
@@ -221,11 +200,9 @@ def trim_notes(record):
         kept.append(note)
     record["notes"] = list(reversed(kept))
 
-
 def pending_notes(record):
     return [note for note in record.get("notes", [])
             if note.get("swept_utc") is None]
-
 
 class Claims:
     def __init__(self, repository, remote, timeout_seconds=DEFAULT_TIMEOUT_SECONDS):
@@ -655,11 +632,9 @@ class Claims:
                                 if claim["board"] == options.board)})
         return 0
 
-
 class Parser(argparse.ArgumentParser):
     def error(self, message):
         raise ClaimsError(message)
-
 
 def main(argv=None):
     parser = Parser(description=__doc__)
@@ -776,7 +751,6 @@ def main(argv=None):
     except (ClaimsError, OSError) as error:
         print(f"claims: {error}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())
