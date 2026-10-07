@@ -29,7 +29,8 @@ pub struct CheckedCompileRequest {
     pub prepared_source: Option<crate::PreparedCheckedSource>,
     /// Return preparation only after successful checking.
     pub retain_prepared_source: bool,
-    /// `None` observes requests without consulting accepted meaning or granting it.
+    /// `None` reports restricted requests without executing them. Private
+    /// issued snapshot/staging work projects none and continues normally.
     pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     /// A reused preparation keeps the timing policy under which it was created.
     pub collect_timings: bool,

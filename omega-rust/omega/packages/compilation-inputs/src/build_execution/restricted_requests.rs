@@ -18,7 +18,8 @@ use build_time_evaluation::{
 /// guard across execution, so accepted meaning is owned rather than borrowed.
 ///
 /// An absent guard is observation-only: requests remain in retained custody for
-/// review, but execution consults no accepted meaning and issues no grants.
+/// review, and the activation stops before any restricted execution. Private
+/// issued snapshot/staging work projects no request and needs no such consent.
 pub trait RestrictedBuildGrants: Send {
     fn admit(
         &mut self,

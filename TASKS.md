@@ -2998,21 +2998,19 @@ of a check the same flow already performed, not the check itself.
   filesystem corpus slices are unchanged.
 
 - **RESTRICTED-REQUEST-GATE-ONCE.** (new-scope) With
-  `restricted_build_checkpoint: None` (install/update review, audit,
-  inspection, `--check --verify`), `evaluate_build` in
-  `omega-rust/omega/compilation/build-evaluation/src/build_evaluation.rs`
-  admits every restricted request and executes it.
-  `wiki/spec/packages/review.md` says "An audit must not perform the very
-  action it is asking the owner to approve". Review builds that run as private
-  snapshot execution project no request; a review whose build projects a real
-  scoped request must report it as pending and stop before execution, with
-  final product findings marked unavailable, instead of running it. The
-  consuming-compile side already gates once: fresh activations through
-  `RestrictedBuildGrants::admit` before effects, disk-cache carries through
-  the same binding in `package_pass.rs::carry_prior_compile`. Acceptance: an
-  audit of a package whose build requests scoped filesystem execution performs
-  no host effect and reports the request; corpus `--filter build` is
-  unchanged.
+  pending requests now stopping before effects in the compiler API, complete
+  the recoverable package Build-consent transaction. Preserve normalized pending
+  request meaning, occurrence/context and unavailable dependent findings through
+  review; resume must recheck candidate custody and join exact accepted request
+  meaning plus executor grants before effects, then finish the ordinary review.
+  No pending result may enter a completed cache or accepted lock. Today's public
+  audit/update commands issue private snapshot/staging scopes and project no
+  restricted request; do not add live-host grant syntax to manufacture this case.
+  Follow `wiki/spec/packages/review.md` and restricted-build acceptance in
+  `wiki/spec/packages/acceptance.md`. Acceptance: a review with a real scoped
+  request reports it without effects, refusal stays effect-free, exact consent
+  resumes the same candidate before final findings become available; ordinary
+  private review and consuming-compilation grant checks remain unchanged.
 
 - **CONTRACT-IDENTITY-STRUCTURAL.** (split-of:REVIEW-SINGLE-PROJECTION)
   Checked contract identities are still built from hand-rolled byte strings:

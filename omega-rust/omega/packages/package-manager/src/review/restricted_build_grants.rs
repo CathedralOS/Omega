@@ -2,10 +2,9 @@
 //! project's accepted lock policy
 //! (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
 //!
-//! Review compiles are observational: they run package builds under the
-//! caller's staging sponsors so a decision document can describe what each
-//! activation asked of the host, and a fresh install must be able to observe
-//! a not-yet-accepted request. A lock that already retains decisions is
+//! Review compiles are observational: private issued snapshot/staging builds
+//! run without restricted authority, while a non-exempt request stops before
+//! execution and remains available for a decision. A lock that retains decisions is
 //! different: an operation consuming that compile must refuse any occurrence
 //! whose projected restricted build requests lack retained accepted-request
 //! meaning. The lock stores decisions, not credentials, so the join
@@ -41,6 +40,29 @@ pub struct UngrantedRestrictedBuildRequest {
 }
 
 impl UngrantedRestrictedBuildRequest {
+    /// Bind a pre-effect request to the exact requesting occurrence. Both a
+    /// fresh pending observation and a consuming compile's consent refusal use
+    /// the same canonical meaning; neither path grants execution.
+    pub(crate) fn project(
+        package: PackageKeyIdentity,
+        context: PackageCheckedContext,
+        request_path: Option<DependencyRequestPath>,
+        request: &package_compilation::build_execution::RestrictedBuildRequest,
+    ) -> Result<Self, package_evidence::encoding::PackageReviewEncodingError> {
+        let request = request.clone().for_target(Some(context.target()));
+        let request_meaning = package_evidence::encoding::restricted_build_request_acceptance_text(
+            package,
+            context.target(),
+            &request,
+        )?;
+        Ok(Self {
+            package,
+            context,
+            request_meaning,
+            request_path,
+        })
+    }
+
     /// Canonical identity of the package whose occurrence asked for the
     /// ungranted authority.
     pub const fn package(&self) -> PackageKeyIdentity {
@@ -211,24 +233,16 @@ impl package_compilation::build_execution::RestrictedBuildGrants
     ) -> Result<(), Vec<Diagnostic>> {
         // The Build evaluates without a realized target; this checkpoint's
         // checked context names the target whose acceptance rows apply.
-        let request = request.clone().for_target(Some(self.context.target()));
-        let meaning = package_evidence::encoding::restricted_build_request_acceptance_text(
+        let pending = UngrantedRestrictedBuildRequest::project(
             self.package,
-            self.context.target(),
-            &request,
+            self.context,
+            self.request_path.clone(),
+            request,
         )
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-        if self.granted.contains(&meaning) {
+        if self.granted.contains(pending.request_meaning()) {
             return Ok(());
         }
-        Err(vec![Diagnostic::error(
-            UngrantedRestrictedBuildRequest {
-                package: self.package,
-                context: self.context,
-                request_meaning: meaning,
-                request_path: self.request_path.clone(),
-            }
-            .to_string(),
-        )])
+        Err(vec![Diagnostic::error(pending.to_string())])
     }
 }

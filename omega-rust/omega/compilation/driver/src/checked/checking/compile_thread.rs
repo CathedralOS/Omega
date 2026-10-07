@@ -7,11 +7,12 @@ const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
 /// whose default thread stacks are small. This is host execution
 /// infrastructure, not a compiler stage or request mode.
 /// Thread creation failures return diagnostics; worker panics keep their payload.
-pub fn run_on_compile_thread<T>(
-    work: impl FnOnce() -> Result<T, Vec<Diagnostic>> + Send + 'static,
-) -> Result<T, Vec<Diagnostic>>
+pub fn run_on_compile_thread<T, Failure>(
+    work: impl FnOnce() -> Result<T, Failure> + Send + 'static,
+) -> Result<T, Failure>
 where
     T: Send + 'static,
+    Failure: From<Vec<Diagnostic>> + Send + 'static,
 {
     finish_compile_thread(
         std::thread::Builder::new()
@@ -21,14 +22,17 @@ where
     )
 }
 
-fn finish_compile_thread<T>(
-    spawned: std::io::Result<std::thread::JoinHandle<Result<T, Vec<Diagnostic>>>>,
-) -> Result<T, Vec<Diagnostic>> {
+fn finish_compile_thread<T, Failure>(
+    spawned: std::io::Result<std::thread::JoinHandle<Result<T, Failure>>>,
+) -> Result<T, Failure>
+where
+    Failure: From<Vec<Diagnostic>>,
+{
     spawned
         .map_err(|error| {
-            vec![Diagnostic::error(format!(
+            Failure::from(vec![Diagnostic::error(format!(
                 "failed to spawn compiler thread: {error}"
-            ))]
+            ))])
         })?
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))

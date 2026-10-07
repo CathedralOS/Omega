@@ -12,6 +12,14 @@ Name the fixture for the compiler behavior it pins, not the sample that exposed
 it. A fixture that imports `omega_language_std` needs a `build.omg` like its
 neighbours: it depends on `source/library/std` and binds the program entry roots.
 
+A fail fixture may supply `unaccepted_build_output.txt`, listing relative
+staged filenames which must remain absent. That selects a caller-owned output
+account without private-staging custody or accepted restricted-request meaning.
+The compiler must report pending consent before the authored Build writes;
+the runner checks the listed effects before discarding the test directory.
+Ordinary fixtures retain privately issued snapshot/staging execution. This
+is test-supplied authority, not a source spelling or a new product grant mode.
+
 `corpus_runner.rs` compiles every fixture and prints one outcome record each.
 `tools/corpus_gate.py` diffs those records against
 `tests/omega/corpus_outcomes.txt`:

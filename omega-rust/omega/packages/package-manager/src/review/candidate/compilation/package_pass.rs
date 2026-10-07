@@ -16,7 +16,7 @@ use crate::build_session::{
     OccurrenceBuildInputs, dependency_first_package_order, package_build_root,
     reconcile_build_inputs,
 };
-use compilation_products::CheckedCompileRequest;
+use compilation_products::{CheckedCompileRequest, CompileFailure};
 
 use super::super::semantic_bindings::{
     SemanticBindingReviewCandidate, candidate_hosted_exit_bindings, candidate_service_bindings,
@@ -908,7 +908,15 @@ impl ClosurePass<'_> {
         } = outcome;
         let (checked, occurrence_inputs) = match checked {
             Ok(checked) => (checked, unanswered_inputs),
-            Err(diagnostics) => {
+            Err(failure @ CompileFailure::BuildConsentRequired(_)) => {
+                return Err(CompileResolvedPackageReviewsError::from_compilation(
+                    key.clone(),
+                    PackageCheckedContext::new(purpose, checked_target, execution_profile),
+                    closure.dependency_path(key),
+                    failure,
+                ));
+            }
+            Err(CompileFailure::Diagnostics(diagnostics)) => {
                 let Some(inputs) = publish_independent_component_descriptions(
                     key,
                     purpose,
@@ -963,11 +971,13 @@ impl ClosurePass<'_> {
                     &self.preparation.pure_build_compilation,
                 );
                 retained = outcome.prepared_source;
-                let checked = outcome.result.map_err(|diagnostics| {
-                    CompileResolvedPackageReviewsError::Compilation {
-                        package: key.clone(),
-                        diagnostics,
-                    }
+                let checked = outcome.result.map_err(|failure| {
+                    CompileResolvedPackageReviewsError::from_compilation(
+                        key.clone(),
+                        PackageCheckedContext::new(purpose, checked_target, execution_profile),
+                        closure.dependency_path(key),
+                        failure,
+                    )
                 })?;
                 (checked, inputs)
             }

@@ -12,7 +12,7 @@ use crate::native::produce_native_product;
 use crate::terminal::produce_terminal_product;
 use crate::{CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome};
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
-use compilation_products::{CheckedProductReport, PreparedBuilds};
+use compilation_products::{CheckedProductReport, CompileFailure, PreparedBuilds};
 use diagnostics::Diagnostic;
 
 pub(crate) mod package;
@@ -57,7 +57,10 @@ fn compile_target(
     let root_path = target.options().root_path.clone();
     let build_dir = target.options().build_dir();
     let child = target.checked_execution(&build_dir);
-    let checked = check_prepared_source(&root_path, source, child, Some(builds), None)?.result?;
+    let checked = check_prepared_source(&root_path, source, child, Some(builds), None)
+        .map_err(CompileFailure::into_diagnostics)?
+        .result
+        .map_err(CompileFailure::into_diagnostics)?;
 
     // Product ownership admits the stop and retains report companions before
     // the selected stage sequence consumes the checked compilation.

@@ -254,9 +254,9 @@ fn compile_occurrences(
                         entry_root: entry,
                         prepared,
                     });
-            let prepared = outcome.result.map_err(|diagnostics| Error::Compilation {
+            let prepared = outcome.result.map_err(|failure| Error::Compilation {
                 package: key.clone(),
-                diagnostics,
+                diagnostics: failure.into_diagnostics(),
             })?;
             let descriptions = selected_component_descriptions(
                 &key,
@@ -273,9 +273,9 @@ fn compile_occurrences(
                 })?;
             if is_root {
                 let outcome = compiler::check_prepared_package_build(prepared);
-                checked_root = Some(outcome.result.map_err(|diagnostics| Error::Compilation {
+                checked_root = Some(outcome.result.map_err(|failure| Error::Compilation {
                     package: key.clone(),
-                    diagnostics,
+                    diagnostics: failure.into_diagnostics(),
                 })?);
             } else {
                 products[position][purpose_slot(purpose)] = Some(OccurrenceProducts {
@@ -344,9 +344,9 @@ fn selected_component_descriptions(
             })?;
             let checked = compiler::check_prepared_package_build(prepared)
                 .result
-                .map_err(|diagnostics| Error::Compilation {
+                .map_err(|failure| Error::Compilation {
                     package: consumer.clone(),
-                    diagnostics,
+                    diagnostics: failure.into_diagnostics(),
                 })?;
             products.description =
                 Some(publish_checked_component(checked).map_err(|diagnostics| {

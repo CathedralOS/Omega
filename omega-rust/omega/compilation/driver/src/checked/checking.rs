@@ -15,7 +15,7 @@ use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta, counters,
 };
 use compilation_products::{
-    CheckedExecutionRequest, PreparedBuild, PreparedBuilds, PreparedSourceFrontier,
+    CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedBuilds, PreparedSourceFrontier,
     TypedCompilationFrontier,
 };
 use diagnostics::Diagnostic;
@@ -122,7 +122,9 @@ fn prepare_typed_frontier(
 pub fn compile_to_checked(
     request: CheckedCompileRequest,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    compile_checked(request).result
+    compile_checked(request)
+        .result
+        .map_err(CompileFailure::into_diagnostics)
 }
 
 /// Execute one dependency Build under the same admission and source custody as
@@ -144,7 +146,7 @@ pub fn prepare_package_build(
 fn prepare_package_build_worker(
     request: CheckedCompileRequest,
     owner: Option<build_evaluation::PureBuildCompilation>,
-) -> Result<PackageBuildOutcome, Vec<Diagnostic>> {
+) -> Result<PackageBuildOutcome, CompileFailure> {
     let selected_target =
         target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -189,7 +191,8 @@ fn prepare_package_build_worker(
         inputs,
         request.optimization_rollback,
         prepared,
-    );
+    )
+    .map_err(CompileFailure::from);
     let prepared_source = result.as_ref().ok().and(prepared_source);
     Ok(PackageBuildOutcome {
         result,
@@ -204,7 +207,7 @@ pub fn check_prepared_package_build(build: PreparedPackageBuild) -> CheckedCompi
     counters::record_checked_compilation();
     compile_thread::run_on_compile_thread(move || {
         let (_root_path, target, inputs, rollback, prepared) = build.into_continuation();
-        Ok(check_completed_build(
+        Ok::<_, CompileFailure>(check_completed_build(
             prepared,
             Some(target),
             Some(&inputs),
@@ -225,7 +228,7 @@ pub fn check_prepared_package_build(build: PreparedPackageBuild) -> CheckedCompi
 fn compile_checked_worker(
     request: CheckedCompileRequest,
     pure_build_compilation: Option<build_evaluation::PureBuildCompilation>,
-) -> Result<CheckedCompileOutcome, Vec<Diagnostic>> {
+) -> Result<CheckedCompileOutcome, CompileFailure> {
     // Target admission precedes source loading, including for fresh requests.
     let selected_target_profile = request
         .target_name
@@ -289,7 +292,7 @@ pub(crate) fn check_prepared_source(
     child: CheckedExecutionRequest<'_>,
     builds: Option<&mut PreparedBuilds>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<CheckedCompileOutcome, Vec<Diagnostic>> {
+) -> Result<CheckedCompileOutcome, CompileFailure> {
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
     let rollback = child.optimization_rollback.clone();
@@ -315,7 +318,7 @@ fn prepare_build_source(
     child: CheckedExecutionRequest<'_>,
     builds: Option<&mut PreparedBuilds>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<PreparedBuild, Vec<Diagnostic>> {
+) -> Result<PreparedBuild, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
 
@@ -388,7 +391,7 @@ fn check_completed_build(
     });
     CheckedCompileOutcome {
         prepared_source: None,
-        result,
+        result: result.map_err(CompileFailure::from),
         independent_components,
     }
 }

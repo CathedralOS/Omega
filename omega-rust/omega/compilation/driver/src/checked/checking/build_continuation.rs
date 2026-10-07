@@ -6,7 +6,8 @@
 
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::{
-    BuildAdmission, BuiltTypedProgram, CheckedExecutionRequest, TypedCompilationFrontier,
+    BuildAdmission, BuiltTypedProgram, CheckedExecutionRequest, CompileFailure,
+    TypedCompilationFrontier,
 };
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
@@ -22,7 +23,7 @@ pub(crate) fn evaluate_build_and_continue(
     frontier: TypedCompilationFrontier,
     timings: &mut CompileTimings,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<(BuiltTypedProgram, BuildSourceCustody), Vec<Diagnostic>> {
+) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
     let CheckedExecutionRequest {
         selected_target_profile: _,
         build_execution_profile,

@@ -7,6 +7,16 @@ The coordinator calls `evaluate_build` once and consumes `EvaluatedBuild`; it
 cannot obtain an executable checkpoint and skip consent. The private
 `admitted_build_program.rs` binds one selected machine to its prepared program;
 `execution` consumes that activation against its selected filesystem.
+Without a consent guard, a nonempty restricted request returns
+`CompileFailure::BuildConsentRequired` before execution, configuration decoding
+or generated-source continuation. Checked and dependency Build outcomes retain
+those structured requests; package review attributes their canonical meaning
+to the exact occurrence and reports dependent findings unavailable. Private
+issued snapshot/staging work projects no restricted request and still executes
+normally. Current package audit/update commands supply only that private mode;
+this stop is also exercised by callers of the public compiler/Build API with
+non-private filesystem scopes. It does not add a live-host grant command or
+complete the separate recoverable Build-consent/resume workflow.
 Without an authored Build entry, it returns default settings and the retained
 source commitment without checking, specializing or capturing an execution
 snapshot. Final product checking still admits all ordinary declarations.

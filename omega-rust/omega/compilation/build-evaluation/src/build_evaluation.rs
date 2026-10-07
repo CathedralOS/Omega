@@ -7,6 +7,7 @@
 use crate::PureBuildCompilation;
 use artifacts::compile_timings::CompileTimings;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildMachineFilesystemSponsor};
+use compilation_products::CompileFailure;
 use diagnostics::Diagnostic;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::{RestrictedBuildRequest, select_build_machine};
@@ -56,7 +57,7 @@ pub struct EvaluatedBuild {
 pub fn evaluate_build(
     request: BuildEvaluationRequest<'_>,
     timings: &mut CompileTimings,
-) -> Result<EvaluatedBuild, Vec<Diagnostic>> {
+) -> Result<EvaluatedBuild, CompileFailure> {
     let BuildEvaluationRequest {
         pure_build_compilation,
         root_path,
@@ -83,13 +84,14 @@ pub fn evaluate_build(
     if selected_machine.is_none() && artifact_only {
         return Err(vec![Diagnostic::error(
             "an artifact-only application requires a build machine that completes at least one required output",
-        )]);
+        )].into());
     } else if selected_machine.is_none()
         && snapshot.is_some_and(|snapshot| !snapshot.required_outputs().is_empty())
     {
         return Err(vec![Diagnostic::error(
             "a required-output request requires a build machine that completes those outputs",
-        )]);
+        )]
+        .into());
     }
     // Source commitment is independent of Build admission, including when
     // defaults apply. It identifies retained bytes, not a checked program.
@@ -154,6 +156,13 @@ pub fn evaluate_build(
         for request in &restricted_build_requests {
             grants.admit(request)?;
         }
+    } else if !restricted_build_requests.is_empty() {
+        // Observation without consent stops here, not after executing the
+        // action being reviewed. Private issued snapshot/staging work projects
+        // no restricted request and continues through the ordinary evaluator.
+        return Err(CompileFailure::BuildConsentRequired(
+            restricted_build_requests,
+        ));
     }
     // Product bindings and target custody may differ, so neither a whole
     // checked result nor an old grant is reusable. Fresh admission above fixes

@@ -97,6 +97,13 @@
 //! listing that differs from the oracle adds its own diagnostic, so the row
 //! cannot keep its recorded status by accident.
 //!
+//! `unaccepted_build_output.txt` supplies a Build-consent refusal control:
+//! relative staged filenames which must remain absent. The fail leg supplies
+//! caller-owned output accounting, not privately issued staging, and no consent
+//! guard. Source capture remains immutable; its actual output scope therefore
+//! projects a restricted request. Both the refusal and absence of authored
+//! effects are checked before the test directory is discarded.
+//!
 //! Record format, read by `tools/corpus_records.py`: one line per fixture,
 //! `<tier/group/name> <status> <milliseconds>ms`, followed by ` expected` or
 //! ` unexpected` when the fixture's `expected.txt` fragments were weighed
@@ -924,10 +931,75 @@ fn check_fail_fixture(
     // defaults to is beside its root source, which is the sealed snapshot
     // here. Name the same private directory every other leg uses.
     request.build_dir = Some(build_dir.clone());
+    let unaccepted_output = root_path
+        .parent()
+        .map(|directory| directory.join("unaccepted_build_output.txt"))
+        .ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "fixture has no source directory",
+            )]
+        })?;
+    let absent_outputs = match fs::read_to_string(&unaccepted_output) {
+        Ok(contents) => {
+            let outputs = contents
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(|line| PathBuf::from(line.trim()))
+                .collect::<Vec<_>>();
+            if outputs.is_empty()
+                || outputs.iter().any(|path| {
+                    !path
+                        .components()
+                        .all(|component| matches!(component, std::path::Component::Normal(_)))
+                })
+            {
+                return Err(vec![diagnostics::Diagnostic::error(
+                    "unaccepted_build_output.txt must name nonempty relative filenames without traversal",
+                )]);
+            }
+            let account_root = build_dir.parent().ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "fixture Build output has no account root",
+                )]
+            })?;
+            request.filesystem_sponsor = Some(
+                build_time_evaluation::BuildMachineFilesystemSponsor::new(account_root)
+                    .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?,
+            );
+            // This control stops before execution. Pin its semantic request
+            // profile so the shared check golden does not record the host's
+            // otherwise different request meaning; no foreign Build runs.
+            request.build_execution_profile = Some(target::TargetProfile::MacosArm64);
+            outputs
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => {
+            return Err(vec![diagnostics::Diagnostic::error(format!(
+                "could not read unaccepted Build output oracle: {error}"
+            ))]);
+        }
+    };
     if let Some(rollback) = rollback {
         request.optimization_rollback = rollback.clone();
     }
-    let result = compile_to_checked(request).map(|_| ());
+    let mut result = compile_to_checked(request).map(|_| ());
+    for output in absent_outputs {
+        if build_dir.join(&output).try_exists().map_err(|error| {
+            vec![diagnostics::Diagnostic::error(format!(
+                "could not inspect unaccepted Build output: {error}"
+            ))]
+        })? {
+            let diagnostic = diagnostics::Diagnostic::error(format!(
+                "unaccepted Build executed its authored output effect `{}` before consent",
+                output.display(),
+            ));
+            // An oracle violation must not inherit the expected consent
+            // diagnostic: otherwise a post-effect refusal could satisfy this
+            // negative fixture despite executing the unaccepted action.
+            result = Err(vec![diagnostic]);
+            break;
+        }
+    }
     let _ = fs::remove_dir_all(&build_dir);
     result
 }

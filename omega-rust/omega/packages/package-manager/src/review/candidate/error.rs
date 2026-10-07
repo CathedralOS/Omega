@@ -1,6 +1,10 @@
 use super::PackageSourceVerificationPhase;
 use crate::declarations::PackageKey;
+use crate::lock::PackageCheckedContext;
+use crate::resolution::graph::DependencyRequestPath;
 use crate::resolution::source::PackageSourceSelectionEvidenceError;
+use crate::review::restricted_build_grants::UngrantedRestrictedBuildRequest;
+use compilation_products::CompileFailure;
 use diagnostics::Diagnostic;
 use filesystem_authority::FilesystemSponsorError;
 use package_compilation::{
@@ -74,6 +78,10 @@ pub enum CompileResolvedPackageReviewsError {
         package: PackageKey,
         diagnostics: Vec<Diagnostic>,
     },
+    BuildConsentRequired {
+        package: PackageKey,
+        requests: Vec<UngrantedRestrictedBuildRequest>,
+    },
     Projection {
         package: PackageKey,
         diagnostics: Vec<Diagnostic>,
@@ -111,9 +119,55 @@ pub enum CompileResolvedPackageReviewsError {
     },
 }
 
+impl CompileResolvedPackageReviewsError {
+    /// Preserve pending Build consent at the package boundary rather than
+    /// parsing its diagnostic rendering or retrying it as product discovery.
+    pub(crate) fn from_compilation(
+        package: PackageKey,
+        context: PackageCheckedContext,
+        request_path: Option<DependencyRequestPath>,
+        failure: CompileFailure,
+    ) -> Self {
+        match failure {
+            CompileFailure::Diagnostics(diagnostics) => Self::Compilation {
+                package,
+                diagnostics,
+            },
+            CompileFailure::BuildConsentRequired(requests) => {
+                let projected = requests
+                    .iter()
+                    .map(|request| {
+                        UngrantedRestrictedBuildRequest::project(
+                            package.identity(),
+                            context,
+                            request_path.clone(),
+                            request,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>();
+                match projected {
+                    Ok(requests) => Self::BuildConsentRequired { package, requests },
+                    Err(error) => Self::Encoding { package, error },
+                }
+            }
+        }
+    }
+}
+
 impl fmt::Display for CompileResolvedPackageReviewsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::BuildConsentRequired { package, requests } => {
+                write!(
+                    formatter,
+                    "package `{}` Build review is pending explicit execution consent; generated-source and final product findings are unavailable",
+                    package.name().as_str(),
+                )?;
+                for request in requests {
+                    write!(formatter, "\n{request}")?;
+                }
+                Ok(())
+            }
             Self::SemanticBindingContextMismatch { consumer, role } => write!(
                 formatter,
                 "semantic binding {role:?} for package `{}` names an unrequested checked occurrence",

@@ -43,7 +43,8 @@ pub use checked_compilation::{
 };
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{
-    CheckedCompileOutcome, CompileOutcomes, CompileTargetOutcome, CompilerRequestOutcome,
+    CheckedCompileOutcome, CompileFailure, CompileOutcomes, CompileTargetOutcome,
+    CompilerRequestOutcome,
 };
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{

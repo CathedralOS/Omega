@@ -4,6 +4,40 @@ use crate::CompileReport;
 use diagnostics::{Diagnostic, ExceededProvision};
 use target::TargetProfile;
 
+/// Why a compilation stopped. A pending Build request is not a checked result:
+/// no generated-source or final product findings exist until consent joins and
+/// the exact activation is run. Keep the request structured so package review
+/// can attribute and render its normalized meaning without parsing diagnostics.
+#[derive(Debug)]
+pub enum CompileFailure {
+    Diagnostics(Vec<Diagnostic>),
+    BuildConsentRequired(Vec<package_compilation::build_execution::RestrictedBuildRequest>),
+}
+
+impl CompileFailure {
+    /// Diagnostic-only callers can report the stop, but cannot turn it into a
+    /// review decision. Review consumers retain the structured request instead.
+    pub fn into_diagnostics(self) -> Vec<Diagnostic> {
+        match self {
+            Self::Diagnostics(diagnostics) => diagnostics,
+            Self::BuildConsentRequired(requests) => requests
+                .into_iter()
+                .map(|request| {
+                    Diagnostic::error(format!(
+                        "restricted Build execution requires explicit consent; generated-source and final product findings are unavailable; pending request: {request:?}"
+                    ))
+                })
+                .collect(),
+        }
+    }
+}
+
+impl From<Vec<Diagnostic>> for CompileFailure {
+    fn from(diagnostics: Vec<Diagnostic>) -> Self {
+        Self::Diagnostics(diagnostics)
+    }
+}
+
 /// The [compiler request](../../../../../wiki/spec/build/compiler_request.md#validation-and-failures)
 /// outcome one compilation publishes; its halt value is the process exit
 /// status a compiler command reports.
@@ -54,7 +88,7 @@ impl CompilerRequestOutcome {
 /// Rejected attempts publish no reusable preparation or output artifact.
 #[must_use]
 pub struct CheckedCompileOutcome {
-    pub result: Result<crate::CheckedCompilation, Vec<Diagnostic>>,
+    pub result: Result<crate::CheckedCompilation, CompileFailure>,
     pub prepared_source: Option<crate::PreparedCheckedSource>,
     pub independent_components: crate::IndependentComponentDiscovery,
 }
