@@ -655,18 +655,18 @@ fn guarded_bounds_certificate(
         return None;
     }
     let lower_leg = transitivity_leg(
-        closed_relation_node(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.minimum)?),
-            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&lower_bound)?),
-        )),
+        closed_literal_relation(
+            bigint_math_literal(&target.minimum)?,
+            bigint_math_literal(&lower_bound)?,
+        ),
         assumption_node(assumptions[lower_index].clone(), lower_index),
     );
     let upper_leg = transitivity_leg(
         assumption_node(assumptions[upper_index].clone(), upper_index),
-        closed_relation_node(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&upper_bound)?),
-            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.maximum)?),
-        )),
+        closed_literal_relation(
+            bigint_math_literal(&upper_bound)?,
+            bigint_math_literal(&target.maximum)?,
+        ),
     );
     bounded_conjunction_certificate(context, seed, lower_leg, upper_leg, assumptions)
 }
@@ -1032,10 +1032,10 @@ fn refold_bounds_certificate(
     };
 
     let lower_leg = transitivity_leg(
-        closed_relation_node(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.minimum)?),
-            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&mapped_lower)?),
-        )),
+        closed_literal_relation(
+            bigint_math_literal(&target.minimum)?,
+            bigint_math_literal(&mapped_lower)?,
+        ),
         affine_leg(
             &witness,
             &assumptions,
@@ -1054,10 +1054,10 @@ fn refold_bounds_certificate(
             &argument_math,
             false,
         )?,
-        closed_relation_node(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&mapped_upper)?),
-            IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.maximum)?),
-        )),
+        closed_literal_relation(
+            bigint_math_literal(&mapped_upper)?,
+            bigint_math_literal(&target.maximum)?,
+        ),
     );
     bounded_conjunction_certificate(context, seed, lower_leg, upper_leg, assumptions)
 }
@@ -1272,18 +1272,12 @@ fn declared_interval_certificate(
     );
 
     let lower_leg = transitivity_leg(
-        closed_relation_node(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::IntegerLiteral(lower),
-            IntegerMathTerm::IntegerLiteral(declared_lower),
-        )),
+        closed_literal_relation(lower, declared_lower),
         assumption_node(lower_premise.clone(), 0),
     );
     let upper_leg = transitivity_leg(
         assumption_node(upper_premise.clone(), 1),
-        closed_relation_node(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::IntegerLiteral(declared_upper),
-            IntegerMathTerm::IntegerLiteral(upper),
-        )),
+        closed_literal_relation(declared_upper, upper),
     );
     bounded_conjunction_certificate(
         context,
@@ -1335,6 +1329,15 @@ fn assumption_node(conclusion: Proposition, index: usize) -> ProofNode {
         conclusion,
         rule: ProofRule::Assumption { index },
     }
+}
+
+/// A closed `a <= b` on integer-literal terms: the kernel checks the order
+/// between the two literals alone.
+fn closed_literal_relation(left: IntegerMathLiteral, right: IntegerMathLiteral) -> ProofNode {
+    closed_relation_node(Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::IntegerLiteral(left),
+        IntegerMathTerm::IntegerLiteral(right),
+    ))
 }
 
 fn closed_relation_node(conclusion: Proposition) -> ProofNode {
