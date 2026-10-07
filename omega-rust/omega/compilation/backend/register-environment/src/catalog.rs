@@ -362,189 +362,150 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_float: isa_x86_64::x86_64_float_scalar_return_keys(true),
             return_unit: X86_64_MICROSOFT_RETURN_UNIT,
         }),
-        (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
-            atomic_load: None,
-            atomic_store: None,
-            atomic_update: None,
-            atomic_bitwise_update: None,
-            atomic_compare_exchange: None,
-            crash: isa_aarch64::AARCH64_CRASH,
-            call_aggregate: isa_aarch64::aarch64_register_aggregate_call_keys(false)
-                .into_iter()
-                .chain(isa_aarch64::aarch64_mixed_aggregate_call_keys(false))
-                .chain(isa_aarch64::aarch64_indirect_aggregate_call_keys(false))
-                .collect(),
-            return_aggregate: isa_aarch64::aarch64_register_aggregate_return_keys(false),
-            hosted_read_byte: (target == NativeTarget::linux_arm64())
-                .then_some(isa_aarch64::AARCH64_HOSTED_READ_BYTE),
-            hosted_write_byte_i32: (target == NativeTarget::linux_arm64())
-                .then_some(isa_aarch64::AARCH64_HOSTED_WRITE_BYTE_I32),
-            hosted_exit_process_i32: (target == NativeTarget::linux_arm64())
-                .then_some(isa_aarch64::AARCH64_HOSTED_EXIT_PROCESS_I32),
-            load64: Some(isa_aarch64::AARCH64_LOAD64),
-            load8: Some(isa_aarch64::AARCH64_LOAD8),
-            load16: Some(isa_aarch64::AARCH64_LOAD16),
-            load32: Some(isa_aarch64::AARCH64_LOAD32),
-            load_packed: Some(isa_aarch64::AARCH64_LOAD_PACKED),
-            store_packed: Some(isa_aarch64::AARCH64_STORE_PACKED),
-            load8_indexed: Some(isa_aarch64::AARCH64_LOAD8_INDEXED),
-            copy_bytes: Some(isa_aarch64::AARCH64_COPY_BYTES),
-            scan_byte_sequence: Some(isa_aarch64::AARCH64_SCAN_BYTE_SEQUENCE),
-            compare_byte_sequences: Some(isa_aarch64::AARCH64_COMPARE_BYTE_SEQUENCES),
-            save_floating_control: Some(isa_aarch64::AARCH64_SAVE_FLOATING_CONTROL),
-            restore_floating_control: Some(isa_aarch64::AARCH64_RESTORE_FLOATING_CONTROL),
-            store: Some(isa_aarch64::AARCH64_STORE),
-            address_offset: Some(isa_aarch64::AARCH64_ADDRESS_OFFSET),
-            store64: Some(isa_aarch64::AARCH64_STORE64),
-            frame_address: Some(isa_aarch64::AARCH64_FRAME_ADDRESS),
-            byte_literal_image_address: Some(isa_aarch64::AARCH64_BYTE_LITERAL_IMAGE_ADDRESS),
-            call_unit: isa_aarch64::aarch64_aapcs64_register_unit_call_keys(),
-            call_unit_mixed: isa_aarch64::aarch64_aapcs64_mixed_unit_call_keys(),
-            call_scalar: isa_aarch64::aarch64_aapcs64_register_call_keys()
-                .into_iter()
-                .chain(isa_aarch64::aarch64_float_scalar_call_keys(false))
-                .collect(),
-            call_normalized_foreign: isa_aarch64::aarch64_aapcs64_normalized_foreign_call_keys()
+        (Architecture::Aarch64, ObjectFormat::Elf | ObjectFormat::MachO) => {
+            Some(aarch64_selected_constraint_keys(target))
+        }
+        _ => None,
+    }
+}
+
+// The caller admits only AArch64 ELF and Mach-O; ABI and exact hosted-target
+// gates remain explicit while the common ISA keys are declared once.
+fn aarch64_selected_constraint_keys(target: NativeTarget) -> SelectedConstraintKeys {
+    let darwin = target.object_format == ObjectFormat::MachO;
+    let hosted = target
+        == if darwin {
+            NativeTarget::macos_arm64()
+        } else {
+            NativeTarget::linux_arm64()
+        };
+    SelectedConstraintKeys {
+        atomic_load: (target == NativeTarget::macos_arm64())
+            .then_some(isa_aarch64::AARCH64_ATOMIC_LOAD),
+        atomic_store: (target == NativeTarget::macos_arm64())
+            .then_some(isa_aarch64::AARCH64_ATOMIC_STORE),
+        atomic_update: (target == NativeTarget::macos_arm64())
+            .then_some(isa_aarch64::AARCH64_ATOMIC_UPDATE),
+        atomic_bitwise_update: (target == NativeTarget::macos_arm64())
+            .then_some(isa_aarch64::AARCH64_ATOMIC_UPDATE),
+        atomic_compare_exchange: (target == NativeTarget::macos_arm64())
+            .then_some(isa_aarch64::AARCH64_ATOMIC_COMPARE_EXCHANGE),
+        crash: isa_aarch64::AARCH64_CRASH,
+        call_aggregate: isa_aarch64::aarch64_register_aggregate_call_keys(darwin)
+            .into_iter()
+            .chain(isa_aarch64::aarch64_mixed_aggregate_call_keys(darwin))
+            .chain(isa_aarch64::aarch64_indirect_aggregate_call_keys(darwin))
+            .collect(),
+        return_aggregate: isa_aarch64::aarch64_register_aggregate_return_keys(darwin),
+        hosted_read_byte: hosted.then_some(if darwin {
+            isa_aarch64::AARCH64_DARWIN_HOSTED_READ_BYTE
+        } else {
+            isa_aarch64::AARCH64_HOSTED_READ_BYTE
+        }),
+        hosted_write_byte_i32: hosted.then_some(if darwin {
+            isa_aarch64::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32
+        } else {
+            isa_aarch64::AARCH64_HOSTED_WRITE_BYTE_I32
+        }),
+        hosted_exit_process_i32: hosted.then_some(if darwin {
+            isa_aarch64::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32
+        } else {
+            isa_aarch64::AARCH64_HOSTED_EXIT_PROCESS_I32
+        }),
+        load64: Some(isa_aarch64::AARCH64_LOAD64),
+        load8: Some(isa_aarch64::AARCH64_LOAD8),
+        load16: Some(isa_aarch64::AARCH64_LOAD16),
+        load32: Some(isa_aarch64::AARCH64_LOAD32),
+        load_packed: Some(isa_aarch64::AARCH64_LOAD_PACKED),
+        store_packed: Some(isa_aarch64::AARCH64_STORE_PACKED),
+        load8_indexed: Some(isa_aarch64::AARCH64_LOAD8_INDEXED),
+        copy_bytes: Some(isa_aarch64::AARCH64_COPY_BYTES),
+        scan_byte_sequence: Some(isa_aarch64::AARCH64_SCAN_BYTE_SEQUENCE),
+        compare_byte_sequences: Some(isa_aarch64::AARCH64_COMPARE_BYTE_SEQUENCES),
+        save_floating_control: Some(isa_aarch64::AARCH64_SAVE_FLOATING_CONTROL),
+        restore_floating_control: Some(isa_aarch64::AARCH64_RESTORE_FLOATING_CONTROL),
+        store: Some(isa_aarch64::AARCH64_STORE),
+        address_offset: Some(isa_aarch64::AARCH64_ADDRESS_OFFSET),
+        store64: Some(isa_aarch64::AARCH64_STORE64),
+        frame_address: Some(isa_aarch64::AARCH64_FRAME_ADDRESS),
+        byte_literal_image_address: Some(isa_aarch64::AARCH64_BYTE_LITERAL_IMAGE_ADDRESS),
+        call_unit: if darwin {
+            isa_aarch64::aarch64_darwin_register_unit_call_keys()
+        } else {
+            isa_aarch64::aarch64_aapcs64_register_unit_call_keys()
+        },
+        call_unit_mixed: if darwin {
+            isa_aarch64::aarch64_darwin_mixed_unit_call_keys()
+        } else {
+            isa_aarch64::aarch64_aapcs64_mixed_unit_call_keys()
+        },
+        call_scalar: if darwin {
+            isa_aarch64::aarch64_darwin_register_call_keys()
+        } else {
+            isa_aarch64::aarch64_aapcs64_register_call_keys()
+        }
+        .into_iter()
+        .chain(isa_aarch64::aarch64_float_scalar_call_keys(darwin))
+        .collect(),
+        call_normalized_foreign: if darwin {
+            isa_aarch64::aarch64_darwin_normalized_foreign_call_keys()
+        } else {
+            isa_aarch64::aarch64_aapcs64_normalized_foreign_call_keys()
                 .into_iter()
                 .chain(isa_aarch64::aarch64_linux_system_call_keys())
-                .collect(),
-            materialize_i64: AARCH64_MATERIALIZE_I64,
-            materialize_boolean: isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
-            copy_i64: AARCH64_COPY_I64,
-            float32_to_bits: Some(isa_aarch64::AARCH64_FLOAT32_TO_BITS),
-            float64_to_bits: Some(isa_aarch64::AARCH64_FLOAT64_TO_BITS),
-            bits_to_float32: Some(isa_aarch64::AARCH64_BITS_TO_FLOAT32),
-            bits_to_float64: Some(isa_aarch64::AARCH64_BITS_TO_FLOAT64),
-            ieee_float_arithmetic: Some(isa_aarch64::AARCH64_IEEE_FLOAT_ARITHMETIC),
-            ieee_float_directed_binary: Some(isa_aarch64::AARCH64_IEEE_FLOAT_ARITHMETIC),
-            ieee_float_unary: Some(isa_aarch64::AARCH64_IEEE_FLOAT_UNARY),
-            ieee_float_conversion_control: Some(isa_aarch64::AARCH64_IEEE_FLOAT_UNARY),
-            ieee_float_ternary: Some(isa_aarch64::AARCH64_IEEE_FLOAT_TERNARY),
-            add_i64: AARCH64_ADD_I64,
-            add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
-            subtract_i64: AARCH64_SUBTRACT_I64,
-            multiply_i64: isa_aarch64::AARCH64_MULTIPLY_I64,
-            saturating_subtract_unsigned: isa_aarch64::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
-            saturating_add_u64: isa_aarch64::AARCH64_SATURATING_ADD_U64,
-            divide_u64: isa_aarch64::AARCH64_DIVIDE_U64,
-            remainder_u64: isa_aarch64::AARCH64_REMAINDER_U64,
-            remainder_i64: isa_aarch64::AARCH64_REMAINDER_I64,
-            divide_i64: isa_aarch64::AARCH64_DIVIDE_I64,
-            shift_i64: isa_aarch64::AARCH64_SHIFT_I64,
-            saturating_add_clamped: isa_aarch64::AARCH64_SATURATING_ADD_CLAMPED,
-            saturating_subtract_clamped: isa_aarch64::AARCH64_SATURATING_SUBTRACT_CLAMPED,
-            saturating_divide_signed: isa_aarch64::AARCH64_SATURATING_DIVIDE_SIGNED,
-            saturating_multiply_clamped: isa_aarch64::AARCH64_SATURATING_MULTIPLY_CLAMPED,
-            saturating_multiply_u64: isa_aarch64::AARCH64_SATURATING_MULTIPLY_U64,
-            trapping_binary: isa_aarch64::AARCH64_TRAPPING_BINARY,
-            trapping_fixed_pair: isa_aarch64::AARCH64_TRAPPING_FIXED_PAIR,
-            trapping_shift: isa_aarch64::AARCH64_TRAPPING_SHIFT,
-            trapping_convert: isa_aarch64::AARCH64_TRAPPING_CONVERT,
-            float_result_trapping: Some(isa_aarch64::AARCH64_FLOAT_RESULT_TRAPPING),
-            float_result_saturating: Some(isa_aarch64::AARCH64_FLOAT_RESULT_SATURATING),
-            subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
-            compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
-            compare_i64: isa_aarch64::AARCH64_COMPARE_I64,
-            compare_i64_immediate: isa_aarch64::AARCH64_COMPARE_I64_IMMEDIATE,
-            conditional_branch: AARCH64_CONDITIONAL_BRANCH,
-            jump: isa_aarch64::AARCH64_JUMP,
-            return_i64: AARCH64_AAPCS64_RETURN,
-            return_float: isa_aarch64::aarch64_float_scalar_return_keys(false),
-            return_unit: AARCH64_AAPCS64_RETURN_UNIT,
-        }),
-        (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
-            atomic_load: (target == NativeTarget::macos_arm64())
-                .then_some(isa_aarch64::AARCH64_ATOMIC_LOAD),
-            atomic_store: (target == NativeTarget::macos_arm64())
-                .then_some(isa_aarch64::AARCH64_ATOMIC_STORE),
-            atomic_update: (target == NativeTarget::macos_arm64())
-                .then_some(isa_aarch64::AARCH64_ATOMIC_UPDATE),
-            atomic_bitwise_update: (target == NativeTarget::macos_arm64())
-                .then_some(isa_aarch64::AARCH64_ATOMIC_UPDATE),
-            atomic_compare_exchange: (target == NativeTarget::macos_arm64())
-                .then_some(isa_aarch64::AARCH64_ATOMIC_COMPARE_EXCHANGE),
-            crash: isa_aarch64::AARCH64_CRASH,
-            call_aggregate: isa_aarch64::aarch64_register_aggregate_call_keys(true)
-                .into_iter()
-                .chain(isa_aarch64::aarch64_mixed_aggregate_call_keys(true))
-                .chain(isa_aarch64::aarch64_indirect_aggregate_call_keys(true))
-                .collect(),
-            return_aggregate: isa_aarch64::aarch64_register_aggregate_return_keys(true),
-            hosted_read_byte: (target == NativeTarget::macos_arm64())
-                .then_some(isa_aarch64::AARCH64_DARWIN_HOSTED_READ_BYTE),
-            hosted_write_byte_i32: (target == NativeTarget::macos_arm64())
-                .then_some(isa_aarch64::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32),
-            hosted_exit_process_i32: (target == NativeTarget::macos_arm64())
-                .then_some(isa_aarch64::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32),
-            load64: Some(isa_aarch64::AARCH64_LOAD64),
-            load8: Some(isa_aarch64::AARCH64_LOAD8),
-            load16: Some(isa_aarch64::AARCH64_LOAD16),
-            load32: Some(isa_aarch64::AARCH64_LOAD32),
-            load_packed: Some(isa_aarch64::AARCH64_LOAD_PACKED),
-            store_packed: Some(isa_aarch64::AARCH64_STORE_PACKED),
-            load8_indexed: Some(isa_aarch64::AARCH64_LOAD8_INDEXED),
-            copy_bytes: Some(isa_aarch64::AARCH64_COPY_BYTES),
-            scan_byte_sequence: Some(isa_aarch64::AARCH64_SCAN_BYTE_SEQUENCE),
-            compare_byte_sequences: Some(isa_aarch64::AARCH64_COMPARE_BYTE_SEQUENCES),
-            save_floating_control: Some(isa_aarch64::AARCH64_SAVE_FLOATING_CONTROL),
-            restore_floating_control: Some(isa_aarch64::AARCH64_RESTORE_FLOATING_CONTROL),
-            store: Some(isa_aarch64::AARCH64_STORE),
-            address_offset: Some(isa_aarch64::AARCH64_ADDRESS_OFFSET),
-            store64: Some(isa_aarch64::AARCH64_STORE64),
-            frame_address: Some(isa_aarch64::AARCH64_FRAME_ADDRESS),
-            byte_literal_image_address: Some(isa_aarch64::AARCH64_BYTE_LITERAL_IMAGE_ADDRESS),
-            call_unit: isa_aarch64::aarch64_darwin_register_unit_call_keys(),
-            call_unit_mixed: isa_aarch64::aarch64_darwin_mixed_unit_call_keys(),
-            call_scalar: isa_aarch64::aarch64_darwin_register_call_keys()
-                .into_iter()
-                .chain(isa_aarch64::aarch64_float_scalar_call_keys(true))
-                .collect(),
-            call_normalized_foreign: isa_aarch64::aarch64_darwin_normalized_foreign_call_keys(),
-            materialize_i64: AARCH64_MATERIALIZE_I64,
-            materialize_boolean: isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
-            copy_i64: AARCH64_COPY_I64,
-            float32_to_bits: Some(isa_aarch64::AARCH64_FLOAT32_TO_BITS),
-            float64_to_bits: Some(isa_aarch64::AARCH64_FLOAT64_TO_BITS),
-            bits_to_float32: Some(isa_aarch64::AARCH64_BITS_TO_FLOAT32),
-            bits_to_float64: Some(isa_aarch64::AARCH64_BITS_TO_FLOAT64),
-            ieee_float_arithmetic: Some(isa_aarch64::AARCH64_IEEE_FLOAT_ARITHMETIC),
-            ieee_float_directed_binary: Some(isa_aarch64::AARCH64_IEEE_FLOAT_ARITHMETIC),
-            ieee_float_unary: Some(isa_aarch64::AARCH64_IEEE_FLOAT_UNARY),
-            ieee_float_conversion_control: Some(isa_aarch64::AARCH64_IEEE_FLOAT_UNARY),
-            ieee_float_ternary: Some(isa_aarch64::AARCH64_IEEE_FLOAT_TERNARY),
-            add_i64: AARCH64_ADD_I64,
-            add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
-            subtract_i64: AARCH64_SUBTRACT_I64,
-            multiply_i64: isa_aarch64::AARCH64_MULTIPLY_I64,
-            saturating_subtract_unsigned: isa_aarch64::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
-            saturating_add_u64: isa_aarch64::AARCH64_SATURATING_ADD_U64,
-            divide_u64: isa_aarch64::AARCH64_DIVIDE_U64,
-            remainder_u64: isa_aarch64::AARCH64_REMAINDER_U64,
-            remainder_i64: isa_aarch64::AARCH64_REMAINDER_I64,
-            divide_i64: isa_aarch64::AARCH64_DIVIDE_I64,
-            shift_i64: isa_aarch64::AARCH64_SHIFT_I64,
-            saturating_add_clamped: isa_aarch64::AARCH64_SATURATING_ADD_CLAMPED,
-            saturating_subtract_clamped: isa_aarch64::AARCH64_SATURATING_SUBTRACT_CLAMPED,
-            saturating_divide_signed: isa_aarch64::AARCH64_SATURATING_DIVIDE_SIGNED,
-            saturating_multiply_clamped: isa_aarch64::AARCH64_SATURATING_MULTIPLY_CLAMPED,
-            saturating_multiply_u64: isa_aarch64::AARCH64_SATURATING_MULTIPLY_U64,
-            trapping_binary: isa_aarch64::AARCH64_TRAPPING_BINARY,
-            trapping_fixed_pair: isa_aarch64::AARCH64_TRAPPING_FIXED_PAIR,
-            trapping_shift: isa_aarch64::AARCH64_TRAPPING_SHIFT,
-            trapping_convert: isa_aarch64::AARCH64_TRAPPING_CONVERT,
-            float_result_trapping: Some(isa_aarch64::AARCH64_FLOAT_RESULT_TRAPPING),
-            float_result_saturating: Some(isa_aarch64::AARCH64_FLOAT_RESULT_SATURATING),
-            subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
-            compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
-            compare_i64: isa_aarch64::AARCH64_COMPARE_I64,
-            compare_i64_immediate: isa_aarch64::AARCH64_COMPARE_I64_IMMEDIATE,
-            conditional_branch: AARCH64_CONDITIONAL_BRANCH,
-            jump: isa_aarch64::AARCH64_JUMP,
-            return_i64: AARCH64_DARWIN_RETURN,
-            return_float: isa_aarch64::aarch64_float_scalar_return_keys(true),
-            return_unit: AARCH64_DARWIN_RETURN_UNIT,
-        }),
-        _ => None,
+                .collect()
+        },
+        materialize_i64: AARCH64_MATERIALIZE_I64,
+        materialize_boolean: isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
+        copy_i64: AARCH64_COPY_I64,
+        float32_to_bits: Some(isa_aarch64::AARCH64_FLOAT32_TO_BITS),
+        float64_to_bits: Some(isa_aarch64::AARCH64_FLOAT64_TO_BITS),
+        bits_to_float32: Some(isa_aarch64::AARCH64_BITS_TO_FLOAT32),
+        bits_to_float64: Some(isa_aarch64::AARCH64_BITS_TO_FLOAT64),
+        ieee_float_arithmetic: Some(isa_aarch64::AARCH64_IEEE_FLOAT_ARITHMETIC),
+        ieee_float_directed_binary: Some(isa_aarch64::AARCH64_IEEE_FLOAT_ARITHMETIC),
+        ieee_float_unary: Some(isa_aarch64::AARCH64_IEEE_FLOAT_UNARY),
+        ieee_float_conversion_control: Some(isa_aarch64::AARCH64_IEEE_FLOAT_UNARY),
+        ieee_float_ternary: Some(isa_aarch64::AARCH64_IEEE_FLOAT_TERNARY),
+        add_i64: AARCH64_ADD_I64,
+        add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
+        subtract_i64: AARCH64_SUBTRACT_I64,
+        multiply_i64: isa_aarch64::AARCH64_MULTIPLY_I64,
+        saturating_subtract_unsigned: isa_aarch64::AARCH64_SATURATING_SUBTRACT_UNSIGNED,
+        saturating_add_u64: isa_aarch64::AARCH64_SATURATING_ADD_U64,
+        divide_u64: isa_aarch64::AARCH64_DIVIDE_U64,
+        remainder_u64: isa_aarch64::AARCH64_REMAINDER_U64,
+        remainder_i64: isa_aarch64::AARCH64_REMAINDER_I64,
+        divide_i64: isa_aarch64::AARCH64_DIVIDE_I64,
+        shift_i64: isa_aarch64::AARCH64_SHIFT_I64,
+        saturating_add_clamped: isa_aarch64::AARCH64_SATURATING_ADD_CLAMPED,
+        saturating_subtract_clamped: isa_aarch64::AARCH64_SATURATING_SUBTRACT_CLAMPED,
+        saturating_divide_signed: isa_aarch64::AARCH64_SATURATING_DIVIDE_SIGNED,
+        saturating_multiply_clamped: isa_aarch64::AARCH64_SATURATING_MULTIPLY_CLAMPED,
+        saturating_multiply_u64: isa_aarch64::AARCH64_SATURATING_MULTIPLY_U64,
+        trapping_binary: isa_aarch64::AARCH64_TRAPPING_BINARY,
+        trapping_fixed_pair: isa_aarch64::AARCH64_TRAPPING_FIXED_PAIR,
+        trapping_shift: isa_aarch64::AARCH64_TRAPPING_SHIFT,
+        trapping_convert: isa_aarch64::AARCH64_TRAPPING_CONVERT,
+        float_result_trapping: Some(isa_aarch64::AARCH64_FLOAT_RESULT_TRAPPING),
+        float_result_saturating: Some(isa_aarch64::AARCH64_FLOAT_RESULT_SATURATING),
+        subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
+        compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
+        compare_i64: isa_aarch64::AARCH64_COMPARE_I64,
+        compare_i64_immediate: isa_aarch64::AARCH64_COMPARE_I64_IMMEDIATE,
+        conditional_branch: AARCH64_CONDITIONAL_BRANCH,
+        jump: isa_aarch64::AARCH64_JUMP,
+        return_i64: if darwin {
+            AARCH64_DARWIN_RETURN
+        } else {
+            AARCH64_AAPCS64_RETURN
+        },
+        return_float: isa_aarch64::aarch64_float_scalar_return_keys(darwin),
+        return_unit: if darwin {
+            AARCH64_DARWIN_RETURN_UNIT
+        } else {
+            AARCH64_AAPCS64_RETURN_UNIT
+        },
     }
 }
 
