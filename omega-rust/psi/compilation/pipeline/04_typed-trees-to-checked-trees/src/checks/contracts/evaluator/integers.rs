@@ -1,5 +1,5 @@
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::ContractExpressionEvaluator;
 

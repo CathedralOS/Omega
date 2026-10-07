@@ -670,7 +670,9 @@ fn exact_structural_symbol_place(
                 {
                     return false;
                 }
-                let Some(data) = correspondence_data_type(program, current, machine_symbol) else {
+                let Some(data) =
+                    crate::lookup::declared_data_type(program, current, machine_symbol)
+                else {
                     return false;
                 };
                 let field = if let Some(variant_symbol) = selected_variant.take() {
@@ -705,7 +707,9 @@ fn exact_structural_symbol_place(
                 {
                     return false;
                 }
-                let Some(data) = correspondence_data_type(program, current, machine_symbol) else {
+                let Some(data) =
+                    crate::lookup::declared_data_type(program, current, machine_symbol)
+                else {
                     return false;
                 };
                 if !program.data_members(data).iter().any(|member| {
@@ -783,39 +787,6 @@ fn correspondence_root_type_reference(
                 .state_local_declaration(state, root)
                 .filter(|&(ordinal, _)| ordinal < formation_statement_index)
                 .map(|(_, local)| local.type_reference)
-        }
-        _ => None,
-    }
-}
-
-fn correspondence_data_type(
-    program: &typed_trees::TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-    machine_symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
-    match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-        | typed_trees::types::TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } => correspondence_data_type(program, *referee, machine_symbol),
-        typed_trees::types::TypeReferenceNode::Named { symbol, name }
-            if symbol.is_valid()
-                && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data =>
-        {
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol && definition.name == *name)
-        }
-        typed_trees::types::TypeReferenceNode::Named { symbol, name }
-            if *symbol == machine_symbol && name.as_str() == "Self" =>
-        {
-            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
-            machine.attached_data_symbol.is_valid().then_some(())?;
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == machine.attached_data_symbol)
         }
         _ => None,
     }
