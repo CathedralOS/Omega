@@ -143,6 +143,50 @@ fn apply_scalar_target_verdict(
     }
 }
 
+/// Admit a call operation: boundary coverage, a module entry requirement, or
+/// the scalar target's availability verdict.
+fn admit_call_target(
+    closure: &mut CandidateClosure,
+    boundaries: &[(u32, u32)],
+    candidate_count: usize,
+    caller_index: usize,
+    call: &checked_trees::CheckedUnitCallPlan,
+    scalar_verdict: impl FnOnce() -> Option<scalar_targets::AvailableScalarTarget>,
+) {
+    match (call.route(), call.result()) {
+        (CheckedUnitCallRoute::Boundary, _) => {
+            if boundaries
+                .binary_search(&symbol_key(call.target.machine))
+                .is_err()
+            {
+                closure.drop_candidate(
+                    caller_index,
+                    CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
+                        target: call.target.machine,
+                    },
+                );
+            }
+        }
+        (
+            CheckedUnitCallRoute::Module { .. },
+            CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
+        ) => {
+            // Call admission consumes this roster's exact body,
+            // not a different return catalog's coverage promise.
+            closure.require_entry(caller_index, call.target.machine, call.target.state)
+        }
+        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
+            apply_scalar_target_verdict(
+                closure,
+                candidate_count,
+                caller_index,
+                call.target.machine,
+                scalar_verdict(),
+            )
+        }
+    }
+}
+
 fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
@@ -193,30 +237,14 @@ pub(super) fn retain_available(
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         {
             match operation {
-                CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
-                    (CheckedUnitCallRoute::Boundary, _) => {
-                        if boundaries
-                            .binary_search(&symbol_key(call.target.machine))
-                            .is_err()
-                        {
-                            closure.drop_candidate(
-                                caller_index,
-                                CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
-                                    target: call.target.machine,
-                                },
-                            );
-                        }
-                    }
-                    (
-                        CheckedUnitCallRoute::Module { .. },
-                        CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
-                    ) => {
-                        // Call admission consumes this roster's exact body,
-                        // not a different return catalog's coverage promise.
-                        closure.require_entry(caller_index, call.target.machine, call.target.state)
-                    }
-                    (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
-                        match scalar_targets::available_target(
+                CheckedUnitEffectOperationPlan::Call(call) => admit_call_target(
+                    &mut closure,
+                    &boundaries,
+                    candidates.len(),
+                    caller_index,
+                    call,
+                    || {
+                        scalar_targets::available_target(
                             program,
                             facts,
                             scalar_callees,
@@ -224,29 +252,9 @@ pub(super) fn retain_available(
                             composed_machines,
                             &scalar_targets::ScalarCallSite::of_plan(plan),
                             operation,
-                        ) {
-                            Some(scalar_targets::AvailableScalarTarget::Registered) => {}
-                            Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(
-                                target_index,
-                            )) => {
-                                closure.dependents.push((target_index, caller_index));
-                            }
-                            Some(scalar_targets::AvailableScalarTarget::ComposedBody(
-                                composed_index,
-                            )) => {
-                                closure
-                                    .dependents
-                                    .push((candidates.len() + composed_index, caller_index));
-                            }
-                            None => closure.drop_candidate(
-                                caller_index,
-                                CheckedUnitPlanOmissionStage::UnavailableScalarTarget {
-                                    target: call.target.machine,
-                                },
-                            ),
-                        }
-                    }
-                },
+                        )
+                    },
+                ),
                 // Selected execution already joined exact realization custody.
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
