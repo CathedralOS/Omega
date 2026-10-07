@@ -2282,6 +2282,27 @@ crash and native exit behavior.
   revision, with no timeout replacing the actual diagnostic. Native execution
   remains the owning capability task's acceptance.
 
+- **FLOAT-CASE-PAYLOAD-READS.** (new-scope) A float case payload bound in a
+  dispatch whose subject is a projected place does not lower:
+  `transition context.sample { Sample::Reading { value } -> check(context, value) }`
+  with `case Reading(value: f64)` is refused in stage 05 with "case primitive
+  observation requires an indexed primitive carrier", whether the value was
+  constructed or zero-initialized; the same shape with an `i32` payload runs.
+  Mechanism: `prepare_expression.rs` sends every float structural field to the
+  primitive-storage route (`resolve_primitive`), whose case branch accepts
+  only an indexed payload array. Integer payloads under a projected subject
+  instead become an `IntegerStructuralField` read whose path ends in the
+  `Case` step, admitted by Terminal only under a dominating proof of that
+  case. Terminal has no float structural-field read
+  (`validate_integer_structural_field` admits integer and Boolean results), and
+  primitive reads (`emission/primitive_store.rs::lower_path`) carry no `Case`
+  segment or case-dominance check. Choose one route: a primitive read across
+  a `Case` step with the same dominance verification, or a float
+  structural-field read. Do not copy the payload through a side channel.
+  Acceptance: f32 and f64 payloads under root and projected dispatch
+  subjects, passed to a successor and compared there, run natively; a read
+  without a dominating case still rejects.
+
 - **COMPUTED-FLOAT-BARE-LITERAL-COMPARISON.** (new-scope)
   Revalidate the remaining computed-call/literal comparison lead:
   `machine code() -> bool { F64::square_root(64.0f64) == 8.0 }` with
