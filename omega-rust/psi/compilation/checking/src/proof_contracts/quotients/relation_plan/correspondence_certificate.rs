@@ -119,6 +119,44 @@ pub(in crate::proof_contracts::quotients) struct QuotientCorrespondenceCertifica
 }
 
 #[allow(clippy::too_many_arguments)]
+/// The public precondition fact whose identity matches a representative
+/// fact under the certificate's own value substitutions, or `None` when no
+/// candidate location proves the exact match.
+fn exact_public_precondition<'program>(
+    program: &'program TypedTrees,
+    public_machine: &'program Machine,
+    public_state: &'program State,
+    public_values: &[ProofValueSubstitution],
+    representative: &RepresentativeTelescope,
+    representative_values: &[ProofValueSubstitution],
+    representative_fact: &ProofFact,
+    candidates: &[RepresentativeContractFactLocation],
+) -> Option<RepresentativeContractFactLocation> {
+    candidates.iter().copied().find(|location| {
+        precondition_fact_at(
+            program,
+            public_machine.contracts,
+            public_state.contracts,
+            *location,
+        )
+        .is_some_and(|public_fact| {
+            proof_facts_match(
+                program,
+                public_fact,
+                representative_fact,
+                ProofFactIdentityContext {
+                    values: public_values,
+                    static_bindings: &[],
+                },
+                ProofFactIdentityContext {
+                    values: representative_values,
+                    static_bindings: &representative.static_application.bindings,
+                },
+            )
+        })
+    })
+}
+
 pub(super) fn derive_direct_lift_precondition_implication(
     program: &TypedTrees,
     public_machine: &Machine,
@@ -180,29 +218,16 @@ pub(super) fn derive_direct_lift_precondition_implication(
                 *representative_location,
             )
             .ok_or_else(|| implication_error(application, representative_position))?;
-            let exact_public = public.dependent.iter().copied().find(|location| {
-                precondition_fact_at(
-                    program,
-                    public_machine.contracts,
-                    public_state.contracts,
-                    *location,
-                )
-                .is_some_and(|public_fact| {
-                    proof_facts_match(
-                        program,
-                        public_fact,
-                        representative_fact,
-                        ProofFactIdentityContext {
-                            values: &public_values,
-                            static_bindings: &[],
-                        },
-                        ProofFactIdentityContext {
-                            values: &representative_values,
-                            static_bindings: &representative.static_application.bindings,
-                        },
-                    )
-                })
-            });
+            let exact_public = exact_public_precondition(
+                program,
+                public_machine,
+                public_state,
+                &public_values,
+                representative,
+                &representative_values,
+                representative_fact,
+                &public.dependent,
+            );
             let proof = if let Some(public) = exact_public {
                 DirectLiftPreconditionProof::ExactMatch { public }
             } else {
@@ -287,29 +312,16 @@ pub(super) fn derive_fixed_representative_call_preconditions(
         .ok_or(RelationPlanError::DirectLiftFixedPreconditionNotImplied(
             representative_position,
         ))?;
-        let exact_public = public.fixed.iter().copied().find(|location| {
-            precondition_fact_at(
-                program,
-                public_machine.contracts,
-                public_state.contracts,
-                *location,
-            )
-            .is_some_and(|public_fact| {
-                proof_facts_match(
-                    program,
-                    public_fact,
-                    representative_fact,
-                    ProofFactIdentityContext {
-                        values: &public_values,
-                        static_bindings: &[],
-                    },
-                    ProofFactIdentityContext {
-                        values: &representative_values,
-                        static_bindings: &representative.static_application.bindings,
-                    },
-                )
-            })
-        });
+        let exact_public = exact_public_precondition(
+            program,
+            public_machine,
+            public_state,
+            &public_values,
+            representative,
+            &representative_values,
+            representative_fact,
+            &public.fixed,
+        );
         let proof = if let Some(public) = exact_public {
             FixedRepresentativeCallProof::ExactMatch { public }
         } else {
