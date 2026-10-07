@@ -398,3 +398,48 @@ pub(super) fn finish_materialization_fingerprint(
     const_materializable::hash_bytes(&mut hash, bytes);
     if hash == 0 { 1 } else { hash }
 }
+
+/// The owner admission every ConstMaterializable shape applies before field
+/// or case validation: a valid checked-shape non-generic owner, a closed
+/// retained application origin, and `[copy]` multiplicity. `subject` and
+/// `not_copy` carry the site's diagnostic vocabulary; `application_kind`
+/// names the shape in the closed-argument judgment.
+pub(super) fn admit_checked_shape_owner(
+    typed: &TypedTrees,
+    data: &DataDefinition,
+    subject: &str,
+    application_kind: &str,
+    not_copy: &str,
+) -> Result<(), MaterializationDiagnostic> {
+    if !data.symbol.is_valid()
+        || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+        || !data.type_parameters.is_empty()
+        || !data.lifetime_parameters.is_empty()
+        || data.quotient.is_some()
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "{subject} `{}` is generic, opaque, quotient, or lacks one exact closed checked-shape identity",
+            data.name
+        )));
+    }
+    // A synthesized closed generic instance is itself one exact closed
+    // checked-shape identity: its members — including `const N` array
+    // lengths — were substituted at synthesis. Only the retained
+    // application origin needs the closed-argument judgment.
+    if let Some(application) = data.generic_instance {
+        crate::machine_execution::admission::const_evaluable::require_closed_generic_application(
+            typed,
+            data,
+            application,
+            application_kind,
+        )
+        .map_err(MaterializationDiagnostic)?;
+    }
+    if data.properties.multiplicity != language_semantics::Multiplicity::Unrestricted {
+        return Err(MaterializationDiagnostic(format!(
+            "{subject} `{}` {not_copy}",
+            data.name
+        )));
+    }
+    Ok(())
+}

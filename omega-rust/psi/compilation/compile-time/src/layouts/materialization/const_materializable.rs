@@ -1,6 +1,5 @@
 //! Opt-in value-sensitive custody for exact fixed materialization bytes.
 
-use language_semantics::{DataSupplyMode, Multiplicity};
 use layout_plans::{
     ByteOrder, LayoutPlacementReport, LayoutPlanReport, MaterializationDiagnostic,
     layout_plan_reports_match_for_replay, normalized_layout_plan_report_fingerprint,
@@ -310,36 +309,13 @@ fn validate_record_value(
     path: &str,
     active: &mut Vec<symbols::SymbolHandle>,
 ) -> Result<(), MaterializationDiagnostic> {
-    if !data.symbol.is_valid()
-        || data.supply_mode != DataSupplyMode::CheckedShape
-        || !data.type_parameters.is_empty()
-        || !data.lifetime_parameters.is_empty()
-        || data.quotient.is_some()
-    {
-        return Err(MaterializationDiagnostic(format!(
-            "{path} type `{}` is generic, opaque, quotient, or lacks one exact closed checked-shape identity",
-            data.name
-        )));
-    }
-    // A synthesized closed generic instance is itself one exact closed
-    // checked-shape identity: its members — including `const N` array
-    // lengths — were substituted at synthesis. Only the retained
-    // application origin needs the closed-argument judgment.
-    if let Some(application) = data.generic_instance {
-        crate::machine_execution::admission::const_evaluable::require_closed_generic_application(
-            typed,
-            data,
-            application,
-            path,
-        )
-        .map_err(MaterializationDiagnostic)?;
-    }
-    if data.properties.multiplicity != Multiplicity::Unrestricted {
-        return Err(MaterializationDiagnostic(format!(
-            "{path} type `{}` is not a `[copy]` record",
-            data.name
-        )));
-    }
+    crate::layouts::materialization::admit_checked_shape_owner(
+        typed,
+        data,
+        &format!("{path} type"),
+        path,
+        "is not a `[copy]` record",
+    )?;
     if active.contains(&data.symbol) {
         return Err(MaterializationDiagnostic(format!(
             "{path} recursively reaches `{}`",

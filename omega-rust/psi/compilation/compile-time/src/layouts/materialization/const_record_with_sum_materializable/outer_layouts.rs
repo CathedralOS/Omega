@@ -3,7 +3,6 @@
 use crate::layouts::materialization::BuildTimeValue;
 use crate::layouts::materialization::const_record_with_sum_materializable::ValidatedConstRecordSumFieldMaterialization;
 use crate::layouts::materialization::const_record_with_sum_materializable::derived_bytes::EncodedOuterField;
-use language_semantics::{DataSupplyMode, Multiplicity};
 use layout_plans::{
     ByteOrder, ConventionalSumFieldLayoutReport, LayoutPlacementReport, LayoutPlanReport,
     MaterializationDiagnostic, conventional_sum_layout_reports_match_for_replay,
@@ -17,36 +16,13 @@ pub(crate) fn validate_outer_record_owner(
     typed: &TypedTrees,
     data: &DataDefinition,
 ) -> Result<(), MaterializationDiagnostic> {
-    if !data.symbol.is_valid()
-        || data.supply_mode != DataSupplyMode::CheckedShape
-        || !data.type_parameters.is_empty()
-        || !data.lifetime_parameters.is_empty()
-        || data.quotient.is_some()
-    {
-        return Err(MaterializationDiagnostic(format!(
-            "ConstMaterializable nested-sum record `{}` is generic, opaque, quotient, or lacks one exact closed checked-shape identity",
-            data.name
-        )));
-    }
-    // A synthesized closed generic instance is itself one exact closed
-    // checked-shape identity: its members — including `const N` array
-    // lengths — were substituted at synthesis. Only the retained
-    // application origin needs the closed-argument judgment.
-    if let Some(application) = data.generic_instance {
-        crate::machine_execution::admission::const_evaluable::require_closed_generic_application(
-            typed,
-            data,
-            application,
-            "nested-sum record",
-        )
-        .map_err(MaterializationDiagnostic)?;
-    }
-    if data.properties.multiplicity != Multiplicity::Unrestricted {
-        return Err(MaterializationDiagnostic(format!(
-            "ConstMaterializable nested-sum record `{}` is not `[copy]`",
-            data.name
-        )));
-    }
+    crate::layouts::materialization::admit_checked_shape_owner(
+        typed,
+        data,
+        "ConstMaterializable nested-sum record",
+        "nested-sum record",
+        "is not `[copy]`",
+    )?;
     if DataDefinition::shape_kind_from_members(typed.data_members(data)) != DataShapeKind::Record {
         return Err(MaterializationDiagnostic(format!(
             "ConstMaterializable nested-sum owner `{}` is not one record",

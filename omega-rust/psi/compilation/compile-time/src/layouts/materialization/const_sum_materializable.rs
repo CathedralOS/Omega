@@ -2,7 +2,6 @@
 //! value: a pure sum, or a mixed shape whose common fields pack between the
 //! tag and the shared case-payload overlay.
 
-use language_semantics::{DataSupplyMode, Multiplicity};
 use layout_plans::{
     ByteOrder, ConventionalSumCaseLayoutReport, ConventionalSumLayoutReport,
     MaterializationDiagnostic, conventional_sum_layout_reports_match_for_replay,
@@ -391,36 +390,13 @@ fn validate_sum_owner(
     typed: &TypedTrees,
     data: &DataDefinition,
 ) -> Result<(), MaterializationDiagnostic> {
-    if !data.symbol.is_valid()
-        || data.supply_mode != DataSupplyMode::CheckedShape
-        || !data.type_parameters.is_empty()
-        || !data.lifetime_parameters.is_empty()
-        || data.quotient.is_some()
-    {
-        return Err(MaterializationDiagnostic(format!(
-            "ConstMaterializable sum `{}` is generic, opaque, quotient, or lacks one exact closed checked-shape identity",
-            data.name
-        )));
-    }
-    // A synthesized closed generic instance is itself one exact closed
-    // checked-shape identity: its members — including `const N` array
-    // lengths — were substituted at synthesis. Only the retained
-    // application origin needs the closed-argument judgment.
-    if let Some(application) = data.generic_instance {
-        crate::machine_execution::admission::const_evaluable::require_closed_generic_application(
-            typed,
-            data,
-            application,
-            "sum",
-        )
-        .map_err(MaterializationDiagnostic)?;
-    }
-    if data.properties.multiplicity != Multiplicity::Unrestricted {
-        return Err(MaterializationDiagnostic(format!(
-            "ConstMaterializable sum `{}` is not `[copy]`",
-            data.name
-        )));
-    }
+    crate::layouts::materialization::admit_checked_shape_owner(
+        typed,
+        data,
+        "ConstMaterializable sum",
+        "sum",
+        "is not `[copy]`",
+    )?;
     let shape_kind = DataDefinition::shape_kind_from_members(typed.data_members(data));
     if !matches!(shape_kind, DataShapeKind::Enum | DataShapeKind::Mixed) {
         return Err(MaterializationDiagnostic(format!(
