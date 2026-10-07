@@ -73,19 +73,7 @@ impl Default for ReferenceTypeReferenceStorage {
     }
 }
 
-impl Deref for ReferenceTypeReference {
-    type Target = ReferenceTypeReferenceStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for ReferenceTypeReference {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(ReferenceTypeReference => ReferenceTypeReferenceStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstrainedTypeReference {
@@ -107,19 +95,7 @@ impl Default for ConstrainedTypeReferenceStorage {
     }
 }
 
-impl Deref for ConstrainedTypeReference {
-    type Target = ConstrainedTypeReferenceStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for ConstrainedTypeReference {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(ConstrainedTypeReference => ConstrainedTypeReferenceStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedArrayTypeReference {
@@ -178,19 +154,7 @@ impl fmt::Display for FixedArrayLength {
     }
 }
 
-impl Deref for FixedArrayTypeReference {
-    type Target = FixedArrayTypeReferenceStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for FixedArrayTypeReference {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(FixedArrayTypeReference => FixedArrayTypeReferenceStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SliceTypeReference {
@@ -210,19 +174,7 @@ impl Default for SliceTypeReferenceStorage {
     }
 }
 
-impl Deref for SliceTypeReference {
-    type Target = SliceTypeReferenceStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for SliceTypeReference {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(SliceTypeReference => SliceTypeReferenceStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericTypeReference {
@@ -239,19 +191,7 @@ pub struct GenericTypeReferenceStorage {
     pub arguments: HandleSpan<TypeReference>,
 }
 
-impl Deref for GenericTypeReference {
-    type Target = GenericTypeReferenceStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for GenericTypeReference {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(GenericTypeReference => GenericTypeReferenceStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeReferenceTable {

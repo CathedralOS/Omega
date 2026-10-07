@@ -175,19 +175,7 @@ pub struct GenericConformanceBound {
     pub arguments: HandleSpan<TypeReference>,
 }
 
-impl Deref for Machine {
-    type Target = MachineStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for Machine {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(Machine => MachineStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedData {

@@ -21,19 +21,7 @@ pub struct StateStorage {
     pub statement_nodes: HandleSpan<StatementNode>,
 }
 
-impl Deref for State {
-    type Target = StateStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for State {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(State => StateStorage);
 
 #[cfg(test)]
 pub(crate) fn test_state(statements: HandleSpan<Statement>) -> State {

@@ -3,6 +3,26 @@
 //! Declarations, executable control flow, values, type references and retained
 //! inspection data are subordinate to this root, not separate pipeline outputs.
 
+/// Every `X`/`XStorage` pair in this crate derefs the owned row wrapper to its
+/// embedded storage record; declare each pair in one line beside the structs.
+macro_rules! deref_to_storage {
+    ($wrapper:ty => $storage:ty) => {
+        impl Deref for $wrapper {
+            type Target = $storage;
+
+            fn deref(&self) -> &Self::Target {
+                &self.storage
+            }
+        }
+
+        impl DerefMut for $wrapper {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.storage
+            }
+        }
+    };
+}
+
 pub mod calls;
 pub mod control_flow;
 pub mod declarations;

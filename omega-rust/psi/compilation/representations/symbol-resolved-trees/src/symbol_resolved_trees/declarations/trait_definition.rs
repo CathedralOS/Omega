@@ -141,16 +141,4 @@ impl Default for TraitRequirement {
     }
 }
 
-impl Deref for TraitDefinition {
-    type Target = TraitStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for TraitDefinition {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(TraitDefinition => TraitStorage);

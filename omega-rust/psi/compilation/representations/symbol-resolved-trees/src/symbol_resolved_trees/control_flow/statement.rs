@@ -140,19 +140,7 @@ impl Default for LocalDataStorage {
     }
 }
 
-impl Deref for LocalData {
-    type Target = LocalDataStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for LocalData {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(LocalData => LocalDataStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
@@ -179,19 +167,7 @@ pub struct CallStorage {
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
 }
 
-impl Deref for Call {
-    type Target = CallStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for Call {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(Call => CallStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transition {
@@ -240,19 +216,7 @@ pub struct NamedTransitionTargetStorage {
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
 }
 
-impl Deref for NamedTransitionTarget {
-    type Target = NamedTransitionTargetStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for NamedTransitionTarget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(NamedTransitionTarget => NamedTransitionTargetStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatementTable {

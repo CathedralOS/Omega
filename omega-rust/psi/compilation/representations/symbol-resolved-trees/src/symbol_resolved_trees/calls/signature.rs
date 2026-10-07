@@ -71,19 +71,7 @@ pub struct NativeCallbackParameter {
     pub native_ordinal: u32,
 }
 
-impl Deref for StateSignature {
-    type Target = StateSignatureStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for StateSignature {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(StateSignature => StateSignatureStorage);
 
 /// A named parameter with ordinary declared type and binding modes. Machine
 /// qualification does not insert or distinguish an implicit receiver.

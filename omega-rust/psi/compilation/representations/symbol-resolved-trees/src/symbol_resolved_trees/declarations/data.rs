@@ -64,19 +64,7 @@ pub struct DataProperties {
     pub multiplicity: language_semantics::Multiplicity,
 }
 
-impl Deref for DataDefinition {
-    type Target = DataDefinitionStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for DataDefinition {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
+deref_to_storage!(DataDefinition => DataDefinitionStorage);
 
 impl DataDefinition {
     pub fn shape_kind_from_members(members: &[DataMember]) -> DataShapeKind {
