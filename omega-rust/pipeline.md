@@ -305,6 +305,23 @@ text is diagnostic/debug payload after resolution, user literals remain program
 payload, and linker/display names are edge metadata. Scoped symbol-tree lookup
 is the baseline; extra lookup maps require a measured reason.
 
+Working state belongs to an explicit compilation, checking or worker invocation.
+Put durable indexes beside their owning arena and derived memos, recursion
+stacks and scratch in an invocation-owned context passed by borrow. Production
+checking must not hide ownership in `thread_local!`, `RefCell`, process-global
+registries or program-address/fingerprint invalidation. Partitioned workers get
+disjoint mutable contexts over shared immutable arenas; runtime borrow checks
+are not a substitute for an ownership structure Rust and Omega can both express.
+
+When one operation may receive an already-retained value or bytes from an
+external trust boundary, represent that custody explicitly as borrowed/owned
+input: the in-process producer lends its retained value, while the byte ingress
+decodes once into owned storage. Do not serialize and decode a value merely to
+cross an internal API. After resolution, semantic decisions use symbols,
+handles, interned identities or explicit representation classes; comparing a
+source/display string such as a builtin type's spelling is an architecture
+violation even when that spelling is reserved.
+
 Preserve recognizable places, values, facts, loans, moves, drops, calls,
 transitions, reach and boundary identities as their resolution changes, without
 forcing one mega-IR. Parsing recognizes syntax; resolution identifies declarations;

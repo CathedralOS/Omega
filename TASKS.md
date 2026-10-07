@@ -1544,7 +1544,16 @@ then independent claimed restoration slices -> final closure.
   Owners: `omega-rust/psi/compilation/compile-time/src/machine_execution/`,
   `omega-rust/psi/compilation/compile-time/src/const_evaluation/const_lengths.rs`,
   `omega-rust/omega/compilation/driver/terminal-production/src/` and the owning
-  Psi stages. Acceptance: `pass/comptime/runtime_const_array_length_transitive_exit`
+  Psi stages. One immutable declaration/type arena supplies every job. Job-local
+  overlays retain selected closures, evaluated values and materialized results;
+  compile-time evaluation must not clone `SyntaxTrees`/`TypedTrees`, inject a
+  probe into a cloned whole program or call `lower_typed_trees` as a private
+  second driver. Remove those routes from array lengths, range arguments,
+  initializers and named-requirement evaluation rather than hiding them behind
+  the early-Terminal adapter. Acceptance includes source guards for those
+  forbidden clone/recheck shapes and a measured peak-memory reduction on a
+  package with many shared constant dependencies.
+  `pass/comptime/runtime_const_array_length_transitive_exit`
   computes 16 through Terminal and its unchanged application exits 70;
   `pass/build/const_index_dependency_order_exit` respects leaf-before-outer
   ordering. `fail/comptime/{negative_const_array_length,effectful_const_array_length}`
@@ -1876,6 +1885,20 @@ crash and native exit behavior.
     reconstruction, source-shape recognizer, fallback route or revalidation of
     the producer's invariant is a failed architecture check, not a temporary
     feature repair.
+  - Preserve Terminal artifact custody rather than replaying it. An internal
+    provider-installation input explicitly distinguishes a borrowed retained
+    `TerminalModule` from an owned module decoded once at external byte ingress.
+    Stage 00 passes the artifact's retained module; it never calls the
+    interpreter's byte-admission API on `semantic_bytes` produced by the same
+    compile. Remove the `INDEPENDENT_PSI_REPLAY_DECODES` expectation and the
+    source-scanning exemption for Psi's “deliberately independent” replay.
+    External package/artifact admission keeps independent decoding.
+  - Carry representation classes instead of recognizing source spellings.
+    Psi assigns the builtin text/string identity and descriptor class; Terminal
+    retains it; Omega layout consumes it. Delete backend checks of
+    `name.as_str() == "string"` in `layout::builder::type_reference_layouts`
+    and `layout::boundary_values`, and add a production source guard against
+    source/display-name comparisons deciding semantic type or layout identity.
   - Keep orchestration visible in `compiler.rs`: one source preparation, one
     Psi/Build chain, then an explicit per-target Omega loop. Prefix consumers
     call the same stage entrances and stop at a typed checkpoint; they do not
@@ -2207,6 +2230,17 @@ crash and native exit behavior.
     `typed-trees-to-checked-trees` dependencies
     (`omega-rust/omega/compilation/realization/provider-planning/Cargo.toml`)
     and enforce the layering boundary.
+  - Provider planning never manufactures standard-library implementations.
+    Delete `provider_settlement/canonical_time_host.rs`, `MintedTimeHostPlan`
+    and the synthetic `omega::toolchain::time_host` rows that recognize
+    `TimeHost` method strings and Linux syscall numbers. Use the ordinary
+    target-scoped providers in
+    `source/library/std/targets/<target>/time_host_impl.omg`; irreducible
+    syscalls remain authored `via ForeignBinding::Syscall` leaves with exact
+    provider/package provenance. **FILESYSTEM-PLATFORM-SERVICES** owns deletion
+    of the analogous filesystem mint. Acceptance includes a source/dependency
+    guard finding no canonical host-plan mint in provider planning and the
+    unchanged TimeHost positive/negative corpus on applicable hosts.
   - Const exception: provider-dependent constants belong to the one checked
     program. Every realized target must select the same provider for that
     application; evaluate it once in Psi through `SelectedConstantEvaluation`
@@ -2869,9 +2903,24 @@ of a check the same flow already performed, not the check itself.
   selections in `CheckFacts` instead of the typed program; delete the moved
   calls from stage 04 with no fallback route. The new stage takes the same
   selected-provider inputs stage 04 takes, so land it before or with
-  **PROVIDER-SELECTION-AFTER-TERMINAL**. Acceptance: `lower_typed_trees`
+  **PROVIDER-SELECTION-AFTER-TERMINAL**.
+
+  The checking invocation also owns every derived index, memo and recursion
+  stack in explicit arena/context storage passed by borrow. Remove
+  `checking::program_scope`'s thread-local slots and the separate operational,
+  return-range, root-currency, field-domain and structural-roster
+  `thread_local!`/`RefCell` caches; durable declaration indexes belong to the
+  frozen typed arenas, while transient query state belongs to the checker or
+  worker invocation. Do not preserve program identity/fingerprint invalidation
+  as a replacement global cache, and do not port runtime borrow checking into
+  Omega.
+
+  Acceptance: `lower_typed_trees`
   performs no `&mut` pass over the program and nothing writes to
   `CheckedTrees.typed` after construction (source-scanning guard), and the
+  checking/stage-04 production paths contain no `thread_local!` or `RefCell`
+  working state (source-scanning guard). Nested checking and partitioned
+  workers use explicit disjoint contexts over shared immutable arenas, and the
   full check corpus plus native corpus `--filter
   generics,operators,providers/` are unchanged.
 
@@ -5625,7 +5674,10 @@ report a missing runtime leg explicitly.
     markers reject.
   - **Host-provider execution:** use the existing TimeHost providers at
     `source/library/std/targets/<target>/time_host_impl.omg`; do not add a
-    second provider path. `pass/time/runtime_time_elapsed_since_exit` has
+    second provider path. **PROVIDER-SELECTION-AFTER-TERMINAL** owns deleting
+    the existing compiler-minted `canonical_time_host` fallback; this release
+    row consumes only the ordinary authored providers.
+    `pass/time/runtime_time_elapsed_since_exit` has
     recorded native exit 70 on Linux x86-64 and macOS ARM64, and a portable
     `checked` row. Windows x86-64 still records rejection; Linux ARM64 has no
     native record. Obtain matching-host exit 70 on those two hosts, then
@@ -5634,10 +5686,9 @@ report a missing runtime leg explicitly.
     Keep `pass/time/runtime_time_host_native_darwin{,_x86_64}_exit` controls
     and `pass/providers/foreign_out_parameter_write_observed_exit`: the latter
     must observe the foreign write, not its pre-call initializer (exit 72 is
-    failure, 70 success). Remaining beside that: filesystem adapters with
-    real syscall marshalling and result transport,
-    beyond the Linux x86-64 rows in
-    `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_{filesystem,time}_host.rs`.
+    failure, 70 success). Remaining beside that: filesystem adapters with real
+    syscall marshalling and result transport beyond the Linux x86-64 rows in
+    `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`.
     Follow [toolchain-selected implementations](wiki/spec/build/provider_selection.md#toolchain-selected-checked-implementations);
     `ProviderBinding::Import` must commit to the exact locator. Prove native
     outcomes of the `tests/omega/pass/objc/` fixtures, including GUI and
