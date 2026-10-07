@@ -22,14 +22,38 @@ impl Emission<'_, '_, '_> {
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_structural_observations(self.structural_types);
         let parameters = self.checked.state_parameters(authored.1);
-        if !source
-            .path
-            .iter()
-            .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_)))
-        {
+        if !source.path.iter().any(|segment| {
+            matches!(
+                segment,
+                CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
+            )
+        }) {
             return bindings.shared_structural_argument(source, authored.0, parameters);
         }
         let home = bindings.borrowed_structural_home(source, authored.0, parameters)?;
+        let root = bindings
+            .structural_argument_type(&home)
+            .ok_or(LoweringError::Unsupported(
+                "indexed copy lost its published root type",
+            ))?;
+        let mut prepared =
+            crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+                source,
+                root,
+                bindings.structural_declarations(),
+            )?;
+        // An index into a root view observes its live length first.
+        // `copied_place_path` owns that observation for the copy: it reads
+        // the root's dominating length and turns a literal offset into the
+        // runtime index its proof names. A view nested below the root keeps
+        // its marker, which the frame cannot discharge here.
+        if matches!(
+            prepared.first(),
+            Some(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::ViewExtent { .. })
+        ) {
+            prepared.remove(0);
+        }
         let fields = StructuralScalarFieldBinding::collect(
             &self.evaluation.structural_parameters,
             self.structural_types,
@@ -44,8 +68,8 @@ impl Emission<'_, '_, '_> {
         .into_iter();
         let mut path = home.path;
         path.extend(
-            crate::expression_preparation::bindings::structural_paths::lower_argument_path(
-                &source.path,
+            crate::expression_preparation::bindings::structural_paths::emit_argument_path(
+                &prepared,
                 Some(self.values.as_slice()),
                 &mut selector_values,
                 Some(&mut *self.calls),
