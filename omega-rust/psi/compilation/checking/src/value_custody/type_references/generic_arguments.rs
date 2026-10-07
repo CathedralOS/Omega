@@ -949,10 +949,10 @@ pub(crate) fn validate_const_binder_carriers(
 ) {
     for parameter in parameters {
         let (TypeParameterKind::Const {
-            type_reference: mut carrier,
+            type_reference: carrier,
         }
         | TypeParameterKind::Value {
-            type_reference: mut carrier,
+            type_reference: carrier,
         }) = parameter.kind
         else {
             continue;
