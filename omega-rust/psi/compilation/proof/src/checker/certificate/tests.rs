@@ -6,7 +6,7 @@ use super::{
     bigint_math_literal, closed_bounds_certificate, declared_interval_certificate,
     guarded_bounds_certificate, refold_bounds_certificate, scalar_integer_term,
 };
-use crate::obligations::IntegerRange;
+use crate::integer_range;
 use numerics::bignum::BigInt;
 use proof_admission::{
     AcceptedFactRoute, AcceptedProofRule, EvidenceRoute, Obligation, ObligationClass,
@@ -23,13 +23,6 @@ fn math_literal(value: i64) -> IntegerMathLiteral {
 
 fn literal_term(value: i64) -> IntegerMathTerm {
     IntegerMathTerm::IntegerLiteral(math_literal(value))
-}
-
-fn integer_range(minimum: i64, maximum: i64) -> IntegerRange {
-    IntegerRange {
-        minimum: BigInt::from_i64(minimum),
-        maximum: BigInt::from_i64(maximum),
-    }
 }
 
 fn u8_type() -> IntegerType {

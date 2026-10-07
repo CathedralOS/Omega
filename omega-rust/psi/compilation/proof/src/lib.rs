@@ -26,3 +26,16 @@ pub use proof_surface::{
     BoundedTypeSite, ContractKindSurface, ContractSurface, DomainSurface, ProofSurfaceReport,
     PropositionBodySurface, PropositionSurface, build_proof_surface_report,
 };
+
+/// Test-only `IntegerRange` construction shared by the checker and
+/// obligation suites.
+#[cfg(test)]
+pub(crate) fn integer_range(
+    minimum: i64,
+    maximum: i64,
+) -> obligations::IntegerRange {
+    obligations::IntegerRange {
+        minimum: numerics::bignum::BigInt::from_i64(minimum),
+        maximum: numerics::bignum::BigInt::from_i64(maximum),
+    }
+}

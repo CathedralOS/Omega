@@ -1,7 +1,7 @@
 //! Range tests for proof obligations.
 
 use super::{FloatRange, ProofConstraint};
-use crate::obligations::IntegerRange;
+use crate::integer_range;
 use crate::obligations::constraints::{derived_binary_constraints, expression_constraints};
 use crate::obligations::plan::ConstraintBuffer;
 use crate::obligations::ranges::{
@@ -272,13 +272,6 @@ fn derived_float_range_proves_finite_when_the_bound_is_finite() {
 
     assert!(has_named_constraint(&constraints, "finite"));
     assert!(constraints_prove_finite(&constraints));
-}
-
-fn integer_range(minimum: i64, maximum: i64) -> IntegerRange {
-    IntegerRange {
-        minimum: BigInt::from_i64(minimum),
-        maximum: BigInt::from_i64(maximum),
-    }
 }
 
 #[test]
