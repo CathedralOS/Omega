@@ -4,6 +4,8 @@ mod execution;
 mod report;
 
 use super::{PackageFileTransaction, PackagePublicationLimits};
+use crate::build_session::PackageBuildSession;
+use crate::review::CompileResolvedPackageReviewsError;
 use package_source::PrimaryGitChoices;
 use package_source::SourceResolver;
 use std::fmt;
@@ -50,9 +52,17 @@ fn failure(error: impl fmt::Display) -> PackageInspectionError {
     PackageInspectionError(error.to_string())
 }
 
+impl From<CompileResolvedPackageReviewsError> for PackageInspectionError {
+    fn from(error: CompileResolvedPackageReviewsError) -> Self {
+        failure(error)
+    }
+}
+
 /// Inspect the packages of one project. Without `storage`, the current user's
 /// resolver storage is opened once the project files have been read, with the
 /// project root excluded from primary Git selection.
+/// One sponsored session covers every requested target, including targets
+/// examined after a sibling fails; returning disposes the complete invocation.
 pub fn inspect_packages(
     options: PackageInspectionOptions,
     storage: Option<&SourceResolver>,
@@ -65,12 +75,16 @@ pub fn inspect_packages(
     let build_snapshot = options
         .build_inputs
         .map(|inputs| build_evaluation::BuildSnapshotRequest::scoped(Vec::new(), inputs));
-    execution::inspect(
+    let mut session =
+        PackageBuildSession::create(&transaction.project_root().join("build/package-manager"))
+            .map_err(failure)?;
+    let result = execution::inspect(
         &transaction,
         options.targets,
         options.details,
         options.offline,
         build_snapshot.as_ref(),
+        &mut session,
         |root| match storage {
             Some(storage) => Ok(InspectionStorage::Supplied(storage)),
             None => SourceResolver::for_current_user(PrimaryGitChoices {
@@ -80,7 +94,8 @@ pub fn inspect_packages(
             .map(InspectionStorage::Opened)
             .map_err(failure),
         },
-    )
+    );
+    session.dispose(result)
 }
 
 /// The resolver storage of one inspection: supplied by the caller, or opened

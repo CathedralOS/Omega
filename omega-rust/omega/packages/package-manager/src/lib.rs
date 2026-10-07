@@ -14,9 +14,11 @@ pub mod package_manager;
 pub mod resolution;
 pub mod review;
 
+pub use build_session::PackageBuildSession;
+
 pub use package_manager::{
     PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
-    PackageCommandOutcome, PackageCommandStatus, execute_package_command,
+    PackageCommandOutcome, PackageCommandStatus, discard_package_review, execute_package_command,
 };
 
 // The unit tests compile real packages on several threads; mimalloc's

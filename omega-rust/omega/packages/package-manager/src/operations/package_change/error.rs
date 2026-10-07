@@ -57,3 +57,9 @@ impl std::error::Error for PackageChangeError {
         }
     }
 }
+
+impl From<CompileResolvedPackageReviewsError> for PackageChangeError {
+    fn from(error: CompileResolvedPackageReviewsError) -> Self {
+        Self::Compilation(error)
+    }
+}

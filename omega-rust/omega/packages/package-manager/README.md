@@ -190,9 +190,25 @@ session and cleanup; generic sponsors for supplied directories carry no such
 exemption. Broader host scopes still project restricted requests, whose retained
 lock meaning is distinct from actual invocation grants.
 
+The top-level invocation owns one `PackageBuildSession` across its review
+targets and rounds. [`inspect_packages.rs`](src/operations/inspect_packages.rs)
+creates and disposes the audit's owner. The CLI's
+[`packages::run`](../../application/cli/src/cli/packages/mod.rs) retains the
+install/update owner across automatic acceptance and resume rounds, lending it
+to `execute_package_command`. A later user-issued command creates its own
+session. Discard requires only project-state recovery, without a Build owner.
+Package commands close staging before publishing accepted project files;
+operation and decision-file failures return to the owner for disposal.
+
 Start explicit full-package candidate review at
 [`compilation.rs`](src/review/candidate/compilation.rs): product selection,
-binding discovery, final checking, session disposal, then result handoff.
+binding discovery, final checking, then immutable result handoff. Both public
+candidate entrances borrow the caller's session; neither creates sponsors nor
+disposes them. Standalone callers create an owner and dispose it after their
+complete operation. Every fresh compilation attempt, including component
+retries and later target/round passes, receives a new sponsored directory from
+the invocation's monotonic sequence. Closing an owner prevents another review
+from using it.
 Its `package_pass.rs` owns dependency-order compilation and projection for each
 required build/product occurrence, using the same roster as lock comparison and
 reconstruction. Acquisition and parsed source are shared; checked targets,
@@ -219,8 +235,8 @@ Discovery requests a source-output slot on the ordinary `CheckedCompileRequest`;
 the compiler clears it before validation and publishes preparation only on success.
 The final pass consumes each checkpoint only after fresh source-custody checks
 and exact compiler-input matching. It still assembles current dependency-generated
-sources, executes builds, checks bindings, and accounts for its own disposable
-session. Retaining a checkpoint copies parsed storage for the discovery child;
+sources, executes builds, checks bindings, and uses the invocation's shared
+sponsors. Retaining a checkpoint copies parsed storage for the discovery child;
 the final child can consume that storage. This avoids repeated base discovery,
 lexing and parsing, not final checking or all source copying.
 `CandidateSourcePreparation` moves that checkpoint store into the caller, so

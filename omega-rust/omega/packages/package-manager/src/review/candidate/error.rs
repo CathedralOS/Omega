@@ -35,7 +35,7 @@ pub enum CompileResolvedPackageReviewsError {
     BuildStagingCleanup {
         path: PathBuf,
         error: io::Error,
-        prior: Option<Box<CompileResolvedPackageReviewsError>>,
+        prior: Option<String>,
     },
     SourceCustody {
         compiling_package: PackageKey,

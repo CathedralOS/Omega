@@ -10,6 +10,7 @@ mod proposal;
 mod source_review;
 mod state;
 
+use crate::build_session::PackageBuildSession;
 use crate::declarations::BuildFileReplacement;
 use crate::lock::{PackageLock, PackageLockRecoveryLimits};
 use crate::operations::{
@@ -21,23 +22,27 @@ use crate::resolution::graph::{
     GitResolutionOptions, PackageSourceClosureLimits,
     resolve_staged_external_local_project_closure,
 };
-use crate::review::CandidateSourcePreparation;
+use crate::review::{CandidateSourcePreparation, CompileResolvedPackageReviewsError};
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use proposal::PendingPackageChange;
 use sha2::{Digest, Sha256};
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
 /// Execute one package command under the project's publication authority.
 /// An absent storage input selects the operator's ordinary resolver storage;
 /// embedded callers may instead borrow their own. Discard requires neither.
+/// The caller retains one session across every target and automatic resume
+/// round. A pending review leaves it open; accepted publication closes staging
+/// before committing project files.
 pub fn execute_package_command(
     command: PackageCommand,
     options: PackageCommandOptions,
     storage: Option<&SourceResolver>,
+    session: &mut PackageBuildSession,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
     if options.build_inputs.is_some()
         && matches!(
@@ -221,16 +226,12 @@ pub fn execute_package_command(
     let mut preparation = CandidateSourcePreparation::for_closure(&closure);
     let mut reviews = Vec::new();
     for target in &targets {
-        let build_root = transaction
-            .project_root()
-            .join("build/package-manager")
-            .join(format!("check-{}", target.target_name()));
         reviews.push(
             review_package_change_reusing(
                 closure.clone(),
                 *target,
                 accepted.as_ref().and_then(|lock| lock.target(*target)),
-                &build_root,
+                session,
                 build_snapshot.as_ref(),
                 &mut preparation,
             )
@@ -292,6 +293,9 @@ pub fn execute_package_command(
         .iter()
         .zip(choices.resolutions.iter())
         .collect::<Vec<_>>();
+    // No authored execution follows this point. Refuse cleanup failure before
+    // accepted files change, rather than discovering it after publication.
+    session.close().map_err(failure)?;
     let published = publish_reviewed_package_change(
         &mut transaction,
         &replacement,
@@ -315,6 +319,18 @@ pub fn execute_package_command(
         report: choices.report,
         review_paths: choices.paths,
     })
+}
+
+/// Recover publication state and discard a pending proposal without acquiring
+/// resolver storage or a Build session.
+pub fn discard_package_review(
+    project_root: &Path,
+) -> Result<PackageCommandOutcome, PackageCommandError> {
+    let mut transaction =
+        PackageFileTransaction::open(project_root, PackagePublicationLimits::default())
+            .map_err(failure)?;
+    transaction.recover().map_err(failure)?;
+    state::discard(&transaction)
 }
 
 fn digest(bytes: &[u8]) -> [u8; 32] {
@@ -408,6 +424,18 @@ pub struct PackageCommandOutcome {
 
 #[derive(Debug)]
 pub struct PackageCommandError(String);
+
+impl From<CompileResolvedPackageReviewsError> for PackageCommandError {
+    fn from(error: CompileResolvedPackageReviewsError) -> Self {
+        failure(error)
+    }
+}
+
+impl From<String> for PackageCommandError {
+    fn from(error: String) -> Self {
+        Self(error)
+    }
+}
 
 impl fmt::Display for PackageCommandError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

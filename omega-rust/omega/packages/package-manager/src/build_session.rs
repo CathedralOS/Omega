@@ -1,6 +1,6 @@
 //! Invocation-owned private staging and aggregate Build resource grants.
 //!
-//! Review passes borrow one session rather than replenishing its grants. Every
+//! Review targets and passes borrow one session rather than replenishing its grants. Every
 //! fresh compilation attempt receives an explicitly sponsored empty directory;
 //! checked results retain immutable output custody after session disposal.
 
@@ -48,7 +48,10 @@ const PACKAGE_RESULT_CELL_CEILING: u64 = 1_048_576;
 const PACKAGE_RESULT_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug)]
-pub(crate) struct PackageBuildSession {
+/// Resource owner for one invocation, including every review target and round.
+/// Borrow this owner through candidate compilation; source preparation and
+/// target-specific authority do not replenish its grants.
+pub struct PackageBuildSession {
     root: PathBuf,
     filesystem_sponsor: FilesystemSponsor,
     evaluation_sponsor: BuildEvaluationSponsor,
@@ -57,9 +60,9 @@ pub(crate) struct PackageBuildSession {
 }
 
 impl PackageBuildSession {
-    pub(crate) fn create(
-        build_workspace: &Path,
-    ) -> Result<Self, CompileResolvedPackageReviewsError> {
+    /// Reserve private staging and bounded sponsors for one invocation. The
+    /// caller owns disposal after all targets and review rounds have finished.
+    pub fn create(build_workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
         fs::create_dir_all(build_workspace).map_err(|error| {
             CompileResolvedPackageReviewsError::BuildStagingCreate {
                 path: build_workspace.to_path_buf(),
@@ -133,6 +136,7 @@ impl PackageBuildSession {
         resolution: &package_source::ImmutableSourceResolution,
         purpose: crate::declarations::DependencyPurpose,
     ) -> Result<PathBuf, CompileResolvedPackageReviewsError> {
+        self.require_open()?;
         let sequence = self.next_occurrence;
         self.next_occurrence = sequence.checked_add(1).ok_or_else(|| {
             CompileResolvedPackageReviewsError::BuildStagingCreate {
@@ -167,6 +171,16 @@ impl PackageBuildSession {
         Ok(directory)
     }
 
+    pub(crate) fn require_open(&self) -> Result<(), CompileResolvedPackageReviewsError> {
+        if self.active {
+            return Ok(());
+        }
+        Err(CompileResolvedPackageReviewsError::BuildStagingCreate {
+            path: self.root.clone(),
+            error: io::Error::other("package build invocation is already closed"),
+        })
+    }
+
     pub(crate) fn filesystem_sponsor(&self) -> &FilesystemSponsor {
         &self.filesystem_sponsor
     }
@@ -175,19 +189,40 @@ impl PackageBuildSession {
         &self.evaluation_sponsor
     }
 
-    pub(crate) fn dispose<T>(
-        mut self,
-        result: Result<T, CompileResolvedPackageReviewsError>,
-    ) -> Result<T, CompileResolvedPackageReviewsError> {
-        match self.filesystem_sponsor.dispose_private_staging() {
-            Ok(()) => {
-                self.active = false;
-                result
-            }
-            Err(error) => {
-                let path = self.root.clone();
-                let prior = result.err().map(Box::new);
-                Err(CompileResolvedPackageReviewsError::BuildStagingCleanup { path, error, prior })
+    /// Release staging before publishing accepted project files. Closing does
+    /// not create another grant, and this owner cannot execute another Build.
+    pub fn close(&mut self) -> Result<(), CompileResolvedPackageReviewsError> {
+        if !self.active {
+            return Ok(());
+        }
+        self.filesystem_sponsor
+            .dispose_private_staging()
+            .map_err(
+                |error| CompileResolvedPackageReviewsError::BuildStagingCleanup {
+                    path: self.root.clone(),
+                    error,
+                    prior: None,
+                },
+            )?;
+        self.active = false;
+        Ok(())
+    }
+
+    /// Finish the invocation on success or failure, retaining an earlier
+    /// operation failure in the diagnostic if staging cleanup also fails.
+    pub fn dispose<T, Error>(mut self, result: Result<T, Error>) -> Result<T, Error>
+    where
+        Error: std::fmt::Display + From<CompileResolvedPackageReviewsError>,
+    {
+        match self.close() {
+            Ok(()) => result,
+            Err(mut error) => {
+                if let CompileResolvedPackageReviewsError::BuildStagingCleanup { prior, .. } =
+                    &mut error
+                {
+                    *prior = result.err().map(|error| error.to_string());
+                }
+                Err(Error::from(error))
             }
         }
     }

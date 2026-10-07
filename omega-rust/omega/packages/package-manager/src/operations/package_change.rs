@@ -1,5 +1,6 @@
 //! Candidate checking, project review, and a proposed source lock section.
 
+use crate::build_session::PackageBuildSession;
 use crate::review::SemanticBindingReview;
 
 mod error;
@@ -18,7 +19,6 @@ use crate::review::{
     PackageSourceVerificationPhase, compare_package_policy_changes,
     compile_resolved_package_reviews_reusing, verify_transitive_source_custody,
 };
-use std::path::Path;
 use target::TargetProfile;
 
 /// One checked candidate and its comparison. This holds the source snapshot
@@ -117,6 +117,7 @@ impl PackageChangeReview {
 
 /// Check and compare a resolved install/update candidate for one exact target.
 /// The caller resolves the requested candidate before executing build code.
+/// Its session is the resource owner shared across all review targets and rounds.
 /// Only the compiler's existing scoped build evaluator is used; dependencies
 /// receive no resolver or host credential object through this interface.
 ///
@@ -129,13 +130,13 @@ pub fn review_package_change(
     source_closure: ResolvedPackageSourceClosure,
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
-    build_root: &Path,
+    session: &mut PackageBuildSession,
 ) -> Result<PackageChangeReview, PackageChangeError> {
     review_package_change_reusing(
         source_closure,
         target,
         accepted,
-        build_root,
+        session,
         None,
         &mut CandidateSourcePreparation::new(),
     )
@@ -144,6 +145,8 @@ pub fn review_package_change(
 /// The same candidate review, retaining binding-independent source preparation
 /// in the caller's store. A command reviewing several targets of this resolved
 /// closure prepares each package once.
+/// The same caller-owned session covers all of those targets and later automatic
+/// review rounds, independently of whether source preparation can be retained.
 /// A caller-selected snapshot applies only to the root and is rechecked in
 /// both discovery and final review. The command owner retains that selection
 /// across pending review; this operation grants no output publication authority.
@@ -151,7 +154,7 @@ pub fn review_package_change_reusing(
     source_closure: ResolvedPackageSourceClosure,
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
-    build_root: &Path,
+    session: &mut PackageBuildSession,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<PackageChangeReview, PackageChangeError> {
@@ -166,11 +169,11 @@ pub fn review_package_change_reusing(
     let reviews = compile_resolved_package_reviews_reusing(
         CandidateCompilation {
             target_closure: &target_closure,
-            build_root,
             root_build_snapshot,
             restricted_build_checkpoint: None,
         },
         SemanticBindingReview::Discover,
+        session,
         preparation,
     )
     .map_err(PackageChangeError::Compilation)?;

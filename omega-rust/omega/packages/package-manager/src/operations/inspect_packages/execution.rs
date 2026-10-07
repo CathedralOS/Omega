@@ -1,4 +1,5 @@
 use super::{PackageInspectionError, PackageInspectionOutcome, failure, report};
+use crate::build_session::PackageBuildSession;
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
 use crate::operations::PackageFileTransaction;
 use crate::operations::prepare_project::LOCAL_PROJECT_CONTEXT;
@@ -31,6 +32,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolver>>(
     details: bool,
     offline: bool,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    session: &mut PackageBuildSession,
     open_storage: impl FnOnce(&Path) -> Result<Storage, PackageInspectionError>,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
     // read_pair refuses pending commit intent. Inspection never completes a
@@ -65,6 +67,7 @@ pub(super) fn inspect<Storage: Borrow<SourceResolver>>(
                 storage.borrow(),
                 offline,
                 root_build_snapshot,
+                session,
                 &mut preparation,
             ),
             Err(error) => Err(failure(error)),
@@ -151,6 +154,7 @@ fn check(
     storage: &SourceResolver,
     offline: bool,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    session: &mut PackageBuildSession,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<
     (
@@ -197,13 +201,11 @@ fn check(
     let reviews = compile_resolved_package_reviews_reusing(
         CandidateCompilation {
             target_closure: &exact,
-            build_root: &project_root
-                .join("build/package-manager")
-                .join(format!("audit-{}", target.target_name())),
             root_build_snapshot,
             restricted_build_checkpoint: None,
         },
         SemanticBindingReview::Discover,
+        session,
         preparation,
     )
     .map_err(failure)?;

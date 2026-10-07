@@ -1,7 +1,7 @@
 //! Candidate review workflow: select bindings, then compile.
 //!
-//! All products share discovery and final checking. One candidate invocation
-//! owns the disposable sponsored session borrowed by every review pass;
+//! All products share discovery and final checking. The top-level invocation
+//! owns the sponsored session borrowed by every target, candidate and review pass;
 //! package_pass owns dependency-order compilation and projection.
 
 mod package_pass;
@@ -18,7 +18,6 @@ use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use crate::review::timings;
 use artifacts::compile_timings::counters;
 use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
-use std::path::Path;
 
 pub use crate::build_session::PackageSourcePreparation as CandidateSourcePreparation;
 
@@ -32,8 +31,8 @@ pub enum SemanticBindingReview<'a> {
     Explicit(&'a [ConsumerScopedSemanticBindingReviewInput]),
 }
 
-/// One candidate compilation of an exact target closure: where it stages, the
-/// root activation's build snapshot, and the restricted-request consent the
+/// One candidate compilation of an exact target closure: the root activation's
+/// build snapshot and the restricted-request consent the
 /// invoking operation holds. Observational review carries no checkpoint:
 /// inspection never issues grants, so projected requests survive to the
 /// decision document. A consuming operation (`check_project`,
@@ -45,20 +44,15 @@ pub enum SemanticBindingReview<'a> {
 #[derive(Clone, Copy)]
 pub struct CandidateCompilation<'request, 'closure> {
     pub target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
-    pub build_root: &'request Path,
     pub root_build_snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
     pub restricted_build_checkpoint: Option<&'request RestrictedBuildCheckpoint>,
 }
 
 impl<'request, 'closure> CandidateCompilation<'request, 'closure> {
     /// Observational compilation: no root snapshot and no granted consent.
-    pub fn new(
-        target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
-        build_root: &'request Path,
-    ) -> Self {
+    pub fn new(target_closure: &'request ExactTargetPackageSourceClosure<'closure>) -> Self {
         Self {
             target_closure,
-            build_root,
             root_build_snapshot: None,
             restricted_build_checkpoint: None,
         }
@@ -66,15 +60,16 @@ impl<'request, 'closure> CandidateCompilation<'request, 'closure> {
 }
 
 /// Compile the exact dependency closure and return its compiler-issued reviews.
-/// No review escapes its disposable session. Binding discovery is not acceptance.
+/// Borrow the invoking operation's resource owner. Binding discovery is not acceptance.
 pub fn compile_resolved_package_reviews(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
-    build_root: &Path,
+    session: &mut PackageBuildSession,
     bindings: SemanticBindingReview<'_>,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     compile_resolved_package_reviews_reusing(
-        CandidateCompilation::new(target_closure, build_root),
+        CandidateCompilation::new(target_closure),
         bindings,
+        session,
         &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
     )
 }
@@ -85,15 +80,16 @@ pub fn compile_resolved_package_reviews(
 /// package once; changed sources and selections still reject through the
 /// ordinary custody and checkpoint checks. Inspection must not derive policy
 /// from a broader input view than the invocation it is reviewing.
+/// The invocation's owner lends the same session to every target and round;
+/// this operation neither reserves a new sponsor nor disposes that owner.
 pub fn compile_resolved_package_reviews_reusing(
     candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
+    session: &mut PackageBuildSession,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    let mut session = PackageBuildSession::create(candidate.build_root)?;
-    let result = compile_candidate(candidate, bindings, &mut session, preparation)
-        .map(|compiled| compiled.reviews);
-    session.dispose(result)
+    session.require_open()?;
+    compile_candidate(candidate, bindings, session, preparation).map(|compiled| compiled.reviews)
 }
 
 /// The one candidate route every review and check entry runs;
@@ -108,7 +104,6 @@ fn compile_candidate(
         target_closure,
         root_build_snapshot,
         restricted_build_checkpoint,
-        ..
     } = candidate;
     let _requested = timings::requested(preparation.collect_timings);
     let _stage = timings::stage("candidate_compilation");

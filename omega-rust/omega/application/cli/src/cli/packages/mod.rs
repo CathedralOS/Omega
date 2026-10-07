@@ -4,8 +4,9 @@ pub(crate) mod audit;
 pub(crate) mod source;
 
 use package_manager::{
-    PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandOutcome,
-    PackageCommandStatus, execute_package_command,
+    PackageBuildSession, PackageCommand, PackageCommandError, PackageCommandKind,
+    PackageCommandOptions, PackageCommandOutcome, PackageCommandStatus, discard_package_review,
+    execute_package_command,
 };
 use std::path::Path;
 
@@ -14,44 +15,70 @@ use std::path::Path;
 const ACCEPT_ALL_ROUNDS: usize = 4;
 
 pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, accept_all: bool) {
-    let kind = match &command {
-        PackageCommand::Install { .. } => PackageCommandKind::Install,
-        PackageCommand::Resume { kind } => *kind,
-        _ => PackageCommandKind::Update,
+    let result = match command {
+        PackageCommand::DiscardReview => discard_package_review(&options.project_root),
+        command => {
+            let kind = match &command {
+                PackageCommand::Install { .. } => PackageCommandKind::Install,
+                PackageCommand::Resume { kind } => *kind,
+                _ => PackageCommandKind::Update,
+            };
+            let mut session = match PackageBuildSession::create(
+                &options.project_root.join("build/package-manager"),
+            ) {
+                Ok(session) => session,
+                Err(error) => {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                }
+            };
+            // This owner spans all targets and automatic review rounds. A
+            // later user-issued command creates its own resource grant.
+            let result = (|| -> Result<PackageCommandOutcome, PackageCommandError> {
+                let mut outcome =
+                    execute_package_command(command, options.clone(), None, &mut session)?;
+                // The saved proposal owns its target and input inventory.
+                // Automatic acceptance changes decisions, not resource grants.
+                options.targets.clear();
+                options.build_inputs = None;
+                let mut round = 0;
+                while accept_all
+                    && outcome.status == PackageCommandStatus::ReviewRequired
+                    && round < ACCEPT_ALL_ROUNDS
+                {
+                    round += 1;
+                    report(&outcome);
+                    let mut accepted = 0;
+                    for path in &outcome.review_paths {
+                        accepted += accept_pending_decisions(path)?;
+                    }
+                    println!(
+                        "--dangerously-accept-all: accepted {accepted} pending decisions unread"
+                    );
+                    outcome = execute_package_command(
+                        PackageCommand::Resume { kind },
+                        options.clone(),
+                        None,
+                        &mut session,
+                    )?;
+                }
+                Ok(outcome)
+            })();
+            session.dispose(result)
+        }
     };
-    let mut outcome = execute(command, options.clone());
-    // The saved proposal owns its target and input inventory. Automatic
-    // acceptance resumes that proposal, just like an explicit --resume;
-    // forwarding new-proposal overrides would reject or replace its custody.
-    options.targets.clear();
-    options.build_inputs = None;
-    let mut round = 0;
-    while accept_all
-        && outcome.status == PackageCommandStatus::ReviewRequired
-        && round < ACCEPT_ALL_ROUNDS
-    {
-        round += 1;
-        report(&outcome);
-        let accepted = outcome
-            .review_paths
-            .iter()
-            .map(|path| accept_pending_decisions(path))
-            .sum::<usize>();
-        println!("--dangerously-accept-all: accepted {accepted} pending decisions unread");
-        outcome = execute(PackageCommand::Resume { kind }, options.clone());
-    }
+    let outcome = match result {
+        Ok(outcome) => outcome,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+    };
     report(&outcome);
     let status = exit_status(outcome.status);
     if status != 0 {
         std::process::exit(status);
     }
-}
-
-fn execute(command: PackageCommand, options: PackageCommandOptions) -> PackageCommandOutcome {
-    execute_package_command(command, options, None).unwrap_or_else(|error| {
-        eprintln!("{error}");
-        std::process::exit(1);
-    })
 }
 
 fn report(outcome: &PackageCommandOutcome) {
@@ -68,11 +95,9 @@ fn report(outcome: &PackageCommandOutcome) {
 
 /// Rewrite every `decision ... pending` line of one review document to
 /// `accept`, the same edit the document asks a reviewer to make by hand.
-fn accept_pending_decisions(path: &Path) -> usize {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|error| {
-        eprintln!("failed to read review {}: {error}", path.display());
-        std::process::exit(1);
-    });
+fn accept_pending_decisions(path: &Path) -> Result<usize, PackageCommandError> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|error| format!("failed to read review {}: {error}", path.display()))?;
     let mut accepted = 0;
     let mut rewritten = String::with_capacity(text.len());
     for line in text.split_inclusive('\n') {
@@ -87,13 +112,11 @@ fn accept_pending_decisions(path: &Path) -> usize {
             _ => rewritten.push_str(line),
         }
     }
-    if accepted != 0
-        && let Err(error) = std::fs::write(path, rewritten)
-    {
-        eprintln!("failed to write review {}: {error}", path.display());
-        std::process::exit(1);
+    if accepted != 0 {
+        std::fs::write(path, rewritten)
+            .map_err(|error| format!("failed to write review {}: {error}", path.display()))?;
     }
-    accepted
+    Ok(accepted)
 }
 
 fn exit_status(status: PackageCommandStatus) -> i32 {
