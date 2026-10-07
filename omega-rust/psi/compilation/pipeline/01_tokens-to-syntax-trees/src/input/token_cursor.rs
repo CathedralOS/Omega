@@ -349,6 +349,26 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         })
     }
 
+    /// The reference-access modifier after `&`: `mut` for Mutable, `write`
+    /// for WriteOnly, otherwise Shared (consuming nothing).
+    pub(crate) fn take_reference_access(
+        self,
+    ) -> Result<(language_core::ReferenceAccess, Self), ParseError> {
+        if self.at_contextual("mut") {
+            Ok((
+                language_core::ReferenceAccess::Mutable,
+                self.take_contextual("mut")?,
+            ))
+        } else if self.at_contextual("write") {
+            Ok((
+                language_core::ReferenceAccess::WriteOnly,
+                self.take_contextual("write")?,
+            ))
+        } else {
+            Ok((language_core::ReferenceAccess::Shared, self))
+        }
+    }
+
     /// True when the input leads with a bare identifier IMMEDIATELY followed by
     /// the contextual keyword `name` -- a 2-token peek for identifier-led items
     /// like `<target> machine Path(..)`, which have no leading keyword to

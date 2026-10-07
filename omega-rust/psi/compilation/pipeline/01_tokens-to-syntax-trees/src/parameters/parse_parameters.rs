@@ -77,19 +77,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-        let (access, input) = if input.at_contextual("mut") {
-            (
-                language_core::ReferenceAccess::Mutable,
-                input.take_contextual("mut")?,
-            )
-        } else if input.at_contextual("write") {
-            (
-                language_core::ReferenceAccess::WriteOnly,
-                input.take_contextual("write")?,
-            )
-        } else {
-            (language_core::ReferenceAccess::Shared, input)
-        };
+        let (access, input) = input.take_reference_access()?;
 
         if input.at_keyword(KeywordKind::SelfValue) {
             return Err(input.error_here(

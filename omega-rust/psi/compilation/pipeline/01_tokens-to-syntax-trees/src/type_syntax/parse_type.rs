@@ -668,19 +668,7 @@ fn parse_borrow_type_reference<'tokens, 'source>(
             // stage 2. The tick precedes `mut`/`relaxed`, mirroring Rust's
             // `&'a mut T`. A bare `&T` keeps the elided (`None`) form.
             let (lifetime, input) = parse_optional_lifetime(input)?;
-            let (access, input) = if input.at_contextual("mut") {
-                (
-                    language_core::ReferenceAccess::Mutable,
-                    input.take_contextual("mut")?,
-                )
-            } else if input.at_contextual("write") {
-                (
-                    language_core::ReferenceAccess::WriteOnly,
-                    input.take_contextual("write")?,
-                )
-            } else {
-                (language_core::ReferenceAccess::Shared, input)
-            };
+            let (access, input) = input.take_reference_access()?;
             // `relaxed` references RETIRED with the relax surface (owner,
             // 2026-07-17): ch11 windows carry the momentary-violation
             // semantics; the reference marker has no meaning left.
