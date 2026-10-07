@@ -385,7 +385,16 @@ impl TerminalExecution {
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
-            && self.plain_aggregate_type(result.structural_type);
+            && (self.plain_aggregate_type(result.structural_type)
+                // A shared byte view is a copyable descriptor. The callee's
+                // return carries its immutable backing with it, and the
+                // completion rebinds that byte sequence to the result place,
+                // so the descriptor needs no owned storage of its own.
+                || self
+                    .program
+                    .structural_types
+                    .get(&result.structural_type)
+                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view()));
         if structural_arguments
             .iter()
             .zip(&callee.structural_parameters)

@@ -30,8 +30,10 @@ pub enum ZeroedStructuralLeaf {
         field: semantic_vocabulary::StructuralFieldId,
         scalar_type: ScalarType,
     },
-    /// A bounded byte field begins with an empty live range. Its scalar cell
-    /// is the length metadata, not one of the unused capacity bytes.
+    /// A bounded byte field begins with an empty live range, and a shared
+    /// view field with the empty view, which borrows nothing. Its scalar cell
+    /// is the length metadata, not one of the unused capacity bytes or the
+    /// view's never-dereferenced pointer.
     ByteSequenceField {
         path: Vec<StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
@@ -119,10 +121,11 @@ impl ZeroedStructuralLeaf {
 /// declared case exists and every field of that case is a zero-valid scalar or
 /// an aggregate that itself admits: the tag's all-zero bits select that case
 /// (tag = case ordinal). Bounded integer fields must contain the carrier's
-/// zero; an erased payload field has no zero spelling. Bounded byte fields admit
-/// only when all declared byte predicates hold for the empty live range.
-/// Instantiated references, borrowed views, whole byte carriers and erased
-/// members have no admitted zero spelling through this structural operation.
+/// zero; an erased payload field has no zero spelling. Bounded byte fields and
+/// shared view fields admit only when all declared byte predicates hold for
+/// the empty sequence. Instantiated references, other borrowed views, whole
+/// byte carriers and erased members have no admitted zero spelling through
+/// this structural operation.
 /// Mixed shapes admit common fields and their first case. The value traversal
 /// rejects unknown declarations and cycles on instantiated paths. It neither
 /// expands array elements nor applies the leaf enumeration resource ceiling.
@@ -236,11 +239,21 @@ fn zeroed_field_scalar(field: &StructuralFieldDeclaration) -> Option<ScalarType>
         .flatten()
 }
 
+/// Zero storage holds an empty byte sequence: a bounded owner's live length is
+/// zero, and a shared view field holds the empty shared view
+/// (`wiki/spec/terminal-psi/structural_access.md`). Every declared byte
+/// predicate must hold for that empty sequence. Mutable,
+/// write-only and bounded views keep no zero spelling.
 fn zeroed_byte_field(field: &StructuralFieldDeclaration) -> bool {
     !field.relevance.is_erased()
         && matches!(
             field.field_type.byte_sequence_carrier(),
-            Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+            Some(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    | terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    }
+            )
         )
         && field.field_type.byte_predicates().holds_for(&[])
 }

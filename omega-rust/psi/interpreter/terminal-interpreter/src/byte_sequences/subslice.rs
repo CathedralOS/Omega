@@ -83,7 +83,11 @@ impl TerminalExecution {
             || start > end
             || end > length
             || source_value.structural_type != result.structural_type
-            || !source_value.qualifications.is_empty()
+            // A shared window only reads its source; it claims none of the
+            // source's predicates (its result is unqualified), so a qualified
+            // source lends it as freely as a plain one. A mutable window
+            // could break a predicate the source still declares.
+            || (mutable && !source_value.qualifications.is_empty())
             || !matches!(
                 result.multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -161,7 +165,9 @@ impl TerminalExecution {
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
             )
             || source.structural_type != destination.structural_type
-            || !source.qualifications.is_empty()
+            // As for an established window: a shared narrowing reads its
+            // qualified source without claiming its predicates.
+            || (access != StructuralAccess::SharedBorrow && !source.qualifications.is_empty())
             || !destination.qualifications.is_empty()
             || !self
                 .program

@@ -442,32 +442,6 @@ additional evidence without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md)
 defines the complete product bar.
 
-- **REFERENCE-BEARING-RECORD-LOCAL-FILL.** (split-of:STATE-LOCAL-VALUE-FRONTIER)
-  Borrowed-view locals take the one descriptor store a record's view field
-  takes: `StructuralByteViewFieldStore` carries a root, a path and an optional
-  field, and no field with an empty path names a declared descriptor home
-  ([store vocabulary](wiki/spec/terminal-psi/structural_access.md#store-vocabulary)).
-  The home is read, lent to ordinary and boundary calls, forwarded on state
-  edges, and declares a qualified local's byte domains:
-  `pass/text/runtime_view_local_*_exit` (8 fixtures) exit 70 natively, and the
-  `fail/borrows/view_local_*` and `fail/domains/view_local_*` controls reject.
-  - A call-initialized mutable view local (`let mut v: &[u8] = f(..);`) still
-    binds the call as a place loan: checked flow records no call row for that
-    initializer, so stage 04 has no call to sequence before a home store
-    (`statement sequence: call: flow call`), and a later reassignment
-    reaches stage 05 `descriptor store local is not a declared descriptor
-    home`. Assigning a call result to an existing home already works.
-  - Retain descriptor lifetimes, overlapping-write rejection and the controls
-    `pass/text/declared_record_view_field_fill_exit`,
-    `pass/wire/runtime_wire_utf8_edge_verdicts_exit`, and
-    `pass/domains/runtime_qualified_view_field_parameter_store_exit` (exit 70).
-    Do not revive Terminal verification scheduled for deletion by the PCC work.
-  Acceptance: a call-initialized mutable view local is stored, reassigned and
-  read in a new `pass/text/runtime_view_local_*_exit` fixture, and
-  `python tools/corpus_gate.py --both --filter text/runtime_view_local_,text/declared_record_view_field_fill_exit,domains/runtime_qualified_view_field_parameter_store_exit`
-  keeps native and Terminal interpretation in agreement. The closure must
-  preserve backing through surviving copies.
-
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans and native execution, preserving
   the [evaluation schedule](wiki/spec/language/expressions.md#evaluation-schedule)

@@ -247,9 +247,7 @@ impl TerminalExecution {
             || parameter.access != StructuralAccess::SharedBorrow
             || argument.access != parameter.access
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
-            || !value.qualifications.is_empty()
             || self
                 .live_claims
                 .values()
@@ -257,10 +255,28 @@ impl TerminalExecution {
         {
             return Err(malformed());
         }
-        let bytes = self
-            .shared_byte_descriptor(argument, &value)?
-            .clone()
-            .with_descriptor_home(value.clone());
+        let bytes = self.shared_byte_descriptor(argument, &value)?.clone();
+        // A lent descriptor must satisfy every domain the formal names
+        // (structural access, shared view fields). The checked call proved
+        // that implication; execution fails closed on the actual bytes
+        // rather than trusting whichever domains the source value spells,
+        // and the formal then holds the descriptor under those domains.
+        if !terminal_semantics::byte_literal_qualifications_hold_in(
+            self.program.catalogs.structural_domains.iter(),
+            parameter.structural_type,
+            &parameter.qualifications,
+            bytes.bytes(),
+        ) {
+            return Err(malformed());
+        }
+        let mut value = value;
+        for domain in &parameter.qualifications {
+            if !value.qualifications.contains(domain) {
+                value.qualifications.push(*domain);
+            }
+        }
+        value.qualifications.sort();
+        let bytes = bytes.with_descriptor_home(value.clone());
         Ok(Some((value, ByteSequenceBinding::Immutable(bytes))))
     }
 

@@ -192,7 +192,7 @@ pass/domains/record_literal_view_member_store_exit built 1699ms exit:70 stdout:m
 pass/domains/record_predicate_domain_member_exit built 1214ms exit:70 interpreter-exit:70 interpreter:agrees @2efb222df04d
 pass/domains/runtime_computed_qualification_exit built 4482ms exit:0 interpreter-exit:0 interpreter:agrees @27dfa182e550
 pass/domains/runtime_qualified_borrowed_gated_input_exit built 1513ms exit:0 interpreter-exit:0 interpreter:agrees @f20b8ea3bb8d
-pass/domains/runtime_qualified_view_field_parameter_store_exit built 1493ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @6949147699f7
+pass/domains/runtime_qualified_view_field_parameter_store_exit built 2494ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @f76d8aa42d2a
 pass/domains/utf8_field_write_from_param built 469ms @6949147699f7
 pass/drops/conditional_structural_return_cleanup_exit built 1549ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/drops/contextual_cleanup_exit built 1075ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db0816c5dcd4+wt
@@ -328,7 +328,17 @@ pass/structural/runtime_structural_result_crash_branch_exit built 973ms exit:0 i
 pass/structural/selected_record_payload_observations_exit built 2335ms exit:70 interpreter-exit:70 interpreter:agrees @6a3a2f5cba58
 pass/targets/private_target_supplies_remain_disclosed built 1697ms exit:0 interpreter-exit:0 interpreter:agrees @db1571e34f4a+wt
 pass/termination/runtime_saved_rank_cycle_exit built 1885ms exit:0 interpreter-exit:0 interpreter:agrees @68fba6a896c8+wt
-pass/text/declared_record_view_field_fill_exit built 1235ms exit:70 interpreter-exit:70 interpreter:agrees @20ff4f468d4e+wt
+pass/text/declared_record_view_field_fill_exit built 2399ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_boundary_write_exit built 2772ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_call_argument_exit built 2582ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_call_initialized_exit built 2313ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_call_result_store_exit built 1943ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_field_store_exit built 2230ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_first_store_exit built 2668ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_qualified_argument_exit built 2040ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_reassign_exit built 2139ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_record_local_field_store_exit built 1066ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
+pass/text/runtime_view_local_state_transfer_exit built 1069ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
 pass/text/zii_default_string_equality_exit built 1986ms exit:70 interpreter-exit:70 interpreter:agrees @7e2fff8c80ba+wt
 pass/traits/runtime_dyn_data_argument_counts_exit built 993ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
 pass/traits/runtime_dyn_joined_selector_exit built 1004ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
@@ -344,7 +354,7 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit built 4199ms exit:70 in
 pass/wire/runtime_wire_encode_byte_slice_exit built 2403ms exit:70 interpreter-exit:70 interpreter:agrees @a662ed5de2fd
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 4316ms exit:70 interpreter-exit:70 interpreter:agrees @a662ed5de2fd
 pass/wire/runtime_wire_policy_authored_plan_exit built 32203ms exit:70 interpreter-exit:70 interpreter:agrees @65d86d5aa7a8+wt
-pass/wire/runtime_wire_utf8_edge_verdicts_exit built 16975ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
+pass/wire/runtime_wire_utf8_edge_verdicts_exit built 3390ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
 pass/wire/wire_preserving_decode_relay_exit built 1783ms exit:70 interpreter-exit:70 interpreter:agrees @bf6726603463+wt
 pass/write_only/state_forwarded_scalar_store_exit built 1360ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 run/borrows/reference_local_binding_routes built 6013ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3fa817733300+wt
