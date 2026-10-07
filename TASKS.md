@@ -2979,13 +2979,14 @@ of a check the same flow already performed, not the check itself.
   independent validation/proof owners; no checking-time mutation or typed
   commitment fallback is permitted.
 
-  Remaining: qualify the extracted stage and its query consumers against the
-  full check corpus and native `--filter generics,operators,providers/` on
-  macOS. Attribute any moved behavior on the current base without changing
-  authored oracles. Coordinate the remaining repeated specialization/rebinding
-  passes with **SPECIALIZATION-LOOP-ONCE**, now owned by the preparation stage;
+  Remaining: coordinate the repeated specialization/rebinding passes with
+  **SPECIALIZATION-LOOP-ONCE**, now owned by the preparation stage;
   run each pass once at its required point without losing authored requirement
-  identity or call-contract diagnostics. Runtime selected-provider choices are
+  identity or call-contract diagnostics. Retain erased call applications and
+  clone correspondence in typed input, then admit them in immutable checking;
+  specialization already derives executable tuples and never reads its repeated
+  admission table. Keep authored template dependencies separate from instance
+  effects when completing commitments. Runtime selected-provider choices are
   not a preparation input; source checks every candidate before Omega selection.
 
   The checking invocation also owns every derived index, memo and recursion

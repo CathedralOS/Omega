@@ -2221,13 +2221,7 @@ dependencies = [
  "language-semantics",
  "numerics",
  "proof",
- "source-files-to-tokens",
- "symbol-resolved-trees",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
- "tokens-to-syntax-trees",
  "typed-trees",
  "validation",
 ]

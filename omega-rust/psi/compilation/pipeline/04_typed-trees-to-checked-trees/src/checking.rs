@@ -2,9 +2,10 @@
 //! execution plans, then publish checked trees. Preparation has already closed
 //! the executable bodies and call identities; this stage never repairs them.
 //!
-//! `lower_typed_trees` is the one entrance; a `CheckingRequest` names the
-//! package checkpoint (preliminary or settled) and carries source admission
-//! evidence. Every production request enforces crash admission.
+//! `lower_typed_trees` is the one entrance. `TypedPreparation` carries the
+//! producer's admission checkpoint and source judgments; `CheckingRequest`
+//! carries package declaration authority. Checking cannot change the prepared
+//! input's checkpoint. Every production request enforces crash admission.
 //!
 //! A request checks its prepared program afresh unless its caller hands back a
 //! [`RetainedCheck`] from earlier in the same invocation. Package review is
@@ -15,8 +16,9 @@
 //! build). The judgment is a pure function of the typed program, the
 //! checkpoint and the opaque-property receipts, so an equal input takes the
 //! retained judgment, which this function computed. Everything invocation-owned
-//! (wire demands, constant completeness, asm and declaration authority) still
-//! runs on every request. A global exact-input memo once served such repeats
+//! still runs on every request: preparation admits wire demands, constant
+//! completeness and asm before this entrance; checking admits declaration
+//! authority even after reuse. A global exact-input memo once served such repeats
 //! implicitly; it was deleted, and reuse is now an explicit caller input.
 
 pub(crate) mod call_acknowledgements;

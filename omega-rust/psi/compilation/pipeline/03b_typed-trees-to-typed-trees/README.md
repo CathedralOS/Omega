@@ -38,19 +38,16 @@ rediscovering their enclosing statement trees for each call. The collected
 subjects preserve the first lexical owner and exact generational handles.
 Separate saved operator-provider templates retain their distinct-source path.
 
-Selected-provider checking prepares its immutable authored snapshot and reach
-summary once per invocation, only when providers are selected. Fixed-point rounds
+Operator-candidate elaboration prepares its immutable authored snapshot and reach
+summary once per invocation, only when generic checked candidates exist. Build
+selection is not an input: all authored conformance candidates participate.
+Fixed-point rounds
 avoid a working graph copy when all demanded tuples already have exact receipts.
-A provider with new tuples still gets isolated replay/type-import storage;
+An operator candidate with new tuples still gets isolated copy/type-import storage;
 that copy is not shared mutable template authority.
 
 This removes the per-template whole-program snapshot, not all copying or
 whole-program scans. Selected graphs are copied through staging and then into
 their destination; generated names and evidence still allocate. Shared source
-payloads retain their existing owners. The manual `specialization_allocations`
-example counts successful allocation/reallocation requests and requested bytes
-during complete static specialization, excluding input construction/cloning.
-It varies demanded templates and unrelated machines and checks exact repeated
-output and allocation counts. It does not measure peak memory or speedup.
-Run `cargo run -p typed-trees-to-typed-trees --example specialization_allocations`
-(or use `mbx run` when available).
+payloads retain their existing owners. Compiler behavior is qualified through
+the ordinary corpus route, not a synthetic specialization-only program builder.
