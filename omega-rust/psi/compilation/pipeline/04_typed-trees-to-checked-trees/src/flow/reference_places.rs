@@ -13,6 +13,43 @@ pub(crate) use result_candidates::{
     reference_result_candidates_before_statement,
 };
 
+/// The expression whose place a reference-typed local currently refers to:
+/// its initializer, or the value of the latest whole-local reassignment.
+/// Returns `None` when the symbol is not a reference-typed local or the route
+/// cannot be replayed.
+pub(crate) fn reference_route_source(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statements: &[StatementNode],
+    statement_index: usize,
+    symbol: symbols::SymbolHandle,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    let (_, declaration) = program
+        .state_local_declaration(state, symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)?;
+    if !crate::checks::type_reference_is_reference(program, declaration.type_reference) {
+        return None;
+    }
+    statements
+        .iter()
+        .take(statement_index)
+        .rev()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => Some(local.initial_value),
+            StatementNode::Assignment(assignment) => {
+                let target = super::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    assignment.target,
+                )?;
+                (target.root == PlaceRoot::Symbol(symbol) && target.segments.is_empty())
+                    .then_some(assignment.value)
+            }
+            _ => None,
+        })
+}
+
 pub(crate) fn local_reference_storage_before_statement(
     program: &TypedTrees,
     frames: &validation::CallFrameResolver<'_>,

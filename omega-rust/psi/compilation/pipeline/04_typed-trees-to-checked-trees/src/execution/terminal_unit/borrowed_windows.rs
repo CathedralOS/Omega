@@ -23,7 +23,6 @@ use crate::flow::CanonicalPlace;
 use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The exact field chain beneath an exclusive borrowed structural parameter.
 /// Whole-root moves and referent segments open no pinned window; a fixed or
@@ -167,9 +166,13 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
         let PlaceRoot::Symbol(symbol) = root else {
             break;
         };
-        let Some(source) =
-            local_reference_source(program, state, statements, statement_index, symbol)
-        else {
+        let Some(source) = crate::flow::reference_route_source(
+            program,
+            state,
+            statements,
+            statement_index,
+            symbol,
+        ) else {
             break;
         };
         let Some(source) = reference_source_place(program, state.symbol, statement_index, source)
@@ -191,43 +194,6 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
         segments = rebased_place.segments;
     }
     (root, segments)
-}
-
-/// The expression whose place a reference-typed local currently refers to:
-/// its initializer, or the value of the latest whole-local reassignment.
-/// Returns `None` when the symbol is not a reference-typed local or the route
-/// cannot be replayed.
-fn local_reference_source(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    statements: &[StatementNode],
-    statement_index: usize,
-    symbol: SymbolHandle,
-) -> Option<ExpressionHandle> {
-    let (_, declaration) = program
-        .state_local_declaration(state, symbol)
-        .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    if !type_reference_is_reference(program, declaration.type_reference) {
-        return None;
-    }
-    statements
-        .iter()
-        .take(statement_index)
-        .rev()
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some(local.initial_value),
-            StatementNode::Assignment(assignment) => {
-                let target = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    assignment.target,
-                )?;
-                (target.root == PlaceRoot::Symbol(symbol) && target.segments.is_empty())
-                    .then_some(assignment.value)
-            }
-            _ => None,
-        })
 }
 
 /// The referent place a reference initializer captures: explicit borrows and
@@ -269,18 +235,6 @@ fn reference_source_place(
     )
 }
 
-/// Whether the local's declared type is a reference, following constrained
-/// base types.
-fn type_reference_is_reference(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } => true,
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_reference(program, *base_type)
-        }
-        _ => false,
-    }
-}
-
 /// Exact places a statement sequence has opened and not yet repaired.
 /// Detached values live in the sequence's ordinary structural result table;
 /// consuming a value does not discharge the original place's restoration debt.
@@ -301,7 +255,7 @@ pub(in crate::execution::terminal_unit) fn move_out_candidate(
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<crate::flow::CanonicalPlace> {
     if local.is_mutable
-        || type_reference_is_reference(program, local.type_reference)
+        || crate::checks::type_reference_is_reference(program, local.type_reference)
         || program.type_multiplicity(local.type_reference) == Multiplicity::Unrestricted
     {
         return None;
@@ -469,7 +423,10 @@ impl OpenWindows {
                 .filter(|(ordinal, local)| {
                     *ordinal < index
                         && local.is_mutable
-                        && !type_reference_is_reference(program, local.type_reference)
+                        && !crate::checks::type_reference_is_reference(
+                            program,
+                            local.type_reference,
+                        )
                 })
                 .map(|_| symbol),
             _ => None,

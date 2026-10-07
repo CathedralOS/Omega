@@ -1621,9 +1621,13 @@ fn resolve_storage_place(
         let facts::PlaceRoot::Symbol(symbol) = root else {
             break;
         };
-        let Some(source) =
-            reference_route_source(program, state, statements, statement_index, symbol)
-        else {
+        let Some(source) = crate::flow::reference_route_source(
+            program,
+            state,
+            statements,
+            statement_index,
+            symbol,
+        ) else {
             break;
         };
         let Some(source) = reference_source_place(program, state.symbol, statement_index, source)
@@ -1647,44 +1651,6 @@ fn resolve_storage_place(
         segments = rebased_place.segments;
     }
     (root, segments)
-}
-
-/// The expression whose place a reference-typed local currently refers to:
-/// its initializer, or the value of the latest whole-local reassignment.
-/// Returns `None` when the symbol is not a reference-typed local or the route
-/// cannot be replayed.
-fn reference_route_source(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    statements: &[StatementNode],
-    statement_index: usize,
-    symbol: SymbolHandle,
-) -> Option<ExpressionHandle> {
-    let (_, declaration) = program
-        .state_local_declaration(state, symbol)
-        .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    if !super::linear_obligations::type_reference_is_reference(program, declaration.type_reference)
-    {
-        return None;
-    }
-    statements
-        .iter()
-        .take(statement_index)
-        .rev()
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some(local.initial_value),
-            StatementNode::Assignment(assignment) => {
-                let target = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    assignment.target,
-                )?;
-                (target.root == facts::PlaceRoot::Symbol(symbol) && target.segments.is_empty())
-                    .then_some(assignment.value)
-            }
-            _ => None,
-        })
 }
 
 /// The referent place a reference initializer captures: explicit borrows and
