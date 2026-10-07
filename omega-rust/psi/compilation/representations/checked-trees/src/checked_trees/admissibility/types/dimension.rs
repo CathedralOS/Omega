@@ -1,34 +1,34 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AcceptanceDimension {
-    Borrow,
-    Proof,
-    ServiceReach,
-    Suspension,
-    Blocking,
-    Boundaries,
-    Termination,
+macro_rules! acceptance_dimensions {
+    ($( { $variant:ident => $name:literal } ),+ $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum AcceptanceDimension {
+            $( $variant ),+
+        }
+
+        impl AcceptanceDimension {
+            pub const ALL: [Self; acceptance_dimensions!(@count $( $variant )+)] = [
+                $( Self::$variant ),+
+            ];
+
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $( Self::$variant => $name ),+
+                }
+            }
+        }
+    };
+    (@count $( $variant:ident )+) => {
+        <[()]>::len(&[$(acceptance_dimensions!(@unit $variant)),+])
+    };
+    (@unit $variant:ident) => { () };
 }
 
-impl AcceptanceDimension {
-    pub const ALL: [Self; 7] = [
-        Self::Borrow,
-        Self::Proof,
-        Self::ServiceReach,
-        Self::Suspension,
-        Self::Blocking,
-        Self::Boundaries,
-        Self::Termination,
-    ];
-
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Borrow => "borrow",
-            Self::Proof => "proof",
-            Self::ServiceReach => "service_reach",
-            Self::Suspension => "suspension",
-            Self::Blocking => "blocking",
-            Self::Boundaries => "boundaries",
-            Self::Termination => "termination",
-        }
-    }
+acceptance_dimensions! {
+    { Borrow => "borrow" },
+    { Proof => "proof" },
+    { ServiceReach => "service_reach" },
+    { Suspension => "suspension" },
+    { Blocking => "blocking" },
+    { Boundaries => "boundaries" },
+    { Termination => "termination" },
 }
