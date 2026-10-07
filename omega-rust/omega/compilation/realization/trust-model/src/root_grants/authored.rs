@@ -27,7 +27,7 @@ pub fn harvest_root_grants(
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
             if let typed_trees::statement::StatementNode::Expression(expression) = statement
-                && typed_trees_to_checked_trees::typed_build_operation(typed, *expression)
+                && validation::compiler_operations::build_operation(typed, *expression)
                     == Some(BuildOperation::BoundaryAcceptance)
                 && let typed_trees::expression::ExpressionNode::Call(call) =
                     typed.expression_table.expression(*expression)

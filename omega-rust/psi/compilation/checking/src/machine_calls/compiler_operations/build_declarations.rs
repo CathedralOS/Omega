@@ -5,13 +5,13 @@
 //! that borrow against the current activation's original cell, so a fabricated
 //! Build cannot acquire authority merely by passing this type-level check.
 
-use super::intrinsic_calls::exact_build_prelude_data;
+use super::exact_build_prelude_data;
 use language_semantics::declaration_selection::BuildOperation;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
-pub(crate) fn is_build_declaration_selection(
-    program: &dyn ::validation::CheckingInput,
+pub fn is_build_declaration_selection(
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
@@ -19,7 +19,7 @@ pub(crate) fn is_build_declaration_selection(
         return false;
     };
     matches!(
-        super::intrinsic_calls::checked_expression_call_intrinsic(program, call),
+        super::classify_expression_call_intrinsic(program, call),
         Some(Intrinsic::BuildProviderSelection | Intrinsic::BuildServiceExclusion)
     )
 }
@@ -27,8 +27,8 @@ pub(crate) fn is_build_declaration_selection(
 /// Rejoin a designated product operand only after exact operation admission.
 /// Provider slots admit boundary requirements and operator families; service
 /// exclusions admit only a boundary trait, never its implementation.
-pub(crate) fn resolve_build_declaration_operand(
-    program: &dyn ::validation::CheckingInput,
+pub fn resolve_build_declaration_operand(
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     argument_index: usize,
     occurrence: source::SourceSpan,
@@ -59,14 +59,14 @@ pub(crate) fn resolve_build_declaration_operand(
     Some(selected)
 }
 
-pub(crate) fn provider_selection_expressions(
-    program: &dyn ::validation::CheckingInput,
+pub fn provider_selection_expressions(
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
     let mut expressions = Vec::new();
     for state in program.machine_states(machine) {
         for statement in program.statement_table.statements(state.statement_nodes) {
-            crate::monomorphization::collect_statement_expression_trees(
+            crate::expression_traversal::collect_statement_expression_trees(
                 program,
                 statement,
                 &mut expressions,
@@ -82,8 +82,8 @@ pub(crate) fn provider_selection_expressions(
     expressions
 }
 
-pub(crate) fn is_build_provider_selection(
-    program: &dyn ::validation::CheckingInput,
+pub fn is_build_provider_selection(
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
@@ -92,8 +92,8 @@ pub(crate) fn is_build_provider_selection(
     is_provider_selection_call(program, call)
 }
 
-pub(crate) fn is_provider_selection_call(
-    program: &dyn ::validation::CheckingInput,
+pub fn is_provider_selection_call(
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     BuildOperation::from_call_target(call.target.as_str())
@@ -111,7 +111,7 @@ pub(crate) fn is_provider_selection_call(
 /// Namespace identity selects the operation; its first value operand carries
 /// the activation. Never infer that operand from a receiver or a local name.
 pub(super) fn has_explicit_build_argument(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     !call.target_symbol.is_valid()
@@ -127,7 +127,7 @@ pub(super) fn has_explicit_build_argument(
 }
 
 fn exact_mutable_build_argument(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
 ) -> bool {
     if !receiver.is_valid() {
@@ -135,10 +135,10 @@ fn exact_mutable_build_argument(
     }
     if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(receiver) {
         return borrow.access == language_semantics::ReferenceAccess::Mutable
-            && crate::flow::expression_type_symbol(program, borrow.target)
+            && crate::expression_type_symbol(program, borrow.target)
                 .is_some_and(|symbol| exact_build_prelude_data(program, symbol, "Build"));
     }
-    crate::flow::expression_place_type_reference(program, receiver, &[]).is_some_and(|reference| {
+    crate::expression_place_type_reference(program, receiver, &[]).is_some_and(|reference| {
         matches!(program.type_reference_table.type_reference(reference),
             typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
                 if *access == language_semantics::ReferenceAccess::Mutable
@@ -148,8 +148,8 @@ fn exact_mutable_build_argument(
 
 /// Resolve an already classified product operand, never an ordinary static use.
 /// The collector of an executed selection independently rejoins the same path.
-pub(crate) fn resolve_product_operand(
-    program: &dyn ::validation::CheckingInput,
+pub fn resolve_product_operand(
+    program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
     occurrence: source::SourceSpan,
     subject: bool,
@@ -228,4 +228,21 @@ pub(crate) fn resolve_product_operand(
         candidates,
         &token_bound_machines,
     )
+}
+
+/// Classify the exact compiler Build operation, not an ordinary same-named call.
+pub fn build_operation(
+    program: &dyn crate::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<language_semantics::declaration_selection::BuildOperation> {
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let operation = language_semantics::declaration_selection::BuildOperation::from_call_target(
+        call.target.as_str(),
+    )?;
+    (super::classify_expression_call_intrinsic(program, call) == Some(operation.intrinsic()))
+        .then_some(operation)
 }

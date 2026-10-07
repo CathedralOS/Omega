@@ -4,9 +4,6 @@
 //! deliberately separate from application closure: absent, ambiguous, and
 //! conflicting regions remain errors rather than declaration-based guesses.
 
-use crate::conformance::conformance_applications::{
-    static_argument_identity, substituted_type_identity_with_lifetimes,
-};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -15,6 +12,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArg
 use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::conformance_applications::{
+    static_argument_identity, substituted_type_identity_with_lifetimes,
+};
 
 #[derive(Clone, Copy)]
 enum ElisionCallSite {

@@ -63,17 +63,16 @@ pub(crate) fn validate_candidate_conformance_bounds(
             )));
             continue;
         };
-        let application =
-            match crate::conformance::conformance_applications::close_conformance_application(
-                program,
-                selected_binding,
-            ) {
-                Ok(application) => application,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
+        let application = match validation::conformance_applications::close_conformance_application(
+            program,
+            selected_binding,
+        ) {
+            Ok(application) => application,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
         // A transparent refinement is a structural bound over an existing
         // base conformance, never a nominal satisfaction target: "a static
         // evidence binder may require it and receive an explicitly selected
@@ -168,7 +167,7 @@ pub(crate) fn conformance_application_arguments_match_candidate(
         })
         .collect::<Vec<_>>();
     let identity = |handle, substitutions: &[(SymbolHandle, String)]| {
-        crate::conformance::conformance_applications::substituted_type_identity_with_lifetimes(
+        validation::conformance_applications::substituted_type_identity_with_lifetimes(
             program,
             handle,
             substitutions,

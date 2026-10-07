@@ -427,7 +427,7 @@ fn expression_occurrence_violation(
             // not host generic arguments. Keep every authored occurrence, but
             // establish its lexical product authority without consulting the
             // caller's Build-import namespace or executing the declaration.
-            if typed_trees_to_checked_trees::typed_build_declaration_selection(program, expression)
+            if validation::compiler_operations::is_build_declaration_selection(program, expression)
             {
                 use typed_trees::AuthoredDeclarationSelectionKind as Kind;
                 if selection.kind() == Kind::Call {
@@ -443,12 +443,13 @@ fn expression_occurrence_violation(
                                 .is_some_and(|earlier| earlier.kind() == Kind::StaticArgument)
                         })
                         .count();
-                    let selected = typed_trees_to_checked_trees::typed_build_declaration_operand(
-                        program,
-                        expression,
-                        argument_index,
-                        selection.source_span(),
-                    );
+                    let selected =
+                        validation::compiler_operations::resolve_build_declaration_operand(
+                            program,
+                            expression,
+                            argument_index,
+                            selection.source_span(),
+                        );
                     if selected.is_none() {
                         return Some(located("Build declaration operand does not resolve to one visible product declaration in this occurrence's package scope".to_owned()));
                     }

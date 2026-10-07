@@ -26,6 +26,9 @@
 //! in an abstract signature's parameters) and `result_shape` (whether an
 //! expression's result is a reference). `owner_tests` is test-only.
 
+mod declaration_types;
+pub use declaration_types::declaration_type_reference;
+
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;

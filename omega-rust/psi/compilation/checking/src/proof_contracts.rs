@@ -11,6 +11,7 @@ pub mod contract_structure;
 pub(crate) mod default_domains;
 pub(crate) mod domain_weakening;
 pub(crate) mod domains;
+pub mod expression_owners;
 pub(crate) mod float_projection_bindings;
 pub(crate) mod float_projection_invocations;
 pub(crate) mod immutable_integer_bounds;

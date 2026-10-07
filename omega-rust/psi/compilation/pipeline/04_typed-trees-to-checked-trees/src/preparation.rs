@@ -7,6 +7,7 @@
 mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
+mod selections;
 
 use crate::CheckingRequest;
 use typed_trees::TypedTrees;
@@ -71,7 +72,7 @@ pub fn prepare_typed_trees(
     // contract, so bind it before specialization captures the universal
     // template fingerprint. Normalize again afterward to cover cloned
     // expression handles and concrete substitutions.
-    crate::authored_selections::bind_pre_specialization_authored_selections(&mut program)
+    selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
     normalize_open_index_identities(&mut program)?;
     // Local dynamic selections and every authored boundary conformance own
@@ -126,7 +127,7 @@ pub fn prepare_typed_trees(
         normalize_open_index_identities(&mut program)?;
     }
     if generated_bodies {
-        crate::conformance::conformance_applications::validate_conformance_applications(&program)?;
+        validation::conformance_applications::validate_conformance_applications(&program)?;
     }
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
     // their format on the text carrier HERE, while the tree is still mutable
@@ -234,7 +235,7 @@ pub(crate) fn specialize_static_machine_calls_with_selections(
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,
     )?;
-    crate::conformance::conformance_applications::validate_conformance_applications(program)?;
+    validation::conformance_applications::validate_conformance_applications(program)?;
     crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
     let mut selections = ::validation::validate_static_machine_selections_with_facts(program)?;
     ::validation::validate_generic_machine_contract_entailment(program)?;

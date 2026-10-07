@@ -22,7 +22,7 @@ pub(super) fn checked_operator_resolution(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
-    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
     if checked_float_meaning_equality(program, facts, expression, node, owner_index)
         || checked_resultless_law_equality(program, facts, expression, node, owner_index)
@@ -37,13 +37,13 @@ pub(super) fn checked_operand_type(
     facts: &CheckFacts,
     containing_expression: typed_trees::expression::ExpressionHandle,
     operand: typed_trees::expression::ExpressionHandle,
-    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     crate::authored_selections::operator_targets::authored_operand_type(program, operand)
         .or_else(|| {
-            super::contexts::checked_expression_type_reference_from_exact_owner(
+            validation::expression_owners::checked_expression_type_reference_from_exact_owner(
                 program,
-                facts,
+                &facts.proof.contract_facts,
                 containing_expression,
                 operand,
                 owner_index,
@@ -74,7 +74,7 @@ pub(super) fn checked_named_operator_call<'program>(
     expression: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     source_span: source::SourceSpan,
-    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
     let arguments = program.expression_table.expression_handles(call.arguments);
     let operand_types = arguments
@@ -82,9 +82,9 @@ pub(super) fn checked_named_operator_call<'program>(
         .map(|argument| {
             crate::authored_selections::operator_targets::authored_operand_type(program, *argument)
                 .or_else(|| {
-                    super::contexts::checked_expression_type_reference_from_exact_owner(
+                    validation::expression_owners::checked_expression_type_reference_from_exact_owner(
                         program,
-                        facts,
+                        &facts.proof.contract_facts,
                         expression,
                         *argument,
                         owner_index,
@@ -133,7 +133,7 @@ fn checked_spelled_operator_resolution(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
-    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
     let ExpressionNode::Binary(binary) = node else {
         return None;
@@ -170,7 +170,7 @@ fn checked_float_meaning_equality(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
-    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> bool {
     let ExpressionNode::Binary(binary) = node else {
         return false;
@@ -194,7 +194,7 @@ fn checked_resultless_law_equality(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
-    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> bool {
     if !matches!(
         node,
@@ -205,7 +205,7 @@ fn checked_resultless_law_equality(
     }
 
     let containing = match owner_index {
-        Some(owner_index) => owner_index.containing_contract_facts(program, facts, expression),
+        Some(owner_index) => owner_index.containing_contract_facts(expression),
         None => facts
             .proof
             .contract_facts
@@ -248,7 +248,7 @@ fn contract_contains_expression(
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    super::contexts::proof_fact_contains_expression(program, fact, expression)
+    validation::expression_owners::proof_fact_contains_expression(program, fact, expression)
 }
 
 fn resultless_state_signature(

@@ -17,8 +17,8 @@ use typed_trees::typed_trees::{
 };
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) fn validate_conformance_applications(
-    program: &dyn ::validation::CheckingInput,
+pub fn validate_conformance_applications(
+    program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     for (_, expression) in program.expression_table.iter_expressions() {
@@ -51,11 +51,11 @@ pub(crate) fn validate_conformance_applications(
 }
 
 fn validate_call_arguments(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let declarations = match crate::authored_selections::static_argument_role(program, call) {
+    let declarations = match crate::compiler_operations::static_argument_role(program, call) {
         StaticArgumentRole::DeclarationDescription => program.product_declarations(),
         StaticArgumentRole::ValueDependency => program,
     };
@@ -63,7 +63,7 @@ fn validate_call_arguments(
 }
 
 fn validate_arguments(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     arguments: &[StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -82,7 +82,7 @@ fn validate_arguments(
 }
 
 pub fn close_conformance_application(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     selected: &StaticMachineArgument,
 ) -> Result<ClosedConformanceApplication, Diagnostic> {
     let Some(conformance) = program
@@ -286,7 +286,7 @@ pub fn close_conformance_application(
 }
 
 fn validate_type_argument(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     conformance: &str,
     parameter: &str,
     argument: &StaticMachineArgument,
@@ -316,7 +316,7 @@ fn category_error(
 }
 
 fn close_const_argument(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     conformance: &str,
     parameter: &str,
     parameter_carrier: TypeReferenceHandle,
@@ -440,8 +440,8 @@ fn close_const_argument(
     ))
 }
 
-pub(crate) fn static_argument_identity(
-    _program: &dyn ::validation::CheckingInput,
+pub fn static_argument_identity(
+    _program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
 ) -> String {
     argument.display_name()
@@ -451,8 +451,8 @@ pub(crate) fn static_argument_identity(
 /// normalized identity an unsubstituted concrete trait argument carries, so an
 /// evidence binder's instantiated trait arguments and an implementation's own
 /// trait arguments compare in one vocabulary.
-pub(crate) fn type_argument_identity(
-    program: &dyn ::validation::CheckingInput,
+pub fn type_argument_identity(
+    program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
 ) -> String {
     if argument.type_reference.is_valid() {
@@ -470,8 +470,8 @@ pub(crate) fn type_argument_identity(
         )
 }
 
-pub(crate) fn substituted_type_identity_with_lifetimes(
-    program: &dyn ::validation::CheckingInput,
+pub fn substituted_type_identity_with_lifetimes(
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, String)],
     lifetime_substitutions: &[(String, String)],
@@ -597,7 +597,7 @@ struct ApplicationIdentity {
 
 #[allow(clippy::too_many_arguments)]
 fn application_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     declaration: &str,
     lifetime_arguments: &[String],
     type_arguments: &[String],

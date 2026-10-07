@@ -8,22 +8,21 @@ use super::inference::{
     member_target_in_environment,
 };
 use super::{InferredType, OwnerEnvironmentIndex, OwnerMemberTarget, TypeEnvironment};
-use checked_trees::CheckFacts;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 use typed_trees::types::TypeReferenceHandle;
 
-pub(in crate::authored_selections) fn checked_member_target_from_exact_owner(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+pub fn checked_member_target_from_exact_owner(
+    program: &dyn crate::CheckingInput,
+    contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
     expression: ExpressionHandle,
     member: &TableMemberExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<OwnerMemberTarget> {
     let source_span = authored_member_source_span(program, expression)?;
     let mut target = None;
-    for environment in exact_owner_environments(program, facts, expression, owner_index)? {
+    for environment in exact_owner_environments(program, contract_facts, expression, owner_index)? {
         let candidate = member_target_in_environment(program, member, &environment, source_span)?;
         retain_consistent(&mut target, candidate)?;
     }
@@ -31,7 +30,7 @@ pub(in crate::authored_selections) fn checked_member_target_from_exact_owner(
 }
 
 pub(super) fn authored_member_source_span(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<source::SourceSpan> {
     let mut retained = None;
@@ -58,15 +57,17 @@ pub(super) fn authored_member_source_span(
 /// contain it. Contract copies can intentionally leave parameter/result path
 /// symbols unresolved; the retained checked contract owner is the authority
 /// for those bindings.
-pub(in crate::authored_selections) fn checked_expression_type_reference_from_exact_owner(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+pub fn checked_expression_type_reference_from_exact_owner(
+    program: &dyn crate::CheckingInput,
+    contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
     owner_expression: ExpressionHandle,
     expression: ExpressionHandle,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<TypeReferenceHandle> {
     let mut retained = None;
-    for environment in exact_owner_environments(program, facts, owner_expression, owner_index)? {
+    for environment in
+        exact_owner_environments(program, contract_facts, owner_expression, owner_index)?
+    {
         let InferredType::TypeReference(candidate) =
             infer_expression_type(program, expression, &environment, &mut Vec::new())?
         else {
@@ -83,9 +84,9 @@ pub(in crate::authored_selections) fn checked_expression_type_reference_from_exa
     retained
 }
 
-pub(in crate::authored_selections) fn checked_collection_view_intrinsic_from_exact_owner(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+pub fn checked_collection_view_intrinsic_from_exact_owner(
+    program: &dyn crate::CheckingInput,
+    contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
@@ -95,9 +96,9 @@ pub(in crate::authored_selections) fn checked_collection_view_intrinsic_from_exa
     // The call shape decides which operation the spelling may select; this
     // site additionally requires every exact owner environment to agree on the
     // receiver's carrier type before the intrinsic is recorded.
-    let expected = crate::semantic::calls::collection_view_call(program, call)?;
+    let expected = crate::call_topology::collection_view_call(program, call)?;
     let mut retained = None;
-    for environment in exact_owner_environments(program, facts, expression, owner_index)? {
+    for environment in exact_owner_environments(program, contract_facts, expression, owner_index)? {
         let receiver =
             infer_expression_type(program, call.receiver, &environment, &mut Vec::new())?;
         let candidate = collection_view_operation_for_receiver(program, expected, receiver)?;
@@ -109,34 +110,40 @@ pub(in crate::authored_selections) fn checked_collection_view_intrinsic_from_exa
     retained.map(Intrinsic::CollectionView)
 }
 
-pub(in crate::authored_selections) fn checked_machine_call_target_from_exact_owner(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+pub fn checked_machine_call_target_from_exact_owner(
+    program: &dyn crate::CheckingInput,
+    contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
-    checked_machine_call_target_from_type_owners(program, facts, expression, call, owner_index)
-        .or_else(|| {
-            checked_machine_call_target_from_executable_owner(
-                program,
-                facts,
-                expression,
-                call,
-                owner_index,
-            )
-        })
+    checked_machine_call_target_from_type_owners(
+        program,
+        contract_facts,
+        expression,
+        call,
+        owner_index,
+    )
+    .or_else(|| {
+        checked_machine_call_target_from_executable_owner(
+            program,
+            contract_facts,
+            expression,
+            call,
+            owner_index,
+        )
+    })
 }
 
 pub(super) fn checked_machine_call_target_from_type_owners(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    program: &dyn crate::CheckingInput,
+    contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
     let mut target = None;
-    for environment in exact_owner_environments(program, facts, expression, owner_index)? {
+    for environment in exact_owner_environments(program, contract_facts, expression, owner_index)? {
         let candidate = call_target_in_environment(program, call, &environment)?;
         retain_consistent(&mut target, candidate)?;
     }
@@ -144,15 +151,15 @@ pub(super) fn checked_machine_call_target_from_type_owners(
 }
 
 pub(super) fn checked_machine_call_target_from_executable_owner(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    program: &dyn crate::CheckingInput,
+    contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
     let mut target = None;
     if let Some(owner_index) = owner_index {
-        for site in owner_index.executable_sites(program, facts, expression) {
+        for site in owner_index.executable_sites(expression) {
             let machine = &program.machines()[site.machine];
             if program
                 .machine_specializations
@@ -196,7 +203,7 @@ pub(super) fn checked_machine_call_target_from_executable_owner(
             let statements = program.statement_table.statements(state.statement_nodes);
             for (statement_index, statement) in statements.iter().enumerate() {
                 let mut expressions = Vec::new();
-                crate::monomorphization::collect_statement_expression_trees(
+                crate::expression_traversal::collect_statement_expression_trees(
                     program,
                     statement,
                     &mut expressions,
@@ -227,7 +234,7 @@ pub(super) fn checked_machine_call_target_from_executable_owner(
 /// spelling, then the attached-machine lookup off the receiver's type
 /// inferred in the environment the statement's prefix bindings establish.
 pub(super) fn executable_site_call_candidate(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[typed_trees::statement::StatementNode],
@@ -235,8 +242,8 @@ pub(super) fn executable_site_call_candidate(
     call: &typed_trees::expression::TableCallExpression,
 ) -> SymbolHandle {
     let (receiver_symbol, receiver_path) =
-        crate::lookup::call_receiver_parts(program, call.receiver);
-    let mut candidate = crate::lookup::resolve_state_call_target(
+        crate::call_targets::call_receiver_parts(program, call.receiver);
+    let mut candidate = crate::call_targets::resolve_state_call_target(
         program,
         machine,
         state,
@@ -279,7 +286,7 @@ pub(super) fn executable_site_call_candidate(
 /// environment extended by the `LocalData` bindings preceding the statement.
 
 pub(super) fn call_target_in_environment(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     environment: &TypeEnvironment,
 ) -> Option<SymbolHandle> {
@@ -292,7 +299,7 @@ pub(super) fn call_target_in_environment(
 }
 
 pub(super) fn exact_static_data_receiver(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
     environment: &TypeEnvironment,
 ) -> Option<InferredType> {
@@ -300,7 +307,7 @@ pub(super) fn exact_static_data_receiver(
         return None;
     };
     let members = program.expression_table.name_path_members(path.members);
-    let selected = crate::lookup::resolve_name_path_member_symbol(
+    let selected = crate::call_targets::resolve_name_path_member_symbol(
         program,
         path,
         members.len().checked_sub(1)?,
@@ -344,7 +351,7 @@ pub(super) fn exact_static_data_receiver(
 }
 
 pub(super) fn attached_machine_target(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     receiver_type: InferredType,
     target_name: &str,
 ) -> Option<SymbolHandle> {

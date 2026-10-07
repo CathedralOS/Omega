@@ -288,7 +288,7 @@ pub(crate) fn unique_complete_selections(
                 .evidence_bindings
                 .iter()
                 .map(|binding| {
-                    crate::conformance::conformance_applications::close_conformance_application(
+                    validation::conformance_applications::close_conformance_application(
                         program,
                         binding.as_ref().expect("complete selection"),
                     )

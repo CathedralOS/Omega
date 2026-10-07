@@ -7,12 +7,9 @@
 
 use crate::authored_selections::call_targets::{
     checked_call_target, checked_name_path_segment_target, checked_operator_conformance_targets,
-    declaration_target, expression_receiver_symbol, implementation_call_selection,
+    expression_receiver_symbol, implementation_call_selection,
 };
-use crate::authored_selections::intrinsic_calls::{
-    checked_expression_call_intrinsic, checked_intrinsic_call_target, exact_build_prelude_data,
-    type_reference_names_exact_prelude_data,
-};
+use crate::authored_selections::intrinsic_calls::checked_intrinsic_call_target;
 use crate::authored_selections::member_targets::checked_member_target;
 use crate::authored_selections::operator_targets::{
     GenericOperatorValueOrigins, checked_generic_operator_target,
@@ -23,18 +20,21 @@ use crate::authored_selections::selection_collection::{
     checked_struct_literal_type_symbol, collect_checked_proof_membership_selections,
     collect_checked_proof_view_call_selections, collect_checked_statement_selections,
 };
-use crate::authored_selections::{CheckedResolution, CheckedResolutionTarget};
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelection, AuthoredDeclarationSelectionFinalizationError,
-    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
-    AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
-    AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections, BuildOperation,
+    AuthoredDeclarationSelection, AuthoredDeclarationSelectionIntrinsic,
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
+    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelections, BuildOperation,
 };
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
+use validation::selection_resolution::{
+    AuthoredSelectionResolution, AuthoredSelectionResolutionTarget, declaration_target,
+    finalization_diagnostic, push_consistent_resolution,
+};
 
 pub(crate) fn finalize_checked_authored_selections(
     program: &TypedTrees,
@@ -49,7 +49,10 @@ pub(crate) fn finalize_checked_authored_selections(
     let mut generic_operator_values: Option<GenericOperatorValueOrigins> = None;
     // One exact-owner index answers every member expression's query in a
     // single pass instead of a whole-program rescan per occurrence.
-    let owner_index = crate::authored_selections::contexts::OwnerEnvironmentIndex::default();
+    let owner_index = validation::expression_owners::OwnerEnvironmentIndex::new(
+        program,
+        &facts.proof.contract_facts,
+    );
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -85,7 +88,7 @@ pub(crate) fn finalize_checked_authored_selections(
                 if !receiver_type.is_some_and(|receiver_type| {
                     matches!(program.type_reference_table.type_reference(receiver_type),
                         typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
-                            if *access == language_semantics::ReferenceAccess::Mutable && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
+                            if *access == language_semantics::ReferenceAccess::Mutable && validation::compiler_operations::exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
                 })
                 {
                     return Err(Diagnostic::error("root binding requires a compiler-issued &mut Build receiver")
@@ -110,7 +113,7 @@ pub(crate) fn finalize_checked_authored_selections(
                         binding.implementation_operand,
                     );
                     if !operand_type.is_some_and(|operand_type| {
-                        type_reference_names_exact_prelude_data(
+                        validation::compiler_operations::type_reference_names_exact_prelude_data(
                             program,
                             operand_type,
                             "ProductEntryRef",
@@ -156,7 +159,7 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
                     ExpressionNode::Call(call),
-                ) if checked_expression_call_intrinsic(program, call)
+                ) if validation::compiler_operations::classify_expression_call_intrinsic(program, call)
                     == Some(AuthoredDeclarationSelectionIntrinsic::BuildWireCompatibilityRequest) =>
                 {
                     let argument_index = selection.top_level_static_argument_position().ok_or_else(||
@@ -172,7 +175,7 @@ pub(crate) fn finalize_checked_authored_selections(
                             .ok_or_else(|| Diagnostic::error(format!("unknown wire compatibility fact `{}`",
                                 argument.path.iter().map(|name| name.as_str()).collect::<Vec<_>>().join("::")))
                                 .with_source_span(selection.source_span()))?;
-                        Some(CheckedResolutionTarget::Intrinsic(AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(fact)))
+                        Some(AuthoredSelectionResolutionTarget::Intrinsic(AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(fact)))
                     }
                 }
                 (
@@ -185,8 +188,8 @@ pub(crate) fn finalize_checked_authored_selections(
                         continue;
                     };
                     let argument = call.machine_arguments.get(argument_index);
-                    if super::provider_selection::is_build_declaration_selection(program, expression) {
-                        let selected = super::provider_selection::resolve_build_declaration_operand(
+                    if validation::compiler_operations::is_build_declaration_selection(program, expression) {
+                        let selected = validation::compiler_operations::resolve_build_declaration_operand(
                             program, expression, argument_index, selection.source_span(),
                         );
                         let Some(selected) = selected else {
@@ -217,7 +220,7 @@ pub(crate) fn finalize_checked_authored_selections(
                         )
                         .with_source_span(selection.source_span()));
                     }
-                    Some(CheckedResolutionTarget::Intrinsic(match request.kind {
+                    Some(AuthoredSelectionResolutionTarget::Intrinsic(match request.kind {
                         typed_trees::expression::QuotientOperationKind::Define => {
                             AuthoredDeclarationSelectionIntrinsic::QuotientDefine
                         }
@@ -231,9 +234,9 @@ pub(crate) fn finalize_checked_authored_selections(
                     ExpressionNode::Call(call),
                 ) => checked_intrinsic_call_target(facts, expression)
                     .or_else(|| {
-                        checked_expression_call_intrinsic(program, call)
+                        validation::compiler_operations::classify_expression_call_intrinsic(program, call)
                     })
-                    .map(CheckedResolutionTarget::Intrinsic)
+                    .map(AuthoredSelectionResolutionTarget::Intrinsic)
                     .or_else(|| {
                         declaration_target(
                             implementation_call_selection(
@@ -331,7 +334,7 @@ pub(crate) fn finalize_checked_authored_selections(
                     ))
                     .or_else(|| {
                         typed_operator_has_no_authored_selection(program, expression).then_some(
-                            CheckedResolutionTarget::Intrinsic(
+                            AuthoredSelectionResolutionTarget::Intrinsic(
                                 AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                             ),
                         )
@@ -345,7 +348,7 @@ pub(crate) fn finalize_checked_authored_selections(
                     ExpressionNode::Boolean(_)
                     | ExpressionNode::Float(_)
                     | ExpressionNode::Integer(_),
-                ) => Some(CheckedResolutionTarget::Intrinsic(
+                ) => Some(AuthoredSelectionResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                 )),
                 // A spelled use rewritten to a compiler-synthesized call keeps
@@ -360,7 +363,7 @@ pub(crate) fn finalize_checked_authored_selections(
                     == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized =>
                 {
                     checked_structural_equality_call(program, facts, expression, call)
-                        .then_some(CheckedResolutionTarget::Intrinsic(
+                        .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
                             AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                         ))
                         .or_else(|| {
@@ -375,7 +378,7 @@ pub(crate) fn finalize_checked_authored_selections(
             if let Some(target) = target {
                 push_consistent_resolution(
                     &mut resolutions,
-                    CheckedResolution {
+                    AuthoredSelectionResolution {
                         occurrence,
                         binding,
                         target,
@@ -396,14 +399,13 @@ pub(crate) fn finalize_checked_authored_selections(
 
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {
-        let result = match resolution.target {
-            CheckedResolutionTarget::Declaration(selected) => {
-                selections.finalize_late_bound(resolution.occurrence, resolution.binding, selected)
-            }
-            CheckedResolutionTarget::Intrinsic(intrinsic) => {
-                selections.finalize_intrinsic(resolution.occurrence, resolution.binding, intrinsic)
-            }
-        };
+        let result =
+            match resolution.target {
+                AuthoredSelectionResolutionTarget::Declaration(selected) => selections
+                    .finalize_late_bound(resolution.occurrence, resolution.binding, selected),
+                AuthoredSelectionResolutionTarget::Intrinsic(intrinsic) => selections
+                    .finalize_intrinsic(resolution.occurrence, resolution.binding, intrinsic),
+            };
         result.map_err(|error| finalization_diagnostic(resolution, error))?;
     }
     // A contract clause may spell a bare uninterpreted view atom
@@ -556,39 +558,6 @@ fn late_binding_ordinal(
                 })
         })
         .count()
-}
-
-pub(crate) fn push_consistent_resolution(
-    resolutions: &mut Vec<CheckedResolution>,
-    candidate: CheckedResolution,
-) -> Result<(), Diagnostic> {
-    if let Some(existing) = resolutions
-        .iter()
-        .find(|resolution| resolution.occurrence == candidate.occurrence)
-    {
-        if *existing != candidate {
-            return Err(Diagnostic::error(format!(
-                "authored declaration selection occurrence {} resolved inconsistently across compiler-derived copies: {:?} selected {:?} and {:?}",
-                candidate.occurrence.ordinal(),
-                candidate.binding,
-                existing.target,
-                candidate.target
-            )));
-        }
-        return Ok(());
-    }
-    resolutions.push(candidate);
-    Ok(())
-}
-
-pub(crate) fn finalization_diagnostic(
-    resolution: CheckedResolution,
-    error: AuthoredDeclarationSelectionFinalizationError,
-) -> Diagnostic {
-    Diagnostic::error(format!(
-        "failed to finalize authored declaration selection occurrence {}: {error:?}",
-        resolution.occurrence.ordinal()
-    ))
 }
 
 /// Names the receiverless authored call target that stayed late-bound because

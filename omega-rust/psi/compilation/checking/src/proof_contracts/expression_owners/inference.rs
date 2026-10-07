@@ -2,7 +2,7 @@
 //! collection view, and member resolution each environment can answer.
 
 use super::{InferredType, OwnerMemberTarget, TypeEnvironment};
-use crate::semantic::calls::MeasureReceiver;
+use crate::call_topology::MeasureReceiver;
 use language_semantics::declaration_selection::CollectionMeasure;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
@@ -10,7 +10,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpre
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn type_reference_contains_expression(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     expression: ExpressionHandle,
     visited: &mut Vec<TypeReferenceHandle>,
@@ -36,11 +36,8 @@ pub(super) fn type_reference_contains_expression(
                         TypeConstraintNode::Range {
                             minimum, maximum, ..
                         } => {
-                            crate::authored_selections::member_targets::expression_contains(
-                                program, *minimum, expression,
-                            ) || crate::authored_selections::member_targets::expression_contains(
-                                program, *maximum, expression,
-                            )
+                            super::expression_contains(program, *minimum, expression)
+                                || super::expression_contains(program, *maximum, expression)
                         }
                         TypeConstraintNode::Domain(domain) => {
                             domain.arguments.iter().any(|argument| {
@@ -66,9 +63,7 @@ pub(super) fn type_reference_contains_expression(
                 type_reference_contains_expression(program, *argument, expression, visited)
             }),
         TypeReferenceNode::ConstExpression(root) => {
-            crate::authored_selections::member_targets::expression_contains(
-                program, *root, expression,
-            )
+            super::expression_contains(program, *root, expression)
         }
         TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Named { .. }
@@ -77,7 +72,7 @@ pub(super) fn type_reference_contains_expression(
 }
 
 pub(super) fn member_target_in_environment(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     member: &TableMemberExpression,
     environment: &TypeEnvironment,
     source_span: source::SourceSpan,
@@ -96,10 +91,10 @@ pub(super) fn member_target_in_environment(
 }
 
 /// The measure a member selects on its inferred receiver, asked of
-/// [`crate::semantic::calls::collection_measure_member`] in that query's
+/// [`crate::call_topology::collection_measure_member`] in that query's
 /// receiver vocabulary. A nominal or compiler-text receiver has no measure.
 pub(super) fn collection_measure_in_environment(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     member: &TableMemberExpression,
     receiver_type: InferredType,
 ) -> Option<CollectionMeasure> {
@@ -108,11 +103,11 @@ pub(super) fn collection_measure_in_environment(
         InferredType::CollectionView(_) => MeasureReceiver::Window,
         InferredType::Nominal(_) | InferredType::CompilerString => return None,
     };
-    crate::semantic::calls::collection_measure_member(program, member, receiver)
+    crate::call_topology::collection_measure_member(program, member, receiver)
 }
 
 pub(super) fn resolve_member_symbol_from_authored_source(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     receiver_type: InferredType,
     member: &TableMemberExpression,
     source_span: source::SourceSpan,
@@ -132,7 +127,7 @@ pub(super) fn resolve_member_symbol_from_authored_source(
 }
 
 pub(super) fn unresolved_nominal_type_name(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -151,7 +146,7 @@ pub(super) fn unresolved_nominal_type_name(
 }
 
 pub(super) fn infer_expression_type(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     environment: &TypeEnvironment,
     visited: &mut Vec<ExpressionHandle>,
@@ -183,10 +178,7 @@ pub(super) fn infer_expression_type(
         ExpressionNode::Name(path) => {
             if path.symbol.is_valid()
                 && let Some(type_reference) =
-                    crate::authored_selections::operator_targets::type_reference_for_symbol(
-                        program,
-                        path.symbol,
-                    )
+                    crate::declaration_type_reference(program, path.symbol)
             {
                 return Some(InferredType::TypeReference(type_reference));
             }
@@ -218,8 +210,7 @@ pub(super) fn infer_expression_type(
         ExpressionNode::Member(member) => {
             let receiver = infer_expression_type(program, member.receiver, environment, visited)?;
             let symbol = resolve_member_symbol(program, receiver, member)?;
-            crate::authored_selections::operator_targets::type_reference_for_symbol(program, symbol)
-                .map(InferredType::TypeReference)
+            crate::declaration_type_reference(program, symbol).map(InferredType::TypeReference)
         }
         ExpressionNode::Call(call) => {
             if let Some(operator) =
@@ -272,7 +263,7 @@ pub(super) fn infer_expression_type(
 }
 
 pub(super) fn resolve_member_symbol(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     receiver_type: InferredType,
     member: &TableMemberExpression,
 ) -> Option<SymbolHandle> {
@@ -320,7 +311,7 @@ pub(super) fn resolve_member_symbol(
 }
 
 pub(super) fn inferred_nominal_symbol(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     inferred: InferredType,
 ) -> Option<SymbolHandle> {
     match inferred {
@@ -335,13 +326,13 @@ pub(super) fn inferred_nominal_symbol(
 }
 
 pub(super) fn inferred_type_is_collection(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     inferred: InferredType,
 ) -> bool {
     match inferred {
         InferredType::Nominal(_) => false,
         InferredType::TypeReference(type_reference) => {
-            crate::semantic::calls::type_reference_is_collection(program, type_reference)
+            crate::call_topology::type_reference_is_collection(program, type_reference)
         }
         InferredType::CollectionView(_) => true,
         InferredType::CompilerString => false,
@@ -349,7 +340,7 @@ pub(super) fn inferred_type_is_collection(
 }
 
 pub(super) fn collection_view_operation_for_receiver(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     operation: language_semantics::declaration_selection::CollectionViewOperation,
     receiver: InferredType,
 ) -> Option<language_semantics::declaration_selection::CollectionViewOperation> {
@@ -371,7 +362,7 @@ pub(super) fn collection_view_operation_for_receiver(
 }
 
 pub(super) fn inferred_type_is_compiler_text(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     inferred: InferredType,
 ) -> bool {
     let InferredType::TypeReference(mut type_reference) = inferred else {
@@ -392,7 +383,7 @@ pub(super) fn inferred_type_is_compiler_text(
 }
 
 pub(super) fn collection_element_type(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     inferred: InferredType,
 ) -> Option<TypeReferenceHandle> {
     let type_reference = match inferred {

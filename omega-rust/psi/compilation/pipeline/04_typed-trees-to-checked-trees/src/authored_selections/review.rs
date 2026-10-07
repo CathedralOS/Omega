@@ -12,7 +12,11 @@ pub(crate) fn derive_checked_collection_view_intrinsic(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    super::contexts::checked_collection_view_intrinsic_from_exact_owner(
-        program, facts, expression, call, None,
+    validation::expression_owners::checked_collection_view_intrinsic_from_exact_owner(
+        program,
+        &facts.proof.contract_facts,
+        expression,
+        call,
+        None,
     )
 }

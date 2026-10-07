@@ -87,10 +87,8 @@ pub use package_review::{
     derive_checked_operator_crash_contracts, derive_checked_semantic_dependencies,
     derive_pre_flow_operator_selections, derive_pre_flow_value_origins, infer_checked_crash_causes,
     infer_checked_machine_crash_causes, infer_machine_termination_summary,
-    late_bound_member_declaration_from_exact_owner, typed_build_declaration_operand,
-    typed_build_declaration_selection, typed_build_operation, typed_build_provider_selection,
-    typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
-    typed_product_provider_selection_operand, typed_provider_selection_expressions,
+    late_bound_member_declaration_from_exact_owner, typed_operator_authored_selection_candidates,
+    typed_operator_has_no_authored_selection,
 };
 
 pub use product_pruning::{
@@ -103,4 +101,3 @@ pub use product_pruning::{
 /// Build inputs to Psi's instruction-authority check. The checking entrance
 /// consumes these; the compiler does not run an additional validation pass.
 pub use ::validation::{AsmAuthorityAdmission, data_requires_establishment};
-pub use conformance::conformance_applications::close_conformance_application;

@@ -3,8 +3,6 @@
 /// Handle-keyed maps take the integer hasher; none is iterated for output order.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 
-use crate::authored_selections::CheckedResolutionTarget;
-use crate::authored_selections::call_targets::{declaration_target, exact_named_operator_call};
 use crate::authored_selections::contract_resolution;
 use crate::authored_selections::member_targets::{
     expression_is_contextual_statement_primitive, expression_is_intrinsic_primitive_without_origin,
@@ -15,8 +13,11 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionOccurrenceId,
 };
-use symbols::{BuiltinFunction, SymbolHandle, SymbolKind};
+use symbols::{BuiltinFunction, SymbolHandle};
 use typed_trees::expression::ExpressionNode;
+use validation::declaration_type_reference;
+use validation::selection_resolution::AuthoredSelectionResolutionTarget;
+use validation::selection_resolution::{declaration_target, exact_named_operator_call};
 
 fn intrinsic_operator_operand_is_primitive(
     program: &dyn ::validation::CheckingInput,
@@ -78,7 +79,7 @@ pub(crate) fn checked_generic_operator_target(
     facts: &CheckFacts,
     value_origins: &GenericOperatorValueOrigins,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Result<Option<CheckedResolutionTarget>, Diagnostic> {
+) -> Result<Option<AuthoredSelectionResolutionTarget>, Diagnostic> {
     let mut selected = None;
     let mut uses = facts
         .operators
@@ -141,7 +142,7 @@ pub(crate) fn checked_generic_operator_target(
         let Some(requirement) = requirement else {
             continue;
         };
-        let target = CheckedResolutionTarget::Declaration(requirement.symbol);
+        let target = AuthoredSelectionResolutionTarget::Declaration(requirement.symbol);
         if selected.is_some_and(|previous| previous != target) {
             return Err(Diagnostic::error(
                 "one authored operator occurrence has conflicting declared generic owners",
@@ -157,8 +158,8 @@ fn checked_operator_target(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
-    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
-) -> Option<CheckedResolutionTarget> {
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
+) -> Option<AuthoredSelectionResolutionTarget> {
     // These operators have no authored declaration/spelling surface. Once
     // ordinary checking accepts their operand types, their exact meaning is
     // necessarily compiler intrinsic; nested-expression origins need not
@@ -177,7 +178,7 @@ fn checked_operator_target(
                     | typed_trees::expression::BinaryOperator::ShiftRight
             )
     ) {
-        return Some(CheckedResolutionTarget::Intrinsic(
+        return Some(AuthoredSelectionResolutionTarget::Intrinsic(
             AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
         ));
     }
@@ -210,7 +211,7 @@ fn checked_operator_target(
                                 operator_use.origin,
                             ))
                 })
-                .then_some(CheckedResolutionTarget::Intrinsic(
+                .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                 ))
         })
@@ -227,7 +228,7 @@ fn checked_operator_target(
                     declaration_target(symbol)
                 }
                 contract_resolution::CheckedContractOperatorResolution::Builtin => {
-                    Some(CheckedResolutionTarget::Intrinsic(
+                    Some(AuthoredSelectionResolutionTarget::Intrinsic(
                         AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                     ))
                 }
@@ -255,7 +256,7 @@ fn checked_operator_target(
                 || expression_is_intrinsic_primitive_without_origin(
                     program,
                     operand,
-                    owner_index.map(super::contexts::OwnerEnvironmentIndex::program_only),
+                    owner_index.map(|owners| owners.program_only(program)),
                 )
                 || checked_operator_expression_is_intrinsic_primitive(facts, operand)
                 || expression_is_contextual_statement_primitive(
@@ -265,13 +266,13 @@ fn checked_operator_target(
                     operand,
                     owner_index,
                 ))
-            .then_some(CheckedResolutionTarget::Intrinsic(
+            .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
                 AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
             ))
         })
         .or_else(|| {
             operator_has_no_authored_spelling_candidate(program, expression, node).then_some(
-                CheckedResolutionTarget::Intrinsic(
+                AuthoredSelectionResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                 ),
             )
@@ -284,8 +285,8 @@ pub(crate) fn checked_operator_target_for_occurrence(
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
-    owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
-) -> Option<CheckedResolutionTarget> {
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
+) -> Option<AuthoredSelectionResolutionTarget> {
     checked_operator_target(program, facts, expression, node, owner_index).or_else(|| {
         program
             .expression_table
@@ -550,7 +551,7 @@ pub(crate) fn authored_operand_type(
         ExpressionNode::Atomic(atomic) => authored_operand_type(program, atomic.value),
         ExpressionNode::Borrow(borrow) => authored_operand_type(program, borrow.target),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
-        ExpressionNode::Member(member) => type_reference_for_symbol(
+        ExpressionNode::Member(member) => declaration_type_reference(
             program,
             crate::flow::effective_member_symbol(program, member.receiver, member),
         ),
@@ -574,7 +575,7 @@ pub(crate) fn authored_operand_type(
                 })
                 .flatten()
             }),
-        ExpressionNode::Name(path) => type_reference_for_symbol(program, path.symbol)
+        ExpressionNode::Name(path) => declaration_type_reference(program, path.symbol)
             .or_else(|| operator_contract_value_type(program, expression, path)),
         _ => None,
     }
@@ -622,12 +623,12 @@ fn operator_contract_value_type(
                         .iter()
                         .any(|fact| match fact {
                             typed_trees::domain::ProofFact::Expression(root) => {
-                                crate::authored_selections::member_targets::expression_contains(
+                                validation::expression_owners::expression_contains(
                                     program, *root, expression,
                                 )
                             }
                             typed_trees::domain::ProofFact::Membership(membership) => {
-                                crate::authored_selections::member_targets::expression_contains(
+                                validation::expression_owners::expression_contains(
                                     program,
                                     membership.value,
                                     expression,
@@ -773,123 +774,4 @@ fn candidate_operators<'program>(
         &operand_types,
         program.expression_table.source_span(expression),
     )
-}
-
-pub(crate) fn type_reference_for_symbol(
-    program: &dyn ::validation::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let declaration = program.symbols.get(symbol);
-    if declaration.kind == SymbolKind::Unknown {
-        return None;
-    }
-    let parent = declaration.parent;
-    let owner = program.symbols.get(parent);
-    if declaration.kind == SymbolKind::Parameter && owner.kind == SymbolKind::Domain {
-        let domain = typed_trees::domain::domain_by_symbol(program, parent)?;
-        return (domain.subject_symbol == symbol).then_some(domain.target_type);
-    }
-    if declaration.kind == SymbolKind::Const {
-        return program.const_declarations().iter().find_map(|declaration| {
-            (declaration.symbol == symbol).then_some(declaration.declared_type)
-        });
-    }
-    // Parent links select the declaration's current owner. generated_from is
-    // provenance, not a fallback to a template's potentially different type.
-    let data_owner = if owner.kind == SymbolKind::Variant {
-        owner.parent
-    } else {
-        parent
-    };
-    for data in program
-        .data_definitions()
-        .iter()
-        .filter(|data| data.symbol == data_owner)
-    {
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    return Some(field.type_reference);
-                }
-                typed_trees::data::DataMember::Variant(variant) if variant.symbol == parent => {
-                    if let Some(type_reference) = program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find_map(|field| (field.symbol == symbol).then_some(field.type_reference))
-                    {
-                        return Some(type_reference);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    let machine_owner = if owner.kind == SymbolKind::State {
-        owner.parent
-    } else {
-        parent
-    };
-    if let Some(machine) = crate::lookup::machine_by_symbol(program, machine_owner) {
-        if let Some(type_reference) = program
-            .machine_owned_data(machine)
-            .iter()
-            .find_map(|owned| (owned.symbol == symbol).then_some(owned.type_reference))
-        {
-            return Some(type_reference);
-        }
-        for state in program
-            .machine_states(machine)
-            .iter()
-            .filter(|state| state.symbol == parent)
-        {
-            if let Some(type_reference) =
-                program
-                    .state_parameters(state)
-                    .iter()
-                    .find_map(|parameter| {
-                        (parameter.symbol == symbol).then_some(parameter.type_reference)
-                    })
-            {
-                return Some(type_reference);
-            }
-            if let Some((_, local)) = program.state_local_declaration(state, symbol) {
-                return Some(local.type_reference);
-            }
-        }
-    }
-    for definition in program
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == owner.parent)
-    {
-        for signature in program
-            .trait_machine_signatures(definition)
-            .iter()
-            .filter(|signature| signature.symbol == parent)
-        {
-            if let Some(type_reference) = program
-                .state_signature_parameters(signature)
-                .iter()
-                .find_map(|parameter| {
-                    (parameter.symbol == symbol).then_some(parameter.type_reference)
-                })
-            {
-                return Some(type_reference);
-            }
-        }
-    }
-    for proposition in program
-        .propositions()
-        .iter()
-        .filter(|proposition| proposition.symbol == parent)
-    {
-        if let Some(type_reference) = program
-            .proposition_parameters(proposition)
-            .iter()
-            .find_map(|parameter| (parameter.symbol == symbol).then_some(parameter.type_reference))
-        {
-            return Some(type_reference);
-        }
-    }
-    None
 }

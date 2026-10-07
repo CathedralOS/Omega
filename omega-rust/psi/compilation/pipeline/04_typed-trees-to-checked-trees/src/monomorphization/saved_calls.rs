@@ -114,9 +114,7 @@ pub(super) fn selected_instance<'program>(
     let applications = evidence_arguments
         .iter()
         .map(|binding| {
-            crate::conformance::conformance_applications::close_conformance_application(
-                source, binding,
-            )
+            validation::conformance_applications::close_conformance_application(source, binding)
         })
         .collect::<Result<Vec<_>, _>>()
         .ok()?;

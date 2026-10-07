@@ -17,7 +17,7 @@ pub fn harvest_wire_compatibility_demands(
     let mut demands = Vec::new();
     let mut diagnostics = Vec::new();
     for expression in executed_calls {
-        if typed_trees_to_checked_trees::typed_build_operation(typed, *expression)
+        if validation::compiler_operations::build_operation(typed, *expression)
             != Some(BuildOperation::WireCompatibilityRequest)
         {
             diagnostics.push(Diagnostic::error(

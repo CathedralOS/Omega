@@ -32,6 +32,7 @@ use symbols::SymbolHandle;
 use typed_trees::trait_definition::TraitDefinition;
 
 mod conformance;
+pub mod conformance_applications;
 mod dynamic;
 mod named_implementations;
 mod requirements;

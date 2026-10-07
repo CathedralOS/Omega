@@ -4,7 +4,7 @@
 use super::indexing::{proof_fact_contains_expression, proof_fact_value_contains_expression};
 use super::inference::type_reference_contains_expression;
 use super::{Binding, InferredType, OwnerEnvironmentIndex, TypeEnvironment};
-use checked_trees::{CheckFacts, ContractProofFactOwner};
+use checked_trees::ContractProofFactOwner;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -14,7 +14,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// The environment one statement position establishes: the machine's own
 /// environment extended by the `LocalData` bindings preceding the statement.
 pub(super) fn executable_site_environment(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[typed_trees::statement::StatementNode],
@@ -42,12 +42,12 @@ pub(super) fn executable_site_environment(
 }
 
 pub(super) fn contract_owner_environment(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     owner: ContractProofFactOwner,
 ) -> Option<TypeEnvironment> {
     match owner {
         ContractProofFactOwner::Machine { machine_symbol } => {
-            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+            let machine = crate::call_targets::machine_by_symbol(program, machine_symbol)?;
             let entry = program.machine_states(machine).first();
             Some(machine_environment(program, machine, entry))
         }
@@ -55,7 +55,7 @@ pub(super) fn contract_owner_environment(
             machine_symbol,
             state_symbol,
         } => {
-            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+            let machine = crate::call_targets::machine_by_symbol(program, machine_symbol)?;
             let state = program
                 .machine_states(machine)
                 .iter()
@@ -89,7 +89,7 @@ pub(super) fn contract_owner_environment(
 }
 
 pub(super) fn machine_environment(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
 ) -> TypeEnvironment {
@@ -108,7 +108,7 @@ pub(super) fn machine_environment(
 }
 
 pub(super) fn signature_environment(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     owner_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Option<TypeEnvironment> {
@@ -156,16 +156,16 @@ pub(super) fn environment_from_parameters(
 }
 
 pub(super) fn exact_owner_environments(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    program: &dyn crate::CheckingInput,
+    contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
     expression: ExpressionHandle,
     owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<Vec<TypeEnvironment>> {
     if let Some(owner_index) = owner_index {
-        return owner_index.environments(program, facts, expression);
+        return owner_index.environments(expression);
     }
     let mut environments = Vec::new();
-    for (_, contract) in facts.proof.contract_facts.iter() {
+    for (_, contract) in contract_facts.iter() {
         if !proof_fact_contains_expression(program, contract.fact, expression) {
             continue;
         }
@@ -198,7 +198,7 @@ pub(super) fn exact_owner_environments(
 }
 
 pub(super) fn collect_measure_environments(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) {
@@ -207,11 +207,7 @@ pub(super) fn collect_measure_environments(
             .expression_table
             .expression_handles(measure.body)
             .iter()
-            .any(|root| {
-                crate::authored_selections::member_targets::expression_contains(
-                    program, *root, expression,
-                )
-            })
+            .any(|root| super::expression_contains(program, *root, expression))
         {
             continue;
         }
@@ -227,7 +223,7 @@ pub(super) fn collect_measure_environments(
 }
 
 pub(super) fn collect_proposition_environments(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) {
@@ -242,15 +238,9 @@ pub(super) fn collect_proposition_environments(
                 .expression_table
                 .expression_handles(application.arguments)
                 .iter()
-                .any(|root| {
-                    crate::authored_selections::member_targets::expression_contains(
-                        program, *root, expression,
-                    )
-                }),
+                .any(|root| super::expression_contains(program, *root, expression)),
             PropositionFormula::BooleanExpression(root) => {
-                crate::authored_selections::member_targets::expression_contains(
-                    program, *root, expression,
-                )
+                super::expression_contains(program, *root, expression)
             }
         };
         if contains {
@@ -264,7 +254,7 @@ pub(super) fn collect_proposition_environments(
 }
 
 pub(super) fn collect_ranking_environments(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) {
@@ -275,14 +265,13 @@ pub(super) fn collect_ranking_environments(
             .chain(&custody.view_arguments)
             .copied()
             .chain(custody.rank_range);
-        if !roots.into_iter().any(|root| {
-            crate::authored_selections::member_targets::expression_contains(
-                program, root, expression,
-            )
-        }) {
+        if !roots
+            .into_iter()
+            .any(|root| super::expression_contains(program, root, expression))
+        {
             continue;
         }
-        let Some(machine) = crate::lookup::machine_by_symbol(program, custody.machine) else {
+        let Some(machine) = crate::call_targets::machine_by_symbol(program, custody.machine) else {
             continue;
         };
         environments.push(machine_environment(
@@ -294,7 +283,7 @@ pub(super) fn collect_ranking_environments(
 }
 
 pub(super) fn collect_parameter_constraint_environments(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) -> Option<()> {
@@ -363,7 +352,7 @@ pub(super) fn collect_parameter_constraint_environments(
 }
 
 pub(super) fn collect_telescope_constraint_environments(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
@@ -385,7 +374,7 @@ pub(super) fn collect_telescope_constraint_environments(
 }
 
 pub(super) fn collect_executable_environments(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) -> Option<()> {
@@ -394,7 +383,7 @@ pub(super) fn collect_executable_environments(
             let statements = program.statement_table.statements(state.statement_nodes);
             for (statement_index, statement) in statements.iter().enumerate() {
                 let mut expressions = Vec::new();
-                crate::monomorphization::collect_statement_expression_trees(
+                crate::expression_traversal::collect_statement_expression_trees(
                     program,
                     statement,
                     &mut expressions,

@@ -10,14 +10,14 @@
 //! that binder's own requirement call, `Order::compare(left, right)`, which
 //! specialization binds.
 
-use super::conformance_applications::{
-    close_conformance_application, substituted_type_identity_with_lifetimes, type_argument_identity,
-};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::typed_trees::StaticRequirementDispatch;
+use validation::conformance_applications::{
+    close_conformance_application, substituted_type_identity_with_lifetimes, type_argument_identity,
+};
 
 struct ExplicitRequirementRewrite {
     call: ExpressionHandle,

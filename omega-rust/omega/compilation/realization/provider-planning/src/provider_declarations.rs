@@ -217,7 +217,7 @@ fn collect_provider_selections<'a>(
                 .collect::<Vec<_>>()
                 .join("::");
             let symbol = if product_operands {
-                typed_trees_to_checked_trees::typed_product_provider_selection_operand(
+                validation::compiler_operations::resolve_product_operand(
                     typed,
                     argument,
                     source_span,

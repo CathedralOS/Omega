@@ -55,7 +55,7 @@ pub fn harvest_opaque_representation_selections(
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
             if let typed_trees::statement::StatementNode::Expression(expression) = statement
-                && typed_trees_to_checked_trees::typed_build_operation(typed, *expression)
+                && validation::compiler_operations::build_operation(typed, *expression)
                     == Some(language_semantics::declaration_selection::BuildOperation::RepresentationSelection)
                 && let typed_trees::expression::ExpressionNode::Call(call) =
                     typed.expression_table.expression(*expression)
@@ -185,8 +185,10 @@ fn close_selection(
             conformance_argument.display_name(),
         )));
     }
-    let application =
-        typed_trees_to_checked_trees::close_conformance_application(typed, conformance_argument)?;
+    let application = validation::conformance_applications::close_conformance_application(
+        typed,
+        conformance_argument,
+    )?;
     let conformance = typed
         .conformances()
         .iter()

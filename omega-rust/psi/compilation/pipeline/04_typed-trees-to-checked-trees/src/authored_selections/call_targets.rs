@@ -1,10 +1,12 @@
 //! Checked call, conformance and name-path targets.
 
-use crate::authored_selections::CheckedResolutionTarget;
-use crate::authored_selections::{contexts, contract_resolution};
+use crate::authored_selections::contract_resolution;
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
+use validation::selection_resolution::{
+    AuthoredSelectionResolutionTarget, declaration_target, exact_named_operator_call,
+};
 
 pub(crate) fn checked_operator_conformance_targets(
     facts: &CheckFacts,
@@ -109,9 +111,14 @@ pub(crate) fn checked_call_target(
         return operator.symbol;
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
-        && let Some(target) = contexts::checked_machine_call_target_from_exact_owner(
-            program, facts, expression, call, None,
-        )
+        && let Some(target) =
+            validation::expression_owners::checked_machine_call_target_from_exact_owner(
+                program,
+                &facts.proof.contract_facts,
+                expression,
+                call,
+                None,
+            )
     {
         return target;
     }
@@ -165,35 +172,6 @@ pub(crate) fn checked_call_target(
         return target;
     }
     SymbolHandle::invalid()
-}
-
-pub(crate) fn exact_named_operator_call<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    call: &typed_trees::expression::TableCallExpression,
-) -> Option<&'program typed_trees::operator::OperatorDefinition> {
-    typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {
-        let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
-            return None;
-        };
-        let static_segments = program
-            .expression_table
-            .name_path_members(path.members)
-            .iter()
-            .map(|segment| segment.as_str())
-            .collect::<Vec<_>>();
-        (!static_segments.is_empty()).then_some(())?;
-        typed_trees::operator::resolve_named_call(
-            program,
-            call.target_symbol,
-            Some(&static_segments),
-            call.target.as_str(),
-            program
-                .expression_table
-                .expression_handles(call.arguments)
-                .len(),
-            false,
-        )
-    })
 }
 
 pub(crate) fn checked_name_path_segment_target(
@@ -356,10 +334,4 @@ pub(crate) fn expression_receiver_symbol(
         ExpressionNode::Name(path) => path.symbol,
         _ => SymbolHandle::invalid(),
     }
-}
-
-pub(crate) fn declaration_target(symbol: SymbolHandle) -> Option<CheckedResolutionTarget> {
-    symbol
-        .is_valid()
-        .then_some(CheckedResolutionTarget::Declaration(symbol))
 }

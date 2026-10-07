@@ -112,7 +112,7 @@ fn authored_service_exclusion(
             "service exclusion must retain its checked static Build call",
         ));
     };
-    typed_trees_to_checked_trees::typed_build_declaration_operand(typed, expression, 0, occurrence)
+    validation::compiler_operations::resolve_build_declaration_operand(typed, expression, 0, occurrence)
         .ok_or_else(|| Diagnostic::error(
             "service exclusion does not resolve to an exact visible product boundary trait declaration",
         ))

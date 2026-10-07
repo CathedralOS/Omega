@@ -2,11 +2,8 @@
 //! selections.
 
 use crate::authored_selections::call_targets::{
-    checked_statement_call_target, declaration_target, implementation_call_selection,
+    checked_statement_call_target, implementation_call_selection,
 };
-use crate::authored_selections::finalization::push_consistent_resolution;
-use crate::authored_selections::intrinsic_calls::checked_statement_call_intrinsic;
-use crate::authored_selections::{CheckedResolution, CheckedResolutionTarget};
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -14,6 +11,13 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
 };
 use symbols::{SymbolHandle, SymbolKind};
+use validation::compiler_operations::classify_statement_call_intrinsic;
+use validation::selection_resolution::{
+    AuthoredSelectionResolution, AuthoredSelectionResolutionTarget,
+};
+use validation::selection_resolution::{
+    collect_checked_transition_target_selections, declaration_target, push_consistent_resolution,
+};
 
 pub(crate) fn checked_struct_literal_type_symbol(
     program: &dyn ::validation::CheckingInput,
@@ -41,7 +45,7 @@ pub(crate) fn checked_struct_literal_type_symbol(
 pub(crate) fn collect_checked_proof_membership_selections(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    resolutions: &mut Vec<CheckedResolution>,
+    resolutions: &mut Vec<AuthoredSelectionResolution>,
 ) -> Result<(), Diagnostic> {
     for (fact_handle, fact) in typed_trees::references::program_proof_facts(program) {
         let typed_trees::domain::ProofFact::Membership(membership) = fact else {
@@ -90,7 +94,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
                 permission = Some(candidate);
             }
             permission.map(|permission| {
-                CheckedResolutionTarget::Intrinsic(
+                AuthoredSelectionResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::CarryPermission(permission),
                 )
             })
@@ -98,7 +102,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
         if let Some(target) = target {
             push_consistent_resolution(
                 resolutions,
-                CheckedResolution {
+                AuthoredSelectionResolution {
                     occurrence,
                     binding: AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
                     target,
@@ -127,7 +131,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
 /// directly and retain its call-expression association in checked facts.
 pub(crate) fn collect_checked_proof_view_call_selections(
     program: &dyn ::validation::CheckingInput,
-    resolutions: &mut Vec<CheckedResolution>,
+    resolutions: &mut Vec<AuthoredSelectionResolution>,
     unoccurred_view_calls: &mut Vec<(
         source::SourceSpan,
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
@@ -232,10 +236,10 @@ pub(crate) fn collect_checked_proof_view_call_selections(
                 }
                 push_consistent_resolution(
                     resolutions,
-                    CheckedResolution {
+                    AuthoredSelectionResolution {
                         occurrence,
                         binding: AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                        target: CheckedResolutionTarget::Intrinsic(
+                        target: AuthoredSelectionResolutionTarget::Intrinsic(
                             AuthoredDeclarationSelectionIntrinsic::ProofView,
                         ),
                     },
@@ -264,7 +268,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
 pub(crate) fn collect_checked_statement_selections(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    resolutions: &mut Vec<CheckedResolution>,
+    resolutions: &mut Vec<AuthoredSelectionResolution>,
 ) -> Result<(), Diagnostic> {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -318,8 +322,8 @@ pub(crate) fn collect_checked_statement_selections(
                     )
                     .with_source_span(call.source_span));
                 }
-                let resolution_target = checked_statement_call_intrinsic(program, call)
-                    .map(CheckedResolutionTarget::Intrinsic)
+                let resolution_target = classify_statement_call_intrinsic(program, call)
+                    .map(AuthoredSelectionResolutionTarget::Intrinsic)
                     .or_else(|| {
                         crate::flow::resolved_operator_statement_symbol(program, call)
                             .and_then(declaration_target)
@@ -333,7 +337,7 @@ pub(crate) fn collect_checked_statement_selections(
                 {
                     push_consistent_resolution(
                         resolutions,
-                        CheckedResolution {
+                        AuthoredSelectionResolution {
                             occurrence,
                             binding: AuthoredDeclarationSelectionLateBinding::CheckedCall,
                             target,
@@ -344,107 +348,5 @@ pub(crate) fn collect_checked_statement_selections(
         }
     }
     collect_checked_transition_target_selections(program, resolutions)?;
-    Ok(())
-}
-
-pub(crate) fn collect_checked_transition_target_selections(
-    program: &dyn ::validation::CheckingInput,
-    resolutions: &mut Vec<CheckedResolution>,
-) -> Result<(), Diagnostic> {
-    for machine in program.machines() {
-        if program
-            .machine_specializations
-            .iter()
-            .any(|specialization| {
-                specialization.instance == machine.symbol
-                    && specialization.template != specialization.instance
-            })
-        {
-            continue;
-        }
-        for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                let typed_trees::statement::StatementNode::Transition(transition) = statement
-                else {
-                    continue;
-                };
-                for target in [transition.target, transition.continuation] {
-                    if !target.is_valid() {
-                        continue;
-                    }
-                    let typed_trees::statement::TransitionTargetNode::Named {
-                        path,
-                        source_span,
-                        authored_call_selection: Some(occurrence),
-                        ..
-                    } = program.statement_table.transition_target(target)
-                    else {
-                        continue;
-                    };
-                    let Some(selection) =
-                        program.authored_declaration_selections().get(*occurrence)
-                    else {
-                        return Err(Diagnostic::error(format!(
-                            "transition target retains unknown authored selection occurrence {}",
-                            occurrence.ordinal(),
-                        ))
-                        .with_source_span(*source_span));
-                    };
-                    if selection.kind() != AuthoredDeclarationSelectionKind::Call
-                        || selection.source_span() != *source_span
-                    {
-                        return Err(Diagnostic::error(
-                            "transition target retains mismatched authored call-selection evidence",
-                        )
-                        .with_source_span(*source_span));
-                    }
-                    if selection.target()
-                        == AuthoredDeclarationSelectionTarget::LateBound(
-                            AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                        )
-                    {
-                        let target_symbol = if path.symbol.is_valid() {
-                            path.symbol
-                        } else {
-                            let Some(target_name) = program
-                                .statement_table
-                                .name_path_members(path.members)
-                                .last()
-                            else {
-                                continue;
-                            };
-                            let matching = program
-                                .machine_type_parameters(machine)
-                                .iter()
-                                .filter(|parameter| {
-                                    parameter.name == *target_name
-                                        && matches!(
-                                            parameter.kind,
-                                            typed_trees::data::TypeParameterKind::Machine { .. }
-                                        )
-                                })
-                                .map(|parameter| parameter.symbol)
-                                .collect::<Vec<_>>();
-                            let [target] = matching.as_slice() else {
-                                continue;
-                            };
-                            *target
-                        };
-                        if !target_symbol.is_valid() {
-                            continue;
-                        }
-                        push_consistent_resolution(
-                            resolutions,
-                            CheckedResolution {
-                                occurrence: *occurrence,
-                                binding: AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                                target: CheckedResolutionTarget::Declaration(target_symbol),
-                            },
-                        )?;
-                    }
-                }
-            }
-        }
-    }
     Ok(())
 }

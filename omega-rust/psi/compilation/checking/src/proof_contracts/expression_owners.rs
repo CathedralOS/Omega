@@ -1,18 +1,25 @@
+//! Exact expression owners shared by preparation and checking.
+//!
+//! The invocation constructs the index before borrowing it. Only the supplied
+//! contract arena grants checked ownership; preparation supplies empty rows.
+//! No mutable typed input or RefCell-backed construction crosses this boundary.
+
 mod call_targets;
 mod environments;
 mod indexing;
 mod inference;
+mod reachability;
+pub use reachability::{expression_contains, reachable_expressions};
 
-pub(super) use call_targets::{
+pub use call_targets::{
     checked_collection_view_intrinsic_from_exact_owner,
     checked_expression_type_reference_from_exact_owner,
     checked_machine_call_target_from_exact_owner, checked_member_target_from_exact_owner,
 };
-use checked_trees::{CheckFacts, ContractProofFact};
+use checked_trees::ContractProofFact;
 use indexing::build_owner_environment_index;
-pub(super) use indexing::proof_fact_contains_expression;
+pub use indexing::proof_fact_contains_expression;
 use language_semantics::declaration_selection::CollectionMeasure;
-use std::cell::RefCell;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 use symbols::SymbolHandle;
@@ -20,7 +27,7 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OwnerMemberTarget {
+pub enum OwnerMemberTarget {
     Declaration(SymbolHandle),
     CollectionMeasure(CollectionMeasure),
 }
@@ -107,48 +114,47 @@ struct ExecutableSite {
     statement: usize,
 }
 
-/// Lazy whole-program index of every expression's exact owner rows. The
-/// exact-owner collectors answer each query by rescanning every contract,
-/// domain, proposition, measure, parameter, ranking, and statement; a walk
-/// that asks the question once per expression shares this single pass
-/// instead. Callers outside such a walk pass `None` and keep the per-query
-/// rescan — building the index costs more than one scan.
-#[derive(Default)]
-pub(crate) struct OwnerEnvironmentIndex {
-    index: RefCell<Option<OwnerIndex>>,
+/// Invocation-owned exact environments for an expression walk. Isolated
+/// queries may omit the index and scan only their own owners.
+pub struct OwnerEnvironmentIndex {
+    index: OwnerIndex,
     /// The walk's index over no checked facts, for queries inside it that ask
     /// what the program alone determines.
     program_only: std::cell::OnceCell<Box<OwnerEnvironmentIndex>>,
 }
 
 impl OwnerEnvironmentIndex {
-    /// The same walk's index built over `CheckFacts::default()`; queries that
-    /// pass default facts use it so both indexes answer as their rescans do.
-    pub(crate) fn program_only(&self) -> &OwnerEnvironmentIndex {
-        self.program_only.get_or_init(Box::default)
+    /// Build the invocation's owners from source and the exact supplied contracts.
+    pub fn new(
+        program: &dyn crate::CheckingInput,
+        contract_facts: &arena::Arena<ContractProofFact>,
+    ) -> Self {
+        Self {
+            index: build_owner_environment_index(program, contract_facts),
+            program_only: std::cell::OnceCell::new(),
+        }
+    }
+
+    /// Source-only owners, excluding checked-contract authority.
+    pub fn program_only(&self, program: &dyn crate::CheckingInput) -> &OwnerEnvironmentIndex {
+        self.program_only
+            .get_or_init(|| Box::new(Self::new(program, &arena::Arena::default())))
     }
 
     /// Every `(machine, state, statement)` position whose statement tree
     /// contains `expression`, in program order. Facts never add a site.
-    pub(super) fn containing_statement_sites(
+    pub fn containing_statement_sites(
         &self,
-        program: &dyn ::validation::CheckingInput,
-        facts: &CheckFacts,
         expression: ExpressionHandle,
     ) -> Vec<(usize, usize, usize)> {
-        self.executable_sites(program, facts, expression)
+        self.executable_sites(expression)
             .into_iter()
             .map(|site| (site.machine, site.state, site.statement))
             .collect()
     }
 
-    fn environments(
-        &self,
-        program: &dyn ::validation::CheckingInput,
-        facts: &CheckFacts,
-        expression: ExpressionHandle,
-    ) -> Option<Vec<TypeEnvironment>> {
-        let index = self.index(program, facts);
+    fn environments(&self, expression: ExpressionHandle) -> Option<Vec<TypeEnvironment>> {
+        let index = &self.index;
         index
             .entries
             .get(&expression)
@@ -162,13 +168,8 @@ impl OwnerEnvironmentIndex {
             .filter(|environments| !environments.is_empty())
     }
 
-    fn executable_sites(
-        &self,
-        program: &dyn ::validation::CheckingInput,
-        facts: &CheckFacts,
-        expression: ExpressionHandle,
-    ) -> Vec<ExecutableSite> {
-        self.index(program, facts)
+    fn executable_sites(&self, expression: ExpressionHandle) -> Vec<ExecutableSite> {
+        self.index
             .entries
             .get(&expression)
             .map(|entry| entry.executable_sites.clone())
@@ -177,30 +178,14 @@ impl OwnerEnvironmentIndex {
 
     /// Every checked contract fact whose roots reach `expression`, in arena
     /// order.
-    pub(super) fn containing_contract_facts(
+    pub fn containing_contract_facts(
         &self,
-        program: &dyn ::validation::CheckingInput,
-        facts: &CheckFacts,
         expression: ExpressionHandle,
     ) -> Vec<arena::Handle<ContractProofFact>> {
-        self.index(program, facts)
+        self.index
             .entries
             .get(&expression)
             .map(|entry| entry.contract_facts.clone())
             .unwrap_or_default()
-    }
-
-    fn index<'a>(
-        &'a self,
-        program: &dyn ::validation::CheckingInput,
-        facts: &CheckFacts,
-    ) -> std::cell::Ref<'a, OwnerIndex> {
-        {
-            let mut borrow = self.index.borrow_mut();
-            if borrow.is_none() {
-                *borrow = Some(build_owner_environment_index(program, facts));
-            }
-        }
-        std::cell::Ref::map(self.index.borrow(), |index| index.as_ref().unwrap())
     }
 }

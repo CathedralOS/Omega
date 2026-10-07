@@ -12,7 +12,6 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::authored_selections::static_argument_role;
 use diagnostics::Diagnostic;
 use source::{DependencyScope, SourceOrigin};
 use symbols::SymbolHandle;
@@ -21,6 +20,7 @@ use typed_trees::references::{
     DeclarationSelection, StaticArgumentClassifier, collect_program_references_with_roles,
     collect_selected_program_references,
 };
+use validation::compiler_operations::static_argument_role;
 
 /// Prepare the complete admitted Build context without changing symbol handles.
 /// The result must still pass ordinary checking before any machine executes.

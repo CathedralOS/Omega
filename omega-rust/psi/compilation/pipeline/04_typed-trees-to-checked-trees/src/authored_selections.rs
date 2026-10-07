@@ -6,49 +6,31 @@
 //! exclude unrelated operators; they cannot bypass a matching authored meaning
 //! or replace the final selection and package-admission checks.
 //!
-//! This file binds and finalizes authored selections. `finalization.rs`
-//! finalizes selections under a policy, `selection_collection.rs` collects
-//! the statement, transition and proof selections, `intrinsic_calls.rs`
-//! recognizes intrinsic calls and build receivers, `call_targets.rs` and
-//! `operator_targets.rs` resolve call and operator targets and
-//! `member_targets.rs` resolves contextual member targets.
+//! This file retains checked intrinsic-call facts. `finalization.rs` publishes
+//! checked selections, and `selection_collection.rs` collects proof/statement
+//! conclusions. Independent validation owns source environments, compiler
+//! operation classification and consistent occurrence resolution. Preparation
+//! owns early binding; this owner never rewrites the typed input.
 
 mod call_targets;
-mod contexts;
 mod contract_resolution;
 mod finalization;
 mod intrinsic_calls;
 mod member_targets;
 mod operator_targets;
-mod provider_selection;
 mod review;
 mod selection_collection;
 
-pub(crate) use intrinsic_calls::checked_expression_call_intrinsic;
-pub(crate) use intrinsic_calls::static_argument_role;
 pub(crate) use operator_targets::{
     typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
 };
-pub(crate) use provider_selection::{
-    is_build_declaration_selection, is_build_provider_selection, provider_selection_expressions,
-    resolve_build_declaration_operand, resolve_product_operand,
-};
 pub(crate) use review::derive_checked_collection_view_intrinsic;
 
-use crate::authored_selections::call_targets::{declaration_target, exact_named_operator_call};
 pub(crate) use crate::authored_selections::finalization::finalize_checked_authored_selections;
-use crate::authored_selections::finalization::{
-    finalization_diagnostic, push_consistent_resolution,
-};
-use crate::authored_selections::selection_collection::collect_checked_transition_target_selections;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionLateBinding,
-    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
-};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, expression::ExpressionNode};
+use typed_trees::expression::ExpressionNode;
 
 pub(crate) fn derive_checked_nominal_call_target(
     program: &dyn ::validation::CheckingInput,
@@ -58,20 +40,13 @@ pub(crate) fn derive_checked_nominal_call_target(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    contexts::checked_machine_call_target_from_exact_owner(program, facts, expression, call, None)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CheckedResolution {
-    occurrence: AuthoredDeclarationSelectionOccurrenceId,
-    binding: AuthoredDeclarationSelectionLateBinding,
-    target: CheckedResolutionTarget,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CheckedResolutionTarget {
-    Declaration(SymbolHandle),
-    Intrinsic(AuthoredDeclarationSelectionIntrinsic),
+    validation::expression_owners::checked_machine_call_target_from_exact_owner(
+        program,
+        &facts.proof.contract_facts,
+        expression,
+        call,
+        None,
+    )
 }
 
 pub(crate) fn bind_checked_intrinsic_call_facts(
@@ -81,18 +56,23 @@ pub(crate) fn bind_checked_intrinsic_call_facts(
     let mut intrinsic_calls = Vec::new();
     // One exact-owner index answers every call expression's query in a
     // single pass instead of a whole-program rescan per call site.
-    let owner_index = contexts::OwnerEnvironmentIndex::default();
+    let owner_index = validation::expression_owners::OwnerEnvironmentIndex::new(
+        program,
+        &facts.proof.contract_facts,
+    );
     for (expression, node) in program.expression_table.iter_expressions() {
         let ExpressionNode::Call(call) = node else {
             continue;
         };
-        let Some(intrinsic) = contexts::checked_collection_view_intrinsic_from_exact_owner(
-            program,
-            facts,
-            expression,
-            call,
-            Some(&owner_index),
-        ) else {
+        let Some(intrinsic) =
+            validation::expression_owners::checked_collection_view_intrinsic_from_exact_owner(
+                program,
+                &facts.proof.contract_facts,
+                expression,
+                call,
+                Some(&owner_index),
+            )
+        else {
             continue;
         };
         if intrinsic_calls
@@ -136,129 +116,14 @@ pub(crate) fn exact_owner_member_declaration(
     if member.member_symbol.is_valid() {
         return Some(member.member_symbol);
     }
-    match contexts::checked_member_target_from_exact_owner(
+    match validation::expression_owners::checked_member_target_from_exact_owner(
         program,
-        &CheckFacts::default(),
+        &arena::Arena::default(),
         expression,
         member,
         None,
     )? {
-        contexts::OwnerMemberTarget::Declaration(symbol) => Some(symbol),
-        contexts::OwnerMemberTarget::CollectionMeasure(_) => None,
+        validation::expression_owners::OwnerMemberTarget::Declaration(symbol) => Some(symbol),
+        validation::expression_owners::OwnerMemberTarget::CollectionMeasure(_) => None,
     }
-}
-
-pub(crate) fn bind_pre_specialization_authored_selections(
-    program: &mut TypedTrees,
-) -> Result<(), Diagnostic> {
-    let facts = CheckFacts::default();
-    let mut resolutions = Vec::new();
-    // One exact-owner index answers every late-bound member and call's
-    // query in a single pass instead of a whole-program rescan each.
-    let owner_index = contexts::OwnerEnvironmentIndex::default();
-    for (expression, node) in program.expression_table.iter_expressions() {
-        for occurrence in program
-            .expression_table
-            .authored_selection_occurrences(expression)
-        {
-            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
-                return Err(Diagnostic::error(format!(
-                    "expression retains unknown authored declaration selection occurrence {}",
-                    occurrence.ordinal(),
-                )));
-            };
-            let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
-                continue;
-            };
-            let target = match (binding, node) {
-                (
-                    AuthoredDeclarationSelectionLateBinding::CheckedMember,
-                    ExpressionNode::Member(member),
-                ) => contexts::checked_member_target_from_exact_owner(
-                    program,
-                    &facts,
-                    expression,
-                    member,
-                    Some(&owner_index),
-                )
-                .map(|target| match target {
-                    contexts::OwnerMemberTarget::Declaration(symbol) => {
-                        CheckedResolutionTarget::Declaration(member_targets::authored_data_member(
-                            program, symbol,
-                        ))
-                    }
-                    contexts::OwnerMemberTarget::CollectionMeasure(measure) => {
-                        CheckedResolutionTarget::Intrinsic(measure.intrinsic())
-                    }
-                }),
-                // Shorthand still naming a builtin has not acquired its
-                // checked operand-directed float meaning. Keep its occurrence
-                // open until call binding; integer uses finalize normally at
-                // the end of checking. Named authored overrides are unaffected.
-                (
-                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                    ExpressionNode::Call(call),
-                ) if matches!(
-                    program
-                        .symbols
-                        .builtin_function_for_symbol(call.target_symbol),
-                    Some(
-                        symbols::BuiltinFunction::Min
-                            | symbols::BuiltinFunction::Max
-                            | symbols::BuiltinFunction::Sqrt
-                    )
-                ) =>
-                {
-                    None
-                }
-                (
-                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                    ExpressionNode::Call(call),
-                ) => intrinsic_calls::checked_expression_call_intrinsic(program, call)
-                    .map(CheckedResolutionTarget::Intrinsic)
-                    .or_else(|| {
-                        exact_named_operator_call(program, call)
-                            .and_then(|operator| declaration_target(operator.symbol))
-                            .or_else(|| {
-                                contexts::checked_machine_call_target_from_exact_owner(
-                                    program,
-                                    &facts,
-                                    expression,
-                                    call,
-                                    Some(&owner_index),
-                                )
-                                .and_then(declaration_target)
-                            })
-                    }),
-                _ => None,
-            };
-            let Some(target) = target else {
-                continue;
-            };
-            push_consistent_resolution(
-                &mut resolutions,
-                CheckedResolution {
-                    occurrence,
-                    binding,
-                    target,
-                },
-            )?;
-        }
-    }
-    collect_checked_transition_target_selections(program, &mut resolutions)?;
-
-    let mut selections = program.authored_declaration_selections().clone();
-    for resolution in resolutions {
-        match resolution.target {
-            CheckedResolutionTarget::Declaration(symbol) => {
-                selections.finalize_late_bound(resolution.occurrence, resolution.binding, symbol)
-            }
-            CheckedResolutionTarget::Intrinsic(intrinsic) => {
-                selections.finalize_intrinsic(resolution.occurrence, resolution.binding, intrinsic)
-            }
-        }
-        .map_err(|error| finalization_diagnostic(resolution, error))?;
-    }
-    program.retain_authored_declaration_selections(selections);
-    Ok(())
 }
