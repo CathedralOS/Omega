@@ -778,6 +778,20 @@ pub(crate) fn binary_operator_spelling(operator: BinaryOperator) -> Option<Opera
     })
 }
 
+/// The spelled comparisons a bounds or contract read may treat as one
+/// class. Arithmetic and bitwise operators carry no ordering judgment.
+pub(crate) fn comparison_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
+    Some(match operator {
+        BinaryOperator::Equal => OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        _ => return None,
+    })
+}
+
 /// Records a spelled binary use when spelled candidates match the left
 /// operand type. Root-only candidate sets resolve immediately (root spelled
 /// operators are the declared surface of the builtin operation). Any

@@ -673,22 +673,15 @@ impl<'program, 'facts> Header<'program, 'facts> {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Borrow(borrow) => self.comparison_is_admitted(borrow.target, leaf_only),
             ExpressionNode::Binary(binary) => {
-                let spelling = match binary.operator {
-                    BinaryOperator::And => {
-                        return has_builtin_operators(
-                            self.program,
-                            &self.facts.operators,
-                            expression,
-                        ) && self.comparison_is_admitted(binary.left, leaf_only)
-                            && self.comparison_is_admitted(binary.right, leaf_only);
-                    }
-                    BinaryOperator::Equal => OperatorSpelling::Equal,
-                    BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-                    BinaryOperator::Less => OperatorSpelling::Less,
-                    BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-                    BinaryOperator::Greater => OperatorSpelling::Greater,
-                    BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-                    _ => return false,
+                if binary.operator == BinaryOperator::And {
+                    return has_builtin_operators(self.program, &self.facts.operators, expression)
+                        && self.comparison_is_admitted(binary.left, leaf_only)
+                        && self.comparison_is_admitted(binary.right, leaf_only);
+                }
+                let Some(spelling) =
+                    crate::operators::comparison_operator_spelling(binary.operator)
+                else {
+                    return false;
                 };
                 let (Some(left), Some(right)) = (
                     self.term_reference(binary.left),

@@ -685,16 +685,7 @@ pub(super) fn lower_integer_contract_comparison(
     }) {
         return None;
     }
-    use language_core::OperatorSpelling;
-    let spelling = match binary.operator {
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return None,
-    };
+    let spelling = crate::operators::comparison_operator_spelling(binary.operator)?;
     let operand_types =
         [(binary.left, &subjects[0]), (binary.right, &subjects[1])].map(|(expression, subject)| {
             subject

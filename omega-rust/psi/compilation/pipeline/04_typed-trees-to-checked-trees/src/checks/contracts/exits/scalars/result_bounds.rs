@@ -3,7 +3,6 @@
 //! no initializer or stale mutable read is replayed to reconstruct a value.
 
 use super::{ExitScalars, exit_return_expression, has_builtin_operators, is_result_reference};
-use language_core::OperatorSpelling;
 use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt};
 use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
@@ -127,15 +126,7 @@ impl ExitScalars<'_, '_> {
         else {
             return None;
         };
-        let spelling = match binary.operator {
-            BinaryOperator::Equal => OperatorSpelling::Equal,
-            BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-            BinaryOperator::Less => OperatorSpelling::Less,
-            BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-            BinaryOperator::Greater => OperatorSpelling::Greater,
-            BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-            _ => return None,
-        };
+        let spelling = crate::operators::comparison_operator_spelling(binary.operator)?;
         // A result operand is the bare return reference or a member
         // projection through it (`result.first`); both carry the selected
         // constructor expression's immutable bounds in the same namespace.

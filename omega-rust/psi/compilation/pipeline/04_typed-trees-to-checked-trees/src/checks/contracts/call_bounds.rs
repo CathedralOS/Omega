@@ -58,15 +58,7 @@ fn prove(
                 || proves(program, facts, caller, call, contexts, binary.right, guard),
         );
     }
-    let spelling = match binary.operator {
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return None,
-    };
+    let spelling = crate::operators::comparison_operator_spelling(binary.operator)?;
     let site = crate::semantic::calls::find_call_site(
         program,
         caller.machine_symbol,
