@@ -7,14 +7,13 @@ and derives expectations for the separate source-mutation controls.
 
 import hashlib
 import os
-import signal
 import struct
-import subprocess
 import sys
-import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "refinement"))
+import evaluator_request
 import model
 from customers import MEMBER_RECORDS, customers
 
@@ -22,30 +21,16 @@ EREQ = b"EEREQ\x01\x00\x00"
 
 
 def run_evaluator(evaluator, program, sealed_input, timeout, label):
-    started = time.monotonic()
     print(f"{label}: started, {timeout}s watchdog", flush=True)
-    process = subprocess.Popen(
-        [str(evaluator)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, start_new_session=True)
-    try:
-        output, errors = process.communicate(
-            struct.pack("<I", len(program)) + program + sealed_input,
-            timeout=timeout)
-    except subprocess.TimeoutExpired:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                           check=False)
-        else:
-            os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
-        raise SystemExit(f"{label}: timed out; no language judgment")
-    elapsed = time.monotonic() - started
+    returncode, output, errors, elapsed = evaluator_request.run(
+        evaluator, program, sealed_input, timeout,
+        f"{label}: timed out; no language judgment")
     if errors:
         raise SystemExit(
             f"{label}: unexpected stderr after {elapsed:.3f}s: {errors!r}")
-    print(f"{label}: status {process.returncode}, {len(output)} bytes out, "
+    print(f"{label}: status {returncode}, {len(output)} bytes out, "
           f"{elapsed:.3f}s", flush=True)
-    return process.returncode, output, elapsed
+    return returncode, output, elapsed
 
 
 def require_identity(label, source, length, digest):

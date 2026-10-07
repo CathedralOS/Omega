@@ -20,11 +20,12 @@ import argparse
 import csv
 import hashlib
 import os
-import signal
 import struct
-import subprocess
-import time
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import evaluator_request
 
 EREQ = b"EEREQ\x01\x00\x00"
 
@@ -53,24 +54,13 @@ def evaluate(evaluator, program, sealed_input, timeout, label):
     """Run one evaluator request; a timeout is no language judgment."""
     print(f"Epsilon pair boundary {label}: started; watchdog {timeout}s",
           flush=True)
-    started = time.monotonic()
-    process = subprocess.Popen(
-        [str(evaluator)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, start_new_session=True)
-    try:
-        output, error = process.communicate(
-            struct.pack("<I", len(program)) + program + sealed_input,
-            timeout=timeout)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
-        raise SystemExit(
-            f"Epsilon pair boundary {label}: timed out; no language judgment")
-    elapsed = time.monotonic() - started
+    returncode, output, error, elapsed = evaluator_request.run(
+        evaluator, program, sealed_input, timeout,
+        f"Epsilon pair boundary {label}: timed out; no language judgment")
     print(
-        f"Epsilon pair boundary {label}: status {process.returncode}, "
+        f"Epsilon pair boundary {label}: status {returncode}, "
         f"{len(output)} stdout bytes, {elapsed:.3f}s", flush=True)
-    return process.returncode, output, error
+    return returncode, output, error
 
 
 def main():

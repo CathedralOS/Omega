@@ -9,18 +9,17 @@ run.sh materializes the bound evaluator, compiler, closure, entry and support.
 """
 
 import hashlib
-import os
-import signal
 import struct
-import subprocess
 import sys
 import time
 from pathlib import Path
 
 GATE_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(GATE_DIR.parent))
 sys.path.insert(0, str(GATE_DIR))
 
 import corpus  # noqa: E402
+import evaluator_request
 import model  # noqa: E402
 
 EREQ = b"EEREQ\x01\x00\x00"
@@ -52,20 +51,12 @@ def require_identity(label, data):
 
 def evaluate(evaluator, program, sealed_input, timeout=300):
     """Run one evaluator request; a timeout is no language judgment."""
-    process = subprocess.Popen(
-        [str(evaluator)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, start_new_session=True)
-    try:
-        output, error = process.communicate(
-            struct.pack("<I", len(program)) + program + sealed_input,
-            timeout=timeout)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
-        raise SystemExit("Epsilon refinement: selected Gamma timed out")
+    returncode, output, error, _elapsed = evaluator_request.run(
+        evaluator, program, sealed_input, timeout,
+        "Epsilon refinement: selected Gamma timed out")
     if error:
         raise SystemExit(f"unexpected evaluator stderr: {error!r}")
-    return process.returncode, output
+    return returncode, output
 
 
 def ereq(closure_digest, source=b"", stdin=b"", profile=1):
