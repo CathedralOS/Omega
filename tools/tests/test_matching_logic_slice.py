@@ -13,6 +13,8 @@ import sys
 import tempfile
 import unittest
 
+import worktree_testkit as kit
+
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools" / "matching-logic-slice" / "slice_checker.py"
@@ -20,17 +22,7 @@ CASES = ROOT / "tools" / "matching-logic-slice" / "cases"
 
 
 def load_tool():
-    specification = importlib.util.spec_from_file_location(
-        "slice_checker_under_test", TOOL
-    )
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
+    return kit.load_module(TOOL, "slice_checker_under_test")
 
 
 checker = load_tool()

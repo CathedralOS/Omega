@@ -12,6 +12,8 @@ import json
 import sys
 import tempfile
 import unittest
+
+import worktree_testkit as kit
 from pathlib import Path
 
 
@@ -20,17 +22,7 @@ TOOL = ROOT / "tools" / "rust_producer_omission.py"
 
 
 def load_tool():
-    specification = importlib.util.spec_from_file_location(
-        "rust_producer_omission_under_test", TOOL
-    )
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
+    return kit.load_module(TOOL, "rust_producer_omission_under_test")
 
 
 class OmissionAuditTests(unittest.TestCase):

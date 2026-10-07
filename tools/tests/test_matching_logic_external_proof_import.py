@@ -11,6 +11,8 @@ from pathlib import Path
 import sys
 import unittest
 
+import worktree_testkit as kit
+
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = (ROOT / "tools" / "matching-logic-external-proof-import"
@@ -19,17 +21,7 @@ CASES = ROOT / "tools" / "matching-logic-external-proof-import" / "cases"
 
 
 def load_tool():
-    specification = importlib.util.spec_from_file_location(
-        "external_proof_import_under_test", TOOL
-    )
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
+    return kit.load_module(TOOL, "external_proof_import_under_test")
 
 
 importer = load_tool()
