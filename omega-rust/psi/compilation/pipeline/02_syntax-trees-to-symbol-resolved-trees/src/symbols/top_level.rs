@@ -274,11 +274,13 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
                 symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
                     if let Some(signature) = contract.structural_mut() {
                         assign_machine_parameter_signature_symbols(
-                            symbols,
-                            data_type_parameters,
-                            state_parameters,
-                            child_type_references,
-                            type_constraints,
+                            &mut SignatureSymbolTables {
+                                symbols,
+                                data_type_parameters,
+                                state_parameters,
+                                child_type_references,
+                                type_constraints,
+                            },
                             signature,
                             parameter_symbol,
                             &local_type_parameters,
@@ -324,13 +326,19 @@ pub(super) fn next_child_of_kind(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+/// The symbol table plus the four arenas every machine-parameter signature
+/// walk borrows together; the bundle never splits between callers, so the
+/// walk takes it as one context instead of a nine-position argument list.
+pub(super) struct SignatureSymbolTables<'a> {
+    pub symbols: &'a SymbolTable,
+    pub data_type_parameters: &'a mut Arena<symbol_resolved_trees::data::TypeParameter>,
+    pub state_parameters: &'a mut Arena<symbol_resolved_trees::signature::StateParameter>,
+    pub child_type_references: &'a mut Arena<symbol_resolved_trees::types::TypeReference>,
+    pub type_constraints: &'a Arena<symbol_resolved_trees::types::TypeConstraint>,
+}
+
 pub(super) fn assign_machine_parameter_signature_symbols(
-    symbols: &SymbolTable,
-    data_type_parameters: &mut Arena<symbol_resolved_trees::data::TypeParameter>,
-    state_parameters: &mut Arena<symbol_resolved_trees::signature::StateParameter>,
-    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
-    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
+    tables: &mut SignatureSymbolTables<'_>,
     contract: &mut symbol_resolved_trees::signature::StateSignature,
     owner_symbol: SymbolHandle,
     inherited_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
@@ -339,21 +347,29 @@ pub(super) fn assign_machine_parameter_signature_symbols(
     use symbol_resolved_trees::data::TypeParameterKind;
 
     contract.symbol = owner_symbol;
-    let mut children = symbols.child_handles(owner_symbol).into_iter().flatten();
+    let mut children = tables
+        .symbols
+        .child_handles(owner_symbol)
+        .into_iter()
+        .flatten();
 
-    for parameter in data_type_parameters.span_mut_or_empty(contract.type_parameters) {
+    for parameter in tables
+        .data_type_parameters
+        .span_mut_or_empty(contract.type_parameters)
+    {
         let kind = match parameter.kind {
             TypeParameterKind::Machine { .. } => SymbolKind::MachineParameter,
             TypeParameterKind::Proposition { .. } => SymbolKind::PropositionParameter,
             _ => SymbolKind::TypeParameter,
         };
-        parameter.symbol = next_child_of_kind(&mut children, symbols, kind);
+        parameter.symbol = next_child_of_kind(&mut children, tables.symbols, kind);
     }
 
     // Type lookup reads the first matching declaration. A nested signature's
     // own binders shadow inherited owner binders without changing either
     // declaration identity; unshadowed owner names remain in scope.
-    let mut local_type_parameters = data_type_parameters
+    let mut local_type_parameters = tables
+        .data_type_parameters
         .span_or_empty(contract.type_parameters)
         .to_vec();
     local_type_parameters.extend_from_slice(inherited_type_parameters);
@@ -361,16 +377,18 @@ pub(super) fn assign_machine_parameter_signature_symbols(
     let nested_count = contract.type_parameters.len();
     for index in 0..nested_count {
         let (parameter_symbol, kind) = {
-            let parameter = &data_type_parameters.span_or_empty(contract.type_parameters)[index];
+            let parameter = &tables
+                .data_type_parameters
+                .span_or_empty(contract.type_parameters)[index];
             (parameter.symbol, parameter.kind.clone())
         };
         let resolved_kind = match kind {
             TypeParameterKind::Type => TypeParameterKind::Type,
             TypeParameterKind::Const { mut type_reference } => {
                 crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
-                    symbols,
-                    child_type_references,
-                    type_constraints,
+                    tables.symbols,
+                    tables.child_type_references,
+                    tables.type_constraints,
                     &local_type_parameters,
                     self_symbol,
                     &mut type_reference,
@@ -379,9 +397,9 @@ pub(super) fn assign_machine_parameter_signature_symbols(
             }
             TypeParameterKind::Value { mut type_reference } => {
                 crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
-                    symbols,
-                    child_type_references,
-                    type_constraints,
+                    tables.symbols,
+                    tables.child_type_references,
+                    tables.type_constraints,
                     &local_type_parameters,
                     self_symbol,
                     &mut type_reference,
@@ -391,11 +409,7 @@ pub(super) fn assign_machine_parameter_signature_symbols(
             TypeParameterKind::Machine { mut contract } => {
                 if let Some(signature) = contract.structural_mut() {
                     assign_machine_parameter_signature_symbols(
-                        symbols,
-                        data_type_parameters,
-                        state_parameters,
-                        child_type_references,
-                        type_constraints,
+                        tables,
                         signature,
                         parameter_symbol,
                         &local_type_parameters,
@@ -406,10 +420,10 @@ pub(super) fn assign_machine_parameter_signature_symbols(
             }
             TypeParameterKind::Proposition { mut contract } => {
                 assign_proposition_parameter_signature_symbols(
-                    symbols,
-                    state_parameters,
-                    child_type_references,
-                    type_constraints,
+                    tables.symbols,
+                    tables.state_parameters,
+                    tables.child_type_references,
+                    tables.type_constraints,
                     &mut contract,
                     parameter_symbol,
                     &local_type_parameters,
@@ -418,16 +432,21 @@ pub(super) fn assign_machine_parameter_signature_symbols(
                 TypeParameterKind::Proposition { contract }
             }
         };
-        data_type_parameters.span_mut_or_empty(contract.type_parameters)[index].kind =
-            resolved_kind;
+        tables
+            .data_type_parameters
+            .span_mut_or_empty(contract.type_parameters)[index]
+            .kind = resolved_kind;
     }
 
-    for parameter in state_parameters.span_mut_or_empty(contract.parameters) {
-        parameter.symbol = next_child_of_kind(&mut children, symbols, SymbolKind::Parameter);
+    for parameter in tables
+        .state_parameters
+        .span_mut_or_empty(contract.parameters)
+    {
+        parameter.symbol = next_child_of_kind(&mut children, tables.symbols, SymbolKind::Parameter);
         crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
-            symbols,
-            child_type_references,
-            type_constraints,
+            tables.symbols,
+            tables.child_type_references,
+            tables.type_constraints,
             &local_type_parameters,
             self_symbol,
             &mut parameter.type_reference,
@@ -435,9 +454,9 @@ pub(super) fn assign_machine_parameter_signature_symbols(
     }
     if let Some(return_type) = &mut contract.return_type {
         crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
-            symbols,
-            child_type_references,
-            type_constraints,
+            tables.symbols,
+            tables.child_type_references,
+            tables.type_constraints,
             &local_type_parameters,
             self_symbol,
             return_type,

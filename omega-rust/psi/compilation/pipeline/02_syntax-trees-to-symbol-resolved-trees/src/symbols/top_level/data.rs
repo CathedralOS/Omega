@@ -1,7 +1,9 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
+use crate::symbols::top_level::{
+    SignatureSymbolTables, assign_machine_parameter_signature_symbols, next_child_of_kind,
+};
 
 pub(super) fn assign_data_symbols(
     program: &mut SymbolResolvedTrees,
@@ -56,11 +58,13 @@ pub(super) fn assign_data_symbols(
                 };
                 if let Some(signature) = contract.structural_mut() {
                     assign_machine_parameter_signature_symbols(
-                        symbols,
-                        data_type_parameters,
-                        state_parameters,
-                        child_type_references,
-                        type_constraints,
+                        &mut SignatureSymbolTables {
+                            symbols,
+                            data_type_parameters,
+                            state_parameters,
+                            child_type_references,
+                            type_constraints,
+                        },
                         signature,
                         parameter_symbol,
                         &local_type_parameters,

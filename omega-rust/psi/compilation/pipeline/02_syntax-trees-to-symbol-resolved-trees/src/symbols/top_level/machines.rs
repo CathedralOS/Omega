@@ -5,11 +5,13 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 use crate::symbols::expressions::assign_expression_table_symbols;
 use crate::symbols::lookup::top_level_symbol_for_source;
 use crate::symbols::scope::{LexicalRequirements, MachineScope};
-use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind, trait_parameter_tables};
+use crate::symbols::top_level::{
+    SignatureSymbolTables, assign_machine_parameter_signature_symbols, next_child_of_kind,
+    trait_parameter_tables,
+};
 use crate::symbols::type_references::{
     assign_machine_declaration_identity_argument_symbols,
-    assign_trait_bound_slot_argument_symbols,
-    assign_proposition_family_argument_symbols,
+    assign_proposition_family_argument_symbols, assign_trait_bound_slot_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
     assign_type_reference_symbol_with_locals_and_self_type_and_constraints,
 };
@@ -214,11 +216,13 @@ pub(super) fn assign_machine_symbols(
                     }
                     if let Some(signature) = contract.structural_mut() {
                         assign_machine_parameter_signature_symbols(
-                            symbols,
-                            data_type_parameters,
-                            state_parameters,
-                            child_type_references,
-                            type_constraints,
+                            &mut SignatureSymbolTables {
+                                symbols,
+                                data_type_parameters,
+                                state_parameters,
+                                child_type_references,
+                                type_constraints,
+                            },
                             signature,
                             parameter_symbol,
                             &local_type_parameters,

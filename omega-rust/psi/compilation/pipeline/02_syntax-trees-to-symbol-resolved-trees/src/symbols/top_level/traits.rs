@@ -4,8 +4,8 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::top_level_symbol_for_source;
 use crate::symbols::top_level::{
-    assign_machine_parameter_signature_symbols, assign_proposition_parameter_signature_symbols,
-    next_child_of_kind, trait_parameter_tables,
+    SignatureSymbolTables, assign_machine_parameter_signature_symbols,
+    assign_proposition_parameter_signature_symbols, next_child_of_kind, trait_parameter_tables,
 };
 use crate::symbols::type_references::{
     assign_trait_bound_slot_argument_symbols,
@@ -188,11 +188,13 @@ pub(super) fn assign_trait_symbols(
             machine.symbol = next_child_of_kind(&mut trait_children, symbols, SymbolKind::State);
             let machine_symbol = machine.symbol;
             assign_machine_parameter_signature_symbols(
-                symbols,
-                data_type_parameters,
-                state_parameters,
-                child_type_references,
-                type_constraints,
+                &mut SignatureSymbolTables {
+                    symbols,
+                    data_type_parameters,
+                    state_parameters,
+                    child_type_references,
+                    type_constraints,
+                },
                 machine,
                 machine_symbol,
                 &local_type_parameters,
