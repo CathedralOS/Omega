@@ -40,7 +40,11 @@ Comparison runs the shared Terminal runtime on the native report's exact produce
 artifact and retained entry/provider provisions before publication transfers that
 payload. It never interprets checked trees, recompiles source or repeats Build.
 The current runtime establishes an isolated hosted root, buffered output and
-domain-bound ProcessExit. Stdin, clock and other missing imports decline explicitly;
+domain-bound ProcessExit. Selected byte input uses the captured finite replay
+stream. Exact Darwin clock imports share invocation-private modeled time seeded
+from a host epoch snapshot; checked library calibration and retry code still run.
+This model is not evidence of native timing correctness. Descriptor-backed or
+indefinite waits, CPU clocks and other missing imports decline explicitly;
 there is no tree fallback. The CLI compares host-presented exit status only, not
 stdout/stderr or full semantic traces. Typed crashes and sponsor-fuel exhaustion
 are distinct declines, not numeric exits or divergence verdicts.

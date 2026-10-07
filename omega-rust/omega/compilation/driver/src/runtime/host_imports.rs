@@ -5,6 +5,7 @@
 //! with an instance-private cursor. Checked compound operations remain guest code.
 
 mod buffered_output;
+pub(super) mod clock;
 mod descriptor_io;
 mod numeric;
 mod standard_input;
@@ -29,11 +30,15 @@ pub(super) fn bind<'host>(
     provisions: Option<&TerminalRuntimeProvisions>,
     imports: &[BoundaryMachineId],
     input: Option<Box<dyn std::io::Read + Send + 'host>>,
+    clock: Option<clock::TerminalClockSnapshot>,
 ) -> Result<buffered_output::BufferedBytes, TerminalRuntimeError> {
     let output = buffered_output::BufferedBytes::new();
     // Every selected stdin leaf in this instance consumes the same logical
     // stream. Independent adapter cursors would replay bytes after a slot switch.
     let input = input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader)));
+    // Different selected poll and clock slots inhabit one invocation, not
+    // independent timelines. Another execute request gets another backing.
+    let clock = clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot)));
     for slot in imports {
         let provision = provisions
             .and_then(|provisions| {
@@ -100,6 +105,14 @@ pub(super) fn bind<'host>(
                         .ok_or(TerminalRuntimeError::InvalidProvision(
                             "foreign host provision names no demanded import",
                         ))?;
+                if let Some(adapter) =
+                    clock::ClockImport::admit(declaration, binding, clock.as_ref().cloned())?
+                {
+                    instance
+                        .bind_import(*slot, adapter)
+                        .map_err(TerminalRuntimeError::Binding)?;
+                    continue;
+                }
                 let adapter = descriptor_io::DescriptorIoImport::admit(
                     program,
                     declaration,

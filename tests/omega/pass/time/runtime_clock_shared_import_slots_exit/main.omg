@@ -1,0 +1,65 @@
+// Different admitted import slots share one clock domain. Exercise Unit and
+// scalar poll results, both count widths, two read slots, and helper returns.
+// Native waits may overshoot: assert lower bounds, not exact host latency.
+use omega::language::core::external_binding;
+
+pub data ClockProbe { }
+pub boundary requirement ClockProbe::read(selector: u32) -> u64;
+pub boundary requirement ClockProbe::read_other(selector: u32) -> u64;
+pub boundary requirement ClockProbe::wait_unit(pointer: u64, count: u64, milliseconds: i32);
+pub boundary requirement ClockProbe::wait_narrow(pointer: u64, count: u32, milliseconds: i32) -> i32;
+pub boundary requirement ClockProbe::wait_wide(pointer: u64, count: u64, milliseconds: i32) -> i32;
+data ClockImports { }
+
+macos_arm64 machine clock_binding() -> ForeignBinding<26, 22, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
+        }
+    }
+}
+macos_arm64 machine wait_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
+        }
+    }
+}
+macos_arm64 machine ClockImports::read(selector: u32) -> u64
+    satisfies ClockProbe::read via clock_binding();
+macos_arm64 machine ClockImports::read_other(selector: u32) -> u64
+    satisfies ClockProbe::read_other via clock_binding();
+macos_arm64 machine ClockImports::wait_unit(pointer: u64, count: u64, milliseconds: i32)
+    satisfies ClockProbe::wait_unit via wait_binding();
+macos_arm64 machine ClockImports::wait_narrow(pointer: u64, count: u32, milliseconds: i32) -> i32
+    satisfies ClockProbe::wait_narrow via wait_binding();
+macos_arm64 machine ClockImports::wait_wide(pointer: u64, count: u64, milliseconds: i32) -> i32
+    satisfies ClockProbe::wait_wide via wait_binding();
+
+machine helper_read() -> u64 { ClockProbe::read_other(8) }
+
+machine main() crashes Trap {
+    let before: u64 = ClockProbe::read(6);
+    let other_before: u64 = helper_read();
+    ClockProbe::wait_unit(0, 0, 2);
+    let narrow: i32 = ClockProbe::wait_narrow(0, 0, 3);
+    // Darwin consumes nfds_t's low32 bits even for this declared u64 count.
+    // The effective zero count ignores the non-null pointer entirely.
+    let wide: i32 = ClockProbe::wait_wide(1, 4294967296, 1);
+    let after: u64 = ClockProbe::read(6);
+    let other_after: u64 = helper_read();
+    let wall: u64 = ClockProbe::read(0);
+    transition after >= before && other_after >= other_before {
+        true -> measure(after - before, other_after - other_before, narrow, wide, wall)
+        false -> bad()
+    }
+    state measure(elapsed: u64, other_elapsed: u64, narrow: i32, wide: i32, wall: u64) {
+        transition elapsed >= 6000000 && other_elapsed >= 6000000 && narrow == 0 && wide == 0
+            && wall / 1000000000 > 1767225600 && wall / 1000000000 < 3350000000 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

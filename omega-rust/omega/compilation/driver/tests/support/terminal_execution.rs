@@ -39,11 +39,16 @@ pub(super) fn interpret(
     fuel_allowance: u64,
     standard_input: Box<dyn std::io::Read + Send>,
 ) -> Observation {
+    let clock = match compiler::runtime::TerminalClockSnapshot::capture_host_epoch() {
+        Ok(clock) => clock,
+        Err(error) => return Observation::failure(error),
+    };
     let result = match compiler::runtime::execute(TerminalRuntimeRequest {
         artifact,
         provisions,
         fuel_allowance,
         standard_input: Some(standard_input),
+        clock: Some(clock),
     }) {
         Ok(result) => result,
         Err(TerminalRuntimeError::MissingProvision { capability, reason }) => {

@@ -83,5 +83,6 @@ fn interpret_product(
         provisions: report.runtime_provisions(),
         fuel_allowance: REFERENCE_EXECUTION_FUEL_ALLOWANCE,
         standard_input: Some(Box::new(input)),
+        clock: Some(compiler::runtime::TerminalClockSnapshot::capture_host_epoch()?),
     })
 }

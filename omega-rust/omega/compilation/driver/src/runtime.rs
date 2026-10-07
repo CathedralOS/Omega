@@ -17,9 +17,14 @@
 //! Explicit MSVCRT descriptor adapters join complete admitted locator/ABI rows
 //! and operate on captured primitive loans. They share the invocation's finite
 //! input and ordered private output; checked Console wrappers still run in Psi.
+//! Darwin clock imports likewise consume an explicitly supplied private time
+//! model shared across slots. Guest calibration/retry code remains executable;
+//! simulated waits neither sleep the host nor establish native latency evidence.
 
 mod entry;
 mod host_imports;
+
+pub use host_imports::clock::TerminalClockSnapshot;
 
 use compilation_products::TerminalRuntimeProvisions;
 use terminal_interpreter::{
@@ -36,6 +41,9 @@ pub struct TerminalRuntimeRequest<'program> {
     /// this snapshot, never a temporarily empty live pipe. Absence supplies no
     /// stdin capability; input-demanding imports reject before guest effects.
     pub standard_input: Option<Box<dyn std::io::Read + Send + 'program>>,
+    /// Explicit clock model for this isolated invocation. Absence supplies no
+    /// clock capability. Modeled time is not evidence of native timing behavior.
+    pub clock: Option<TerminalClockSnapshot>,
 }
 
 /// The exact semantic outcome and preceding buffered output. An external exit
@@ -154,6 +162,7 @@ pub fn execute(
         request.provisions,
         &requirements.imports,
         request.standard_input,
+        request.clock,
     )?;
     // Each Binding occurrence is established for this containing domain by
     // this host, never by merely selecting the native exit implementation.

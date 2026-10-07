@@ -1730,7 +1730,13 @@ then independent claimed restoration slices -> final closure.
   `borrows/indexed_record_field_replacement_exit` after its full-stdlib package
   review: the initial graph requests 277 decisions, including `FilesystemHost`;
   corpus agreement does not settle that package admission.
-  Virtual clocks and stderr support remain. The original
+  Complete clock imports beyond the admitted Darwin nanosecond reads and
+  descriptorless finite poll waits: descriptor readiness needs actual custody,
+  CPU clocks need accounting, and other target locators need exact adapters.
+  Preserve `time/runtime_clock_shared_import_slots_exit` across those repairs:
+  all selected read/wait slots share one invocation's explicitly supplied time
+  model, with unchanged checked calibration; simulation is not native latency
+  evidence. Stderr support remains. The original
   `runtime_float_integer_conversion_boundaries_exit` has no exact established
   root ProcessExit Binding occurrence and declines before effects; resolve its
   source authority contract under [Process-exit contract](#process-exit-contract),
