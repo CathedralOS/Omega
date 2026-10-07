@@ -5,7 +5,7 @@
 //! cited children are checked by the ordinary kernel traversal before this
 //! rule combines their relations; search cannot supply an inferred axiom.
 
-use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
+use semantic_vocabulary::{Proposition, ScalarType};
 
 use super::{ProofError, mathematical_order, scalar_order};
 
