@@ -134,6 +134,128 @@ pub(super) fn math_less_or_equal_sides<'a>(
     }
 }
 
+/// One operand's bound side of a direct or definition-cited arithmetic
+/// bound: the operand term, its authored bound proposition and the
+/// evidence naming that bound.
+pub(super) struct OperandBound<'a> {
+    pub(super) operand: &'a ScalarTerm,
+    pub(super) bound: &'a Proposition,
+    pub(super) evidence: TermHandle,
+}
+
+/// Everything the shared binary-bound chain computes for its caller: the
+/// two endpoint shapes (for numeral extraction), the denoted endpoint,
+/// operand and bound-operation terms.
+pub(super) struct BinaryBoundChain {
+    pub(super) left_endpoint: ScalarTerm,
+    pub(super) right_endpoint: ScalarTerm,
+    pub(super) left_endpoint_term: TermHandle,
+    pub(super) right_endpoint_term: TermHandle,
+    pub(super) left_term: TermHandle,
+    pub(super) right_term: TermHandle,
+    pub(super) bound_operation: TermHandle,
+    pub(super) operand_operation: TermHandle,
+    pub(super) left_order: TermHandle,
+    pub(super) right_order: TermHandle,
+}
+
+/// The shared endpoint-through-terms chain of every arithmetic bound
+/// check: each operand's endpoint re-shapes its own bound evidence and
+/// the operation builds the applicative bound and operand terms.
+/// `right_antitone` flips the right operand's direction for subtraction's
+/// contravariant right side. The law application stays with the caller:
+/// the direct checks run a defensive shape check first, so a shared
+/// `binary_bound_order` applies it where the caller asks.
+pub(super) fn binary_bound_chain(
+    denotation: &mut Denotation,
+    left: OperandBound<'_>,
+    right: OperandBound<'_>,
+    lower: bool,
+    right_antitone: bool,
+    scalar_type: &IntegerType,
+    terms: fn(
+        &mut Denotation,
+        TermHandle,
+        TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError>,
+) -> Result<Option<BinaryBoundChain>, BoundedDenotationError> {
+    let right_lower = if right_antitone { !lower } else { lower };
+    let Some((left_endpoint, left_order)) = denotation.add_bound_endpoint(
+        left.operand,
+        left.bound,
+        left.evidence,
+        lower,
+        scalar_type,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some((right_endpoint, right_order)) = denotation.add_bound_endpoint(
+        right.operand,
+        right.bound,
+        right.evidence,
+        right_lower,
+        scalar_type,
+    )?
+    else {
+        return Ok(None);
+    };
+    let left_endpoint_term = denotation.fixed_scalar_term(&left_endpoint)?;
+    let right_endpoint_term = denotation.fixed_scalar_term(&right_endpoint)?;
+    let left_term = denotation.fixed_scalar_term(left.operand)?;
+    let right_term = denotation.fixed_scalar_term(right.operand)?;
+    let bound_operation = terms(denotation, left_endpoint_term, right_endpoint_term)?;
+    let operand_operation = terms(denotation, left_term, right_term)?;
+    Ok(Some(BinaryBoundChain {
+        left_endpoint,
+        right_endpoint,
+        left_endpoint_term,
+        right_endpoint_term,
+        left_term,
+        right_term,
+        bound_operation,
+        operand_operation,
+        left_order,
+        right_order,
+    }))
+}
+
+/// The two-sided monotonicity application every arithmetic bound check
+/// ends its endpoint chain with: lower spends each operand's endpoint on
+/// the same side, upper flips both pairs.
+pub(super) fn binary_bound_order(
+    denotation: &mut Denotation,
+    lower: bool,
+    chain: &BinaryBoundChain,
+    ordered_law: impl Fn(&mut Denotation, &[TermHandle]) -> Result<TermHandle, BoundedDenotationError>,
+) -> Result<TermHandle, BoundedDenotationError> {
+    if lower {
+        ordered_law(
+            denotation,
+            &[
+                chain.left_endpoint_term,
+                chain.left_term,
+                chain.right_endpoint_term,
+                chain.right_term,
+                chain.left_order,
+                chain.right_order,
+            ],
+        )
+    } else {
+        ordered_law(
+            denotation,
+            &[
+                chain.left_term,
+                chain.left_endpoint_term,
+                chain.right_term,
+                chain.right_endpoint_term,
+                chain.left_order,
+                chain.right_order,
+            ],
+        )
+    }
+}
+
 pub(super) fn exact_definition_bound_target<'a>(
     conclusion: &'a Proposition,
     definition: &'a Proposition,

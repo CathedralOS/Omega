@@ -46,7 +46,8 @@ use semantic_vocabulary::{
 
 use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
 use super::denotation::{
-    ExactDefinitionBoundTarget, exact_definition_bound_target, math_less_or_equal_sides,
+    ExactDefinitionBoundTarget, OperandBound, binary_bound_chain, binary_bound_order,
+    exact_definition_bound_target, math_less_or_equal_sides,
 };
 use super::{
     BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
@@ -775,62 +776,44 @@ impl Denotation {
         // The left operand is monotone — its endpoint direction is the
         // conclusion's; the right operand is antitone — `l − r`'s lower
         // bound spends `r`'s upper endpoint, so the direction flips.
-        let Some((left_endpoint, left_order)) =
-            self.add_bound_endpoint(left, left_bound, left_evidence, lower, scalar_type)?
+        let Some(chain) = binary_bound_chain(
+            self,
+            OperandBound {
+                operand: left,
+                bound: left_bound,
+                evidence: left_evidence,
+            },
+            OperandBound {
+                operand: right,
+                bound: right_bound,
+                evidence: right_evidence,
+            },
+            lower,
+            true,
+            scalar_type,
+            Self::subtract_terms,
+        )?
         else {
             return Ok(None);
         };
-        let Some((right_endpoint, right_order)) =
-            self.add_bound_endpoint(right, right_bound, right_evidence, !lower, scalar_type)?
-        else {
-            return Ok(None);
-        };
-        let left_endpoint_term = self.fixed_scalar_term(&left_endpoint)?;
-        let right_endpoint_term = self.fixed_scalar_term(&right_endpoint)?;
-        let left_term = self.fixed_scalar_term(left)?;
-        let right_term = self.fixed_scalar_term(right)?;
-        let bound_difference = self.subtract_terms(left_endpoint_term, right_endpoint_term)?;
-        let operand_difference = self.subtract_terms(left_term, right_term)?;
         // The conclusion's `Subtract` math term must denote the same
         // application as the target's operands — the shared relation
         // already equated them, so this is the defensive shape check.
         let difference_term = self.math_term(difference)?;
         if !self
             .arena
-            .structurally_equal(difference_term, operand_difference)
+            .structurally_equal(difference_term, chain.operand_operation)
         {
             return Ok(None);
         }
         // `sub lb_l rb_r ≤ sub l r` (lower) or
         // `sub l r ≤ sub ub_l lb_r` (upper).
-        let order = if lower {
-            self.subtract_law_application(
-                Law::MonotoneAntitone,
-                &[
-                    left_endpoint_term,
-                    left_term,
-                    right_endpoint_term,
-                    right_term,
-                    left_order,
-                    right_order,
-                ],
-            )?
-        } else {
-            self.subtract_law_application(
-                Law::MonotoneAntitone,
-                &[
-                    left_term,
-                    left_endpoint_term,
-                    right_term,
-                    right_endpoint_term,
-                    left_order,
-                    right_order,
-                ],
-            )?
-        };
+        let order = binary_bound_order(self, lower, &chain, |denotation, arguments| {
+            denotation.subtract_law_application(Law::MonotoneAntitone, arguments)
+        })?;
         let (Some((_, left_value)), Some((_, right_value))) = (
-            left_endpoint.integer_value(),
-            right_endpoint.integer_value(),
+            chain.left_endpoint.integer_value(),
+            chain.right_endpoint.integer_value(),
         ) else {
             return Ok(None);
         };
@@ -839,8 +822,8 @@ impl Denotation {
             left_value,
             right_value,
             bound_value,
-            left_endpoint_term,
-            right_endpoint_term,
+            chain.left_endpoint_term,
+            chain.right_endpoint_term,
             bound_term,
         )?
         else {
@@ -850,9 +833,9 @@ impl Denotation {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteLeft,
                 &[
-                    bound_difference,
+                    chain.bound_operation,
                     bound_term,
-                    operand_difference,
+                    chain.operand_operation,
                     equality,
                     order,
                 ],
@@ -861,8 +844,8 @@ impl Denotation {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteRight,
                 &[
-                    operand_difference,
-                    bound_difference,
+                    chain.operand_operation,
+                    chain.bound_operation,
                     bound_term,
                     equality,
                     order,
@@ -910,49 +893,31 @@ impl Denotation {
         else {
             return Ok(None);
         };
-        let Some((left_endpoint, left_order)) =
-            self.add_bound_endpoint(left, left_bound, left_evidence, lower, scalar_type)?
+        let Some(chain) = binary_bound_chain(
+            self,
+            OperandBound {
+                operand: left,
+                bound: left_bound,
+                evidence: left_evidence,
+            },
+            OperandBound {
+                operand: right,
+                bound: right_bound,
+                evidence: right_evidence,
+            },
+            lower,
+            true,
+            scalar_type,
+            Self::subtract_terms,
+        )?
         else {
             return Ok(None);
         };
-        let Some((right_endpoint, right_order)) =
-            self.add_bound_endpoint(right, right_bound, right_evidence, !lower, scalar_type)?
-        else {
-            return Ok(None);
-        };
-        let left_endpoint_term = self.fixed_scalar_term(&left_endpoint)?;
-        let right_endpoint_term = self.fixed_scalar_term(&right_endpoint)?;
-        let left_term = self.fixed_scalar_term(left)?;
-        let right_term = self.fixed_scalar_term(right)?;
-        let bound_difference = self.subtract_terms(left_endpoint_term, right_endpoint_term)?;
-        let operand_difference = self.subtract_terms(left_term, right_term)?;
         // `sub lb_l rb_r ≤ sub l r` (lower) or `sub l r ≤ sub ub_l lb_r`
         // (upper).
-        let order = if lower {
-            self.subtract_law_application(
-                Law::MonotoneAntitone,
-                &[
-                    left_endpoint_term,
-                    left_term,
-                    right_endpoint_term,
-                    right_term,
-                    left_order,
-                    right_order,
-                ],
-            )?
-        } else {
-            self.subtract_law_application(
-                Law::MonotoneAntitone,
-                &[
-                    left_term,
-                    left_endpoint_term,
-                    right_term,
-                    right_endpoint_term,
-                    left_order,
-                    right_order,
-                ],
-            )?
-        };
+        let order = binary_bound_order(self, lower, &chain, |denotation, arguments| {
+            denotation.subtract_law_application(Law::MonotoneAntitone, arguments)
+        })?;
         // `Id Int (sub l' r') output'` — the cited definition while the
         // expression stays applicative, or `sub l r = n` composed with it
         // when the closed difference denotes to its numeral `n`.
@@ -964,12 +929,12 @@ impl Denotation {
         };
         let difference_equality = if self
             .arena
-            .structurally_equal(expression_term, operand_difference)
+            .structurally_equal(expression_term, chain.operand_operation)
         {
             let Some(equality) = self.directed_equality(
                 from,
                 to,
-                operand_difference,
+                chain.operand_operation,
                 output_term,
                 definition_evidence,
             ) else {
@@ -988,8 +953,8 @@ impl Denotation {
                 left_value,
                 right_value,
                 difference_value,
-                left_term,
-                right_term,
+                chain.left_term,
+                chain.right_term,
                 expression_term,
             )?
             else {
@@ -1003,7 +968,7 @@ impl Denotation {
             let integer = self.integer_constant()?;
             self.transitivity(
                 integer,
-                operand_difference,
+                chain.operand_operation,
                 expression_term,
                 output_term,
                 bridge,
@@ -1015,8 +980,8 @@ impl Denotation {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteRight,
                 &[
-                    bound_difference,
-                    operand_difference,
+                    chain.bound_operation,
+                    chain.operand_operation,
                     output_term,
                     difference_equality,
                     order,
@@ -1026,9 +991,9 @@ impl Denotation {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteLeft,
                 &[
-                    operand_difference,
+                    chain.operand_operation,
                     output_term,
-                    bound_difference,
+                    chain.bound_operation,
                     difference_equality,
                     order,
                 ],
@@ -1037,8 +1002,8 @@ impl Denotation {
         // The bound side is a `sub` over two endpoint numerals; the checked
         // equation `sub lb rb = k` lands the conclusion's literal.
         let (Some((_, left_value)), Some((_, right_value)), Some((_, bound_value))) = (
-            left_endpoint.integer_value(),
-            right_endpoint.integer_value(),
+            chain.left_endpoint.integer_value(),
+            chain.right_endpoint.integer_value(),
             literal.integer_value(),
         ) else {
             return Ok(None);
@@ -1048,8 +1013,8 @@ impl Denotation {
             left_value,
             right_value,
             bound_value,
-            left_endpoint_term,
-            right_endpoint_term,
+            chain.left_endpoint_term,
+            chain.right_endpoint_term,
             literal_term,
         )?
         else {
@@ -1058,12 +1023,24 @@ impl Denotation {
         if lower {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteLeft,
-                &[bound_difference, literal_term, output_term, equality, order],
+                &[
+                    chain.bound_operation,
+                    literal_term,
+                    output_term,
+                    equality,
+                    order,
+                ],
             )
         } else {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteRight,
-                &[output_term, bound_difference, literal_term, equality, order],
+                &[
+                    output_term,
+                    chain.bound_operation,
+                    literal_term,
+                    equality,
+                    order,
+                ],
             )
         }
         .map(Some)

@@ -37,7 +37,8 @@ use semantic_vocabulary::{
 use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
 use super::binary_numerals;
 use super::denotation::{
-    ExactDefinitionBoundTarget, exact_definition_bound_target, math_less_or_equal_sides,
+    ExactDefinitionBoundTarget, OperandBound, binary_bound_chain, binary_bound_order,
+    exact_definition_bound_target, math_less_or_equal_sides,
 };
 use super::{
     BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
@@ -425,58 +426,43 @@ impl Denotation {
         // `fst`, the second — last — conjunct is `snd`.
         let left_evidence = self.arena.insert(Term::Fst { pair: evidence });
         let right_evidence = self.arena.insert(Term::Snd { pair: evidence });
-        let Some((left_endpoint, left_order)) =
-            self.add_bound_endpoint(left, left_bound, left_evidence, lower, scalar_type)?
+        let Some(chain) = binary_bound_chain(
+            self,
+            OperandBound {
+                operand: left,
+                bound: left_bound,
+                evidence: left_evidence,
+            },
+            OperandBound {
+                operand: right,
+                bound: right_bound,
+                evidence: right_evidence,
+            },
+            lower,
+            false,
+            scalar_type,
+            Self::add_terms,
+        )?
         else {
             return Ok(None);
         };
-        let Some((right_endpoint, right_order)) =
-            self.add_bound_endpoint(right, right_bound, right_evidence, lower, scalar_type)?
-        else {
-            return Ok(None);
-        };
-        let left_endpoint_term = self.fixed_scalar_term(&left_endpoint)?;
-        let right_endpoint_term = self.fixed_scalar_term(&right_endpoint)?;
-        let left_term = self.fixed_scalar_term(left)?;
-        let right_term = self.fixed_scalar_term(right)?;
-        let bound_sum = self.add_terms(left_endpoint_term, right_endpoint_term)?;
-        let operand_sum = self.add_terms(left_term, right_term)?;
         // The conclusion's `Add` math term must denote the same
         // application as the target's operands — the shared relation
         // already equated them, so this is the defensive shape check.
         let sum_term = self.math_term(sum)?;
-        if !self.arena.structurally_equal(sum_term, operand_sum) {
+        if !self
+            .arena
+            .structurally_equal(sum_term, chain.operand_operation)
+        {
             return Ok(None);
         }
         // `add lb rb ≤ add l r` (lower) or `add l r ≤ add lb rb` (upper).
-        let order = if lower {
-            self.add_law_application(
-                Law::MonotoneBoth,
-                &[
-                    left_endpoint_term,
-                    left_term,
-                    right_endpoint_term,
-                    right_term,
-                    left_order,
-                    right_order,
-                ],
-            )?
-        } else {
-            self.add_law_application(
-                Law::MonotoneBoth,
-                &[
-                    left_term,
-                    left_endpoint_term,
-                    right_term,
-                    right_endpoint_term,
-                    left_order,
-                    right_order,
-                ],
-            )?
-        };
+        let order = binary_bound_order(self, lower, &chain, |denotation, arguments| {
+            denotation.add_law_application(Law::MonotoneBoth, arguments)
+        })?;
         let (Some((_, left_value)), Some((_, right_value))) = (
-            left_endpoint.integer_value(),
-            right_endpoint.integer_value(),
+            chain.left_endpoint.integer_value(),
+            chain.right_endpoint.integer_value(),
         ) else {
             return Ok(None);
         };
@@ -485,8 +471,8 @@ impl Denotation {
             left_value,
             right_value,
             bound_value,
-            left_endpoint_term,
-            right_endpoint_term,
+            chain.left_endpoint_term,
+            chain.right_endpoint_term,
             bound_term,
         )?
         else {
@@ -495,12 +481,24 @@ impl Denotation {
         if lower {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteLeft,
-                &[bound_sum, bound_term, operand_sum, equality, order],
+                &[
+                    chain.bound_operation,
+                    bound_term,
+                    chain.operand_operation,
+                    equality,
+                    order,
+                ],
             )
         } else {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteRight,
-                &[operand_sum, bound_sum, bound_term, equality, order],
+                &[
+                    chain.operand_operation,
+                    chain.bound_operation,
+                    bound_term,
+                    equality,
+                    order,
+                ],
             )
         }
         .map(Some)
@@ -543,48 +541,30 @@ impl Denotation {
         else {
             return Ok(None);
         };
-        let Some((left_endpoint, left_order)) =
-            self.add_bound_endpoint(left, left_bound, left_evidence, lower, scalar_type)?
+        let Some(chain) = binary_bound_chain(
+            self,
+            OperandBound {
+                operand: left,
+                bound: left_bound,
+                evidence: left_evidence,
+            },
+            OperandBound {
+                operand: right,
+                bound: right_bound,
+                evidence: right_evidence,
+            },
+            lower,
+            false,
+            scalar_type,
+            Self::add_terms,
+        )?
         else {
             return Ok(None);
         };
-        let Some((right_endpoint, right_order)) =
-            self.add_bound_endpoint(right, right_bound, right_evidence, lower, scalar_type)?
-        else {
-            return Ok(None);
-        };
-        let left_endpoint_term = self.fixed_scalar_term(&left_endpoint)?;
-        let right_endpoint_term = self.fixed_scalar_term(&right_endpoint)?;
-        let left_term = self.fixed_scalar_term(left)?;
-        let right_term = self.fixed_scalar_term(right)?;
-        let bound_sum = self.add_terms(left_endpoint_term, right_endpoint_term)?;
-        let operand_sum = self.add_terms(left_term, right_term)?;
         // `add lb rb ≤ add l r` (lower) or `add l r ≤ add lb rb` (upper).
-        let order = if lower {
-            self.add_law_application(
-                Law::MonotoneBoth,
-                &[
-                    left_endpoint_term,
-                    left_term,
-                    right_endpoint_term,
-                    right_term,
-                    left_order,
-                    right_order,
-                ],
-            )?
-        } else {
-            self.add_law_application(
-                Law::MonotoneBoth,
-                &[
-                    left_term,
-                    left_endpoint_term,
-                    right_term,
-                    right_endpoint_term,
-                    left_order,
-                    right_order,
-                ],
-            )?
-        };
+        let order = binary_bound_order(self, lower, &chain, |denotation, arguments| {
+            denotation.add_law_application(Law::MonotoneBoth, arguments)
+        })?;
         // `Id Int (add l' r') output'` — directly the cited definition when
         // the expression stays applicative, or the numeral-operation
         // equation `add l r = n` composed with the definition when the
@@ -595,10 +575,17 @@ impl Denotation {
         let Some((_, from, to)) = self.identity_parts(denoted) else {
             return Ok(None);
         };
-        let sum_equality = if self.arena.structurally_equal(expression_term, operand_sum) {
-            let Some(equality) =
-                self.directed_equality(from, to, operand_sum, output_term, definition_evidence)
-            else {
+        let sum_equality = if self
+            .arena
+            .structurally_equal(expression_term, chain.operand_operation)
+        {
+            let Some(equality) = self.directed_equality(
+                from,
+                to,
+                chain.operand_operation,
+                output_term,
+                definition_evidence,
+            ) else {
                 return Ok(None);
             };
             equality
@@ -614,8 +601,8 @@ impl Denotation {
                 left_value,
                 right_value,
                 sum_value,
-                left_term,
-                right_term,
+                chain.left_term,
+                chain.right_term,
                 expression_term,
             )?
             else {
@@ -629,7 +616,7 @@ impl Denotation {
             let integer = self.integer_constant()?;
             self.transitivity(
                 integer,
-                operand_sum,
+                chain.operand_operation,
                 expression_term,
                 output_term,
                 bridge,
@@ -640,19 +627,31 @@ impl Denotation {
         let order = if lower {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteRight,
-                &[bound_sum, operand_sum, output_term, sum_equality, order],
+                &[
+                    chain.bound_operation,
+                    chain.operand_operation,
+                    output_term,
+                    sum_equality,
+                    order,
+                ],
             )?
         } else {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteLeft,
-                &[operand_sum, output_term, bound_sum, sum_equality, order],
+                &[
+                    chain.operand_operation,
+                    output_term,
+                    chain.bound_operation,
+                    sum_equality,
+                    order,
+                ],
             )?
         };
         // The bound side is an `add` over two endpoint numerals; the
         // checked equation `add lb rb = k` lands the conclusion's literal.
         let (Some((_, left_value)), Some((_, right_value)), Some((_, bound_value))) = (
-            left_endpoint.integer_value(),
-            right_endpoint.integer_value(),
+            chain.left_endpoint.integer_value(),
+            chain.right_endpoint.integer_value(),
             literal.integer_value(),
         ) else {
             return Ok(None);
@@ -662,8 +661,8 @@ impl Denotation {
             left_value,
             right_value,
             bound_value,
-            left_endpoint_term,
-            right_endpoint_term,
+            chain.left_endpoint_term,
+            chain.right_endpoint_term,
             literal_term,
         )?
         else {
@@ -672,12 +671,24 @@ impl Denotation {
         if lower {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteLeft,
-                &[bound_sum, literal_term, output_term, equality, order],
+                &[
+                    chain.bound_operation,
+                    literal_term,
+                    output_term,
+                    equality,
+                    order,
+                ],
             )
         } else {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteRight,
-                &[output_term, bound_sum, literal_term, equality, order],
+                &[
+                    output_term,
+                    chain.bound_operation,
+                    literal_term,
+                    equality,
+                    order,
+                ],
             )
         }
         .map(Some)
