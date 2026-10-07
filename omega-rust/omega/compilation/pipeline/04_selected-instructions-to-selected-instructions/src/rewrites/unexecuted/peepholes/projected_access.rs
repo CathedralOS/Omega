@@ -83,19 +83,7 @@ pub struct ValidatedProjectedAccess {
     receipt: ProjectedAccessReceipt,
 }
 
-impl ValidatedProjectedAccess {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &ProjectedAccessReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedProjectedAccess, ProjectedAccessReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectedAccessReceipt {

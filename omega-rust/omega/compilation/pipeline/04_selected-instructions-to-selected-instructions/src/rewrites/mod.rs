@@ -31,6 +31,27 @@
 //! isolation, and reached by no production route. See its module doc for the
 //! disposition roster.
 
+/// Every validated rewrite exposes the same three accessors: the
+/// transformed plan borrowed and shared, and the receipt the rewrite
+/// replayed. One declarative row per validated type expands that impl.
+macro_rules! validated_transformed_receipt {
+    ($name:ident, $receipt:ident) => {
+        impl $name {
+            pub fn transformed(&self) -> &SelectedInstructionPlan {
+                &self.transformed
+            }
+
+            pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
+                Arc::clone(&self.transformed)
+            }
+
+            pub const fn receipt(&self) -> &$receipt {
+                &self.receipt
+            }
+        }
+    };
+}
+
 /// Every selected-rewrite receipt exposes the same four identities: the
 /// selected plan before and after, plus the optimization-unit and fuel
 /// identities the rewrite carried. One declarative row per receipt expands

@@ -210,19 +210,7 @@ pub struct ValidatedRuntimeSpill {
     receipt: RuntimeSpillReceipt,
 }
 
-impl ValidatedRuntimeSpill {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &RuntimeSpillReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedRuntimeSpill, RuntimeSpillReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeSpillReceipt {

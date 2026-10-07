@@ -86,19 +86,7 @@ pub struct ValidatedRedundantCompare {
     receipt: RedundantCompareReceipt,
 }
 
-impl ValidatedRedundantCompare {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &RedundantCompareReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedRedundantCompare, RedundantCompareReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedundantCompareReceipt {

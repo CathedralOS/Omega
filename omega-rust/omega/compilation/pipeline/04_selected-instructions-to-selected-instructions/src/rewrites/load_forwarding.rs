@@ -92,19 +92,7 @@ pub struct ValidatedStoredLoadForwarding {
     receipt: StoredLoadForwardingReceipt,
 }
 
-impl ValidatedStoredLoadForwarding {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &StoredLoadForwardingReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedStoredLoadForwarding, StoredLoadForwardingReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredLoadForwardingReceipt {

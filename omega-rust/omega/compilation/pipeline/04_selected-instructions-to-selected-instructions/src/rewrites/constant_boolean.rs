@@ -107,19 +107,7 @@ pub struct ValidatedConstantBoolean {
     receipt: ConstantBooleanReceipt,
 }
 
-impl ValidatedConstantBoolean {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &ConstantBooleanReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedConstantBoolean, ConstantBooleanReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstantBooleanReceipt {

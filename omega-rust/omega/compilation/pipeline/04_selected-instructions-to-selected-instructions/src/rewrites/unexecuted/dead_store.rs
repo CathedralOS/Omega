@@ -168,19 +168,7 @@ pub struct ValidatedDeadStoreElimination {
     receipt: DeadStoreEliminationReceipt,
 }
 
-impl ValidatedDeadStoreElimination {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &DeadStoreEliminationReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedDeadStoreElimination, DeadStoreEliminationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeadStoreEliminationReceipt {

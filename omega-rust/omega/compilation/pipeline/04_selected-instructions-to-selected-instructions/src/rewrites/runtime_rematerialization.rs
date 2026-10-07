@@ -51,19 +51,7 @@ pub struct ValidatedRuntimeRematerialization {
     receipt: RuntimeRematerializationReceipt,
 }
 
-impl ValidatedRuntimeRematerialization {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &RuntimeRematerializationReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedRuntimeRematerialization, RuntimeRematerializationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeRematerializationReceipt {

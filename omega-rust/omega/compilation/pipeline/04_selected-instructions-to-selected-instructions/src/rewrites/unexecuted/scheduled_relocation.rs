@@ -85,19 +85,7 @@ pub struct ValidatedScheduledRelocation {
     receipt: ScheduledRelocationReceipt,
 }
 
-impl ValidatedScheduledRelocation {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &ScheduledRelocationReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedScheduledRelocation, ScheduledRelocationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScheduledRelocationReceipt {

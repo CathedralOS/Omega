@@ -75,19 +75,7 @@ pub struct ValidatedBoundaryBoolean {
     receipt: BoundaryBooleanReceipt,
 }
 
-impl ValidatedBoundaryBoolean {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &BoundaryBooleanReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedBoundaryBoolean, BoundaryBooleanReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryBooleanReceipt {

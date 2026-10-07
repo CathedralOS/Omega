@@ -62,19 +62,7 @@ pub struct ValidatedRuntimeSplit {
     receipt: RuntimeSplitReceipt,
 }
 
-impl ValidatedRuntimeSplit {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &RuntimeSplitReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedRuntimeSplit, RuntimeSplitReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeSplitReceipt {

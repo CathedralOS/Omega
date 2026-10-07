@@ -84,19 +84,7 @@ pub struct ValidatedBoundaryBranch {
     receipt: BoundaryBranchReceipt,
 }
 
-impl ValidatedBoundaryBranch {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &BoundaryBranchReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedBoundaryBranch, BoundaryBranchReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryBranchReceipt {

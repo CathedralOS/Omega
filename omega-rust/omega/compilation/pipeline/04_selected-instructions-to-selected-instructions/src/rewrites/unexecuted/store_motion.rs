@@ -125,19 +125,7 @@ pub struct ValidatedStoreMutationMotion {
     receipt: StoreMutationMotionReceipt,
 }
 
-impl ValidatedStoreMutationMotion {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        &self.transformed
-    }
-
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        Arc::clone(&self.transformed)
-    }
-
-    pub const fn receipt(&self) -> &StoreMutationMotionReceipt {
-        &self.receipt
-    }
-}
+validated_transformed_receipt!(ValidatedStoreMutationMotion, StoreMutationMotionReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoreMutationMotionReceipt {
