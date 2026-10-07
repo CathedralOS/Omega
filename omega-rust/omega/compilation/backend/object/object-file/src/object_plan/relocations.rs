@@ -231,3 +231,16 @@ pub fn boundary_relocation_origin(
         }
     }
 }
+
+/// The wire tag every relocation kind spells in a canonical encoding or
+/// fingerprint — one byte per kind, shared by object codecs and image
+/// digests so the namespaces stay identical.
+pub const fn relocation_kind_tag(kind: RelocationKind) -> u8 {
+    match kind {
+        RelocationKind::Aarch64Page21 => 1,
+        RelocationKind::Aarch64PageOffset12 => 2,
+        RelocationKind::Aarch64Branch26 => 3,
+        RelocationKind::Absolute64 => 4,
+        RelocationKind::X86_64Relative32 => 5,
+    }
+}

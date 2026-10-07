@@ -2,7 +2,7 @@
 
 pub(crate) use crate::NormalizedForeignCallbackRelocation;
 use machine_code::{BoundaryExecutionRecord, PortEffectRecord};
-use object_file::{RelocationKind, RelocationOrigin};
+use object_file::{RelocationOrigin, relocation_kind_tag};
 use semantic_vocabulary::{IntegerSign, ScalarType};
 use sha2::Digest;
 use sha2::Sha256;
@@ -723,15 +723,6 @@ pub(crate) fn hash_relocation_origin(digest: &mut Sha256, origin: RelocationOrig
     digest.update(coordinate.to_le_bytes());
 }
 
-pub(crate) const fn relocation_kind_tag(kind: RelocationKind) -> u8 {
-    match kind {
-        RelocationKind::Aarch64Page21 => 1,
-        RelocationKind::Aarch64PageOffset12 => 2,
-        RelocationKind::Aarch64Branch26 => 3,
-        RelocationKind::Absolute64 => 4,
-        RelocationKind::X86_64Relative32 => 5,
-    }
-}
 
 pub(crate) fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
     digest.update(canonical_usize(bytes.len()));

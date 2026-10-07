@@ -12,9 +12,10 @@ use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::native_artifact::boundary_application_coverage_identity;
 use crate::physical::derivation::foreign_calls::derive_normalized_foreign_child;
+use object_file::relocation_kind_tag;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
-    hash_relocation_origin, physical_evidence_gap_identity, relocation_kind_tag,
+    hash_relocation_origin, physical_evidence_gap_identity,
 };
 use crate::physical::derivation::hosted_builtins::{
     derive_hosted_builtin_child, hosted_builtin_settlement,

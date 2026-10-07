@@ -6,7 +6,7 @@ use crate::{
     CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,
 };
 use diagnostics::Diagnostic;
-use object_file::{RelocationKind, RelocationPlan, SectionKind};
+use object_file::{RelocationKind, RelocationPlan, SectionKind, relocation_kind_tag};
 use sha2::{Digest, Sha256};
 
 /// Prove that final initialized data preserves every encoded byte except the
@@ -225,15 +225,6 @@ pub fn validate_final_text_relocation_envelope(
     Ok(evidence)
 }
 
-fn relocation_kind_tag(kind: RelocationKind) -> u8 {
-    match kind {
-        RelocationKind::Aarch64Page21 => 1,
-        RelocationKind::Aarch64PageOffset12 => 2,
-        RelocationKind::Aarch64Branch26 => 3,
-        RelocationKind::Absolute64 => 4,
-        RelocationKind::X86_64Relative32 => 5,
-    }
-}
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 

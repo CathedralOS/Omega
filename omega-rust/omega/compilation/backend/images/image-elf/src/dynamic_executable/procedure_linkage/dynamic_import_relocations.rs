@@ -24,7 +24,7 @@ use crate::dynamic_executable::import_sections::dynamic_sections::ElfDynamicImpo
 use crate::imports::{ElfImportLocator, ElfImportRequest};
 use diagnostics::Diagnostic;
 use image::{FinalImageRelocation, FinalImageSection};
-use object_file::RelocationKind;
+use object_file::{RelocationKind, relocation_kind_tag};
 use target::TargetProfile;
 
 const R_X86_64_JUMP_SLOT: u32 = 7;
@@ -666,15 +666,6 @@ const fn section_tag(section: FinalImageSection) -> u8 {
     }
 }
 
-const fn relocation_kind_tag(kind: RelocationKind) -> u8 {
-    match kind {
-        RelocationKind::Aarch64Page21 => 1,
-        RelocationKind::Aarch64PageOffset12 => 2,
-        RelocationKind::Aarch64Branch26 => 3,
-        RelocationKind::Absolute64 => 4,
-        RelocationKind::X86_64Relative32 => 5,
-    }
-}
 
 #[cfg(test)]
 mod tests;
