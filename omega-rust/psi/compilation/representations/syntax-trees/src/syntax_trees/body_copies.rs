@@ -379,8 +379,7 @@ impl SyntaxTrees {
                 trait_name,
                 trait_arguments,
             } => {
-                let trait_arguments =
-                    self.copy_type_reference_handle_span(other, *trait_arguments);
+                let trait_arguments = self.copy_type_reference_handle_span(other, *trait_arguments);
                 self.type_references
                     .insert(TypeReferenceNode::DynamicTrait {
                         trait_name: trait_name.clone(),
@@ -751,21 +750,8 @@ impl SyntaxTrees {
     pub(crate) fn copy_span<T>(
         &mut self,
         values: impl IntoIterator<Item = T>,
-        mut append: impl FnMut(&mut Self, T) -> Handle<T>,
+        append: impl FnMut(&mut Self, T) -> Handle<T>,
     ) -> HandleSpan<T> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-        for value in values {
-            let handle = append(self, value);
-            if count == 0 {
-                start = handle;
-            }
-            count += 1;
-        }
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        self.copy_mapped_span(values, |_, value| value, append)
     }
 }
