@@ -96,23 +96,28 @@ fn scheme(declaration: u32) -> Syntax {
 }
 
 /// The shared description telescope
-/// `Π(I : Type l). Π(A : Type u). Π(B : Π(_ : A). Type v).
-/// Π(out : Π(_ : A). I). Π(next : Π(a : A). Π(_ : B a). I). …` —
-/// parameters are de Bruijn-resolved by name inside `rest`.
-fn pi_description(rest: Syntax) -> Syntax {
-    pi(
+/// `X(I : Type l). X(A : Type u). X(B : Π(_ : A). Type v).
+/// X(out : Π(_ : A). I). X(next : Π(a : A). Π(_ : B a). I). …` —
+/// parameters are de Bruijn-resolved by name inside `rest`. The binder
+/// connective is `pi` in statement positions and `lam` on the λ-side of
+/// declaration bodies; inner binder types stay `Π` in both.
+fn description_telescope(
+    connective: fn(&'static str, Syntax, Syntax) -> Syntax,
+    rest: Syntax,
+) -> Syntax {
+    connective(
         "I",
         ty(0),
-        pi(
+        connective(
             "A",
             ty(1),
-            pi(
+            connective(
                 "B",
                 pi("_", v("A"), ty(2)),
-                pi(
+                connective(
                     "out",
                     pi("_", v("A"), v("I")),
-                    pi(
+                    connective(
                         "next",
                         pi("a", v("A"), pi("_", app(v("B"), v("a")), v("I"))),
                         rest,
@@ -123,29 +128,12 @@ fn pi_description(rest: Syntax) -> Syntax {
     )
 }
 
-/// The λ-side of the same telescope for declaration bodies.
+fn pi_description(rest: Syntax) -> Syntax {
+    description_telescope(pi, rest)
+}
+
 fn lam_description(rest: Syntax) -> Syntax {
-    lam(
-        "I",
-        ty(0),
-        lam(
-            "A",
-            ty(1),
-            lam(
-                "B",
-                pi("_", v("A"), ty(2)),
-                lam(
-                    "out",
-                    pi("_", v("A"), v("I")),
-                    lam(
-                        "next",
-                        pi("a", v("A"), pi("_", app(v("B"), v("a")), v("I"))),
-                        rest,
-                    ),
-                ),
-            ),
-        ),
-    )
+    description_telescope(lam, rest)
 }
 
 /// `IndexedAt · I · A · B · out · next · index · tree` — the spine the
