@@ -4,8 +4,9 @@
 use super::host_io::{
     positioned_read, positioned_write, real_lock, real_lock_win32, real_os_bytes, win32_error_code,
 };
+use super::metadata::SelectedFilesystemMetadata;
 use super::sponsor::checked_written_count;
-use super::{EBADF, SelectedFilesystemMetadata, io_errno};
+use super::{EBADF, io_errno};
 use crate::FilesystemMetadataObservationKind;
 use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall, synthetic_handle_fd};
 use std::io::{Read, Seek, SeekFrom, Write};
