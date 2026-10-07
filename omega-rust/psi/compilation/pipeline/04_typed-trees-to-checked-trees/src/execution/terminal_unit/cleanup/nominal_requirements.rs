@@ -612,7 +612,7 @@ pub(crate) fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTyp
 /// (`i8::MIN` … `i64::MIN`); other integer kinds have no signed minimum.
 fn signed_minimum_matches(
     primitive_type: PrimitiveType,
-    minimum: &typed_trees::expression::IntegerLiteral,
+    minimum: &numerics::literals::IntegerLiteral,
 ) -> bool {
     match primitive_type {
         PrimitiveType::I8 => minimum.value_i64() == Some(i64::from(i8::MIN)),
