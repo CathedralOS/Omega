@@ -48,6 +48,26 @@ publication. A same-target native refusal records unchecked without running Buil
 again. The check golden's canonical target and a different runtime target are
 distinct program inputs and each owns one production.
 
+`--checked-interpreter` explicitly selects the checked-tree source oracle instead
+of Terminal. It uses the same reviewed fixture inputs, selected entry and
+provisioned receiver, but owns its independent checked compilation rather than
+reusing a native report's Terminal artifact. No refusal or source spelling chooses
+this route. It records `interpreter-engine:checked-tree`; its separate defaults
+are `corpus_checked_interpreted.txt` and, with `--both`,
+`corpus_checked_both_<target>.txt`. Until those goldens exist, use an explicit
+golden to expose fact moves without recording:
+
+```bash
+python3 tools/corpus_gate.py --checked-interpreter \
+  --golden tests/omega/corpus_outcomes.txt \
+  --filter pass/layouts/runtime_callee_integer_at_fitting_write_exit,pass/calls/runtime_guarded_reference_return_crash
+```
+
+The checked engine has no typed Trap outcome. Every execution error remains
+declined, including explicit crashes; diagnostic text cannot satisfy a trap
+oracle. Both engines enforce the same authored exit and stdout promises before
+recording. Trap probes remain declined until the checked API retains their kind.
+
 ## Reviewed interpreter migration debt
 
 `tests/omega/interpreter_migration.json` designates the original selected

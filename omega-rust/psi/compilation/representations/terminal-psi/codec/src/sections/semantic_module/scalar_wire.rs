@@ -5,8 +5,7 @@
 //! parent codec.
 
 use semantic_vocabulary::{
-    IeeeFloatValue, IntegerCarrier, IntegerSign, IntegerType, IntegerValue,
-    ScalarType,
+    IeeeFloatValue, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ScalarType,
 };
 
 use super::CodecError;
@@ -39,7 +38,6 @@ pub(crate) fn encode_ieee_float_value(writer: &mut Writer, value: IeeeFloatValue
         }
     }
 }
-
 
 pub(crate) fn encode_integer_type(writer: &mut Writer, integer_type: IntegerType) {
     writer.u8(match (integer_type.carrier(), integer_type.sign()) {
@@ -84,7 +82,6 @@ pub(crate) fn decode_ieee_float_value(
         tag => return Err(CodecError::InvalidTag("IeeeFloatValue", tag)),
     })
 }
-
 
 pub(crate) fn decode_integer_type(reader: &mut Reader<'_>) -> Result<IntegerType, CodecError> {
     let tag = reader.u8()?;

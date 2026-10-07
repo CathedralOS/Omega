@@ -1,9 +1,10 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, DataDefinition, DataMember, EvalResult, Evaluator, ExpressionHandle,
-    ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet,
+    ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet, MutableRecordProjection,
     MutableRecordProjectionStep, MutableRecordRecastWrite, MutableScalarRecast, PrimitiveType,
-    SemanticFloatFormat, SymbolHandle, TableNamePath, Value, apply_arithmetic_domain,
-    interpreter_f32_from_bits, interpreter_f32_to_bits, trap, unsupported,
+    SemanticFloatFormat, SymbolHandle, TableNamePath, TypeReferenceHandle, TypeReferenceNode,
+    Value, apply_arithmetic_domain, interpreter_f32_from_bits, interpreter_f32_to_bits, trap,
+    unsupported,
 };
 use language_semantics::const_value::boolean_literal_spelling;
 use language_semantics::declaration_selection::CollectionMeasure;
@@ -92,31 +93,16 @@ impl<'program> Evaluator<'program> {
                         offset,
                         target,
                     } => self.assemble_scalar_byte_region(&cells, offset, target),
-                    MutableScalarRecast::AggregateByteRegion {
-                        cells,
-                        offset,
-                        target_type,
-                    } => self
-                        .assemble_record_view_type(target_type, &cells, offset)?
-                        .ok_or_else(|| {
-                            Halt::Trap(format!(
-                                "cannot assemble mutable aggregate recast `{}`",
-                                self.program.display_type_reference(target_type)
-                            ))
-                        }),
+                    MutableScalarRecast::AggregateByteRegion { cells, projection } => {
+                        self.read_record_view_projection(&cells, projection)
+                    }
                     MutableScalarRecast::AggregateTyped {
                         source,
                         source_type,
-                        target_type,
+                        projection,
                     } => {
                         let cells = self.snapshot_typed_value_bytes(&source, source_type)?;
-                        self.assemble_record_view_type(target_type, &cells, 0)?
-                            .ok_or_else(|| {
-                                Halt::Trap(format!(
-                                    "cannot assemble typed mutable aggregate recast `{}`",
-                                    self.program.display_type_reference(target_type)
-                                ))
-                            })
+                        self.read_record_view_projection(&cells, projection)
                     }
                 };
             }
@@ -125,7 +111,66 @@ impl<'program> Evaluator<'program> {
         Ok(value)
     }
 
-    /// Retain the original cells and captured coordinates of a reference
+    /// Capture one checked reference endpoint for locals and call operands.
+    /// View projections retain their original backing and physical codec;
+    /// selectors are evaluated here once, not in the borrowing callee.
+    pub(in crate::interpreter::evaluator) fn capture_reference_view(
+        &mut self,
+        initializer: ExpressionHandle,
+        mut destination: TypeReferenceHandle,
+        frame: &mut Frame,
+    ) -> EvalResult<Option<(Cell, MutableScalarRecast)>> {
+        loop {
+            match self
+                .program
+                .type_reference_table
+                .type_reference(destination)
+            {
+                TypeReferenceNode::Constrained { base_type, .. } => destination = *base_type,
+                TypeReferenceNode::Reference { .. } => break,
+                _ => return Ok(None),
+            }
+        }
+        if let Some(reference) = self.reference_recast_initializer(initializer, frame)? {
+            return Ok(Some(reference));
+        }
+        let Some((mut recast, path)) = self.mutable_recast_path(initializer, frame)? else {
+            return Ok(None);
+        };
+        if let Some(projection) = self.project_record_reference(&recast, &path, frame)? {
+            let source = match &mut recast {
+                MutableScalarRecast::AggregateByteRegion {
+                    cells,
+                    projection: retained,
+                } => {
+                    *retained = projection;
+                    cells.get(projection.offset).cloned().ok_or_else(|| {
+                        Halt::Trap(
+                            "reference projection starts outside its original byte region"
+                                .to_owned(),
+                        )
+                    })?
+                }
+                MutableScalarRecast::AggregateTyped {
+                    source,
+                    projection: retained,
+                    ..
+                } => {
+                    *retained = projection;
+                    source.clone()
+                }
+                _ => return trap("record projection lost its original backing"),
+            };
+            return Ok(Some((source, recast)));
+        }
+        if !path.is_empty() {
+            return trap("scalar reference view has a nonempty structural projection");
+        }
+        let source = self.resolve_place(initializer, frame)?;
+        Ok(Some((self.deref_cell(source), recast)))
+    }
+
+    /// Retain the original cells and captured coordinates of an explicit reference
     /// recast, whether shared or mutable. The checked reference type owns
     /// access; this descriptor owns representation and backing identity.
     pub(in crate::interpreter::evaluator) fn reference_recast_initializer(
@@ -189,8 +234,11 @@ impl<'program> Evaluator<'program> {
                     },
                     None => MutableScalarRecast::AggregateByteRegion {
                         cells,
-                        offset,
-                        target_type: cast.target_type,
+                        projection: MutableRecordProjection {
+                            offset,
+                            type_reference: cast.target_type,
+                            stored_integer: None,
+                        },
                     },
                 };
                 return Ok(Some((source_cell, recast)));
@@ -211,7 +259,11 @@ impl<'program> Evaluator<'program> {
                     MutableScalarRecast::AggregateTyped {
                         source,
                         source_type,
-                        target_type: cast.target_type,
+                        projection: MutableRecordProjection {
+                            offset: 0,
+                            type_reference: cast.target_type,
+                            stored_integer: None,
+                        },
                     },
                 )));
             }
@@ -321,66 +373,139 @@ impl<'program> Evaluator<'program> {
         let Some((recast, path)) = self.mutable_recast_path(handle, frame)? else {
             return Ok(None);
         };
-        let (cells, offset, target_type) = match recast {
-            MutableScalarRecast::AggregateByteRegion {
-                cells,
-                offset,
-                target_type,
-            } => (cells, offset, target_type),
-            MutableScalarRecast::AggregateTyped {
-                source,
-                source_type,
-                target_type,
-            } => (
-                self.snapshot_typed_value_bytes(&source, source_type)?,
-                0,
-                target_type,
-            ),
-            _ => return Ok(None),
-        };
-        if path.is_empty() {
-            return self.assemble_record_view_type(target_type, &cells, offset);
-        }
-        if matches!(
-            path.as_slice(),
-            [MutableRecordProjectionStep::Field(field)]
-                if CollectionMeasure::from_authored_spelling(field.as_str()) == Some(CollectionMeasure::Length)
-        ) && self.declared_type_is_slice(target_type)
-            && let Some(element_type) = self.collection_element_type(target_type)
+        if matches!(path.as_slice(), [MutableRecordProjectionStep::Field(field)]
+            if CollectionMeasure::from_authored_spelling(field) == Some(CollectionMeasure::Length))
+            && let Some((projection, region_length)) = self.record_reference_geometry(&recast)?
+            && self.declared_type_is_slice(projection.type_reference)
+            && let Some(element_type) = self.collection_element_type(projection.type_reference)
             && let Some((stride, _)) =
                 self.record_view_type_layout(element_type, &mut HashSet::new())
         {
-            let remaining = cells.len().saturating_sub(offset);
-            if stride == 0 || remaining % stride != 0 {
+            let remaining = region_length.saturating_sub(projection.offset);
+            if stride == 0 || !remaining.is_multiple_of(stride) {
                 return trap("slice recast bytes do not tile the element layout");
             }
             return Ok(Some(Value::Int((remaining / stride) as i64)));
         }
-        let Some(projection) =
-            self.record_view_type_projection(target_type, &path, offset, cells.len(), frame, None)?
-        else {
-            return trap(format!(
-                "cannot project `{}` through mutable aggregate recast `{}`",
-                Self::mutable_record_projection_display(&path),
-                self.program.display_type_reference(target_type),
-            ));
+        let Some(projection) = self.project_record_reference(&recast, &path, frame)? else {
+            return Ok(None);
         };
+        let cells = match recast {
+            MutableScalarRecast::AggregateByteRegion { cells, .. } => cells,
+            MutableScalarRecast::AggregateTyped {
+                source,
+                source_type,
+                ..
+            } => self.snapshot_typed_value_bytes(&source, source_type)?,
+            _ => return Ok(None),
+        };
+        self.read_record_view_projection(&cells, projection)
+            .map(Some)
+    }
+
+    /// Projection starts at the captured endpoint, not the cast's authored root.
+    /// An empty path preserves a stored-integer codec instead of replacing it
+    /// with the logical scalar width when the reference is forwarded.
+    fn project_record_reference(
+        &mut self,
+        recast: &MutableScalarRecast,
+        path: &[MutableRecordProjectionStep],
+        frame: &mut Frame,
+    ) -> EvalResult<Option<MutableRecordProjection>> {
+        let Some((retained, region_length)) = self.record_reference_geometry(recast)? else {
+            return Ok(None);
+        };
+        if path.is_empty() {
+            return Ok(Some(retained));
+        }
+        if retained.stored_integer.is_some() {
+            return trap("stored-integer reference cannot project structural children");
+        }
+        let projection = self
+            .record_view_type_projection(
+                retained.type_reference,
+                path,
+                retained.offset,
+                region_length,
+                frame,
+                None,
+            )?
+            .ok_or_else(|| {
+                Halt::Trap(format!(
+                    "cannot project `{}` through captured reference view `{}`",
+                    Self::mutable_record_projection_display(path),
+                    self.program.display_type_reference(retained.type_reference),
+                ))
+            })?;
+        let extent = projection
+            .stored_integer
+            .map(|integer| usize::from(integer.stored_width_bits / 8))
+            .or_else(|| {
+                self.record_view_type_layout(projection.type_reference, &mut HashSet::new())
+                    .map(|(size, _)| size)
+            })
+            .ok_or_else(|| Halt::Trap("reference projection has no physical extent".to_owned()))?;
+        if projection
+            .offset
+            .checked_add(extent)
+            .is_none_or(|end| end > region_length)
+        {
+            return trap("reference projection exceeds its original backing region");
+        }
+        Ok(Some(projection))
+    }
+
+    fn record_reference_geometry(
+        &self,
+        recast: &MutableScalarRecast,
+    ) -> EvalResult<Option<(MutableRecordProjection, usize)>> {
+        let geometry = match recast {
+            MutableScalarRecast::AggregateByteRegion { cells, projection } => {
+                (*projection, cells.len())
+            }
+            MutableScalarRecast::AggregateTyped {
+                source_type,
+                projection,
+                ..
+            } => (
+                *projection,
+                self.record_view_type_layout(*source_type, &mut HashSet::new())
+                    .ok_or_else(|| {
+                        Halt::Trap("typed reference backing has no fixed layout".to_owned())
+                    })?
+                    .0,
+            ),
+            _ => return Ok(None),
+        };
+        Ok(Some(geometry))
+    }
+
+    fn read_record_view_projection(
+        &self,
+        cells: &[Cell],
+        projection: MutableRecordProjection,
+    ) -> EvalResult<Value> {
         if let Some(integer) = projection.stored_integer {
             let primitive = self
                 .program
                 .primitive_type_reference(projection.type_reference)
                 .ok_or_else(|| Halt::Trap("stored-integer projection is not scalar".to_owned()))?;
-            return self
-                .assemble_stored_integer_byte_region(
-                    &cells,
-                    projection.offset,
-                    primitive,
-                    integer.stored_width_bits,
-                    integer.interpretation,
-                )
-                .map(Some);
+            return self.assemble_stored_integer_byte_region(
+                cells,
+                projection.offset,
+                primitive,
+                integer.stored_width_bits,
+                integer.interpretation,
+            );
         }
-        self.assemble_record_view_type(projection.type_reference, &cells, projection.offset)
+        self.assemble_record_view_type(projection.type_reference, cells, projection.offset)?
+            .ok_or_else(|| {
+                Halt::Trap(format!(
+                    "cannot assemble captured reference view `{}`",
+                    self.program
+                        .display_type_reference(projection.type_reference)
+                ))
+            })
     }
 
     pub(in crate::interpreter::evaluator) fn prepare_mutable_record_recast_write(
@@ -391,44 +516,8 @@ impl<'program> Evaluator<'program> {
         let Some((recast, path)) = self.mutable_recast_path(handle, frame)? else {
             return Ok(None);
         };
-        let (offset, target_type, region_length) = match &recast {
-            MutableScalarRecast::AggregateByteRegion {
-                cells,
-                offset,
-                target_type,
-            } => (*offset, *target_type, cells.len()),
-            MutableScalarRecast::AggregateTyped {
-                source_type,
-                target_type,
-                ..
-            } => (
-                0,
-                *target_type,
-                self.record_view_type_layout(*source_type, &mut HashSet::new())
-                    .ok_or_else(|| {
-                        Halt::Trap(format!(
-                            "cannot lay out typed mutable recast source `{}`",
-                            self.program.display_type_reference(*source_type)
-                        ))
-                    })?
-                    .0,
-            ),
-            _ => return Ok(None),
-        };
-        let Some(projection) = self.record_view_type_projection(
-            target_type,
-            &path,
-            offset,
-            region_length,
-            frame,
-            None,
-        )?
-        else {
-            return trap(format!(
-                "cannot project `{}` through mutable aggregate recast `{}`",
-                Self::mutable_record_projection_display(&path),
-                self.program.display_type_reference(target_type),
-            ));
+        let Some(projection) = self.project_record_reference(&recast, &path, frame)? else {
+            return Ok(None);
         };
         Ok(Some(MutableRecordRecastWrite { recast, projection }))
     }

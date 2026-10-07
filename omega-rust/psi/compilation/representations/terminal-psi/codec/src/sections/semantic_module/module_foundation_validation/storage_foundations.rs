@@ -150,11 +150,18 @@ pub(super) fn validate_establish_reference(
     };
     let source_type = validate_structural_path(module, source_type, &source.path)?;
     if let Some(storage) = storage {
-        let offset_type = machine.parameters.iter()
+        let offset_type = machine
+            .parameters
+            .iter()
             .chain(machine.result.scalar_ref())
             .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
-            .chain(machine.blocks.iter().flat_map(|block| &block.operations)
-                .filter_map(|candidate| candidate.result.scalar_ref()))
+            .chain(
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter_map(|candidate| candidate.result.scalar_ref()),
+            )
             .find(|value| value.id == storage.byte_offset)
             .map(|value| value.scalar_type);
         let offset_is_u64 = matches!(offset_type, Some(semantic_vocabulary::ScalarType::Integer(integer))
@@ -166,10 +173,15 @@ pub(super) fn validate_establish_reference(
     }
     let compatible = match storage {
         Some(storage) => terminal_semantics::reference_storage_source_compatible(
-            module.structural_types.iter(), source_type, result.structural_type, storage.stored_scalar,
+            module.structural_types.iter(),
+            source_type,
+            result.structural_type,
+            storage.stored_scalar,
         ),
         None => terminal_semantics::reference_source_compatible(
-            module.structural_types.iter(), source_type, result.structural_type,
+            module.structural_types.iter(),
+            source_type,
+            result.structural_type,
         ),
     };
     if result.multiplicity != StructuralMultiplicity::Affine

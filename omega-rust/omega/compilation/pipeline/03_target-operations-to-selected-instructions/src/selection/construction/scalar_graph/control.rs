@@ -350,7 +350,7 @@ fn terminal(
 fn successor(
     source: &LegalizedScalarFunction,
     order: &[usize],
-    builder: &Builder<'_>,
+    builder: &mut Builder<'_>,
     next: &LegalizedScalarSuccessor,
 ) -> Result<SelectedSuccessor, SelectedInstructionError> {
     let position = order
@@ -374,18 +374,24 @@ fn successor(
                 if let Some((_, parameter)) =
                     crate::selection::address_join_input::join(source, semantic.parameter)
                 {
+                    let projection = crate::selection::address_join_input::projection(
+                        source,
+                        next.target,
+                        parameter,
+                        &semantic.argument,
+                        &builder.transport.pointers,
+                        &builder.transport.local_slots,
+                        &builder.transport.element_views,
+                    )
+                    .ok_or(SelectedInstructionError::custody())?;
                     return Ok(selected_instructions::SelectedStructuralBinding {
                         semantic: semantic.clone(),
-                        transport: crate::selection::address_join_input::transport(
-                            source,
-                            next.target,
-                            parameter,
-                            &semantic.argument,
-                            &builder.transport.pointers,
-                            &builder.transport.local_slots,
-                            &builder.transport.element_views,
-                        )
-                        .ok_or(SelectedInstructionError::custody())?,
+                        transport: project_join_address(
+                            builder,
+                            next.edge,
+                            semantic.argument.place,
+                            projection,
+                        )?,
                     });
                 }
                 let parameter = source
@@ -446,6 +452,84 @@ fn successor(
             .collect::<Result<Vec<_>, SelectedInstructionError>>()?,
         fuel: next.fuel.clone(),
     })
+}
+
+/// Descriptor loads only form an already-admitted loan's address. They do not
+/// observe scalar backing or choose an origin from custody alternatives.
+/// All bindings snapshot these addresses before edge homes are overwritten.
+fn project_join_address(
+    builder: &mut Builder<'_>,
+    edge: semantic_vocabulary::EdgeId,
+    place: semantic_vocabulary::PlaceId,
+    projection: crate::selection::address_join_input::AddressJoinProjection,
+) -> Result<selected_instructions::SelectedStructuralTransport, SelectedInstructionError> {
+    use selected_instructions::{SelectedAddressBase, SelectedStructuralTransport};
+    let mut transport = projection.transport;
+    if projection.descriptor_offsets.is_empty() {
+        return Ok(transport);
+    }
+    let base = match &mut transport {
+        SelectedStructuralTransport::Address { base, .. }
+        | SelectedStructuralTransport::ScalarReference { base, .. } => base,
+        _ => return Err(SelectedInstructionError::custody()),
+    };
+    let provenance = SelectedInstructionProvenance {
+        edges: vec![edge],
+        ..Default::default()
+    };
+    let mut pointer = match *base {
+        SelectedAddressBase::Register(pointer) => pointer,
+        SelectedAddressBase::Local(slot) => {
+            let pointer = super::structural::transport_register(builder, place, 0)?;
+            builder.emit(
+                SelectedInstructionKind::FrameAddress {
+                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
+                    byte_offset: 0,
+                },
+                builder
+                    .constraints
+                    .keys
+                    .frame_address
+                    .ok_or(SelectedInstructionError::custody())?,
+                &[pointer],
+                provenance.clone(),
+            )?;
+            pointer
+        }
+    };
+    for byte_offset in projection.descriptor_offsets {
+        let output = super::structural::transport_register(builder, place, byte_offset)?;
+        builder
+            .transport
+            .memory
+            .push(selected_instructions::SelectedMemoryAccess {
+                instruction: selected_instructions::SelectedInstructionId(
+                    builder
+                        .instructions
+                        .len()
+                        .try_into()
+                        .map_err(|_| SelectedInstructionError::custody())?,
+                ),
+                origin: selected_instructions::SelectedMemoryAccessOrigin::Edge(edge),
+                place,
+                byte_offset,
+                byte_count: 8,
+                role: selected_instructions::SelectedMemoryAccessRole::ReadPlace,
+            });
+        builder.emit(
+            SelectedInstructionKind::Load64 { byte_offset },
+            builder
+                .constraints
+                .keys
+                .load64
+                .ok_or(SelectedInstructionError::custody())?,
+            &[pointer, output],
+            provenance.clone(),
+        )?;
+        pointer = output;
+    }
+    *base = SelectedAddressBase::Register(pointer);
+    Ok(transport)
 }
 
 pub(super) fn block_order(

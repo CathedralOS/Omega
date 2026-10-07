@@ -121,6 +121,8 @@ pub enum SelectedInstructionKind {
     /// Write exactly the codec-selected 1..8 low bytes, little-endian, in place.
     /// Operands are preserved address/codec/value and early-clobber cursor/count/payload.
     /// Fit and write authority are admitted before this operation. Flags are clobbered.
+    /// The codec has the same immutable admitted-domain contract as LoadEncodedScalar;
+    /// these operations do not admit arbitrary runtime words as storage metadata.
     StoreEncodedScalar,
     /// Evaluate `predicate` over `count` bytes beginning at the input base.
     /// Inputs 0/1 are preserved base/count; 2/3/4 are early-clobber because

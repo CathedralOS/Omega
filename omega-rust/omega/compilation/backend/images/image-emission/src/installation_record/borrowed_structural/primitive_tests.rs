@@ -5,40 +5,6 @@ use machine_code::{InternalUnitStructuralArgumentSourceRecord, StructuralSourceL
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
 #[test]
-fn scalar_descriptor_pointer_locations_are_not_thin_pointer_values() {
-    use calling_conventions::{
-        IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement,
-    };
-
-    let register = MachineRegister::X86Rdi;
-    let mut placement = ValuePlacement {
-        shape: ValueShape::borrowed_scalar_reference(),
-        locations: vec![ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Register(register),
-            copy_stack_byte_offset: None,
-            byte_size: 16,
-            alignment: 8,
-        }],
-    };
-    assert_eq!(
-        pointer_location(&placement),
-        Some(IndirectPointerLocation::Register(register))
-    );
-    placement.locations = vec![ValueLocation::Register {
-        register,
-        value_byte_offset: 0,
-        byte_size: 8,
-    }];
-    assert_eq!(pointer_location(&placement), None);
-    // The same register-sized carrier remains valid for genuine thin borrows.
-    placement.shape = ValueShape::borrowed_reference(1, 1);
-    assert_eq!(
-        pointer_location(&placement),
-        Some(IndirectPointerLocation::Register(register))
-    );
-}
-
-#[test]
 fn primitive_local_installation_keeps_exact_referent_extent_and_borrowed_access() {
     for size in [1, 2, 4, 8] {
         let shape = ValueShape::borrowed_reference(u32::from(size), size);

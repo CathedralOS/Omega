@@ -31,7 +31,15 @@ pub(super) fn establish(
         return Err(invalid());
     }
     let mut input = place_pointer(builder, row, address.place, 0)?;
-    for offset in address.descriptor_offsets {
+    for (offset, indices) in address.descriptor_offsets {
+        input = super::runtime_address::scale(
+            builder,
+            row,
+            address.place,
+            offset,
+            input,
+            &address.indices[indices],
+        )?;
         let loaded = transport_register(builder, result.place, offset)?;
         memory(
             builder,
@@ -51,6 +59,14 @@ pub(super) fn establish(
         )?;
         input = loaded;
     }
+    input = super::runtime_address::scale(
+        builder,
+        row,
+        address.place,
+        address.byte_offset,
+        input,
+        &address.indices[address.leaf_index..],
+    )?;
     if address.byte_offset != 0 {
         let projected = transport_register(builder, result.place, address.byte_offset)?;
         builder.emit(
@@ -217,12 +233,12 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: semantic_vocabulary::PlaceId,
-    address: crate::selection::reference_input::BorrowedReferenceAddress,
+    address: &crate::selection::reference_input::BorrowedReferenceAddress,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
     // Keep ordinary call ownership/provenance admission before loading payload.
     let mut pointer = super::place_pointer(builder, row, place, 0)?;
     let descriptor_count = address.descriptor_offsets.len();
-    for (position, offset) in address.descriptor_offsets.into_iter().enumerate() {
+    for (position, offset) in address.descriptor_offsets.iter().copied().enumerate() {
         let home = transport_register(builder, place, offset)?;
         builder.emit(
             if offset == 0 {

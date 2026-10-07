@@ -58,6 +58,12 @@ pub(super) fn validate_type_shape(
                                 "authored field storage has invalid offset, stride or relevance",
                             );
                         }
+                        validate_authored_field_extent(
+                            module,
+                            field,
+                            field_storage,
+                            record.byte_size,
+                        )?;
                         if let Some(stored) = field_storage.stored_scalar() {
                             let logical = field
                                 .field_type
@@ -265,6 +271,94 @@ pub(super) fn validate_type_shape(
     Ok(())
 }
 
+/// Check the entire contiguous extent, not only its starting coordinate.
+/// Opaque and fragmented layouts remain unavailable to direct projection;
+/// absence of portable geometry never means an invented native pointer width.
+fn validate_authored_field_extent(
+    module: &TerminalModule,
+    field: &terminal_psi::StructuralFieldDeclaration,
+    storage: semantic_vocabulary::AuthoredFieldStorage,
+    record_size: u64,
+) -> Result<(), CodecError> {
+    use semantic_vocabulary::AuthoredFieldStorage;
+
+    let scalar = field
+        .field_type
+        .scalar_type()
+        .or_else(|| field.field_type.atomic_scalar_type());
+    let declared_layout = || {
+        if let Some(scalar) = scalar {
+            let width = u64::from(terminal_semantics::reference_storage_byte_width(scalar)?);
+            return Some((width, width));
+        }
+        let StructuralFieldType::Structural(child) = field.field_type else {
+            return None;
+        };
+        terminal_semantics::reference_storage_layout(module.structural_types.iter(), child)
+    };
+    let (offset, extent) = match storage {
+        AuthoredFieldStorage::Fragmented => return Ok(()),
+        AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar: Some(stored),
+        } => {
+            let width = terminal_semantics::reference_storage_byte_width(stored).ok_or(
+                CodecError::MalformedStructuralFoundation(
+                    "encoded field has no contiguous scalar footprint",
+                ),
+            )?;
+            (byte_offset, Some(u64::from(width)))
+        }
+        AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar: None,
+        }
+        | AuthoredFieldStorage::Direct { byte_offset } => {
+            (byte_offset, declared_layout().map(|(size, _)| size))
+        }
+        AuthoredFieldStorage::Repeated {
+            byte_offset,
+            element_stride,
+        } => {
+            let StructuralFieldType::Structural(array) = field.field_type else {
+                return malformed("repeated field requires a fixed array");
+            };
+            let Some(StructuralTypeShape::FixedArray { element, length }) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == array)
+                .map(|declaration| &declaration.shape)
+            else {
+                return malformed("repeated field requires a fixed array");
+            };
+            if let Some((size, alignment)) = terminal_semantics::reference_storage_layout(
+                module.structural_types.iter(),
+                *element,
+            ) {
+                if alignment == 0
+                    || element_stride < size
+                    || element_stride % alignment != 0
+                    || byte_offset % alignment != 0
+                {
+                    return malformed("repeated field stride overlaps or misaligns its elements");
+                }
+            }
+            let extent = length.checked_mul(element_stride).ok_or(
+                CodecError::MalformedStructuralFoundation("repeated field extent overflows"),
+            )?;
+            (byte_offset, Some(extent))
+        }
+    };
+    if extent.is_some_and(|extent| {
+        offset
+            .checked_add(extent)
+            .is_none_or(|end| end > record_size)
+    }) {
+        return malformed("authored field extent exceeds its record storage");
+    }
+    Ok(())
+}
+
 /// Only the authored record envelope carries field geometry on the wire.
 /// Reject metadata in other rosters before an encoder can discard it.
 fn validate_field_storage_envelope(shape: &StructuralTypeShape) -> Result<(), CodecError> {
@@ -344,7 +438,7 @@ pub(super) fn attachment_storage_types(
 
 #[cfg(test)]
 mod authored_storage_envelope_tests {
-    use super::validate_field_storage_envelope;
+    use super::{validate_authored_field_extent, validate_field_storage_envelope};
     use semantic_vocabulary::{
         AuthoredFieldStorage, AuthoredRecordStorage, ScalarType, StructuralCaseId,
         StructuralFieldId,
@@ -395,5 +489,104 @@ mod authored_storage_envelope_tests {
             }),
         };
         assert!(validate_field_storage_envelope(&authored).is_ok());
+    }
+
+    #[test]
+    fn contiguous_fields_must_fit_the_whole_footprint() {
+        let mut module = terminal_psi::TerminalModule::for_entry(
+            semantic_vocabulary::MachineId::new(1).expect("entry"),
+        );
+        let scalar_type = semantic_vocabulary::StructuralTypeId::new(1).expect("scalar type");
+        let integer = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 64)
+                .expect("signed integer"),
+        );
+        module
+            .structural_types
+            .push(terminal_psi::StructuralTypeDeclaration {
+                id: scalar_type,
+                identity: "integer".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(integer),
+            });
+        let field = StructuralFieldDeclaration {
+            id: StructuralFieldId::new(1).expect("field"),
+            identity: "value".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(scalar_type),
+            storage: None,
+        };
+        for storage in [
+            AuthoredFieldStorage::Scalar {
+                byte_offset: 0,
+                stored_scalar: None,
+            },
+            AuthoredFieldStorage::Direct { byte_offset: 0 },
+        ] {
+            assert!(validate_authored_field_extent(&module, &field, storage, 1).is_err());
+            assert!(validate_authored_field_extent(&module, &field, storage, 8).is_ok());
+        }
+        let offset = AuthoredFieldStorage::Direct {
+            byte_offset: u64::MAX - 3,
+        };
+        assert!(validate_authored_field_extent(&module, &field, offset, u64::MAX).is_err());
+    }
+
+    #[test]
+    fn repeated_fields_require_aligned_nonoverlapping_bounded_extents() {
+        let mut module = terminal_psi::TerminalModule::for_entry(
+            semantic_vocabulary::MachineId::new(1).expect("entry"),
+        );
+        let element = semantic_vocabulary::StructuralTypeId::new(1).expect("element");
+        let array = semantic_vocabulary::StructuralTypeId::new(2).expect("array");
+        module
+            .structural_types
+            .push(terminal_psi::StructuralTypeDeclaration {
+                id: element,
+                identity: "element".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Signed,
+                        64,
+                    )
+                    .expect("signed integer"),
+                )),
+            });
+        module
+            .structural_types
+            .push(terminal_psi::StructuralTypeDeclaration {
+                id: array,
+                identity: "array".into(),
+                shape: StructuralTypeShape::FixedArray { element, length: 2 },
+            });
+        let field = StructuralFieldDeclaration {
+            id: StructuralFieldId::new(1).expect("field"),
+            identity: "elements".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(array),
+            storage: None,
+        };
+        let storage = AuthoredFieldStorage::Repeated {
+            byte_offset: 0,
+            element_stride: 8,
+        };
+        assert!(validate_authored_field_extent(&module, &field, storage, 16).is_ok());
+        assert!(validate_authored_field_extent(&module, &field, storage, 15).is_err());
+        for storage in [
+            AuthoredFieldStorage::Repeated {
+                byte_offset: 0,
+                element_stride: 1,
+            },
+            AuthoredFieldStorage::Repeated {
+                byte_offset: 4,
+                element_stride: 8,
+            },
+        ] {
+            assert!(validate_authored_field_extent(&module, &field, storage, 24).is_err());
+        }
+        module.structural_types[1].shape = StructuralTypeShape::FixedArray {
+            element,
+            length: u64::MAX,
+        };
+        assert!(validate_authored_field_extent(&module, &field, storage, u64::MAX).is_err());
     }
 }

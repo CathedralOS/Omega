@@ -4,7 +4,7 @@ use crate::legalization::scalar_graph_input::target;
 
 use super::{
     AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction,
-    StructuralMultiplicity, StructuralPlaceKind, TargetOperationPlan, ValueShape,
+    StructuralMultiplicity, StructuralPlaceKind, TargetOperationPlan,
 };
 use crate::legalization::scalar_graph_input::aggregate_results::home_layout;
 use crate::legalization::scalar_graph_input::structural_case;
@@ -240,12 +240,11 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
             &elements,
         )?
     };
-    let referent = crate::structural_inputs::structural_reference_input::shape(
+    let shape = crate::structural_inputs::structural_reference_input::internal_borrow_shape(
         selected,
         &plan.structural_types,
     )
     .ok_or(LegalizationError::custody())?;
-    let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
     let placement = call
         .parameters
         .get(callee.scalar_parameter_count() + position)

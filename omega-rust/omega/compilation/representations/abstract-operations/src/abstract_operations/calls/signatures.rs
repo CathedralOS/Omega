@@ -22,7 +22,9 @@ pub struct StructuralCallFormal<'declaration> {
     pub projected_qualifications: &'declaration [StructuralPathQualification],
 }
 
-impl<'declaration> From<&'declaration StructuralParameterDeclaration> for StructuralCallFormal<'declaration> {
+impl<'declaration> From<&'declaration StructuralParameterDeclaration>
+    for StructuralCallFormal<'declaration>
+{
     fn from(parameter: &'declaration StructuralParameterDeclaration) -> Self {
         Self {
             position: parameter.position,
@@ -35,7 +37,9 @@ impl<'declaration> From<&'declaration StructuralParameterDeclaration> for Struct
     }
 }
 
-impl<'declaration> From<&'declaration TerminalDynamicStructuralFormal> for StructuralCallFormal<'declaration> {
+impl<'declaration> From<&'declaration TerminalDynamicStructuralFormal>
+    for StructuralCallFormal<'declaration>
+{
     fn from(parameter: &'declaration TerminalDynamicStructuralFormal) -> Self {
         Self {
             position: parameter.position,
@@ -48,7 +52,9 @@ impl<'declaration> From<&'declaration TerminalDynamicStructuralFormal> for Struc
     }
 }
 
-impl<'declaration> From<&StructuralCallFormal<'declaration>> for StructuralCallFormal<'declaration> {
+impl<'declaration> From<&StructuralCallFormal<'declaration>>
+    for StructuralCallFormal<'declaration>
+{
     fn from(parameter: &StructuralCallFormal<'declaration>) -> Self {
         *parameter
     }
@@ -70,7 +76,10 @@ impl<'declaration> AbstractCallSignature<'declaration> {
 
     pub fn scalar_parameter(self, position: usize) -> Option<ScalarType> {
         match self {
-            Self::Machine(machine) => machine.parameters.get(position).map(|parameter| parameter.scalar_type),
+            Self::Machine(machine) => machine
+                .parameters
+                .get(position)
+                .map(|parameter| parameter.scalar_type),
             Self::Requirement(requirement) => requirement.scalar_parameters.get(position).copied(),
         }
     }
@@ -82,10 +91,16 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         }
     }
 
-    pub fn structural_parameter(self, position: usize) -> Option<StructuralCallFormal<'declaration>> {
+    pub fn structural_parameter(
+        self,
+        position: usize,
+    ) -> Option<StructuralCallFormal<'declaration>> {
         match self {
             Self::Machine(machine) => machine.structural_parameters.get(position).map(Into::into),
-            Self::Requirement(requirement) => requirement.structural_parameters.get(position).map(Into::into),
+            Self::Requirement(requirement) => requirement
+                .structural_parameters
+                .get(position)
+                .map(Into::into),
         }
     }
 

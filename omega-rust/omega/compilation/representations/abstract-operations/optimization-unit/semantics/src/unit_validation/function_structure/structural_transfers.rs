@@ -196,7 +196,7 @@ pub(super) fn validate(
                     // carrier over a static projection: the subtree transfers
                     // the exact incoming mutable permission while the rest of
                     // the root stays with the caller.
-                    abstract_operations::control_flow::address_joins::is_static_projection(
+                    abstract_operations::control_flow::address_joins::is_address_projection(
                         &binding.argument.path,
                     ) && source.is_some_and(|(root_type, access, multiplicity)| {
                         (if matches!(
@@ -218,10 +218,11 @@ pub(super) fn validate(
                         } else {
                             access != StructuralAccess::WriteOnlyBorrow
                         }) && multiplicity != StructuralMultiplicity::Linear
-                            && abstract_operations::control_flow::address_joins::referent_type(
+                            && abstract_operations::control_flow::address_joins::borrowed_referent_type(
                                 types.values().copied(),
                                 root_type,
                                 &binding.argument.path,
+                                parameter.access,
                             ) == Some(parameter.structural_type)
                     })
                 } else if shared_view_carrier(parameter, types) {

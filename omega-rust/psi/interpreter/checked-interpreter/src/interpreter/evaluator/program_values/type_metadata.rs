@@ -15,23 +15,13 @@ impl<'program> Evaluator<'program> {
         destination: TypeReferenceHandle,
         frame: &mut Frame,
     ) -> EvalResult<EvaluatedArgument> {
-        let initializer = self.reference_recast_initializer(argument, frame)?;
+        let initializer = self.capture_reference_view(argument, destination, frame)?;
         if let Some((source, recast)) = initializer {
             return Ok(EvaluatedArgument {
                 cell: self.allocate_cell(Value::Ref(source))?,
                 mutable_recast: Some(recast),
             });
         }
-        let mutable_recast =
-            self.mutable_recast_path(argument, frame)?
-                .and_then(|(recast, path)| {
-                    // A scalar field observation is not the enclosing recast view.
-                    // Attaching that descriptor would reinterpret the callee's
-                    // scalar parameter as the whole record on its next read.
-                    let scalar_observation = !path.is_empty()
-                        && self.program.primitive_type_reference(destination).is_some();
-                    (!scalar_observation).then_some(recast)
-                });
         let cell = if let Some(value) = self.anonymous_integer_landing_value(
             argument,
             self.program.primitive_type_reference(destination),
@@ -56,7 +46,7 @@ impl<'program> Evaluator<'program> {
         *cell.borrow_mut() = value;
         Ok(EvaluatedArgument {
             cell,
-            mutable_recast,
+            mutable_recast: None,
         })
     }
 

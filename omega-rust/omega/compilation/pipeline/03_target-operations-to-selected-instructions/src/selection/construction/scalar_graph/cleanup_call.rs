@@ -45,7 +45,10 @@ pub(super) fn emit(
             || target.place != semantic.place
             || target.path != semantic.path
             || !indices.is_empty()
-            || target.shape.class != ValueClass::BorrowedReference
+            || !matches!(
+                target.shape.class,
+                ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
+            )
             || target.destination.shape != target.shape
         {
             return Err(SelectedInstructionError::custody());

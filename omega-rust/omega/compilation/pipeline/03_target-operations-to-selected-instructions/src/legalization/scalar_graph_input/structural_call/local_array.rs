@@ -9,7 +9,7 @@
 //! entrance route in `exclusive`; this route rejoins the dominating producer.
 use super::{
     AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralAccess, StructuralArgument,
-    TargetStructuralArgument, ValueShape,
+    TargetStructuralArgument,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::aggregate_results::{node_site, precedes};
@@ -75,12 +75,9 @@ pub(super) fn argument(
         operation.structural_result() == Some((producer, result))
     })
     .ok_or(LegalizationError::custody())?;
-    let carrier = crate::structural_inputs::structural_reference_input::shape(
-        destination.structural_type,
-        types,
-    )
-    .ok_or(LegalizationError::custody())?;
-    let shape = ValueShape::borrowed_reference(carrier.byte_size, carrier.alignment);
+    let shape =
+        crate::structural_inputs::structural_reference_input::parameter_shape(destination, types)
+            .ok_or(LegalizationError::custody())?;
     let placement = call
         .parameters
         .get(parameter_ordinal)

@@ -375,65 +375,71 @@ mod tests {
             .unwrap()
             .try_into()
             .unwrap();
-        for width in 1..=8u64 {
-            for signed in [false, true] {
-                let codec = width | if signed { 256 } else { 0 };
-                let payload = 0x807f_6655_4433_2280u64;
-                let mut memory = [85u8; 10];
-                let mut state = [0u64; 32];
-                state[registers[0] as usize] = 1;
-                state[registers[1] as usize] = codec;
-                state[registers[2] as usize] = payload;
-                let original = state;
-                let store = encode(
-                    &physical,
-                    SelectedInstructionKind::StoreEncodedScalar,
-                    MachineAlternativeKey {
-                        family: MachineAlternativeFamily::StoreEncodedScalar,
-                        variant: 0,
-                    },
-                    &operands,
-                )
-                .unwrap();
-                let writes = execute(&store.bytes, &mut state, &mut memory);
-                assert_eq!(writes, (1..=width as usize).collect::<Vec<_>>());
-                assert_eq!(memory[0], 85);
-                assert_eq!(memory[width as usize + 1], 85);
+        let codecs = (1..=8u64)
+            .flat_map(|width| [width, width | 256])
+            .chain([516, 520, 1025, 2056]);
+        for codec in codecs {
+            let width = codec & 255;
+            let signed = codec & 256 != 0;
+            let payload = if codec == 1025 {
+                1
+            } else {
+                0x807f_6655_4433_2280u64
+            };
+            let mut memory = [85u8; 10];
+            let mut state = [0u64; 32];
+            state[registers[0] as usize] = 1;
+            state[registers[1] as usize] = codec;
+            state[registers[2] as usize] = payload;
+            let original = state;
+            let store = encode(
+                &physical,
+                SelectedInstructionKind::StoreEncodedScalar,
+                MachineAlternativeKey {
+                    family: MachineAlternativeFamily::StoreEncodedScalar,
+                    variant: 0,
+                },
+                &operands,
+            )
+            .unwrap();
+            let writes = execute(&store.bytes, &mut state, &mut memory);
+            assert_eq!(writes, (1..=width as usize).collect::<Vec<_>>());
+            assert_eq!(memory[0], 85);
+            assert_eq!(memory[width as usize + 1], 85);
+            assert_eq!(
+                &memory[1..=width as usize],
+                &payload.to_le_bytes()[..width as usize]
+            );
+            for input in 0..3 {
                 assert_eq!(
-                    &memory[1..=width as usize],
-                    &payload.to_le_bytes()[..width as usize]
+                    state[registers[input] as usize],
+                    original[registers[input] as usize]
                 );
-                for input in 0..3 {
-                    assert_eq!(
-                        state[registers[input] as usize],
-                        original[registers[input] as usize]
-                    );
-                }
-                let load = encode(
-                    &physical,
-                    SelectedInstructionKind::LoadEncodedScalar,
-                    MachineAlternativeKey {
-                        family: MachineAlternativeFamily::LoadEncodedScalar,
-                        variant: 0,
-                    },
-                    &operands,
-                )
-                .unwrap();
-                let reads = execute(&load.bytes, &mut state, &mut memory);
-                assert_eq!(reads, (1..=width as usize).rev().collect::<Vec<_>>());
-                let shift = 64 - width * 8;
-                let expected = if signed {
-                    ((payload << shift) as i64 >> shift) as u64
-                } else {
-                    (payload << shift) >> shift
-                };
-                assert_eq!(state[registers[5] as usize], expected);
-                for input in 0..2 {
-                    assert_eq!(
-                        state[registers[input] as usize],
-                        original[registers[input] as usize]
-                    );
-                }
+            }
+            let load = encode(
+                &physical,
+                SelectedInstructionKind::LoadEncodedScalar,
+                MachineAlternativeKey {
+                    family: MachineAlternativeFamily::LoadEncodedScalar,
+                    variant: 0,
+                },
+                &operands,
+            )
+            .unwrap();
+            let reads = execute(&load.bytes, &mut state, &mut memory);
+            assert_eq!(reads, (1..=width as usize).rev().collect::<Vec<_>>());
+            let shift = 64 - width * 8;
+            let expected = if signed {
+                ((payload << shift) as i64 >> shift) as u64
+            } else {
+                (payload << shift) >> shift
+            };
+            assert_eq!(state[registers[5] as usize], expected);
+            for input in 0..2 {
+                assert_eq!(
+                    state[registers[input] as usize],
+                    original[registers[input] as usize]
+                );
             }
         }
     }
@@ -465,9 +471,32 @@ mod tests {
                     "{kind:?} bit {bit}"
                 );
             }
-            let mut aliased = operands;
-            aliased[5] = operands[0];
-            assert!(encode(&physical, kind, alternative, &aliased).is_err());
+            let input_count = if kind == SelectedInstructionKind::LoadEncodedScalar {
+                2
+            } else {
+                3
+            };
+            for scratch in input_count..6 {
+                for prior in 0..scratch {
+                    let mut aliased = operands;
+                    aliased[scratch] = operands[prior];
+                    assert!(
+                        encode(&physical, kind, alternative, &aliased).is_err(),
+                        "{kind:?} scratch {scratch} aliases operand {prior}"
+                    );
+                    assert!(
+                        validate(&physical, kind, alternative, &aliased, &encoded.bytes).is_err()
+                    );
+                }
+            }
+            for input in 1..input_count {
+                let mut shared_input = operands;
+                shared_input[input] = operands[0];
+                let encoded = encode(&physical, kind, alternative, &shared_input).unwrap();
+                assert!(
+                    validate(&physical, kind, alternative, &shared_input, &encoded.bytes).is_ok()
+                );
+            }
         }
     }
 }

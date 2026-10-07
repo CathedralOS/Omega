@@ -147,13 +147,12 @@ enum MutableScalarRecast {
     },
     AggregateByteRegion {
         cells: Vec<Cell>,
-        offset: usize,
-        target_type: TypeReferenceHandle,
+        projection: MutableRecordProjection,
     },
     AggregateTyped {
         source: Cell,
         source_type: TypeReferenceHandle,
-        target_type: TypeReferenceHandle,
+        projection: MutableRecordProjection,
     },
 }
 

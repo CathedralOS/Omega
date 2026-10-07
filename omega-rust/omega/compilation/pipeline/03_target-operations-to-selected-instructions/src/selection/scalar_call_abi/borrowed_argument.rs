@@ -112,20 +112,18 @@ pub(super) fn validate_borrowed_argument(
                     &semantic.path,
                     &signature.structural_types,
                 )?;
-            let shape = crate::structural_inputs::structural_reference_input::shape(
-                selected,
-                &signature.structural_types,
-            )?;
+            let shape =
+                crate::structural_inputs::structural_reference_input::internal_borrow_shape(
+                    selected,
+                    &signature.structural_types,
+                )?;
             (target.root_structural_type == root
                 && target.structural_type == selected
                 && target.source_byte_offset == offset
                 && crate::structural_inputs::structural_reference_input::runtime_indices_match(
                     indices, &elements,
                 ))
-            .then_some(ValueShape::borrowed_reference(
-                shape.byte_size,
-                shape.alignment,
-            ))
+            .then_some(shape)
         });
     // A whole owned bounded byte home lends its `{length, bytes}` storage to
     // a borrowed bounded-owner formal; the callee uses the owner layout in
@@ -268,28 +266,23 @@ pub(super) fn validate_borrowed_argument(
                 {
                     return None;
                 }
-                let referent = crate::structural_inputs::structural_reference_input::shape(
-                    selected,
-                    &signature.structural_types,
-                )?;
-                Some(ValueShape::borrowed_reference(
-                    referent.byte_size,
-                    referent.alignment,
-                ))
+                let shape =
+                    crate::structural_inputs::structural_reference_input::internal_borrow_shape(
+                        selected,
+                        &signature.structural_types,
+                    )?;
+                Some(shape)
             });
     let window = byte_view
         .map(|(offset, _)| offset)
         .or(element_view.map(|(offset, _, _)| offset));
     // Descriptor geometry follows the exact destination declaration, not
     // whether its backing arrived as a parameter, local, or control-flow join.
-    let destination_carrier = crate::structural_inputs::structural_reference_input::shape(
-        target.structural_type,
-        &signature.structural_types,
-    )?;
-    let destination_shape = ValueShape::borrowed_reference(
-        destination_carrier.byte_size,
-        destination_carrier.alignment,
-    );
+    let destination_shape =
+        crate::structural_inputs::structural_reference_input::internal_borrow_shape(
+            target.structural_type,
+            &signature.structural_types,
+        )?;
     // One place projected inside a borrowed root the caller holds (an
     // incoming parameter or a state-block arrival), shared or exclusive.
     let projected_loan = projected_loan_shape(source, semantic, target, indices);
@@ -336,11 +329,10 @@ pub(super) fn validate_borrowed_argument(
             {
                 return None;
             }
-            let referent = crate::structural_inputs::structural_reference_input::shape(
+            crate::structural_inputs::structural_reference_input::internal_borrow_shape(
                 selected,
                 &signature.structural_types,
-            )?;
-            ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+            )?
         }
     } else if let Some(shape) = aggregate {
         shape
@@ -370,7 +362,7 @@ pub(super) fn validate_borrowed_argument(
         destination_shape
     } else if let Some(shape) = established_view_loan {
         shape
-    } else if let Some((_, result, _, referent)) = local {
+    } else if let Some((_, result, _, _)) = local {
         if target.structural_type != result.structural_type
             || target.root_structural_type != result.structural_type
             || !semantic.path.is_empty()
@@ -378,7 +370,10 @@ pub(super) fn validate_borrowed_argument(
         {
             return None;
         }
-        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+        crate::structural_inputs::structural_reference_input::internal_borrow_shape(
+            result.structural_type,
+            &signature.structural_types,
+        )?
     } else if let Some(shape) = projected_loan {
         shape
     } else if exclusive
@@ -606,7 +601,7 @@ fn projected_loan_shape(
             &semantic.path,
             &signature.structural_types,
         )?;
-    let shape = crate::structural_inputs::structural_reference_input::shape(
+    let shape = crate::structural_inputs::structural_reference_input::internal_borrow_shape(
         referent,
         &signature.structural_types,
     )?;
@@ -616,10 +611,7 @@ fn projected_loan_shape(
         && crate::structural_inputs::structural_reference_input::runtime_indices_match(
             indices, &elements,
         ))
-    .then_some(ValueShape::borrowed_reference(
-        shape.byte_size,
-        shape.alignment,
-    ))
+    .then_some(shape)
 }
 
 /// The call plan the argument rosters imply when the `argument_index` slot

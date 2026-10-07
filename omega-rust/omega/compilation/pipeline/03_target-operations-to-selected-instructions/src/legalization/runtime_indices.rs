@@ -106,6 +106,23 @@ pub(crate) fn structural_argument(
     operands(optimized, unit, operation, &elements)
 }
 
+pub(crate) fn reference_source(
+    optimized: &PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+    source: &terminal_psi::StructuralArgument,
+) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
+    let root = super::scalar_graph_input::primitive_locals::read_root_type(optimized, source.place)
+        .ok_or(LegalizationError::custody())?;
+    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+        root,
+        &source.path,
+        &unit.structural_types,
+    )
+    .ok_or(LegalizationError::custody())?;
+    operands(optimized, unit, operation, &geometry.elements)
+}
+
 /// A collection-view formation retains the backing projection's runtime
 /// selectors independently of its final optional fixed byte window.
 pub(crate) fn collection_view(

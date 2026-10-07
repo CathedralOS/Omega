@@ -204,6 +204,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     result,
                     source,
                     storage,
+                    indices,
                     shape,
                 } => {
                     bytes.push(29);
@@ -222,6 +223,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                         bytes.push(0);
                     }
                     super::calling::encode_shape(bytes, *shape);
+                    encode_runtime_indices(bytes, indices);
                 }
                 LegalizedScalarInstructionKind::ReleaseReference { source, path } => {
                     bytes.push(30);

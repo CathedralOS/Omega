@@ -30,9 +30,8 @@ use optimization_unit::{
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
     canonicalize_ordinary_path, declared_structural_type, descended_field, descended_field_child,
-    descended_field_id, root_producer, leaf_copy_source,
-    recompute_psi_optimization_unit_identity, resolved_sole_case, roster_first_case, shape,
-    sole_case, sole_case_at_path,
+    descended_field_id, leaf_copy_source, recompute_psi_optimization_unit_identity,
+    resolved_sole_case, root_producer, roster_first_case, shape, sole_case, sole_case_at_path,
 };
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, MachineId, OperationId, PlaceId, ScalarType,

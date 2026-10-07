@@ -68,6 +68,15 @@ use an existing explicit golden to inspect runtime fact moves without recording:
     python3 tools/corpus_gate.py --interpret --golden tests/omega/corpus_outcomes.txt --filter _exit
     python3 tools/corpus_gate.py --both --filter run/
 
+`--checked-interpreter` explicitly selects the independent checked-tree source
+oracle instead of Terminal execution. It compiles the same reviewed fixture and
+uses its selected entry and provisioned receiver; it is never a fallback for a
+Terminal refusal. Its separate defaults are `corpus_checked_interpreted.txt` and,
+with `--both`, `corpus_checked_both_<target>.txt`. Supply an existing explicit
+golden for a bounded replay while these goldens are absent:
+
+    python3 tools/corpus_gate.py --checked-interpreter --golden tests/omega/corpus_outcomes.txt --filter pass/layouts/runtime_callee_integer_at_fitting_write_exit,pass/calls/runtime_guarded_reference_return_crash
+
 An authored stdout oracle must match every requested execution engine.
 Interpreter output that differs or was not observed rejects before recording,
 even when its exit code agrees with native execution.
@@ -100,10 +109,9 @@ additions, so shards can be recorded or diffed on separate sessions/machines.
 The full corpus is scheduled-workload cost, not loop cost — subsets are the
 iteration gate; the unfiltered diff is the baseline/scheduled gate.
 
-This is the iteration smoke gate, not the landing gate: changes to
-internal-only surfaces still need the scoped white-box suites named by
-tools/testing.md's Validation scope. What it replaces is the habit of running
-several per-crate nextest suites just to smell-test an e2e-visible change.
+This is the iteration smoke gate, not the landing gate: validation scopes are
+defined by tools/testing.md. Compiler source behavior stays in corpus fixtures;
+Rust unit tests belong only to the independent pure owners named there.
 
 Recording caveat: `timeout` records are hardware- and load-relative — a
 fixture near `OMEGA_CORPUS_FIXTURE_SECS` can flap between `timeout` and a
@@ -922,12 +930,18 @@ def main() -> int:
                              "Terminal program/instance core; default golden "
                              "tests/omega/corpus_interpreted.txt must exist, "
                              "or supply --golden")
+    parser.add_argument("--checked-interpreter", action="store_true",
+                        help="implies --interpret: explicitly use the independent "
+                             "checked-tree engine instead of Terminal (never a "
+                             "fallback); default golden "
+                             "tests/omega/corpus_checked_interpreted.txt must exist, "
+                             "or supply --golden")
     parser.add_argument("--migration-roster", type=Path, metavar="PATH",
                         help="reviewed capability/task/route canary designations; "
                              "exact pending roots join the runner; "
                              "explicit unimplemented debt never counts as success")
     parser.add_argument("--both", action="store_true",
-                        help="run native and shared Terminal legs together, "
+                        help="run native and selected interpreter legs together, "
                              "record whether they agree, and diff against "
                              "tests/omega/corpus_both_<target>.txt "
                              "(supply --golden when absent)")
@@ -973,23 +987,29 @@ def main() -> int:
     if options.both:
         options.native = True
         options.interpret = True
+    if options.checked_interpreter:
+        options.interpret = True
+        os.environ["OMEGA_CORPUS_CHECKED_INTERPRETER"] = "1"
+    else:
+        os.environ.pop("OMEGA_CORPUS_CHECKED_INTERPRETER", None)
     if options.native_target:
         options.native = True
         os.environ["OMEGA_CORPUS_NATIVE_TARGET"] = options.native_target
     if options.interpret:
         os.environ["OMEGA_CORPUS_INTERPRET"] = "1"
-        leg = "interpreted"
+        leg = "checked-interpreted" if options.checked_interpreter else "interpreted"
         if options.golden == GOLDEN and not options.native:
-            options.golden = ROOT / "tests" / "omega" / "corpus_interpreted.txt"
+            name = "checked_interpreted" if options.checked_interpreter else "interpreted"
+            options.golden = ROOT / "tests" / "omega" / f"corpus_{name}.txt"
     if options.native:
         target = options.native_target or host_target()
         if target is None:
             print("corpus_gate: this host has no catalogued Omega target for --native")
             return usage_error
         os.environ["OMEGA_CORPUS_NATIVE"] = "1"
-        leg = "both" if options.interpret else "native"
+        leg = ("checked-both" if options.checked_interpreter else "both") if options.interpret else "native"
         if options.golden == GOLDEN:
-            name = "both" if options.interpret else "native"
+            name = ("checked_both" if options.checked_interpreter else "both") if options.interpret else "native"
             options.golden = ROOT / "tests" / "omega" / f"corpus_{name}_{target}.txt"
     if options.baseline:
         if options.golden != GOLDEN and not leg:

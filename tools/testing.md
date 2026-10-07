@@ -257,6 +257,17 @@ new runtime facts visible as moves, and uses the exact reviewed
 debt stays nonzero and never exempts a wrong native result. The bounded replay
 command is in [the corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md#reviewed-interpreter-migration-debt).
 
+`--checked-interpreter` explicitly selects the independent checked-tree source
+oracle instead of Terminal. It compiles the same reviewed fixture inputs and
+executes the exact selected entry with its provisioned receiver; it never serves
+as a fallback for a Terminal refusal. Records include
+`interpreter-engine:checked-tree`, and the separate default goldens are
+`corpus_checked_interpreted.txt` and `corpus_checked_both_<target>.txt` when
+combined with `--both`. An absent golden still requires an explicit `--golden`.
+The [corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md)
+documents the bounded source/Trap replay. Checked-engine declines cannot satisfy
+the same unchanged authored exit or stdout promises.
+
 It realizes for the target the fixture declares, preferring the host when the
 fixture binds it so the product can also run; a fixture binding only foreign
 targets is still realized, because target lowering and emission are most of

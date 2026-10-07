@@ -434,6 +434,7 @@ dependencies = [
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
+ "checked-interpreter",
  "checked-trees-to-lowered-psi",
  "compilation-products",
  "diagnostics",

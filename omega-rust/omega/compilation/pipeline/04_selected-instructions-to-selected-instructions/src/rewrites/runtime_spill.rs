@@ -369,35 +369,6 @@ pub(crate) fn stored_transport_size(transport: SelectedStructuralTransport) -> O
     }
 }
 
-#[cfg(test)]
-mod scalar_reference_transport_tests {
-    use super::stored_transport_size;
-    use selected_instructions::{
-        LocalStorageSlotId, SelectedAddressBase, SelectedScalarReferenceSource,
-        SelectedStructuralTransport,
-    };
-    use semantic_vocabulary::PlaceId;
-
-    #[test]
-    fn descriptor_transport_reads_both_words_but_canonical_transport_lends_an_address() {
-        let slot = LocalStorageSlotId::StructuralParameter {
-            place: PlaceId::new(1).expect("storage place"),
-        };
-        for (source, expected) in [
-            (SelectedScalarReferenceSource::Descriptor, Some(16)),
-            (SelectedScalarReferenceSource::Canonical { codec: 8 }, None),
-        ] {
-            let transport = SelectedStructuralTransport::ScalarReference {
-                base: SelectedAddressBase::Local(slot),
-                byte_offset: 3,
-                source,
-                destination: slot,
-            };
-            assert_eq!(stored_transport_size(transport), expected);
-        }
-    }
-}
-
 /// The chunk decomposition edge-transfer selection emits for one snapshot:
 /// the largest of 8, 4, 2, 1 bytes at each remaining offset. The audit walks
 /// the sorted access stream against this split rather than inferring widths.

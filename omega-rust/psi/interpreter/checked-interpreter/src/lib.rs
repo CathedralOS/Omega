@@ -23,6 +23,11 @@
 //! wrong (an `&mut`-write through a call chain that does not persist). Once the
 //! interpreter's coverage reaches such a program, an `interpret_entry != native`
 //! mismatch localizes the bug instantly.
+//! Encoded reference views additionally retain their original backing, captured
+//! projection and physical codec in the binding. Locals and call/transition
+//! operands share one type-directed capture operation; writes use that endpoint,
+//! not a copied primitive cell. The Value-only reference-result seam declines
+//! these views until it can retain their metadata rather than returning a bare Ref.
 //!
 //! ## Execution model
 //! [`interpret_entry`] runs the exact machine selected by its caller. The

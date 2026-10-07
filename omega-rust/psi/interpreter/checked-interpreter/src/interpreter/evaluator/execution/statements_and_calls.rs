@@ -27,8 +27,11 @@ impl<'program> Evaluator<'program> {
                 // view coordinates. Reads use the stated representation;
                 // checked mutable views also write through the same descriptor.
                 if local.initial_value.is_valid()
-                    && let Some((source, recast)) =
-                        self.reference_recast_initializer(local.initial_value, frame)?
+                    && let Some((source, recast)) = self.capture_reference_view(
+                        local.initial_value,
+                        local.type_reference,
+                        frame,
+                    )?
                 {
                     frame.bind(FrameLocal {
                         symbol: local.symbol,

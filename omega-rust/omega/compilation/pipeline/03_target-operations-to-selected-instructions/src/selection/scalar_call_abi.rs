@@ -306,26 +306,9 @@ pub(super) fn validate(
     let count = call.arguments.len();
     let register_count = register_argument_count(call);
     let result = call.call_plan.result.as_ref();
-    // A bare reference result is custody only: the empty aggregate placement
-    // establishes no physical result home and no Def operand.
-    let reference_only = call.structural_result.as_ref().is_some_and(|result| {
-        source
-            .structural
-            .as_ref()
-            .and_then(|signature| {
-                signature
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == result.structural_type)
-            })
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::Reference { .. }
-                )
-            })
-    });
-    let aggregate = if call.structural_result.is_some() && !reference_only {
+    // Every materialized structural result transports its complete value,
+    // including a reference descriptor. Custody never substitutes for bytes.
+    let aggregate = if call.structural_result.is_some() {
         Some(
             crate::selection::aggregate_result_input::call_result(source, call)
                 .ok_or_else(invalid)?

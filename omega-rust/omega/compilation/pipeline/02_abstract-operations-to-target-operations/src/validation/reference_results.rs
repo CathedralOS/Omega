@@ -396,6 +396,23 @@ fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
+            current = match &lookup(declarations, current)?.shape {
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element } => *element,
+                _ => return None,
+            };
+            continue;
+        }
+        if *segment == StructuralPathSegment::Referent {
+            let StructuralTypeShape::Reference { referent, .. } =
+                &lookup(declarations, current)?.shape
+            else {
+                return None;
+            };
+            current = *referent;
+            continue;
+        }
         if let StructuralPathSegment::FixedIndex(index) = segment {
             let StructuralTypeShape::FixedArray { element, length } =
                 &lookup(declarations, current)?.shape
@@ -647,8 +664,20 @@ fn normalized_direct_source(
     declarations: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<Root> {
-    if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
+    if let Some(crossing) = source
+        .path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let carrier_path = &source.path[..crossing];
+        let suffix = &source.path[crossing + 1..];
         if let Some(leaf) = custody.leaves.get(&(source.place, carrier_path.to_vec())) {
+            let StructuralTypeShape::Reference { referent, .. } =
+                &lookup(declarations, leaf.structural_type)?.shape
+            else {
+                return None;
+            };
+            leaf_type(declarations, *referent, suffix)?;
             Some(leaf.root.clone())
         } else {
             // Member storage under a carrier never held as a live reference:
@@ -658,7 +687,10 @@ fn normalized_direct_source(
             leaf_type(declarations, carrier, carrier_path).and_then(|leaf| {
                 match &lookup(declarations, leaf)?.shape {
                     StructuralTypeShape::Reference { .. } => None,
-                    _ => Some(Root::Ingress(source.place, carrier_path.to_vec())),
+                    _ if suffix.is_empty() => {
+                        Some(Root::Ingress(source.place, carrier_path.to_vec()))
+                    }
+                    _ => None,
                 }
             })
         }

@@ -3075,13 +3075,17 @@ deletions, which the commit lists.
   `pass/layouts/runtime_callee_integer_at_fitting_write_exit` requires a
   helper's `&mut i64` writes of -128 and 127 to use signed eight-bit storage
   without changing neighboring byte 85. Parent and leaf formation must retain
-  their original endpoint and authored storage codec. Native custody currently
-  rejects the child's ordered `Referent`/field path in stage 02
-  `lowering/control_flow/references.rs`; field-only or trailing-dereference
-  walkers do not describe a projection through a captured aggregate reference.
-  Carry backing and encoding through the shared reference representation,
-  internal ABI, calls, joins, returns, recursion and stored references in native
-  and both interpreters. Runtime encoding choices cannot be solved by
+  their original endpoint and authored storage codec. The focused native,
+  Terminal and checked-tree runs exit 0. Landing is blocked by introduced
+  regressions in existing borrowed-result, stored-reference and plan-laid
+  programs: all 18 affected native controls run on main `2207c9988d5`.
+  Repair the descriptor-result ABI and the storage/custody producer-consumer
+  joins without replacing existing plan-laid behavior. Carry backing and
+  encoding through joins, returns, recursion and stored references in native
+  and both interpreters. The checked interpreter currently declines encoded
+  reference-valued results because its Value-only seam loses view metadata;
+  multi-origin reference results still lack a complete source-loan resource.
+  Runtime encoding choices cannot be solved by
   specialization; raw carrier-width pointers and delayed copy-out are not
   substitutes. Foreign pointers need compatible checked adapters.
 

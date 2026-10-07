@@ -25,8 +25,7 @@ impl TerminalExecution {
         &self,
         backing_view: &crate::values::TerminalStructuralValue,
         view: &crate::values::TerminalStructuralValue,
-        logical_scalar: ScalarType,
-    ) -> Result<Option<PrimitiveStorage>, TerminalInterpretError> {
+    ) -> Result<Option<(PrimitiveStorage, ScalarType)>, TerminalInterpretError> {
         let mut selected = None;
         for captured in self.reference_referents.values() {
             let Some(region) = &captured.byte_region else {
@@ -41,12 +40,13 @@ impl TerminalExecution {
             else {
                 continue;
             };
-            if terminal_semantics::runtime_structural_path_tip(
-                self.program.structural_types.values(),
+            if crate::custody::resolve_structural_path_type(
+                &self.program.structural_types,
                 captured.view.structural_type,
                 backing_path,
             )
-            .is_none_or(|tip| tip.id != backing_view.structural_type)
+            .ok()
+                != Some(backing_view.structural_type)
             {
                 continue;
             }
@@ -66,17 +66,19 @@ impl TerminalExecution {
                     .ok_or_else(malformed)?,
             );
             let offset = usize::try_from(projection.byte_offset).map_err(|_| malformed())?;
-            if projection.logical_scalar != logical_scalar
-                || offset
-                    .checked_add(width)
-                    .is_none_or(|end| end > region.byte_length)
+            if offset
+                .checked_add(width)
+                .is_none_or(|end| end > region.byte_length)
             {
                 return Err(malformed());
             }
-            let storage = PrimitiveStorage {
-                endpoint: shifted_byte_endpoint(&region.endpoint, offset)?,
-                stored_scalar: Some(projection.stored_scalar),
-            };
+            let storage = (
+                PrimitiveStorage {
+                    endpoint: shifted_byte_endpoint(&region.endpoint, offset)?,
+                    stored_scalar: Some(projection.stored_scalar),
+                },
+                projection.logical_scalar,
+            );
             if selected
                 .as_ref()
                 .is_some_and(|previous| previous != &storage)

@@ -1,8 +1,8 @@
 //! Independent adjacent block-merge replay mechanics.
-use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::global_value_numbering::{
     independent_reachable_dominators, independently_replacement_dominates_uses,
 };
+use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::adjacent_merge::{
     reconstruct_adjacent_merge_accounting, reconstruct_adjacent_merge_ownership_witness,
 };

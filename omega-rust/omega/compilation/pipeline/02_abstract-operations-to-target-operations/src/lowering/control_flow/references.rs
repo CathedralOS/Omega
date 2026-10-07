@@ -652,6 +652,14 @@ pub(super) fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
+            current = match &types.get(&current)?.shape {
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element } => *element,
+                _ => return None,
+            };
+            continue;
+        }
         if *segment == StructuralPathSegment::Referent {
             let StructuralTypeShape::Reference { referent, .. } = &types.get(&current)?.shape
             else {
@@ -729,7 +737,9 @@ fn direct_storage_type(
     if !source.path.iter().all(|segment| {
         matches!(
             segment,
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::RuntimeIndex { .. }
         )
     }) {
         return None;
@@ -840,6 +850,16 @@ pub(super) fn reference_source_type(
         return leaf_type(types, current, &source.path[start..]);
     }
     direct_storage_type(function, live, types, source)
+}
+
+/// An edge loan follows the same authenticated carrier dependencies as a call.
+pub(super) fn reference_loan_source_live(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    source: &StructuralArgument,
+) -> bool {
+    access_paths::call_reference_custody(function, live, types, source).is_ok()
 }
 
 // A new shared loan may coexist only with authenticated shared carrier leaves.

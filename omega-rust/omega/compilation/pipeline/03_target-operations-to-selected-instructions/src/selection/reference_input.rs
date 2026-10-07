@@ -23,7 +23,9 @@ pub(super) struct ReferenceAddress {
     pub(super) load_codec: bool,
     pub(super) codec: Option<runtime_abi::ScalarStorageCodec>,
     pub(super) storage: Option<terminal_psi::ReferenceStorageView>,
-    pub(super) descriptor_offsets: Vec<u32>,
+    pub(super) descriptor_offsets: Vec<(u32, std::ops::Range<usize>)>,
+    pub(super) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
+    pub(super) leaf_index: usize,
 }
 
 pub(in crate::selection) fn borrowed_scalar_source(
@@ -58,6 +60,7 @@ pub(super) fn establishment(
         result,
         source,
         storage,
+        indices,
         shape,
     } = &row.kind
     else {
@@ -108,16 +111,36 @@ pub(super) fn establishment(
     };
     let mut projection_root = root;
     let mut segment_start = 0;
-    let mut descriptor_offsets = Vec::new();
+    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+        root,
+        path,
+        declarations,
+    )?;
+    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+        indices,
+        &geometry.elements,
+    ) {
+        return None;
+    }
+    let leaf_index = geometry
+        .pointer_slots
+        .last()
+        .map_or(0, |slot| slot.indices.end);
+    let descriptor_offsets = geometry
+        .pointer_slots
+        .into_iter()
+        .map(|slot| (slot.byte_offset, slot.indices))
+        .collect();
     for (position, segment) in path.iter().enumerate() {
         if *segment != StructuralPathSegment::Referent {
             continue;
         }
-        let (carrier, offset) = crate::structural_inputs::structural_reference_input::project(
-            projection_root,
-            &path[segment_start..position],
-            declarations,
-        )?;
+        let (carrier, _, _) =
+            crate::structural_inputs::structural_reference_input::runtime_projection(
+                projection_root,
+                &path[segment_start..position],
+                declarations,
+            )?;
         let StructuralTypeShape::Reference { referent, .. } = declarations
             .iter()
             .find(|declaration| declaration.id == carrier)?
@@ -125,16 +148,12 @@ pub(super) fn establishment(
         else {
             return None;
         };
-        descriptor_offsets.push(offset);
         projection_root = referent;
         segment_start = position + 1;
     }
     let projection_path = &path[segment_start..];
-    let (selected, byte_offset) = crate::structural_inputs::structural_reference_input::project(
-        projection_root,
-        projection_path,
-        declarations,
-    )?;
+    let selected = geometry.selected;
+    let byte_offset = geometry.byte_offset;
     let selected_shape = &declarations
         .iter()
         .find(|declaration| declaration.id == selected)?
@@ -181,6 +200,8 @@ pub(super) fn establishment(
         codec,
         storage: *storage,
         descriptor_offsets,
+        indices: indices.clone(),
+        leaf_index,
     })
 }
 
@@ -325,12 +346,7 @@ pub(super) fn borrowed_argument(
     .then_some(BorrowedReferenceAddress {
         descriptor_offsets: projection.descriptor_offsets,
         referent_offset: offset,
-        scalar_descriptor:
-            crate::structural_inputs::structural_reference_input::scalar_storage_type(
-                selected,
-                declarations,
-            )
-            .is_some(),
+        scalar_descriptor: projection.scalar_descriptor,
     })
 }
 

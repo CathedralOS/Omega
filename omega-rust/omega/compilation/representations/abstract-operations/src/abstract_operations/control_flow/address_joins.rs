@@ -74,6 +74,58 @@ pub fn is_static_projection(path: &[StructuralPathSegment]) -> bool {
     })
 }
 
+/// A retained-address projection permits typed reference crossings, but no
+/// newly evaluated selector. The carrier supplies its runtime address;
+/// source custody and lifetime admission remain separate requirements.
+pub fn is_address_projection(path: &[StructuralPathSegment]) -> bool {
+    path.iter().all(|segment| {
+        matches!(
+            segment,
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::Case(_)
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::Referent
+        )
+    })
+}
+
+/// Resolve a loan endpoint while checking authority at every pointer crossing.
+/// This type query does not establish that a carrier or its backing is live.
+pub fn borrowed_referent_type<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+) -> Option<StructuralTypeId> {
+    if !is_address_projection(path) || access == StructuralAccess::Owned {
+        return None;
+    }
+    for (position, segment) in path.iter().enumerate() {
+        if *segment != StructuralPathSegment::Referent {
+            continue;
+        }
+        let reference = referent_type(declarations.clone(), root, &path[..position])?;
+        let declaration = unique_structural_type(declarations.clone(), reference)?;
+        let StructuralTypeShape::Reference {
+            access: permission, ..
+        } = declaration.shape
+        else {
+            return None;
+        };
+        if !(permission == access
+            || permission == StructuralAccess::MutableBorrow
+                && matches!(
+                    access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                ))
+            || permission == StructuralAccess::WriteOnlyBorrow && position + 1 != path.len()
+        {
+            return None;
+        }
+    }
+    referent_type(declarations, root, path)
+}
+
 /// The referent type an address-join argument names: `path` resolved from
 /// `root` through record or selected-case fields and in-bounds fixed indexes.
 /// An element view contributes its own live extent as the index bound. A scalar leaf
@@ -121,6 +173,13 @@ pub fn referent_type<'a>(
             return None;
         }
         let next = match (segment, &current.shape) {
+            (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
+                unique(
+                    &mut declarations
+                        .clone()
+                        .filter(|declaration| declaration.id == *referent),
+                )?
+            }
             (StructuralPathSegment::Field(identity), shape) => {
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,

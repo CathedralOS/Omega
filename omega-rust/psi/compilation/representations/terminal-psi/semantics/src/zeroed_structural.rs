@@ -299,8 +299,8 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                 return None;
             }
         }
-        if let StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } =
-            &declaration.shape
+        if let StructuralTypeShape::Record { fields, .. }
+        | StructuralTypeShape::Mixed { fields, .. } = &declaration.shape
         {
             for field in fields {
                 if let Some(carrier) = established_field_identity(&declarations, field) {

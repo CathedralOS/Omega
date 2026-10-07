@@ -440,10 +440,10 @@ pub enum TargetUnitOperation {
         result_home: crate::TargetStructuralHomeRequirement,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
-    /// Establish one verified reference carrier. `result_home` is the
-    /// carrier's canonical zero-byte metadata home — a custody identity, not
-    /// storage; the referent is located only through `source`, never through
-    /// pointer bits.
+    /// Establish a verified reference in its own descriptor home. Aggregate
+    /// loans retain the backing address; scalar loans additionally retain the
+    /// storage codec. Custody identities constrain authority, while `source`
+    /// forms the actual address once without copying referent contents.
     EstablishReference {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,

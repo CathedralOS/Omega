@@ -29,10 +29,10 @@ pub(super) fn argument(
         .arrival_parameter(semantic.place)
         .ok_or(LegalizationError::custody())?;
     let types = &plan.structural_types;
-    let root_shape =
-        crate::structural_inputs::structural_reference_input::shape(source.structural_type, types)
+    let source_shape =
+        crate::structural_inputs::structural_reference_input::parameter_shape(source, types)
             .ok_or(LegalizationError::custody())?;
-    let source_placement = arrival_source(source, caller, native, root_shape)?;
+    let source_placement = arrival_source(source, caller, native, source_shape)?;
     let byte_field = crate::structural_inputs::structural_reference_input::bounded_byte_view(
         source,
         semantic,
@@ -99,11 +99,10 @@ pub(super) fn argument(
             ),
             _ => return Err(LegalizationError::custody()),
         };
-    let referent =
-        crate::structural_inputs::structural_reference_input::shape(structural_type, types)
-            .ok_or(LegalizationError::custody())?;
     let descriptor = byte_view.is_some() || byte_field.is_some() || element_view.is_some();
-    let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+    let shape =
+        crate::structural_inputs::structural_reference_input::parameter_shape(destination, types)
+            .ok_or(LegalizationError::custody())?;
     if semantic.place != source.place
         || destination.access != semantic.access
         || !matches!(
@@ -169,7 +168,7 @@ fn arrival_source(
     source: &StructuralParameterDeclaration,
     caller: &PsiOptimizationFunction,
     native: &TargetOperationPlan,
-    root_shape: ValueShape,
+    source_shape: ValueShape,
 ) -> Result<TargetStructuralArgumentSource, LegalizationError> {
     let place = caller
         .structural_places
@@ -195,8 +194,7 @@ fn arrival_source(
                 || parameter.access != source.access
                 || parameter.multiplicity != source.multiplicity
                 || parameter.projected_qualifications != source.projected_qualifications
-                || parameter.shape
-                    != ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment)
+                || parameter.shape != source_shape
             {
                 return Err(LegalizationError::custody());
             }

@@ -203,7 +203,6 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
-            | LegalizedScalarInstructionKind::EstablishReference { .. }
             | LegalizedScalarInstructionKind::ReleaseReference { .. }
             | LegalizedScalarInstructionKind::HostedReadByte { .. }
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
@@ -211,6 +210,14 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
             | LegalizedScalarInstructionKind::ElementViewLength { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_) => {}
+            LegalizedScalarInstructionKind::EstablishReference {
+                indices, storage, ..
+            } => {
+                indices.iter().for_each(|index| visit(index.operand.value));
+                if let Some(storage) = storage {
+                    visit(storage.byte_offset);
+                }
+            }
             LegalizedScalarInstructionKind::EstablishElementView {
                 region, indices, ..
             } => {
@@ -383,6 +390,7 @@ pub enum LegalizedScalarInstructionKind {
         result: terminal_psi::StructuralOperationResult,
         source: terminal_psi::StructuralArgument,
         storage: Option<terminal_psi::ReferenceStorageView>,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         shape: calling_conventions::ValueShape,
     },
     /// Close the loan on the carrier at `source`. Custody metadata only;
@@ -967,6 +975,7 @@ mod structural_result_tests {
         let reference = LegalizedScalarInstructionKind::EstablishReference {
             result: expected.clone(),
             storage: None,
+            indices: Vec::new(),
             source: StructuralArgument {
                 place: PlaceId::new(3).unwrap(),
                 path: vec![],

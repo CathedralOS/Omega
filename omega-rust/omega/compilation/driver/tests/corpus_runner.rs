@@ -66,6 +66,12 @@
 //! artifact and records unchecked without a source replay. The check golden's
 //! canonical target and a different runtime target remain distinct program inputs.
 //!
+//! `OMEGA_CORPUS_CHECKED_INTERPRETER=1` explicitly selects the independent
+//! checked-tree source oracle instead of Terminal execution. It records
+//! `interpreter-engine:checked-tree` and consumes the exact selected entry and
+//! provisioned receiver from checked compilation; it is never a fallback for a
+//! Terminal refusal and cannot reuse a native report's Terminal artifact.
+//!
 //! A `rollback.txt` beside `main.omg` declares a release rollback overlay for
 //! the fixture: one exact optimization case name per line, the spelling
 //! `--disable-optimization` takes. The declared `OptimizationRollback` rides
@@ -672,9 +678,13 @@ fn native_launcher(target: &str) -> Option<Vec<&'static str>> {
     None
 }
 
-/// Whether runnable fixtures also execute on the shared Terminal interpreter.
+/// Whether runnable fixtures also execute on the explicitly selected engine.
 fn interpreter_leg() -> bool {
-    env::var_os("OMEGA_CORPUS_INTERPRET").is_some()
+    env::var_os("OMEGA_CORPUS_INTERPRET").is_some() || checked_interpreter_leg()
+}
+
+fn checked_interpreter_leg() -> bool {
+    env::var_os("OMEGA_CORPUS_CHECKED_INTERPRETER").is_some()
 }
 
 /// Both execution legs read independent handles to the same authored byte
@@ -690,9 +700,9 @@ fn fixture_input(fixture_dir: &Path) -> std::io::Result<Box<dyn std::io::Read + 
     }
 }
 
-/// Produce one canonical Terminal artifact with the fixture's exact reviewed
-/// entry/package inputs and rollback overlay, then drive the shared program and
-/// instance lifecycle. There is no checked-tree interpretation fallback.
+/// Dispatch the explicitly selected oracle. Terminal execution owns its canonical
+/// artifact and instance lifecycle; checked execution owns its independent source
+/// product. Both use reviewed fixture inputs, never an engine-refusal fallback.
 fn interpret_fixture(
     root_path: &Path,
     fixture_dir: &Path,
@@ -700,6 +710,9 @@ fn interpret_fixture(
     target: String,
     rollback: Option<&OptimizationRollback>,
 ) -> terminal_execution::Observation {
+    if checked_interpreter_leg() {
+        return interpret_checked_fixture(root_path, fixture_dir, build_dir, &target, rollback);
+    }
     let leg = match produce_terminal_semantic(root_path, build_dir, Some(target), rollback) {
         Ok(leg) => leg,
         Err(errors) => {
@@ -724,6 +737,94 @@ fn interpret_fixture(
         1_000_000,
         input,
     )
+}
+
+/// Run the source-shaped oracle only when the caller explicitly selects it.
+/// Admission, target and entry custody come from the same fixture harness as
+/// every compile leg; no source name or unsupported Terminal result selects it.
+fn interpret_checked_fixture(
+    root_path: &Path,
+    fixture_dir: &Path,
+    build_dir: PathBuf,
+    target: &str,
+    rollback: Option<&OptimizationRollback>,
+) -> terminal_execution::Observation {
+    let compile_checked = || {
+        let prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
+        let snapshot = fixture_build_snapshot(&prepared.root_path)?;
+        let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
+        request.package_inputs = prepared.package_inputs;
+        request.build_snapshot = snapshot;
+        request.build_dir = Some(build_dir.clone());
+        if let Some(rollback) = rollback {
+            request.optimization_rollback = rollback.clone();
+        }
+        compile_to_checked(request)
+    };
+    let checked = compile_checked();
+    let _ = fs::remove_dir_all(&build_dir);
+    let checked = match checked {
+        Ok(checked) => checked,
+        Err(errors) => {
+            return terminal_execution::Observation {
+                facts: vec!["interpreter:unchecked".to_owned()],
+                diagnostics: errors
+                    .iter()
+                    .map(|error| host_free_diagnostic_text(&error.message))
+                    .collect(),
+            };
+        }
+    };
+    let Some(entry) = checked.execution().selected_program_entry.as_ref() else {
+        return terminal_execution::Observation::failure(
+            "checked fixture has no selected ProgramEntry",
+        );
+    };
+    let signature = entry.source_signature();
+    let mut input = match fixture_input(fixture_dir) {
+        Ok(input) => input,
+        Err(error) => return terminal_execution::Observation::failure(error),
+    };
+    let mut input_bytes = Vec::new();
+    if let Err(error) = std::io::Read::read_to_end(&mut input, &mut input_bytes) {
+        return terminal_execution::Observation::failure(error);
+    }
+    let outcome = checked_interpreter::interpret_entry(
+        &checked.execution().program,
+        checked_interpreter::BuildMachineEntry::Symbol(signature.machine_symbol()),
+        &input_bytes,
+        checked_interpreter::InterpretOptions {
+            provisioned_context_parameter: signature.receiver().source_symbol(),
+            ..checked_interpreter::InterpretOptions::default()
+        },
+    );
+    let mut observation = match outcome.error.as_deref() {
+        None => terminal_execution::Observation {
+            facts: vec![format!("interpreter-exit:{}", outcome.exit_code)],
+            diagnostics: Vec::new(),
+        },
+        // The checked engine does not retain a typed Trap outcome. Diagnostic
+        // text cannot satisfy a trap oracle, even for an explicit source crash.
+        Some(error) => {
+            return terminal_execution::Observation {
+                facts: vec!["interpreter:declined".to_owned()],
+                diagnostics: vec![format!("Checked interpreter: {error}")],
+            };
+        }
+    };
+    if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
+        let matches = std::str::from_utf8(&outcome.stdout)
+            .is_ok_and(|actual| actual.replace("\r\n", "\n") == expected.replace("\r\n", "\n"));
+        observation.facts.push(
+            if matches {
+                "interpreter-stdout:match"
+            } else {
+                "interpreter-stdout:differs"
+            }
+            .to_owned(),
+        );
+    }
+    observation
 }
 
 /// Observe the native report's own immutable Terminal product before publication
@@ -1377,7 +1478,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         (_, _, Some((target, executes_here))) => {
             realized = true;
             let build_dir = unique_build_dir(sequence);
-            let interpretation = (interpreter_target.as_ref() == Some(target)).then(|| {
+            let interpretation = (!checked_interpreter_leg()
+                && interpreter_target.as_ref() == Some(target))
+            .then(|| {
                 shared_interpreter_request = true;
                 (fixture_dir.as_path(), &mut interpreter_observation)
             });
@@ -1418,7 +1521,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         // (`CHECK_LEG_TARGET_PREFERENCE`).
         (_, _, _) => {
             let check_target = check_leg_realization_target(main);
-            let interpretation = (check_target.is_some() && check_target == interpreter_target)
+            let interpretation = (!checked_interpreter_leg()
+                && check_target.is_some()
+                && check_target == interpreter_target)
                 .then(|| {
                     shared_interpreter_request = true;
                     (fixture_dir.as_path(), &mut interpreter_observation)
@@ -1472,6 +1577,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     }
     let mut interpreter_diagnostics = Vec::new();
     if interpreter_leg() && tier != "fail" && runnable {
+        if checked_interpreter_leg() {
+            facts.push("interpreter-engine:checked-tree".to_owned());
+        }
         let observation = if let Some(observation) = interpreter_observation {
             observation
         } else if shared_interpreter_request || rollback_error.is_some() {

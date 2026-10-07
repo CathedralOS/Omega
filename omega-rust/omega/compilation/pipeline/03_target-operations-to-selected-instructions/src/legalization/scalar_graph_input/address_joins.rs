@@ -92,13 +92,11 @@ pub(in crate::legalization) fn call_argument(
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;
-    let referent = crate::structural_inputs::structural_reference_input::shape(
+    let shape = crate::structural_inputs::structural_reference_input::internal_borrow_shape(
         selected,
         &plan.structural_types,
     )
     .ok_or(LegalizationError::custody())?;
-    let shape =
-        calling_conventions::ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
     let placement = call
         .parameters
         .get(parameter_ordinal)
@@ -239,7 +237,7 @@ pub(in crate::legalization) fn edge_bindings(
                                 plan,
                             )
                         } else {
-                            abstract_operations::control_flow::address_joins::is_static_projection(
+                            abstract_operations::control_flow::address_joins::is_address_projection(
                                 &binding.argument.path,
                             ) && root_type(
                                 function,
@@ -249,20 +247,16 @@ pub(in crate::legalization) fn edge_bindings(
                                 plan,
                             )
                             .and_then(|root| {
-                                crate::structural_inputs::structural_reference_input::leaf_copy_projection(
-                                    root,
-                                    &binding.argument.path,
-                                    &plan.structural_types,
-                                )
+                                abstract_operations::control_flow::address_joins::borrowed_referent_type(plan.structural_types.iter(), root, &binding.argument.path, binding.argument.access)
                             })
-                            .is_some_and(|(referent, _)| {
+                            .is_some_and(|referent| {
                                 referent == declaration.structural_type
                             })
                         };
                 }
                 binding.parameter == declaration.place
                     && binding.argument.access == declaration.access
-                    && abstract_operations::control_flow::address_joins::is_static_projection(
+                    && abstract_operations::control_flow::address_joins::is_address_projection(
                         &binding.argument.path,
                     )
                     && root_type(
@@ -273,13 +267,9 @@ pub(in crate::legalization) fn edge_bindings(
                         plan,
                     )
                     .and_then(|root| {
-                        crate::structural_inputs::structural_reference_input::project(
-                            root,
-                            &binding.argument.path,
-                            &plan.structural_types,
-                        )
+                        abstract_operations::control_flow::address_joins::borrowed_referent_type(plan.structural_types.iter(), root, &binding.argument.path, binding.argument.access)
                     })
-                    .is_some_and(|(referent, _)| referent == declaration.structural_type)
+                    .is_some_and(|referent| referent == declaration.structural_type)
             })
 }
 

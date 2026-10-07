@@ -139,7 +139,11 @@ fn address_join_argument(
 ) -> bool {
     let argument = &binding.argument;
     if argument.access != parameter.access
-        || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        || !abstract_operations::control_flow::address_joins::is_address_projection(&argument.path)
+        || argument
+            .path
+            .contains(&terminal_psi::StructuralPathSegment::Referent)
+            && !references::reference_loan_source_live(function, live, structural_types, argument)
         || references::is_suspended_root(live, argument.place)
     {
         return false;
@@ -216,8 +220,14 @@ fn address_join_argument(
             })
             .flatten()
     };
-    root_type.and_then(|root| structural_types.subtree(root, &argument.path))
-        == Some(parameter.structural_type)
+    root_type.and_then(|root| {
+        abstract_operations::control_flow::address_joins::borrowed_referent_type(
+            structural_types.values().copied(),
+            root,
+            &argument.path,
+            argument.access,
+        )
+    }) == Some(parameter.structural_type)
 }
 
 /// Carrying an address cannot amplify the source loan's authority. Signature

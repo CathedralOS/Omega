@@ -145,4 +145,18 @@ mod tests {
         assert_eq!(ScalarStorageCodec::decode(768), None);
         assert_ne!(ScalarStorageCodec::Boolean.encode(), Some(1));
     }
+
+    #[test]
+    fn codec_domain_rejects_reserved_bits_and_invalid_geometry() {
+        let mut admitted = 0;
+        for word in 0..=4096 {
+            if let Some(codec) = ScalarStorageCodec::decode(word) {
+                admitted += 1;
+                assert_eq!(codec.encode(), Some(word));
+                assert!((1..=8).contains(&codec.byte_size()));
+            }
+        }
+        assert_eq!(admitted, 20);
+        assert_eq!(ScalarStorageCodec::decode(u64::MAX), None);
+    }
 }

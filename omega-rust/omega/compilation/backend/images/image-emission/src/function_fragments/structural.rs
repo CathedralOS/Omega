@@ -87,6 +87,18 @@ pub(super) fn published_call(
     if contract.call.target.machine().is_none() {
         return false;
     }
+    // Scalar loans transport a descriptor residence, not the backing pointer
+    // described by this legacy mirror. A canonical primitive may stage a new
+    // descriptor while a borrowed scalar forwards its existing one; neither
+    // makes the descriptor's 16 bytes the referent's extent. The retained call
+    // graph owns both forms, their codec and exact frame preparation. Borrowed
+    // callee parameter homes already require that replay at image admission.
+    if contract.call.arguments.iter().any(|argument| {
+        matches!(argument, LegalizedScalarArgument::Structural { target, .. }
+            if target.shape.class == calling_conventions::ValueClass::BorrowedScalarReference)
+    }) {
+        return false;
+    }
     // Cleanup belongs to an edge/action ordinal, not an authored operation or
     // a legacy return-shaped affine-cleanup record. Its complete call contract
     // and instruction remain in the selected graph for every normal edge and

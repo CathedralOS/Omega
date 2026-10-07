@@ -243,10 +243,11 @@ impl TerminalExecution {
             if value.structural_type != parameter.structural_type {
                 return Err(malformed());
             }
-            let (storage, scalar_type, shared_view) = self.primitive_access(
-                argument.place,
-                parameter.access != StructuralAccess::SharedBorrow,
-                &argument.path,
+            let (storage, scalar_type, shared_view) = self.primitive_view_access(
+                &value,
+                &[],
+                expected,
+                parameter.access == StructuralAccess::SharedBorrow,
             )?;
             (value, storage, scalar_type, shared_view)
         };
@@ -304,6 +305,16 @@ impl TerminalExecution {
             // suffix. Its descriptor home is never the referent's storage.
             let referent = self.resolve_live_projection(place, &path[..=crossing], access)?;
             let suffix = &path[crossing + 1..];
+            // A retained byte region selects its scalar interpretation from
+            // the authored catalog, not canonical primitive-place grammar.
+            // Inline integer fields otherwise never reach their stored codec.
+            let mut projected = referent.clone();
+            projected.path.extend_from_slice(suffix);
+            if let Some((storage, scalar_type)) =
+                self.reference_byte_region_access(&referent, &projected)?
+            {
+                return Ok((storage, scalar_type, !writing));
+            }
             let scalar_type = terminal_semantics::primitive_projection_type(
                 self.program.structural_types.values(),
                 referent.structural_type,
@@ -657,9 +668,12 @@ impl TerminalExecution {
                         let mut leaf = projected.clone();
                         leaf.path
                             .push(StructuralPathSegment::Field(field.identity.clone()));
-                        if let Some(storage) =
-                            self.reference_byte_region_access(backing_view, &leaf, scalar_type)?
+                        if let Some((storage, logical_scalar)) =
+                            self.reference_byte_region_access(backing_view, &leaf)?
                         {
+                            if logical_scalar != scalar_type {
+                                return Err(malformed());
+                            }
                             return Ok((storage, scalar_type, shared_view));
                         }
                         return Ok((
@@ -696,7 +710,12 @@ impl TerminalExecution {
         }
         projected.structural_type = carrier;
         let view = &projected;
-        if let Some(storage) = self.reference_byte_region_access(backing_view, view, scalar_type)? {
+        if let Some((storage, logical_scalar)) =
+            self.reference_byte_region_access(backing_view, view)?
+        {
+            if logical_scalar != scalar_type {
+                return Err(malformed());
+            }
             return Ok((storage, scalar_type, shared_view));
         }
         // A callee's whole primitive parameter can be the caller's projected
@@ -920,9 +939,11 @@ impl TerminalExecution {
         let mut leaf = record.clone();
         leaf.path
             .push(StructuralPathSegment::Field(identity.clone()));
-        if let Some(storage) = self.reference_byte_region_access(&record, &leaf, scalar_type)? {
+        if let Some((storage, logical_scalar)) =
+            self.reference_byte_region_access(&record, &leaf)?
+        {
             return self
-                .read_primitive_storage(source, storage, scalar_type, scalar_type, false)
+                .read_primitive_storage(source, storage, logical_scalar, scalar_type, false)
                 .map(Some);
         }
         let cell =

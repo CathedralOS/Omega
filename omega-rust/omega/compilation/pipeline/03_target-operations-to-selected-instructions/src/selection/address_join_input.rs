@@ -1,9 +1,9 @@
 //! Borrowed address joins in legalized input, rejoined for selection.
 //!
 //! An address join (`abstract_operations::control_flow::address_joins`) owns
-//! one 8-byte block slot holding its referent's address. Its block entry
-//! loads that address once, so every later consumer sees the same pointer an
-//! incoming borrowed parameter would supply. Each edge into the join lends a
+//! a block slot holding its referent's address, plus a codec for scalar loans.
+//! Its block entry retains the same carrier an incoming borrowed parameter
+//! would supply. Each edge into the join lends a
 //! root's storage: a pointer already live in the source block, or a
 //! frame-resident home addressed on the edge. Construction and validation
 //! both derive the edge transport here from the legalized function and their
@@ -49,7 +49,7 @@ pub(crate) fn join(
     .then_some((block, parameter))
 }
 
-/// The join's block-owned carrier: exactly one pointer.
+/// The join's block-owned carrier: a thin aggregate pointer or scalar descriptor.
 pub(crate) fn carrier_shape(
     source: &LegalizedScalarFunction,
     parameter: &StructuralParameterDeclaration,
@@ -66,7 +66,14 @@ pub(crate) fn carrier_shape(
 /// The address transport binding `argument` into the join `parameter` of
 /// `target`. `pointers` are the source block's live place pointers and
 /// `local_slots` its declared frame homes.
-pub(crate) fn transport(
+pub(crate) struct AddressJoinProjection {
+    pub(crate) transport: SelectedStructuralTransport,
+    /// Construction scratch: ordered aggregate descriptor loads before the
+    /// final loan endpoint. Scalar descriptors themselves are forwarded intact.
+    pub(crate) descriptor_offsets: Vec<u32>,
+}
+
+pub(crate) fn projection(
     source: &LegalizedScalarFunction,
     target: BlockId,
     parameter: &StructuralParameterDeclaration,
@@ -74,10 +81,10 @@ pub(crate) fn transport(
     pointers: &[(PlaceId, VirtualRegisterId)],
     local_slots: &[SelectedLocalStorageSlot],
     element_views: &[crate::selection::element_view_homes::ElementViewHomes],
-) -> Option<SelectedStructuralTransport> {
+) -> Option<AddressJoinProjection> {
     let signature = source.structural.as_ref()?;
     if argument.access != parameter.access
-        || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        || !abstract_operations::control_flow::address_joins::is_address_projection(&argument.path)
         || join(source, parameter.place)?.0 != target
     {
         return None;
@@ -101,13 +108,51 @@ pub(crate) fn transport(
     let Some(root) = root_type(source, argument.place, argument.access).or_else(owner_home) else {
         return None;
     };
-    let Some((referent, byte_offset)) =
-        crate::structural_inputs::structural_reference_input::leaf_copy_projection(
-            root,
-            &argument.path,
+    let mut projection_root = root;
+    let mut segment_start = 0;
+    let mut descriptor_offsets = Vec::new();
+    let mut retained_scalar_descriptor = None;
+    for (position, segment) in argument.path.iter().enumerate() {
+        if *segment != terminal_psi::StructuralPathSegment::Referent {
+            continue;
+        }
+        let (reference, offset) =
+            crate::structural_inputs::structural_reference_input::leaf_copy_projection(
+                projection_root,
+                &argument.path[segment_start..position],
+                &signature.structural_types,
+            )?;
+        let terminal_psi::StructuralTypeShape::Reference { referent, .. } = signature
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == reference)?
+            .shape
+        else {
+            return None;
+        };
+        if crate::structural_inputs::structural_reference_input::scalar_storage_type(
+            referent,
             &signature.structural_types,
         )
-    else {
+        .is_some()
+        {
+            if position + 1 != argument.path.len() {
+                return None;
+            }
+            retained_scalar_descriptor = Some((referent, offset));
+            break;
+        }
+        descriptor_offsets.push(offset);
+        projection_root = referent;
+        segment_start = position + 1;
+    }
+    let Some((referent, byte_offset)) = retained_scalar_descriptor.or_else(|| {
+        crate::structural_inputs::structural_reference_input::leaf_copy_projection(
+            projection_root,
+            &argument.path[segment_start..],
+            &signature.structural_types,
+        )
+    }) else {
         return None;
     };
     let Some(lent) = crate::structural_inputs::structural_reference_input::shape(
@@ -119,6 +164,30 @@ pub(crate) fn transport(
     if referent != parameter.structural_type {
         return None;
     }
+    let scalar = crate::structural_inputs::structural_reference_input::scalar_storage_type(
+        referent,
+        &signature.structural_types,
+    );
+    let descriptor = retained_scalar_descriptor.is_some()
+        || argument.path.is_empty()
+            && super::reference_input::borrowed_scalar_source(source, argument.place).is_some();
+    let codec = scalar.and_then(|_| {
+        crate::structural_inputs::structural_reference_input::projected_scalar_codec(
+            projection_root,
+            &argument.path[segment_start..],
+            &signature.structural_types,
+        )
+    });
+    let storage_offset = descriptor_offsets.first().copied().unwrap_or(byte_offset);
+    let storage_bytes = if !descriptor_offsets.is_empty() {
+        8
+    } else if descriptor {
+        16
+    } else if let Some(codec) = codec {
+        u32::from(codec.byte_size())
+    } else {
+        lent.byte_size
+    };
     let base = if let Some(view) = element_views
         .iter()
         .find(|view| view.place == argument.place)
@@ -130,43 +199,44 @@ pub(crate) fn transport(
     } else {
         storage_base(
             argument.place,
-            byte_offset,
-            lent.byte_size,
+            storage_offset,
+            storage_bytes,
             pointers,
             local_slots,
         )?
     };
-    if let Some(scalar) = crate::structural_inputs::structural_reference_input::scalar_storage_type(
-        referent,
-        &signature.structural_types,
-    ) {
-        let source = if argument.path.is_empty()
-            && super::reference_input::borrowed_scalar_source(source, argument.place).is_some()
-        {
+    if scalar.is_some() {
+        let source = if descriptor {
             selected_instructions::SelectedScalarReferenceSource::Descriptor
         } else {
             selected_instructions::SelectedScalarReferenceSource::Canonical {
-                codec: runtime_abi::ScalarStorageCodec::from_scalar(scalar)?.encode()?,
+                codec: codec?.encode()?,
             }
         };
-        return Some(SelectedStructuralTransport::ScalarReference {
+        return Some(AddressJoinProjection {
+            transport: SelectedStructuralTransport::ScalarReference {
+                base,
+                byte_offset,
+                source,
+                destination: LocalStorageSlotId::StructuralBlockParameter {
+                    block: target,
+                    place: parameter.place,
+                },
+            },
+            descriptor_offsets,
+        });
+    }
+    Some(AddressJoinProjection {
+        transport: SelectedStructuralTransport::Address {
             base,
             byte_offset,
-            source,
+            byte_count: lent.byte_size,
             destination: LocalStorageSlotId::StructuralBlockParameter {
                 block: target,
                 place: parameter.place,
             },
-        });
-    }
-    Some(SelectedStructuralTransport::Address {
-        base,
-        byte_offset,
-        byte_count: lent.byte_size,
-        destination: LocalStorageSlotId::StructuralBlockParameter {
-            block: target,
-            place: parameter.place,
         },
+        descriptor_offsets,
     })
 }
 

@@ -704,10 +704,15 @@ pub enum MachineEncodedMemoryEffect {
         base_pointer_operand: u16,
         count_operand: u16,
     },
+    /// Read `codec & 255` bytes at the original pointer. The codec operand
+    /// retains an admitted immutable runtime-ABI word, not an arbitrary count.
+    /// Unknown codec values cannot be treated as a fixed carrier-sized access.
     ReadEncodedScalarV1 {
         pointer_operand: u16,
         codec_operand: u16,
     },
+    /// Write the same admitted codec-selected footprint; neither descriptor
+    /// storage nor bytes outside the original backing are written.
     WriteEncodedScalarV1 {
         pointer_operand: u16,
         codec_operand: u16,

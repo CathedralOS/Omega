@@ -29,6 +29,17 @@ impl Evaluator<'_> {
                 .type_reference(destination),
             TypeReferenceNode::Reference { .. }
         ) {
+            if self
+                .capture_reference_view(expression, destination, frame)?
+                .is_some()
+            {
+                // This Value-only seam cannot retain the frame-owned codec and
+                // captured projection. Returning its first-byte Cell as a raw
+                // Ref would lose the encoded endpoint without a diagnostic.
+                return unsupported(
+                    "reference-valued result cannot transport captured storage-view metadata",
+                );
+            }
             // A reference result/field retains the selected Ref, not a scalar
             // observation of its referent. The same selection serves arguments.
             let cell = self.eval_read_cell(expression, frame)?;

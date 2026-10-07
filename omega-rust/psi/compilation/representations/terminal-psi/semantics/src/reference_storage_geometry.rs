@@ -88,7 +88,16 @@ pub fn reference_storage_size<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> Option<u64> {
-    geometry(types, root, &mut Vec::new()).map(|(size, _)| size)
+    reference_storage_layout(types, root).map(|(size, _)| size)
+}
+
+/// Contiguous portable storage size and alignment. An unavailable layout is
+/// not a zero-size region or permission to invent native pointer geometry.
+pub fn reference_storage_layout<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+) -> Option<(u64, u64)> {
+    geometry(types, root, &mut Vec::new())
 }
 
 /// Resolve an already-captured static path. Runtime selectors are frozen into

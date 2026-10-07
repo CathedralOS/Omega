@@ -505,6 +505,18 @@ fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
+            current = match &types
+                .iter()
+                .find(|declaration| declaration.id == current)?
+                .shape
+            {
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element } => *element,
+                _ => return None,
+            };
+            continue;
+        }
         if *segment == StructuralPathSegment::Referent {
             let StructuralTypeShape::Reference { referent, .. } = &types
                 .iter()
@@ -609,7 +621,9 @@ fn direct_storage_type(
     if !source.path.iter().all(|segment| {
         matches!(
             segment,
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::RuntimeIndex { .. }
         )
     }) {
         return None;
@@ -1910,6 +1924,23 @@ pub(in crate::legalization) fn apply_terminator(
                     .iter()
                     .find(|block| block.id == target)
                     .ok_or_else(invalid)?;
+                for binding in bindings {
+                    if binding
+                        .argument
+                        .path
+                        .contains(&StructuralPathSegment::Referent)
+                    {
+                        // Type geometry cannot authenticate a pointer crossing.
+                        // Rejoin the live carrier dependencies before cleanup
+                        // or arrival storage changes their locations.
+                        call_paths::call_reference_custody(
+                            function,
+                            &exit,
+                            types,
+                            &binding.argument,
+                        )?;
+                    }
+                }
                 re_home_bound_leaves(&mut exit, bindings, &destination.structural_parameters);
             }
             apply_cleanup_actions(&mut exit, actions.iter().cloned(), function, types)?;
@@ -2418,13 +2449,14 @@ pub(in crate::legalization) fn referent_argument(
     .ok_or(invalid())?;
     let selected = projection.selected;
     let source_byte_offset = projection.referent_offset;
-    let shape = crate::structural_inputs::structural_reference_input::shape(selected, types)
-        .ok_or(invalid())?;
     if !allowed
         || leaf.referent != referent
         || selected != declaration.structural_type
-        || destination.shape
-            != calling_conventions::ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
+        || Some(destination.shape)
+            != crate::structural_inputs::structural_reference_input::parameter_shape(
+                declaration,
+                types,
+            )
     {
         return Err(invalid());
     }

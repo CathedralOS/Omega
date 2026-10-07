@@ -570,15 +570,20 @@ pub(crate) fn validate_structural_root_operations(
                             structural_types,
                             source,
                         )
-                        .is_some_and(|actual| {
-                            match storage {
-                                Some(storage) => terminal_semantics::reference_storage_source_compatible(
-                                    structural_types.values().copied(), actual, result.structural_type, storage.stored_scalar,
-                                ),
-                                None => terminal_semantics::reference_source_compatible(
-                                    structural_types.values().copied(), actual, result.structural_type,
-                                ),
+                        .is_some_and(|actual| match storage {
+                            Some(storage) => {
+                                terminal_semantics::reference_storage_source_compatible(
+                                    structural_types.values().copied(),
+                                    actual,
+                                    result.structural_type,
+                                    storage.stored_scalar,
+                                )
                             }
+                            None => terminal_semantics::reference_source_compatible(
+                                structural_types.values().copied(),
+                                actual,
+                                result.structural_type,
+                            ),
                         })
                         && crate::unit_validation::references::leaf_access_within(
                             structural_types,

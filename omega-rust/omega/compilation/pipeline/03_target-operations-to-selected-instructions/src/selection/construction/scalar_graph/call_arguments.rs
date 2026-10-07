@@ -170,6 +170,17 @@ fn argument_pointer(
         .path
         .iter()
         .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent));
+    if target.shape.class == calling_conventions::ValueClass::BorrowedReference
+        && !referent
+        && semantic.path.is_empty()
+        && crate::selection::reference_input::borrowed_scalar_source(source, semantic.place)
+            .is_some()
+    {
+        // A foreign thin-pointer ABI has no storage-codec contract. An
+        // internal descriptor cannot be exported as its backing pointer until
+        // that boundary explicitly proves canonical storage interpretation.
+        return Err(SelectedInstructionError::custody());
+    }
     let pointer_place = semantic.place;
     // Whole and field owners use the same read-only presentation. The exact
     // Placement, block coordinate, or home producer is authenticated by the
@@ -184,11 +195,17 @@ fn argument_pointer(
             target,
         )
     };
-    let pointer = if referent {
-        let offset = crate::selection::reference_input::borrowed_argument(source, semantic, target)
-            .filter(|_| indices.is_empty())
-            .ok_or_else(|| SelectedInstructionError::custody())?;
-        structural::reference::borrowed_argument(builder, operation, semantic.place, offset)?
+    let reference = if referent {
+        Some(
+            crate::selection::reference_input::borrowed_argument(source, semantic, target)
+                .filter(|_| indices.is_empty())
+                .ok_or_else(|| SelectedInstructionError::custody())?,
+        )
+    } else {
+        None
+    };
+    let pointer = if let Some(address) = &reference {
+        structural::reference::borrowed_argument(builder, operation, semantic.place, address)?
     } else if !semantic.path.is_empty()
         && (matches!(
             target.source,
@@ -226,7 +243,9 @@ fn argument_pointer(
     };
     let pointer = if target.shape.class == calling_conventions::ValueClass::BorrowedScalarReference
     {
-        if referent
+        if reference
+            .as_ref()
+            .is_some_and(|address| address.scalar_descriptor)
             || semantic.path.is_empty()
                 && crate::selection::reference_input::borrowed_scalar_source(source, semantic.place)
                     .is_some()

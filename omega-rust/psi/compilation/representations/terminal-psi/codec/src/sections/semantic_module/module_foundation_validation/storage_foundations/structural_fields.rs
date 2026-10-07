@@ -216,32 +216,26 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         .and_then(|declaration| match &declaration.shape {
             // A mixed shape's common fields are direct fields at one offset
             // in every case; payload fields stay out of reach of this store.
-            StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
-                fields.iter().find_map(|candidate| {
-                    (candidate.id == *field && !candidate.relevance.is_erased())
-                        .then_some(&candidate.field_type)
-                        .and_then(|field_type| match field_type {
-                            StructuralFieldType::Scalar(scalar_type)
-                                if range_obligation.is_none() =>
-                            {
-                                Some(*scalar_type)
-                            }
-                            field_type
-                                if terminal_semantics::scalar_field_requires_evidence(
-                                    field_type,
-                                ) && range_obligation.is_some() =>
-                            {
-                                field_type.scalar_type()
-                            }
-                            StructuralFieldType::IeeeFloat(format)
-                                if range_obligation.is_none() =>
-                            {
-                                Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
-                            }
-                            _ => None,
-                        })
-                })
-            }
+            StructuralTypeShape::Record { fields, .. }
+            | StructuralTypeShape::Mixed { fields, .. } => fields.iter().find_map(|candidate| {
+                (candidate.id == *field && !candidate.relevance.is_erased())
+                    .then_some(&candidate.field_type)
+                    .and_then(|field_type| match field_type {
+                        StructuralFieldType::Scalar(scalar_type) if range_obligation.is_none() => {
+                            Some(*scalar_type)
+                        }
+                        field_type
+                            if terminal_semantics::scalar_field_requires_evidence(field_type)
+                                && range_obligation.is_some() =>
+                        {
+                            field_type.scalar_type()
+                        }
+                        StructuralFieldType::IeeeFloat(format) if range_obligation.is_none() => {
+                            Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
+                        }
+                        _ => None,
+                    })
+            }),
             _ => None,
         })
     else {

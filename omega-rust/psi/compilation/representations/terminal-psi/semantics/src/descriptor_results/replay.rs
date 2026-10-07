@@ -236,7 +236,8 @@ pub fn descriptor_slots(
                 child.path.push(DescriptorPathSegment::Referent);
                 walk(types, *referent, child, active, result)?;
             }
-            StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
+            StructuralTypeShape::Record { fields, .. }
+            | StructuralTypeShape::Mixed { fields, .. } => {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                     let mut child = location.clone();
                     child.path.push(DescriptorPathSegment::Field(field.id));

@@ -570,8 +570,11 @@ pub(super) fn primitive_argument(
         {
             return Err(LegalizationError::custody());
         }
-        let referent = super::scalar_shape(value.scalar_type).ok_or(LegalizationError::custody())?;
-        let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+        let shape = crate::structural_inputs::structural_reference_input::parameter_shape(
+            destination_parameter,
+            &plan.structural_types,
+        )
+        .ok_or(LegalizationError::custody())?;
         let destination = call
             .parameters
             .get(parameter_ordinal)

@@ -11,9 +11,7 @@ use semantic_vocabulary::{ScalarType, StructuralTypeId};
 /// independent of the logical reference type and grants no access authority.
 pub fn reference_storage_byte_width(stored: ScalarType) -> Option<u8> {
     match stored {
-        ScalarType::Integer(integer)
-            if !integer.is_address() && integer.bits() % 8 == 0 =>
-        {
+        ScalarType::Integer(integer) if !integer.is_address() && integer.bits() % 8 == 0 => {
             u8::try_from(integer.bits() / 8).ok()
         }
         ScalarType::Boolean => Some(1),
@@ -41,7 +39,9 @@ pub fn reference_storage_view_is_compatible(stored: ScalarType, logical: ScalarT
         return false;
     }
     match (stored.sign(), logical.sign()) {
-        (semantic_vocabulary::IntegerSign::Signed, semantic_vocabulary::IntegerSign::Unsigned) => false,
+        (semantic_vocabulary::IntegerSign::Signed, semantic_vocabulary::IntegerSign::Unsigned) => {
+            false
+        }
         (semantic_vocabulary::IntegerSign::Unsigned, semantic_vocabulary::IntegerSign::Signed) => {
             logical.bits() > stored.bits()
         }
@@ -59,24 +59,34 @@ pub fn reference_storage_source_compatible<'types>(
     reference: StructuralTypeId,
     stored: Option<ScalarType>,
 ) -> bool {
-    let Some(StructuralTypeShape::Reference { referent, .. }) = types.clone()
+    let Some(StructuralTypeShape::Reference { referent, .. }) = types
+        .clone()
         .find(|declaration| declaration.id == reference)
         .map(|declaration| &declaration.shape)
-    else { return false; };
-    let Some(StructuralTypeShape::PrimitiveScalar(source)) = types.clone()
+    else {
+        return false;
+    };
+    let Some(StructuralTypeShape::PrimitiveScalar(source)) = types
+        .clone()
         .find(|declaration| declaration.id == source)
         .map(|declaration| &declaration.shape)
-    else { return false; };
+    else {
+        return false;
+    };
     let byte_endpoint = matches!(source, ScalarType::Integer(integer)
         if !integer.is_address() && integer.bits() == 8
             && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
     let Some(target) = types
         .find(|declaration| declaration.id == *referent)
         .map(|declaration| &declaration.shape)
-    else { return false; };
+    else {
+        return false;
+    };
     match (stored, target) {
         (Some(stored), StructuralTypeShape::PrimitiveScalar(logical)) => {
-            (byte_endpoint || source == logical || scalar_reference_view_is_total(*source, *logical))
+            (byte_endpoint
+                || source == logical
+                || scalar_reference_view_is_total(*source, *logical))
                 && reference_storage_view_is_compatible(stored, *logical)
         }
         (None, StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {

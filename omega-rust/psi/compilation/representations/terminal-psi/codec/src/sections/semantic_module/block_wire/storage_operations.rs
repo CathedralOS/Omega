@@ -3,6 +3,7 @@
 //! structural scalar and field reads and stores, and case membership.
 
 use super::super::CodecError;
+use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::super::wire::{Reader, Writer};
 use super::operation_tags;
 use super::{decode_scalar_field_path, encode_scalar_field_path};
@@ -12,9 +13,8 @@ use crate::sections::semantic_module::structural_place_wire::{
 use semantic_vocabulary::CanonicalStructuralPathSegment;
 use semantic_vocabulary::{ObligationId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
 use terminal_psi::OperationKind;
-use terminal_psi::{StructuralArgument, StructuralPathSegment};
 use terminal_psi::ReferenceStorageView;
-use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use terminal_psi::{StructuralArgument, StructuralPathSegment};
 
 pub(super) fn encode_establish_reference(
     writer: &mut Writer,
@@ -54,7 +54,9 @@ pub(super) fn decode_establish_reference(
                 byte_offset: reader.id("ValueId")?,
                 stored_scalar: if reader.boolean()? {
                     Some(decode_scalar_type(reader)?)
-                } else { None },
+                } else {
+                    None
+                },
             })
         } else {
             None

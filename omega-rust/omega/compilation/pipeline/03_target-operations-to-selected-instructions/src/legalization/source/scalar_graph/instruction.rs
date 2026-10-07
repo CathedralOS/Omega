@@ -138,6 +138,7 @@ pub(super) fn project(
             node, optimized, native, plan, unit, operation, custody,
         )?,
         AbstractOperation::EstablishReference {
+            psi_operation,
             result,
             source,
             storage,
@@ -146,6 +147,12 @@ pub(super) fn project(
             result: result.clone(),
             source: source.clone(),
             storage: *storage,
+            indices: crate::legalization::runtime_indices::reference_source(
+                optimized,
+                unit,
+                *psi_operation,
+                source,
+            )?,
             shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
         },
         AbstractOperation::ReleaseReference { source, path, .. } => {

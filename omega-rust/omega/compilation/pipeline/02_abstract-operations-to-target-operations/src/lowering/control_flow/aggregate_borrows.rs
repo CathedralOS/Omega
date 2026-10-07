@@ -175,9 +175,11 @@ pub(super) fn argument(
         path: argument.path.clone(),
         root_structural_type: root_type,
         structural_type: selected,
-        shape: calling_conventions::ValueShape::borrowed_reference(
-            shape.byte_size,
-            shape.alignment,
+        shape: crate::lowering::structural_layout::internal_parameter_shape(
+            selected,
+            shape,
+            argument.access,
+            types,
         ),
         source_byte_offset: offset,
         fixed_array_length: None,
