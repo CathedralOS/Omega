@@ -13,8 +13,7 @@ mod tests;
 use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
 
 use instruction::encode_cfg_instruction;
-pub(crate) use ownership::encode_cleanup;
-pub use ownership::{encode_effect_link, encode_ownership};
+pub use ownership::{encode_cleanup, encode_effect_link, encode_ownership, encode_path};
 pub use provenance::encode_provenance;
 use values::{encode_len, encode_target};
 

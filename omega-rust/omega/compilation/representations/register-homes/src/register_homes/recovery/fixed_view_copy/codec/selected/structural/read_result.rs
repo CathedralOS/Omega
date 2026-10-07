@@ -4,13 +4,14 @@ use semantic_vocabulary::{ClaimId, PlaceId, StructuralDomainId, StructuralTypeId
 use terminal_psi::{StructuralOperationResult, StructuralResultClaimBinding};
 
 use super::calling::decode_shape;
-use super::declarations::{decode_multiplicity, decode_path, encode_multiplicity, encode_path};
+use super::declarations::{decode_multiplicity, decode_path, encode_multiplicity};
 use super::projected_qualifications::{decode_projected, encode_projected};
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_id, decode_ids, encode_ids, length,
 };
 use legalized_operations::encode_shape;
+use selected_instructions::effects::program::identity::encode_path;
 
 pub(super) fn encode(
     bytes: &mut Vec<u8>,

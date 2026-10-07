@@ -7,6 +7,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, encode_call_plan, encode_placement,
 };
+use selected_instructions::effects::program::identity::encode_ownership;
 use selected_instructions::{SelectedCallContract, SelectedInstructionId};
 use semantic_vocabulary::{ClaimId, EdgeId, MachineId, ObligationId, OperationId, ValueId};
 use terminal_psi::ClaimTransfer;

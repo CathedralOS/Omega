@@ -4,10 +4,11 @@ use terminal_psi::StructuralPathQualification;
 
 use crate::FixedViewCopyDecodeError;
 
-use super::declarations::{decode_path, encode_path};
+use super::declarations::decode_path;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_id, length,
 };
+use selected_instructions::effects::program::identity::encode_path;
 
 pub(super) fn encode_projected(
     bytes: &mut Vec<u8>,

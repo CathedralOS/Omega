@@ -3,6 +3,7 @@ use legalized_operations::{
     LegalizedBoundarySettlement, NativeCallOrigin, encode_provider_execution,
 };
 use optimization_unit::{EffectLink, OwnershipEvent};
+use selected_instructions::effects::program::identity::encode_ownership;
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
@@ -19,11 +20,11 @@ use crate::FixedViewCopyDecodeError;
 
 use super::declarations::{
     decode_entry_claim, decode_path, decode_semantic_argument, decode_string, encode_entry_claim,
-    encode_path, encode_semantic_argument, encode_string,
+    encode_semantic_argument, encode_string,
 };
 use super::provider;
 use crate::register_homes::recovery::fixed_view_copy::codec::{
-    primitives::{Cursor, decode_id, decode_ids, encode_ids, length},
+    primitives::{Cursor, decode_id, decode_ids, length},
     selected::provenance::{decode_fuel, encode_fuel},
 };
 
@@ -451,41 +452,6 @@ pub(super) fn decode_effect(
     })
 }
 
-pub(super) fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
-    length(bytes, ownership.len());
-    for event in ownership {
-        match event {
-            OwnershipEvent::ClaimTransfer(claims) => {
-                bytes.push(1);
-                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
-            }
-            OwnershipEvent::ClaimCompletion(claims) => {
-                bytes.push(2);
-                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
-            }
-            OwnershipEvent::Cleanup(actions) => {
-                bytes.push(3);
-                length(bytes, actions.len());
-                for action in actions {
-                    encode_cleanup(bytes, action);
-                }
-            }
-            OwnershipEvent::StructuralReturn(claims) => {
-                bytes.push(4);
-                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
-            }
-            OwnershipEvent::CrashFrontier(claims) => {
-                bytes.push(5);
-                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
-            }
-            OwnershipEvent::ExternalCompletionFrontier(claims) => {
-                bytes.push(6);
-                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
-            }
-        }
-    }
-}
-
 pub(super) fn decode_ownership(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<OwnershipEvent>, FixedViewCopyDecodeError> {
@@ -510,46 +476,6 @@ pub(super) fn decode_ownership(
         });
     }
     Ok(ownership)
-}
-
-fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
-    match action {
-        TerminalAffineCleanupAction::DiscardRoot(place) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&place.get().to_le_bytes());
-        }
-        TerminalAffineCleanupAction::DiscardResidual(discard) => {
-            bytes.push(2);
-            bytes.extend_from_slice(&discard.place.get().to_le_bytes());
-            encode_path(bytes, &discard.path);
-            bytes.extend_from_slice(&discard.structural_type.get().to_le_bytes());
-        }
-        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-            bytes.push(3);
-            bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
-            encode_path(bytes, &cleanup.path);
-            bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
-            bytes.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
-            encode_ids(
-                bytes,
-                cleanup.consumed_claims.iter().map(|claim| claim.get()),
-            );
-            match cleanup.cleanup_receiver {
-                None => bytes.push(0),
-                Some(place) => {
-                    bytes.push(1);
-                    bytes.extend_from_slice(&place.get().to_le_bytes());
-                }
-            }
-            encode_ids(
-                bytes,
-                cleanup
-                    .requirement_obligations
-                    .iter()
-                    .map(|value| value.get()),
-            );
-        }
-    }
 }
 
 pub(in super::super) fn decode_cleanup(

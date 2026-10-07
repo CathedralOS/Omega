@@ -23,6 +23,7 @@ use legalized_operations::{
     encode_machine_function_identity, encode_native_place, encode_placement,
     encode_provider_execution, encode_shape,
 };
+use selected_instructions::effects::program::identity::encode_ownership;
 use selected_instructions::{SelectedInstructionId, SelectedNormalizedForeignCall};
 use semantic_vocabulary::{BoundaryMachineId, OperationId, ScalarType, ValueId};
 use symbols::SymbolHandle;
@@ -42,9 +43,7 @@ use super::{
     call::{decode_runtime_indices, encode_runtime_indices},
     calling::{decode_call_plan, decode_native_place, decode_placement, decode_shape},
     declarations::{decode_string, decode_target_argument, encode_target_argument},
-    settlements::{
-        decode_effect, decode_ownership, decode_provider_execution, encode_effect, encode_ownership,
-    },
+    settlements::{decode_effect, decode_ownership, decode_provider_execution, encode_effect},
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, length},

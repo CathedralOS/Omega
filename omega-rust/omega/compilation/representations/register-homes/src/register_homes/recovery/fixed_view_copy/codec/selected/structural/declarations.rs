@@ -1,4 +1,5 @@
 use legalized_operations::LegalizedCallUnitParameter;
+use selected_instructions::effects::program::identity::encode_path;
 use semantic_vocabulary::{
     AffineConstructionElement, BlockId, IeeeFloatFormat, OperationId, PlaceId, StructuralCaseId,
     StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
@@ -587,37 +588,6 @@ pub(super) fn decode_entry_claim(
         input: decode_id(cursor, PlaceId::new)?,
         path: decode_path(cursor)?,
     })
-}
-
-pub(super) fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
-    length(bytes, path.len());
-    for segment in path {
-        match segment {
-            StructuralPathSegment::Case(case) => {
-                bytes.push(7);
-                bytes.extend_from_slice(&case.get().to_le_bytes());
-            }
-            StructuralPathSegment::Field(value) => {
-                bytes.push(1);
-                encode_string(bytes, value);
-            }
-            StructuralPathSegment::FixedIndex(value) => {
-                bytes.push(2);
-                bytes.extend_from_slice(&value.to_le_bytes());
-            }
-            StructuralPathSegment::Referent => bytes.push(3),
-            StructuralPathSegment::FixedByteRange { start, end } => {
-                bytes.push(4);
-                bytes.extend_from_slice(&start.to_le_bytes());
-                bytes.extend_from_slice(&end.to_le_bytes());
-            }
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                bytes.push(6);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
-            }
-        }
-    }
 }
 
 pub(in super::super) fn decode_path(

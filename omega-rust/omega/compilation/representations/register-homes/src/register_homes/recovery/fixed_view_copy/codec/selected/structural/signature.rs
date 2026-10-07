@@ -6,9 +6,10 @@ use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::{
     decode_entry_claim, decode_multiplicity, decode_parameter, decode_path, decode_place,
     decode_semantic_argument, decode_type, encode_entry_claim, encode_multiplicity,
-    encode_parameter, encode_path, encode_place, encode_semantic_argument, encode_type,
+    encode_parameter, encode_place, encode_semantic_argument, encode_type,
 };
 use legalized_operations::LegalizedStructuralContract;
+use selected_instructions::effects::program::identity::encode_path;
 use semantic_vocabulary::{PlaceId, ServiceId, StructuralDomainId, StructuralTypeId};
 pub(super) fn encode_signature(
     bytes: &mut Vec<u8>,

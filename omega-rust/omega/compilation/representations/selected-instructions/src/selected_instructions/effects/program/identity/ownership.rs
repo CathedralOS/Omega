@@ -38,7 +38,7 @@ pub fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
     }
 }
 
-pub(crate) fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
+pub fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
     match action {
         TerminalAffineCleanupAction::DiscardRoot(place) => {
             bytes.push(1);
@@ -75,7 +75,7 @@ pub(crate) fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanup
     }
 }
 
-pub(crate) fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
+pub fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     encode_len(bytes, path.len());
     for segment in path {
         match segment {

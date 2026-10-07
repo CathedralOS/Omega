@@ -6,9 +6,9 @@ use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::decode_path;
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::decode_place;
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::decode_type;
-use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::encode_path;
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::encode_place;
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::encode_type;
+use selected_instructions::effects::program::identity::encode_path;
 
 #[test]
 fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subject() {
