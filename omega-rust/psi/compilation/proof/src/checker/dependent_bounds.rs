@@ -283,16 +283,18 @@ fn target_enters_state(
 /// EVERY runtime value the field's store-enforced range admits. `None` when
 /// the field is unranged or carries a non-Exact domain (whose range is
 /// deliberately permissive and must never discharge a bound).
-pub(crate) fn dependent_field_floor(
+/// The dependent field-floor spine both floor obligations share — the
+/// obligation types differ only in where the machine name sits.
+fn dependent_field_floor_at(
     proof_plan: &ProofPlan,
-    obligation: &BoundedTransitionArgumentObligation,
+    machine_name: &str,
     max_field: &Identifier,
 ) -> Option<i64> {
     let program = proof_plan.program;
     let machine = program
         .machines()
         .iter()
-        .find(|machine| machine.name.as_str() == obligation.machine.as_str())?;
+        .find(|machine| machine.name.as_str() == machine_name)?;
     let attached = machine.attached_data.as_ref()?;
     let data = program
         .data_definitions()
@@ -301,6 +303,14 @@ pub(crate) fn dependent_field_floor(
     let field_type =
         crate::typed_expressions::data_field_type_by_name(program, data, max_field.as_str())?;
     enforced_literal_range_minimum(program, field_type)
+}
+
+pub(crate) fn dependent_field_floor(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedTransitionArgumentObligation,
+    max_field: &Identifier,
+) -> Option<i64> {
+    dependent_field_floor_at(proof_plan, obligation.machine.as_str(), max_field)
 }
 
 /// The literal Range minimum of a type reference's Constrained shells, ONLY
@@ -352,19 +362,7 @@ pub(crate) fn dependent_call_field_floor(
     obligation: &BoundedCallArgumentObligation,
     max_field: &Identifier,
 ) -> Option<i64> {
-    let program = proof_plan.program;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == obligation.machine.as_str())?;
-    let attached = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
-    let field_type =
-        crate::typed_expressions::data_field_type_by_name(program, data, max_field.as_str())?;
-    enforced_literal_range_minimum(program, field_type)
+    dependent_field_floor_at(proof_plan, obligation.machine.as_str(), max_field)
 }
 
 /// Route (c)'s soundness fence: the argument's own dependent atom speaks of
