@@ -10,9 +10,8 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
-use crate::placements::owned_resident_custody::replay_owned_admission_resources;
+use crate::placements::owned_resident_custody::validate_owned_admission_authority;
 use crate::placements::owned_resident_custody::validate_owned_content_binding;
-use crate::placements::owned_resident_custody::validate_resident_observation;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
 use crate::{
@@ -201,24 +200,16 @@ pub(super) fn validate_owned_atomic_resident_authority(
     content: &ProviderExistingContentGrant,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {
-    let resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
-        AccessPlanDiagnostic(format!(
-            "{transition} could not replay the retained placement authority: {diagnostic}"
-        ))
-    })?;
-    if resources != admission.resources {
-        return Err(AccessPlanDiagnostic(format!(
-            "{transition} replayed resource compatibility differs from the retained admission"
-        )));
-    }
-    validate_owned_content_binding(admission, content).map_err(|diagnostic| {
-        AccessPlanDiagnostic(format!(
-            "{transition} could not replay the retained provider content grant: {diagnostic}"
-        ))
-    })?;
-    validate_resident_observation(
-        &admission.placement_plan,
+    validate_owned_admission_authority(
+        admission,
         ObservationModel::Atomic,
+        |transition| {
+            validate_owned_content_binding(admission, content).map_err(|diagnostic| {
+                AccessPlanDiagnostic(format!(
+                    "{transition} could not replay the retained provider content grant: {diagnostic}"
+                ))
+            })
+        },
         transition,
     )
 }

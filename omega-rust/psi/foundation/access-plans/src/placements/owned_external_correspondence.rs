@@ -13,7 +13,7 @@
 use extents::Extent;
 
 use crate::placements::owned_resident_custody::{
-    replay_owned_admission_resources, validate_resident_observation,
+    validate_owned_admission_authority, validate_resident_observation,
 };
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
@@ -144,20 +144,12 @@ fn validate_owned_external_authority(
     correspondence: &AdmittedSchemaDeviceCorrespondence,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {
-    let resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
-        AccessPlanDiagnostic(format!(
-            "{transition} could not replay the retained placement authority: {diagnostic}"
-        ))
-    })?;
-    if resources != admission.resources {
-        return Err(AccessPlanDiagnostic(format!(
-            "{transition} replayed resource compatibility differs from the retained admission"
-        )));
-    }
-    validate_external_correspondence_binding(admission, correspondence, transition)?;
-    validate_resident_observation(
-        &admission.placement_plan,
+    validate_owned_admission_authority(
+        admission,
         ObservationModel::External,
+        |transition| {
+            validate_external_correspondence_binding(admission, correspondence, transition)
+        },
         transition,
     )
 }

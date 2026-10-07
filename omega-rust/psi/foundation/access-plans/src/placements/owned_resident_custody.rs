@@ -147,9 +147,13 @@ pub(super) fn replay_owned_admission_resources(
     validate_placement_admission(&loan, &admission.placement_plan, &admission.profile)
 }
 
-pub(super) fn validate_owned_resident_authority(
+/// The owned-placement authority replay every model carries: the admission's
+/// resources replay verbatim, then the model's own `binding` (content grant
+/// or schema correspondence), then its resident observation.
+pub(super) fn validate_owned_admission_authority(
     admission: &OwnedPlacementAdmission,
-    content: &ProviderExistingContentGrant,
+    model: ObservationModel,
+    binding: impl FnOnce(&str) -> Result<(), AccessPlanDiagnostic>,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {
     let resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
@@ -162,14 +166,25 @@ pub(super) fn validate_owned_resident_authority(
             "{transition} replayed resource compatibility differs from the retained admission"
         )));
     }
-    validate_owned_content_binding(admission, content).map_err(|diagnostic| {
-        AccessPlanDiagnostic(format!(
-            "{transition} could not replay the retained provider content grant: {diagnostic}"
-        ))
-    })?;
-    validate_resident_observation(
-        &admission.placement_plan,
+    binding(transition)?;
+    validate_resident_observation(&admission.placement_plan, model, transition)
+}
+
+pub(super) fn validate_owned_resident_authority(
+    admission: &OwnedPlacementAdmission,
+    content: &ProviderExistingContentGrant,
+    transition: &str,
+) -> Result<(), AccessPlanDiagnostic> {
+    validate_owned_admission_authority(
+        admission,
         ObservationModel::Stable,
+        |transition| {
+            validate_owned_content_binding(admission, content).map_err(|diagnostic| {
+                AccessPlanDiagnostic(format!(
+                    "{transition} could not replay the retained provider content grant: {diagnostic}"
+                ))
+            })
+        },
         transition,
     )
 }
