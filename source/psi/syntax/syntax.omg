@@ -190,13 +190,47 @@ pub data CrashCause [copy] {
 // Statement syntax. `Let` declares `name` with a type and an optional
 // initializer in `value`; `Assign` stores `value` into the place `target`;
 // `Expression` evaluates `value` for its effect; `Tail` is a body's final
-// unterminated expression, its result; `Crash` ends the body with `cause`.
+// unterminated expression, its result; `Crash` ends the body with `cause`;
+// `Transition` selects among its arms, over the subject in `value` when
+// `has_value` holds.
 pub data StatementKind [copy] {
     case Let;
     case Assign;
     case Expression;
     case Tail;
     case Crash;
+    case Transition;
+}
+
+// One arm of a `transition` block. `Guard` arms (subjectless blocks) hold a
+// Boolean expression in `pattern`; `Wildcard` is `_`; `Literal` holds a
+// literal pattern expression; `Case` holds the case path expression and a
+// contiguous range of `SyntaxTrees::pattern_fields`. `target` is the
+// successor call expression, or zero with `terminal` for `-> {}`.
+pub data ArmPatternKind [copy] {
+    case Guard;
+    case Wildcard;
+    case Literal;
+    case Case;
+}
+
+pub data TransitionArm [copy] {
+    kind: ArmPatternKind;
+    pattern: u64 in Trapping;
+    first_field: u64 in Trapping;
+    field_count: u64 in Trapping;
+    target: u64 in Trapping;
+    terminal: bool;
+    source_span: SourceSpan;
+}
+
+// One field of a case pattern: a binder (`keyword`) or a nested value
+// (`punctuation: PunctuationKind::Comma`).
+pub data PatternField [copy] {
+    name: IdentifierSpan;
+    has_value: bool;
+    value: u64 in Trapping;
+    source_span: SourceSpan;
 }
 
 pub data Statement [copy] {
@@ -208,6 +242,8 @@ pub data Statement [copy] {
     value: u64 in Trapping;
     target: u64 in Trapping;
     cause: CrashCause;
+    first_arm: u64 in Trapping;
+    arm_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -340,6 +376,16 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedCrashCause;
     case ExpectedCrashEnd;
     case StatementCapacityExceeded;
+    case ExpectedTransitionSubject;
+    case ExpectedTransitionArm;
+    case ExpectedTransitionArrow;
+    case ExpectedTransitionTarget;
+    case ExpectedTransitionTargetOpen;
+    case ExpectedTransitionTargetClose;
+    case ExpectedPatternField;
+    case ExpectedPatternFieldEnd;
+    case ArmCapacityExceeded;
+    case PatternFieldCapacityExceeded;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -382,6 +428,10 @@ pub data SyntaxTrees {
     construct_field_count: u64 [0..=512];
     statements: [Statement; 1024] in Trapping;
     statement_count: u64 [0..=1024];
+    arms: [TransitionArm; 1024] in Trapping;
+    arm_count: u64 [0..=1024];
+    pattern_fields: [PatternField; 512] in Trapping;
+    pattern_field_count: u64 [0..=512];
     diagnostic: ParseDiagnostic;
     accepted: bool;
 }
@@ -404,6 +454,8 @@ pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId)
     syntax_trees.argument_count = 0;
     syntax_trees.construct_field_count = 0;
     syntax_trees.statement_count = 0;
+    syntax_trees.arm_count = 0;
+    syntax_trees.pattern_field_count = 0;
     syntax_trees.accepted = true;
     syntax_trees.diagnostic.code = ParseDiagnosticCode::None;
     syntax_trees.diagnostic.source_span.source = source;
@@ -662,6 +714,40 @@ crashes Trap
     }
 
     state invalid() -> u64 in Trapping {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
+crashes Trap
+{
+    transition handle < syntax_trees.arm_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.arms[handle]
+    }
+
+    state invalid() -> TransitionArm {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::pattern_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PatternField
+crashes Trap
+{
+    transition handle < syntax_trees.pattern_field_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.pattern_fields[handle]
+    }
+
+    state invalid() -> PatternField {
         crash Trap;
     }
 }

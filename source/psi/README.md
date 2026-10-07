@@ -14,7 +14,10 @@ same qualifier, and
 whose bodies hold entry statements and then
 `state name [(parameters)] [-> Type] { ... }` members. Statements are
 `let [mut] name: Type [= value];`, `crash Trap;`/`crash Abort;`,
-`place = value;`, `value;` and a final unterminated result expression.
+`place = value;`, `value;`, `transition [subject] { arms }` and a final
+unterminated result expression. Arms are guards in a subjectless block and
+`_`, literal or case patterns (`Path { binder, field: value }`) over a
+subject, each `-> target(arguments)` or `-> {}`.
 Expressions ([`parse/expression.omg`](parse/expression.omg)) cover literals,
 names and `::` paths, `.field`, `[index]`, calls, `as Type` casts,
 `Path { field: value }` constructions, prefix `!`, `-`, `~`, `&` and `&mut`,
@@ -28,7 +31,7 @@ type-reference identity. Empty payload lists and trailing payload commas are
 accepted. Unsupported roots, retired inline discriminants, richer
 property/type forms (arrays, multi-domain unions, ranged suffixes, nested
 references), machine generics, clauses and bodyless declarations, and the
-`transition`, `if`, `loop`, `while`, `match` and `return` statements reject
+`if`, `loop`, `while`, `match` and `return` statements reject
 instead of becoming a private bridge tree.
 
 Name resolution follows parsing over the same unit. It rejects any `use` root,
@@ -87,7 +90,7 @@ observes the diagnostic and every type and domain binding. Lexical or parse
 rejection exits without an observation.
 
 On macOS ARM64 both gates build their harnesses natively from a fresh CLI:
-all 166 parser cases and all 61 resolver cases pass. Each gate counts each
+all 180 parser cases and all 61 resolver cases pass. Each gate counts each
 distinct source it runs as one case. No cached executable may stand in for
 that run. Linux and Windows hosts have run neither gate.
 

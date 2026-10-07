@@ -38,6 +38,8 @@ class Observation:
     arguments: tuple[int, ...] = ()
     construct_fields: tuple[tuple[int, ...], ...] = ()
     statements: tuple[tuple[int, ...], ...] = ()
+    arms: tuple[tuple[int, ...], ...] = ()
+    pattern_fields: tuple[tuple[int, ...], ...] = ()
 
 
 class Reader:
@@ -274,6 +276,35 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    arms = tuple(
+        (
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    pattern_fields = tuple(
+        (
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
         )
         for _ in range(reader.u64())
     )
@@ -299,6 +330,8 @@ def decode(payload: bytes) -> Observation:
         arguments,
         construct_fields,
         statements,
+        arms,
+        pattern_fields,
     )
 
 
@@ -1266,7 +1299,7 @@ def main() -> None:
     rejected(program, "machine-return-type", b"machine f() -> {}", 46, (15, 16))
     rejected(program, "machine-bodyless", b"machine f();", 47, (11, 12))
     rejected(program, "machine-clause", b"machine f() reaches Console {}", 47, (12, 19))
-    rejected(program, "machine-unsupported-statement", b"machine f() { transition {} }", 48, (14, 24))
+    rejected(program, "machine-unsupported-statement", b"machine f() { if x {} }", 48, (14, 16))
     rejected(program, "machine-body-end-at-end", b"machine f() {", 48, (13, 13))
     rejected(program, "state-name", b"machine f() { state }", 49, (20, 21))
     rejected(program, "state-body", b"machine f() { state s() }", 50, (24, 25))
@@ -1330,6 +1363,8 @@ def main() -> None:
         statements: tuple[tuple[int, ...], ...],
         arguments: tuple[int, ...] = (),
         construct_fields: tuple[tuple[int, ...], ...] = (),
+        arms: tuple[tuple[int, ...], ...] = (),
+        pattern_fields: tuple[tuple[int, ...], ...] = (),
     ) -> None:
         status, payload = run(program, source)
         assert status == 0, f"{name}: status {status}"
@@ -1338,6 +1373,8 @@ def main() -> None:
         assert actual.arguments == arguments, f"{name}:\n{actual.arguments}"
         assert actual.construct_fields == construct_fields, f"{name}:\n{actual.construct_fields}"
         assert actual.statements == statements, f"{name}:\n{actual.statements}"
+        assert actual.arms == arms, f"{name}:\n{actual.arms}"
+        assert actual.pattern_fields == pattern_fields, f"{name}:\n{actual.pattern_fields}"
 
     body(
         "precedence-and-tail",
@@ -1349,7 +1386,7 @@ def main() -> None:
             (9, 16, 1, 2, 0, 0, 0, 1, 0, 0, 0, 1, 25, 30),
             (9, 14, 0, 3, 0, 0, 0, 1, 0, 0, 0, 1, 21, 30),
         ),
-        ((4, 1, 0, 0, 0, 0, 1, 4, 0, 1, 1, 21, 30),),
+        ((4, 1, 0, 0, 0, 0, 1, 4, 0, 1, 0, 0, 1, 21, 30),),
     )
     body(
         "logical-tiers",
@@ -1362,7 +1399,7 @@ def main() -> None:
             (1, 0, 0, 0, 2, 1, 0, 1, 49, 50, 0, 1, 49, 50),
             (9, 1, 3, 4, 0, 0, 0, 1, 0, 0, 0, 1, 38, 50),
         ),
-        ((4, 1, 0, 0, 0, 0, 1, 5, 0, 1, 1, 38, 50),),
+        ((4, 1, 0, 0, 0, 0, 1, 5, 0, 1, 0, 0, 1, 38, 50),),
     )
     body(
         "field-index-assignment-and-path-call",
@@ -1380,8 +1417,8 @@ def main() -> None:
             (11, 0, 6, 0, 0, 2, 0, 1, 0, 0, 0, 1, 37, 50),
         ),
         (
-            (2, 1, 0, 0, 0, 0, 1, 5, 1, 1, 1, 23, 36),
-            (3, 1, 0, 0, 0, 0, 1, 9, 0, 1, 1, 37, 51),
+            (2, 1, 0, 0, 0, 0, 1, 5, 1, 1, 0, 0, 1, 23, 36),
+            (3, 1, 0, 0, 0, 0, 1, 9, 0, 1, 0, 0, 1, 37, 51),
         ),
         arguments=(7, 8),
     )
@@ -1397,7 +1434,7 @@ def main() -> None:
             (3, 0, 0, 0, 0, 0, 0, 1, 25, 26, 0, 1, 25, 26),
             (11, 0, 0, 0, 2, 2, 0, 1, 0, 0, 0, 1, 14, 27),
         ),
-        ((3, 1, 0, 0, 0, 0, 1, 6, 0, 1, 1, 14, 28),),
+        ((3, 1, 0, 0, 0, 0, 1, 6, 0, 1, 0, 0, 1, 14, 28),),
         arguments=(2, 3, 4, 5),
     )
     body(
@@ -1409,7 +1446,7 @@ def main() -> None:
             (9, 14, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 26),
             (10, 0, 2, 0, 0, 0, 0, 1, 0, 0, 1, 1, 21, 45),
         ),
-        ((4, 1, 0, 0, 0, 0, 1, 3, 0, 1, 1, 20, 45),),
+        ((4, 1, 0, 0, 0, 0, 1, 3, 0, 1, 0, 0, 1, 20, 45),),
     )
     body(
         "nested-construction-fields-stay-contiguous",
@@ -1422,7 +1459,7 @@ def main() -> None:
             (12, 0, 2, 0, 0, 1, 0, 1, 0, 0, 0, 1, 38, 51),
             (12, 0, 0, 0, 1, 2, 0, 1, 0, 0, 0, 1, 25, 53),
         ),
-        ((1, 1, 18, 19, 0, 0, 1, 5, 0, 1, 1, 14, 54),),
+        ((1, 1, 18, 19, 0, 0, 1, 5, 0, 1, 0, 0, 1, 14, 54),),
         construct_fields=(
             (1, 42, 43, 3, 1, 42, 49),
             (1, 29, 30, 1, 1, 29, 33),
@@ -1439,7 +1476,7 @@ def main() -> None:
             (8, 20, 2, 0, 0, 0, 0, 1, 0, 0, 0, 1, 32, 34),
             (9, 15, 1, 3, 0, 0, 0, 1, 0, 0, 0, 1, 27, 34),
         ),
-        ((4, 1, 0, 0, 0, 0, 1, 4, 0, 1, 1, 27, 34),),
+        ((4, 1, 0, 0, 0, 0, 1, 4, 0, 1, 0, 0, 1, 27, 34),),
     )
     body(
         "borrow-arguments",
@@ -1452,7 +1489,7 @@ def main() -> None:
             (8, 22, 3, 0, 0, 0, 0, 1, 0, 0, 0, 1, 24, 26),
             (11, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 14, 27),
         ),
-        ((3, 1, 0, 0, 0, 0, 1, 5, 0, 1, 1, 14, 28),),
+        ((3, 1, 0, 0, 0, 0, 1, 5, 0, 1, 0, 0, 1, 14, 28),),
         arguments=(2, 4),
     )
     body(
@@ -1460,8 +1497,8 @@ def main() -> None:
         b"machine f() { let mut n: u8; let mut: u8; }",
         (),
         (
-            (1, 1, 22, 23, 1, 0, 0, 0, 0, 1, 1, 14, 28),
-            (1, 1, 33, 36, 0, 1, 0, 0, 0, 1, 1, 29, 41),
+            (1, 1, 22, 23, 1, 0, 0, 0, 0, 1, 0, 0, 1, 14, 28),
+            (1, 1, 33, 36, 0, 1, 0, 0, 0, 1, 0, 0, 1, 29, 41),
         ),
     )
     body(
@@ -1474,12 +1511,123 @@ def main() -> None:
             (1, 0, 0, 0, 1, 1, 0, 1, 48, 49, 0, 1, 48, 49),
         ),
         (
-            (3, 1, 0, 0, 0, 0, 1, 2, 0, 1, 1, 14, 24),
-            (4, 1, 0, 0, 0, 0, 1, 3, 0, 1, 1, 48, 49),
+            (3, 1, 0, 0, 0, 0, 1, 2, 0, 1, 0, 0, 1, 14, 24),
+            (4, 1, 0, 0, 0, 0, 1, 3, 0, 1, 0, 0, 1, 48, 49),
         ),
         arguments=(1,),
     )
-    body("crash-abort", b"machine f() { crash Abort; }", (), ((5, 1, 0, 0, 0, 0, 0, 0, 0, 2, 1, 14, 26),))
+    body("crash-abort", b"machine f() { crash Abort; }", (), ((5, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 14, 26),))
+
+    # Transitions: arm rows carry the pattern kind (guard 1, wildcard 2,
+    # literal 3, case 4), pattern handle, field range, target call handle,
+    # terminal flag and span; pattern fields carry a binder or a value.
+    body(
+        "wildcard-transition",
+        b"machine f() { transition { _ -> g() } state g() {} }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 32, 33, 0, 1, 32, 33),
+            (11, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 32, 35),
+        ),
+        ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 14, 37),),
+        arms=((2, 0, 0, 0, 1, 0, 1, 27, 35),),
+    )
+    body(
+        "subject-literal-and-terminal-arms",
+        b"machine f(x: u8) { transition x < 2 { true -> a(x) _ -> {} } state a(v: u8) {} }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 30, 31, 0, 1, 30, 31),
+            (3, 0, 0, 0, 0, 0, 0, 1, 34, 35, 0, 1, 34, 35),
+            (9, 5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 35),
+            (4, 0, 0, 0, 0, 0, 1, 1, 38, 42, 0, 1, 38, 42),
+            (1, 0, 0, 0, 1, 1, 0, 1, 46, 47, 0, 1, 46, 47),
+            (1, 0, 0, 0, 2, 1, 0, 1, 48, 49, 0, 1, 48, 49),
+            (11, 0, 4, 0, 0, 1, 0, 1, 0, 0, 0, 1, 46, 50),
+        ),
+        ((6, 1, 0, 0, 0, 0, 1, 2, 0, 1, 0, 2, 1, 19, 60),),
+        arguments=(5,),
+        arms=((3, 3, 0, 0, 6, 0, 1, 38, 50), (2, 0, 0, 0, 0, 1, 1, 51, 58)),
+    )
+    body(
+        "case-pattern-binders-and-values",
+        b"machine f(t: Token) { transition t { Token::Identifier -> a() "
+        b"Token::Keyword { keyword } -> b(keyword) "
+        b"Token::Punctuation { punctuation: PunctuationKind::Comma } -> c() _ -> {} } }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 33, 34, 0, 1, 33, 34),
+            (2, 0, 0, 0, 1, 2, 0, 1, 44, 54, 0, 1, 37, 54),
+            (1, 0, 0, 0, 3, 1, 0, 1, 58, 59, 0, 1, 58, 59),
+            (11, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 1, 58, 61),
+            (2, 0, 0, 0, 4, 2, 0, 1, 69, 76, 0, 1, 62, 76),
+            (1, 0, 0, 0, 6, 1, 0, 1, 92, 93, 0, 1, 92, 93),
+            (1, 0, 0, 0, 7, 1, 0, 1, 94, 101, 0, 1, 94, 101),
+            (11, 0, 5, 0, 0, 1, 0, 1, 0, 0, 0, 1, 92, 102),
+            (2, 0, 0, 0, 8, 2, 0, 1, 110, 121, 0, 1, 103, 121),
+            (2, 0, 0, 0, 10, 2, 0, 1, 154, 159, 0, 1, 137, 159),
+            (1, 0, 0, 0, 12, 1, 0, 1, 165, 166, 0, 1, 165, 166),
+            (11, 0, 10, 0, 1, 0, 0, 1, 0, 0, 0, 1, 165, 168),
+        ),
+        ((6, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 1, 22, 178),),
+        arguments=(6,),
+        arms=(
+            (4, 1, 0, 0, 3, 0, 1, 37, 61),
+            (4, 4, 0, 1, 7, 0, 1, 62, 102),
+            (4, 8, 1, 1, 11, 0, 1, 103, 168),
+            (2, 0, 0, 0, 0, 1, 1, 169, 176),
+        ),
+        pattern_fields=((1, 79, 86, 0, 0, 1, 79, 86), (1, 124, 135, 1, 9, 1, 124, 159)),
+    )
+    body(
+        "guard-arms",
+        b"machine f(n: u64) { transition { n == 0 -> a() n > 9 -> b(n - 1) _ -> {} } }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 33, 34, 0, 1, 33, 34),
+            (3, 0, 0, 0, 0, 0, 0, 1, 38, 39, 0, 1, 38, 39),
+            (9, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 39),
+            (1, 0, 0, 0, 1, 1, 0, 1, 43, 44, 0, 1, 43, 44),
+            (11, 0, 3, 0, 0, 0, 0, 1, 0, 0, 0, 1, 43, 46),
+            (1, 0, 0, 0, 2, 1, 0, 1, 47, 48, 0, 1, 47, 48),
+            (3, 0, 0, 0, 0, 0, 0, 1, 51, 52, 0, 1, 51, 52),
+            (9, 7, 5, 6, 0, 0, 0, 1, 0, 0, 0, 1, 47, 52),
+            (1, 0, 0, 0, 3, 1, 0, 1, 56, 57, 0, 1, 56, 57),
+            (1, 0, 0, 0, 4, 1, 0, 1, 58, 59, 0, 1, 58, 59),
+            (3, 0, 0, 0, 0, 0, 0, 1, 62, 63, 0, 1, 62, 63),
+            (9, 15, 9, 10, 0, 0, 0, 1, 0, 0, 0, 1, 58, 63),
+            (11, 0, 8, 0, 0, 1, 0, 1, 0, 0, 0, 1, 56, 64),
+        ),
+        ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 1, 20, 74),),
+        arguments=(11,),
+        arms=(
+            (1, 2, 0, 0, 4, 0, 1, 33, 46),
+            (1, 7, 0, 0, 12, 0, 1, 47, 64),
+            (2, 0, 0, 0, 0, 1, 1, 65, 72),
+        ),
+    )
+    transition_rejections = (
+        ("transition-subject", b"machine f() { transition }", 82, (25, 26), {}),
+        ("transition-open", b"machine f() { transition x }", 83, (27, 28), {"member_count": 1, "expression_count": 1}),
+        ("transition-arm", b"machine f() { transition { -> a() } }", 83, (27, 29), {}),
+        ("transition-arrow", b"machine f() { transition { _ a() } }", 84, (29, 30), {}),
+        ("transition-target", b"machine f() { transition { _ -> } }", 85, (32, 33), {}),
+        ("transition-target-open", b"machine f() { transition { _ -> a } }", 86, (34, 35), {"member_count": 1, "expression_count": 1}),
+        ("transition-terminal-close", b"machine f() { transition { _ -> { x } } }", 87, (34, 35), {}),
+        ("transition-target-callee", b"machine f() { transition { _ -> a.b() } }", 85, (32, 35), {"member_count": 1, "expression_count": 3}),
+        (
+            "pattern-field",
+            b"machine f(t: T) { transition t { A { , } -> a() } }",
+            88,
+            (37, 38),
+            {"member_count": 2, "type_reference_count": 1, "parameter_count": 1, "expression_count": 2},
+        ),
+        (
+            "pattern-field-end",
+            b"machine f(t: T) { transition t { A { x y } -> a() } }",
+            89,
+            (39, 40),
+            {"member_count": 2, "type_reference_count": 1, "parameter_count": 1, "expression_count": 2},
+        ),
+    )
+    for name, source, diagnostic, span, counts in transition_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
 
     # Body rejections keep the nodes completed before the rejected token.
     body_rejections = (

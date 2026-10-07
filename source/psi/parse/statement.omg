@@ -2,15 +2,17 @@ use psi::parse::expression;
 use psi::parse::input;
 use psi::parse::parser;
 use psi::parse::types;
+use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // Statement grammar for machine and state bodies: `let [mut] name: Type
 // [= value];`, `crash Trap;` or `crash Abort;`, `place = value;`, `value;`,
-// and a final unterminated `value` before the body's `}`, its result.
+// `transition [subject] { arms }`, and a final unterminated `value` before
+// the body's `}`, its result.
 // Statements end at the body's `}` or, in a machine body, at its first
 // `state` member; the caller then reads that token. Statement forms of later
-// slices (`transition`, `if`, `loop`, `while`, `match`, `return`) reject with
+// slices (`if`, `loop`, `while`, `match`, `return`) reject with
 // the caller's `unsupported` diagnostic, the body end the grammar expects
 // instead. The range lands in `body_first_statement` and the table count.
 pub machine Parser::parse_statements(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode)
@@ -34,7 +36,7 @@ crashes Trap
             Token::Punctuation { punctuation: PunctuationKind::RightBrace } -> done()
             Token::Keyword { keyword: KeywordKind::State } -> done()
             Token::Keyword { keyword: KeywordKind::Let } -> let_statement(parser, input, unsupported)
-            Token::Keyword { keyword: KeywordKind::Transition } -> reject(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::Transition } -> transition_statement(parser, input, unsupported)
             Token::Keyword { keyword: KeywordKind::If } -> reject(parser, input, unsupported)
             Token::Keyword { keyword: KeywordKind::Loop } -> reject(parser, input, unsupported)
             Token::Keyword { keyword: KeywordKind::While } -> reject(parser, input, unsupported)
@@ -90,6 +92,8 @@ crashes Trap
             value: 0,
             target: 0,
             cause: cause,
+            first_arm: 0,
+            arm_count: 0,
             source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -201,6 +205,8 @@ crashes Trap
             value: value,
             target: 0,
             cause: CrashCause::Trap,
+            first_arm: 0,
+            arm_count: 0,
             source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -273,6 +279,8 @@ crashes Trap
             value: value,
             target: target,
             cause: CrashCause::Trap,
+            first_arm: 0,
+            arm_count: 0,
             source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -289,6 +297,8 @@ crashes Trap
             value: value,
             target: 0,
             cause: CrashCause::Trap,
+            first_arm: 0,
+            arm_count: 0,
             source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -306,6 +316,8 @@ crashes Trap
             value: value,
             target: 0,
             cause: CrashCause::Trap,
+            first_arm: 0,
+            arm_count: 0,
             source_span: Parser::source_span(parser, parser.statement_start, expression.source_span.span.end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
@@ -322,6 +334,513 @@ crashes Trap
         parser.output.statements[parser.output.statement_count] = statement;
         parser.output.statement_count = parser.output.statement_count + 1;
         transition { _ -> next(parser, input, unsupported) }
+    }
+
+    // `transition { guard -> target ... }` or `transition subject { pattern
+    // -> target ... }`. The subject admits no construction: its `{` opens
+    // the arms.
+    state transition_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::take_current(parser, input);
+        let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        transition open {
+            true -> arms_open(parser, input, unsupported, false, 0)
+            _ -> transition_subject(parser, input, unsupported)
+        }
+    }
+
+    state transition_subject(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionSubject, false);
+        transition parser.output.accepted {
+            true -> subject_open(parser, input, unsupported, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    state subject_open(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping) {
+        let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        transition open {
+            true -> arms_open(parser, input, unsupported, true, subject)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTransitionArm)
+        }
+    }
+
+    state arms_open(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping
+    ) {
+        Parser::take_current(parser, input);
+        parser.transition_first_arm = parser.output.arm_count as u64 in Trapping;
+        transition { _ -> arm(parser, input, unsupported, has_subject, subject) }
+    }
+
+    state arm(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping
+    ) {
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        transition closing {
+            true -> transition_close(parser, input, unsupported, has_subject, subject)
+            _ -> arm_start(parser, input, unsupported, has_subject, subject)
+        }
+    }
+
+    state arm_start(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping
+    ) {
+        Parser::load_current(parser, input);
+        transition parser.current_present {
+            true -> arm_pattern(parser, input, unsupported, has_subject, subject)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTransitionArm)
+        }
+    }
+
+    state arm_pattern(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping
+    ) {
+        let token: Token = input.tokens[parser.current_index];
+        parser.arm_start = token.start;
+        let wildcard: bool = Parser::at_word(parser, input, "_");
+        transition wildcard {
+            true -> wildcard_arm(parser, input, unsupported, has_subject, subject)
+            _ -> arm_expression(parser, input, unsupported, has_subject, subject)
+        }
+    }
+
+    state wildcard_arm(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping
+    ) {
+        Parser::take_current(parser, input);
+        transition { _ -> arm_arrow(parser, input, unsupported, has_subject, subject, ArmPatternKind::Wildcard, 0, 0, 0) }
+    }
+
+    state arm_expression(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping
+    ) {
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionArm, false);
+        transition parser.output.accepted {
+            true -> arm_classify(parser, input, unsupported, has_subject, subject, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    // A subjectless block's arms are guards; a subject's arms are case paths
+    // or literal patterns.
+    state arm_classify(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        let expression: Expression = SyntaxTrees::expression(&parser.output, pattern);
+        transition has_subject {
+            true -> subject_pattern(parser, input, unsupported, subject, pattern, expression.kind)
+            _ -> arm_arrow(parser, input, unsupported, false, subject, ArmPatternKind::Guard, pattern, 0, 0)
+        }
+    }
+
+    state subject_pattern(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping,
+        kind: ExpressionKind
+    ) {
+        transition kind {
+            ExpressionKind::Name -> case_pattern(parser, input, unsupported, subject, pattern)
+            ExpressionKind::Path -> case_pattern(parser, input, unsupported, subject, pattern)
+            _ -> arm_arrow(parser, input, unsupported, true, subject, ArmPatternKind::Literal, pattern, 0, 0)
+        }
+    }
+
+    state case_pattern(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        parser.pattern_first_field = parser.output.pattern_field_count as u64 in Trapping;
+        let braced: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        transition braced {
+            true -> pattern_fields_open(parser, input, unsupported, subject, pattern)
+            _ -> arm_arrow(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
+                parser.pattern_first_field, 0)
+        }
+    }
+
+    state pattern_fields_open(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        Parser::take_current(parser, input);
+        transition { _ -> pattern_field_or_end(parser, input, unsupported, subject, pattern) }
+    }
+
+    state pattern_field_or_end(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        transition closing {
+            true -> pattern_fields_close(parser, input, unsupported, subject, pattern)
+            _ -> pattern_field(parser, input, unsupported, subject, pattern)
+        }
+    }
+
+    state pattern_field(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPatternField);
+        transition parser.output.accepted {
+            true -> pattern_field_named(parser, input, unsupported, subject, pattern)
+            _ -> done()
+        }
+    }
+
+    state pattern_field_named(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        parser.pattern_field_start = parser.name_start;
+        parser.pattern_field_end = parser.name_end;
+        let valued: bool = Parser::at_punctuation(parser, input, PunctuationKind::Colon);
+        transition valued {
+            true -> pattern_field_value(parser, input, unsupported, subject, pattern)
+            _ -> pattern_field_store(parser, input, unsupported, subject, pattern, false, 0, parser.pattern_field_end)
+        }
+    }
+
+    state pattern_field_value(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        Parser::take_current(parser, input);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedPatternField, false);
+        transition parser.output.accepted {
+            true -> pattern_field_valued(parser, input, unsupported, subject, pattern, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    state pattern_field_valued(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping,
+        value: u64 in Trapping
+    ) {
+        let expression: Expression = SyntaxTrees::expression(&parser.output, value);
+        transition { _ -> pattern_field_store(parser, input, unsupported, subject, pattern, true, value,
+            expression.source_span.span.end) }
+    }
+
+    state pattern_field_store(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping,
+        has_value: bool,
+        value: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition parser.output.pattern_field_count < 512 {
+            true -> pattern_field_stored(parser, input, unsupported, subject, pattern, has_value, value, end)
+            _ -> reject(parser, input, ParseDiagnosticCode::PatternFieldCapacityExceeded)
+        }
+    }
+
+    state pattern_field_stored(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping,
+        has_value: bool,
+        value: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        parser.output.pattern_fields[parser.output.pattern_field_count] = PatternField {
+            name: Parser::identifier_span(parser, parser.pattern_field_start, parser.pattern_field_end),
+            has_value: has_value,
+            value: value,
+            source_span: Parser::source_span(parser, parser.pattern_field_start, end)
+        };
+        parser.output.pattern_field_count = parser.output.pattern_field_count + 1;
+        let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        transition separator {
+            true -> pattern_field_separator(parser, input, unsupported, subject, pattern)
+            _ -> pattern_field_end(parser, input, unsupported, subject, pattern)
+        }
+    }
+
+    state pattern_field_separator(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        Parser::take_current(parser, input);
+        transition { _ -> pattern_field_or_end(parser, input, unsupported, subject, pattern) }
+    }
+
+    state pattern_field_end(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        transition closing {
+            true -> pattern_fields_close(parser, input, unsupported, subject, pattern)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedPatternFieldEnd)
+        }
+    }
+
+    state pattern_fields_close(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping
+    ) {
+        Parser::take_current(parser, input);
+        let count: u64 in Trapping = (parser.output.pattern_field_count as u64 in Trapping) - parser.pattern_first_field;
+        transition { _ -> arm_arrow(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
+            parser.pattern_first_field, count) }
+    }
+
+    state arm_arrow(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping
+    ) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Arrow, ParseDiagnosticCode::ExpectedTransitionArrow);
+        transition parser.output.accepted {
+            true -> arm_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+            _ -> done()
+        }
+    }
+
+    // A target is a successor call `name(arguments)`, or `{}` to end here.
+    state arm_target(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping
+    ) {
+        let terminal: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        transition terminal {
+            true -> terminal_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+            _ -> call_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+        }
+    }
+
+    state terminal_target(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping
+    ) {
+        Parser::take_current(parser, input);
+        Parser::expect_punctuation(parser, input, PunctuationKind::RightBrace,
+            ParseDiagnosticCode::ExpectedTransitionTargetClose
+        );
+        transition parser.output.accepted {
+            true -> store_arm(parser, input, unsupported, has_subject, subject, TransitionArm {
+                kind: kind,
+                pattern: pattern,
+                first_field: first_field,
+                field_count: field_count,
+                target: 0,
+                terminal: true,
+                source_span: Parser::source_span(parser, parser.arm_start, parser.token_end)
+            })
+            _ -> done()
+        }
+    }
+
+    state call_target(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping
+    ) {
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionTarget, false);
+        transition parser.output.accepted {
+            true -> call_target_shape(parser, input, unsupported, has_subject, subject, kind, pattern, first_field,
+                field_count, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    // Only a call of a bare state or machine name is a target.
+    state call_target_shape(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping,
+        target: u64 in Trapping
+    ) {
+        let call: Expression = SyntaxTrees::expression(&parser.output, target);
+        transition call.kind {
+            ExpressionKind::Call -> call_target_callee(parser, input, unsupported, has_subject, subject, kind, pattern,
+                first_field, field_count, target, call)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTransitionTargetOpen)
+        }
+    }
+
+    state call_target_callee(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping,
+        target: u64 in Trapping,
+        call: Expression
+    ) {
+        let callee: Expression = SyntaxTrees::expression(&parser.output, call.left);
+        transition callee.kind {
+            ExpressionKind::Name -> store_arm(parser, input, unsupported, has_subject, subject, TransitionArm {
+                kind: kind,
+                pattern: pattern,
+                first_field: first_field,
+                field_count: field_count,
+                target: target,
+                terminal: false,
+                source_span: Parser::source_span(parser, parser.arm_start, call.source_span.span.end)
+            })
+            _ -> reject_at(parser, ParseDiagnosticCode::ExpectedTransitionTarget, callee.source_span)
+        }
+    }
+
+    state store_arm(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        arm: TransitionArm
+    ) {
+        transition parser.output.arm_count < 1024 {
+            true -> arm_stored(parser, input, unsupported, has_subject, subject, arm)
+            _ -> reject(parser, input, ParseDiagnosticCode::ArmCapacityExceeded)
+        }
+    }
+
+    state arm_stored(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        arm: TransitionArm
+    ) {
+        parser.output.arms[parser.output.arm_count] = arm;
+        parser.output.arm_count = parser.output.arm_count + 1;
+        transition { _ -> arm(parser, input, unsupported, has_subject, subject) }
+    }
+
+    state transition_close(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping
+    ) {
+        Parser::take_current(parser, input);
+        let statement: Statement = Statement {
+            kind: StatementKind::Transition,
+            name: Parser::identifier_span(parser, 0, 0),
+            is_mutable: false,
+            type_reference: 0,
+            has_value: has_subject,
+            value: subject,
+            target: 0,
+            cause: CrashCause::Trap,
+            first_arm: parser.transition_first_arm,
+            arm_count: (parser.output.arm_count as u64 in Trapping) - parser.transition_first_arm,
+            source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
+        };
+        transition { _ -> store(parser, input, unsupported, statement) }
+    }
+
+    state reject_at(parser: &mut Parser, code: ParseDiagnosticCode, source_span: SourceSpan) {
+        SyntaxTrees::reject(&mut parser.output, code, source_span.source, source_span.span.start, source_span.span.end);
     }
 
     state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {

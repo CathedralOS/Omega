@@ -102,6 +102,11 @@ pub data Parser {
     local_name_start: u64 in Trapping;
     local_name_end: u64 in Trapping;
     local_type: u64 in Trapping;
+    transition_first_arm: u64 in Trapping;
+    arm_start: u64 in Trapping;
+    pattern_first_field: u64 in Trapping;
+    pattern_field_start: u64 in Trapping;
+    pattern_field_end: u64 in Trapping;
     case_start: u64 in Trapping;
     case_keyword_end: u64 in Trapping;
     case_name_start: u64 in Trapping;
