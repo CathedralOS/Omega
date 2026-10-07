@@ -1212,22 +1212,15 @@ fn validate_transition_target(
                 )
                 .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
                 .unwrap_or_default();
-            for (index, argument) in program
-                .statement_table
-                .expression_handles(*arguments)
-                .iter()
-                .enumerate()
-            {
-                validate_call_argument(
-                    program,
-                    machine,
-                    state,
-                    *argument,
-                    declared_parameters.get(index).copied(),
-                    roots,
-                    diagnostics,
-                );
-            }
+            validate_arguments_against_parameters(
+                program,
+                machine,
+                state,
+                program.statement_table.expression_handles(*arguments),
+                &declared_parameters,
+                roots,
+                diagnostics,
+            );
         }
         TransitionTargetNode::Value(value) => {
             validate_expression(program, machine, state, *value, roots, diagnostics)
@@ -1237,6 +1230,31 @@ fn validate_transition_target(
 }
 
 /// The callee parameters an argument list corresponds to, in authored order.
+
+/// Each call argument checked against its positional declared parameter —
+/// the caller resolves the callee state's parameter types when it can.
+fn validate_arguments_against_parameters(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    argument_handles: &[ExpressionHandle],
+    declared_parameters: &[TypeReferenceHandle],
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (index, argument) in argument_handles.iter().enumerate() {
+        validate_call_argument(
+            program,
+            machine,
+            state,
+            *argument,
+            declared_parameters.get(index).copied(),
+            roots,
+            diagnostics,
+        );
+    }
+}
+
 fn declared_state_parameters(program: &TypedTrees, state: &State) -> Vec<TypeReferenceHandle> {
     program
         .state_parameters(state)
@@ -1412,22 +1430,15 @@ fn validate_expression(
                 crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
                     .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
                     .unwrap_or_default();
-            for (index, argument) in program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .enumerate()
-            {
-                validate_call_argument(
-                    program,
-                    machine,
-                    state,
-                    *argument,
-                    declared_parameters.get(index).copied(),
-                    roots,
-                    diagnostics,
-                );
-            }
+            validate_arguments_against_parameters(
+                program,
+                machine,
+                state,
+                program.expression_table.expression_handles(call.arguments),
+                &declared_parameters,
+                roots,
+                diagnostics,
+            );
         }
         ExpressionNode::Range(range) => {
             validate_expression(program, machine, state, range.start, roots, diagnostics);
