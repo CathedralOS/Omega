@@ -8,6 +8,23 @@ use super::{
     lower_boolean_guard, lower_return_expression,
 };
 
+/// The scalar-parameter plus value-binding-local symbol roster every
+/// located expression binding carries.
+fn located_binding_symbols<'a>(
+    scalar_parameters: &'a [typed_trees::signature::StateParameter],
+    locals: &'a [super::ScalarLocal],
+) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
+    scalar_parameters
+        .iter()
+        .map(|parameter| parameter.symbol)
+        .chain(
+            locals
+                .iter()
+                .filter(|local| local.is_value_binding())
+                .map(|local| local.symbol),
+        )
+}
+
 pub(super) fn plan(
     planner: StatementPlanner<'_, '_>,
     transition: &typed_trees::statement::TableTransition,
@@ -100,17 +117,8 @@ pub(super) fn plan(
                 statement_ordinal,
                 role,
                 expression: *expression,
-                symbols: binding_symbols.insert_many(
-                    scalar_parameters
-                        .iter()
-                        .map(|parameter| parameter.symbol)
-                        .chain(
-                            locals
-                                .iter()
-                                .filter(|local| local.is_value_binding())
-                                .map(|local| local.symbol),
-                        ),
-                ),
+                symbols: binding_symbols
+                    .insert_many(located_binding_symbols(scalar_parameters, locals)),
             });
             expressions.push(CheckedLocatedScalarExpression {
                 state: state.symbol,
@@ -221,17 +229,8 @@ pub(super) fn plan(
                 statement_ordinal,
                 role,
                 expression: *argument,
-                symbols: binding_symbols.insert_many(
-                    scalar_parameters
-                        .iter()
-                        .map(|parameter| parameter.symbol)
-                        .chain(
-                            locals
-                                .iter()
-                                .filter(|local| local.is_value_binding())
-                                .map(|local| local.symbol),
-                        ),
-                ),
+                symbols: binding_symbols
+                    .insert_many(located_binding_symbols(scalar_parameters, locals)),
             });
             expressions.push(CheckedLocatedScalarExpression {
                 state: state.symbol,
