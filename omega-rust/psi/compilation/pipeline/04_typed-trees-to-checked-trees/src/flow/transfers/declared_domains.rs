@@ -45,7 +45,7 @@ pub(super) fn establish(
                 validation::find_state_in_machine(program, machine_symbol, state_symbol),
             ) {
                 (Some(machine), Some(state)) => {
-                    crate::facts::field_domain::assignment_target_domain_identities(
+                    validation::field_domains::assignment_target_domain_identities(
                         program,
                         machine,
                         state,
@@ -56,7 +56,7 @@ pub(super) fn establish(
             }
         }
         StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-            crate::facts::field_domain::domain_constraint_identities(program, local.type_reference)
+            validation::field_domains::domain_constraint_identities(program, local.type_reference)
         }
         _ => Vec::new(),
     };
@@ -66,7 +66,7 @@ pub(super) fn establish(
     let declared_target_domains: Vec<_> = declared_target_domains
         .into_iter()
         .filter(|(symbol, _)| {
-            !crate::facts::field_domain::domain_requires_provenance(program, *symbol)
+            !validation::field_domains::domain_requires_provenance(program, *symbol)
         })
         .collect();
     let membership_fact =

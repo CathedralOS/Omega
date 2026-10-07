@@ -491,7 +491,7 @@ pub(super) fn literal_result_operation(
         None if crate::execution::terminal_unit::types::borrowed_slice_view(
             program,
             state.return_type,
-        ) && crate::facts::field_domain::string_literal_grants_view_domains(
+        ) && validation::field_domains::string_literal_grants_view_domains(
             program,
             state.return_type,
             expression,

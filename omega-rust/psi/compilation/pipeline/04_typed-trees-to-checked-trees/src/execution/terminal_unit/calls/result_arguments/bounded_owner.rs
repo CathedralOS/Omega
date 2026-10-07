@@ -109,8 +109,8 @@ pub(super) fn loan(
         return None;
     }
     let declared =
-        crate::facts::field_domain::domain_constraint_symbols(program, local.type_reference);
-    if !crate::facts::field_domain::domain_constraint_symbols(program, parameter.type_reference)
+        validation::field_domains::domain_constraint_symbols(program, local.type_reference);
+    if !validation::field_domains::domain_constraint_symbols(program, parameter.type_reference)
         .iter()
         .all(|domain| declared.contains(domain))
     {

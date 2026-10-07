@@ -66,7 +66,7 @@ pub(super) fn transport(
                         let fact_label = semantic.place_label(program, fact_place);
                         (source_place.is_some_and(|source_place| {
                             semantic.places_match(program, fact_place, source_place)
-                        }) || (!crate::facts::field_domain::domain_requires_provenance(
+                        }) || (!validation::field_domains::domain_requires_provenance(
                             program,
                             domain_symbol,
                         ) && fact_label == source_label))

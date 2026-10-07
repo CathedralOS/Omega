@@ -67,7 +67,6 @@ pub(crate) use multiplicity::{
     nominal_drop_machine_symbol, type_carries_linear_obligation, type_multiplicity,
     type_reference_is_reference,
 };
-pub(crate) use ranges::enter_root_currency_scope;
 pub(crate) use ranges::incoming_guards::IncomingGuardIndexCache;
 
 pub(crate) fn initialize_checked_direct_borrow_resources(

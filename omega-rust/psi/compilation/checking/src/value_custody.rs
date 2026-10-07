@@ -14,6 +14,7 @@ pub(crate) mod destructure;
 pub(crate) mod dispatch_extraction;
 mod executable_value_occurrences;
 pub(crate) mod expression_types;
+pub mod field_domains;
 pub use executable_value_occurrences::{
     collect_executable_value_origins, visit_executable_value_occurrences,
 };

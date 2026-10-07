@@ -22,7 +22,7 @@ pub(super) fn value_proves_qualification(
     if !value_case_path_is_selected(program, facts, state, statement_index, value) {
         return false;
     }
-    if !crate::facts::field_domain::domain_requires_provenance(program, domain) {
+    if !validation::field_domains::domain_requires_provenance(program, domain) {
         return value_proves_domain(program, facts, state, statement_index, value, domain);
     }
     let Some(subject) = validation::canonical_place_from_expression_in_state(
@@ -183,7 +183,7 @@ pub(super) fn construction_value_proves_qualification(
     }) {
         return false;
     }
-    if crate::facts::field_domain::domain_requires_provenance(program, domain) {
+    if validation::field_domains::domain_requires_provenance(program, domain) {
         return subject.as_ref().is_some_and(|subject| {
             super::super::exits::exact_scalar_membership(
                 program, facts, contexts, subject, domain, identity,
@@ -229,7 +229,7 @@ pub(super) fn value_proves_domain_in_contexts(
     if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
         return false;
     }
-    if crate::facts::field_domain::string_literal_expression_grants_domain(
+    if validation::field_domains::string_literal_expression_grants_domain(
         program,
         value,
         domain_symbol,
@@ -246,7 +246,7 @@ pub(super) fn value_proves_domain_in_contexts(
     // here is not on its own a license to overflow the target.
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(value)
         && binary.operator == typed_trees::expression::BinaryOperator::Add
-        && crate::facts::field_domain::domain_is_concat_preserving(program, domain_symbol)
+        && validation::field_domains::domain_is_concat_preserving(program, domain_symbol)
     {
         let (left, right) = (binary.left, binary.right);
         if construction_value_proves_qualification(
@@ -339,7 +339,7 @@ pub(super) fn value_proves_domain_in_contexts(
                 return false;
             }
             if !facts.semantic.domain_implies(fact_domain, domain_symbol)
-                && !crate::facts::field_domain::domain_membership_implies(
+                && !validation::field_domains::domain_membership_implies(
                     program,
                     fact_domain,
                     domain_symbol,
@@ -397,18 +397,18 @@ fn declared_value_domain_implies(
     ) else {
         return false;
     };
-    let Some(value_type) = crate::facts::field_domain::assignment_target_type_reference(
-        program, machine, state, value,
-    ) else {
+    let Some(value_type) =
+        validation::field_domains::assignment_target_type_reference(program, machine, state, value)
+    else {
         return false;
     };
-    crate::facts::field_domain::predicate_domain_constraint_symbols(program, value_type)
+    validation::field_domains::predicate_domain_constraint_symbols(program, value_type)
         .into_iter()
         .filter(|value_domain| {
-            crate::facts::field_domain::domain_admits_empty_byte_sequence(program, *value_domain)
+            validation::field_domains::domain_admits_empty_byte_sequence(program, *value_domain)
         })
         .any(|value_domain| {
-            crate::facts::field_domain::domain_membership_implies(
+            validation::field_domains::domain_membership_implies(
                 program,
                 value_domain,
                 domain_symbol,
@@ -432,10 +432,10 @@ fn value_call_return_domain_implies(
     if !target.return_type.is_valid() {
         return false;
     }
-    crate::facts::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
+    validation::field_domains::predicate_domain_constraint_symbols(program, target.return_type)
         .into_iter()
         .any(|return_domain| {
-            crate::facts::field_domain::domain_membership_implies(
+            validation::field_domains::domain_membership_implies(
                 program,
                 return_domain,
                 domain_symbol,
@@ -533,13 +533,13 @@ fn recast_source_declared_domain_implies(
     // domain is a valid invariant only when the zero value provably satisfies
     // it.
     if let Some(leaf_type) =
-        crate::facts::field_domain::attached_data_field_type(program, machine, source)
+        validation::field_domains::attached_data_field_type(program, machine, source)
     {
-        return crate::facts::field_domain::predicate_domain_constraint_symbols(program, leaf_type)
+        return validation::field_domains::predicate_domain_constraint_symbols(program, leaf_type)
             .into_iter()
             .any(|source_domain| {
                 domain_admits_zero_value(program, source_domain)
-                    && crate::facts::field_domain::domain_membership_implies(
+                    && validation::field_domains::domain_membership_implies(
                         program,
                         source_domain,
                         domain_symbol,
@@ -547,16 +547,16 @@ fn recast_source_declared_domain_implies(
             });
     }
     let Some(leaf_type) =
-        crate::facts::field_domain::direct_state_place_type_reference(program, state, source)
+        validation::field_domains::direct_state_place_type_reference(program, state, source)
     else {
         return false;
     };
     let established = state_place_is_established(program, state, source);
-    crate::facts::field_domain::predicate_domain_constraint_symbols(program, leaf_type)
+    validation::field_domains::predicate_domain_constraint_symbols(program, leaf_type)
         .into_iter()
         .any(|source_domain| {
             (established || domain_admits_zero_value(program, source_domain))
-                && crate::facts::field_domain::domain_membership_implies(
+                && validation::field_domains::domain_membership_implies(
                     program,
                     source_domain,
                     domain_symbol,
@@ -633,7 +633,7 @@ fn domain_admits_zero_value_inner(
     domain_symbol: SymbolHandle,
     active: &mut Vec<SymbolHandle>,
 ) -> bool {
-    if crate::facts::field_domain::domain_admits_empty_byte_sequence(program, domain_symbol) {
+    if validation::field_domains::domain_admits_empty_byte_sequence(program, domain_symbol) {
         return true;
     }
     if active.contains(&domain_symbol) {
@@ -755,6 +755,6 @@ fn value_declared_type_carries_domain(
     else {
         return false;
     };
-    crate::facts::field_domain::domain_constraint_symbols(program, type_reference)
+    validation::field_domains::domain_constraint_symbols(program, type_reference)
         .contains(&domain_symbol)
 }

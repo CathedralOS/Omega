@@ -1,5 +1,4 @@
 //! Live attached-field facts at ordinary state edges. No declaration seeds them.
-use crate::facts::field_domain::ByteSequencePredicate;
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
 use arena::HandleSpan;
@@ -9,6 +8,7 @@ use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
 use symbols::SymbolHandle;
+use validation::field_domains::ByteSequencePredicate;
 
 /// Identifies one incoming edge's contribution to a joined field row. A
 /// transition edge keys on its source state and arm target; a call-derived
@@ -215,7 +215,7 @@ fn root_data_definition<'program>(
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == symbol)?;
-    crate::facts::field_domain::readable_nominal_definition(program, parameter.type_reference)
+    validation::field_domains::readable_nominal_definition(program, parameter.type_reference)
 }
 
 /// The declared primitive extent of a field path, when it resolves to a
@@ -245,7 +245,7 @@ fn carrier_integer_range(
             })?;
         reference = Some(next);
         if index + 1 < segments.len() {
-            data = crate::facts::field_domain::data_definition_for_field_type(program, next)?;
+            data = validation::field_domains::data_definition_for_field_type(program, next)?;
         }
     }
     let primitive = program.primitive_type_reference(reference?)?;

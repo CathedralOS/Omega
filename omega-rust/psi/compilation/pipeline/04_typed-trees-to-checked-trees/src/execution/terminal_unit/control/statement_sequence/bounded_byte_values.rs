@@ -37,7 +37,7 @@ pub(in crate::execution::terminal_unit) fn value_plan(
         return None;
     };
     let domains =
-        crate::facts::field_domain::domain_constraint_symbols(program, local.type_reference);
+        validation::field_domains::domain_constraint_symbols(program, local.type_reference);
     let plain_byte_domain = |symbol| {
         program
             .domain_definitions()
@@ -98,7 +98,7 @@ pub(in crate::execution::terminal_unit) fn expression_octets(
     if u64::try_from(bytes.len()).ok()? > capacity {
         return None;
     }
-    let domains = crate::facts::field_domain::domain_constraint_symbols(program, reference);
+    let domains = validation::field_domains::domain_constraint_symbols(program, reference);
     let plain_literal_domain = |symbol| {
         program
             .domain_definitions()
@@ -108,7 +108,7 @@ pub(in crate::execution::terminal_unit) fn expression_octets(
                 domain.establishment_routes.is_empty()
                     && domain.semantic_roles == Default::default()
             })
-            && crate::facts::field_domain::string_literal_expression_grants_domain(
+            && validation::field_domains::string_literal_expression_grants_domain(
                 program, expression, symbol,
             )
     };

@@ -55,7 +55,7 @@ impl Execution<'_, '_, '_> {
             .program
             .primitive_type_reference(reference)
             .map(|_| {
-                crate::facts::field_domain::domain_constraint_identities(self.program, reference)
+                validation::field_domains::domain_constraint_identities(self.program, reference)
             })
             .unwrap_or_default();
         let mut predicates = Vec::new();

@@ -1186,7 +1186,7 @@ pub(crate) fn byte_sequence_literal_argument(
             // This is construction at the formal, not ownership of immutable
             // image storage. Lowering must establish fresh bounded backing.
             for symbol in
-                crate::facts::field_domain::domain_constraint_symbols(program, parameter_type)
+                validation::field_domains::domain_constraint_symbols(program, parameter_type)
             {
                 let domain = program
                     .domain_definitions()
@@ -1194,7 +1194,7 @@ pub(crate) fn byte_sequence_literal_argument(
                     .find(|domain| domain.symbol == symbol)?;
                 if !domain.establishment_routes.is_empty()
                     || domain.semantic_roles != Default::default()
-                    || !crate::facts::field_domain::string_literal_expression_grants_domain(
+                    || !validation::field_domains::string_literal_expression_grants_domain(
                         program, expression, symbol,
                     )
                 {

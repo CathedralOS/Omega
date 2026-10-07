@@ -221,10 +221,9 @@ pub(super) fn collect_state_argument_facts<'program>(
     let mut contributions = vec![Vec::new(); states.len()];
     let mut dirty = vec![false; states.len()];
     dirty[0] = true;
-    // One lazy whole-program bound index for the whole propagation fixpoint:
-    // the bound maps are program data, so every pass and state shares the
-    // cell and the maps build at most once for the walk.
-    let bound_lookup = std::rc::Rc::new(std::cell::RefCell::new(None));
+    // Every propagation pass borrows the same worker-owned declaration lookup;
+    // flow facts remain independent snapshots for each state and branch.
+    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     for _ in 0..MAX_PROPAGATION_PASSES {
         for (state_index, (state, calls)) in states.iter().zip(calls).enumerate() {
             if !dirty[state_index] {
@@ -241,9 +240,7 @@ pub(super) fn collect_state_argument_facts<'program>(
                 state,
                 call_frames,
             };
-            let mut facts = RangeFacts::new(field_lengths);
-            facts.bound_program = Some(program);
-            facts.bound_lookup = bound_lookup.clone();
+            let mut facts = RangeFacts::new(field_lengths, &bound_lookup);
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_calls = Some(calls);
             facts.checked_operators = Some(operators);

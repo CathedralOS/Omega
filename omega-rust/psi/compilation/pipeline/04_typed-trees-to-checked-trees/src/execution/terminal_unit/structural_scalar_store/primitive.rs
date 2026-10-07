@@ -386,7 +386,7 @@ pub(in crate::execution::terminal_unit) fn checked_unit_path(
                 let field = fields.next()?;
                 if fields.next().is_some()
                     || field.relevance.is_erased()
-                    || !crate::facts::field_domain::domain_constraint_symbols(
+                    || !validation::field_domains::domain_constraint_symbols(
                         program,
                         field.type_reference,
                     )

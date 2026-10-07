@@ -212,7 +212,7 @@ fn carried_domain_membership_at_place(
                                 &candidate.segments,
                                 &subject.segments,
                             )
-                            && crate::facts::field_domain::domain_membership_implies(
+                            && validation::field_domains::domain_membership_implies(
                                 program,
                                 candidate_domain,
                                 domain,
@@ -269,7 +269,7 @@ pub(in crate::checks::contracts) fn byte_predicate_proven_at_place(
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,
-    required: crate::facts::field_domain::ByteSequencePredicate,
+    required: validation::field_domains::ByteSequencePredicate,
 ) -> bool {
     contexts.iter().any(|context| {
         semantic
@@ -302,8 +302,7 @@ impl AssignedValues<'_> {
     /// across `buffer[i] = byte`. A domain that is not exactly one recognized
     /// byte predicate is never reached this way.
     fn byte_predicate(&self, subject: &CanonicalPlace, symbol: SymbolHandle) -> bool {
-        let Some(required) =
-            crate::facts::field_domain::domain_byte_predicate(self.program, symbol)
+        let Some(required) = validation::field_domains::domain_byte_predicate(self.program, symbol)
         else {
             return false;
         };
@@ -346,7 +345,7 @@ impl AssignedValues<'_> {
             return false;
         };
         if let Some(literal) = self.literal(subject)
-            && crate::facts::field_domain::string_literal_expression_grants_domain(
+            && validation::field_domains::string_literal_expression_grants_domain(
                 self.program,
                 literal,
                 symbol,

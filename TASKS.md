@@ -3025,12 +3025,16 @@ of a check the same flow already performed, not the check itself.
   restore guards and direct operational inference state are removed; completed
   cleanup effects are explicit checking inputs. Declaration relationships stay
   typed-owned, custody and call-signature answers stay invocation-owned, and the
-  intermediate conformance-carrier cache is gone. Remove the remaining
-  return-range, root-currency, field-domain and structural-roster
-  `thread_local!`/`RefCell` caches; durable declaration indexes belong to the
-  frozen typed arenas, while transient query state belongs to the checker or
-  worker invocation. Do not preserve program identity/fingerprint invalidation
-  as a replacement global cache, and do not port runtime borrow checking into
+  intermediate conformance-carrier cache is gone. Root currency reads authored
+  spans directly; field-domain queries live with custody checking and use
+  invocation-owned rows; structural declaration relationships use typed-owned
+  indexes, without copied machine/data rosters or parameter fingerprints.
+  Range branches borrow a worker-owned bound lookup; contract evaluation uses
+  ordinary mutable recursion stacks; return-body inference carries its capture
+  policy explicitly. The whole checking/stage-04 source guard rejects ambient
+  caches and runtime borrow cells. Qualify this working-state cut on the full
+  source corpus and focused native cohort before completing the remaining
+  once-only specialization admission. Do not port runtime borrow checking into
   Omega.
 
   Acceptance: the immutable-boundary source guard, full check corpus and focused

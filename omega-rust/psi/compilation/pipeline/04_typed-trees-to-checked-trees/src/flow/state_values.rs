@@ -51,7 +51,7 @@ pub(super) fn field_predicate_ceiling<'a>(
     state: SymbolHandle,
     root: facts::PlaceRoot,
     segments: &[facts::PlaceSegment],
-) -> &'a [crate::facts::field_domain::ByteSequencePredicate] {
+) -> &'a [validation::field_domains::ByteSequencePredicate] {
     let field = build
         .state_value_inputs
         .iter()

@@ -74,15 +74,6 @@ pub(crate) fn ensured_call_result_interval(
     (interval != Interval::UNBOUNDED).then_some(interval)
 }
 
-thread_local! {
-    /// One-level recursion guard for return-range INFERENCE (ch15 stage 2). While
-    /// inferring a callee's return interval we analyze its body; if that body
-    /// calls another machine, we must NOT recurse into inference again (would
-    /// loop on recursive/mutually-recursive callees). The nested call simply
-    /// stays NEUTRAL.
-    static INFERRING_RETURN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
 /// Infer a normal-return bound from a fully captured callee body. A declared
 /// return range remains in force; this query can only supply a tighter bound
 /// for the current invocation. Immutable scalar actuals carry copied values,
@@ -101,9 +92,6 @@ pub(crate) fn infer_return_interval(
     actuals: &[(symbols::SymbolHandle, Interval)],
 ) -> Option<Interval> {
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
-    if INFERRING_RETURN.with(std::cell::Cell::get) {
-        return None;
-    }
     let statements = program
         .statement_table
         .statements(callee_state.statement_nodes);
@@ -159,7 +147,6 @@ pub(crate) fn infer_return_interval(
             );
         }
     }
-    INFERRING_RETURN.with(|flag| flag.set(true));
     let mut union: Option<Interval> = None;
     let mut clean = true;
     for expression in return_expressions {
@@ -173,6 +160,7 @@ pub(crate) fn infer_return_interval(
             target_primitive,
             ArithmeticDomain::Exact,
             "inferred return",
+            false,
             &mut throwaway,
         )
         .value;
@@ -185,7 +173,6 @@ pub(crate) fn infer_return_interval(
             None => analysis.interval,
         });
     }
-    INFERRING_RETURN.with(|flag| flag.set(false));
     if !clean {
         return None;
     }

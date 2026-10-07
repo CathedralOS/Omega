@@ -16,7 +16,6 @@ use members::{
     has_builtin_index_meaning,
 };
 use operands::{collect_operand_reads, collect_place_read, validate_place_read};
-pub(crate) use root_currency::enter_root_currency_scope;
 pub(super) use root_currency::root_is_current;
 
 pub(super) fn collect_reads<'a, 'b>(

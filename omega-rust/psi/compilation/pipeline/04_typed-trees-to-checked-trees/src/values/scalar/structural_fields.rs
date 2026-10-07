@@ -14,199 +14,7 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
-// Structural readers resolve symbols, locals, owners and parameter lists by
-// rescanning whole program rosters per occurrence. The maps below collect
-// each roster once per program snapshot: machine symbol -> every position
-// (duplicates preserved for the ambiguity checks), immutable-view local
-// symbol -> (machine, state, statement), data definition -> positions by
-// symbol plus first position by name, and a parameter-list fingerprint ->
-// (machine, state) for exact self-parameter identification.
-struct StructuralRosters {
-    machines: std::collections::HashMap<symbols::SymbolHandle, Vec<u32>>,
-    locals: std::collections::HashMap<symbols::SymbolHandle, Vec<(u32, u32, u32)>>,
-    data_by_symbol: std::collections::HashMap<symbols::SymbolHandle, Vec<u32>>,
-    data_by_name: std::collections::HashMap<Box<str>, u32>,
-    states_by_parameters: std::collections::HashMap<usize, Vec<(u32, u32)>>,
-    states_by_parameter_symbols: std::collections::HashMap<usize, Vec<(u32, u32)>>,
-    // (data, member) positions; variants hold payload fields separately so
-    // field entries carry (data, member, payload-or-u32::MAX-for-direct).
-    variant_by_symbol: std::collections::HashMap<symbols::SymbolHandle, (u32, u32)>,
-    variant_by_name: std::collections::HashMap<Box<str>, Vec<(u32, u32)>>,
-    field_by_symbol: std::collections::HashMap<symbols::SymbolHandle, Vec<(u32, u32, u32)>>,
-}
-
-fn parameters_fingerprint(parameters: &[StateParameter]) -> usize {
-    let mut fingerprint = parameters.len();
-    for parameter in parameters {
-        fingerprint = fingerprint.rotate_left(7)
-            ^ parameter.symbol.arena_index() as usize
-            ^ (parameter.type_reference.arena_index() as usize).rotate_left(13)
-            ^ (parameter.is_mutable as usize).rotate_left(2)
-            ^ (parameter.is_const as usize).rotate_left(3);
-    }
-    fingerprint
-}
-
-fn parameter_symbols_fingerprint(parameters: &[StateParameter]) -> usize {
-    let mut fingerprint = parameters.len();
-    for parameter in parameters {
-        fingerprint = fingerprint.rotate_left(7) ^ parameter.symbol.arena_index() as usize;
-    }
-    fingerprint
-}
-
-fn structural_rosters_revision(program: &dyn ::validation::CheckingInput) -> u64 {
-    // Freshness is the sum of the revisions of every arena the rosters read.
-    // Each arena's revision only ever moves forward — appends, frees, and
-    // in-place rewrites alike — so the sum moves exactly when a read table
-    // changes; a same-length mutation or a clone mutated after cloning can
-    // never be served the stale map.
-    program
-        .tables
-        .machines
-        .revision()
-        .wrapping_add(program.tables.machine_states.revision())
-        .wrapping_add(program.tables.state_parameters.revision())
-        .wrapping_add(program.statement_table.revision())
-        .wrapping_add(program.tables.data_definitions.revision())
-        .wrapping_add(program.tables.data_members.revision())
-        .wrapping_add(program.tables.data_payload_fields.revision())
-}
-
-thread_local! {
-    static STRUCTURAL_ROSTERS: std::cell::RefCell<
-        Option<(typed_trees::ProgramIdentity, u64, StructuralRosters)>,
-    > = const { std::cell::RefCell::new(None) };
-}
-
-fn with_structural_rosters<R>(
-    program: &dyn ::validation::CheckingInput,
-    reader: impl FnOnce(&StructuralRosters) -> R,
-) -> R {
-    STRUCTURAL_ROSTERS.with(|slot| {
-        let mut slot = slot.borrow_mut();
-        let machines = program.machines();
-        let revision = structural_rosters_revision(program);
-        let fresh = slot.as_ref().is_some_and(|(owner, seen, _)| {
-            owner.get() == program.identity.get() && *seen == revision
-        });
-        if !fresh {
-            let mut rosters = StructuralRosters {
-                machines: std::collections::HashMap::with_capacity(machines.len()),
-                locals: std::collections::HashMap::new(),
-                data_by_symbol: std::collections::HashMap::new(),
-                data_by_name: std::collections::HashMap::new(),
-                states_by_parameters: std::collections::HashMap::new(),
-                states_by_parameter_symbols: std::collections::HashMap::new(),
-                variant_by_symbol: std::collections::HashMap::new(),
-                variant_by_name: std::collections::HashMap::new(),
-                field_by_symbol: std::collections::HashMap::new(),
-            };
-            for (machine_index, machine) in machines.iter().enumerate() {
-                rosters
-                    .machines
-                    .entry(machine.symbol)
-                    .or_default()
-                    .push(machine_index as u32);
-                for (state_index, state) in program.machine_states(machine).iter().enumerate() {
-                    let state_parameters = program.state_parameters(state);
-                    rosters
-                        .states_by_parameters
-                        .entry(parameters_fingerprint(state_parameters))
-                        .or_default()
-                        .push((machine_index as u32, state_index as u32));
-                    rosters
-                        .states_by_parameter_symbols
-                        .entry(parameter_symbols_fingerprint(state_parameters))
-                        .or_default()
-                        .push((machine_index as u32, state_index as u32));
-                    for (statement_index, statement) in program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .iter()
-                        .enumerate()
-                    {
-                        if let typed_trees::statement::StatementNode::LocalData(local) = statement {
-                            rosters.locals.entry(local.symbol).or_default().push((
-                                machine_index as u32,
-                                state_index as u32,
-                                statement_index as u32,
-                            ));
-                        }
-                    }
-                }
-            }
-            for (data_index, definition) in program.data_definitions().iter().enumerate() {
-                rosters
-                    .data_by_symbol
-                    .entry(definition.symbol)
-                    .or_default()
-                    .push(data_index as u32);
-                rosters
-                    .data_by_name
-                    .entry(definition.name.as_str().into())
-                    .or_insert(data_index as u32);
-                for (member_index, member) in program.data_members(definition).iter().enumerate() {
-                    match member {
-                        typed_trees::data::DataMember::Field(field) => {
-                            rosters
-                                .field_by_symbol
-                                .entry(field.symbol)
-                                .or_default()
-                                .push((data_index as u32, member_index as u32, u32::MAX));
-                        }
-                        typed_trees::data::DataMember::Variant(variant) => {
-                            rosters
-                                .variant_by_symbol
-                                .entry(variant.symbol)
-                                .or_insert((data_index as u32, member_index as u32));
-                            rosters
-                                .variant_by_name
-                                .entry(variant.name.as_str().into())
-                                .or_default()
-                                .push((data_index as u32, member_index as u32));
-                            for (payload_index, field) in
-                                program.data_payload_fields(variant).iter().enumerate()
-                            {
-                                rosters
-                                    .field_by_symbol
-                                    .entry(field.symbol)
-                                    .or_default()
-                                    .push((
-                                        data_index as u32,
-                                        member_index as u32,
-                                        payload_index as u32,
-                                    ));
-                            }
-                        }
-                    }
-                }
-            }
-            *slot = Some((program.identity, revision, rosters));
-        }
-        reader(&slot.as_ref().expect("rosters just populated").2)
-    })
-}
-
-fn machine_positions_by_symbol(
-    program: &dyn ::validation::CheckingInput,
-    symbol: symbols::SymbolHandle,
-) -> Vec<u32> {
-    with_structural_rosters(program, |rosters| {
-        rosters.machines.get(&symbol).cloned().unwrap_or_default()
-    })
-}
-
-fn local_data_positions(
-    program: &dyn ::validation::CheckingInput,
-    symbol: symbols::SymbolHandle,
-) -> Vec<(u32, u32, u32)> {
-    with_structural_rosters(program, |rosters| {
-        rosters.locals.get(&symbol).cloned().unwrap_or_default()
-    })
-}
-
-fn rostered_data_member(
+fn declared_data_member(
     program: &dyn ::validation::CheckingInput,
     data_index: u32,
     member_index: u32,
@@ -214,24 +22,11 @@ fn rostered_data_member(
     &program.data_members(&program.data_definitions()[data_index as usize])[member_index as usize]
 }
 
-fn data_field_positions(
-    program: &dyn ::validation::CheckingInput,
-    symbol: symbols::SymbolHandle,
-) -> Vec<(u32, u32, u32)> {
-    with_structural_rosters(program, |rosters| {
-        rosters
-            .field_by_symbol
-            .get(&symbol)
-            .cloned()
-            .unwrap_or_default()
-    })
-}
-
-fn rostered_data_field(
+fn declared_data_field(
     program: &dyn ::validation::CheckingInput,
     position: (u32, u32, u32),
 ) -> Option<&typed_trees::data::DataField> {
-    let member = rostered_data_member(program, position.0, position.1);
+    let member = declared_data_member(program, position.0, position.1);
     if position.2 == u32::MAX {
         match member {
             typed_trees::data::DataMember::Field(field) => Some(field),
@@ -633,24 +428,9 @@ fn indexed_read_has_builtin_meaning(
     index: ExpressionHandle,
 ) -> bool {
     use language_core::OperatorSpelling;
-    let Some((machine_index, state_index)) = with_structural_rosters(program, |rosters| {
-        rosters
-            .states_by_parameter_symbols
-            .get(&parameter_symbols_fingerprint(parameters))
-            .into_iter()
-            .flatten()
-            .copied()
-            .find(|&(machine_index, state_index)| {
-                let machine = &program.machines()[machine_index as usize];
-                let state = &program.machine_states(machine)[state_index as usize];
-                let authored = program.state_parameters(state);
-                authored.len() == parameters.len()
-                    && authored
-                        .iter()
-                        .zip(parameters)
-                        .all(|(left, right)| left.symbol == right.symbol)
-            })
-    }) else {
+    let Some((machine_index, state_index)) =
+        program.state_position_for_parameter_symbols(parameters)
+    else {
         return false;
     };
     let machine = &program.machines()[machine_index as usize];
@@ -740,36 +520,32 @@ pub(super) fn structural_parameter_field_path(
             let field_identity = |field: &typed_trees::data::DataField| field.path_identity();
             parameters.get(usize::try_from(parameter).ok()?)?;
             if let Some(case_name) = &member.case_variant {
-                let (case, field) = with_structural_rosters(program, |rosters| {
-                    rosters
-                        .variant_by_name
-                        .get(case_name.as_str())
-                        .into_iter()
-                        .flatten()
-                        .copied()
-                        .find_map(|(data_index, member_index)| {
-                            let typed_trees::data::DataMember::Variant(variant) =
-                                rostered_data_member(program, data_index, member_index)
-                            else {
-                                return None;
-                            };
-                            program
-                                .data_payload_fields(variant)
-                                .iter()
-                                .find(|field| field.symbol == member.member_symbol)
-                                .map(|field| (variant.path_identity(), field_identity(field)))
-                        })
-                })?;
+                let (case, field) = program
+                    .data_variant_positions_for_name(case_name.as_str())
+                    .into_iter()
+                    .find_map(|(data_index, member_index)| {
+                        let typed_trees::data::DataMember::Variant(variant) =
+                            declared_data_member(program, data_index, member_index)
+                        else {
+                            return None;
+                        };
+                        program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .find(|field| field.symbol == member.member_symbol)
+                            .map(|field| (variant.path_identity(), field_identity(field)))
+                    })?;
                 fields.push(CheckedStructuralPredicatePathSegment::Case(case));
                 fields.push(CheckedStructuralPredicatePathSegment::Field(field));
             } else {
                 let identity = if member.member_symbol.is_valid() {
-                    data_field_positions(program, member.member_symbol)
+                    program
+                        .data_field_positions_for_symbol(member.member_symbol)
                         .iter()
                         .copied()
                         .filter(|position| position.2 == u32::MAX)
                         .find_map(|position| {
-                            rostered_data_field(program, position).map(&field_identity)
+                            declared_data_field(program, position).map(&field_identity)
                         })?
                 } else {
                     // Contract member expressions can reach this carrier
@@ -996,7 +772,8 @@ pub(crate) fn structural_data(
         }
     };
     let symbol = if symbol.is_valid() {
-        machine_positions_by_symbol(program, symbol)
+        program
+            .machine_positions_for_symbol(symbol)
             .iter()
             .map(|&position| &program.machines()[position as usize])
             .find(|machine| machine.attached_data_symbol.is_valid())
@@ -1004,22 +781,13 @@ pub(crate) fn structural_data(
     } else {
         symbol
     };
-    let definitions = program.data_definitions();
     if symbol.is_valid() {
-        with_structural_rosters(program, |rosters| {
-            rosters.data_by_symbol.get(&symbol).and_then(|positions| {
-                positions
-                    .first()
-                    .map(|&position| &definitions[position as usize])
-            })
-        })
+        program.data_definition_by_symbol(symbol)
     } else {
-        with_structural_rosters(program, |rosters| {
-            rosters
-                .data_by_name
-                .get(name.as_str())
-                .map(|&position| &definitions[position as usize])
-        })
+        program
+            .data_definition_positions_for_name(name.as_str())
+            .first()
+            .map(|position| &program.data_definitions()[*position as usize])
     }
 }
 
@@ -1193,19 +961,18 @@ pub(super) fn structural_parameter_place(
     for segment in &place.segments {
         path.push(match segment {
             facts::PlaceSegment::Field { symbol } => {
-                let field = data_field_positions(program, *symbol)
+                let field = program
+                    .data_field_positions_for_symbol(*symbol)
                     .iter()
                     .copied()
-                    .find_map(|position| rostered_data_field(program, position))?;
+                    .find_map(|position| declared_data_field(program, position))?;
                 CheckedStructuralPredicatePathSegment::Field(field.path_identity())
             }
             facts::PlaceSegment::Case { variant } => {
-                let case =
-                    with_structural_rosters(program, |rosters| {
-                        rosters.variant_by_symbol.get(variant).copied()
-                    })
+                let case = program
+                    .data_variant_position_for_symbol(*variant)
                     .and_then(|(data_index, member_index)| {
-                        match rostered_data_member(program, data_index, member_index) {
+                        match declared_data_member(program, data_index, member_index) {
                             typed_trees::data::DataMember::Variant(candidate) => Some(candidate),
                             _ => None,
                         }
@@ -1313,7 +1080,7 @@ fn whole_local_binding<'a>(
     {
         return None;
     }
-    let positions = local_data_positions(program, path.symbol);
+    let positions = program.local_data_positions_for_symbol(path.symbol);
     let [position] = positions.as_slice() else {
         return None;
     };

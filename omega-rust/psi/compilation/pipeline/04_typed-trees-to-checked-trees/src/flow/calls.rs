@@ -551,7 +551,7 @@ fn append_call_parameter_domain_facts<'plans>(
         // mutation retires the caller's fact and nothing restores it, so an
         // out parameter could never carry a domain at all.
         if !declared
-            && !crate::facts::field_domain::domain_requires_provenance(program, *domain_symbol)
+            && !validation::field_domains::domain_requires_provenance(program, *domain_symbol)
         {
             continue;
         }
@@ -737,9 +737,9 @@ fn result_type_domain_rows(
     language_semantics::SemanticDomainId,
 )> {
     let mut domains =
-        crate::facts::field_domain::declared_owned_field_domain_identities(program, return_type);
+        validation::field_domains::declared_owned_field_domain_identities(program, return_type);
     domains.extend(
-        crate::facts::field_domain::domain_constraint_identities(program, return_type)
+        validation::field_domains::domain_constraint_identities(program, return_type)
             .into_iter()
             .map(|(symbol, identity)| (Vec::new(), symbol, identity)),
     );
@@ -905,7 +905,7 @@ fn parameter_identity_rows(
             continue;
         }
         for (domain_symbol, semantic_domain) in
-            crate::facts::field_domain::domain_constraint_identities(
+            validation::field_domains::domain_constraint_identities(
                 program,
                 parameter.type_reference,
             )

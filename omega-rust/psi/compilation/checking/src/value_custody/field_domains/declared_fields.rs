@@ -1,4 +1,4 @@
-//! One declaration roster for entry assumptions and restored field contracts.
+//! Source declaration rows for entry assumptions and restored field contracts.
 //!
 //! A `Case` segment makes the remaining field contract conditional on that
 //! exact active alternative. Whole-value transport retains the implication;
@@ -14,8 +14,8 @@ use typed_trees::{data::DataMember, types::TypeReferenceHandle};
 /// All declared field rows beneath an established readable data value. Exact
 /// domain identities and evidence-only extent rows survive until each consumer
 /// selects the obligations it owns.
-pub(crate) fn declared_data_field_domain_rows(
-    program: &dyn ::validation::CheckingInput,
+pub fn declared_data_field_domain_rows(
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
 ) -> Vec<FieldDomainRow> {
     let mut rows = Vec::new();
@@ -35,7 +35,7 @@ pub(crate) fn declared_data_field_domain_rows(
 /// returns, so a parameter whose type nests many fields does not copy its
 /// prefix for every field.
 fn collect_data_field_domain_rows(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     transfer: bool,
     data: &typed_trees::data::DataDefinition,
     path: &mut Vec<PlaceSegment>,
@@ -54,9 +54,9 @@ fn collect_data_field_domain_rows(
             continue;
         }
         let prefix_length = path.len();
-        validation::push_field_place_segments(program, path, field.symbol);
+        crate::push_field_place_segments(program, path, field.symbol);
         for (domain_symbol, semantic_domain) in
-            crate::facts::field_domain::domain_constraint_identities(program, field.type_reference)
+            super::domain_constraint_identities(program, field.type_reference)
         {
             rows.push(FieldDomainRow {
                 path: path.clone(),
@@ -117,11 +117,11 @@ fn collect_data_field_domain_rows(
 /// way makes the row evidence (`StatementTransfer`) rather than an obligation.
 /// The rows depend only on the data definition, so every state parameter of
 /// that type replays one walk.
-pub(crate) struct FieldDomainRow {
-    pub(crate) path: Vec<PlaceSegment>,
-    pub(crate) domain_symbol: SymbolHandle,
-    pub(crate) semantic_domain: language_semantics::SemanticDomainId,
-    pub(crate) transfer: bool,
+pub struct FieldDomainRow {
+    pub path: Vec<PlaceSegment>,
+    pub domain_symbol: SymbolHandle,
+    pub semantic_domain: language_semantics::SemanticDomainId,
+    pub transfer: bool,
 }
 
 /// The `FixedRange` spelling of "every element of this collection": the
@@ -134,7 +134,7 @@ pub(crate) struct FieldDomainRow {
 /// (`flow/place/comparison.rs` already overlaps `Index`/`FixedIndex` with a
 /// containing `FixedRange`). Entry seeding and declaration restoration share
 /// this coordinate; projection and proof consumers recognize the same extent.
-pub(crate) const WHOLE_ELEMENT_EXTENT: PlaceSegment = PlaceSegment::FixedRange {
+pub const WHOLE_ELEMENT_EXTENT: PlaceSegment = PlaceSegment::FixedRange {
     start: 0,
     end: usize::MAX,
 };
@@ -142,8 +142,8 @@ pub(crate) const WHOLE_ELEMENT_EXTENT: PlaceSegment = PlaceSegment::FixedRange {
 /// The element type of a slice (`[T]`, `&[T]`, `&mut [T]`), looking through a
 /// leading reference exactly as `readable_fixed_array_elements` does for fixed
 /// arrays. `None` for non-slice or write-only types.
-pub(crate) fn readable_slice_element(
-    program: &dyn ::validation::CheckingInput,
+pub fn readable_slice_element(
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     match program

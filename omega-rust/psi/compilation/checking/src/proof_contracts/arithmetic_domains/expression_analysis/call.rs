@@ -287,7 +287,10 @@ fn exact_ordinary_actual_intervals(
 /// This bound intersects the declared result range at the common call join.
 fn inferred_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
     let program = walk.program;
-    if !call.selects_only_nominal_route() || !call.machine_arguments.is_empty() {
+    if !walk.infer_call_bodies
+        || !call.selects_only_nominal_route()
+        || !call.machine_arguments.is_empty()
+    {
         return None;
     }
     let (callee, state) =

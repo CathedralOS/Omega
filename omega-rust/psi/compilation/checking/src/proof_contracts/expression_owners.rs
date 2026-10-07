@@ -2,7 +2,7 @@
 //!
 //! The invocation constructs the index before borrowing it. Only the supplied
 //! contract arena grants checked ownership; preparation supplies empty rows.
-//! No mutable typed input or RefCell-backed construction crosses this boundary.
+//! No mutable typed input or runtime-borrowed construction crosses this boundary.
 
 mod call_targets;
 mod environments;

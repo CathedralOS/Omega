@@ -40,7 +40,7 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use crate::facts::field_domain::{
+use validation::field_domains::{
     FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_data_field_domain_rows,
     readable_fixed_array_elements, readable_nominal_definition, readable_slice_element,
 };
@@ -109,7 +109,7 @@ fn append_zero_initialized_field_domain_facts(
         for domain_symbol in field_domain_symbols(program, field.type_reference)
             .into_iter()
             .filter(|symbol| {
-                crate::facts::field_domain::domain_admits_empty_byte_sequence(program, *symbol)
+                validation::field_domains::domain_admits_empty_byte_sequence(program, *symbol)
             })
         {
             // Place `<root>.<prefix…>.<field>`: root the local symbol + the segment
@@ -137,10 +137,9 @@ fn append_zero_initialized_field_domain_facts(
 
         // Descend into a struct-typed field so its own domained fields are seeded
         // too. The cycle guard keeps a self-referential data type from looping.
-        if let Some(nested) = crate::facts::field_domain::data_definition_for_field_type(
-            program,
-            field.type_reference,
-        ) && !visited.contains(&nested.name.as_str())
+        if let Some(nested) =
+            validation::field_domains::data_definition_for_field_type(program, field.type_reference)
+            && !visited.contains(&nested.name.as_str())
         {
             let mut next_visited = visited.to_vec();
             next_visited.push(nested.name.as_str());
@@ -380,7 +379,7 @@ pub(super) fn append_state_parameter_domain_facts(
                 }
                 let mut has_resource_claim = false;
                 for (domain_symbol, semantic_domain) in
-                    crate::facts::field_domain::domain_constraint_identities(
+                    validation::field_domains::domain_constraint_identities(
                         program,
                         parameter.type_reference,
                     )
@@ -826,13 +825,13 @@ pub(super) fn append_local_zii_field_domain_facts(
                 // when the domain admits the empty byte sequence -- the same
                 // ZII gate the per-field rows below use.
                 for (domain_symbol, semantic_domain) in
-                    crate::facts::field_domain::domain_constraint_identities(
+                    validation::field_domains::domain_constraint_identities(
                         program,
                         local_data.type_reference,
                     )
                     .into_iter()
                     .filter(|(domain_symbol, _)| {
-                        crate::facts::field_domain::domain_admits_empty_byte_sequence(
+                        validation::field_domains::domain_admits_empty_byte_sequence(
                             program,
                             *domain_symbol,
                         )
@@ -854,7 +853,7 @@ pub(super) fn append_local_zii_field_domain_facts(
                     facts.append_ref(&mut refs, fact);
                 }
 
-                let Some(data) = crate::facts::field_domain::owned_nominal_data_definition(
+                let Some(data) = validation::field_domains::owned_nominal_data_definition(
                     program,
                     local_data.type_reference,
                 ) else {
@@ -896,5 +895,5 @@ fn field_domain_symbols(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
-    crate::facts::field_domain::predicate_domain_constraint_symbols(program, type_reference)
+    validation::field_domains::predicate_domain_constraint_symbols(program, type_reference)
 }

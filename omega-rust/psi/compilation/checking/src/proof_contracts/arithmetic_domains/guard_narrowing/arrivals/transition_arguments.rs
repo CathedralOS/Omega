@@ -55,6 +55,7 @@ pub(super) fn integer_bounds(
         None,
         ArithmeticDomain::Exact,
         "transition argument",
+        true,
         &mut diagnostics,
     )
     .value;

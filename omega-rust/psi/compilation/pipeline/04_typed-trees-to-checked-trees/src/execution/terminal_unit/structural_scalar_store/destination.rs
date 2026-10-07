@@ -227,7 +227,7 @@ pub(super) fn resolve<'a>(
             // `FixedIndex` hop, so an unresolved owner stays admissible only
             // behind an index segment.
             let root_owner =
-                crate::facts::field_domain::data_definition_for_field_type(program, *referee);
+                validation::field_domains::data_definition_for_field_type(program, *referee);
             Some(Destination {
                 root: Root::Parameter { plan, parameter },
                 place,
@@ -290,7 +290,7 @@ fn local_destination<'a>(
         view_loan: false,
         selectors,
         root_type,
-        root_owner: crate::facts::field_domain::data_definition_for_field_type(program, root_type),
+        root_owner: validation::field_domains::data_definition_for_field_type(program, root_type),
         operators,
     }
 }
@@ -537,7 +537,7 @@ impl<'a> Destination<'a> {
                         return None;
                     }
                     let carrier = exact_relevant_field(program, field_owner, *symbol)?;
-                    if !crate::facts::field_domain::domain_constraint_symbols(
+                    if !validation::field_domains::domain_constraint_symbols(
                         program,
                         carrier.type_reference,
                     )
@@ -609,7 +609,7 @@ impl<'a> Destination<'a> {
                 ends_at_field = false;
             }
             owner =
-                crate::facts::field_domain::data_definition_for_field_type(program, carrier_type);
+                validation::field_domains::data_definition_for_field_type(program, carrier_type);
         }
         Some(StorageProjection {
             path,
@@ -986,7 +986,7 @@ fn borrowed_view_local_root<'a>(
         view_loan: true,
         selectors,
         root_type: referee,
-        root_owner: crate::facts::field_domain::data_definition_for_field_type(program, referee),
+        root_owner: validation::field_domains::data_definition_for_field_type(program, referee),
         operators: &facts.operators,
     })
 }

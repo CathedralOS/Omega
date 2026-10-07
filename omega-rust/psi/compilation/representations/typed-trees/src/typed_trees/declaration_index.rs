@@ -20,6 +20,9 @@ use crate::{data, machine};
 use arena::{Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
 
+mod relationships;
+use relationships::{DataMemberIndex, StateDeclarationIndex};
+
 /// Handle-keyed maps take the integer hasher; none is iterated for output
 /// order, and `Box<str>`/`usize`/tuple keys hash through the same mixing as
 /// `symbols::SymbolKeyMap`.
@@ -95,11 +98,11 @@ fn roots_fingerprint(roots: &crate::typed_trees::TypedTreeRoots) -> u64 {
 
 /// Machine-symbol lookup: the machine table is queried once per call
 /// expression through `machine_by_symbol`; a roster scan per query walks
-/// every machine. The map keeps the first position per symbol, matching the
-/// roster `find` the index replaces.
+/// every machine. Stable symbol rows preserve all declarations; the common
+/// lookup takes the first, while ambiguity queries read the complete group.
 #[derive(Clone, Default)]
 struct MachinePositionIndex {
-    by_symbol: HashMap<SymbolHandle, usize>,
+    rows: Vec<(SymbolHandle, u32)>,
 }
 
 /// State-symbol lookup: `(machine symbol, state symbol)` to the state's
@@ -226,6 +229,8 @@ pub struct DomainCandidateIndex {
 pub struct DeclarationIndexes {
     machines: OwnedIndex<MachinePositionIndex>,
     states: OwnedIndex<StatePositionIndex>,
+    state_declarations: OwnedIndex<StateDeclarationIndex>,
+    data_members: OwnedIndex<DataMemberIndex>,
     data_definitions: OwnedIndex<DataDefinitionIndex>,
     type_parameters: OwnedIndex<TypeParameterIndex>,
     domains: OwnedIndex<DomainPositionIndex>,
@@ -294,21 +299,41 @@ impl super::TypedTrees {
         if !symbol.is_valid() {
             return None;
         }
+        self.with_machine_position_index(|index| {
+            relationships::symbol_rows(&index.rows, symbol)
+                .first()
+                .map(|(_, position)| *position as usize)
+        })
+    }
+
+    /// Every machine carrying the exact symbol, in declaration order. Unlike
+    /// the first-match query, ambiguity consumers need all duplicate rows.
+    pub fn machine_positions_for_symbol(&self, symbol: SymbolHandle) -> Vec<u32> {
+        self.with_machine_position_index(|index| {
+            relationships::symbol_rows(&index.rows, symbol)
+                .iter()
+                .map(|(_, position)| *position)
+                .collect()
+        })
+    }
+
+    fn with_machine_position_index<R>(&self, run: impl FnOnce(&MachinePositionIndex) -> R) -> R {
         self.declaration_indexes.machines.with(
             self.tables
                 .machines
                 .revision()
                 .wrapping_add(roster_marker(self.roots.machines)),
             || {
-                let machines = self.machines();
-                let mut by_symbol =
-                    HashMap::with_capacity_and_hasher(machines.len(), symbols::BuildSymbolHasher);
-                for (position, machine) in machines.iter().enumerate() {
-                    by_symbol.entry(machine.symbol).or_insert(position);
-                }
-                MachinePositionIndex { by_symbol }
+                let mut rows = self
+                    .machines()
+                    .iter()
+                    .enumerate()
+                    .map(|(position, machine)| (machine.symbol, position as u32))
+                    .collect::<Vec<_>>();
+                relationships::sort_symbol_rows(&mut rows);
+                MachinePositionIndex { rows }
             },
-            |index| index.by_symbol.get(&symbol).copied(),
+            run,
         )
     }
 

@@ -57,7 +57,7 @@ pub(super) fn append_owned_qualification_transfer(
             continue;
         };
         if !semantic_domain.is_valid()
-            && crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
+            && validation::field_domains::domain_requires_provenance(program, domain_symbol)
         {
             continue;
         }

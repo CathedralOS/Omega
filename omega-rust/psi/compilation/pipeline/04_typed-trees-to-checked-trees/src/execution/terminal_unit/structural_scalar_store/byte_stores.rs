@@ -46,7 +46,7 @@ pub(super) fn view_write(
             {
                 return None;
             }
-            let domains = crate::facts::field_domain::domain_constraint_symbols(
+            let domains = validation::field_domains::domain_constraint_symbols(
                 program,
                 parameter.type_reference,
             );
@@ -132,7 +132,7 @@ pub(super) fn whole_store(
         return None;
     };
     let domains =
-        crate::facts::field_domain::domain_constraint_symbols(program, parameter.type_reference);
+        validation::field_domains::domain_constraint_symbols(program, parameter.type_reference);
     if !domains.iter().all(|symbol| {
         typed_trees::byte_predicates::domain_byte_predicate(program, *symbol).is_some()
     }) {
@@ -200,7 +200,7 @@ pub(super) fn field_store(
                 domain.establishment_routes.is_empty()
                     && domain.semantic_roles == Default::default()
                     && (!literal_grant
-                        || crate::facts::field_domain::string_literal_expression_grants_domain(
+                        || validation::field_domains::string_literal_expression_grants_domain(
                             program,
                             assignment.value,
                             symbol,
@@ -208,7 +208,7 @@ pub(super) fn field_store(
             })
     };
     let domains =
-        crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference);
+        validation::field_domains::domain_constraint_symbols(program, field.type_reference);
     if let Some(index) = destination.dynamic_index {
         // Indexed byte mutation retains its separate parameter-only contract.
         destination.root.parameter_position()?;
@@ -270,7 +270,7 @@ pub(super) fn field_store(
         } => {
             let source_capacity = validation::bounded_byte_buffer_capacity(program, result_type)?;
             let source_domains =
-                crate::facts::field_domain::domain_constraint_symbols(program, result_type);
+                validation::field_domains::domain_constraint_symbols(program, result_type);
             if program.type_multiplicity(result_type) != Multiplicity::Unrestricted
                 || !validation::has_contents(
                     program,
@@ -283,7 +283,7 @@ pub(super) fn field_store(
                 )
                 || !domains.iter().all(|domain| {
                     source_domains.iter().any(|source| {
-                        crate::facts::field_domain::declared_domain_implies(
+                        validation::field_domains::declared_domain_implies(
                             program, *source, *domain,
                         )
                     })
@@ -347,7 +347,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
     let (value, capacity) = match program.expression_table.expression(expression) {
         ExpressionNode::String(bytes) => {
             if !domains.iter().all(|domain| {
-                crate::facts::field_domain::string_literal_expression_grants_domain(
+                validation::field_domains::string_literal_expression_grants_domain(
                     program, expression, *domain,
                 )
             }) {
@@ -363,7 +363,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                 && crate::values::operator_is_builtin(operators, expression) =>
         {
             if !domains.iter().all(|domain| {
-                crate::facts::field_domain::domain_is_concat_preserving(program, *domain)
+                validation::field_domains::domain_is_concat_preserving(program, *domain)
             }) {
                 return None;
             }
@@ -421,10 +421,10 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                 return None;
             };
             let source_domains =
-                crate::facts::field_domain::domain_constraint_symbols(program, type_reference);
+                validation::field_domains::domain_constraint_symbols(program, type_reference);
             if !domains.iter().all(|domain| {
                 source_domains.iter().any(|source| {
-                    crate::facts::field_domain::declared_domain_implies(program, *source, *domain)
+                    validation::field_domains::declared_domain_implies(program, *source, *domain)
                 })
             }) {
                 return None;

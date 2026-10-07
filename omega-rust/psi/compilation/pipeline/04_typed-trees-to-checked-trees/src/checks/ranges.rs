@@ -53,7 +53,6 @@ mod arrays;
 mod diagnostics;
 mod expressions;
 mod facts;
-pub(crate) use facts::enter_root_currency_scope;
 mod guards;
 mod proofs;
 pub(crate) mod types;
@@ -106,16 +105,12 @@ pub(crate) fn check_indexed_accesses(
         );
         let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
         let loop_invariant_facts = collect_loop_invariant_facts(program, machine, call_frames);
-        // One lazy whole-program bound index per machine: every state's
-        // facts (and their branch clones) fill the same cell, so the bound
-        // maps build at most once for the machine's walk. The cell lives
-        // inside the machine loop because the per-state call contexts it
-        // accompanies borrow the machine-local `calls` vector.
-        let bound_lookup = std::rc::Rc::new(std::cell::RefCell::new(None));
+        // Each state's facts and branch clones borrow this worker-owned lookup.
+        // Declaration bounds are shared invocation data; machine-local calls
+        // and flow facts retain their narrower lifetimes.
+        let bound_lookup = validation::ImmutableBoundLookup::new(program);
         for (state, calls) in program.machine_states(machine).iter().zip(&calls) {
-            let mut facts = RangeFacts::new(&field_lengths);
-            facts.bound_program = Some(program);
-            facts.bound_lookup = bound_lookup.clone();
+            let mut facts = RangeFacts::new(&field_lengths, &bound_lookup);
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_operators = Some(operators);
             facts.expression_intervals = expression_intervals;

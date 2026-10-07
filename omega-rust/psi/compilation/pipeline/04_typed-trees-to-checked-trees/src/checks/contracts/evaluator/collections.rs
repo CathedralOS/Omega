@@ -3,8 +3,8 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpre
 
 use super::ContractExpressionEvaluator;
 
-impl ContractExpressionEvaluator<'_, '_> {
-    pub(super) fn collection_length(&self, expression: ExpressionHandle) -> Option<usize> {
+impl<'program> ContractExpressionEvaluator<'program, '_> {
+    pub(super) fn collection_length(&mut self, expression: ExpressionHandle) -> Option<usize> {
         let resolved = self.resolved_expression(expression).unwrap_or(expression);
         match self.program.expression_table.expression(resolved) {
             ExpressionNode::ArrayLiteral(values) => Some(values.count() as usize),
@@ -25,7 +25,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// A fixed-array view captures a type extent, not an array-content snapshot.
     /// Follow only an immutable descriptor whose binding is still unexposed at
     /// this occurrence; general initializer evaluation remains forbidden.
-    fn immutable_fixed_array_view_length(&self, expression: ExpressionHandle) -> Option<usize> {
+    fn immutable_fixed_array_view_length(&mut self, expression: ExpressionHandle) -> Option<usize> {
         use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
         let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
@@ -110,7 +110,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// field is found by name inside the callee's attached data type — never
     /// by a global name scan, which could alias a same-named field of another
     /// type.
-    fn fixed_array_self_field_length(&self, member: &TableMemberExpression) -> Option<usize> {
+    fn fixed_array_self_field_length(&mut self, member: &TableMemberExpression) -> Option<usize> {
         // Only `self.<field>` receivers: the self type is the one type the
         // callee contract pins statically.
         let ExpressionNode::Name(path) = self.program.expression_table.expression(member.receiver)
@@ -157,7 +157,9 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// The data definition the TARGET machine is attached to (`Vec4` for
     /// `machine Vec4::get`), found through the machine that owns the target
     /// state. `None` for free machines (no attached data).
-    fn target_self_data_definition(&self) -> Option<&typed_trees::data::DataDefinition> {
+    fn target_self_data_definition(
+        &mut self,
+    ) -> Option<&'program typed_trees::data::DataDefinition> {
         let machine = self
             .program
             .machine_by_symbol(self.target_symbol)
@@ -171,9 +173,9 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// The data definition a machine is attached to. `None` for free machines
     /// (no attached data).
     fn self_data_definition(
-        &self,
+        &mut self,
         machine: &typed_trees::machine::Machine,
-    ) -> Option<&typed_trees::data::DataDefinition> {
+    ) -> Option<&'program typed_trees::data::DataDefinition> {
         let attached_data = machine.attached_data.as_ref()?;
         self.program
             .data_definitions()

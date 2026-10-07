@@ -631,7 +631,7 @@ fn plan_assignment(
         ]);
     }
     let field_data =
-        crate::facts::field_domain::data_definition_for_field_type(program, field.type_reference)?;
+        validation::field_domains::data_definition_for_field_type(program, field.type_reference)?;
     if plain_record(field_data, program, &facts.operators) {
         return None;
     }

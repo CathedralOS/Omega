@@ -81,7 +81,7 @@ fn value_proves_predicate(
     domain: SymbolHandle,
     point: ProgramPoint,
 ) -> bool {
-    if crate::facts::field_domain::string_literal_expression_grants_domain(
+    if validation::field_domains::string_literal_expression_grants_domain(
         program, expression, domain,
     ) {
         return true;
@@ -90,7 +90,7 @@ fn value_proves_predicate(
         && binary.operator == typed_trees::expression::BinaryOperator::Add
         && crate::values::operator_is_builtin(operators, expression)
     {
-        return crate::facts::field_domain::domain_is_concat_preserving(program, domain)
+        return validation::field_domains::domain_is_concat_preserving(program, domain)
             && value_proves_predicate(
                 program,
                 semantic,
@@ -119,7 +119,7 @@ fn value_proves_predicate(
     {
         // Preserve the class at descriptor formation. Replaying an initializer
         // later would observe a source binding that may have been replaced.
-        return crate::facts::field_domain::domain_is_subslice_preserving(program, domain)
+        return validation::field_domains::domain_is_subslice_preserving(program, domain)
             && value_proves_predicate(
                 program,
                 semantic,
@@ -169,16 +169,16 @@ fn value_proves_predicate(
                 // The materialized bytes retain the same primitive predicate
                 // across bounded carriers. This is not carrier/domain identity.
                 index_free_membership(program, domain_symbol, semantic_domain)
-                    && crate::facts::field_domain::domain_byte_predicate(program, domain_symbol)
-                        == crate::facts::field_domain::domain_byte_predicate(program, domain)
+                    && validation::field_domains::domain_byte_predicate(program, domain_symbol)
+                        == validation::field_domains::domain_byte_predicate(program, domain)
             }
             FactPayload::AssignedValue { value } => {
-                crate::facts::field_domain::string_literal_expression_grants_domain(
+                validation::field_domains::string_literal_expression_grants_domain(
                     program, value, domain,
                 )
             }
             FactPayload::BytePredicate { predicate } => {
-                crate::facts::field_domain::domain_byte_predicate(program, domain)
+                validation::field_domains::domain_byte_predicate(program, domain)
                     .is_some_and(|required| predicate.implies(required))
             }
             _ => false,
@@ -293,7 +293,7 @@ pub(super) fn append_element_replacement_predicates(
     // candidate by itself.
     let canonical_carrier =
         canonical_place_from_semantic_place(program, semantic, semantic.places.get(carrier));
-    let carrier_ceiling: Vec<crate::facts::field_domain::ByteSequencePredicate> = canonical_carrier
+    let carrier_ceiling: Vec<validation::field_domains::ByteSequencePredicate> = canonical_carrier
         .as_ref()
         .and_then(|place| {
             (place.root == facts::PlaceRoot::Symbol(machine_symbol)).then(|| {
@@ -308,7 +308,7 @@ pub(super) fn append_element_replacement_predicates(
         .map(<[_]>::to_vec)
         .unwrap_or_default();
     let mut source_facts = None;
-    let stored_classes: Vec<_> = crate::facts::field_domain::ByteSequencePredicate::ALL
+    let stored_classes: Vec<_> = validation::field_domains::ByteSequencePredicate::ALL
         .into_iter()
         .map(|predicate| {
             let stored = bounds
@@ -322,12 +322,12 @@ pub(super) fn append_element_replacement_predicates(
             (predicate, stored)
         })
         .collect();
-    let stored_in = |predicate: crate::facts::field_domain::ByteSequencePredicate| {
+    let stored_in = |predicate: validation::field_domains::ByteSequencePredicate| {
         stored_classes
             .iter()
             .any(|(class, stored)| *class == predicate && *stored)
     };
-    let ascii_stored = stored_in(crate::facts::field_domain::ByteSequencePredicate::AsciiOnly);
+    let ascii_stored = stored_in(validation::field_domains::ByteSequencePredicate::AsciiOnly);
     if let Some(carrier_place) = canonical_carrier
         .as_ref()
         .filter(|place| place.root == facts::PlaceRoot::Symbol(machine_symbol))
@@ -337,13 +337,13 @@ pub(super) fn append_element_replacement_predicates(
         // predicate candidate holds. `valid_utf8` on the byte side is only
         // `ascii_stored`: whether the carrier held ASCII (and so could not
         // split a scalar) is the premise the candidate answers.
-        let byteok: Vec<_> = crate::facts::field_domain::ByteSequencePredicate::ALL
+        let byteok: Vec<_> = validation::field_domains::ByteSequencePredicate::ALL
             .into_iter()
             .filter(|predicate| {
                 if predicate.is_subslice_preserving() {
                     stored_in(*predicate)
                 } else {
-                    *predicate == crate::facts::field_domain::ByteSequencePredicate::ValidUtf8
+                    *predicate == validation::field_domains::ByteSequencePredicate::ValidUtf8
                         && ascii_stored
                 }
             })
@@ -368,7 +368,7 @@ pub(super) fn append_element_replacement_predicates(
         }
     }
     let mut carrier_facts = None;
-    for predicate in crate::facts::field_domain::ByteSequencePredicate::ALL {
+    for predicate in validation::field_domains::ByteSequencePredicate::ALL {
         // Both supported per-byte classes are intervals. Their endpoints
         // establish every possible replacement byte, not just one witness.
         // `ValidUtf8` is not subslice preserving in general -- an ASCII byte
@@ -376,7 +376,7 @@ pub(super) fn append_element_replacement_predicates(
         // multi-byte scalars, so an ASCII replacement keeps it decodable.
         let byte_in_class = if predicate.is_subslice_preserving() {
             stored_in(predicate)
-        } else if predicate == crate::facts::field_domain::ByteSequencePredicate::ValidUtf8 {
+        } else if predicate == validation::field_domains::ByteSequencePredicate::ValidUtf8 {
             ascii_stored && {
                 let facts = carrier_facts.get_or_insert_with(|| {
                     facts_about_place(program, semantic, &active_facts, carrier)
@@ -384,7 +384,7 @@ pub(super) fn append_element_replacement_predicates(
                 carrier_proves_predicate(
                     program,
                     facts,
-                    crate::facts::field_domain::ByteSequencePredicate::AsciiOnly,
+                    validation::field_domains::ByteSequencePredicate::AsciiOnly,
                     &carrier_ceiling,
                 )
             }
@@ -463,8 +463,8 @@ fn replacement_byte(
 fn carrier_proves_predicate(
     program: &dyn ::validation::CheckingInput,
     carrier_facts: &[Fact],
-    predicate: crate::facts::field_domain::ByteSequencePredicate,
-    ceiling: &[crate::facts::field_domain::ByteSequencePredicate],
+    predicate: validation::field_domains::ByteSequencePredicate,
+    ceiling: &[validation::field_domains::ByteSequencePredicate],
 ) -> bool {
     if ceiling.contains(&predicate) {
         return true;
@@ -486,7 +486,7 @@ fn carrier_proves_predicate(
             ..
         } => {
             index_free_membership(program, domain_symbol, semantic_domain)
-                && crate::facts::field_domain::domain_byte_predicate(program, domain_symbol)
+                && validation::field_domains::domain_byte_predicate(program, domain_symbol)
                     .is_some_and(|proved| proved.implies(predicate))
         }
         _ => false,

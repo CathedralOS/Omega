@@ -25,7 +25,7 @@ impl<'field> RangeFacts<'field> {
             return;
         }
         let mut reads = Vec::new();
-        let bound_lookup = self.bound_lookup().clone();
+        let bound_lookup = self.bound_lookup();
         if collect_reads(
             program,
             machine,
@@ -36,7 +36,7 @@ impl<'field> RangeFacts<'field> {
             self.checked_operators,
             &mut reads,
             0,
-            &bound_lookup,
+            bound_lookup,
         ) {
             self.alias_index(&program.expression_table.display_name(expression), name);
             self.alias_captured_selector(program, machine, state, expression, symbol);
@@ -56,7 +56,7 @@ impl<'field> RangeFacts<'field> {
             return;
         }
         let mut captured_reads = Vec::new();
-        let bound_lookup = self.bound_lookup().clone();
+        let bound_lookup = self.bound_lookup();
         if !collect_reads(
             program,
             machine,
@@ -67,7 +67,7 @@ impl<'field> RangeFacts<'field> {
             self.checked_operators,
             &mut captured_reads,
             0,
-            &bound_lookup,
+            bound_lookup,
         ) {
             return;
         }
@@ -75,8 +75,8 @@ impl<'field> RangeFacts<'field> {
         let originals = self.expression_dependencies.clone();
         // The bound index scans the whole program once; the candidate walk
         // below asks for an identity per expression node per original, so it
-        // shares the snapshot's lazy cell rather than rebuild per original.
-        let bound_lookup = self.bound_lookup().clone();
+        // borrows the worker-owned lookup rather than rebuild per original.
+        let bound_lookup = self.bound_lookup();
         for original in originals {
             if !transferable.contains(&original.label) {
                 continue;
@@ -103,7 +103,7 @@ impl<'field> RangeFacts<'field> {
                 self.checked_operators,
                 &mut selector_reads,
                 0,
-                &self.bound_lookup(),
+                self.bound_lookup(),
             ) || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
             {
                 continue;
@@ -122,10 +122,10 @@ impl<'field> RangeFacts<'field> {
                 let same_snapshot = selector.symbol.is_valid()
                     && selector.head_symbol == selector.symbol
                     && selector_symbol == Some(selector.symbol)
-                    && integer_value_identity(program, &bound_lookup, state, candidate.index)
+                    && integer_value_identity(program, bound_lookup, state, candidate.index)
                         .is_some_and(|value| {
                             value == symbol
-                                || integer_value_identity(program, &bound_lookup, state, captured)
+                                || integer_value_identity(program, bound_lookup, state, captured)
                                     == Some(value)
                         });
                 if (selector_symbol != Some(symbol) && !same_snapshot)
@@ -141,7 +141,7 @@ impl<'field> RangeFacts<'field> {
                     continue;
                 }
                 let mut reads = Vec::new();
-                let bound_lookup = self.bound_lookup().clone();
+                let bound_lookup = self.bound_lookup();
                 // The current binding now exists. Later immutable copies may
                 // already have typed uses but do not introduce a new value.
                 // Read those uses through the shared captured-value identity,
@@ -165,7 +165,7 @@ impl<'field> RangeFacts<'field> {
                     self.checked_operators,
                     &mut reads,
                     0,
-                    &bound_lookup,
+                    bound_lookup,
                 ) || !reads
                     .iter()
                     .all(|read| reads::root_is_current(program, machine, state, prefix, read.root))

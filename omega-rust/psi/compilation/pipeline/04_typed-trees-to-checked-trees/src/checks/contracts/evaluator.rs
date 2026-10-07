@@ -26,8 +26,6 @@
 //! and give up on a cycle, which a call to the machine's own states can
 //! create.
 
-use std::cell::RefCell;
-
 use checked_trees::{FlowCallFact, FlowStateFact};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -125,8 +123,8 @@ fn call_site_boolean_contract_expression_value_with_operators<'program, 'call>(
         target_symbol,
         target_parameters,
         call_frames,
-        active_evaluations: RefCell::new(Vec::new()),
-        active_resolutions: RefCell::new(Vec::new()),
+        active_evaluations: Vec::new(),
+        active_resolutions: Vec::new(),
     }
     .boolean_value(expression)
 }
@@ -151,12 +149,18 @@ pub(super) struct ContractExpressionEvaluator<'program, 'call> {
     /// argument that mentions that same parameter (`n` resolves to
     /// `n - 1`, whose `n` resolves to `n - 1` again), so the constant
     /// walk would otherwise re-enter the same expression handle forever.
-    active_evaluations: RefCell<Vec<ExpressionHandle>>,
+    active_evaluations: Vec<ExpressionHandle>,
     /// Expressions whose name resolution is in progress on the call
     /// stack; catches resolution-only cycles (an argument swap such as
     /// `self.step(b, a)` makes parameter `a` resolve to `b` and back)
     /// that never pass through integer evaluation.
-    active_resolutions: RefCell<Vec<ExpressionHandle>>,
+    active_resolutions: Vec<ExpressionHandle>,
+}
+
+#[derive(Clone, Copy)]
+enum ExpressionWork {
+    Evaluation,
+    Resolution,
 }
 
 impl ContractExpressionEvaluator<'_, '_> {
@@ -166,17 +170,25 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// argument following -- so stand down with None. Unknown never proves
     /// a contract and never falsely rejects one: the caller simply falls
     /// back to the other provers (arm facts, caller requires).
-    pub(super) fn guarding_cycles<T>(
-        active: &RefCell<Vec<ExpressionHandle>>,
+    fn guarding_cycles<T>(
+        &mut self,
+        work: ExpressionWork,
         expression: ExpressionHandle,
-        evaluate: impl FnOnce() -> Option<T>,
+        evaluate: impl FnOnce(&mut Self) -> Option<T>,
     ) -> Option<T> {
-        if active.borrow().contains(&expression) {
+        let active = match work {
+            ExpressionWork::Evaluation => &mut self.active_evaluations,
+            ExpressionWork::Resolution => &mut self.active_resolutions,
+        };
+        if active.contains(&expression) {
             return None;
         }
-        active.borrow_mut().push(expression);
-        let value = evaluate();
-        active.borrow_mut().pop();
+        active.push(expression);
+        let value = evaluate(self);
+        match work {
+            ExpressionWork::Evaluation => self.active_evaluations.pop(),
+            ExpressionWork::Resolution => self.active_resolutions.pop(),
+        };
         value
     }
 }

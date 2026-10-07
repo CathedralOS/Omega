@@ -630,6 +630,7 @@ fn integer_meaning(
         None,
         ArithmeticDomain::Exact,
         "ordered operand type",
+        false,
         &mut Vec::new(),
     )
     .value;

@@ -65,7 +65,7 @@ pub(super) fn static_max_byte_length(
         ),
         ExpressionNode::Call(call) => {
             let target = program.state_by_symbol(call.target_symbol)?;
-            crate::facts::field_domain::type_reference_fixed_array_capacity(
+            validation::field_domains::type_reference_fixed_array_capacity(
                 program,
                 target.return_type,
             )
@@ -84,13 +84,13 @@ pub(super) fn static_max_byte_length(
                 return Some(known.max_length);
             }
             let field_type =
-                crate::facts::field_domain::attached_data_field_type(program, machine, expression)
+                validation::field_domains::attached_data_field_type(program, machine, expression)
                     .or_else(|| {
-                        crate::facts::field_domain::direct_state_place_type_reference(
-                            program, state, expression,
-                        )
-                    })?;
-            crate::facts::field_domain::type_reference_fixed_array_capacity(program, field_type)
+                    validation::field_domains::direct_state_place_type_reference(
+                        program, state, expression,
+                    )
+                })?;
+            validation::field_domains::type_reference_fixed_array_capacity(program, field_type)
         }
     }
 }

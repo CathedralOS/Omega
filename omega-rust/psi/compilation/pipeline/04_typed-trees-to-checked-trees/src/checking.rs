@@ -159,8 +159,6 @@ fn check_program(
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let _field_domain_scope = crate::facts::field_domain::enter_field_domain_scope();
-    let _root_currency_scope = checks::enter_root_currency_scope();
     // Borrow the prepared program with invocation-owned query state. Read-only inputs
     // carry this context through the checking flow; no consumer discovers it
     // by thread or address. Metadata publication waits until checking ends.

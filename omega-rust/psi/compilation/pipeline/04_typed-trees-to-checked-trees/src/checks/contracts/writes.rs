@@ -70,13 +70,13 @@ pub(super) fn check_domain_field_writes(
             && local.initial_value.is_valid()
         {
             for (domain_symbol, semantic_domain) in
-                crate::facts::field_domain::domain_constraint_identities(
+                validation::field_domains::domain_constraint_identities(
                     program,
                     local.type_reference,
                 )
             {
                 let requires_provenance =
-                    crate::facts::field_domain::domain_requires_provenance(program, domain_symbol);
+                    validation::field_domains::domain_requires_provenance(program, domain_symbol);
                 // A `requires` predicate is equally an obligation on the
                 // initializer: `self in T::Case` and `self.f` membership are
                 // decided by the construction or by live evidence at its
@@ -123,7 +123,7 @@ pub(super) fn check_domain_field_writes(
         }
         // (1) Assignment into a domain-refined field, parameter, or local.
         if let StatementNode::Assignment(assignment) = statement {
-            for domain in crate::facts::field_domain::assignment_target_domain_constraints(
+            for domain in validation::field_domains::assignment_target_domain_constraints(
                 program,
                 machine,
                 state,
@@ -136,7 +136,7 @@ pub(super) fn check_domain_field_writes(
                 // predicate-only membership"; a routed domain still needs its
                 // provenance and so keeps the plain rejection.
                 let requires_provenance =
-                    crate::facts::field_domain::domain_requires_provenance(program, domain_symbol);
+                    validation::field_domains::domain_requires_provenance(program, domain_symbol);
                 // A domain whose membership is exactly an interval is the
                 // target's integer range: the bounded-assignment obligation
                 // proves every write inside it, from guards and operand
@@ -197,21 +197,21 @@ pub(super) fn check_domain_field_writes(
         // A value whose maximum length cannot be bounded (an unbounded view
         // source, a runtime call result) is conservatively rejected.
         if let StatementNode::Assignment(assignment) = statement
-            && !crate::facts::field_domain::assignment_target_domain_symbols(
+            && !validation::field_domains::assignment_target_domain_symbols(
                 program,
                 machine,
                 state,
                 assignment.target,
             )
             .is_empty()
-            && let Some(field_type) = crate::facts::field_domain::assignment_target_type_reference(
+            && let Some(field_type) = validation::field_domains::assignment_target_type_reference(
                 program,
                 machine,
                 state,
                 assignment.target,
             )
             && let Some(capacity) =
-                crate::facts::field_domain::type_reference_fixed_array_capacity(program, field_type)
+                validation::field_domains::type_reference_fixed_array_capacity(program, field_type)
         {
             let target_label = program.expression_table.display_name(assignment.target);
             let known_lengths = known_byte_lengths_before(program, machine, state, statement_index);
@@ -248,7 +248,7 @@ pub(super) fn check_domain_field_writes(
         // in, so storing one there names bytes no declaration owns.
         let view_destination = match statement {
             StatementNode::Assignment(assignment) => {
-                crate::facts::field_domain::assignment_target_type_reference(
+                validation::field_domains::assignment_target_type_reference(
                     program,
                     machine,
                     state,
@@ -543,7 +543,7 @@ fn scan_construction_field_domains(
                             field.name.as_str(),
                         )
                         && let Some(capacity) =
-                            crate::facts::field_domain::type_reference_fixed_array_capacity(
+                            validation::field_domains::type_reference_fixed_array_capacity(
                                 program, field_type,
                             )
                     {
@@ -782,10 +782,10 @@ fn construction_field_domain_identities(
     else {
         return Vec::new();
     };
-    crate::facts::field_domain::domain_constraint_identities(program, field_type)
+    validation::field_domains::domain_constraint_identities(program, field_type)
         .into_iter()
         .filter(|(symbol, _)| {
-            crate::facts::field_domain::domain_requires_provenance(program, *symbol)
+            validation::field_domains::domain_requires_provenance(program, *symbol)
                 || program
                     .domain_definitions()
                     .iter()
@@ -840,7 +840,7 @@ fn construction_field_type(
             }
         }
     }
-    crate::facts::field_domain::data_field_type_by_name(program, data_definition, field_name)
+    validation::field_domains::data_field_type_by_name(program, data_definition, field_name)
 }
 
 /// Retain the successful source judgment, not the field annotation. The walk

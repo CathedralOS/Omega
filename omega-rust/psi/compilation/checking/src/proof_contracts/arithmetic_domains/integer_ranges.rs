@@ -202,6 +202,7 @@ pub(crate) fn validate_value_range_retaining_decisions(
         target_primitive,
         target_domain,
         owner,
+        true,
         diagnostics,
     );
     if !diagnostics[first_diagnostic..]

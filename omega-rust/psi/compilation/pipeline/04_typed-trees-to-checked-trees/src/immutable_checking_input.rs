@@ -44,6 +44,35 @@ fn checking_does_not_reopen_typed_preparation() {
         }
     }
 
+    // Exercise the whole ownership surface, not a hand-maintained roster of
+    // files: adding a new query module cannot silently restore ambient state.
+    let source_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut directories = vec![
+        source_root.clone(),
+        source_root.join("../../../checking/src"),
+    ];
+    while let Some(directory) = directories.pop() {
+        for entry in std::fs::read_dir(directory).expect("checking source directory") {
+            let path = entry.expect("checking source entry").path();
+            if path.is_dir() {
+                directories.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "rs")
+                && path
+                    .file_name()
+                    .is_none_or(|name| name != "immutable_checking_input.rs")
+            {
+                let source = std::fs::read_to_string(&path).expect("checking source text");
+                for forbidden in ["thread_local!", "RefCell"] {
+                    assert!(
+                        !source.contains(forbidden),
+                        "{} restored {forbidden}",
+                        path.display()
+                    );
+                }
+            }
+        }
+    }
+
     // Product pruning is a consuming transform, not permission to reopen the
     // embedded source in an already constructed checked result.
     let pruning = include_str!("product_pruning/rewrite.rs");

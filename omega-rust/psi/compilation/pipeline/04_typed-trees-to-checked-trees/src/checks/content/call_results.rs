@@ -49,7 +49,7 @@ pub(super) fn check_call_result_qualifications(
         };
         let Some(domain) =
             typed_trees::domain::domain_by_symbol(program, domain_symbol).filter(|_| {
-                crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
+                validation::field_domains::domain_requires_provenance(program, domain_symbol)
             })
         else {
             continue;
@@ -601,7 +601,7 @@ fn qualified_leaf_carrier(
             }
             PlaceSegment::Field { symbol } => {
                 let data =
-                    crate::facts::field_domain::owned_nominal_data_definition(program, carrier)?;
+                    validation::field_domains::owned_nominal_data_definition(program, carrier)?;
                 let field = match variant_scope.take() {
                     Some(variant_symbol) => program
                         .data_members(data)

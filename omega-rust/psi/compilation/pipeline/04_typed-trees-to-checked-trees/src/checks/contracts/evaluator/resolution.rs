@@ -8,7 +8,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// Substitute a contract formal once, then retain caller ownership through
     /// local resolution. Recursive calls share symbols but not these namespaces.
     pub(super) fn resolved_boolean_expression(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
         owner: BooleanExpressionOwner,
     ) -> Option<(ExpressionHandle, BooleanExpressionOwner)> {
@@ -39,19 +39,19 @@ impl ContractExpressionEvaluator<'_, '_> {
     }
 
     pub(super) fn resolved_expression(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
         // Re-entering an expression whose resolution is still in progress
         // means call-site/local following looped; stand down with unknown
         // rather than overflow the stack.
-        Self::guarding_cycles(&self.active_resolutions, expression, || {
-            self.resolved_expression_followed(expression)
+        self.guarding_cycles(super::ExpressionWork::Resolution, expression, |evaluator| {
+            evaluator.resolved_expression_followed(expression)
         })
     }
 
     fn resolved_expression_followed(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
         match self.program.expression_table.expression(expression) {
@@ -107,7 +107,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     }
 
     pub(super) fn argument_for_parameter(
-        &self,
+        &mut self,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
         name: Option<&str>,
@@ -135,7 +135,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     }
 
     fn local_initializer(
-        &self,
+        &mut self,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
         members: arena::HandleSpan<typed_trees::name::Identifier>,
@@ -170,7 +170,7 @@ impl ContractExpressionEvaluator<'_, '_> {
             })
     }
 
-    fn closed_value(&self, expression: ExpressionHandle) -> bool {
+    fn closed_value(&mut self, expression: ExpressionHandle) -> bool {
         if !self
             .program
             .expression_table

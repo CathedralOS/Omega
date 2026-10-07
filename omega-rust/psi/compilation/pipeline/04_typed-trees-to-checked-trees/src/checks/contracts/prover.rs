@@ -231,7 +231,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                         let FactPlace::Place(candidate_place) = candidate.place else {
                             return false;
                         };
-                        crate::facts::field_domain::domain_membership_implies(
+                        validation::field_domains::domain_membership_implies(
                             program,
                             candidate_domain,
                             domain_symbol,

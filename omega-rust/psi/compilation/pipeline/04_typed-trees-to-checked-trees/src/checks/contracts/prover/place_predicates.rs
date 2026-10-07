@@ -5,7 +5,7 @@ use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use typed_trees::expression::ExpressionHandle;
 
 pub(in crate::checks::contracts) enum PlacePredicate {
-    Bytes(crate::facts::field_domain::ByteSequencePredicate),
+    Bytes(validation::field_domains::ByteSequencePredicate),
     Case(symbols::SymbolHandle),
 }
 

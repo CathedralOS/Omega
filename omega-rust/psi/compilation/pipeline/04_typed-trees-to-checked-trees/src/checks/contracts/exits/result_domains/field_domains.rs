@@ -36,7 +36,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     let Some(entry) = program.machine_states(machine).first() else {
         return;
     };
-    let mut paths = crate::facts::field_domain::declared_result_field_domain_paths(
+    let mut paths = validation::field_domains::declared_result_field_domain_paths(
         program,
         result_domain_type(program, entry.return_type),
     )
@@ -44,7 +44,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     .filter(|(_, domain_symbol, _)| value_provable_domain(program, *domain_symbol))
     .collect::<Vec<_>>();
     paths.extend(
-        crate::facts::field_domain::declared_owned_field_domain_identities(
+        validation::field_domains::declared_owned_field_domain_identities(
             program,
             result_domain_type(program, entry.return_type),
         ),
@@ -54,10 +54,10 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         .is_none()
     {
         paths.extend(
-            crate::facts::field_domain::domain_constraint_identities(program, entry.return_type)
+            validation::field_domains::domain_constraint_identities(program, entry.return_type)
                 .into_iter()
                 .filter(|(domain, _)| {
-                    crate::facts::field_domain::domain_requires_provenance(program, *domain)
+                    validation::field_domains::domain_requires_provenance(program, *domain)
                 })
                 .map(|(domain, identity)| (Vec::new(), domain, identity)),
         );
@@ -107,10 +107,8 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 semantic_domain,
             ) {
                 true
-            } else if !crate::facts::field_domain::domain_requires_provenance(
-                program,
-                domain_symbol,
-            ) {
+            } else if !validation::field_domains::domain_requires_provenance(program, domain_symbol)
+            {
                 super::super::super::prover::prove_domain_at_place(
                     program,
                     &facts.semantic,
@@ -221,7 +219,7 @@ pub(crate) fn value_provable_domain(
     program: &dyn ::validation::CheckingInput,
     domain_symbol: symbols::SymbolHandle,
 ) -> bool {
-    !crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
+    !validation::field_domains::domain_requires_provenance(program, domain_symbol)
 }
 
 /// Whether a declared parameter type is a readable `&mut` reference, whose
@@ -332,7 +330,7 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
             .filter(|parameter| is_readable_mutable_reference(program, parameter.type_reference))
         {
             for (domain_symbol, semantic_domain) in
-                crate::facts::field_domain::domain_constraint_identities(
+                validation::field_domains::domain_constraint_identities(
                     program,
                     parameter.type_reference,
                 )
@@ -410,7 +408,7 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
             continue;
         }
         let satisfied =
-            if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol) {
+            if validation::field_domains::domain_requires_provenance(program, domain_symbol) {
                 canonical_place_from_semantic_place(program, &facts.semantic, place).is_some_and(
                     |subject| {
                         exact_scalar_membership(

@@ -73,7 +73,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             .referent_type_paths
             .entry(parameter.type_reference)
             .or_insert_with(|| {
-                let paths = crate::facts::field_domain::declared_result_field_domain_paths(
+                let paths = validation::field_domains::declared_result_field_domain_paths(
                     program,
                     crate::checks::contracts::result_domain_type(program, parameter.type_reference),
                 );

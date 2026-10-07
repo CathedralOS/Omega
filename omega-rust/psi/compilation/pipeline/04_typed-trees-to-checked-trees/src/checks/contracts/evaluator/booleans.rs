@@ -3,12 +3,12 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, 
 use super::{BooleanExpressionOwner, ContractExpressionEvaluator};
 
 impl ContractExpressionEvaluator<'_, '_> {
-    pub(super) fn boolean_value(&self, expression: ExpressionHandle) -> Option<bool> {
+    pub(super) fn boolean_value(&mut self, expression: ExpressionHandle) -> Option<bool> {
         self.boolean_value_in_owner(expression, BooleanExpressionOwner::Contract)
     }
 
     fn boolean_value_in_owner(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
         owner: BooleanExpressionOwner,
     ) -> Option<bool> {
@@ -132,17 +132,17 @@ impl ContractExpressionEvaluator<'_, '_> {
     }
 
     fn checked_boolean_comparison_value(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
         owner: BooleanExpressionOwner,
     ) -> Option<bool> {
-        Self::guarding_cycles(&self.active_evaluations, expression, || {
-            self.checked_boolean_comparison_value_without_cycle(expression, owner)
+        self.guarding_cycles(super::ExpressionWork::Evaluation, expression, |evaluator| {
+            evaluator.checked_boolean_comparison_value_without_cycle(expression, owner)
         })
     }
 
     fn checked_boolean_comparison_value_without_cycle(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
         owner: BooleanExpressionOwner,
     ) -> Option<bool> {
@@ -178,7 +178,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     }
 
     fn builtin_boolean_meaning(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
         owner: BooleanExpressionOwner,
     ) -> bool {
@@ -243,7 +243,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     }
 
     fn boolean_operand_type(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
         owner: BooleanExpressionOwner,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {

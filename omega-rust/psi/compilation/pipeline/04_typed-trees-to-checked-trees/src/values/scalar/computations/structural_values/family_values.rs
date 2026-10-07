@@ -258,7 +258,7 @@ impl Builder<'_, '_> {
                     })
                 )
             {
-                if !crate::facts::field_domain::string_literal_grants_view_domains(
+                if !validation::field_domains::string_literal_grants_view_domains(
                     self.program,
                     member_type(field),
                     initializer.value,

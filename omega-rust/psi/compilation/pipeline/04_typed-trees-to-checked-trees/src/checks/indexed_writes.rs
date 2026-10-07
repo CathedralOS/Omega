@@ -52,7 +52,7 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
             if validation::byte_sequence_carrier(program, reference, &[]).is_none() {
                 continue;
             }
-            let domains = crate::facts::field_domain::domain_constraint_symbols(program, reference);
+            let domains = validation::field_domains::domain_constraint_symbols(program, reference);
             let preserved = domains.into_iter().all(|domain| {
                 let Some(required) =
                     typed_trees::byte_predicates::domain_byte_predicate(program, domain)

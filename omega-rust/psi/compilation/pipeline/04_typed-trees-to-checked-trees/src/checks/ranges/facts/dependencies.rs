@@ -9,7 +9,6 @@ use validation::CanonicalPlace;
 
 mod captures;
 mod reads;
-pub(crate) use reads::enter_root_currency_scope;
 
 use reads::collect_reads;
 
@@ -135,7 +134,7 @@ impl<'field> RangeFacts<'field> {
             return None;
         }
         let mut reads = Vec::new();
-        let bound_lookup = self.bound_lookup().clone();
+        let bound_lookup = self.bound_lookup();
         if !collect_reads(
             program,
             machine,
@@ -146,7 +145,7 @@ impl<'field> RangeFacts<'field> {
             self.checked_operators,
             &mut reads,
             0,
-            &bound_lookup,
+            bound_lookup,
         ) || reads.len() != 1
         {
             return None;
@@ -472,7 +471,7 @@ impl<'field> RangeFacts<'field> {
             Some(scope.evaluation),
             expression,
         ) && {
-            let bound_lookup = self.bound_lookup().clone();
+            let bound_lookup = self.bound_lookup();
             collect_reads(
                 program,
                 machine,
@@ -483,7 +482,7 @@ impl<'field> RangeFacts<'field> {
                 self.checked_operators,
                 &mut reads,
                 0,
-                &bound_lookup,
+                bound_lookup,
             )
         };
         if complete && scope.evaluation.symbol != state.symbol {

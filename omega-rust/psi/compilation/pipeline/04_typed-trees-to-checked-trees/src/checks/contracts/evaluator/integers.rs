@@ -9,7 +9,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// argument; an Exact declared range on that argument is a store-enforced
     /// invariant and may therefore discharge a callee comparison even when the
     /// argument's initializer is not constant-foldable.
-    pub(super) fn integer_bounds(&self, expression: ExpressionHandle) -> Option<(i64, i64)> {
+    pub(super) fn integer_bounds(&mut self, expression: ExpressionHandle) -> Option<(i64, i64)> {
         if let Some(value) = self.integer_value(expression) {
             return Some((value, value));
         }
@@ -37,16 +37,16 @@ impl ContractExpressionEvaluator<'_, '_> {
         )
     }
 
-    pub(super) fn integer_value(&self, expression: ExpressionHandle) -> Option<i64> {
+    pub(super) fn integer_value(&mut self, expression: ExpressionHandle) -> Option<i64> {
         // Re-entering an expression whose evaluation is still in progress
         // means call-site following looped (recursive machine); stand down
         // with unknown rather than overflow the stack.
-        Self::guarding_cycles(&self.active_evaluations, expression, || {
-            self.integer_value_of_resolved(expression)
+        self.guarding_cycles(super::ExpressionWork::Evaluation, expression, |evaluator| {
+            evaluator.integer_value_of_resolved(expression)
         })
     }
 
-    fn integer_value_of_resolved(&self, expression: ExpressionHandle) -> Option<i64> {
+    fn integer_value_of_resolved(&mut self, expression: ExpressionHandle) -> Option<i64> {
         let expression = self.resolved_expression(expression).unwrap_or(expression);
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Binary(binary) => {

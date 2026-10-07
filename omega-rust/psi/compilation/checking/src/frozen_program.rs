@@ -272,6 +272,8 @@ impl CheckingInput for CheckingProjection<'_> {
 #[doc(hidden)]
 #[derive(Default)]
 pub struct CheckingMemos {
+    pub(crate) owned_field_domains:
+        OnceLock<crate::value_custody::field_domains::OwnedFieldDomainQueries>,
     pub(crate) claim_frontiers:
         OnceLock<crate::value_custody::type_properties::ClaimFrontierQueries>,
     pub(crate) establishment: OnceLock<crate::value_custody::type_properties::EstablishmentQueries>,

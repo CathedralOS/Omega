@@ -110,6 +110,7 @@ pub(super) fn analyze(
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &str,
+    infer_call_bodies: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedAnalysis {
     let mut decisions = ArithmeticDecisions::default();
@@ -121,6 +122,7 @@ pub(super) fn analyze(
         target_primitive,
         target_domain,
         owner,
+        infer_call_bodies,
         checks_trap_coverage: true,
     }
     .analyze(expression, diagnostics, &mut decisions);
@@ -138,6 +140,11 @@ struct ExpressionWalk<'a> {
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &'a str,
+    /// Body inference captures one callee only. Descendant calls retain their
+    /// declared guarantees without recursively deriving another body bound.
+    /// Carrier-only queries also decline body inference: a range is not type
+    /// selection authority, and their re-entry must not restart that capture.
+    infer_call_bodies: bool,
     /// Whether a Trapping operation must prove its trap fits the machine's
     /// published Trap ceiling. A coverage re-analysis under the route
     /// complement only asks whether one node forms; its nested operations

@@ -585,6 +585,7 @@ impl ArrivalWalk<'_, '_> {
             None,
             ArithmeticDomain::Exact,
             "state arrival",
+            true,
             &mut diagnostics,
         )
         .value;

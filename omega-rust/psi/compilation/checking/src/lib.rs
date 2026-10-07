@@ -68,6 +68,7 @@ pub use value_custody::claim_frontier::{
 };
 pub use value_custody::content_classes::classify_program_content_classes;
 pub use value_custody::dispatch_extraction::DispatchExtraction;
+pub use value_custody::field_domains;
 pub use value_custody::owned_value_source::{
     affine_owned_value_source, linear_owned_value_source, plain_owned_value_source,
 };

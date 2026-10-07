@@ -50,6 +50,7 @@ pub(crate) fn validate_total_specification_arithmetic(
         None,
         ArithmeticDomain::Exact,
         owner,
+        true,
         &mut formation_diagnostics,
     )
     .value;
@@ -71,6 +72,7 @@ pub(crate) fn validate_total_specification_arithmetic(
             None,
             ArithmeticDomain::Exact,
             owner,
+            true,
             &mut ignored_diagnostics,
         )
     };

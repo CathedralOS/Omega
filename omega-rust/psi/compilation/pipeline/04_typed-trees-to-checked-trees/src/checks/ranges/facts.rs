@@ -21,7 +21,6 @@ use typed_trees::expression::ExpressionHandle;
 mod call_writes;
 pub(super) use call_writes::RangeCallContext;
 mod dependencies;
-pub(crate) use dependencies::enter_root_currency_scope;
 mod invalidation;
 mod proofs;
 mod values;
@@ -73,18 +72,17 @@ pub(super) struct RangeFacts<'field> {
         String,
         typed_trees::expression::ExpressionHandle,
     )>,
-    /// The per-state lazy whole-program bound index: dependency and read
-    /// scans share one cell, so the bound maps build at most once for the
-    /// whole snapshot. Cloned branch snapshots share the cell itself, so a
-    /// lookup built on one arm serves every sibling. `bound_program` carries
-    /// the 'field program handle the leaf scans construct the lookup from.
-    pub(super) bound_lookup:
-        std::rc::Rc<std::cell::RefCell<Option<validation::ImmutableBoundLookup<'field>>>>,
-    pub(super) bound_program: Option<&'field dyn ::validation::CheckingInput>,
+    /// Branches borrow one worker-owned lookup over the immutable program.
+    /// The lookup itself lazily obtains the invocation's shared bound maps;
+    /// fact snapshots never acquire mutable access to query storage.
+    bound_lookup: &'field validation::ImmutableBoundLookup<'field>,
 }
 
 impl<'field> RangeFacts<'field> {
-    pub(super) fn new(fields: &'field [(SymbolHandle, String, usize)]) -> Self {
+    pub(super) fn new(
+        fields: &'field [(SymbolHandle, String, usize)],
+        bound_lookup: &'field validation::ImmutableBoundLookup<'field>,
+    ) -> Self {
         Self {
             checked_operators: None,
             expression_intervals: &[],
@@ -109,25 +107,12 @@ impl<'field> RangeFacts<'field> {
             exact_lengths: Vec::new(),
             window_parents: Vec::new(),
             boolean_locals: Vec::new(),
-            bound_lookup: std::rc::Rc::new(std::cell::RefCell::new(None)),
-            bound_program: None,
+            bound_lookup,
         }
     }
 
-    /// The shared whole-program bound index for this state snapshot. Builds
-    /// on first use so a state that never consults bound evidence pays
-    /// nothing, then every dependency/read scan reuses the one map set.
-    pub(super) fn bound_lookup(
-        &self,
-    ) -> std::cell::Ref<'_, validation::ImmutableBoundLookup<'field>> {
-        if self.bound_lookup.borrow().is_none() {
-            *self.bound_lookup.borrow_mut() = Some(validation::ImmutableBoundLookup::new(
-                self.bound_program.expect("bound program set by driver"),
-            ));
-        }
-        std::cell::Ref::map(self.bound_lookup.borrow(), |cell| {
-            cell.as_ref().expect("filled above")
-        })
+    pub(super) fn bound_lookup(&self) -> &'field validation::ImmutableBoundLookup<'field> {
+        self.bound_lookup
     }
 }
 
