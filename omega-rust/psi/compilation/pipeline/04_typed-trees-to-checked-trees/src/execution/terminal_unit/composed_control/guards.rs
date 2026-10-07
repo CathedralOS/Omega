@@ -42,6 +42,37 @@ pub(super) fn exact_guard(
 /// bound initializer, so a `let b = ...; transition b` caller joins on the
 /// value it computed rather than on a local slot the joined caller does not
 /// carry. Unresolvable or cyclic references decline the whole guard.
+
+/// Recurse into a binary boolean variant's two children.
+fn inline_binary_guard_children(
+    left: &checked_trees::CheckedBooleanExpression,
+    right: &checked_trees::CheckedBooleanExpression,
+    scalar_parameter_count: usize,
+    expressions: &CheckedScalarExpressionPlans,
+    state: SymbolHandle,
+    depth: u32,
+) -> Option<(
+    Box<checked_trees::CheckedBooleanExpression>,
+    Box<checked_trees::CheckedBooleanExpression>,
+)> {
+    Some((
+        Box::new(inline_guard_locals(
+            left,
+            scalar_parameter_count,
+            expressions,
+            state,
+            depth,
+        )?),
+        Box::new(inline_guard_locals(
+            right,
+            scalar_parameter_count,
+            expressions,
+            state,
+            depth,
+        )?),
+    ))
+}
+
 fn inline_guard_locals(
     expression: &checked_trees::CheckedBooleanExpression,
     scalar_parameter_count: usize,
@@ -67,22 +98,15 @@ fn inline_guard_locals(
             )))
         }
         checked_trees::CheckedBooleanExpression::Equal { left, right } => {
-            Some(checked_trees::CheckedBooleanExpression::Equal {
-                left: Box::new(inline_guard_locals(
-                    left,
-                    scalar_parameter_count,
-                    expressions,
-                    state,
-                    depth,
-                )?),
-                right: Box::new(inline_guard_locals(
-                    right,
-                    scalar_parameter_count,
-                    expressions,
-                    state,
-                    depth,
-                )?),
-            })
+            let (left, right) = inline_binary_guard_children(
+                left,
+                right,
+                scalar_parameter_count,
+                expressions,
+                state,
+                depth,
+            )?;
+            Some(checked_trees::CheckedBooleanExpression::Equal { left, right })
         }
         checked_trees::CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             Some(checked_trees::CheckedBooleanExpression::IntegerComparison {
@@ -104,40 +128,26 @@ fn inline_guard_locals(
             })
         }
         checked_trees::CheckedBooleanExpression::And { left, right } => {
-            Some(checked_trees::CheckedBooleanExpression::And {
-                left: Box::new(inline_guard_locals(
-                    left,
-                    scalar_parameter_count,
-                    expressions,
-                    state,
-                    depth,
-                )?),
-                right: Box::new(inline_guard_locals(
-                    right,
-                    scalar_parameter_count,
-                    expressions,
-                    state,
-                    depth,
-                )?),
-            })
+            let (left, right) = inline_binary_guard_children(
+                left,
+                right,
+                scalar_parameter_count,
+                expressions,
+                state,
+                depth,
+            )?;
+            Some(checked_trees::CheckedBooleanExpression::And { left, right })
         }
         checked_trees::CheckedBooleanExpression::Or { left, right } => {
-            Some(checked_trees::CheckedBooleanExpression::Or {
-                left: Box::new(inline_guard_locals(
-                    left,
-                    scalar_parameter_count,
-                    expressions,
-                    state,
-                    depth,
-                )?),
-                right: Box::new(inline_guard_locals(
-                    right,
-                    scalar_parameter_count,
-                    expressions,
-                    state,
-                    depth,
-                )?),
-            })
+            let (left, right) = inline_binary_guard_children(
+                left,
+                right,
+                scalar_parameter_count,
+                expressions,
+                state,
+                depth,
+            )?;
+            Some(checked_trees::CheckedBooleanExpression::Or { left, right })
         }
         _ => Some(expression.clone()),
     }
