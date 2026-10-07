@@ -36,11 +36,11 @@ pub(super) fn parse_arguments(
             .into_string()
             .map_err(|_| "package arguments must be UTF-8 (except --project paths)".to_owned())?;
         match argument.as_str() {
-            "--help" => set_flag(&mut help, &argument)?,
-            "--offline" => set_flag(&mut offline, &argument)?,
-            "--resume" => set_flag(&mut resume, &argument)?,
-            "--discard-review" => set_flag(&mut discard_review, &argument)?,
-            "--dangerously-accept-all" => set_flag(&mut accept_all, &argument)?,
+            "--help" => super::set_flag(&mut help, &argument)?,
+            "--offline" => super::set_flag(&mut offline, &argument)?,
+            "--resume" => super::set_flag(&mut resume, &argument)?,
+            "--discard-review" => super::set_flag(&mut discard_review, &argument)?,
+            "--dangerously-accept-all" => super::set_flag(&mut accept_all, &argument)?,
             "--build-input" | "--optional-build-input" => {
                 let path = super::option_value(&mut arguments)
                     .ok_or_else(|| format!("{argument} requires a canonical relative path"))?
@@ -169,14 +169,6 @@ pub(super) fn parse_arguments(
         },
         accept_all,
     )))
-}
-
-fn set_flag(value: &mut bool, flag: &str) -> Result<(), String> {
-    if *value {
-        return Err(format!("duplicate {flag}"));
-    }
-    *value = true;
-    Ok(())
 }
 
 fn take_value(

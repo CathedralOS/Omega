@@ -15,18 +15,8 @@ pub(super) fn parse_arguments(
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
             Some("--offline") => return Err("omega run does not support --offline".into()),
-            Some("--both") => {
-                if both {
-                    return Err("duplicate --both".into());
-                }
-                both = true;
-            }
-            Some("--keep") => {
-                if keep {
-                    return Err("duplicate --keep".into());
-                }
-                keep = true;
-            }
+            Some("--both") => super::set_flag(&mut both, "--both")?,
+            Some("--keep") => super::set_flag(&mut keep, "--keep")?,
             Some("--target") => {
                 if target_name.is_some() {
                     return Err("duplicate --target".into());

@@ -117,6 +117,14 @@ fn parse_audit(mut arguments: impl Iterator<Item = OsString>) -> Result<Invocati
     }
 }
 
+fn set_flag(value: &mut bool, flag: &str) -> Result<(), String> {
+    if *value {
+        return Err(format!("duplicate {flag}"));
+    }
+    *value = true;
+    Ok(())
+}
+
 fn option_value(arguments: &mut impl Iterator<Item = OsString>) -> Option<OsString> {
     arguments
         .next()

@@ -40,10 +40,7 @@ pub(crate) fn parse_arguments(
 
     while let Some(argument) = arguments.next() {
         if argument == "--offline" {
-            if offline {
-                return Err("duplicate --offline".into());
-            }
-            offline = true;
+            super::set_flag(&mut offline, "--offline")?;
             continue;
         }
 
@@ -53,18 +50,12 @@ pub(crate) fn parse_arguments(
         }
 
         if argument == "--verify" {
-            if verify {
-                return Err("duplicate --verify".into());
-            }
-            verify = true;
+            super::set_flag(&mut verify, "--verify")?;
             continue;
         }
 
         if argument == "--timings" {
-            if timings {
-                return Err("duplicate --timings".into());
-            }
-            timings = true;
+            super::set_flag(&mut timings, "--timings")?;
             continue;
         }
 
