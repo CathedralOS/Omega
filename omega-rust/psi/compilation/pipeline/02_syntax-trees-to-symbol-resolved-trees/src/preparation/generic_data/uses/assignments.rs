@@ -1,10 +1,7 @@
 //! Expected types from constant/local declarations and assignments.
-use super::super::{
-    ExpressionNode, Item, StatementNode, SyntaxTrees,
-};
+use super::super::{ExpressionNode, Item, StatementNode, SyntaxTrees};
 use crate::preparation::generic_data::uses::{
-    concrete_state_local_types,
-    ConstructorFrontier, relabel_data_literal_for_expected_type,
+    ConstructorFrontier, concrete_state_local_types, relabel_data_literal_for_expected_type,
 };
 
 use crate::preparation::declaration_selection;
@@ -74,9 +71,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_as
     selection: Option<&declaration_selection::ConstantSelection>,
     declarations: &[syntax_trees::item::ItemHandle],
 ) {
-    for (state, local_types, statements) in
-        concrete_state_local_types(syntax, declarations)
-    {
+    for (state, local_types, statements) in concrete_state_local_types(syntax, declarations) {
         for (index, statement) in statements.iter().enumerate() {
             let frontier = ConstructorFrontier {
                 parameters: state.parameters,

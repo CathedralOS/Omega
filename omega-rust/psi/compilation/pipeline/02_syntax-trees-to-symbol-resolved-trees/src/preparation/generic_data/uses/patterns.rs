@@ -4,10 +4,9 @@ use super::super::{
     TypeReferenceNode,
 };
 use crate::preparation::generic_data::uses::{
-    concrete_state_local_types,
     ConstructorFrontier, closed_constructor_carrier, collect_statement_expression_handles,
-    constructor_carrier_span, constructor_path_name, expected_instance, selected_case_value,
-    selected_constructor, selected_machine_state_handles,
+    concrete_state_local_types, constructor_carrier_span, constructor_path_name, expected_instance,
+    selected_case_value, selected_constructor, selected_machine_state_handles,
 };
 
 use crate::preparation::generic_data::Instantiation;
@@ -26,9 +25,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
     selection: Option<&declaration_selection::ConstantSelection>,
     declarations: &[syntax_trees::item::ItemHandle],
 ) {
-    for (_state, local_types, statements) in
-        concrete_state_local_types(syntax, declarations)
-    {
+    for (_state, local_types, statements) in concrete_state_local_types(syntax, declarations) {
         let mut reachable = HashSet::new();
         for statement in statements {
             collect_statement_expression_handles(syntax, statement, &mut reachable);

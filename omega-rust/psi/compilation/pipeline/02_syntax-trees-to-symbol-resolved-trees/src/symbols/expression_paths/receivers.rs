@@ -7,6 +7,7 @@ use super::super::scoped_paths::{
     invalid_symbol_pair, resolve_state_scoped_table_path,
     resolve_state_scoped_table_path_with_indexed_last_member,
 };
+
 /// The member kinds a receiver path may resolve through — fields, states,
 /// parameters and variants.
 const RECEIVER_MEMBER_KINDS: &[SymbolKind] = &[

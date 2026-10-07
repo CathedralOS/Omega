@@ -80,7 +80,8 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         matches!(
             parameter.kind,
             symbol_resolved_trees::data::TypeParameterKind::Machine {
-                contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+                contract:
+                    symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
             }
         )
     });

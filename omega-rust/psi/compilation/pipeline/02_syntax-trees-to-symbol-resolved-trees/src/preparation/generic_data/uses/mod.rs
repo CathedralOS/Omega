@@ -59,16 +59,14 @@ pub(super) fn concrete_state_local_types(
     let mut states = Vec::with_capacity(concrete_states.len());
     for state_handle in concrete_states {
         let state = syntax.tables.items.state(state_handle).clone();
-        let mut local_types =
-            super::HashMap::<String, super::TypeReferenceHandle>::new();
+        let mut local_types = super::HashMap::<String, super::TypeReferenceHandle>::new();
         for parameter in syntax.tables.items.state_parameters(state.parameters) {
             let parameter = syntax.tables.items.state_parameter(*parameter);
             local_types.insert(parameter.name.as_str().to_owned(), parameter.type_reference);
         }
         let statements = syntax.tables.items.statements(state.statements).to_vec();
         for statement in &statements {
-            if let StatementNode::LocalData(local) =
-                syntax.tables.statements.statement(*statement)
+            if let StatementNode::LocalData(local) = syntax.tables.statements.statement(*statement)
             {
                 local_types.insert(local.name.as_str().to_owned(), local.type_reference);
             }
