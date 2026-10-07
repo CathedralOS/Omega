@@ -237,6 +237,20 @@ fn dependent_range_substituted(
 /// A Range constraint whose minimum literal-folds and whose maximum is the
 /// R1a-admissible symbolic shape, under Exact shells only (mirrors
 /// `enforced_range_of_type_reference`'s domain kill).
+
+/// A shell's constraint set spells a non-Exact arithmetic domain — a
+/// deliberately permissive layer neither dependent-range nor exact-shell
+/// walks may read through.
+fn has_non_exact_domain(constraints: &[typed_trees::types::TypeConstraintNode]) -> bool {
+    constraints.iter().any(|constraint| {
+        matches!(
+            constraint,
+            typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                if *domain != numerics::arithmetic::ArithmeticDomain::Exact
+        )
+    })
+}
+
 fn dependent_range_of_type_reference(
     program: &typed_trees::TypedTrees,
     handle: TypeReferenceHandle,
@@ -250,13 +264,7 @@ fn dependent_range_of_type_reference(
             constraints,
         } => {
             let constraints = program.type_reference_table.constraints(*constraints);
-            if constraints.iter().any(|constraint| {
-                matches!(
-                    constraint,
-                    typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
-                        if *domain != numerics::arithmetic::ArithmeticDomain::Exact
-                )
-            }) {
+            if has_non_exact_domain(constraints) {
                 return None;
             }
             constraints
@@ -301,13 +309,7 @@ pub(in crate::checks::ranges) fn exact_domain_shell_constraints(
                 constraints,
             } => {
                 let constraints = program.type_reference_table.constraints(*constraints);
-                if constraints.iter().any(|constraint| {
-                    matches!(
-                        constraint,
-                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
-                            if *domain != numerics::arithmetic::ArithmeticDomain::Exact
-                    )
-                }) {
+                if has_non_exact_domain(constraints) {
                     return None;
                 }
                 if !visit(constraints) {
