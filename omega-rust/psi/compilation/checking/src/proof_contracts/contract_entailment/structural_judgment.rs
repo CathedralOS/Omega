@@ -105,6 +105,45 @@ pub(super) enum StructuralTerm {
     Opaque(String),
 }
 
+impl StructuralTerm {
+    /// Rebuild `self` with `map` applied over every argument — the
+    /// variant-preserving argument rewrite the term walks share for
+    /// `Application` and `CallProjection`.
+    pub(super) fn map_argument_terms(self, mut map: impl FnMut(Self) -> Self) -> Self {
+        match self {
+            StructuralTerm::Application {
+                target,
+                selections,
+                machine,
+                arguments,
+            } => StructuralTerm::Application {
+                target,
+                selections,
+                machine,
+                arguments: arguments.into_iter().map(&mut map).collect(),
+            },
+            StructuralTerm::CallProjection {
+                selections,
+                target,
+                machine,
+                result_type,
+                field,
+                field_name,
+                arguments,
+            } => StructuralTerm::CallProjection {
+                selections,
+                target,
+                machine,
+                result_type,
+                field,
+                field_name,
+                arguments: arguments.into_iter().map(&mut map).collect(),
+            },
+            term => term,
+        }
+    }
+}
+
 pub(super) struct StructuralJudge<'program> {
     program: &'program TypedTrees,
     entry_machines: std::sync::Arc<EntryMachines>,
@@ -1245,40 +1284,9 @@ impl<'program> StructuralJudge<'program> {
                     .map(|(name, value)| (name.clone(), Self::substitute_term(value, map)))
                     .collect(),
             },
-            StructuralTerm::Application {
-                target,
-                selections,
-                machine,
-                arguments,
-            } => StructuralTerm::Application {
-                target: *target,
-                selections: selections.clone(),
-                machine: machine.clone(),
-                arguments: arguments
-                    .iter()
-                    .map(|argument| Self::substitute_term(argument, map))
-                    .collect(),
-            },
-            StructuralTerm::CallProjection {
-                selections,
-                target,
-                machine,
-                result_type,
-                field,
-                field_name,
-                arguments,
-            } => StructuralTerm::CallProjection {
-                target: *target,
-                selections: selections.clone(),
-                machine: machine.clone(),
-                result_type: *result_type,
-                field: *field,
-                field_name: field_name.clone(),
-                arguments: arguments
-                    .iter()
-                    .map(|argument| Self::substitute_term(argument, map))
-                    .collect(),
-            },
+            StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. } => term
+                .clone()
+                .map_argument_terms(|argument| Self::substitute_term(&argument, map)),
             StructuralTerm::Opaque(display) => {
                 // Symbolic record member places currently share the Opaque
                 // vocabulary (`p.den`). Citation instantiation must still

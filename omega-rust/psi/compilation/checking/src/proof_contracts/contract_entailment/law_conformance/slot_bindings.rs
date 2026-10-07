@@ -185,28 +185,11 @@ pub(crate) fn rewrite_slot_applications(
                 })
                 .collect(),
         },
-        StructuralTerm::CallProjection {
-            selections,
-            target,
-            machine,
-            result_type,
-            field,
-            field_name,
-            arguments,
-        } => StructuralTerm::CallProjection {
-            selections: selections.clone(),
-            target: *target,
-            machine: machine.clone(),
-            result_type: *result_type,
-            field: *field,
-            field_name: field_name.clone(),
-            arguments: arguments
-                .iter()
-                .map(|argument| {
-                    rewrite_slot_applications(argument, slot_names, slot_bindings, missing)
-                })
-                .collect(),
-        },
+        StructuralTerm::CallProjection { .. } => {
+            term.clone().map_argument_terms(|argument| {
+                rewrite_slot_applications(&argument, slot_names, slot_bindings, missing)
+            })
+        }
         StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
             subject: Box::new(rewrite_slot_applications(
                 subject,

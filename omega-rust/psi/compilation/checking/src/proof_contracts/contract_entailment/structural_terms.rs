@@ -79,26 +79,9 @@ pub(super) fn unfold_constant_applications(
                 .map(|argument| unfold_constant_applications(program, argument))
                 .collect(),
         },
-        StructuralTerm::CallProjection {
-            selections,
-            target,
-            machine,
-            result_type,
-            field,
-            field_name,
-            arguments,
-        } => StructuralTerm::CallProjection {
-            selections,
-            target,
-            machine,
-            result_type,
-            field,
-            field_name,
-            arguments: arguments
-                .into_iter()
-                .map(|argument| unfold_constant_applications(program, argument))
-                .collect(),
-        },
+        term @ StructuralTerm::CallProjection { .. } => {
+            term.map_argument_terms(|argument| unfold_constant_applications(program, argument))
+        }
         StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
             data,
             case,
