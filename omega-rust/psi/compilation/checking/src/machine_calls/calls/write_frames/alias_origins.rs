@@ -50,22 +50,75 @@ pub(crate) fn stable_local_reference_alias_origin(
     stored: &[StoredLocalOrigins],
     include_shared: bool,
 ) -> Option<FramePlaceOrigin> {
+    stable_reference_alias_dispatch(
+        program,
+        current_machine,
+        machine_symbols,
+        inference,
+        local,
+        parameters,
+        isolated_local_roots,
+        aliases,
+        divergent_aliases,
+        symbols,
+        stored,
+        include_shared,
+        |inference| {
+            reference_subjects::backing_origin(
+                program,
+                current_machine,
+                local.initial_value,
+                symbols,
+                inference,
+                aliases,
+                stored,
+            )
+        },
+        stable_alias_initializer_origin,
+    )
+}
+
+/// The exclusive-reference gate and initializer dispatch both stable-alias
+/// lanes run: `include_shared` admits a shared-reference local, whose access
+/// resolves through the backing-origin lane instead of its initializer.
+#[allow(clippy::too_many_arguments)]
+fn stable_reference_alias_dispatch<T>(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    inference: &mut FrameInference,
+    local: &typed_trees::statement::TableLocalData,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
+    symbols: &TopLevelSymbols<'_>,
+    stored: &[StoredLocalOrigins],
+    include_shared: bool,
+    backing: impl FnOnce(&mut FrameInference) -> Option<T>,
+    initializer: impl Fn(
+        &TypedTrees,
+        &Machine,
+        &MachineSymbols<'_>,
+        &mut FrameInference,
+        ExpressionHandle,
+        &[StateParameter],
+        &[String],
+        &[(String, FramePlaceOrigin)],
+        &[(String, Vec<FramePlaceOrigin>)],
+        &TopLevelSymbols<'_>,
+        bool,
+        &[StoredLocalOrigins],
+    ) -> Option<T>,
+) -> Option<T> {
     let access = local_declared_reference_access(program, local)?;
     if !access.is_exclusive() && !include_shared {
         return None;
     }
     if include_shared {
-        return reference_subjects::backing_origin(
-            program,
-            current_machine,
-            local.initial_value,
-            symbols,
-            inference,
-            aliases,
-            stored,
-        );
+        return backing(inference);
     }
-    stable_alias_initializer_origin(
+    initializer(
         program,
         current_machine,
         machine_symbols,
@@ -121,23 +174,21 @@ pub(crate) fn stable_local_reference_alias_origins(
     symbols: &TopLevelSymbols<'_>,
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
-    let access = local_declared_reference_access(program, local)?;
-    if !access.is_exclusive() {
-        return None;
-    }
-    stable_alias_initializer_origins(
+    stable_reference_alias_dispatch(
         program,
         current_machine,
         machine_symbols,
         inference,
-        local.initial_value,
+        local,
         parameters,
         isolated_local_roots,
         aliases,
         divergent_aliases,
         symbols,
-        true,
         stored,
+        false,
+        |_| None,
+        stable_alias_initializer_origins,
     )
 }
 
