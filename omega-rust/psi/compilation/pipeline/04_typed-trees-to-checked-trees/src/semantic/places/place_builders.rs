@@ -49,20 +49,10 @@ pub(crate) fn resolve_place_member_symbol(
     if let Some(machine) = crate::lookup::machine_by_symbol(program, base_symbol)
         && let Some(data) = program.attached_data_definition(machine)
     {
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
-                    return Some(field.symbol);
-                }
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
-                    return Some(variant.symbol);
-                }
-                _ => {}
-            }
+        if let Some(symbol) =
+            crate::lookup::symbols::data_member_symbol_by_name(program, data, member_name)
+        {
+            return Some(symbol);
         }
     }
 
@@ -71,20 +61,10 @@ pub(crate) fn resolve_place_member_symbol(
         .iter()
         .find(|definition| definition.symbol == base_symbol)
     {
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
-                    return Some(field.symbol);
-                }
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
-                    return Some(variant.symbol);
-                }
-                _ => {}
-            }
+        if let Some(symbol) =
+            crate::lookup::symbols::data_member_symbol_by_name(program, data, member_name)
+        {
+            return Some(symbol);
         }
     }
 

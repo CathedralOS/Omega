@@ -191,6 +191,28 @@ pub(crate) fn structural_member_identity(
     })
 }
 
+/// The field or variant member `member_name` declares on `data`, by symbol.
+pub(crate) fn data_member_symbol_by_name(
+    program: &typed_trees::TypedTrees,
+    data: &typed_trees::data::DataDefinition,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == member_name => {
+                Some(field.symbol)
+            }
+            typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == member_name =>
+            {
+                Some(variant.symbol)
+            }
+            _ => None,
+        })
+}
+
 /// Data definition a type reference names, through reference and constraint
 /// shells.
 pub(crate) fn declared_data_type(

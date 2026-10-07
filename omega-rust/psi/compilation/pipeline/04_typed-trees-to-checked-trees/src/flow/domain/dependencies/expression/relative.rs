@@ -68,20 +68,10 @@ fn resolve_member_symbol_from_type(
         .iter()
         .find(|definition| definition.symbol == type_symbol)
     {
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
-                    return Some(field.symbol);
-                }
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
-                    return Some(variant.symbol);
-                }
-                _ => {}
-            }
+        if let Some(symbol) =
+            crate::lookup::symbols::data_member_symbol_by_name(program, data, member_name)
+        {
+            return Some(symbol);
         }
     }
 
