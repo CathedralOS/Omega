@@ -166,11 +166,15 @@ pub fn byte_qualification_predicates_in<'domain>(
 /// producer, an unrestricted result spelling the exact callee signature with
 /// no projected claims or loan sources. The carrier itself is each query's
 /// own gate — owned bytes and shared views authenticate identically to here.
-fn authenticated_call_result<'machine>(
-    module: &TerminalModule,
+/// Resolve an operation-result place to its producing operation and declared
+/// structural type — the two-hop prologue each result-predicate walks.
+fn operation_producer<'machine>(
     machine: &'machine TerminalMachine,
     source: PlaceId,
-) -> Option<&'machine terminal_psi::StructuralOperationResult> {
+) -> Option<(
+    &'machine terminal_psi::Operation,
+    semantic_vocabulary::StructuralTypeId,
+)> {
     let declaration = machine
         .structural_places
         .iter()
@@ -187,6 +191,15 @@ fn authenticated_call_result<'machine>(
         .iter()
         .flat_map(|block| &block.operations)
         .find(|operation| operation.id == producer)?;
+    Some((operation, structural_type))
+}
+
+fn authenticated_call_result<'machine>(
+    module: &TerminalModule,
+    machine: &'machine TerminalMachine,
+    source: PlaceId,
+) -> Option<&'machine terminal_psi::StructuralOperationResult> {
+    let (operation, structural_type) = operation_producer(machine, source)?;
     let callee = match operation.kind {
         OperationKind::CallStructural { callee, .. }
         | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
@@ -307,22 +320,7 @@ fn byte_result_predicates(
     machine: &TerminalMachine,
     source: PlaceId,
 ) -> Option<ByteSequencePredicateSet> {
-    let place = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == source)?;
-    let StructuralPlaceKind::OperationResult {
-        producer,
-        structural_type,
-    } = place.kind
-    else {
-        return None;
-    };
-    let operation = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| operation.id == producer)?;
+    let (operation, structural_type) = operation_producer(machine, source)?;
     let result = if matches!(
         operation.kind,
         OperationKind::CallStructural { .. }
@@ -424,22 +422,7 @@ pub fn byte_copied_field_predicates_at_transfer(
     source: PlaceId,
     consumer: semantic_vocabulary::OperationId,
 ) -> Option<ByteSequencePredicateSet> {
-    let place = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == source)?;
-    let StructuralPlaceKind::OperationResult {
-        producer,
-        structural_type,
-    } = place.kind
-    else {
-        return None;
-    };
-    let operation = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| operation.id == producer)?;
+    let (operation, structural_type) = operation_producer(machine, source)?;
     let result = operation.result.structural()?;
     let OperationKind::StructuralLeafCopy {
         source: backing,
