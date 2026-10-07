@@ -341,12 +341,12 @@ fn structural_actual_root(
         path.push(match *segment {
             facts::PlaceSegment::Field { symbol } => {
                 checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                    structural_member_identity(program, symbol)?,
+                    crate::lookup::structural_member_identity(program, symbol)?,
                 )
             }
             facts::PlaceSegment::Case { variant } => {
                 checked_trees::CheckedStructuralPredicatePathSegment::Case(
-                    structural_member_identity(program, variant)?,
+                    crate::lookup::structural_member_identity(program, variant)?,
                 )
             }
             facts::PlaceSegment::FixedIndex { .. }
@@ -456,32 +456,6 @@ fn boolean_evidence_is_crash_lane_lowerable(
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
     }
-}
-
-/// The checked identity string a place segment's member symbol carries: the
-/// field's declared `#identity` when present, else its authored name. This
-/// mirrors the spelling `structural_parameter_place` produces so a
-/// transported leaf resolves to the same canonical storage.
-fn structural_member_identity(program: &TypedTrees, symbol: SymbolHandle) -> Option<String> {
-    program.data_definitions().iter().find_map(|data| {
-        program
-            .data_members(data)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    Some(field.path_identity())
-                }
-                typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
-                    Some(variant.path_identity())
-                }
-                typed_trees::data::DataMember::Variant(variant) => program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.symbol == symbol)
-                    .map(|field| field.path_identity()),
-                typed_trees::data::DataMember::Field(_) => None,
-            })
-    })
 }
 
 pub(crate) fn substitute_checked_boolean_expression(

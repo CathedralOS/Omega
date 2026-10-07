@@ -1264,28 +1264,7 @@ fn resolve_scope_subject(
             _ => return None,
         }
     }
-    let [name] = argument.path.as_ref() else {
-        return None;
-    };
-    let mut resolved = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.name.as_str() == name.as_str())
-        .map(|parameter| parameter.symbol);
-    for statement in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(scope_limit)
-    {
-        let StatementNode::LocalData(local) = statement else {
-            continue;
-        };
-        if local.name.as_str() == name.as_str() {
-            resolved = Some(local.symbol);
-        }
-    }
-    resolved
+    crate::lookup::nearest_scoped_local(program, state, scope_limit, argument.path.as_ref())
 }
 
 /// A call's index substitutions: one entry pairing each of the callee's

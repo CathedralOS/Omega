@@ -128,3 +128,65 @@ pub(crate) fn first_valid_name_path_symbol(
         .or_else(|| path.head_symbol.is_valid().then_some(path.head_symbol))
         .or_else(|| path.symbol.is_valid().then_some(path.symbol))
 }
+
+/// The nearest `let` of a bare name before a call boundary: state parameters
+/// shadow nothing, and a shadowed local re-derives its binding by scope —
+/// the same rule `resolve_runtime_subject` applies during selection.
+pub(crate) fn nearest_scoped_local(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    scope_limit: usize,
+    path: &[typed_trees::name::Identifier],
+) -> Option<SymbolHandle> {
+    let [name] = path else {
+        return None;
+    };
+    let mut resolved = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == name.as_str())
+        .map(|parameter| parameter.symbol);
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(scope_limit)
+    {
+        let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        if local.name.as_str() == name.as_str() {
+            resolved = Some(local.symbol);
+        }
+    }
+    resolved
+}
+
+/// The checked identity string a place segment's member symbol carries: the
+/// field's declared `#identity` when present, else its authored name — the
+/// spelling `structural_parameter_place` produces, so a transported leaf
+/// resolves to the same canonical storage.
+pub(crate) fn structural_member_identity(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<String> {
+    program.data_definitions().iter().find_map(|data| {
+        program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    Some(field.path_identity())
+                }
+                typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
+                    Some(variant.path_identity())
+                }
+                typed_trees::data::DataMember::Variant(variant) => program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.symbol == symbol)
+                    .map(|field| field.path_identity()),
+                typed_trees::data::DataMember::Field(_) => None,
+            })
+    })
+}

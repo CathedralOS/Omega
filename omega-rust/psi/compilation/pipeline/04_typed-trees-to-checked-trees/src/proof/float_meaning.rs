@@ -267,10 +267,14 @@ fn direct_structural_float_leaf_source(
         .segments
         .iter()
         .map(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => structural_member_identity(program, *symbol)
-                .map(checked_trees::CheckedStructuralPredicatePathSegment::Field),
-            facts::PlaceSegment::Case { variant } => structural_member_identity(program, *variant)
-                .map(checked_trees::CheckedStructuralPredicatePathSegment::Case),
+            facts::PlaceSegment::Field { symbol } => {
+                crate::lookup::structural_member_identity(program, *symbol)
+                    .map(checked_trees::CheckedStructuralPredicatePathSegment::Field)
+            }
+            facts::PlaceSegment::Case { variant } => {
+                crate::lookup::structural_member_identity(program, *variant)
+                    .map(checked_trees::CheckedStructuralPredicatePathSegment::Case)
+            }
             facts::PlaceSegment::FixedIndex { .. }
             | facts::PlaceSegment::FixedRange { .. }
             | facts::PlaceSegment::Index { .. } => None,
@@ -286,31 +290,6 @@ fn direct_structural_float_leaf_source(
             path,
         },
     ))
-}
-
-fn structural_member_identity(
-    program: &TypedTrees,
-    symbol: symbols::SymbolHandle,
-) -> Option<String> {
-    program.data_definitions().iter().find_map(|data| {
-        program
-            .data_members(data)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    Some(field.path_identity())
-                }
-                typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
-                    Some(variant.path_identity())
-                }
-                typed_trees::data::DataMember::Variant(variant) => program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.symbol == symbol)
-                    .map(|field| field.path_identity()),
-                typed_trees::data::DataMember::Field(_) => None,
-            })
-    })
 }
 
 fn direct_machine_result_source(
