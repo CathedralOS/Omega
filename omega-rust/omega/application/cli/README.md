@@ -85,7 +85,8 @@ omega refresh-samples [samples-dir]
 
 `--dangerously-accept-all` accepts every pending review decision without
 reading it, resumes, and publishes. `omega.lock` records each acceptance exactly
-as a hand edit of the review document would.
+as a hand edit of the review document would. Automatic resume uses the saved
+proposal's target and build-input inventory, not new invocation overrides.
 
 `--offline` restricts package acquisition to local sources and cached recorded
 Git pins. It does not refresh selectors or sandbox later program execution.

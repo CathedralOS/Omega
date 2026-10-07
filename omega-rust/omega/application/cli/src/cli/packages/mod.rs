@@ -13,13 +13,18 @@ use std::path::Path;
 /// pending decisions; bounded so a review that never settles cannot spin.
 const ACCEPT_ALL_ROUNDS: usize = 4;
 
-pub(crate) fn run(command: PackageCommand, options: PackageCommandOptions, accept_all: bool) {
+pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, accept_all: bool) {
     let kind = match &command {
         PackageCommand::Install { .. } => PackageCommandKind::Install,
         PackageCommand::Resume { kind } => *kind,
         _ => PackageCommandKind::Update,
     };
     let mut outcome = execute(command, options.clone());
+    // The saved proposal owns its target and input inventory. Automatic
+    // acceptance resumes that proposal, just like an explicit --resume;
+    // forwarding new-proposal overrides would reject or replace its custody.
+    options.targets.clear();
+    options.build_inputs = None;
     let mut round = 0;
     while accept_all
         && outcome.status == PackageCommandStatus::ReviewRequired
