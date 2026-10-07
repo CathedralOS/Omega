@@ -1585,23 +1585,15 @@ fn entry_scalar_parameter(
         )
         .then_some(());
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(subject) else {
+    let Some(symbol) =
+        crate::expression_traversal::single_segment_name_symbol(program, subject)
+    else {
         return None;
     };
-    if !path.symbol.is_valid()
-        || path.symbol != path.head_symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
     let parameter = program
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.symbol == path.symbol)?;
+        .find(|parameter| parameter.symbol == symbol)?;
     if parameter.is_const
         || !matches!(
             exact_integer_parameter(program, parameter.type_reference),

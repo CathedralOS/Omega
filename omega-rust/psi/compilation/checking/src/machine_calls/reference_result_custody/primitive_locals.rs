@@ -58,19 +58,11 @@ pub fn primitive_local_source(
         }
         _ => (borrow.target, false),
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(target) else {
+    let Some(symbol) =
+        crate::expression_traversal::single_segment_name_symbol(program, target)
+    else {
         return None;
     };
-    if !path.symbol.is_valid()
-        || path.symbol != path.head_symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
     let (source, storage) = if let Some((index, parameter)) = program
         .state_parameters(state)
         .iter()
@@ -82,7 +74,7 @@ pub fn primitive_local_source(
                     .is_some()
         })
         .enumerate()
-        .find(|(_, parameter)| parameter.symbol == path.symbol)
+        .find(|(_, parameter)| parameter.symbol == symbol)
     {
         if parameter.is_mutable {
             return None;
@@ -94,7 +86,7 @@ pub fn primitive_local_source(
             parameter.type_reference,
         )
     } else {
-        let (ordinal, backing) = program.state_local_declaration(state, path.symbol)?;
+        let (ordinal, backing) = program.state_local_declaration(state, symbol)?;
         if ordinal >= statement || !backing.is_mutable {
             return None;
         }
