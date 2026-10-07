@@ -64,18 +64,11 @@ pub(crate) fn validate_linear_permission_events(
         }
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
-        let events = facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .filter_map(|(_, event)| {
-                (event.machine_symbol == state_flow.machine_symbol
-                    && event.state_symbol == state.symbol
-                    && event.access == PermissionAccess::Owned)
-                    .then_some(event)
-            })
-            .collect::<Vec<_>>();
+        let events = super::permission_events::owned_permission_events(
+            facts,
+            state_flow.machine_symbol,
+            state.symbol,
+        );
         // Anonymous custody comes from the producer's published roster, not a
         // second AST discovery. Replay checks the same identities through the
         // same establishment/transfer/consumption rules as named owners.

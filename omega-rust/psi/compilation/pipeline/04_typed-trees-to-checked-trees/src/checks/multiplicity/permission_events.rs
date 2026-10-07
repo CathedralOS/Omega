@@ -28,6 +28,28 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
+/// The `Owned` permission events recorded for one `(machine, state)` flow, in
+/// emission order — the roster both the linear replay and the entry-claim
+/// walk replay against the same published rules.
+pub(crate) fn owned_permission_events(
+    facts: &CheckFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> Vec<&FlowPermissionEventFact> {
+    facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter_map(|(_, event)| {
+            (event.machine_symbol == machine_symbol
+                && event.state_symbol == state_symbol
+                && event.access == PermissionAccess::Owned)
+                .then_some(event)
+        })
+        .collect()
+}
+
 /// Prepare source custody without inspecting derived callable contracts. Crash
 /// frontier projection belongs after those contracts have been constructed.
 pub(crate) fn prepare_permission_events(
@@ -322,18 +344,7 @@ pub(crate) fn record_crash_frontier_lower_bounds(
         else {
             continue;
         };
-        let events = facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .filter_map(|(_, event)| {
-                (event.machine_symbol == state_flow.machine_symbol
-                    && event.state_symbol == state.symbol
-                    && event.access == PermissionAccess::Owned)
-                    .then_some(event)
-            })
-            .collect::<Vec<_>>();
+        let events = owned_permission_events(facts, state_flow.machine_symbol, state.symbol);
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
         apply_recorded_state_entry_events(&events, &facts.flow.ownership.segments, &mut places);
