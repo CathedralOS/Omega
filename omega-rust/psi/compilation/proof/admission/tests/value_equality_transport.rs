@@ -21,6 +21,17 @@ fn truth() -> ProofNode {
     }
 }
 
+fn axiom_proofs(equations: &[Proposition]) -> Vec<ProofNode> {
+    equations
+        .iter()
+        .enumerate()
+        .map(|(index, conclusion)| ProofNode {
+            conclusion: conclusion.clone(),
+            rule: ProofRule::SemanticAxiom { index },
+        })
+        .collect()
+}
+
 fn transport(goal: Proposition, equalities: Vec<ProofNode>) -> ProofNode {
     ProofNode {
         conclusion: goal,
@@ -44,15 +55,7 @@ fn fixture() -> (Proposition, Vec<Proposition>, ProofNode) {
     );
     let proof = transport(
         goal.clone(),
-        equations
-            .iter()
-            .enumerate()
-            .skip(1)
-            .map(|(index, conclusion)| ProofNode {
-                conclusion: conclusion.clone(),
-                rule: ProofRule::SemanticAxiom { index },
-            })
-            .collect(),
+        axiom_proofs(&equations).into_iter().skip(1).collect(),
     );
     (goal, equations, proof)
 }
@@ -150,14 +153,7 @@ fn cyclic_and_expanding_equations_fail_with_bounded_work() {
         let goal = Proposition::Equal(value(1), value(1));
         let proof = transport(
             goal.clone(),
-            equations
-                .iter()
-                .enumerate()
-                .map(|(index, conclusion)| ProofNode {
-                    conclusion: conclusion.clone(),
-                    rule: ProofRule::SemanticAxiom { index },
-                })
-                .collect(),
+            axiom_proofs(&equations),
         );
         assert!(accept_certificate(&context(), &goal, &[], &equations, &proof).is_err());
     }
@@ -191,7 +187,7 @@ fn borrowed_equations_are_bounded_before_cloning_or_traversing_the_whole_roster(
 }
 
 mod float_fields {
-    use super::{ProofNode, ProofRule, accept_certificate, transport};
+    use super::{ProofNode, ProofRule, accept_certificate, axiom_proofs, transport};
     use semantic_vocabulary::{
         CanonicalStructuralPathSegment, IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue,
         PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralFieldId,
@@ -247,14 +243,7 @@ mod float_fields {
         };
         let mut proof = transport(
             goal,
-            equations
-                .iter()
-                .enumerate()
-                .map(|(index, conclusion)| ProofNode {
-                    conclusion: conclusion.clone(),
-                    rule: ProofRule::SemanticAxiom { index },
-                })
-                .collect(),
+            axiom_proofs(&equations),
         );
         let ProofRule::ValueEqualityTransport {
             premise: supplied, ..
