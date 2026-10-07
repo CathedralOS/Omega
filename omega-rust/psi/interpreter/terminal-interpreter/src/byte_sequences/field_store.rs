@@ -3,7 +3,7 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
+    StructuralArgument, StructuralPathSegment, StructuralTypeShape,
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
@@ -225,12 +225,7 @@ impl TerminalExecution {
             )
             .find(|parameter| parameter.place == root)
         {
-            if !matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            ) || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-            {
+            if !parameter.is_unqualified_root() {
                 return Err(malformed());
             }
             (parameter.access, true)

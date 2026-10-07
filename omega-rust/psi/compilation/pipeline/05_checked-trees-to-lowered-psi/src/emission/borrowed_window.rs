@@ -371,12 +371,7 @@ fn resolve_window_place(
                      admit no extraction and owned roots use ordinary partial moves",
                 ));
             }
-            if !matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            ) || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-            {
+            if !parameter.is_unqualified_root() {
                 return Err(unpinned(
                     &spelling,
                     "the root carries qualifications or linear custody the window does not \

@@ -84,6 +84,21 @@ pub struct StructuralParameterDeclaration {
     pub projected_qualifications: Vec<StructuralPathQualification>,
 }
 
+impl StructuralParameterDeclaration {
+    /// Whether the parameter carries an ordinary unqualified root: an
+    /// unrestricted or affine multiplicity with no declared or projected
+    /// qualifications. Borrowed windows and byte-sequence field stores admit
+    /// only such roots — qualifications or linear custody would not survive
+    /// the extraction.
+    pub fn is_unqualified_root(&self) -> bool {
+        matches!(
+            self.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) && self.qualifications.is_empty()
+            && self.projected_qualifications.is_empty()
+    }
+}
+
 /// Exact normal structural result signature. The result place is proof-visible
 /// and receives ownership only through a `ReturnStructural` edge.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
