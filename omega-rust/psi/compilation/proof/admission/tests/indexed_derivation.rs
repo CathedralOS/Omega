@@ -311,23 +311,11 @@ fn out_index(arena: &mut TermArena) -> TermHandle {
             let domain = rule_payload(arena);
             lambda(arena, domain, body)
         };
-        let rest = variable(arena, 0);
-        let sub_tag = fst(arena, rest);
-        let selected = case_two(arena, inner_motive, impi_out, impe_out, sub_tag);
-        let rest = variable(arena, 0);
-        let payload = snd(arena, rest);
-        let body = apply(arena, selected, payload);
         let domain = sub_payload(arena);
-        lambda(arena, domain, body)
+        tag_selected_children(arena, domain, inner_motive, impi_out, impe_out)
     };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let selected = case_two(arena, motive, assm_out, imp_out, tag);
-    let bound = variable(arena, 0);
-    let rest = snd(arena, bound);
-    let body = apply(arena, selected, rest);
     let domain = carrier(arena);
-    lambda(arena, domain, body)
+    tag_selected_children(arena, domain, motive, assm_out, imp_out)
 }
 
 /// `next = λ(a : A). caseTwo(Mn, assmN, impN, fst a) (snd a)` — the
@@ -438,23 +426,11 @@ fn next_index_with(
             let domain = rule_payload(arena);
             lambda(arena, domain, inner)
         };
-        let rest = variable(arena, 0);
-        let sub_tag = fst(arena, rest);
-        let selected = case_two(arena, inner_motive, impi_next, impe_next, sub_tag);
-        let rest = variable(arena, 0);
-        let payload = snd(arena, rest);
-        let body = apply(arena, selected, payload);
         let domain = sub_payload(arena);
-        lambda(arena, domain, body)
+        tag_selected_children(arena, domain, inner_motive, impi_next, impe_next)
     };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let selected = case_two(arena, motive, assm_next, imp_next, tag);
-    let bound = variable(arena, 0);
-    let rest = snd(arena, bound);
-    let body = apply(arena, selected, rest);
     let domain = carrier(arena);
-    lambda(arena, domain, body)
+    tag_selected_children(arena, domain, motive, assm_next, imp_next)
 }
 
 fn next_index(arena: &mut TermArena) -> TermHandle {
