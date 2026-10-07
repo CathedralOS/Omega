@@ -81,6 +81,23 @@ impl BuiltinTypeAtom {
         matches!(self, Self::AtomicBool | Self::AtomicU32 | Self::AtomicU64)
     }
 
+    /// Whether the atom names one of the eight fixed-width integers
+    /// (`i8`–`u64`); the arbitrary-width `Int`/`UInt` and pointer-width
+    /// `Address` are not members.
+    pub const fn is_fixed_integer(self) -> bool {
+        matches!(
+            self,
+            Self::U8
+                | Self::U16
+                | Self::U32
+                | Self::U64
+                | Self::I8
+                | Self::I16
+                | Self::I32
+                | Self::I64
+        )
+    }
+
     pub const fn identity(self) -> &'static str {
         match self {
             Self::Bool => "bool",

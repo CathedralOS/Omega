@@ -92,24 +92,10 @@ pub fn is_arithmetic_policy_only_integer(
     let TypeReferenceNode::Named { symbol, name } = table.type_reference(*base_type) else {
         return false;
     };
-    use symbols::BuiltinTypeAtom;
     program
         .symbols
         .builtin_type_atom(*symbol)
-        .is_some_and(|atom| {
-            name.as_str() == atom.symbol_name()
-                && matches!(
-                    atom,
-                    BuiltinTypeAtom::U8
-                        | BuiltinTypeAtom::U16
-                        | BuiltinTypeAtom::U32
-                        | BuiltinTypeAtom::U64
-                        | BuiltinTypeAtom::I8
-                        | BuiltinTypeAtom::I16
-                        | BuiltinTypeAtom::I32
-                        | BuiltinTypeAtom::I64
-                )
-        })
+        .is_some_and(|atom| name.as_str() == atom.symbol_name() && atom.is_fixed_integer())
 }
 
 /// The builtin primitive a place stores when its declaration adds no

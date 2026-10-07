@@ -182,20 +182,10 @@ fn is_closed_ranged_integer_scalar(
         && matches!(
             program.type_reference_table.type_reference(current),
             TypeReferenceNode::Named { symbol, .. }
-                if program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| {
-                    use symbols::BuiltinTypeAtom;
-                    matches!(
-                        atom,
-                        BuiltinTypeAtom::U8
-                            | BuiltinTypeAtom::U16
-                            | BuiltinTypeAtom::U32
-                            | BuiltinTypeAtom::U64
-                            | BuiltinTypeAtom::I8
-                            | BuiltinTypeAtom::I16
-                            | BuiltinTypeAtom::I32
-                            | BuiltinTypeAtom::I64
-                    )
-                })
+                if program
+                    .symbols
+                    .builtin_type_atom(*symbol)
+                    .is_some_and(|atom| atom.is_fixed_integer())
         )
 }
 
