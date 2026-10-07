@@ -33,7 +33,7 @@ pub(super) fn encode_units(bytes: &mut Vec<u8>, units: &[RegisterUnitId]) {
     }
 }
 
-pub(super) fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
+pub fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
     encode_len(bytes, values.len());
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());

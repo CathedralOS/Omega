@@ -17,6 +17,7 @@ mod ordinary;
 mod primitives;
 mod register;
 
+use crate::effects::program::identity::encode_ids;
 use primitives::encode_constraint_key;
 
 pub fn selected_instruction_plan_identity(
@@ -632,12 +633,7 @@ fn encode_len(bytes: &mut Vec<u8>, len: usize) {
     bytes.extend_from_slice(&(len as u64).to_le_bytes());
 }
 
-fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
-    encode_len(bytes, values.len());
-    for value in values {
-        bytes.extend_from_slice(&value.to_le_bytes());
-    }
-}
+
 
 fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) {
     encode_len(bytes, values.len());
