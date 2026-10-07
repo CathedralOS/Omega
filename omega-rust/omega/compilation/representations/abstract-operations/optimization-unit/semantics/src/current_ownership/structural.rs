@@ -189,7 +189,7 @@ pub(super) fn projected_root_is_fully_consumed(
 }
 
 /// Both aggregate constructors bind the same finished structural operands.
-pub(super) fn constructor_arguments(
+pub(crate) fn constructor_arguments(
     operation: &O,
 ) -> impl Iterator<Item = &terminal_psi::StructuralArgument> {
     let fields = match operation {

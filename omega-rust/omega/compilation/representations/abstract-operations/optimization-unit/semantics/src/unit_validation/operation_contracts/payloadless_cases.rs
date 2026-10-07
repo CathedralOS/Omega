@@ -137,7 +137,13 @@ pub(crate) fn case_establishment_matches(
                         .collect::<Vec<_>>();
                     case.id == *result_case
                         && super::records::field_initializers_match(
-                            function, result, &roster, fields, types, domains,
+                            function,
+                            *psi_operation,
+                            result,
+                            &roster,
+                            fields,
+                            types,
+                            domains,
                         )
                 })
             })

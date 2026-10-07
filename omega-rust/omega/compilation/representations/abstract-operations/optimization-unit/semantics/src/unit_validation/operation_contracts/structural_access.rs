@@ -1,4 +1,6 @@
-use crate::unit_validation::structural_catalog::resolve_structural_path;
+use crate::unit_validation::structural_catalog::{
+    resolve_runtime_projection, resolve_structural_path,
+};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
@@ -426,7 +428,7 @@ pub(crate) fn structural_arguments_match(
         if borrowed_owner_expected && !bounded_owner_presentation {
             return false;
         }
-        let actual_type = resolve_structural_path(types, source.structural_type, &argument.path);
+        let actual_type = resolve_runtime_projection(types, source.structural_type, &argument.path);
         if actual_type.is_none()
             && !byte_field_presentation
             && !fixed_array_presentation
@@ -501,23 +503,39 @@ pub(crate) fn structural_arguments_match(
         {
             return false;
         }
-        // The shared loan is unrestricted; the original affine owner remains
-        // live and retains its independent transfer or cleanup obligation.
-        // A resolved Owned + Affine contract is already proof of a
-        // caller-owned place — arrival parameters, produced results, and
-        // establishments all resolve through it. A whole loan and a resolved
-        // projection preserve that same custody; restricting this to completed
-        // results or block arrivals rejects machine-parameter subloans that
-        // Terminal admits. Type, access and qualification checks still bind
-        // the selected referent; liveness belongs to the ownership replay.
-        let shared_affine_loan = argument.access == terminal_psi::StructuralAccess::SharedBorrow
+        // A loan is unrestricted; the original affine owner remains live and
+        // retains its independent transfer or cleanup obligation. A resolved
+        // Owned + Affine contract is already proof of a caller-owned place —
+        // arrival parameters, produced results, and establishments all resolve
+        // through it. A shared loan of the whole owner or a resolved projection
+        // preserves that custody; restricting this to completed results or
+        // block arrivals rejects machine-parameter subloans that Terminal
+        // admits. An exclusive or write-only loan of the whole owner carries
+        // its own access the same way, except through a descriptor: owning a
+        // byte or element view retains only its existing observation of the
+        // backing, so exclusive descriptor presentations keep their separate
+        // established-access rules. Type, access and qualification checks
+        // still bind the selected referent; liveness and overlapping loans
+        // belong to the ownership replay.
+        let affine_owner_loan = argument.access != terminal_psi::StructuralAccess::Owned
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.access == terminal_psi::StructuralAccess::Owned
-            && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && (argument.access == terminal_psi::StructuralAccess::SharedBorrow
+                || (argument.path.is_empty()
+                    && types
+                        .get(&source.structural_type)
+                        .is_some_and(|declaration| {
+                            !declaration.shape.is_borrowed_byte_carrier()
+                                && !matches!(
+                                    declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                                )
+                        })));
         let completed_result_loan = completed_result
             && argument.access != terminal_psi::StructuralAccess::Owned
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
-        let actual_multiplicity = if shared_affine_loan
+        let actual_multiplicity = if affine_owner_loan
             || completed_result_loan
             || view_loan
             || shared_buffer_presentation
@@ -576,7 +594,7 @@ pub(crate) fn structural_arguments_match(
                 parameter,
             )
             .zip(consumer.and_then(|consumer| {
-                crate::unit_validation::function_structure::copied_field_predicates_at_call(
+                crate::unit_validation::function_structure::copied_field_predicates_at_transfer(
                     types.values().copied(),
                     caller,
                     argument.place,

@@ -154,7 +154,15 @@ pub(crate) fn record_establishment_matches(
     else {
         return false;
     };
-    field_initializers_match(function, result, declarations, fields, types, domains)
+    field_initializers_match(
+        function,
+        *psi_operation,
+        result,
+        declarations,
+        fields,
+        types,
+        domains,
+    )
 }
 
 /// Select the same owned subtree that current partial-custody replay consumes.
@@ -185,6 +193,7 @@ fn constructor_argument_contract<'a>(
 
 pub(crate) fn field_initializers_match(
     function: &PsiOptimizationFunction,
+    constructor: semantic_vocabulary::OperationId,
     result: &terminal_psi::StructuralOperationResult,
     declarations: &[terminal_psi::StructuralFieldDeclaration],
     fields: &[terminal_psi::RecordFieldInitializer],
@@ -254,11 +263,12 @@ pub(crate) fn field_initializers_match(
                     && (result.multiplicity != StructuralMultiplicity::Unrestricted
                         || source.multiplicity == StructuralMultiplicity::Unrestricted)
                     && (field_type.byte_predicates().is_empty()
-                        || crate::unit_validation::function_structure::whole_source_predicates(
-                            types.values().copied(),
-                            domains.values().copied(),
+                        || constructed_field_predicates(
                             function,
+                            constructor,
                             argument.place,
+                            types,
+                            domains,
                         )
                         .is_some_and(|available| available.implies(field_type.byte_predicates())))
             }
@@ -288,6 +298,43 @@ pub(crate) fn field_initializers_match(
             _ => false,
         }
     })
+}
+
+/// The byte predicates a constructor operand supplies: those its whole source
+/// replays to, plus the declared invariants of a pristine field snapshot this
+/// constructor consumes. The destination field requests predicates; it never
+/// supplies them.
+fn constructed_field_predicates(
+    function: &PsiOptimizationFunction,
+    constructor: semantic_vocabulary::OperationId,
+    source: PlaceId,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
+) -> Option<terminal_psi::ByteSequencePredicateSet> {
+    let whole = crate::unit_validation::function_structure::whole_source_predicates(
+        types.values().copied(),
+        domains.values().copied(),
+        function,
+        source,
+    );
+    let captured = crate::unit_validation::function_structure::copied_field_predicates_at_transfer(
+        types.values().copied(),
+        function,
+        source,
+        constructor,
+    );
+    match (whole, captured) {
+        (Some(mut predicates), Some(captured)) => {
+            for predicate in captured.predicates() {
+                predicates.insert(predicate);
+            }
+            Some(predicates)
+        }
+        (whole, captured) => whole.or(captured),
+    }
 }
 
 fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool {

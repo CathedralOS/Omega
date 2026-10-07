@@ -54,6 +54,25 @@ pub(crate) fn resolve_structural_path(
     )
 }
 
+/// Resolve the referent a call argument's projection presents. Declared
+/// structural geometry resolves first; a primitive leaf without a structural
+/// child of its own — a byte carrier's runtime-selected u8 element — rejoins
+/// its unique primitive declaration, the same endpoint primitive reads and
+/// stores name. Bounds, access and live custody remain operation judgments.
+pub(crate) fn resolve_runtime_projection(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    resolve_structural_path(types, structural_type, path).or_else(|| {
+        terminal_semantics::primitive_projection_declaration(
+            types.values().copied(),
+            structural_type,
+            path,
+        )
+    })
+}
+
 /// An explicit leaf copy can snapshot byte storage without making that field
 /// a borrowable structural child or a projected-qualification subject.
 pub(crate) fn resolve_leaf_copy_path(

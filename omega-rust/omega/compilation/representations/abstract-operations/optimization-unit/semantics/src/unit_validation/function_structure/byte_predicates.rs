@@ -342,11 +342,12 @@ pub(crate) fn whole_source_predicates<'t, 'd>(
     )
 }
 
-/// Declaration predicates captured by one byte-field snapshot at an owned
-/// ordinary call. Only that consumer is excluded from the conservative write
-/// scan; this is not a timeless initializer fact or a permission to borrow the
-/// field. Current-graph custody independently checks availability and dominance.
-pub(crate) fn copied_field_predicates_at_call<'t>(
+/// Declaration predicates captured by one byte-field snapshot at the owned
+/// transfer that consumes it: an ordinary call argument or a constructor
+/// operand. Only that consumer is excluded from the conservative write scan;
+/// this is not a timeless initializer fact or a permission to borrow the field.
+/// Current-graph custody independently checks availability and dominance.
+pub(crate) fn copied_field_predicates_at_transfer<'t>(
     types: impl Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
     function: &PsiOptimizationFunction,
     source: PlaceId,
@@ -443,21 +444,27 @@ pub(crate) fn copied_field_predicates_at_call<'t>(
         .iter()
         .flat_map(|block| &block.nodes)
         .find(|node| node.operation.psi_operation() == Some(consumer))?;
-    let Operation::CallStructural {
-        structural_arguments,
-        ..
-    } = &consuming.operation
-    else {
-        return None;
+    // Whole constructors and ordinary calls consume the same completed value.
+    // The source occurrence, not the destination's requested predicates,
+    // selects which pristine snapshot may supply its declared field invariants.
+    let call_arguments = match &consuming.operation {
+        Operation::CallStructural {
+            structural_arguments,
+            ..
+        } => structural_arguments.as_slice(),
+        _ => &[],
     };
-    if !structural_arguments.iter().any(|argument| {
-        argument.place == source
-            && argument.path.is_empty()
-            && argument.access == StructuralAccess::Owned
-    }) || structural_arguments.iter().any(|argument| {
-        argument.place == source
-            && (!argument.path.is_empty() || argument.access != StructuralAccess::Owned)
-    }) {
+    let mut occurrences = call_arguments
+        .iter()
+        .chain(crate::current_ownership::constructor_arguments(
+            &consuming.operation,
+        ))
+        .filter(|argument| argument.place == source)
+        .peekable();
+    if occurrences.peek().is_none()
+        || occurrences
+            .any(|argument| !argument.path.is_empty() || argument.access != StructuralAccess::Owned)
+    {
         return None;
     }
     let carries = |bindings: &[abstract_operations::AbstractStructuralBinding]| {
