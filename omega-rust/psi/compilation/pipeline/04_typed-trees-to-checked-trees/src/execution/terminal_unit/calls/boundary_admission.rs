@@ -305,26 +305,10 @@ fn field_type_carries_requirement(
 ) -> bool {
     typed_trees::service::exact_bound_service_requirement(program, type_reference)
         == Some(provider_symbol)
-        || {
-            let mut unwrapped = type_reference;
-            loop {
-                match program.type_reference_table.type_reference(unwrapped) {
-                    TypeReferenceNode::Constrained {
-                        base_type: inner, ..
-                    } => unwrapped = *inner,
-                    TypeReferenceNode::Reference {
-                        referee: inner,
-                        access: language_core::ReferenceAccess::Mutable,
-                        ..
-                    } => unwrapped = *inner,
-                    TypeReferenceNode::Named { symbol, .. }
-                    | TypeReferenceNode::DynamicTrait { symbol, .. } => {
-                        break *symbol == provider_symbol;
-                    }
-                    _ => break false,
-                }
-            }
-        }
+        || crate::execution::terminal_unit::types::mutable_boundary_trait_symbol(
+            program,
+            type_reference,
+        ) == Some(provider_symbol)
 }
 
 /// The ergonomic service-record spelling: `self.fs` is a `data` record that

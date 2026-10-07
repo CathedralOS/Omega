@@ -34,3 +34,28 @@ pub(crate) use parameters::*;
 pub(crate) use shape_collector::*;
 pub(in crate::execution::terminal_unit) use signature_contracts::*;
 pub(crate) use views::*;
+
+/// The boundary-trait symbol a field spells as `&'a mut <boundary trait>`:
+/// unwrap qualifications and mutable borrows to the named or trait symbol.
+/// A shared `&` borrow is not a provider handle.
+pub(crate) fn mutable_boundary_trait_symbol(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    let mut unwrapped = type_reference;
+    loop {
+        match program.type_reference_table.type_reference(unwrapped) {
+            TypeReferenceNode::Constrained {
+                base_type: inner, ..
+            } => unwrapped = *inner,
+            TypeReferenceNode::Reference {
+                referee: inner,
+                access: language_core::ReferenceAccess::Mutable,
+                ..
+            } => unwrapped = *inner,
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. } => break Some(*symbol),
+            _ => break None,
+        }
+    }
+}

@@ -4,8 +4,7 @@ use std::collections::BTreeSet;
 use super::{
     CheckedProviderAttachmentRequirementPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, DataMember,
-    TypeReferenceNode, TypedTrees,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, DataMember, TypedTrees,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
@@ -96,27 +95,10 @@ pub(super) fn checked_provider_attachment_requirements(
                 source_field.type_reference,
             )
             .or_else(|| {
-                // Attached data carries the provider as `&'a mut <boundary
-                // trait>`: unwrap references and qualifications to the trait
-                // symbol, matching the field classification.
-                let mut unwrapped = source_field.type_reference;
-                loop {
-                    match program.type_reference_table.type_reference(unwrapped) {
-                        TypeReferenceNode::Constrained {
-                            base_type: inner, ..
-                        } => unwrapped = *inner,
-                        TypeReferenceNode::Reference {
-                            referee: inner,
-                            access: language_core::ReferenceAccess::Mutable,
-                            ..
-                        } => unwrapped = *inner,
-                        TypeReferenceNode::Named { symbol, .. }
-                        | TypeReferenceNode::DynamicTrait { symbol, .. } => {
-                            break Some(*symbol);
-                        }
-                        _ => break None,
-                    }
-                }
+                crate::execution::terminal_unit::types::mutable_boundary_trait_symbol(
+                    program,
+                    source_field.type_reference,
+                )
             })
         })?;
         let provider = program
