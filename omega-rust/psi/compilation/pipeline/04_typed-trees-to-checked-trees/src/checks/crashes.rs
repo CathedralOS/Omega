@@ -826,6 +826,34 @@ fn collect_integer_order_relations(
 }
 
 #[allow(clippy::too_many_arguments)]
+
+/// Both operands' canonical crash identities as one pair.
+fn crash_operand_identities(
+    program: &TypedTrees,
+    left: typed_trees::expression::ExpressionHandle,
+    right: typed_trees::expression::ExpressionHandle,
+    parameter_names: &[String],
+    content_conservation: &[validation::ContentConservationSourcePlan],
+) -> (
+    checked_trees::CrashPredicateIdentity,
+    checked_trees::CrashPredicateIdentity,
+) {
+    (
+        crate::facts::canonical_crash_operand_identity(
+            program,
+            left,
+            parameter_names,
+            content_conservation,
+        ),
+        crate::facts::canonical_crash_operand_identity(
+            program,
+            right,
+            parameter_names,
+            content_conservation,
+        ),
+    )
+}
+
 fn collect_normalized_integer_order_relation(
     program: &TypedTrees,
     operator: typed_trees::expression::BinaryOperator,
@@ -847,19 +875,11 @@ fn collect_normalized_integer_order_relation(
         return;
     };
     let mut push = |left, right, strict| {
+        let (left_identity, right_identity) =
+            crash_operand_identities(program, left, right, parameter_names, content_conservation);
         let relation = IntegerOrderRelation {
-            left_identity: crate::facts::canonical_crash_operand_identity(
-                program,
-                left,
-                parameter_names,
-                content_conservation,
-            ),
-            right_identity: crate::facts::canonical_crash_operand_identity(
-                program,
-                right,
-                parameter_names,
-                content_conservation,
-            ),
+            left_identity,
+            right_identity,
             left,
             right,
             strict,
@@ -878,19 +898,16 @@ fn collect_normalized_integer_order_relation(
             push(right, left, false);
         }
         BinaryOperator::NotEqual => {
+            let (left_identity, right_identity) = crash_operand_identities(
+                program,
+                left,
+                right,
+                parameter_names,
+                content_conservation,
+            );
             let disequality = IntegerDisequality {
-                left_identity: crate::facts::canonical_crash_operand_identity(
-                    program,
-                    left,
-                    parameter_names,
-                    content_conservation,
-                ),
-                right_identity: crate::facts::canonical_crash_operand_identity(
-                    program,
-                    right,
-                    parameter_names,
-                    content_conservation,
-                ),
+                left_identity,
+                right_identity,
             };
             if !disequalities.contains(&disequality) {
                 disequalities.push(disequality);
