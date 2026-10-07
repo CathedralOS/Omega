@@ -391,11 +391,7 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
         family.sup(&mut arena, label, function)
     };
     let expected = tree_at(&mut arena, &family);
-    let error = check_type(&mut arena, &context, wrong_child, expected, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, wrong_child, expected, &mut budget);
 
     // An `fcons` child function returning a `Tree` at every position —
     // `λ(_ : Two). t` — never supplies `IW b` for neutral `b`.
@@ -408,11 +404,7 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
         family.sup(&mut arena, label, function)
     };
     let expected = forest_at(&mut arena, &family);
-    let error = check_type(&mut arena, &context, uniform_tree, expected, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, uniform_tree, expected, &mut budget);
 
     // The same with the `caseTwo` branches swapped — a `Forest` at the
     // head position, a `Tree` at the tail — fails the branch check:
@@ -432,11 +424,7 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
         family.sup(&mut arena, label, function)
     };
     let expected = forest_at(&mut arena, &family);
-    let error = check_type(&mut arena, &context, swapped, expected, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, swapped, expected, &mut budget);
 
     // A `next` that flips the sorts at `fcons` — head ↦ `one`, tail ↦
     // `zero` — is a malformed description, not a different family: the
@@ -572,9 +560,5 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
         let at_index = apply(&mut arena, motive, index);
         apply(&mut arena, at_index, fcons)
     };
-    let error = check_type(&mut arena, &context, elimination, shared, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, elimination, shared, &mut budget);
 }

@@ -6,7 +6,7 @@
 
 use proof_admission::{
     Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Level, Sort,
-    Term, TermArena, TermHandle, indexed_scheme, infer_type,
+    Term, TermArena, TermHandle, check_type, indexed_scheme, infer_type,
 };
 use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
 
@@ -362,4 +362,34 @@ pub(crate) fn next_indexed_w(
     let bound = variable(arena, 0);
     let required = apply(arena, next_a, bound);
     family.indexed_w(arena, required)
+}
+
+/// Infer `term`'s type and require the type-mismatch family — the shared
+/// tail of every malformed-term rejection.
+pub(crate) fn assert_type_mismatch(
+    arena: &mut TermArena,
+    context: &Context,
+    term: TermHandle,
+    budget: &mut Budget,
+) {
+    let error = infer_type(arena, context, term, budget).unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+    ));
+}
+
+/// The same rejection asserted through `check_type` against `expected`.
+pub(crate) fn assert_check_type_mismatch(
+    arena: &mut TermArena,
+    context: &Context,
+    term: TermHandle,
+    expected: TermHandle,
+    budget: &mut Budget,
+) {
+    let error = check_type(arena, context, term, expected, budget).unwrap_err();
+    assert!(matches!(
+        error,
+        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+    ));
 }

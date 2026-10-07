@@ -40,7 +40,6 @@
 use proof_admission::{
     Context, CoreError, Declaration, IndexedFamily, Level,
     Signature, TermArena, TermHandle, check_signature, check_type,
-    infer_type,
 };
 use crate::common::*;
 
@@ -401,11 +400,7 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
         let at_index = apply(&mut arena, motive, zero);
         apply(&mut arena, at_index, cons)
     };
-    let error = check_type(&mut arena, &context, elimination, shared, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, elimination, shared, &mut budget);
 
     // A `next` that grabs the payload's element rather than the
     // predecessor is a malformed description, not a different vector:
@@ -448,11 +443,7 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
     };
     let length = variable(&mut arena, 1);
     let malformed = captured.indexed_w(&mut arena, length);
-    let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_type_mismatch(&mut arena, &context, malformed, &mut budget);
 
     // A branching family into `Strict` is an illegal strict elimination,
     // rejected by `caseTwo`'s own motive rule before `W` formation ever
@@ -492,9 +483,5 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
         let at_index = apply(&mut arena, motive, successor);
         apply(&mut arena, at_index, cons)
     };
-    let error = check_type(&mut arena, &context, elimination, shared, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, elimination, shared, &mut budget);
 }

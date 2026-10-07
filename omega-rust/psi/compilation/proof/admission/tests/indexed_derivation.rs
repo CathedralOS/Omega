@@ -50,7 +50,7 @@
 use proof_admission::{
     Context, CoreError, Declaration, IndexedFamily, Level,
     Signature, TermArena, TermHandle, check_signature, check_type, convertible,
-    indexed_scheme, infer_type,
+    indexed_scheme, 
 };
 use crate::common::*;
 
@@ -835,11 +835,7 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
         let psi = variable(&mut arena, 5);
         deriv_at(&mut arena, &family, gamma, psi)
     };
-    let error = check_type(&mut arena, &context, swapped, expected, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, swapped, expected, &mut budget);
 
     // An `assm` leaf never lands at the unextended context either:
     // `out` computes `⟨consF φ Γ, φ⟩`, not `⟨Γ, φ⟩`.
@@ -957,11 +953,7 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
         judgment(&mut arena, gamma, psi)
     };
     let malformed = ill_typed.indexed_w(&mut arena, index);
-    let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_type_mismatch(&mut arena, &context, malformed, &mut budget);
 
     // A branching family into `Strict` is an illegal strict elimination,
     // rejected by `caseTwo`'s own motive rule before `W` formation ever
@@ -1016,9 +1008,5 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
         let at_index = apply(&mut arena, motive, index);
         apply(&mut arena, at_index, mp)
     };
-    let error = check_type(&mut arena, &context, elimination, shared, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, elimination, shared, &mut budget);
 }

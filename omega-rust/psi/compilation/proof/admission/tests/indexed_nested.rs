@@ -54,7 +54,6 @@
 use proof_admission::{
     Budget, Context, CoreError, Declaration, IndexedFamily, Level,
     Signature, TermArena, TermHandle, check_signature, check_type,
-    infer_type,
 };
 use crate::common::*;
 
@@ -449,11 +448,7 @@ fn nested_applications_reject_wrong_indices_and_malformed_descriptions() {
     let malformed = family.sup(&mut arena, malformed_label, children_fn);
     let arity = variable(&mut arena, 3);
     let expected = rose_at(&mut arena, &family, arity);
-    let error = check_type(&mut arena, &context, malformed, expected, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, malformed, expected, &mut budget);
 
     // A value where the index type belongs is malformed, not a type:
     // `I = zeroN` instead of `Nat`.
@@ -461,22 +456,14 @@ fn nested_applications_reject_wrong_indices_and_malformed_descriptions() {
     bad_family.index = nat_zero(&mut arena);
     let level = variable(&mut arena, 3);
     let malformed = bad_family.indexed_w(&mut arena, level);
-    let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_type_mismatch(&mut arena, &context, malformed, &mut budget);
 
     // A strict index type is a malformed universe for `I : Type l`.
     let mut strict_family = family.clone();
     strict_family.index = strict_sort(&mut arena, 0);
     let level = variable(&mut arena, 3);
     let malformed = strict_family.indexed_w(&mut arena, level);
-    let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_type_mismatch(&mut arena, &context, malformed, &mut budget);
 
     // A branching family into `Strict` is an illegal strict
     // elimination, rejected by `caseTwo`'s own motive rule before `W`
@@ -549,9 +536,5 @@ fn nested_applications_reject_wrong_indices_and_malformed_descriptions() {
     let node_value = bad_next.sup(&mut arena, node, children_fn);
     let arity = variable(&mut arena, 3);
     let expected = rose_at(&mut arena, &family, arity);
-    let error = check_type(&mut arena, &context, node_value, expected, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
-    ));
+    assert_check_type_mismatch(&mut arena, &context, node_value, expected, &mut budget);
 }
