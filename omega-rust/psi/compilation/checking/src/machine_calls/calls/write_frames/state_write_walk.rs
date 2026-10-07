@@ -56,6 +56,7 @@ use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
+use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
@@ -748,7 +749,8 @@ fn walk_state_write_prefix_inner(
                                 }
                             }
                         }
-                        push_queried_storage_assignment(
+
+                        push_queried_assignment_and_visible_paths(
                             queried_assignment,
                             &mut assignments,
                             statement_index,
@@ -757,10 +759,10 @@ fn walk_state_write_prefix_inner(
                             &local_alias_origins,
                             &divergent_alias_origins,
                             &stored,
-                        );
-                        for path in paths {
-                            push_visible_frame_path(&mut written, path, parameters, &locals)?;
-                        }
+                            &mut written,
+                            parameters,
+                            &locals,
+                        )?;
                     }
                     continue;
                 }
@@ -930,7 +932,7 @@ fn walk_state_write_prefix_inner(
                     symbols,
                 )?;
                 let paths = expand_write_path(&relative, &local_alias_origins, &stored)?;
-                push_queried_storage_assignment(
+                push_queried_assignment_and_visible_paths(
                     queried_assignment,
                     &mut assignments,
                     statement_index,
@@ -939,10 +941,10 @@ fn walk_state_write_prefix_inner(
                     &local_alias_origins,
                     &divergent_alias_origins,
                     &stored,
-                );
-                for path in paths {
-                    push_visible_frame_path(&mut written, path, parameters, &locals)?;
-                }
+                    &mut written,
+                    parameters,
+                    &locals,
+                )?;
                 // The write itself expanded through the pre-state evidence;
                 // only later statements see the replacement's own origins.
                 if let Some(replacement) = replacement {
@@ -1272,4 +1274,36 @@ fn walk_state_write_prefix_inner(
             Some(StateWriteQuery::Complete | StateWriteQuery::OriginTransfer { .. })
         ))
     .then_some(StateWritePrefix { written, stored })
+}
+
+/// Record a queried storage assignment for `paths`, then write each into the
+/// visible frame roster — the queried-write pair both statement arms share.
+#[allow(clippy::too_many_arguments)]
+fn push_queried_assignment_and_visible_paths(
+    queried_assignment: bool,
+    assignments: &mut Option<&mut Vec<(usize, AssignmentPrefix)>>,
+    statement_index: usize,
+    isolated_local_roots: &[String],
+    paths: &[String],
+    local_alias_origins: &[(String, FramePlaceOrigin)],
+    divergent_alias_origins: &[(String, Vec<FramePlaceOrigin>)],
+    stored: &[StoredLocalOrigins],
+    written: &mut Vec<String>,
+    parameters: &[StateParameter],
+    locals: &[String],
+) -> Option<()> {
+    push_queried_storage_assignment(
+        queried_assignment,
+        assignments,
+        statement_index,
+        isolated_local_roots,
+        paths,
+        local_alias_origins,
+        divergent_alias_origins,
+        stored,
+    );
+    for path in paths {
+        push_visible_frame_path(written, path.clone(), parameters, locals)?;
+    }
+    Some(())
 }
