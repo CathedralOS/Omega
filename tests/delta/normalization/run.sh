@@ -2,23 +2,16 @@
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
-export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
-
+GATE_LABEL="Delta normalization"
+GATE_ENVS="delta/compiler_env.sh"
+. "$GATE_DIR/../../gate_env.sh"
 case "$*" in
     "") NORMALIZATION_FULL_WIDTH=0 ;;
     --full-width) NORMALIZATION_FULL_WIDTH=1 ;;
     *) echo "usage: $0 [--full-width]" >&2; exit 2 ;;
 esac
 
-command -v python3 >/dev/null 2>&1 || {
-    echo "Delta normalization: skipped (python3 absent)"
-    exit 0
-}
-
-require_seed_execution_host "Delta normalization"
+. "$GATE_DIR/../../gate_host.sh"
 
 NORMALIZATION_TMP=$(mktemp -d)
 trap 'rm -rf -- "$NORMALIZATION_TMP"' EXIT HUP INT TERM

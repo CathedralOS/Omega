@@ -9,17 +9,10 @@ if [ "$#" -ne 0 ]; then
 fi
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
-export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"
-
-command -v python3 >/dev/null 2>&1 || {
-    echo "Epsilon refinement: skipped (python3 absent)"
-    exit 0
-}
-require_seed_execution_host "Epsilon refinement"
+GATE_LABEL="Epsilon refinement"
+GATE_ENVS="delta/compiler_env.sh epsilon/evaluator_env.sh"
+. "$GATE_DIR/../../gate_env.sh"
+. "$GATE_DIR/../../gate_host.sh"
 
 REFINE_TMP=$(mktemp -d)
 trap 'rm -rf -- "$REFINE_TMP"' EXIT HUP INT TERM

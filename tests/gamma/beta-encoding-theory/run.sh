@@ -2,12 +2,8 @@
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
-export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/proofs/sources_env.sh"
-
+GATE_ENVS="gamma/evaluator_env.sh proofs/sources_env.sh"
+. "$GATE_DIR/../../gate_env.sh"
 ENCODING_OUT=
 case "${1:-}" in
     '') ENCODING_GATE=gate.py ;;

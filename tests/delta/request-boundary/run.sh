@@ -2,17 +2,10 @@
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
-export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
-
-command -v python3 >/dev/null 2>&1 || {
-    echo "Delta request boundary: skipped (python3 absent)"
-    exit 0
-}
-
-require_seed_execution_host "Delta request boundary"
+GATE_LABEL="Delta request boundary"
+GATE_ENVS="delta/compiler_env.sh"
+. "$GATE_DIR/../../gate_env.sh"
+. "$GATE_DIR/../../gate_host.sh"
 
 REQUEST_BOUNDARY_TMP=$(mktemp -d)
 trap 'rm -rf -- "$REQUEST_BOUNDARY_TMP"' EXIT HUP INT TERM

@@ -7,17 +7,10 @@ if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --normalization ]; }; then
 fi
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
-export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
-
-command -v python3 >/dev/null 2>&1 || {
-    echo "Delta generated function census: skipped (python3 absent)"
-    exit 0
-}
-
-require_seed_execution_host "Delta generated function census"
+GATE_LABEL="Delta generated function census"
+GATE_ENVS="delta/compiler_env.sh"
+. "$GATE_DIR/../../gate_env.sh"
+. "$GATE_DIR/../../gate_host.sh"
 
 CENSUS_TMP=$(mktemp -d)
 trap 'rm -rf -- "$CENSUS_TMP"' EXIT HUP INT TERM

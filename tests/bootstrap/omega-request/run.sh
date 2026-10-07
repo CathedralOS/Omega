@@ -3,6 +3,7 @@ set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 GATE_LABEL="Omega request"
+GATE_ENVS="alpha/seed_env.sh delta/compiler_env.sh epsilon/evaluator_env.sh omega/compiler_env.sh"
 . "$GATE_DIR/../gate_preamble.sh"
 
 OUTPUT_DIR=${OMEGA_REQUEST_BUILD_DIR:-"$OMEGA_REPO_ROOT/build/omega-request"}

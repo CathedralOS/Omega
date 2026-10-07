@@ -2,7 +2,8 @@
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-. "$GATE_DIR/../gate_env.sh"
+GATE_ENVS="alpha/seed_env.sh delta/compiler_env.sh epsilon/evaluator_env.sh omega/compiler_env.sh"
+. "$GATE_DIR/../../gate_env.sh"
 
 # --identity is a lone flag: it materializes every bound artifact and checks
 # every wrapper-side identity without executing the seed, so any Python-3

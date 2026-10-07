@@ -24,11 +24,8 @@
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
-export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
-. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
+GATE_ENVS="alpha/seed_env.sh gamma/evaluator_env.sh"
+. "$GATE_DIR/../../gate_env.sh"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "Gamma seed native acceptance: skipped (python3 not found)"
