@@ -283,14 +283,32 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(unsigned(left, right))),
+            |left, right| Some(IntegerValue::Signed(signed(left, right))),
+        )
+    }
+
+    fn dispatch_sign(
+        self,
+        left: IntegerValue,
+        right: IntegerValue,
+        unsigned: impl FnOnce(u128, u128) -> Option<IntegerValue>,
+        signed: impl FnOnce(i128, i128) -> Option<IntegerValue>,
+    ) -> Option<IntegerValue> {
+        if !self.admits(left) || !self.admits(right) {
+            return None;
+        }
         match (self.sign, left, right) {
             (
                 IntegerSign::Unsigned,
                 IntegerValue::Unsigned(left),
                 IntegerValue::Unsigned(right),
-            ) => Some(IntegerValue::Unsigned(unsigned(left, right))),
+            ) => unsigned(left, right),
             (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
-                Some(IntegerValue::Signed(signed(left, right)))
+                signed(left, right)
             }
             _ => None,
         }
@@ -310,13 +328,11 @@ impl IntegerType {
         } else {
             (1_u128 << self.bits) - 1
         };
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => Some(IntegerValue::Unsigned(left.wrapping_add(right) & mask)),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.wrapping_add(right) & mask)),
+            |left, right| {
                 let bits = (left as u128).wrapping_add(right as u128) & mask;
                 let value = if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
                     bits as i128
@@ -324,9 +340,8 @@ impl IntegerType {
                     (bits | !mask) as i128
                 };
                 Some(IntegerValue::Signed(value))
-            }
-            _ => None,
-        }
+            },
+        )
     }
 
     /// Add two admitted values when their mathematical sum remains admitted.
@@ -334,17 +349,12 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        let result = match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => IntegerValue::Unsigned(left.checked_add(right)?),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
-                IntegerValue::Signed(left.checked_add(right)?)
-            }
-            _ => return None,
-        };
+        let result = self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.checked_add(right)?)),
+            |left, right| Some({ IntegerValue::Signed(left.checked_add(right)?) }),
+        )?;
         self.admits(result).then_some(result)
     }
 
@@ -353,17 +363,12 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        let result = match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => IntegerValue::Unsigned(left.checked_sub(right)?),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
-                IntegerValue::Signed(left.checked_sub(right)?)
-            }
-            _ => return None,
-        };
+        let result = self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.checked_sub(right)?)),
+            |left, right| Some({ IntegerValue::Signed(left.checked_sub(right)?) }),
+        )?;
         self.admits(result).then_some(result)
     }
 
@@ -372,17 +377,12 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        let result = match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => IntegerValue::Unsigned(left.checked_mul(right)?),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
-                IntegerValue::Signed(left.checked_mul(right)?)
-            }
-            _ => return None,
-        };
+        let result = self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.checked_mul(right)?)),
+            |left, right| Some({ IntegerValue::Signed(left.checked_mul(right)?) }),
+        )?;
         self.admits(result).then_some(result)
     }
 
@@ -392,17 +392,12 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        let result = match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => IntegerValue::Unsigned(left.checked_div(right)?),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
-                IntegerValue::Signed(left.checked_div(right)?)
-            }
-            _ => return None,
-        };
+        let result = self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.checked_div(right)?)),
+            |left, right| Some({ IntegerValue::Signed(left.checked_div(right)?) }),
+        )?;
         self.admits(result).then_some(result)
     }
 
@@ -412,23 +407,22 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        let result = match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => IntegerValue::Unsigned(left.checked_rem(right)?),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
-                let IntegerValue::Signed(minimum) = self.minimum_value() else {
-                    unreachable!("signed type has a signed minimum")
-                };
-                if left == minimum && right == -1 {
-                    return None;
-                }
-                IntegerValue::Signed(left.checked_rem(right)?)
-            }
-            _ => return None,
-        };
+        let result = self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
+            |left, right| {
+                Some({
+                    let IntegerValue::Signed(minimum) = self.minimum_value() else {
+                        unreachable!("signed type has a signed minimum")
+                    };
+                    if left == minimum && right == -1 {
+                        return None;
+                    }
+                    IntegerValue::Signed(left.checked_rem(right)?)
+                })
+            },
+        )?;
         self.admits(result).then_some(result)
     }
 
@@ -438,13 +432,11 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => Some(IntegerValue::Unsigned(left.checked_div(right)?)),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.checked_div(right)?)),
+            |left, right| {
                 let IntegerValue::Signed(minimum) = self.minimum_value() else {
                     unreachable!("signed type has a signed minimum")
                 };
@@ -454,9 +446,8 @@ impl IntegerType {
                     let result = IntegerValue::Signed(left.checked_div(right)?);
                     self.admits(result).then_some(result)
                 }
-            }
-            _ => None,
-        }
+            },
+        )
     }
 
     /// Compute a truncating remainder and reduce the sole signed quotient
@@ -465,13 +456,11 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
+            |left, right| {
                 let IntegerValue::Signed(minimum) = self.minimum_value() else {
                     unreachable!("signed type has a signed minimum")
                 };
@@ -481,9 +470,8 @@ impl IntegerType {
                     let result = IntegerValue::Signed(left.checked_rem(right)?);
                     self.admits(result).then_some(result)
                 }
-            }
-            _ => None,
-        }
+            },
+        )
     }
 
     /// Divide two admitted values with truncation toward zero and clamp the
@@ -492,13 +480,11 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => Some(IntegerValue::Unsigned(left.checked_div(right)?)),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.checked_div(right)?)),
+            |left, right| {
                 let IntegerValue::Signed(minimum) = self.minimum_value() else {
                     unreachable!("signed type has a signed minimum")
                 };
@@ -508,9 +494,8 @@ impl IntegerType {
                     let result = IntegerValue::Signed(left.checked_div(right)?);
                     self.admits(result).then_some(result)
                 }
-            }
-            _ => None,
-        }
+            },
+        )
     }
 
     /// Compute a truncating remainder and reduce the sole signed quotient
@@ -519,13 +504,11 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
+            |left, right| {
                 let IntegerValue::Signed(minimum) = self.minimum_value() else {
                     unreachable!("signed type has a signed minimum")
                 };
@@ -535,9 +518,8 @@ impl IntegerType {
                     let result = IntegerValue::Signed(left.checked_rem(right)?);
                     self.admits(result).then_some(result)
                 }
-            }
-            _ => None,
-        }
+            },
+        )
     }
 
     /// Subtract two admitted values modulo this exact integer width.
@@ -554,13 +536,11 @@ impl IntegerType {
         } else {
             (1_u128 << self.bits) - 1
         };
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => Some(IntegerValue::Unsigned(left.wrapping_sub(right) & mask)),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.wrapping_sub(right) & mask)),
+            |left, right| {
                 let bits = (left as u128).wrapping_sub(right as u128) & mask;
                 let value = if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
                     bits as i128
@@ -568,9 +548,8 @@ impl IntegerType {
                     (bits | !mask) as i128
                 };
                 Some(IntegerValue::Signed(value))
-            }
-            _ => None,
-        }
+            },
+        )
     }
 
     /// Multiply two admitted values modulo this exact integer width.
@@ -587,13 +566,11 @@ impl IntegerType {
         } else {
             (1_u128 << self.bits) - 1
         };
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => Some(IntegerValue::Unsigned(left.wrapping_mul(right) & mask)),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.wrapping_mul(right) & mask)),
+            |left, right| {
                 let bits = (left as u128).wrapping_mul(right as u128) & mask;
                 let value = if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
                     bits as i128
@@ -601,9 +578,8 @@ impl IntegerType {
                     (bits | !mask) as i128
                 };
                 Some(IntegerValue::Signed(value))
-            }
-            _ => None,
-        }
+            },
+        )
     }
 
     /// Shift an admitted value left after reducing the count modulo this
@@ -769,12 +745,10 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| {
                 let maximum = if self.bits == 128 {
                     u128::MAX
                 } else {
@@ -783,8 +757,8 @@ impl IntegerType {
                 Some(IntegerValue::Unsigned(
                     left.saturating_add(right).min(maximum),
                 ))
-            }
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+            },
+            |left, right| {
                 let value = if self.bits == 128 {
                     left.saturating_add(right)
                 } else {
@@ -792,9 +766,8 @@ impl IntegerType {
                     (left + right).clamp(-limit, limit - 1)
                 };
                 Some(IntegerValue::Signed(value))
-            }
-            _ => None,
-        }
+            },
+        )
     }
 
     /// Subtract two admitted values and clamp the result to this exact integer
@@ -806,13 +779,11 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => Some(IntegerValue::Unsigned(left.saturating_sub(right))),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| Some(IntegerValue::Unsigned(left.saturating_sub(right))),
+            |left, right| {
                 let value = if self.bits == 128 {
                     left.saturating_sub(right)
                 } else {
@@ -820,9 +791,8 @@ impl IntegerType {
                     (left - right).clamp(-limit, limit - 1)
                 };
                 Some(IntegerValue::Signed(value))
-            }
-            _ => None,
-        }
+            },
+        )
     }
 
     /// Multiply two admitted values and clamp the result to this exact integer
@@ -834,12 +804,10 @@ impl IntegerType {
         if !self.admits(left) || !self.admits(right) {
             return None;
         }
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => {
+        self.dispatch_sign(
+            left,
+            right,
+            |left, right| {
                 let maximum = if self.bits == 128 {
                     u128::MAX
                 } else {
@@ -848,8 +816,8 @@ impl IntegerType {
                 Some(IntegerValue::Unsigned(
                     left.saturating_mul(right).min(maximum),
                 ))
-            }
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+            },
+            |left, right| {
                 let value = if self.bits == 128 {
                     left.saturating_mul(right)
                 } else {
@@ -857,9 +825,8 @@ impl IntegerType {
                     left.saturating_mul(right).clamp(-limit, limit - 1)
                 };
                 Some(IntegerValue::Signed(value))
-            }
-            _ => None,
-        }
+            },
+        )
     }
 }
 
