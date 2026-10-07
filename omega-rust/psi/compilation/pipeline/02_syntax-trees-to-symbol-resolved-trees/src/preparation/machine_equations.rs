@@ -139,22 +139,15 @@ pub(crate) fn complete(
                         "machine equation application lost its authored call",
                     )]);
                 };
-                authored.machine_arguments = complete_arguments(
+                complete_authored_arguments(
                     syntax,
                     index,
                     &authored.target,
-                    &authored.machine_arguments,
+                    &mut authored.machine_arguments,
                     sources,
                     selection,
-                )
-                .map_err(|error| vec![error])?;
-                completed_type_roots.extend(
-                    authored
-                        .machine_arguments
-                        .iter()
-                        .map(|argument| argument.type_reference)
-                        .filter(|reference| reference.is_valid()),
-                );
+                    &mut completed_type_roots,
+                )?;
                 syntax.expressions.replace_expression(
                     *original,
                     syntax_trees::expression::ExpressionNode::Call(authored),
@@ -192,22 +185,15 @@ pub(crate) fn complete(
                 "machine equation application lost its authored statement",
             )]);
         };
-        authored.machine_arguments = complete_arguments(
+        complete_authored_arguments(
             syntax,
             index,
             &authored.target,
-            &authored.machine_arguments,
+            &mut authored.machine_arguments,
             sources,
             selection,
-        )
-        .map_err(|error| vec![error])?;
-        completed_type_roots.extend(
-            authored
-                .machine_arguments
-                .iter()
-                .map(|argument| argument.type_reference)
-                .filter(|reference| reference.is_valid()),
-        );
+            &mut completed_type_roots,
+        )?;
         syntax.statements.replace_statement(
             *original,
             syntax_trees::statement::StatementNode::Call(authored),
@@ -361,6 +347,29 @@ fn append_type_children(
             span.start().generation(),
         ));
     }
+}
+
+/// Complete one authored call's machine-argument list and record the type
+/// roots the completion minted.
+fn complete_authored_arguments(
+    syntax: &mut SyntaxTrees,
+    index: usize,
+    target: &syntax_trees::identifier::Identifier,
+    machine_arguments: &mut Box<[StaticMachineArgument]>,
+    sources: &SourceLinks,
+    selection: &ConstantSelection<'_>,
+    completed_type_roots: &mut Vec<syntax_trees::types::TypeReferenceHandle>,
+) -> Result<(), Vec<Diagnostic>> {
+    *machine_arguments =
+        complete_arguments(syntax, index, target, machine_arguments, sources, selection)
+            .map_err(|error| vec![error])?;
+    completed_type_roots.extend(
+        machine_arguments
+            .iter()
+            .map(|argument| argument.type_reference)
+            .filter(|reference| reference.is_valid()),
+    );
+    Ok(())
 }
 
 fn complete_arguments(
