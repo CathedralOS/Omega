@@ -23,6 +23,27 @@ use typed_trees::signature::StateParameter;
 /// parameters keep no substitution: receiver-entry identity needs retained
 /// referent custody a bare argument cannot supply.
 #[allow(clippy::too_many_arguments)]
+
+/// `owner`'s machine and state once `argument` clears the builtin-bound
+/// meaning gate: checked scalar evidence folds and annotates under builtin
+/// laws, and an actual whose own operator occurrence selected an authored
+/// meaning cannot be re-read under semantics its selection rejected.
+fn builtin_bound_owner<'o>(
+    program: &TypedTrees,
+    owner: Option<(
+        &'o typed_trees::machine::Machine,
+        &'o typed_trees::state::State,
+    )>,
+    argument: ExpressionHandle,
+) -> Option<(
+    &'o typed_trees::machine::Machine,
+    &'o typed_trees::state::State,
+)> {
+    let (machine, state) = owner?;
+    validation::has_builtin_bound_expression_meaning(program, machine, Some(state), argument)
+        .then_some((machine, state))
+}
+
 pub(crate) fn call_argument_entry_operand(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
@@ -199,23 +220,7 @@ pub(crate) fn call_argument_substitution(
         // actual against the validation-only `exact_integer_casts` facts.
         if let Some(expected) = program.primitive_type_reference(parameter.type_reference) {
             scalar.push(argument.and_then(|argument| {
-                let (machine, state) = owner?;
-                // Checked scalar evidence folds and annotates under builtin
-                // laws. An actual whose own operator occurrence selected an
-                // authored meaning cannot supply this lane: lowering could
-                // launder that occurrence into a builtin-shaped node, and
-                // neither the fold nor a retained annotation may read it
-                // under semantics its selection rejected. This is the same
-                // custody gate the `values` channel applies before
-                // evaluating an actual.
-                if !validation::has_builtin_bound_expression_meaning(
-                    program,
-                    machine,
-                    Some(state),
-                    argument,
-                ) {
-                    return None;
-                }
+                let (_, state) = builtin_bound_owner(program, owner, argument)?;
                 let lowered = crate::values::lower_unit_scalar_argument(
                     program,
                     operators,
@@ -238,18 +243,7 @@ pub(crate) fn call_argument_substitution(
                 scalar_evidence_is_crash_lane_lowerable(&lowered).then_some(lowered)
             }));
             values.push(argument.and_then(|argument| {
-                let (machine, state) = owner?;
-                // Live evaluation folds under builtin laws. An actual whose
-                // own operator occurrence selected an authored meaning cannot
-                // be re-interpreted this way; it keeps no proven value.
-                if !validation::has_builtin_bound_expression_meaning(
-                    program,
-                    machine,
-                    Some(state),
-                    argument,
-                ) {
-                    return None;
-                }
+                let (machine, state) = builtin_bound_owner(program, owner, argument)?;
                 let lowered = crate::values::lower_unit_scalar_argument(
                     program,
                     operators,
