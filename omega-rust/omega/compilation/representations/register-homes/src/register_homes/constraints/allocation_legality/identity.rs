@@ -1,7 +1,7 @@
+use crate::identity::encode_fixed_constraint_site_identity;
 use sha2::{Digest, Sha256};
 
 use crate::{AllocationLegalityIdentity, AllocationLegalityPlan, FunctionAllocationLegality};
-use selected_instructions::VirtualFixedConstraintSite;
 
 /// `allocation_legality_identity` from the digests of `plan.functions`, in
 /// order, as `allocation_legality_function_digest` computes them.
@@ -59,35 +59,11 @@ pub fn allocation_legality_function_digest(function: &FunctionAllocationLegality
         length(&mut bytes, register.entry_transitions.len());
         for transition in &register.entry_transitions {
             bytes.extend_from_slice(&transition.from_view.0.to_le_bytes());
-            encode_fixed_site(&mut bytes, transition.to_site);
+            encode_fixed_constraint_site_identity(&mut bytes, transition.to_site);
             bytes.extend_from_slice(&transition.to_view.0.to_le_bytes());
         }
     }
     Sha256::digest(bytes).into()
-}
-
-fn encode_fixed_site(bytes: &mut Vec<u8>, site: VirtualFixedConstraintSite) {
-    match site {
-        VirtualFixedConstraintSite::Entry => bytes.push(0),
-        VirtualFixedConstraintSite::Operand {
-            position,
-            point,
-            instruction,
-            operand,
-            access,
-        } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&position.0.to_le_bytes());
-            bytes.extend_from_slice(&point.0.to_le_bytes());
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&operand.to_le_bytes());
-            bytes.push(match access {
-                register_model::RegisterOperandAccess::Use => 0,
-                register_model::RegisterOperandAccess::Def => 1,
-                register_model::RegisterOperandAccess::UseDef => 2,
-            });
-        }
-    }
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {

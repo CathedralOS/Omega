@@ -1,12 +1,11 @@
 //! Canonical V1 identity for fixed/precolored point intervals.
 
-use register_model::RegisterOperandAccess;
+use crate::identity::encode_fixed_constraint_site_identity;
 use sha2::{Digest, Sha256};
 
 use crate::{
     FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
 };
-use selected_instructions::VirtualFixedConstraintSite;
 
 pub fn fixed_precolored_interval_plan_identity(
     plan: &FixedPrecoloredIntervalPlan,
@@ -36,35 +35,11 @@ fn encode_family(bytes: &mut Vec<u8>, functions: &[crate::FunctionFixedPrecolore
         for interval in &function.intervals {
             bytes.extend_from_slice(&interval.virtual_register.0.to_le_bytes());
             bytes.extend_from_slice(&interval.class.0.to_le_bytes());
-            encode_site(bytes, interval.site);
+            encode_fixed_constraint_site_identity(bytes, interval.site);
             bytes.extend_from_slice(&interval.block.0.to_le_bytes());
             bytes.extend_from_slice(&interval.start.0.to_le_bytes());
             bytes.extend_from_slice(&interval.end.0.to_le_bytes());
             bytes.extend_from_slice(&interval.view.0.to_le_bytes());
-        }
-    }
-}
-
-fn encode_site(bytes: &mut Vec<u8>, site: VirtualFixedConstraintSite) {
-    match site {
-        VirtualFixedConstraintSite::Entry => bytes.push(0),
-        VirtualFixedConstraintSite::Operand {
-            position,
-            point,
-            instruction,
-            operand,
-            access,
-        } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&position.0.to_le_bytes());
-            bytes.extend_from_slice(&point.0.to_le_bytes());
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&operand.to_le_bytes());
-            bytes.push(match access {
-                RegisterOperandAccess::Use => 0,
-                RegisterOperandAccess::Def => 1,
-                RegisterOperandAccess::UseDef => 2,
-            });
         }
     }
 }

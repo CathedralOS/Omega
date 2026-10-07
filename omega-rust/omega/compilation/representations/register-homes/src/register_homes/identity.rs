@@ -1,4 +1,4 @@
-//! Exact home identity; field ordering remains the version-7 wire contract.
+//! Canonical home and fixed-site identity bytes; callers own their wire domains.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RegisterHomeIdentity(pub(crate) [u8; 32]);
@@ -13,6 +13,8 @@ impl RegisterHomeIdentity {
     }
 }
 
+use register_model::RegisterOperandAccess;
+use selected_instructions::VirtualFixedConstraintSite;
 use sha2::{Digest, Sha256};
 
 use crate::RegisterHomePlan;
@@ -61,5 +63,32 @@ impl AbstractSpillAccessConstraintPlanIdentity {
 
     pub const fn bytes(self) -> [u8; 32] {
         self.0
+    }
+}
+
+pub(crate) fn encode_fixed_constraint_site_identity(
+    bytes: &mut Vec<u8>,
+    site: VirtualFixedConstraintSite,
+) {
+    match site {
+        VirtualFixedConstraintSite::Entry => bytes.push(0),
+        VirtualFixedConstraintSite::Operand {
+            position,
+            point,
+            instruction,
+            operand,
+            access,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&position.0.to_le_bytes());
+            bytes.extend_from_slice(&point.0.to_le_bytes());
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&operand.to_le_bytes());
+            bytes.push(match access {
+                RegisterOperandAccess::Use => 0,
+                RegisterOperandAccess::Def => 1,
+                RegisterOperandAccess::UseDef => 2,
+            });
+        }
     }
 }

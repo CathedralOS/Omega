@@ -1,8 +1,7 @@
+use crate::identity::encode_fixed_constraint_site_identity;
 use optimization_unit::encode_value_definition_site_identity;
-use register_model::{RegisterConstraintFamily, RegisterOperandAccess};
-use selected_instructions::{
-    FixedViewCopyIdentity, VirtualFixedConstraintSite, selected_instruction_plan_identity,
-};
+use register_model::RegisterConstraintFamily;
+use selected_instructions::{FixedViewCopyIdentity, selected_instruction_plan_identity};
 
 use crate::{FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence};
 
@@ -36,7 +35,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         bytes.extend_from_slice(&copy.before_instruction.0.to_le_bytes());
         encode_len(&mut bytes, copy.destinations.len());
         for destination in &copy.destinations {
-            encode_fixed_site(&mut bytes, destination.site);
+            encode_fixed_constraint_site_identity(&mut bytes, destination.site);
             bytes.extend_from_slice(&destination.block.0.to_le_bytes());
             bytes.extend_from_slice(&destination.view.0.to_le_bytes());
         }
@@ -61,30 +60,6 @@ fn encode_source_evidence(bytes: &mut Vec<u8>, evidence: FixedViewCopySourceEvid
             bytes.extend_from_slice(&fixed_intervals.bytes());
             bytes.extend_from_slice(&split_requirements.bytes());
             bytes.extend_from_slice(&segment_homes.bytes());
-        }
-    }
-}
-
-fn encode_fixed_site(bytes: &mut Vec<u8>, site: VirtualFixedConstraintSite) {
-    match site {
-        VirtualFixedConstraintSite::Entry => bytes.push(0),
-        VirtualFixedConstraintSite::Operand {
-            position,
-            point,
-            instruction,
-            operand,
-            access,
-        } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&position.0.to_le_bytes());
-            bytes.extend_from_slice(&point.0.to_le_bytes());
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&operand.to_le_bytes());
-            bytes.push(match access {
-                RegisterOperandAccess::Use => 0,
-                RegisterOperandAccess::Def => 1,
-                RegisterOperandAccess::UseDef => 2,
-            });
         }
     }
 }

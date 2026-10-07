@@ -1,4 +1,4 @@
-use register_model::RegisterOperandAccess;
+use crate::identity::encode_fixed_constraint_site_identity;
 use sha2::{Digest, Sha256};
 use target::{Architecture, ObjectFormat};
 
@@ -6,7 +6,6 @@ use crate::{
     FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
     FixedPrecoloredSplitRequirementPlanIdentity, FixedPrecoloredSplitRequirementPolicy,
 };
-use selected_instructions::VirtualFixedConstraintSite;
 
 pub fn fixed_precolored_split_requirement_plan_identity(
     plan: &FixedPrecoloredSplitRequirementPlan,
@@ -83,7 +82,7 @@ fn encode_family(
                             if let Some(connector) = incoming {
                                 encode_connector(bytes, connector);
                             }
-                            encode_site(bytes, site);
+                            encode_fixed_constraint_site_identity(bytes, site);
                             bytes.extend_from_slice(&destination_view.0.to_le_bytes());
                         }
                     }
@@ -99,30 +98,6 @@ fn encode_connector(bytes: &mut Vec<u8>, connector: selected_instructions::LiveR
     bytes.push(connector.polarity_ordinal);
     bytes.extend_from_slice(&connector.psi_edge.get().to_le_bytes());
     bytes.extend_from_slice(&connector.target.0.to_le_bytes());
-}
-
-fn encode_site(bytes: &mut Vec<u8>, site: VirtualFixedConstraintSite) {
-    match site {
-        VirtualFixedConstraintSite::Entry => bytes.push(0),
-        VirtualFixedConstraintSite::Operand {
-            position,
-            point,
-            instruction,
-            operand,
-            access,
-        } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&position.0.to_le_bytes());
-            bytes.extend_from_slice(&point.0.to_le_bytes());
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&operand.to_le_bytes());
-            bytes.push(match access {
-                RegisterOperandAccess::Use => 0,
-                RegisterOperandAccess::Def => 1,
-                RegisterOperandAccess::UseDef => 2,
-            });
-        }
-    }
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {
