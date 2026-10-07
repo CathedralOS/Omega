@@ -15,6 +15,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+import worktree_testkit as kit
 from unittest import mock
 import uuid
 
@@ -60,36 +62,15 @@ class DeadlineTests(unittest.TestCase):
 
 class LandingTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="omega landing test ")
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
-        self.remote = self.root / "remote.git"
-        self.a, self.b = self.root / "writer a", self.root / "writer b"
-        self.environment = {key: value for key, value in os.environ.items()
-                            if not key.startswith("GIT_")}
-        self.environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
-                                GIT_TERMINAL_PROMPT="0")
-        self.git(self.root, "init", "--bare", str(self.remote))
-        self.configure(self.remote)
-        self.git(self.root, "init", "-b", "main", str(self.a))
-        self.configure(self.a)
+        (self.root, self.remote, self.a,
+         self.b) = kit.seed_remote_pair(
+            self, "omega landing test ", "Landing Test")
         self.initial = self.commit(self.a, "initial")
-        self.git(self.a, "remote", "add", "origin", str(self.remote))
-        self.git(self.a, "push", "origin", "HEAD:" + MAIN_REF)
-        self.git(self.root, "clone", "--branch", "main", str(self.remote), str(self.b))
-        self.configure(self.b)
-
-    def configure(self, directory):
-        for name, value in (("user.name", "Landing Test"), ("user.email", "test@example.invalid"),
-                            ("commit.gpgSign", "false"), ("core.autocrlf", "false")):
-            self.git(directory, "config", name, value)
+        kit.clone_remote_pair(
+            self, self.remote, self.a, self.b, "Landing Test")
 
     def git(self, directory, *arguments, input_text=""):
-        result = subprocess.run(["git", "-C", str(directory), *arguments], input=input_text,
-                                capture_output=True, text=True, encoding="utf-8",
-                                env=self.environment, timeout=30)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return result.stdout.strip()
+        return kit.git_input(self, directory, *arguments, input_text=input_text)
 
     def commit(self, directory, message):
         counter = getattr(self, "_commits", 0) + 1
@@ -101,18 +82,10 @@ class LandingTests(unittest.TestCase):
         return self.git(directory, "rev-parse", "HEAD")
 
     def start(self, directory, *arguments):
-        return subprocess.Popen([sys.executable, str(LANDING), "--repository", str(directory),
-                                 *arguments], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                text=True, encoding="utf-8", env=self.environment)
+        return kit.start_tool(self, LANDING, directory, *arguments)
 
     def finish(self, process):
-        try:
-            output, error = process.communicate(timeout=30)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.communicate()
-            self.fail("Local landing command timed out")
-        return process.returncode, output, error
+        return kit.finish_tool(self, process, "landing")
 
     def run_landing(self, directory, *arguments, expected=0):
         code, output, error = self.finish(self.start(directory, *arguments))

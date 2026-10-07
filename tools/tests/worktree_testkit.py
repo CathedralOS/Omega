@@ -72,3 +72,58 @@ def run_main(module, repository, *arguments):
             "--repository", str(repository),
             "--base", "main", "--offline", *arguments])
     return code, output.getvalue()
+
+
+def configure(case, directory, name):
+    for key, value in (("user.name", name),
+                       ("user.email", "test@example.invalid"),
+                       ("commit.gpgSign", "false"),
+                       ("core.autocrlf", "false")):
+        git(case, directory, "config", key, value)
+
+
+def git_input(case, directory, *arguments, input_text=""):
+    result = subprocess.run(["git", "-C", str(directory), *arguments],
+                            input=input_text, capture_output=True, text=True,
+                            encoding="utf-8", env=case.environment, timeout=30)
+    case.assertEqual(result.returncode, 0, result.stderr)
+    return result.stdout.strip()
+
+
+def seed_remote_pair(case, prefix, name):
+    """A bare remote and two writer clones on main, identity configured."""
+    temporary = tempfile.TemporaryDirectory(prefix=prefix)
+    case.addCleanup(temporary.cleanup)
+    root = Path(temporary.name)
+    remote = root / "remote.git"
+    a, b = root / "writer a", root / "writer b"
+    case.environment = isolated_git_environment()
+    git(case, root, "init", "--bare", str(remote))
+    configure(case, remote, name)
+    git(case, root, "init", "-b", "main", str(a))
+    configure(case, a, name)
+    return root, remote, a, b
+
+
+def clone_remote_pair(case, remote, a, b, name):
+    """Push a's main to the bare remote and clone it into b."""
+    git(case, a, "remote", "add", "origin", str(remote))
+    git(case, a, "push", "origin", "HEAD:refs/heads/main")
+    git(case, a.parent, "clone", "--branch", "main", str(remote), str(b))
+    configure(case, b, name)
+
+
+def start_tool(case, tool, directory, *arguments):
+    return subprocess.Popen([sys.executable, str(tool), "--repository", str(directory),
+                             *arguments], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=True, encoding="utf-8", env=case.environment)
+
+
+def finish_tool(case, process, label):
+    try:
+        output, error = process.communicate(timeout=30)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.communicate()
+        case.fail(f"Local {label} command timed out")
+    return process.returncode, output, error

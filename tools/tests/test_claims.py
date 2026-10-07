@@ -13,6 +13,8 @@ import tempfile
 import time
 from types import SimpleNamespace
 import unittest
+
+import worktree_testkit as kit
 from unittest import mock
 
 
@@ -200,56 +202,27 @@ class RegistrationBudgetTests(unittest.TestCase):
 
 class ClaimsTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="omega claims test ")
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
-        self.remote = self.root / "remote.git"
-        self.a, self.b = self.root / "writer a", self.root / "writer b"
-        self.environment = {key: value for key, value in os.environ.items()
-                            if not key.startswith("GIT_")}
-        self.environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
-                                GIT_TERMINAL_PROMPT="0")
-        self.git(self.root, "init", "--bare", str(self.remote))
-        self.configure(self.remote)
-        self.git(self.root, "init", "-b", "main", str(self.a))
-        self.configure(self.a)
+        (self.root, self.remote, self.a,
+         self.b) = kit.seed_remote_pair(
+            self, "omega claims test ", "Claims Test")
         (self.a / "TASKS.md").write_text(BOARD, encoding="utf-8")
         self.git(self.a, "add", "TASKS.md")
         self.initial = self.commit(self.a, "initial")
-        self.git(self.a, "remote", "add", "origin", str(self.remote))
-        self.git(self.a, "push", "origin", "HEAD:" + MAIN_REF)
-        self.git(self.root, "clone", "--branch", "main", str(self.remote), str(self.b))
-        self.configure(self.b)
-
-    def configure(self, directory):
-        for name, value in (("user.name", "Claims Test"), ("user.email", "test@example.invalid"),
-                            ("commit.gpgSign", "false"), ("core.autocrlf", "false")):
-            self.git(directory, "config", name, value)
+        kit.clone_remote_pair(
+            self, self.remote, self.a, self.b, "Claims Test")
 
     def git(self, directory, *arguments, input_text=""):
-        result = subprocess.run(["git", "-C", str(directory), *arguments], input=input_text,
-                                capture_output=True, text=True, encoding="utf-8",
-                                env=self.environment, timeout=30)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return result.stdout.strip()
+        return kit.git_input(self, directory, *arguments, input_text=input_text)
 
     def commit(self, directory, message):
         self.git(directory, "commit", "--allow-empty", "-m", message)
         return self.git(directory, "rev-parse", "HEAD")
 
     def start(self, directory, *arguments):
-        return subprocess.Popen([sys.executable, str(CLAIMS), "--repository", str(directory),
-                                 *arguments], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                text=True, encoding="utf-8", env=self.environment)
+        return kit.start_tool(self, CLAIMS, directory, *arguments)
 
     def finish(self, process):
-        try:
-            output, error = process.communicate(timeout=30)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.communicate()
-            self.fail("Local claims command timed out")
-        return process.returncode, output, error
+        return kit.finish_tool(self, process, "claims")
 
     def run_claims(self, directory, *arguments, expected=0):
         code, output, error = self.finish(self.start(directory, *arguments))
