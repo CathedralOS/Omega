@@ -63,10 +63,14 @@ pub fn expression_values_have_call_identity(
     true
 }
 
-pub(crate) fn has_observation_free_checked_closure(
+/// Reachable-machine DFS over `operational`'s checked call targets from
+/// `machine_symbol`; `admits` returning `false` — or a machine the index
+/// cannot resolve — refuses the whole walk.
+fn each_reachable_checked_machine(
     program: &TypedTrees,
     machine_symbol: symbols::SymbolHandle,
     operational: &flow_effects::OperationalPlan,
+    admits: impl Fn(&TypedTrees, &typed_trees::machine::Machine) -> bool,
 ) -> bool {
     let mut pending = vec![machine_symbol];
     let mut visited = Vec::new();
@@ -82,6 +86,21 @@ pub(crate) fn has_observation_free_checked_closure(
         else {
             return false;
         };
+        if !admits(program, machine)
+            || !push_checked_machine_call_targets(operational, current, &mut pending)
+        {
+            return false;
+        }
+    }
+    true
+}
+
+pub(crate) fn has_observation_free_checked_closure(
+    program: &TypedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    operational: &flow_effects::OperationalPlan,
+) -> bool {
+    each_reachable_checked_machine(program, machine_symbol, operational, |program, machine| {
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
             || !machine.body_is_present
             || !program.machine_owned_data(machine).is_empty()
@@ -132,11 +151,8 @@ pub(crate) fn has_observation_free_checked_closure(
                 }
             }
         }
-        if !push_checked_machine_call_targets(operational, current, &mut pending) {
-            return false;
-        }
-    }
-    true
+        true
+    })
 }
 
 fn transition_is_fact_observation_free(
@@ -335,21 +351,8 @@ pub(crate) fn has_no_crash_routes(
     machine_symbol: SymbolHandle,
     operational: &flow_effects::OperationalPlan,
 ) -> bool {
-    let mut pending = vec![machine_symbol];
-    let mut visited = Vec::new();
-    while let Some(current) = pending.pop() {
-        if visited.contains(&current) {
-            continue;
-        }
-        visited.push(current);
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == current)
-        else {
-            return false;
-        };
-        let crashes = program
+    each_reachable_checked_machine(program, machine_symbol, operational, |program, machine| {
+        !program
             .machine_contracts(machine)
             .iter()
             .chain(
@@ -363,13 +366,6 @@ pub(crate) fn has_no_crash_routes(
                     contract.kind,
                     typed_trees::signature::SignatureContractKind::Crashes { .. }
                 )
-            });
-        if crashes {
-            return false;
-        }
-        if !push_checked_machine_call_targets(operational, current, &mut pending) {
-            return false;
-        }
-    }
-    true
+            })
+    })
 }
