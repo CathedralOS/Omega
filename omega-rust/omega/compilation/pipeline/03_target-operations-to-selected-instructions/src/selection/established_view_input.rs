@@ -213,20 +213,7 @@ pub(super) fn accepts(
         }
     }
     let signature = source.structural.as_ref()?;
-    let mut occurrences = source.blocks.iter().flat_map(|block| {
-        block
-            .instructions
-            .iter()
-            .enumerate()
-            .map(move |(position, row)| (block.id, position, row))
-    });
-    let producer = occurrences
-        .clone()
-        .find(|(_, _, row)| row.operation == psi_operation)?;
-    let used = occurrences.find(|(_, _, row)| row.operation == call)?;
-    if producer.2.result.is_some() || producer.0 == used.0 && producer.1 >= used.1 {
-        return None;
-    }
+    let producer = producer_strictly_before_use(source, psi_operation, call)?;
     // Across blocks, the descriptor's actual defining register must dominate its
     // use. The existing full selected def/use validator checks that relation.
     match &producer.2.kind {
@@ -355,20 +342,7 @@ pub(super) fn accepts_view_loan(
         return None;
     }
     let signature = source.structural.as_ref()?;
-    let mut occurrences = source.blocks.iter().flat_map(|block| {
-        block
-            .instructions
-            .iter()
-            .enumerate()
-            .map(move |(position, row)| (block.id, position, row))
-    });
-    let producer = occurrences
-        .clone()
-        .find(|(_, _, row)| row.operation == psi_operation)?;
-    let used = occurrences.find(|(_, _, row)| row.operation == call)?;
-    if producer.2.result.is_some() || producer.0 == used.0 && producer.1 >= used.1 {
-        return None;
-    }
+    let producer = producer_strictly_before_use(source, psi_operation, call)?;
     let (result, destination) = match &producer.2.kind {
         LegalizedScalarInstructionKind::EstablishElementView {
             result,
@@ -490,4 +464,33 @@ pub(super) fn descriptor_result(
         return None;
     }
     Some((operation, result))
+}
+
+/// The `psi_operation` producer row ordered strictly before the `call` row's
+/// instruction position, or `None` when either is absent, the producer
+/// yields a register, or it does not precede the use in its block.
+fn producer_strictly_before_use<'source>(
+    source: &'source LegalizedScalarFunction,
+    psi_operation: OperationId,
+    call: OperationId,
+) -> Option<(
+    semantic_vocabulary::BlockId,
+    usize,
+    &'source legalized_operations::LegalizedScalarInstruction,
+)> {
+    let mut occurrences = source.blocks.iter().flat_map(|block| {
+        block
+            .instructions
+            .iter()
+            .enumerate()
+            .map(move |(position, row)| (block.id, position, row))
+    });
+    let producer = occurrences
+        .clone()
+        .find(|(_, _, row)| row.operation == psi_operation)?;
+    let used = occurrences.find(|(_, _, row)| row.operation == call)?;
+    if producer.2.result.is_some() || producer.0 == used.0 && producer.1 >= used.1 {
+        return None;
+    }
+    Some(producer)
 }
