@@ -1386,6 +1386,7 @@ pass/structs/runtime_composed_case_payload_reads_exit built 28326ms exit:70 @773
 pass/structs/runtime_declared_record_member_fill_exit built 748ms exit:70 @2688b8aa6c7a
 pass/structs/runtime_local_array_snapshot_exit built 1145ms exit:70 @a0af6064e4c8+wt
 pass/structs/runtime_local_record_policy_exit built 1277ms exit:70
+pass/structs/runtime_mixed_common_field_store_exit built 11381ms exit:0 @5f417b37f759+wt
 pass/structs/runtime_named_array_record_member_exit built 831ms exit:70 @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit built 724ms exit:70
 pass/structs/runtime_nonzero_array_elements_exit built 2761ms exit:70 @0bb2f2c02dae+wt

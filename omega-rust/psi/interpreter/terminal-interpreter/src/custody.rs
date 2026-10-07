@@ -883,13 +883,18 @@ fn project_structural_value_with_leaf(
     Ok(value)
 }
 
+/// Resolve the common member namespace shared by records and mixed shapes.
+/// A mixed shape's current case does not change its common-field declaration;
+/// payload fields remain selected separately through discriminator evidence.
 pub(crate) fn direct_scalar_field_type(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+        &declaration.shape
+    else {
         return None;
     };
     fields.iter().find_map(|candidate| {

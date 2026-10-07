@@ -330,8 +330,10 @@ pass/storage/runtime_primitive_local_literal_composition_exit built 5214ms exit:
 pass/structs/case_field_type_store_shapes built 2978ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
 pass/structs/qualified_record_element_assignment_exit built 2889ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/structs/runtime_completed_array_elements_exit built 2368ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4
+pass/structs/runtime_composed_case_payload_reads_exit built 12684ms exit:70 interpreter-exit:70 interpreter:agrees @5f417b37f759+wt
 pass/structs/runtime_declared_record_member_fill_exit built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
 pass/structs/runtime_local_array_snapshot_exit built 1454ms exit:70 interpreter-exit:70 interpreter:agrees @a0af6064e4c8+wt
+pass/structs/runtime_mixed_common_field_store_exit built 11339ms exit:0 interpreter-exit:0 interpreter:agrees @5f417b37f759+wt
 pass/structs/runtime_nested_struct_construction_exit built 2315ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/structs/runtime_nonzero_array_elements_exit built 2275ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4
 pass/structs/runtime_qualified_record_call_composition_exit built 2356ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt

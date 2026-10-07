@@ -1718,9 +1718,11 @@ then independent claimed restoration slices -> final closure.
   corpus give each engine the same authored bytes with independent positions.
   Preserve `calls/runtime_call_carrier_partition_exit`,
   `borrows/runtime_projected_reference_call_return_exit` and
-  `calls/runtime_heterogeneous_case_argument_exit` while completing host
+  `calls/runtime_heterogeneous_case_argument_exit` together with
+  `structs/runtime_mixed_common_field_store_exit` while completing host
   arrivals: physical backing prefixes are not logical partial ownership,
-  and packed case transport validates selected contents, not inactive variants.
+  packed case transport validates selected contents, not inactive variants,
+  and common mixed fields use the member namespace, never a case payload.
   Active atomic case formation still declines at computed-field lowering
   (`computed case field requires its exact scalar carrier`); shared atomic
   payloads then need original-cell backing, never a scalar snapshot.
