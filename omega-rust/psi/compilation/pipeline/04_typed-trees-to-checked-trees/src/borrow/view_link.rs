@@ -85,6 +85,47 @@ pub(crate) fn resolve_view_return_source(program: &TypedTrees, state: &State) ->
 /// Resolve the same lifetime/source relation for a bodyless callable
 /// signature. Boundary-trait requirements and compile-time machine parameters
 /// have no `State`, but their returned views create the same caller-side loans.
+
+/// Map a declared return lifetime onto the reference inputs carrying it:
+/// no match is ambiguous, one match names the source parameter, several
+/// fold into the structural union; a lifetime-free return falls back to
+/// the unlabeled input count.
+fn lifetime_return_source(
+    ref_parameters: &[(usize, &str, Option<&str>)],
+    output_lifetime: Option<&str>,
+    union: impl FnOnce() -> ViewReturnSource,
+) -> ViewReturnSource {
+    match output_lifetime {
+        Some(output_lifetime) => {
+            let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
+                .iter()
+                .filter(|(_, _, lifetime)| *lifetime == Some(output_lifetime))
+                .collect();
+            match matching.as_slice() {
+                [] => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
+                    lifetime: output_lifetime.to_owned(),
+                }),
+                [single] => ViewReturnSource::Parameter {
+                    parameter_index: single.0,
+                },
+                _ => union(),
+            }
+        }
+        None => match ref_parameters {
+            [] => ViewReturnSource::NotApplicable,
+            [single] => ViewReturnSource::Parameter {
+                parameter_index: single.0,
+            },
+            _ => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs {
+                candidates: ref_parameters
+                    .iter()
+                    .map(|(_, name, _)| (*name).to_owned())
+                    .collect(),
+            }),
+        },
+    }
+}
+
 pub(crate) fn resolve_signature_view_return_source(
     program: &TypedTrees,
     parameters: &[StateParameter],
@@ -121,39 +162,11 @@ pub(crate) fn resolve_signature_view_return_source(
         return structural_view_return_source(program, parameters, return_type, &[]);
     }
 
-    match reference_lifetime(program, return_type) {
-        Some(output_lifetime) => {
-            let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
-                .iter()
-                .filter(|(_, _, lifetime)| *lifetime == Some(output_lifetime))
-                .collect();
-            match matching.as_slice() {
-                [] => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
-                    lifetime: output_lifetime.to_owned(),
-                }),
-                [single] => ViewReturnSource::Parameter {
-                    parameter_index: single.0,
-                },
-                // Several inputs carry the selected lifetime: each
-                // contributes its reference as a candidate source and the
-                // returned loan tracks the union — the same structural
-                // matching the aggregate path applies.
-                _ => structural_view_return_source(program, parameters, return_type, &[]),
-            }
-        }
-        None => match ref_parameters.as_slice() {
-            [] => ViewReturnSource::NotApplicable,
-            [single] => ViewReturnSource::Parameter {
-                parameter_index: single.0,
-            },
-            _ => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs {
-                candidates: ref_parameters
-                    .iter()
-                    .map(|(_, name, _)| (*name).to_owned())
-                    .collect(),
-            }),
-        },
-    }
+    lifetime_return_source(
+        &ref_parameters,
+        reference_lifetime(program, return_type),
+        || structural_view_return_source(program, parameters, return_type, &[]),
+    )
 }
 
 /// The same lifetime/source relation decided after one call's exact
@@ -199,35 +212,11 @@ pub(crate) fn resolve_substituted_view_return_source(
         }
     }
 
-    match substituted_reference_lifetime(program, return_type, substitutions) {
-        Some(output_lifetime) => {
-            let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
-                .iter()
-                .filter(|(_, _, lifetime)| *lifetime == Some(output_lifetime))
-                .collect();
-            match matching.as_slice() {
-                [] => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
-                    lifetime: output_lifetime.to_owned(),
-                }),
-                [single] => ViewReturnSource::Parameter {
-                    parameter_index: single.0,
-                },
-                _ => structural_view_return_source(program, parameters, return_type, substitutions),
-            }
-        }
-        None => match ref_parameters.as_slice() {
-            [] => ViewReturnSource::NotApplicable,
-            [single] => ViewReturnSource::Parameter {
-                parameter_index: single.0,
-            },
-            _ => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs {
-                candidates: ref_parameters
-                    .iter()
-                    .map(|(_, name, _)| (*name).to_owned())
-                    .collect(),
-            }),
-        },
-    }
+    lifetime_return_source(
+        &ref_parameters,
+        substituted_reference_lifetime(program, return_type, substitutions),
+        || structural_view_return_source(program, parameters, return_type, substitutions),
+    )
 }
 
 fn substituted_is_reference_type(
