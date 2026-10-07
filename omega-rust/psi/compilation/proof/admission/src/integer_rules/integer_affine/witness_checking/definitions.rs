@@ -117,8 +117,15 @@ pub(super) fn apply_definition(
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type && left.as_ref() == current => {
-            if let Some((mask, used_landing)) = signed_literal(right, integer_type, landed) {
+        } if *scalar_type == integer_type
+            && (left.as_ref() == current || right.as_ref() == current) =>
+        {
+            let sibling = if left.as_ref() == current {
+                right
+            } else {
+                left
+            };
+            if let Some((mask, used_landing)) = signed_literal(sibling, integer_type, landed) {
                 if mask < 0 {
                     return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
                 }
@@ -129,35 +136,7 @@ pub(super) fn apply_definition(
                     CheckedIntegerEndpointStep::BitwiseAndMask(mask),
                 )
             } else {
-                let (mask, upper) = bounded_bitwise_sibling(right, integer_type, prior_axioms)?;
-                (
-                    Some(coefficient),
-                    Some(offset),
-                    false,
-                    CheckedIntegerEndpointStep::BitwiseAndBoundedMask {
-                        mask: mask.clone(),
-                        upper,
-                    },
-                )
-            }
-        }
-        ScalarTerm::IntegerBitwiseAnd {
-            scalar_type,
-            left,
-            right,
-        } if *scalar_type == integer_type && right.as_ref() == current => {
-            if let Some((mask, used_landing)) = signed_literal(left, integer_type, landed) {
-                if mask < 0 {
-                    return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
-                }
-                (
-                    Some(coefficient),
-                    Some(offset),
-                    used_landing,
-                    CheckedIntegerEndpointStep::BitwiseAndMask(mask),
-                )
-            } else {
-                let (mask, upper) = bounded_bitwise_sibling(left, integer_type, prior_axioms)?;
+                let (mask, upper) = bounded_bitwise_sibling(sibling, integer_type, prior_axioms)?;
                 (
                     Some(coefficient),
                     Some(offset),
@@ -179,8 +158,15 @@ pub(super) fn apply_definition(
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type && left.as_ref() == current => {
-            if let Some((sibling, used_landing)) = signed_literal(right, integer_type, landed) {
+        } if *scalar_type == integer_type
+            && (left.as_ref() == current || right.as_ref() == current) =>
+        {
+            let sibling_operand = if left.as_ref() == current {
+                right
+            } else {
+                left
+            };
+            if let Some((sibling, used_landing)) = signed_literal(sibling_operand, integer_type, landed) {
                 if sibling < 0 {
                     return Some(Err(IntegerAffineWitnessError::NegativeBitwiseOrSibling));
                 }
@@ -191,35 +177,7 @@ pub(super) fn apply_definition(
                     CheckedIntegerEndpointStep::BitwiseOrLiteralImage(sibling),
                 )
             } else {
-                let (operand, upper) = bounded_bitwise_sibling(right, integer_type, prior_axioms)?;
-                (
-                    Some(coefficient),
-                    Some(offset),
-                    false,
-                    CheckedIntegerEndpointStep::BitwiseOrBoundedImage {
-                        operand: operand.clone(),
-                        upper,
-                    },
-                )
-            }
-        }
-        ScalarTerm::IntegerBitwiseOr {
-            scalar_type,
-            left,
-            right,
-        } if *scalar_type == integer_type && right.as_ref() == current => {
-            if let Some((sibling, used_landing)) = signed_literal(left, integer_type, landed) {
-                if sibling < 0 {
-                    return Some(Err(IntegerAffineWitnessError::NegativeBitwiseOrSibling));
-                }
-                (
-                    Some(coefficient),
-                    Some(offset),
-                    used_landing,
-                    CheckedIntegerEndpointStep::BitwiseOrLiteralImage(sibling),
-                )
-            } else {
-                let (operand, upper) = bounded_bitwise_sibling(left, integer_type, prior_axioms)?;
+                let (operand, upper) = bounded_bitwise_sibling(sibling_operand, integer_type, prior_axioms)?;
                 (
                     Some(coefficient),
                     Some(offset),
@@ -243,31 +201,20 @@ pub(super) fn apply_definition(
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type && left.as_ref() == current => {
-            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+        } if *scalar_type == integer_type
+            && (left.as_ref() == current || right.as_ref() == current) =>
+        {
+            let (sibling, current_operand) = if left.as_ref() == current {
+                (right, left)
+            } else {
+                (left, right)
+            };
+            let (literal, used_landing) = signed_literal(sibling, integer_type, landed)?;
             (
                 Some(coefficient),
                 offset.checked_add(literal),
                 used_landing,
-                policy_add_step(expression, left, literal),
-            )
-        }
-        ScalarTerm::WrappingIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::SaturatingIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        } if *scalar_type == integer_type && right.as_ref() == current => {
-            let (literal, used_landing) = signed_literal(left, integer_type, landed)?;
-            (
-                Some(coefficient),
-                offset.checked_add(literal),
-                used_landing,
-                policy_add_step(expression, right, literal),
+                policy_add_step(expression, current_operand, literal),
             )
         }
         // Subtracting `c` uses the endpoint translation by `-c`,
