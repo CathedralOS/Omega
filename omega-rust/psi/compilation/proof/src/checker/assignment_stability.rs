@@ -196,42 +196,4 @@ pub(crate) fn member_paths_may_alias(left: &[String], right: &[String]) -> bool 
     left[..shared] == right[..shared]
 }
 
-/// Whether any `Call` node appears in the expression tree (an opaque effect:
-/// a value-machine call may mutate fields through `&mut self`).
-pub(crate) fn expression_contains_call(
-    proof_plan: &ProofPlan,
-    expression: ExpressionHandle,
-) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    match proof_plan.program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            expression_contains_call(proof_plan, dispatch.subject)
-                || proof_plan
-                    .program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if expression_contains_call(proof_plan, pattern))
-                            || expression_contains_call(proof_plan, arm.value)
-                    })
-        }
-        ExpressionNode::Call(_) => true,
-        ExpressionNode::Binary(binary) => {
-            expression_contains_call(proof_plan, binary.left)
-                || expression_contains_call(proof_plan, binary.right)
-        }
-        ExpressionNode::Unary(unary) => expression_contains_call(proof_plan, unary.operand),
-        ExpressionNode::Cast(cast) => expression_contains_call(proof_plan, cast.value),
-        ExpressionNode::Borrow(inner) => expression_contains_call(proof_plan, inner.target),
-        ExpressionNode::Indexed(indexed) => {
-            expression_contains_call(proof_plan, indexed.collection)
-                || expression_contains_call(proof_plan, indexed.index)
-        }
-        ExpressionNode::Member(member) => expression_contains_call(proof_plan, member.receiver),
-        _ => false,
-    }
-}
+

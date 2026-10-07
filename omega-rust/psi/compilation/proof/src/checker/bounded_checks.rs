@@ -3,7 +3,7 @@
 
 use crate::checker::AssignmentRangeContext;
 use crate::checker::assignment_stability::{
-    collect_read_place_paths, expression_contains_call, member_paths_may_alias, written_place_path,
+    collect_read_place_paths, member_paths_may_alias, written_place_path,
 };
 use crate::checker::certificate::{
     CertificateVerdict, bounded_integer_value_verdict, guarded_transition_integer_verdict_measured,
@@ -204,7 +204,7 @@ fn assignment_is_overwritten_before_consumption(
             // invariant window may not flow through it.
             StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => return false,
             StatementNode::Assignment(assignment) => {
-                if expression_contains_call(proof_plan, assignment.value) {
+                if crate::typed_expressions::expression_contains_call_node(proof_plan.program, assignment.value) {
                     return false;
                 }
                 let mut reads = Vec::new();
@@ -228,7 +228,7 @@ fn assignment_is_overwritten_before_consumption(
             }
             StatementNode::LocalData(local) => {
                 if local.initial_value.is_valid() {
-                    if expression_contains_call(proof_plan, local.initial_value) {
+                    if crate::typed_expressions::expression_contains_call_node(proof_plan.program, local.initial_value) {
                         return false;
                     }
                     let mut reads = Vec::new();
@@ -242,7 +242,7 @@ fn assignment_is_overwritten_before_consumption(
                 }
             }
             StatementNode::Expression(expression) => {
-                if expression_contains_call(proof_plan, *expression) {
+                if crate::typed_expressions::expression_contains_call_node(proof_plan.program, *expression) {
                     return false;
                 }
                 let mut reads = Vec::new();
