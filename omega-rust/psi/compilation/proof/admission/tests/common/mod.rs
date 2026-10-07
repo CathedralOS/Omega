@@ -5,7 +5,8 @@
 #![allow(dead_code)]
 
 use proof_admission::{
-    Budget, DEFAULT_CONVERSION_STEPS, IndexedFamily, Level, Sort, Term, TermArena, TermHandle,
+    Budget, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Level, Sort, Term, TermArena,
+    TermHandle, indexed_scheme,
 };
 use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
 
@@ -308,4 +309,17 @@ pub(crate) fn elem_nat_payload(arena: &mut TermArena) -> TermHandle {
     let body = case_two(arena, motive, nil_payload, cons_payload, tag);
     let domain = two(arena);
     lambda(arena, domain, body)
+}
+
+/// `indexed_scheme` plus the `Nat`, `zeroN`, and `succN` assumptions every
+/// Nat-indexed test family declares before its own element declarations.
+pub(crate) fn nat_succ_declarations(arena: &mut TermArena) -> Vec<Declaration> {
+    let mut declarations = indexed_scheme(arena);
+    declarations.push(Declaration::assumption(0, type_sort(arena, 0))); // Nat
+    declarations.push(Declaration::assumption(0, nat(arena))); // zeroN
+    let succ_domain = nat(arena);
+    let succ_codomain = nat(arena);
+    let succ_statement = pi(arena, succ_domain, succ_codomain);
+    declarations.push(Declaration::assumption(0, succ_statement)); // succN
+    declarations
 }

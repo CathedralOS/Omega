@@ -364,13 +364,7 @@ fn nested_family(arena: &mut TermArena) -> IndexedFamily {
 /// shared assumptions `Nat`, `zeroN`, `succN`, `Elem` — identical to
 /// the vector's signature because `Vec` is the same `IW` constant.
 fn nested_declarations(arena: &mut TermArena) -> Vec<Declaration> {
-    let mut declarations = indexed_scheme(arena);
-    declarations.push(Declaration::assumption(0, type_sort(arena, 0))); // Nat
-    declarations.push(Declaration::assumption(0, nat(arena))); // zeroN
-    let succ_domain = nat(arena);
-    let succ_codomain = nat(arena);
-    let succ_statement = pi(arena, succ_domain, succ_codomain);
-    declarations.push(Declaration::assumption(0, succ_statement)); // succN
+    let mut declarations = nat_succ_declarations(arena);
     declarations.push(Declaration::assumption(0, type_sort(arena, 0))); // Elem
     declarations
 }
