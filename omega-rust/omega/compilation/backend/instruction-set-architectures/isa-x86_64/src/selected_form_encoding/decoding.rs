@@ -1069,7 +1069,7 @@ pub(crate) fn validate_decoded(
                     value: integer_bits(value)?,
                 }]
         }
-        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+        SelectedInstructionKind::ImmutableImageAddress { .. } => {
             decoded
                 == [DecodedInstruction::UnresolvedRipRelativeAddress {
                     destination: registers[0],
@@ -2146,7 +2146,7 @@ pub(crate) fn footprint(
             (vec![], vec![operands[0]], false)
         }
         SelectedInstructionKind::MaterializeI64 { .. }
-        | SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+        | SelectedInstructionKind::ImmutableImageAddress { .. } => {
             (vec![], vec![operands[0]], false)
         }
         SelectedInstructionKind::CopyI64
@@ -2324,7 +2324,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
                 | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
                 | SelectedInstructionKind::MaterializeI64 { .. }
-                | SelectedInstructionKind::ByteLiteralImageAddress { .. } => vec![],
+                | SelectedInstructionKind::ImmutableImageAddress { .. } => vec![],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16
@@ -2375,7 +2375,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
                 | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
                 | SelectedInstructionKind::MaterializeI64 { .. }
-                | SelectedInstructionKind::ByteLiteralImageAddress { .. } => vec![0],
+                | SelectedInstructionKind::ImmutableImageAddress { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16

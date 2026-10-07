@@ -235,6 +235,14 @@ fn encode_encoding_row(
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
             encode_normalized_foreign_fixup(hasher, fixup);
         }
+        SelectedFormEncodingState::UnresolvedImplementationTableAddress { fixup } => {
+            hasher.update([5]);
+            encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
+            let mut identity = Vec::new();
+            fixup.reference.encode_identity(&mut identity);
+            fixup.fields.encode_identity(&mut identity);
+            hasher.update(identity);
+        }
         SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup } => {
             hasher.update([4]);
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));

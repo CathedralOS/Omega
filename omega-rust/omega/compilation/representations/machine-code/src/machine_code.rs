@@ -11,6 +11,7 @@ pub mod control_flow;
 pub mod encoding;
 pub mod fragments;
 pub mod functions;
+pub mod implementation_tables;
 pub mod instructions;
 pub mod layout;
 pub mod ownership;
@@ -77,6 +78,10 @@ pub use functions::{
     WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
     WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
     WholeFunctionReturnValueEvidence, exit_contract, whole_function_exit_contract_identity,
+};
+pub use implementation_tables::{
+    FunctionFragmentImplementationTableAddressFixup, ImplementationTableReference,
+    PlacedImplementationTableAddress, SelectedFormImplementationTableAddressFixup,
 };
 pub use instructions::{
     X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,

@@ -12,7 +12,7 @@ fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
     let catalog = aarch64_register_constraint_catalog(&physical);
     let kind = SelectedInstructionKind::CallAggregate {
-        callee: MachineId::new(7).unwrap(),
+        target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
     };
     let alternative = MachineAlternativeKey {
         family: MachineAlternativeFamily::CallAggregate,
@@ -126,7 +126,7 @@ fn every_mixed_unit_call_row_has_exact_template_operands_and_effects() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
     let catalog = aarch64_register_constraint_catalog(&physical);
     let kind = SelectedInstructionKind::CallUnit {
-        callee: MachineId::new(7).unwrap(),
+        target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
     };
     let alternative = MachineAlternativeKey {
         family: MachineAlternativeFamily::CallUnit,

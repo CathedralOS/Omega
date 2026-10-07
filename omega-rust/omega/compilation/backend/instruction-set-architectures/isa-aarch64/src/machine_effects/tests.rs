@@ -409,7 +409,7 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
             let scalar_call = scalar_call.expect("supported target declares scalar call");
             assert_eq!(
                 scalar_call.call,
-                MachineCallEffect::DirectInternalNormalReturnV1 {
+                MachineCallEffect::InternalNormalReturnV1 {
                     pre_call_stack_alignment: 16,
                 }
             );

@@ -9,6 +9,12 @@ pub(super) fn result(
     selected: &SelectedFunction,
     contract: &selected_instructions::SelectedCallContract,
 ) -> Result<Option<abstract_operations::AbstractResult>, Error> {
+    // An indirect call's requirement slot owns its ABI. No one selected
+    // implementation can supply a legacy per-machine result mirror; the
+    // retained fragment source check joins the exact slot and result instead.
+    let Some(callee_machine) = contract.call.target.machine() else {
+        return Ok(None);
+    };
     let Some(placement) = &contract.call.result_placement else {
         return Ok(None);
     };
@@ -34,7 +40,7 @@ pub(super) fn result(
                 ..
             } if installed_boundary.is_none()
                 && Some(*psi_operation) == contract.owner.operation()
-                && *callee == contract.call.callee =>
+                && source::call_target_matches(*callee, contract.call.target) =>
             {
                 Some(*result)
             }
@@ -51,7 +57,7 @@ pub(super) fn result(
             _ => None,
         });
     let result = operations.next().ok_or_else(invalid)?;
-    let (callee, target) = source::function(source, contract.call.callee)?;
+    let (callee, target) = source::function(source, callee_machine)?;
     let abi = target
         .mixed_structural_scalar_abi
         .as_ref()
@@ -81,7 +87,7 @@ pub(super) fn result(
     if instructions.next().is_some()
         || instruction.kind
             != (selected_instructions::SelectedInstructionKind::CallScalar {
-                callee: contract.call.callee,
+                target: selected_instructions::SelectedCallTarget::Machine(callee_machine),
             })
         || !selected.virtual_registers.iter().any(|register| {
             register.id == output && definition_is_exact(register, contract.instruction, result)

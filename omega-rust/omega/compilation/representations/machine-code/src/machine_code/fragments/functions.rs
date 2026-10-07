@@ -43,6 +43,8 @@ pub struct FunctionFragmentInstructionSpan {
     pub normalized_foreign_call_fixup: Option<FunctionFragmentNormalizedForeignCallFixup>,
     /// Unresolved byte-literal image address awaiting its object relocation.
     pub byte_literal_address_fixup: Option<crate::FunctionFragmentByteLiteralAddressFixup>,
+    pub implementation_table_address_fixup:
+        Option<crate::FunctionFragmentImplementationTableAddressFixup>,
     pub provenance: SelectedInstructionProvenance,
     pub control: FunctionFragmentControlProvenance,
 }

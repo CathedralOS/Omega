@@ -810,7 +810,17 @@ fn scan_operation(
             structural_arguments,
             ..
         } => {
-            pending.push_call(context, machines, *callee, structural_arguments);
+            if let Some(machine) = callee.machine() {
+                pending.push_call(context, machines, machine, structural_arguments);
+            } else {
+                // The slot grants each argument's access; it supplies no
+                // representative body's narrower mutation summary.
+                for argument in structural_arguments {
+                    let (reads, writes) = declared_access(argument.access);
+                    pending.attribute_argument(context, argument, reads, writes);
+                }
+                pending.unsummarized = true;
+            }
         }
         O::Call { callee, .. } => {
             pending.push_call(context, machines, *callee, &[]);
@@ -840,6 +850,7 @@ fn scan_operation(
         | O::EstablishStructuralLocal { .. }
         | O::PortWrite { .. }
         | O::Crash { .. }
+        | O::SelectImplementation { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }

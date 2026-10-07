@@ -105,7 +105,7 @@ pub(super) fn emit(
     });
     builder.emit(
         SelectedInstructionKind::CallUnit {
-            callee: call.callee,
+            target: selected_instructions::SelectedCallTarget::from_native(call.target),
         },
         key,
         &operands,

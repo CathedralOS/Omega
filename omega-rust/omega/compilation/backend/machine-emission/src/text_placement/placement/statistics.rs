@@ -49,6 +49,9 @@ pub fn text_section_statistics(
             .unresolved_normalized_foreign_calls
             .len()
             .checked_add(section.unresolved_byte_literal_addresses.len())
+            .and_then(|count| {
+                count.checked_add(section.unresolved_implementation_table_addresses.len())
+            })
             .ok_or(TextPlacementError::StatisticsOverflow)?,
     )?;
     result.remaining_internal_machine_fixups = result

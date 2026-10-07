@@ -52,9 +52,11 @@ pub(super) fn establish(
         });
     let backing = transport_register(builder, destination.id, 16)?;
     builder.emit(
-        SelectedInstructionKind::ByteLiteralImageAddress {
-            operation: row.operation,
-            place: destination.id,
+        SelectedInstructionKind::ImmutableImageAddress {
+            reference: selected_instructions::SelectedImageAddressReference::ByteLiteral {
+                operation: row.operation,
+                place: destination.id,
+            },
         },
         builder
             .constraints

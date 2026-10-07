@@ -1246,6 +1246,12 @@ fn write_destination(
             _ => None,
         });
     let (producer, callee, result) = producers.next()?;
+    // Reference-result leaf custody currently comes from a private machine's
+    // structural result declaration. Public requirement slots do not publish
+    // that contract, so a dynamic target cannot stand in for this direct proof.
+    if !matches!(callee, abstract_operations::AbstractCallTarget::Machine(_)) {
+        return None;
+    }
     if producers.next().is_some() {
         return None;
     }
@@ -1293,7 +1299,7 @@ fn write_destination(
         .filter_map(|operation| match operation {
             TargetUnitOperation::Call {
                 psi_operation,
-                callee: actual_callee,
+                target: actual_target,
                 result:
                     target_operations::TargetCallResult::Structural {
                         result: actual,
@@ -1303,7 +1309,7 @@ fn write_destination(
                     },
                 ..
             } if *psi_operation == producer
-                && *actual_callee == callee
+                && super::call_target_matches(callee, *actual_target)
                 && actual == result
                 && home.operation_result() == Some((producer, result))
                 && home.layout

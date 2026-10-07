@@ -15,3 +15,5 @@ pub use arguments::{
 };
 mod results;
 pub use results::TargetCallResult;
+mod targets;
+pub use targets::{NativeCallTarget, selector_carrier_type};

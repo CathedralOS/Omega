@@ -127,6 +127,30 @@ pub(super) fn validate_operation(
     }
     match (target, abstracted) {
         (
+            TargetUnitOperation::SelectImplementation { result_home, table },
+            AbstractOperation::SelectImplementation {
+                psi_operation,
+                result,
+                table: expected_table,
+            },
+        ) => {
+            let expected = target_operations::TargetUnitScalarHomeRequirement {
+                defining_operation: *psi_operation,
+                source_value: result.value,
+                scalar_type: result.scalar_type,
+                shape: super::super::scalar_shape(result.scalar_type)
+                    .ok_or_else(LegalizationError::custody)?,
+            };
+            if result.scalar_type != target_operations::selector_carrier_type()
+                || result_home != &expected
+                || table != expected_table
+                || plan.dynamic_dispatch.table(*table).is_none()
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((result.value, Source::Home(*result_home)));
+        }
+        (
             TargetUnitOperation::AtomicAccess {
                 psi_operation,
                 location,

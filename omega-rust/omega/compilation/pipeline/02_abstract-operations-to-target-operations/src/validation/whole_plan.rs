@@ -102,6 +102,7 @@ pub fn validate_abstract_to_target_translation(
         super::structural_call_arguments::validate(
             source_function,
             &source.functions,
+            &source.dynamic_dispatch,
             target_function,
             &target.functions,
             &source.structural_types,
@@ -123,6 +124,17 @@ pub fn validate_abstract_to_target_translation(
                 }
             },
         )?;
+        super::selector_formations::validate(
+            source_function,
+            target_function,
+            &source.dynamic_dispatch,
+        )
+        .map_err(|operation| {
+            AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch {
+                machine: source_function.machine,
+                operation,
+            }
+        })?;
         function_roster.push(AbstractToTargetFunctionRosterReceipt::new(
             source_function.machine,
             source_function.attachment,

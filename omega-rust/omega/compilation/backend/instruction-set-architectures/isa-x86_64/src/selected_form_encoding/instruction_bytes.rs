@@ -469,7 +469,7 @@ pub(crate) fn encode_unchecked(
             bytes.extend([0x48 | (registers[0] >> 3), 0xb8 | (registers[0] & 7)]);
             bytes.extend(integer_bits(value)?.to_le_bytes());
         }
-        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+        SelectedInstructionKind::ImmutableImageAddress { .. } => {
             bytes.extend(byte_literal_address_bytes(registers[0]));
         }
         SelectedInstructionKind::MaterializeBooleanEqual

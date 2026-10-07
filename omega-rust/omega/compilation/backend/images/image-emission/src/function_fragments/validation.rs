@@ -40,6 +40,11 @@ fn validate(
             })?;
     // The byte-literal pool, when present, follows every byte of code.
     super::byte_literals::validate(source, artifact, code_text_len)?;
+    super::implementation_tables::validate(source, artifact)?;
+    let table_count = artifact
+        .implementation_table_pool
+        .as_ref()
+        .map_or(0, |pool| pool.tables.len());
     let pool = artifact.byte_literal_pool.as_ref();
     let expected_text_len = code_text_len
         .checked_add(pool.map_or(0, |pool| pool.byte_count))
@@ -61,16 +66,16 @@ fn validate(
         || artifact.relocations.target != text.target
         || artifact.x86_feature_profile.is_some()
         || artifact.x86_scalar_fma_provider.is_some()
-        || !artifact.data_bytes.is_empty()
         || artifact.private_functions.len()
             != private_functions.map_or(artifact.private_functions.len(), |roster| roster.len())
         || !artifact.port_effects.is_empty()
         || layout.function_symbols.len() != artifact.private_functions.len()
-        || layout.sections.len() != 1
+        || layout.sections.len() != 1 + usize::from(table_count != 0)
         || layout.symbols.len()
             != text.functions.len()
                 + artifact.private_functions.len()
                 + usize::from(pool.is_some())
+                + table_count
                 + layout.normalized_imports.len()
         || artifact.functions.len() != text.functions.len()
     {
@@ -81,7 +86,7 @@ fn validate(
     let (_, section) = layout
         .sections
         .iter()
-        .next()
+        .find(|(_, section)| section.kind == SectionKind::Text)
         .ok_or(Error::Mismatch("object has no text section"))?;
     if section.kind != SectionKind::Text
         || section.size != artifact.text_bytes.len()

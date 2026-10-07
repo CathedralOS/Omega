@@ -338,7 +338,14 @@ fn leaf_paths(
             }
             StructuralTypeShape::Record { fields } => {
                 for field in fields.iter().rev() {
-                    push_field_leaf(&mut pending, &path, output.len(), maximum_leaves, types, field)?;
+                    push_field_leaf(
+                        &mut pending,
+                        &path,
+                        output.len(),
+                        maximum_leaves,
+                        types,
+                        field,
+                    )?;
                 }
             }
             StructuralTypeShape::FixedArray { element, length }
@@ -364,7 +371,14 @@ fn leaf_paths(
             // the authored path names.
             StructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields).rev() {
-                    push_field_leaf(&mut pending, &path, output.len(), maximum_leaves, types, field)?;
+                    push_field_leaf(
+                        &mut pending,
+                        &path,
+                        output.len(),
+                        maximum_leaves,
+                        types,
+                        field,
+                    )?;
                 }
             }
             StructuralTypeShape::Mixed { fields, cases } => {
@@ -374,7 +388,14 @@ fn leaf_paths(
                     .chain(fields)
                     .rev()
                 {
-                    push_field_leaf(&mut pending, &path, output.len(), maximum_leaves, types, field)?;
+                    push_field_leaf(
+                        &mut pending,
+                        &path,
+                        output.len(),
+                        maximum_leaves,
+                        types,
+                        field,
+                    )?;
                 }
             }
             _ => {}
@@ -1685,7 +1706,7 @@ pub(in crate::legalization) fn apply(
             let callee_function = unit
                 .functions
                 .iter()
-                .find(|function| function.machine == *callee)
+                .find(|function| Some(function.machine) == callee.machine())
                 .ok_or_else(|| invalid())?;
             commit_argument_moves(custody, &moved);
             call_results(

@@ -47,6 +47,7 @@ use block_parameters::{consume_edge_sources, establish_edge_parameters};
 
 pub(super) fn validate_current_ownership_frontier_collecting(
     psi: terminal_psi::TerminalPsiIdentity,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
     successors: &BTreeMap<BlockId, Vec<BlockId>>,
@@ -65,6 +66,7 @@ pub(super) fn validate_current_ownership_frontier_collecting(
     let entry = reconstruct_entry_ownership(function, structural_types)?;
     replay::validate_current_ownership_cfg(
         function,
+        dynamic_dispatch,
         blocks,
         successors,
         functions,

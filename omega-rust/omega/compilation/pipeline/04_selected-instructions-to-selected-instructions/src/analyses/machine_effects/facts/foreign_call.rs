@@ -32,6 +32,17 @@ pub(super) fn constraint<'catalog>(
         .iter()
         .find(|row| row.key == instruction.constraint)
         .ok_or_else(invalid)?;
+    if matches!(
+        instruction.kind.call_target(),
+        Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
+    ) {
+        selected_instructions::calls::dynamic::call_record(function, instruction)
+            .ok_or_else(invalid)?;
+        return Ok(Cow::Owned(
+            selected_instructions::calls::dynamic::instantiate_constraint(base, physical)
+                .ok_or_else(invalid)?,
+        ));
+    }
     if !matches!(
         instruction.kind,
         SelectedInstructionKind::NormalizedForeignCall { .. }
@@ -58,6 +69,22 @@ pub(super) fn declaration<'catalog>(
     constraint: &RegisterInstructionConstraint,
     base: &'catalog MachineEffectDeclaration,
 ) -> Result<Cow<'catalog, MachineEffectDeclaration>, MachineEffectError> {
+    let invalid = || MachineEffectError::ConstraintEffectMismatch {
+        instruction: instruction.id,
+    };
+    if matches!(
+        instruction.kind.call_target(),
+        Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
+    ) {
+        selected_instructions::calls::dynamic::call_record(function, instruction)
+            .ok_or_else(invalid)?;
+        return Ok(Cow::Owned(
+            selected_instructions::calls::dynamic::instantiate_declaration(
+                base, constraint, physical,
+            )
+            .ok_or_else(invalid)?,
+        ));
+    }
     if !matches!(
         instruction.kind,
         SelectedInstructionKind::NormalizedForeignCall { .. }

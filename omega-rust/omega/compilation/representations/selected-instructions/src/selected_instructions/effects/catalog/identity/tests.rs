@@ -222,7 +222,7 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
                 | MachineSemanticKind::CallUnit
                 | MachineSemanticKind::CallAggregate
         ) {
-            MachineCallEffect::DirectInternalNormalReturnV1 {
+            MachineCallEffect::InternalNormalReturnV1 {
                 pre_call_stack_alignment: 16,
             }
         } else {
@@ -656,7 +656,7 @@ fn identity_binds_memory_call_and_subtraction_alternatives() {
         .iter_mut()
         .find(|row| row.semantic == MachineSemanticKind::CallUnit)
         .unwrap();
-    call.call = MachineCallEffect::DirectInternalNormalReturnV1 {
+    call.call = MachineCallEffect::InternalNormalReturnV1 {
         pre_call_stack_alignment: 32,
     };
     assert_ne!(baseline, machine_effect_catalog_identity(&changed));
@@ -798,7 +798,7 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 120] = [
     (MachineAlternativeFamily::Load64, 16),
     (MachineAlternativeFamily::Store64, 17),
     (MachineAlternativeFamily::FrameAddress, 18),
-    (MachineAlternativeFamily::ByteLiteralImageAddress, 232),
+    (MachineAlternativeFamily::ImmutableImageAddress, 232),
     (MachineAlternativeFamily::ScanByteSequence, 233),
     (MachineAlternativeFamily::CompareByteSequences, 234),
     (MachineAlternativeFamily::CallUnit, 19),

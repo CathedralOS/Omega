@@ -13,6 +13,7 @@
 
 pub(crate) mod installed_calls;
 mod reference_results;
+mod selector_formations;
 mod structural_argument_sources;
 mod structural_call_arguments;
 pub(crate) mod structural_shapes;

@@ -71,6 +71,20 @@ pub(super) fn emit(
             result_registers.push(register);
         }
     }
+    if let Some(selector) = call.target.selector() {
+        let (_, input, site, scalar_type) = builder
+            .resolve(selector)
+            .ok_or_else(SelectedInstructionError::custody)?;
+        if scalar_type != target_operations::selector_carrier_type() {
+            return Err(SelectedInstructionError::custody());
+        }
+        let dispatch = builder.copy(input, selector, site, scalar_type)?;
+        let inputs = operands
+            .len()
+            .checked_sub(result_registers.len())
+            .ok_or_else(SelectedInstructionError::custody)?;
+        operands.insert(inputs, dispatch);
+    }
     builder.transport.calls.push(SelectedCallContract {
         instruction: SelectedInstructionId(
             builder
@@ -92,11 +106,11 @@ pub(super) fn emit(
                 .is_some_and(crate::selection::scalar_call_abi::empty_aggregate_placement)
         {
             SelectedInstructionKind::CallAggregate {
-                callee: call.callee,
+                target: selected_instructions::SelectedCallTarget::from_native(call.target),
             }
         } else {
             SelectedInstructionKind::CallUnit {
-                callee: call.callee,
+                target: selected_instructions::SelectedCallTarget::from_native(call.target),
             }
         },
         key,
@@ -107,6 +121,7 @@ pub(super) fn emit(
                 .arguments
                 .iter()
                 .filter_map(|argument| argument.scalar_source())
+                .chain(call.target.selector())
                 .collect(),
             obligations: call.requirement_obligations.clone(),
             fuel: operation.fuel.clone(),

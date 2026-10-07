@@ -196,7 +196,7 @@ pub(super) fn operation(
             crash_continuations,
             ..
         } => {
-            selected.calls.iter().filter(|row| row.owner.operation() == Some(*psi_operation) && row.call.callee == *callee
+            selected.calls.iter().filter(|row| row.owner.operation() == Some(*psi_operation) && super::call_target_matches(*callee,row.call.target)
                 && row.call.structural_result.as_ref() == Some(result)
                 && row.call.result_placement == row.call.call_plan.result && row.call.result_placement.is_some()
                 && row.call.crash_continuations == *crash_continuations).count() == 1

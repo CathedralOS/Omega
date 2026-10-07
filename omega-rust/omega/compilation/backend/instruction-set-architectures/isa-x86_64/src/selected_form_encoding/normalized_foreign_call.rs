@@ -1230,7 +1230,9 @@ mod tests {
                 NativeTarget::linux_x64(),
                 &physical,
                 SelectedInstructionKind::CallScalar {
-                    callee: semantic_vocabulary::MachineId::new(4).unwrap(),
+                    target: selected_instructions::SelectedCallTarget::Machine(
+                        semantic_vocabulary::MachineId::new(4).unwrap()
+                    ),
                 },
                 alternative,
                 &operands,

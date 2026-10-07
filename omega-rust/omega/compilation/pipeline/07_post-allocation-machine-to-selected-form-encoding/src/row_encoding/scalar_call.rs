@@ -30,6 +30,45 @@ pub(super) fn encode(
         .iter()
         .map(|operand| operand.view)
         .collect::<Vec<_>>();
+    if matches!(
+        kind.call_target(),
+        Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
+    ) {
+        let (bytes, effects) = match target.architecture {
+            Architecture::Aarch64 => isa_aarch64::encode_aarch64_selected_dynamic_call_template(
+                target,
+                physical,
+                kind,
+                machine.alternative.key,
+                &views,
+                &machine.alternative.encoded,
+            )
+            .map_err(OptimizedSelectedFormEncodingError::Aarch64ScalarCall)?,
+            Architecture::X86_64 => isa_x86_64::encode_x86_64_selected_dynamic_call_template(
+                target,
+                physical,
+                kind,
+                machine.alternative.key,
+                &views,
+                &machine.alternative.encoded,
+            )
+            .map_err(OptimizedSelectedFormEncodingError::X86_64ScalarCall)?,
+        };
+        let footprint = decoded_footprint(machine, &effects)?;
+        validate_operand_footprint(
+            instruction,
+            machine,
+            &effects,
+            &footprint.register_reads,
+            &footprint.register_writes,
+        )?;
+        validate_size(instruction, machine.alternative.size, bytes.len())?;
+        return Ok(SelectedFormEncodedRowDraft::encoded(
+            SelectedFormEncodingState::Encoded,
+            bytes,
+            footprint,
+        ));
+    }
     let (bytes, effects, fixup) = match target.architecture {
         Architecture::X86_64 => {
             let encoded = encode_x86_64_selected_scalar_call_template(

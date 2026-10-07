@@ -50,7 +50,12 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
         }
         matches!(
             operation,
-            AbstractOperation::AtomicEvent { .. }
+            AbstractOperation::SelectImplementation { .. }
+                | AbstractOperation::CallStructural {
+                    callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
+                    ..
+                }
+                | AbstractOperation::AtomicEvent { .. }
                 | AbstractOperation::EstablishByteSequenceConcatenation { .. }
                 | AbstractOperation::EstablishPrimitiveLocal { .. }
                 | AbstractOperation::EstablishCase { .. }
@@ -330,9 +335,19 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::PrimitiveScalarRead { .. } => {
                     super::structural::primitive_operation_retained(abstracted, selected, operation)
                 }
+                AbstractOperation::SelectImplementation {psi_operation,table,..} => selected.blocks.iter().flat_map(|block|&block.instructions).filter(|instruction|
+                    matches!(instruction.kind,selected_instructions::SelectedInstructionKind::ImmutableImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table:retained}} if retained==*table)
+                    && instruction.provenance.operations.contains(psi_operation)).count()==1,
+                AbstractOperation::CallStructural {psi_operation,callee:abstract_operations::AbstractCallTarget::Dynamic {selector,interface,slot},result:AbstractStructuralCallResult::Scalar(result),..} => {
+                    let catalog=&current.optimized_target().optimized().plan().dynamic_dispatch;
+                    catalog.interface(*interface).and_then(|interface|interface.slots.get(*slot as usize)).is_some_and(|shape|shape.result==Some(result.scalar_type))
+                        && selected.calls.iter().filter(|row|row.owner.operation()==Some(*psi_operation)
+                            && row.call.target==target_operations::NativeCallTarget::Dynamic {selector:*selector,interface:*interface,slot:*slot}
+                            && row.call.result_placement.is_some() && row.call.result_placement==row.call.call_plan.result).count()==1
+                }
                 AbstractOperation::CallStructural {
                     psi_operation,
-                    callee,
+                    callee:abstract_operations::AbstractCallTarget::Machine(callee),
                     result: AbstractStructuralCallResult::Scalar(result),
                     ..
                 } => {
@@ -350,7 +365,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         _ => None,
                     };
                     selected.calls.iter().filter(|row| row.owner.operation() == Some(*psi_operation)
-                        && row.call.callee == *callee
+                        && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
                         && row.call.result_placement.as_ref().is_some_and(|placement| {
                             body.result.scalar().is_some_and(|returned|
                                 returned.scalar_type == result.scalar_type)
@@ -418,7 +433,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     call_plan.is_some_and(|plan|
                         plan.parameters.len() == arguments.len()
                             && selected.calls.iter().filter(|row|
-                                row.owner.operation() == Some(*psi_operation) && row.call.callee == *callee
+                                row.owner.operation() == Some(*psi_operation) && row.call.target == target_operations::NativeCallTarget::Machine(*callee)
                                     && row.call.call_plan == *plan
                                     && row.call.result_placement == plan.result
                                     && row.call.crash_continuations == *crash_continuations
@@ -430,8 +445,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     psi_operation,
                     crash_continuations,
                     result: AbstractStructuralCallResult::Unit,
+                    callee,
                     ..
-                } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
+                } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.operation() == *psi_operation)
                     || ieee_float_arithmetic_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. }))
@@ -899,4 +915,28 @@ pub(super) fn temporary_stack_bytes(
         matches!(instruction.alternative.family, selected_instructions::MachineAlternativeFamily::NearestIeeeFloatArithmetic(form)
             if form.operation.rounding_direction().is_some())
     }) { 16 } else { 0 })
+}
+pub(super) fn call_target_matches(
+    expected: abstract_operations::AbstractCallTarget,
+    actual: target_operations::NativeCallTarget,
+) -> bool {
+    match (expected, actual) {
+        (
+            abstract_operations::AbstractCallTarget::Machine(expected),
+            target_operations::NativeCallTarget::Machine(actual),
+        ) => expected == actual,
+        (
+            abstract_operations::AbstractCallTarget::Dynamic {
+                selector,
+                interface,
+                slot,
+            },
+            target_operations::NativeCallTarget::Dynamic {
+                selector: actual_selector,
+                interface: actual_interface,
+                slot: actual_slot,
+            },
+        ) => selector == actual_selector && interface == actual_interface && slot == actual_slot,
+        _ => false,
+    }
 }

@@ -81,6 +81,12 @@ pub(super) fn published_call(
     selected: &SelectedFunction,
     contract: &selected_instructions::SelectedCallContract,
 ) -> bool {
+    // This legacy mirror names one machine and its receiving ABI. Dynamic
+    // calls have requirement-owned contracts instead: exact selector, slot,
+    // operands and results remain in the mandatory retained graph.
+    if contract.call.target.machine().is_none() {
+        return false;
+    }
     // Cleanup belongs to an edge/action ordinal, not an authored operation or
     // a legacy return-shaped affine-cleanup record. Its complete call contract
     // and instruction remain in the selected graph for every normal edge and
@@ -548,7 +554,9 @@ pub(super) fn populate(
         function.internal_unit_calls.push(InternalUnitCallRecord {
             source: call_source,
             owner: contract.owner,
-            target: call.callee,
+            target: call.target.machine().ok_or(Error::Mismatch(
+                "legacy call mirror requires a direct machine target",
+            ))?,
             result: semantic_result.map(|result| result.scalar_type),
             semantic_result,
             structural_result: None,

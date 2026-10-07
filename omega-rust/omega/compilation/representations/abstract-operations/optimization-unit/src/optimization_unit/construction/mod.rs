@@ -61,6 +61,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         root_service_reach: TerminalRootServiceReach::default(),
         boundary_machines: plan.boundary_machines.clone(),
         provider_candidates: plan.provider_candidates.clone(),
+        dynamic_dispatch: plan.dynamic_dispatch.clone(),
         accepted_obligation_facts: Vec::new(),
         proof_questions: Vec::new(),
         ownership_frontier_facts: Vec::new(),

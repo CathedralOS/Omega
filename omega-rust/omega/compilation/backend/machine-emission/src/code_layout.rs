@@ -414,6 +414,7 @@ mod tests {
                 },
             ],
             unresolved_byte_literal_addresses: Vec::new(),
+            unresolved_implementation_table_addresses: Vec::new(),
             relocation_requirements:
                 TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1,
         };

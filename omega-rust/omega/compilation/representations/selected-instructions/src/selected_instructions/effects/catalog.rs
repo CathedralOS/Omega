@@ -212,8 +212,8 @@ machine_semantic_kinds! {
     { fixed ExactRemainderI64 },
     { family SaturatingMultiply(SaturatingCarrier) },
     {
-        /// PC-relative address of one byte literal's read-only image storage.
-        fixed ByteLiteralImageAddress
+        /// PC-relative address of compiler-owned immutable image storage.
+        fixed ImmutableImageAddress
     },
     {
         /// Evaluate one byte-sequence predicate over `count` bytes at the base
@@ -370,7 +370,7 @@ pub enum MachineAlternativeFamily {
     ExactDivideI64,
     ExactRemainderI64,
     SaturatingMultiply(SaturatingCarrier),
-    ByteLiteralImageAddress,
+    ImmutableImageAddress,
     ScanByteSequence,
     CompareByteSequences,
     TrappingInteger(TrappingForm),
@@ -454,7 +454,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::Load64 => Self::Load64,
             MachineSemanticKind::Store64 => Self::Store64,
             MachineSemanticKind::FrameAddress => Self::FrameAddress,
-            MachineSemanticKind::ByteLiteralImageAddress => Self::ByteLiteralImageAddress,
+            MachineSemanticKind::ImmutableImageAddress => Self::ImmutableImageAddress,
             MachineSemanticKind::ScanByteSequence => Self::ScanByteSequence,
             MachineSemanticKind::CompareByteSequences => Self::CompareByteSequences,
             MachineSemanticKind::CallUnit => Self::CallUnit,
@@ -573,7 +573,9 @@ pub enum MachineCallEffect {
     NoneV1,
     /// Returning supervisor entry, without a user-space call frame or callee.
     SupervisorNormalReturnV1,
-    DirectInternalNormalReturnV1 {
+    /// Returning local invocation; the encoded control retains direct versus
+    /// indirect selection without changing its data calling convention.
+    InternalNormalReturnV1 {
         pre_call_stack_alignment: u16,
     },
     /// Direct call to an evaluated foreign boundary that returns normally.
@@ -786,6 +788,8 @@ pub enum MachineEncodedControlEffect {
         target: RegisterViewId,
     },
     DirectRelativeCallV1,
+    /// Load an exact immutable table slot; zero traps, otherwise call its address.
+    IndirectTableCallOrTrapV1,
     /// Enter the kernel and resume at the following instruction on return.
     SupervisorCallV1,
     UnconditionalRelativeBranchV1,

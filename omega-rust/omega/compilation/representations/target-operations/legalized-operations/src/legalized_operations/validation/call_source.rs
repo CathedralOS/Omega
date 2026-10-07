@@ -26,7 +26,7 @@ pub(super) fn validate(
             completion_claim_sources,
             completion_receipts,
         } => {
-            if provider.boundary != *boundary || provider.candidate != call.callee {
+            if provider.boundary != *boundary || call.target.machine() != Some(provider.candidate) {
                 return Err(LegalizedCallSourceError::ProviderIdentityMismatch);
             }
             let structural_arguments = call

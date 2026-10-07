@@ -137,6 +137,12 @@ pub fn resolved_machine_layout_identity(
                     fixup.fields.encode_identity(&mut identity);
                     hasher.update(identity);
                 }
+                if let Some(fixup) = instruction.implementation_table_address_fixup {
+                    let mut identity = b"implementation-table-address".to_vec();
+                    fixup.reference.encode_identity(&mut identity);
+                    fixup.fields.encode_identity(&mut identity);
+                    hasher.update(identity);
+                }
             }
         }
     }

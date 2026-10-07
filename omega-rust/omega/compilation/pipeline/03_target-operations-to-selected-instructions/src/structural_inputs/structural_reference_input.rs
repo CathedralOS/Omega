@@ -395,11 +395,12 @@ pub(crate) fn shape(
 }
 
 /// Reconstruct parameter storage from its access, independently of body order.
-pub(crate) fn parameter_shape(
-    parameter: &terminal_psi::StructuralParameterDeclaration,
+pub(crate) fn parameter_shape<'declaration>(
+    parameter: impl Into<abstract_operations::StructuralCallFormal<'declaration>>,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ValueShape> {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    let parameter = parameter.into();
     // Whole-root domain qualifications are signature preconditions the caller
     // or root installation discharges at invocation; they do not change the
     // parameter's storage shape. Projected qualifications still decline.

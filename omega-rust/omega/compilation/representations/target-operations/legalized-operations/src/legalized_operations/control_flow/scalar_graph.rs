@@ -198,7 +198,8 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StoreStructuralField { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value))
             }
-            LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
+            LegalizedScalarInstructionKind::SelectImplementation { .. }
+            | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
             | LegalizedScalarInstructionKind::Constant(_)
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
@@ -243,6 +244,9 @@ impl LegalizedScalarInstruction {
             // A call reads each argument in position order: a scalar source
             // directly, a structural argument through its runtime selectors.
             LegalizedScalarInstructionKind::Call(call) => {
+                if let Some(selector) = call.target.selector() {
+                    visit(selector);
+                }
                 call.arguments.iter().for_each(|argument| match argument {
                     LegalizedScalarArgument::Scalar { source, .. } => visit(*source),
                     LegalizedScalarArgument::Structural { indices, .. } => {
@@ -299,6 +303,10 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    /// Formation defines one unsigned word; the operation retains selector identity.
+    SelectImplementation {
+        table: u32,
+    },
     /// Post-call policy with the original operation's exact ordered value IDs.
     FloatResultPolicy {
         format: semantic_vocabulary::IeeeFloatFormat,
@@ -875,7 +883,8 @@ impl LegalizedScalarInstructionKind {
                 target_operations::TargetBoundaryResult::Unit
                 | target_operations::TargetBoundaryResult::Scalar(_) => None,
             },
-            Self::FloatResultPolicy { .. }
+            Self::SelectImplementation { .. }
+            | Self::FloatResultPolicy { .. }
             | Self::AtomicAccess { .. }
             | Self::IeeeFloatCompare { .. }
             | Self::NearestIeeeFloatArithmetic { .. }
@@ -996,7 +1005,7 @@ mod structural_result_tests {
         let mut call = LegalizedScalarCall {
             descriptor_origins: Vec::new(),
             source: target_operations::NativeCallOrigin::Authored,
-            callee: MachineId::new(1).unwrap(),
+            target: target_operations::NativeCallTarget::Machine(MachineId::new(1).unwrap()),
             call_plan: evaluate_call_plan(
                 CallingPolicy::Aapcs64,
                 &CallSignature {
@@ -1219,7 +1228,7 @@ pub struct LegalizedScalarCall {
     /// result custody contracts do not use this roster.
     pub descriptor_origins: Vec<LegalizedDescriptorOrigin>,
     pub source: crate::NativeCallOrigin,
-    pub callee: MachineId,
+    pub target: target_operations::NativeCallTarget,
     pub call_plan: CallPlan,
     pub arguments: Vec<LegalizedScalarArgument>,
     pub result_placement: Option<ValuePlacement>,

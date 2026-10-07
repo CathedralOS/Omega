@@ -495,7 +495,7 @@ fn returns_and_calls_reject_each_others_stack_effects() {
             trap: crate::MachineTrapBehavior::NeverV1,
             barrier,
             call: if barrier == MachineBarrier::Call {
-                crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+                crate::MachineCallEffect::InternalNormalReturnV1 {
                     pre_call_stack_alignment: 16,
                 }
             } else {
@@ -650,7 +650,7 @@ fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
             0 => candidate.trap = crate::MachineTrapBehavior::NeverV1,
             1 => candidate.barrier = MachineBarrier::None,
             2 => {
-                candidate.call = crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+                candidate.call = crate::MachineCallEffect::InternalNormalReturnV1 {
                     pre_call_stack_alignment: 16,
                 }
             }
@@ -1467,7 +1467,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
         crate::MachineMemoryEffect::NoneV1,
         crate::MachineTrapBehavior::NeverV1,
         MachineBarrier::Call,
-        crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+        crate::MachineCallEffect::InternalNormalReturnV1 {
             pre_call_stack_alignment: 16,
         },
         call_encoded,
@@ -1642,7 +1642,7 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
     // foreign boundary's external return contract.
     for call in [
         crate::MachineCallEffect::NoneV1,
-        crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+        crate::MachineCallEffect::InternalNormalReturnV1 {
             pre_call_stack_alignment: 16,
         },
     ] {

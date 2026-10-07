@@ -177,7 +177,7 @@ pub(super) fn validate_declaration(
             MachineSemanticKind::CallScalar
             | MachineSemanticKind::CallUnit
             | MachineSemanticKind::CallAggregate,
-            crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+            crate::MachineCallEffect::InternalNormalReturnV1 {
                 pre_call_stack_alignment,
             },
         ) if pre_call_stack_alignment.is_power_of_two() => {}
@@ -686,7 +686,8 @@ fn validate_encoded_effects(
             MachineBarrier::ExternalEffect
         }
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
-        MachineEncodedControlEffect::DirectRelativeCallV1 => MachineBarrier::Call,
+        MachineEncodedControlEffect::DirectRelativeCallV1
+        | MachineEncodedControlEffect::IndirectTableCallOrTrapV1 => MachineBarrier::Call,
         MachineEncodedControlEffect::SupervisorCallV1
             if declaration.semantic == MachineSemanticKind::NormalizedForeignCall
                 && declaration.call == crate::MachineCallEffect::SupervisorNormalReturnV1 =>

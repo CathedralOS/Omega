@@ -58,6 +58,7 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
         internal_machine_fixup: None,
         normalized_foreign_call_fixup: None,
         byte_literal_address_fixup: None,
+        implementation_table_address_fixup: None,
     };
     validate_non_return(
         target::Architecture::Aarch64,

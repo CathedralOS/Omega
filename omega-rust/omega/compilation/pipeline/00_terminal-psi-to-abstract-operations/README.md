@@ -230,9 +230,25 @@ and proof joins are implemented.
 The [dynamic-dispatch contract](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
 owns selection identity, forwarding roles, and complete tables. Its governing
 model is runtime selection of named implementations with separately supplied
-data arguments. This stage has no dynamic lowering: the retired instance/table
-descriptor route was deleted, and the named-implementation selector route
-under `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` replaces it. Retain whole
-closed applications, not just the selected callable. Changing an unselected row
-must still change identity and fail stale replay. Missing joins reject; there
-is no direct-selection or transparent-hop native fallback.
+data arguments. `SelectImplementation` retains its exact table and a scalar
+result home; `CallDynamic` becomes an ordinary abstract call with a dynamic
+target, separately retaining selector, interface, slot and value arguments.
+The u64 is only the opaque physical carrier, not permission to substitute an
+integer literal or direct machine. There is no instance/table descriptor,
+synthetic receiver or transparent-hop native fallback.
+
+The abstract plan retains the complete interface/table catalog. An invoked
+slot's requirement owns the argument ABI; no implementation supplies a
+representative signature. Ordinary scalar flow carries forwarding, rebinding,
+storage and joins, independently of borrowed data custody. Executable table
+rows remain address-retention roots, while invoked-slot reachability alone
+contributes authority and effects. Changing an unselected row still changes
+identity.
+
+The current public slot vocabulary carries Unit or scalar results and ordinary
+structural formals. It does not carry structural result origins, qualification
+preconditions or ingress claim schemas. Missing metadata rejects rather than
+being inferred from private implementation bodies. Native lowering, register
+allocation and image publication consume these same targets through their
+ordinary operation owners; table rows without executable callables keep their
+zero trap slots.

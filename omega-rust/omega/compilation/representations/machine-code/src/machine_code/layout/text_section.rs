@@ -78,6 +78,7 @@ pub struct RelocationFreeTextSectionPlacement {
     /// Section-relative evidence for every byte-literal image address whose
     /// fields object construction binds to the literal's read-only symbol.
     pub unresolved_byte_literal_addresses: Vec<crate::PlacedByteLiteralAddress>,
+    pub unresolved_implementation_table_addresses: Vec<crate::PlacedImplementationTableAddress>,
     pub relocation_requirements: TextSectionRelocationRequirements,
 }
 

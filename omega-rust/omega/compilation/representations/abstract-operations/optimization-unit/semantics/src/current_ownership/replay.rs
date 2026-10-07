@@ -168,6 +168,7 @@ fn claims_sit_at_owned_arguments(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
     _successors: &BTreeMap<BlockId, Vec<BlockId>>,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
@@ -468,11 +469,40 @@ pub(super) fn validate_current_ownership_cfg(
                         )?,
                     ]
                 }
-                O::CallStructural { callee, .. } => functions[callee]
+                O::CallStructural {
+                    callee: abstract_operations::AbstractCallTarget::Machine(callee),
+                    ..
+                } => functions[callee]
                     .structural_parameters
                     .iter()
                     .map(|parameter| parameter.multiplicity)
                     .collect::<Vec<_>>(),
+                O::CallStructural {
+                    callee:
+                        abstract_operations::AbstractCallTarget::Dynamic {
+                            interface, slot, ..
+                        },
+                    ..
+                } => dynamic_dispatch
+                    .interface(*interface)
+                    .and_then(|interface| {
+                        usize::try_from(*slot)
+                            .ok()
+                            .and_then(|slot| interface.slots.get(slot))
+                    })
+                    .map(|slot| {
+                        slot.structural_parameters
+                            .iter()
+                            .map(|parameter| parameter.multiplicity)
+                            .collect::<Vec<_>>()
+                    })
+                    .ok_or(
+                        OptimizationUnitValidationError::StructuralCallContractMismatch {
+                            machine: function.machine,
+                            block: block_id,
+                            node: node_index,
+                        },
+                    )?,
                 O::BoundaryCall { boundary, .. } => boundary_machines[boundary]
                     .structural_parameters
                     .iter()
@@ -536,7 +566,7 @@ pub(super) fn validate_current_ownership_cfg(
             }
 
             if let O::CallStructural {
-                callee,
+                callee: abstract_operations::AbstractCallTarget::Machine(callee),
                 structural_arguments,
                 claim_transfers,
                 ..
@@ -601,6 +631,30 @@ pub(super) fn validate_current_ownership_cfg(
                 ) {
                     return Err(invalid());
                 }
+            }
+            // Requirement slots carry no implementation-private entry claim
+            // identities. An owned caller claim therefore cannot cross this
+            // boundary until the public signature describes that evidence;
+            // never infer it from one possible implementation body.
+            if let O::CallStructural {
+                callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
+                structural_arguments,
+                claim_transfers,
+                ..
+            } = &node.operation
+                && (!claim_transfers.is_empty()
+                    || structural_arguments.iter().any(|argument| {
+                        argument.access == StructuralAccess::Owned
+                            && frontier.claims.values().any(|claim| {
+                                claim.input == Some(argument.place)
+                                    && claim.path.starts_with(&argument.path)
+                            })
+                    }))
+            {
+                return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
+                    machine: function.machine,
+                    block: block_id,
+                });
             }
             // A boundary completion ends exactly the claims its owned
             // arguments carry, whether the caller received them as entry

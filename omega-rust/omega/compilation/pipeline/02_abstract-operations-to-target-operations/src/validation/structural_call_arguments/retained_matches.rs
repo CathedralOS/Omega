@@ -4,10 +4,12 @@
 
 use std::collections::BTreeSet;
 
-use abstract_operations::{AbstractFunction, AbstractResult};
+use abstract_operations::{AbstractCallSignature, AbstractCallTarget, AbstractResult};
 use calling_conventions::{ValueLocation, ValueShape};
 use semantic_vocabulary::{OperationId, StructuralTypeId};
-use target_operations::{TargetStructuralArgument, TargetUnitScalarHomeRequirement};
+use target_operations::{
+    NativeCallTarget, TargetStructuralArgument, TargetUnitScalarHomeRequirement,
+};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultDeclaration,
@@ -51,19 +53,41 @@ pub(super) fn scalar_result(
     psi_operation: OperationId,
     expected: &AbstractResult,
     actual: &TargetUnitScalarHomeRequirement,
-    callee: &AbstractFunction,
+    callee: AbstractCallSignature<'_>,
 ) -> Result<(), OperationId> {
-    let declared = callee.result.scalar().ok_or(psi_operation)?;
+    let declared = callee.scalar_result().ok_or(psi_operation)?;
     if actual.defining_operation != psi_operation
         || actual.source_value != expected.value
         || actual.scalar_type != expected.scalar_type
         || structural_signatures::fixed_native_scalar_shape(expected.scalar_type)
             != Some(actual.shape)
-        || actual.scalar_type != declared.scalar_type
+        || actual.scalar_type != declared
     {
         return Err(psi_operation);
     }
     Ok(())
+}
+
+/// Dispatch custody joins exactly; a same-shaped private row is not authority.
+pub(super) fn call_target_matches(source: AbstractCallTarget, target: NativeCallTarget) -> bool {
+    match (source, target) {
+        (AbstractCallTarget::Machine(source), NativeCallTarget::Machine(target)) => {
+            source == target
+        }
+        (
+            AbstractCallTarget::Dynamic {
+                selector,
+                interface,
+                slot,
+            },
+            NativeCallTarget::Dynamic {
+                selector: actual_selector,
+                interface: actual_interface,
+                slot: actual_slot,
+            },
+        ) => selector == actual_selector && interface == actual_interface && slot == actual_slot,
+        _ => false,
+    }
 }
 
 /// A fixed byte array lends its original backing through a view descriptor.

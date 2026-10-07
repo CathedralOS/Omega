@@ -80,8 +80,11 @@ impl<'unit> CallAccesses<'unit> {
         let mut writes = Vec::<ParameterMutation>::new();
         for node in function.blocks.iter().flat_map(|block| &block.nodes) {
             if let O::CallStructural { callee, .. } = &node.operation {
-                self.reconstruct(*callee, functions, types, closed_storage);
-                if !self.functions.get(callee).is_some_and(Option::is_some) {
+                let Some(machine) = callee.machine() else {
+                    return;
+                };
+                self.reconstruct(machine, functions, types, closed_storage);
+                if !self.functions.get(&machine).is_some_and(Option::is_some) {
                     return;
                 }
             }
@@ -191,7 +194,8 @@ impl<'unit> CallAccesses<'unit> {
             ..
         } = operation
             && claim_transfers.is_empty()
-            && let Some(Some(summary)) = self.functions.get(callee)
+            && let Some(machine) = callee.machine()
+            && let Some(Some(summary)) = self.functions.get(&machine)
             && summary.parameters == structural_arguments.len()
         {
             return summary

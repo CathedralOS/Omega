@@ -116,6 +116,12 @@ pub(in crate::rules) fn rule_unreachable_private_machine_complement(
         .collect::<BTreeSet<_>>();
     let mut reachable = BTreeSet::from([unit.entry]);
     reachable.extend(
+        unit.dynamic_dispatch
+            .tables
+            .iter()
+            .flat_map(|table| table.rows.iter().copied().flatten()),
+    );
+    reachable.extend(
         unit.provider_candidates
             .iter()
             .map(|candidate| candidate.candidate),

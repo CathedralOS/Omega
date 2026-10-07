@@ -82,7 +82,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
         || installed_call.structural_arguments() != semantic_arguments
         || installed_call.completion_claim_sources() != completion_claim_sources
         || installed_call.completion_receipts() != completion_receipts
-        || call.callee != provider.candidate
+        || call.target.machine() != Some(provider.candidate)
         || !entry.boundary_settlements.is_empty()
     {
         return Err(Error::CallEvidenceMismatch);

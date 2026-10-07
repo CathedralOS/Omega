@@ -6,6 +6,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 pub(super) enum AuthorityEdge {
     None,
     Internal(MachineId),
+    Dynamic { interface: u32, slot: u32 },
     Boundary(BoundaryMachineId),
     CheckedPortWrite { port: u16 },
 }
@@ -14,8 +15,11 @@ pub(super) enum AuthorityEdge {
 /// decision rather than silently treating a new call/physical role as pure.
 pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
     match operation {
-        AbstractOperation::CallStructural { callee, .. }
-        | AbstractOperation::Call { callee, .. } => AuthorityEdge::Internal(*callee),
+        AbstractOperation::CallStructural { callee, .. } => match callee {
+            abstract_operations::AbstractCallTarget::Machine(machine) => AuthorityEdge::Internal(*machine),
+            abstract_operations::AbstractCallTarget::Dynamic { interface, slot, .. } => AuthorityEdge::Dynamic { interface: *interface, slot: *slot },
+        },
+        AbstractOperation::Call { callee, .. } => AuthorityEdge::Internal(*callee),
         AbstractOperation::BoundaryCall { boundary, .. } => AuthorityEdge::Boundary(*boundary),
         AbstractOperation::PortWrite { port, .. } => {
             AuthorityEdge::CheckedPortWrite { port: *port }
@@ -23,6 +27,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         // An atomic event carries no call or boundary edge; its ordering and
         // custody evidence stay on the operation itself.
         AbstractOperation::AtomicEvent { .. }
+        | AbstractOperation::SelectImplementation { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. }
         | AbstractOperation::ByteSequenceWrite { .. }
         | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }

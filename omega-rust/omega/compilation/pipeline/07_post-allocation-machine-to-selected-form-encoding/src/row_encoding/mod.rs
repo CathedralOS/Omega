@@ -199,7 +199,7 @@ fn byte_literal_address(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
-    let SelectedInstructionKind::ByteLiteralImageAddress { operation, place } = kind else {
+    let SelectedInstructionKind::ImmutableImageAddress { reference } = kind else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };
     encode_scalar(
@@ -211,11 +211,23 @@ fn byte_literal_address(
         machine,
         physical,
     )?
-    .retagged(SelectedFormEncodingState::UnresolvedByteLiteralAddress {
-        fixup: machine_code::SelectedFormByteLiteralAddressFixup {
-            literal: machine_code::ByteLiteralReference { operation, place },
-            fields: byte_literal_address_fields(target.architecture),
-        },
+    .retagged(match reference {
+        selected_instructions::SelectedImageAddressReference::ByteLiteral { operation, place } => {
+            SelectedFormEncodingState::UnresolvedByteLiteralAddress {
+                fixup: machine_code::SelectedFormByteLiteralAddressFixup {
+                    literal: machine_code::ByteLiteralReference { operation, place },
+                    fields: byte_literal_address_fields(target.architecture),
+                },
+            }
+        }
+        selected_instructions::SelectedImageAddressReference::ImplementationTable { table } => {
+            SelectedFormEncodingState::UnresolvedImplementationTableAddress {
+                fixup: machine_code::SelectedFormImplementationTableAddressFixup {
+                    reference: machine_code::ImplementationTableReference { table },
+                    fields: byte_literal_address_fields(target.architecture),
+                },
+            }
+        }
     })
 }
 

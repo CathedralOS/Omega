@@ -605,7 +605,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             let scalar_call = scalar_call.expect("supported target declares scalar call");
             assert_eq!(
                 scalar_call.call,
-                MachineCallEffect::DirectInternalNormalReturnV1 {
+                MachineCallEffect::InternalNormalReturnV1 {
                     pre_call_stack_alignment: 16,
                 }
             );

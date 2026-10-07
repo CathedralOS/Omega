@@ -134,8 +134,15 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::PrimitiveLocalStore { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }
         | O::StructuralScalarFieldStore { value, .. } => replace(&mut value.value),
+        O::CallStructural { callee, arguments, .. } => {
+            if let abstract_operations::AbstractCallTarget::Dynamic { selector, .. } = callee {
+                replace(selector);
+            }
+            for argument in arguments {
+                replace(argument);
+            }
+        }
         O::Call { arguments, .. }
-        | O::CallStructural { arguments, .. }
         | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
                 replace(argument);
@@ -242,6 +249,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::PortWrite { .. }
+        | O::SelectImplementation { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }

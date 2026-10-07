@@ -80,7 +80,14 @@ pub(in crate::legalization) fn expected(
                     access: parameter.access,
                 };
                 let target = super::aggregate_results::borrowed_arguments::reconstruct_at_owner(
-                    &semantic, position, owner, caller, callee, &call_plan, native, plan,
+                    &semantic,
+                    position,
+                    owner,
+                    caller,
+                    super::call_signature::signature(callee.machine, plan)?,
+                    &call_plan,
+                    native,
+                    plan,
                 )?;
                 arguments.push(LegalizedScalarArgument::Structural {
                     semantic,
@@ -95,7 +102,7 @@ pub(in crate::legalization) fn expected(
                 owner,
                 LegalizedScalarCall {
                     source: target_operations::NativeCallOrigin::Authored,
-                    callee: callee.machine,
+                    target: target_operations::NativeCallTarget::Machine(callee.machine),
                     call_plan,
                     arguments,
                     result_placement: None,
@@ -142,7 +149,7 @@ pub(in crate::legalization) fn validate_target(
             })
             .collect::<Vec<_>>();
         if *actual != owner
-            || *callee != call.callee
+            || Some(*callee) != call.target.machine()
             || *call_plan != call.call_plan
             || *arguments != expected_arguments
         {

@@ -194,7 +194,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ExactDivideI64 { .. } => 112,
         SelectedInstructionKind::ExactRemainderI64 { .. } => 113,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
-        SelectedInstructionKind::ByteLiteralImageAddress { .. } => 232,
+        SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
     });
     match instruction.kind {
         SelectedInstructionKind::CopyBytes => {}
@@ -208,9 +208,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             bytes.push(width.byte_size());
         }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
-        SelectedInstructionKind::CallAggregate { callee } => {
-            bytes.extend_from_slice(&callee.get().to_le_bytes())
-        }
+        SelectedInstructionKind::CallAggregate { target } => target.encode_identity(bytes),
         SelectedInstructionKind::HostedWriteByteI32 { slot }
         | SelectedInstructionKind::HostedReadByte { slot }
         | SelectedInstructionKind::SaveFloatingControl { slot }
@@ -393,17 +391,16 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnUnit
         | SelectedInstructionKind::Jump => {}
-        SelectedInstructionKind::CallScalar { callee }
-        | SelectedInstructionKind::CallUnit { callee } => {
-            bytes.extend_from_slice(&callee.get().to_le_bytes());
+        SelectedInstructionKind::CallScalar { target }
+        | SelectedInstructionKind::CallUnit { target } => {
+            target.encode_identity(bytes);
         }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&ordinal.to_le_bytes());
         }
-        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
-            bytes.extend_from_slice(&place.get().to_le_bytes());
+        SelectedInstructionKind::ImmutableImageAddress { reference } => {
+            reference.encode_identity(bytes);
         }
     }
     encode_constraint_key(bytes, instruction.constraint);

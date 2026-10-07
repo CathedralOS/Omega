@@ -379,7 +379,8 @@ fn operation_observations(
         operation: operation.clone(),
     };
     match operation {
-        O::IntegerConstant { .. }
+        O::SelectImplementation { .. }
+        | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. }

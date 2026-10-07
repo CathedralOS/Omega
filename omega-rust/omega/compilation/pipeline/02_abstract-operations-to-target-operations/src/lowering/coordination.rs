@@ -138,6 +138,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                     function,
                     target,
                     &functions_by_machine,
+                    &plan.dynamic_dispatch,
                     borrowed_reference_sources
                         .get(&function.machine)
                         .cloned()

@@ -44,6 +44,13 @@ pub(super) fn emit(
         environment,
     )?;
     let mut operands = super::call_arguments::marshal(source, operation, call, builder, invalid)?;
+    if let Some(selector) = call.target.selector() {
+        let (_, input, site, scalar_type) = builder.resolve(selector).ok_or_else(invalid)?;
+        if scalar_type != target_operations::selector_carrier_type() {
+            return Err(invalid());
+        }
+        operands.push(builder.copy(input, selector, site, scalar_type)?);
+    }
     let short_result = builder.register(result.value, result.definition_site, scalar_type)?;
     builder.registers[short_result.0 as usize].class = row(builder.catalog, key)?
         .operands
@@ -69,7 +76,7 @@ pub(super) fn emit(
         });
     builder.emit(
         SelectedInstructionKind::CallScalar {
-            callee: call.callee,
+            target: selected_instructions::SelectedCallTarget::from_native(call.target),
         },
         key,
         &operands,
@@ -79,6 +86,7 @@ pub(super) fn emit(
                 .arguments
                 .iter()
                 .filter_map(|argument| argument.scalar_source())
+                .chain(call.target.selector())
                 .chain(std::iter::once(result.value))
                 .collect(),
             obligations: call.requirement_obligations.clone(),

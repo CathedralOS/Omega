@@ -81,6 +81,41 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
         bytes.u32(custody.source_ordinal);
     });
     bytes.slice(&unit.functions, encode_function);
+    // Preserve direct-only identities. The extension binds the complete row
+    // roster, including trap slots and implementations not selected locally.
+    if !unit.dynamic_dispatch.interfaces.is_empty() || !unit.dynamic_dispatch.tables.is_empty() {
+        bytes.bytes(b"omega.psi-optimization-dynamic-dispatch.v1\0");
+        bytes.slice(&unit.dynamic_dispatch.interfaces, |bytes, interface| {
+            bytes.u32(interface.id);
+            bytes.string(&interface.identity);
+            bytes.slice(&interface.slots, |bytes, slot| {
+                bytes.u32(slot.slot);
+                bytes.string(&slot.declaring_trait_identity);
+                bytes.string(&slot.requirement_identity);
+                bytes.slice(&slot.family_tuple, |bytes, value| bytes.string(value));
+                bytes.slice(&slot.scalar_parameters, |bytes, scalar_type| {
+                    encode_scalar_type(bytes, *scalar_type);
+                });
+                bytes.slice(&slot.structural_parameters, |bytes, parameter| {
+                    bytes.u32(parameter.position);
+                    bytes.id(parameter.structural_type);
+                    super::carrier_encoding::encode_access(bytes, parameter.access);
+                    encode_multiplicity(bytes, parameter.multiplicity);
+                });
+                encode_optional(bytes, slot.result.as_ref(), |bytes, scalar_type| {
+                    encode_scalar_type(bytes, *scalar_type);
+                });
+            });
+        });
+        bytes.slice(&unit.dynamic_dispatch.tables, |bytes, table| {
+            bytes.u32(table.id);
+            bytes.u32(table.interface);
+            bytes.string(&table.implementation_identity);
+            bytes.slice(&table.rows, |bytes, machine| {
+                encode_optional(bytes, machine.as_ref(), |bytes, machine| bytes.id(*machine));
+            });
+        });
+    }
 }
 
 fn encode_service_declaration(bytes: &mut CanonicalBytes, service: &ServiceDeclaration) {

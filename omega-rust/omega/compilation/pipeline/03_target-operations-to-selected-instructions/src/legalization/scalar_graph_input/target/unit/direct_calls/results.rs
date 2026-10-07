@@ -15,7 +15,7 @@ use crate::legalization::scalar_graph_input::{aggregate_results, reference_custo
 pub(super) fn validate(
     retained: &TargetCallResult,
     source: &AbstractOperation,
-    callee: &PsiOptimizationFunction,
+    callee: Option<&PsiOptimizationFunction>,
     call_plan: &CallPlan,
     custody: &reference_custody::Custody,
     caller: &PsiOptimizationFunction,
@@ -79,6 +79,7 @@ pub(super) fn validate(
                 ..
             },
         ) => {
+            let callee = callee.ok_or_else(LegalizationError::custody)?;
             let expected_home = Some(aggregate_results::result_home(
                 caller,
                 expected_result.place,

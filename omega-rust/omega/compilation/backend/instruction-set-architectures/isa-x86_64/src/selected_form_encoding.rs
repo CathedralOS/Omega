@@ -77,8 +77,8 @@ pub use scalar_call::{
     X86_64_SCALAR_CALL_PATCH_OFFSET, X86_64_SCALAR_CALL_PATCH_WIDTH,
     X86_64_SCALAR_CALL_REFERENCE_OFFSET, X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
     X86_64ScalarCallFixup, X86_64ScalarCallFixupKind, X86_64ScalarCallFixupState,
-    X86_64ScalarCallTemplateError, encode_x86_64_selected_scalar_call_template,
-    validate_x86_64_selected_scalar_call_template,
+    X86_64ScalarCallTemplateError, encode_x86_64_selected_dynamic_call_template,
+    encode_x86_64_selected_scalar_call_template, validate_x86_64_selected_scalar_call_template,
 };
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};

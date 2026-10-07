@@ -350,9 +350,11 @@ helper that passes does not close an item.
     (`CheckedScalarCallee::Dynamic`) calls plus a `CheckedDynamicSlotPlan`
     per slot; stage 05 emits `SelectImplementation`/`CallDynamic`, roots each
     selected implementation's rows in the closure and assembles the module's
-    interface/table catalog from the slot plans. All six `pass/traits/runtime_dyn_*`
-    customers reach Terminal and stop only at Omega native lowering
-    (`UnsupportedDynamicDispatch`), owned by the native item below.
+    interface/table catalog from the slot plans. Mixed scalar/structural slots
+    retain dense positions in each ordinary ABI lane. The `pass/traits/runtime_dyn_*`
+    customers execute natively on macOS ARM64; interpretation still needs
+    **TERMINAL-RUNTIME-DRIVERS**' closed ProcessExit invocation and exact entry/
+    provider provisions, not a selector-specific execution adapter.
   - Next: a requirement with `requires`/`ensures`, a suspending requirement, a
     structural result through a selector, a selector call inside a staged
     argument group and a finite-family selector call (which keeps its
@@ -3893,7 +3895,7 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   Acceptance: corpus fixtures pass a borrowed descriptor and receive an
   indirect aggregate result from C with exact values, register/stack placement
   and formal order on each matching host. Terminal Psi stays target-neutral.
-  **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns dynamic descriptor
+  **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns implementation selector
   semantics; **CALLBACK-PRIVATE-MATERIALIZATION** owns private callbacks.
 
 - **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Selected opaque arguments, results and
@@ -4874,9 +4876,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     subset with ordinary explicit scanner inputs/results, following
     **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**. Unproved membership rejects;
     no JIT or fallback.
-  - Native dispatch through **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**'s
-    indirect-call mechanism once dynamic calls lower. Tuple tables must be
-    source-produced.
+  - Carry finite-family dispatch through the ordinary implementation-selector
+    indirect-call mechanism. Tuple tables must be source-produced.
 
   Acceptance: pass/fail/run fixtures preserve effects, index identity and
   once-only moves/cleanup through selection, forwarding and storage;
@@ -5312,23 +5313,23 @@ wait for Cathedral's instruction coverage. The interpreter is
   Start with a helper that forwards a selector, accepts explicit data arguments,
   and uses the result across calculations and branches. The breaking-migration
   authorization in **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION** applies.
-  - Own Omega pipeline representations, lowering, instruction selection,
-    register allocation, ISA emission and image table/relocation custody,
-    plus corresponding `source/omega/` code. Replace the old `{instance, table}`
-    descriptor and receiver adapters with implementation selection plus the
-    requirement's ordinary operands. No subject slot, forced parameter zero,
-    hidden receiver or fallback legacy call route.
-  - The old descriptor route, its never-produced dynamic records, receiver
-    adapters and per-application data tables are deleted; Omega now has no
-    dynamic call lowering and the final-image validator admits no data-section
-    relocation. Implement indirect calls through a selector word, immutable
-    complete tables (one 8-byte slot per canonical row, trap slots retained),
-    their relocations and final-image evidence through the ordinary owners.
-  - Preserve exact table/slot, ABI, clobber, effect and explicit argument-loan
-    identities. Unit calls have no result home; selector and result storage
-    cannot overlap. Tables retain trap slots and private implementation
-    identities. Forwarding, storage and result composition must accept ordinary
-    effects and control flow; remove superseded one-call/scalar recognizers.
+  - Remaining: matching-host Windows execution and corresponding
+    `source/omega/` implementation. Rust native lowering carries selector,
+    public requirement ABI and separate ordinary data operands through the
+    shared call, register and image owners; keep that mechanism rather than
+    reintroducing a subject or representative implementation signature.
+  - Interpretation of these same programs refuses
+    `external-completion-invocation` for ProcessExit before any callback.
+    **TERMINAL-RUNTIME-DRIVERS** owns the closed completion invocation and
+    genuine entry/provider/import provisions needed for result agreement.
+    Reproduce with `python3 tools/corpus_gate.py --both --filter
+    pass/traits/runtime_dyn_`; native-only acceptance on macOS ARM64 is
+    `python3 tools/corpus_gate.py --native --filter pass/traits/runtime_dyn_`.
+  - Preserve complete 8-byte tables, zero trap slots, exact private callable
+    identities and patched image targets. Public slot metadata does not yet
+    express structural result origins, qualification preconditions or ingress
+    claim schemas; extensions from the Psi migration must carry those facts
+    before native consumers accept them. Do not infer them from a private row.
   Acceptance: `runtime_dyn_rebound_selector_forwarded_exit`,
   `runtime_dyn_two_impl_dispatch_exit` and the other `pass/traits/runtime_dyn_*`
   fixtures run on matching supported hosts, including

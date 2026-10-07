@@ -36,6 +36,7 @@ pub(super) fn check(
     let mut resolutions = section.resolved_internal_machine_calls.iter();
     let mut foreign = section.unresolved_normalized_foreign_calls.iter();
     let mut literals = section.unresolved_byte_literal_addresses.iter();
+    let mut tables = section.unresolved_implementation_table_addresses.iter();
     for (index, (source, placed)) in fragments
         .functions
         .iter()
@@ -93,8 +94,10 @@ pub(super) fn check(
                     if !matches!(input, TextPlacementInput::InternalCalls(_)) {
                         return Err(TextPlacementError::UnsupportedRelocationShape);
                     }
-                    let FunctionFragmentControlProvenance::DirectInternalCall { callee, owner } =
-                        source_row.control
+                    let FunctionFragmentControlProvenance::InternalCall {
+                        target: selected_instructions::SelectedCallTarget::Machine(callee),
+                        owner,
+                    } = source_row.control
                     else {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     };
@@ -230,12 +233,45 @@ pub(super) fn check(
                         return Err(TextPlacementError::ArtifactMismatch);
                     }
                 }
+                if let Some(fixup) = source_row.implementation_table_address_fixup {
+                    // The field stays the source's own zero bytes; only the
+                    // section coordinates are new.
+                    if !matches!(input, TextPlacementInput::InternalCalls(_)) {
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
+                    }
+                    let candidate = tables.next().ok_or(TextPlacementError::ArtifactMismatch)?;
+                    let expected = machine_code::PlacedImplementationTableAddress {
+                        machine: source.machine,
+                        block: source_block.block,
+                        instruction: source_row.instruction,
+                        reference: fixup.reference,
+                        operation: *source_row
+                            .provenance
+                            .operations
+                            .last()
+                            .ok_or(TextPlacementError::ArtifactMismatch)?,
+                        instruction_function_offset: source_row.offset,
+                        instruction_section_offset: add(offset, source_row.offset)?,
+                        instruction_byte_count: source_row.bytes.len() as u64,
+                        fields: fixup
+                            .fields
+                            .shifted(offset)
+                            .ok_or(TextPlacementError::OffsetOverflow)?,
+                    };
+                    if *candidate != expected {
+                        return Err(TextPlacementError::ArtifactMismatch);
+                    }
+                }
             }
         }
         unchanged_bytes(&source.bytes, candidate_bytes, patches)?;
     }
 
-    if resolutions.next().is_some() || foreign.next().is_some() || literals.next().is_some() {
+    if resolutions.next().is_some()
+        || foreign.next().is_some()
+        || literals.next().is_some()
+        || tables.next().is_some()
+    {
         return Err(TextPlacementError::ArtifactMismatch);
     }
     Ok(())

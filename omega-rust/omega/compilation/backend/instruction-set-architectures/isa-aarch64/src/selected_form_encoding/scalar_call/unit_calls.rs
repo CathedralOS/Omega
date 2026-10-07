@@ -54,7 +54,9 @@ fn unit_call_templates_cover_native_register_arities_and_reject_forged_results()
             effects.implicit_unit_defs = row.implicit_defs.clone();
             effects.implicit_unit_clobbers = row.clobbers.clone();
             let kind = SelectedInstructionKind::CallUnit {
-                callee: MachineId::new(7).unwrap(),
+                target: selected_instructions::SelectedCallTarget::Machine(
+                    MachineId::new(7).unwrap(),
+                ),
             };
             let alternative = MachineAlternativeKey {
                 family: MachineAlternativeFamily::CallUnit,

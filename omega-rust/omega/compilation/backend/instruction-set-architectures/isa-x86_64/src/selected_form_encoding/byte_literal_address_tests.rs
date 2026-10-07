@@ -13,12 +13,14 @@ fn byte_literal_address_is_an_unresolved_rip_relative_lea() {
     let physical =
         validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
     let views = ["rcx", "r9"].map(|name| physical.model().view_named(name).unwrap().id);
-    let kind = SelectedInstructionKind::ByteLiteralImageAddress {
-        operation: OperationId::new(7).unwrap(),
-        place: PlaceId::new(3).unwrap(),
+    let kind = SelectedInstructionKind::ImmutableImageAddress {
+        reference: selected_instructions::SelectedImageAddressReference::ByteLiteral {
+            operation: OperationId::new(7).unwrap(),
+            place: PlaceId::new(3).unwrap(),
+        },
     };
     let key = MachineAlternativeKey {
-        family: MachineAlternativeFamily::ByteLiteralImageAddress,
+        family: MachineAlternativeFamily::ImmutableImageAddress,
         variant: 0,
     };
     for (view, expected) in [

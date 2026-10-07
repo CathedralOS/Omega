@@ -957,7 +957,7 @@ fn validate_alternative_result_dependencies(
             } = &node.operation
                 && contains_reference(types, result.structural_type)
             {
-                pending.push((*callee, false));
+                pending.push((callee.machine().ok_or_else(invalid)?, false));
             }
         }
     }

@@ -4,7 +4,7 @@ use abstract_operations::ValueBinding;
 use optimization_unit::FuelSettlement;
 use register_model::RegisterViewId;
 use selected_instructions::{MachineEncodedEffects, SelectedBlockId};
-use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId};
+use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentBranchEvidence {
@@ -46,8 +46,8 @@ pub enum FunctionFragmentControlProvenance {
     Jump {
         successor: FunctionFragmentSuccessorProvenance,
     },
-    DirectInternalCall {
-        callee: MachineId,
+    InternalCall {
+        target: selected_instructions::SelectedCallTarget,
         owner: target_operations::CallSiteOwner,
     },
     /// Direct evaluated normalized foreign call. The `{boundary, ordinal}`

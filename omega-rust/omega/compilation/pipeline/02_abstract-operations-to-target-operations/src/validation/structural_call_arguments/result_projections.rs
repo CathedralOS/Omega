@@ -197,6 +197,14 @@ pub(super) fn integer_home_result(
 pub(super) fn scalar_home_result(
     operation: &AbstractOperation,
 ) -> Option<(OperationId, AbstractResult)> {
+    if let AbstractOperation::SelectImplementation {
+        psi_operation,
+        result,
+        ..
+    } = operation
+    {
+        return Some((*psi_operation, *result));
+    }
     if let Some(result) = integer_home_result(operation) {
         return Some(result);
     }

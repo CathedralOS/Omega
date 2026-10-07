@@ -15,8 +15,9 @@ pub use target_operations::{
     HostedWriteByteI32Realization, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
     IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
     LinuxWriteLineRealization, MachineRegister, MetadataOnlyPortRealization,
-    MixedStructuralScalarFunctionAbi, NativeCallOrigin, NearestIeeeFloatArithmeticRealization,
-    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
+    MixedStructuralScalarFunctionAbi, NativeCallOrigin, NativeCallTarget,
+    NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
+    NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
     ProviderPlanReportIdentity, ScalarAbiValue, ScalarFunctionAbi, ScalarParameterLocation,
     TargetBooleanExpression, TargetBoundaryResult, TargetByteView, TargetCallResult,
@@ -32,5 +33,5 @@ pub use target_operations::{
     TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
     TargetUnitScalarHomeRequirement, TargetUnitWriteOnlyPrimitiveStoreSource, TargetViewExtent,
     TargetX86ScalarFmaSettlement, TerminalPsiProvenance, boundary, calls, control_flow, operations,
-    provenance, storage, values,
+    provenance, selector_carrier_type, storage, values,
 };

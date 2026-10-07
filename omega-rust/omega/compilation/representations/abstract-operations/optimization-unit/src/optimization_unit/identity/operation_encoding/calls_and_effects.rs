@@ -33,7 +33,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     if let Some(result) = result.scalar() {
                         encode_abstract_result(bytes, result);
                     }
-                    bytes.id(*callee);
+                    encode_target(bytes, *callee);
                     encode_ids(bytes, arguments);
                     bytes.slice(structural_arguments, encode_structural_argument);
                     encode_ordinary_call_tail(
@@ -53,7 +53,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     bytes.u8(5);
                     bytes.id(*psi_operation);
                     encode_structural_operation_result(bytes, result);
-                    bytes.id(*callee);
+                    encode_target(bytes, *callee);
                     encode_ids(bytes, arguments);
                     bytes.slice(structural_arguments, encode_structural_argument);
                     bytes.slice(claim_transfers, |bytes, transfer| {
@@ -69,6 +69,16 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     bytes.slice(selected_evidence, encode_outcome_specific_call_evidence);
                 }
             }
+        }
+        O::SelectImplementation {
+            psi_operation,
+            result,
+            table,
+        } => {
+            bytes.u8(95);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.u32(*table);
         }
         O::BoundaryCall {
             psi_operation,
@@ -147,4 +157,22 @@ fn encode_ordinary_call_tail(
     });
     encode_ids(bytes, requirement_obligations);
     bytes.slice(crash_continuations, encode_crash_route_bucket);
+}
+
+fn encode_target(bytes: &mut CanonicalBytes, target: abstract_operations::AbstractCallTarget) {
+    match target {
+        abstract_operations::AbstractCallTarget::Machine(machine) => bytes.id(machine),
+        abstract_operations::AbstractCallTarget::Dynamic {
+            selector,
+            interface,
+            slot,
+        } => {
+            // Machine IDs are nonzero. Zero extends the old direct-call grammar
+            // without changing identities of programs with no runtime selection.
+            bytes.u64(0);
+            bytes.id(selector);
+            bytes.u32(interface);
+            bytes.u32(slot);
+        }
+    }
 }

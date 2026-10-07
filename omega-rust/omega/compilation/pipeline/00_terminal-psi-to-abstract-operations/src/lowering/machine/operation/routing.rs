@@ -26,7 +26,7 @@ pub(super) fn lower(
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
         OperationKind::SelectImplementation { .. } | OperationKind::CallDynamic { .. } => {
-            Err(LoweringError::UnsupportedDynamicDispatch(operation.id))
+            calls::lower(operation, machine)
         }
         OperationKind::EstablishReference { source } => {
             let Some(result) = operation.result.structural().cloned() else {

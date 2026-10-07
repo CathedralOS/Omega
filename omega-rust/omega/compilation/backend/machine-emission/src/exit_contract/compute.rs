@@ -439,6 +439,11 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                             target,
                             stack_pointer,
                             instruction.id,
+                            instruction.kind.call_target().ok_or(
+                                WholeFunctionExitContractError::NonReturnControlEffect(
+                                    instruction.id,
+                                ),
+                            )?,
                             encoding_row,
                             resolved_row,
                             encoded,

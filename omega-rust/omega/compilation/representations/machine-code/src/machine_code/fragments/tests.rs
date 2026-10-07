@@ -47,6 +47,7 @@ fn zero_span_plan() -> FunctionFragmentEmissionPlan {
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
                     byte_literal_address_fixup: None,
+                    implementation_table_address_fixup: None,
                     provenance: SelectedInstructionProvenance::default(),
                     control: FunctionFragmentControlProvenance::None,
                 }],

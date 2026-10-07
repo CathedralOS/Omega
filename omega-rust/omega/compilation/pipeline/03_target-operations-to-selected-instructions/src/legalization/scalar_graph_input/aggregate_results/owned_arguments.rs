@@ -21,15 +21,17 @@ pub(super) fn reconstruct(
     position: usize,
     call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
-    callee: &PsiOptimizationFunction,
+    callee: abstract_operations::AbstractCallSignature<'_>,
     call: &CallPlan,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let destination = callee
-        .structural_parameters
-        .get(position)
-        .ok_or(LegalizationError::custody())?;
+    let declaration = crate::legalization::scalar_graph_input::call_signature::parameter(
+        callee,
+        position,
+        argument.place,
+    )?;
+    let destination = &declaration;
     // Whole-root domain qualifications are signature preconditions whose
     // discharge was verified at the call edge upstream; admission binds the
     // roster and re-checks it exactly wherever an argument binds to a
@@ -206,7 +208,7 @@ pub(super) fn reconstruct(
     };
     let placement = call
         .parameters
-        .get(callee.parameters.len() + position)
+        .get(callee.scalar_parameter_count() + position)
         .ok_or(LegalizationError::custody())?;
     if placement.shape != shape {
         return Err(LegalizationError::custody());

@@ -224,6 +224,24 @@ fn validate_function(
             if candidate_row.byte_literal_address_fixup != expected_literal {
                 return Err(FrameApplicationError::ArtifactMismatch);
             }
+            let expected_table = source_row
+                .implementation_table_address_fixup
+                .map(|fixup| {
+                    fixup
+                        .fields
+                        .shifted(shift)
+                        .map(|fields| {
+                            machine_code::FunctionFragmentImplementationTableAddressFixup {
+                                fields,
+                                ..fixup
+                            }
+                        })
+                        .ok_or(FrameApplicationError::OffsetOverflow)
+                })
+                .transpose()?;
+            if candidate_row.implementation_table_address_fixup != expected_table {
+                return Err(FrameApplicationError::ArtifactMismatch);
+            }
             cursor = advance(cursor, candidate_row.bytes.len())?;
         }
         if candidate_block.byte_count != cursor - block_start {

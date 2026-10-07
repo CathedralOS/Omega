@@ -84,6 +84,11 @@ impl TargetFloatResultPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    /// Define an opaque selector word naming one complete immutable table.
+    SelectImplementation {
+        result_home: TargetUnitScalarHomeRequirement,
+        table: u32,
+    },
     /// Adapt the completed boundary payload without changing its provider or
     /// replaying its operands. A trapping adapter keeps its own operation site.
     FloatResultPolicy {
@@ -467,7 +472,7 @@ pub enum TargetUnitOperation {
     Call {
         origin: NativeCallOrigin,
         psi_operation: OperationId,
-        callee: MachineId,
+        target: crate::NativeCallTarget,
         call_plan: CallPlan,
         result: crate::TargetCallResult,
         scalar_arguments: Vec<TargetUnitScalarCallArgument>,

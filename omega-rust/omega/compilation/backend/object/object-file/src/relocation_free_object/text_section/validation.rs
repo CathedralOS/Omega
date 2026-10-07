@@ -45,6 +45,11 @@ pub fn validate_relocation_free_object_from_text(
     ) {
         return Err(RelocationFreeObjectFromTextError::SourceMismatch);
     }
+    if object.unresolved_implementation_table_addresses
+        != text.unresolved_implementation_table_addresses
+    {
+        return Err(RelocationFreeObjectFromTextError::SourceMismatch);
+    }
     // Canonical object admission above fixes ordinal, name, role and linkage.
     // This join checks the source facts those independently canonical rows claim.
     for (symbol, function) in object.symbols.iter().zip(&text.functions) {

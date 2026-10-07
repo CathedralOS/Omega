@@ -20,6 +20,10 @@ pub struct AbstractOperationPlan {
     /// installation selects from these exact terminal IDs without changing
     /// terminal-Psi semantic identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
+    /// Complete requirement-owned interfaces and selectable implementation maps.
+    /// The selector word chooses a table; ordinary call operands retain their
+    /// independent storage and ownership identities.
+    pub dynamic_dispatch: terminal_psi::TerminalDynamicDispatchCatalog,
     pub functions: Vec<AbstractFunction>,
 }
 
@@ -35,7 +39,8 @@ pub use atomic::{
 };
 pub mod calls;
 pub use calls::{
-    AbstractBoundaryResult, AbstractOperationPlanWithPlacedViewInputs, AbstractStructuralCallResult,
+    AbstractBoundaryResult, AbstractCallSignature, AbstractCallTarget,
+    AbstractOperationPlanWithPlacedViewInputs, AbstractStructuralCallResult, StructuralCallFormal,
 };
 pub mod control_flow;
 pub use control_flow::{

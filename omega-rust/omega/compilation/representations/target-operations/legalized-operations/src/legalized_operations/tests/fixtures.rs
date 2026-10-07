@@ -174,7 +174,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                         call_plan,
                         result_placement: None,
                         source: NativeCallOrigin::Authored,
-                        callee: id(2),
+                        target: target_operations::NativeCallTarget::Machine(id(2)),
                         arguments,
                         claim_transfers: vec![
                             ClaimTransfer {
@@ -346,7 +346,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
             structural_result: None,
             source: NativeCallOrigin::Authored,
             claim_transfers: Vec::new(),
-            callee,
+            target: target_operations::NativeCallTarget::Machine(callee),
             call_plan: call_plan.clone(),
             result_placement: call_plan.result.clone(),
             arguments: sources

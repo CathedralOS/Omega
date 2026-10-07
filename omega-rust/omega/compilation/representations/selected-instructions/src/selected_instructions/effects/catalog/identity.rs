@@ -126,7 +126,7 @@ pub fn machine_effect_catalog_identity(
         match declaration.call {
             crate::MachineCallEffect::NoneV1 => bytes.push(0),
             crate::MachineCallEffect::SupervisorNormalReturnV1 => bytes.push(3),
-            crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+            crate::MachineCallEffect::InternalNormalReturnV1 {
                 pre_call_stack_alignment,
             } => {
                 bytes.push(1);
@@ -420,6 +420,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&target.0.to_le_bytes());
         }
         MachineEncodedControlEffect::DirectRelativeCallV1 => bytes.identity_bytes(&[4]),
+        MachineEncodedControlEffect::IndirectTableCallOrTrapV1 => bytes.identity_bytes(&[13]),
         MachineEncodedControlEffect::SupervisorCallV1 => bytes.identity_bytes(&[11]),
         MachineEncodedControlEffect::AtomicRetryUntilCommitV1 => bytes.identity_bytes(&[12]),
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => bytes.identity_bytes(&[5]),
@@ -520,7 +521,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::Load8Indexed => 21,
         MachineSemanticKind::Store64 => 17,
         MachineSemanticKind::FrameAddress => 18,
-        MachineSemanticKind::ByteLiteralImageAddress => 232,
+        MachineSemanticKind::ImmutableImageAddress => 232,
         MachineSemanticKind::CallUnit => 19,
         MachineSemanticKind::ExactAddI64 => 3,
         MachineSemanticKind::BitwiseAndI64 => 51,
@@ -657,7 +658,7 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
         MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
         MachineAlternativeFamily::FrameAddress => 18,
-        MachineAlternativeFamily::ByteLiteralImageAddress => 232,
+        MachineAlternativeFamily::ImmutableImageAddress => 232,
         MachineAlternativeFamily::CallUnit => 19,
         MachineAlternativeFamily::ExactAddI64 => 3,
         MachineAlternativeFamily::BitwiseAndI64 => 51,

@@ -18,6 +18,73 @@ pub struct SelectedInstruction {
     pub provenance: SelectedInstructionProvenance,
 }
 
+/// Call control keeps implementation selection apart from the data ABI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedCallTarget {
+    Machine(MachineId),
+    Dynamic { interface: u32, slot: u32 },
+}
+
+impl SelectedCallTarget {
+    pub const fn from_native(target: target_operations::NativeCallTarget) -> Self {
+        match target {
+            target_operations::NativeCallTarget::Machine(machine) => Self::Machine(machine),
+            target_operations::NativeCallTarget::Dynamic {
+                interface, slot, ..
+            } => Self::Dynamic { interface, slot },
+        }
+    }
+
+    pub const fn machine(self) -> Option<MachineId> {
+        match self {
+            Self::Machine(machine) => Some(machine),
+            Self::Dynamic { .. } => None,
+        }
+    }
+
+    pub fn encode_identity(self, bytes: &mut Vec<u8>) {
+        match self {
+            Self::Machine(machine) => {
+                bytes.push(0);
+                bytes.extend_from_slice(&machine.get().to_le_bytes());
+            }
+            Self::Dynamic { interface, slot } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&interface.to_le_bytes());
+                bytes.extend_from_slice(&slot.to_le_bytes());
+            }
+        }
+    }
+}
+
+/// Immutable image storage is selected by identity, independent of its owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedImageAddressReference {
+    ByteLiteral {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    ImplementationTable {
+        table: u32,
+    },
+}
+
+impl SelectedImageAddressReference {
+    pub fn encode_identity(self, bytes: &mut Vec<u8>) {
+        match self {
+            Self::ByteLiteral { operation, place } => {
+                bytes.push(0);
+                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                bytes.extend_from_slice(&place.get().to_le_bytes());
+            }
+            Self::ImplementationTable { table } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&table.to_le_bytes());
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
     /// An indivisible sequentially consistent access. Address is operand 0;
@@ -115,17 +182,13 @@ pub enum SelectedInstructionKind {
         slot: super::FrameStorageSlotId,
         byte_offset: u32,
     },
-    /// Address of the immutable image storage holding the exact octets of
-    /// the byte literal `operation` establishes at `place`. The address is
-    /// PC-relative and stays unresolved until object construction binds it
-    /// to that literal's read-only image symbol. No memory is accessed and
-    /// no activation storage backs the result, so it outlives every root.
-    ByteLiteralImageAddress {
-        operation: OperationId,
-        place: PlaceId,
+    /// Address of exact immutable image storage. Its owner's relocation
+    /// binds the same PC-relative address form at object construction.
+    ImmutableImageAddress {
+        reference: SelectedImageAddressReference,
     },
     CallUnit {
-        callee: MachineId,
+        target: SelectedCallTarget,
     },
     CompareI64Zero,
     /// Compare two i64 register bit-patterns and define the target condition
@@ -369,11 +432,12 @@ pub enum SelectedInstructionKind {
     /// Value-less semantic return. This is deliberately distinct from
     /// `ReturnScalar` even on targets where both select the same opcode.
     ReturnUnit,
-    /// Direct internal scalar call with register-passed inputs and one result.
-    /// The target constraint row owns the exact ABI views and complete
-    /// call clobbers; `callee` retains relocation/publication custody.
+    /// Internal scalar call with register-passed inputs and one result.
+    /// The requirement's ABI row owns data views and complete clobbers. An
+    /// indirect target adds a separate selector input before result definitions;
+    /// it never occupies an ordinary parameter placement.
     CallScalar {
-        callee: MachineId,
+        target: SelectedCallTarget,
     },
     /// Direct evaluated normalized foreign call. The constraint row owns the
     /// exact ABI views and complete call clobbers; `boundary` retains
@@ -385,7 +449,7 @@ pub enum SelectedInstructionKind {
     },
     /// Ordinary call defining every direct aggregate result fragment.
     CallAggregate {
-        callee: MachineId,
+        target: SelectedCallTarget,
     },
     /// Consume target condition state and define a complete GPR containing zero or one.
     MaterializeBooleanEqual,
@@ -401,4 +465,15 @@ pub enum SelectedInstructionKind {
     RestoreFloatingControl {
         slot: crate::LocalStorageSlotId,
     },
+}
+
+impl SelectedInstructionKind {
+    pub const fn call_target(self) -> Option<SelectedCallTarget> {
+        match self {
+            Self::CallScalar { target }
+            | Self::CallAggregate { target }
+            | Self::CallUnit { target } => Some(target),
+            _ => None,
+        }
+    }
 }

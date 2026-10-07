@@ -753,7 +753,7 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
                 completion_receipts: Vec::new(),
             },
             psi_operation: producer,
-            callee,
+            target: target_operations::NativeCallTarget::Machine(callee),
             call_plan: target.graph.call_plan.clone(),
             result: TargetCallResult::Structural {
                 result: owner.clone(),
@@ -826,7 +826,7 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
     ));
     function.operations[0] = AbstractOperation::CallStructural {
         psi_operation: producer,
-        callee,
+        callee: callee.into(),
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
@@ -1325,7 +1325,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     function.operations = vec![
         AbstractOperation::CallStructural {
             psi_operation: call_operation,
-            callee: MachineId::new(2).unwrap(),
+            callee: MachineId::new(2).unwrap().into(),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -1406,7 +1406,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         TargetUnitOperation::Call {
             origin: target_operations::NativeCallOrigin::Authored,
             psi_operation: call_operation,
-            callee: MachineId::new(2).unwrap(),
+            target: target_operations::NativeCallTarget::Machine(MachineId::new(2).unwrap()),
             call_plan,
             result: TargetCallResult::Structural {
                 result: result.clone(),
@@ -1757,7 +1757,7 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
     function.operations = vec![
         AbstractOperation::CallStructural {
             psi_operation: call_operation,
-            callee: MachineId::new(2).unwrap(),
+            callee: MachineId::new(2).unwrap().into(),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),

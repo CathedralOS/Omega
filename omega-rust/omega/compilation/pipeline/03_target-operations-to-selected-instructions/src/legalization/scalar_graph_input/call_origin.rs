@@ -44,7 +44,7 @@ pub(in crate::legalization) fn installed_operation(
             TargetUnitOperation::Call {
                 psi_operation: identity,
                 origin,
-                callee,
+                target: target_operations::NativeCallTarget::Machine(callee),
                 ..
             } if identity == psi_operation => Some((operation, origin, *callee)),
             _ => None,
@@ -198,7 +198,7 @@ pub(in crate::legalization) fn installed_operation(
             AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,
                 result: AbstractStructuralCallResult::Scalar(*result),
-                callee,
+                callee: callee.into(),
                 arguments: arguments.clone(),
                 structural_arguments: structural_arguments.clone(),
                 claim_transfers: transfers,
@@ -216,7 +216,7 @@ pub(in crate::legalization) fn installed_operation(
             },
         ) => AbstractOperation::CallStructural {
             psi_operation: *psi_operation,
-            callee,
+            callee: callee.into(),
             arguments: arguments.clone(),
             structural_arguments: structural_arguments.clone(),
             claim_transfers: transfers,
@@ -264,7 +264,7 @@ pub(in crate::legalization) fn installed_operation(
                     returned_claim_transfers: Vec::new(),
                     selected_evidence: Vec::new(),
                 },
-                callee,
+                callee: callee.into(),
                 arguments: arguments.clone(),
                 structural_arguments: structural_arguments.clone(),
                 claim_transfers: transfers,

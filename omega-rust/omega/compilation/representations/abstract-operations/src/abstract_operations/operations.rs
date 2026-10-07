@@ -1,7 +1,7 @@
 //! Executable abstract vocabulary, including moves, drops, calls and control.
 
 use crate::{
-    AbstractAtomicEvent, AbstractBoundaryResult, AbstractResult, AbstractStructuralCallResult,
+    AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult, AbstractStructuralCallResult,
     AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicModificationAfter, AtomicReadsFrom,
     CompletionClaimSource, ValueBinding,
 };
@@ -401,7 +401,7 @@ pub enum AbstractOperation {
     /// projection policy and routing from it, never from empty rosters.
     CallStructural {
         psi_operation: OperationId,
-        callee: MachineId,
+        callee: AbstractCallTarget,
         /// Runtime scalar arguments in exact Terminal call order. The
         /// established structural-only lane carries an empty row.
         arguments: Vec<ValueId>,
@@ -410,6 +410,13 @@ pub enum AbstractOperation {
         result: AbstractStructuralCallResult,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Materialize the exact named implementation's table reference. The opaque
+    /// selector result uses ordinary scalar flow; this operation captures no data.
+    SelectImplementation {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        table: u32,
     },
     BoundaryCall {
         psi_operation: OperationId,
@@ -872,6 +879,7 @@ impl AbstractOperation {
             | Self::ReleaseReference { psi_operation, .. }
             | Self::AtomicEvent { psi_operation, .. }
             | Self::CallStructural { psi_operation, .. }
+            | Self::SelectImplementation { psi_operation, .. }
             | Self::BoundaryCall { psi_operation, .. }
             | Self::PortWrite { psi_operation, .. }
             | Self::Call { psi_operation, .. }

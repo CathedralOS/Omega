@@ -14,7 +14,7 @@ fn mixed_aggregate_templates_replay_inputs_results_and_clobbers() {
     )
     .unwrap();
     let kind = SelectedInstructionKind::CallAggregate {
-        callee: MachineId::new(7).unwrap(),
+        target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
     };
     for (native, keys) in [
         (

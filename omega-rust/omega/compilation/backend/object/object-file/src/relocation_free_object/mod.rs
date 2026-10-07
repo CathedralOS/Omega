@@ -146,6 +146,8 @@ pub struct RelocationFreeObjectPlan {
     /// order. Image emission owns the literals' read-only storage and binds
     /// each row's fields to it; this plan only carries their coordinates.
     pub unresolved_byte_literal_addresses: Vec<machine_code::PlacedByteLiteralAddress>,
+    pub unresolved_implementation_table_addresses:
+        Vec<machine_code::PlacedImplementationTableAddress>,
     pub relocation_record_count: u64,
     pub relocation_requirements: RelocationFreeObjectRelocationRequirements,
 }
@@ -295,6 +297,7 @@ pub fn validate_relocation_free_object(
                 || !object.normalized_imports.is_empty()
                 || !object.unresolved_normalized_foreign_calls.is_empty()
                 || !object.unresolved_byte_literal_addresses.is_empty()
+                || !object.unresolved_implementation_table_addresses.is_empty()
             {
                 return Err(RelocationFreeObjectError::RelocationsPresent);
             }
@@ -305,7 +308,9 @@ pub fn validate_relocation_free_object(
             {
                 return Err(RelocationFreeObjectError::UnresolvedForeignCallsMissing);
             }
-            if !object.unresolved_byte_literal_addresses.is_empty() {
+            if !object.unresolved_byte_literal_addresses.is_empty()
+                || !object.unresolved_implementation_table_addresses.is_empty()
+            {
                 return Err(RelocationFreeObjectError::RelocationsPresent);
             }
             if object.relocation_record_count
@@ -316,7 +321,9 @@ pub fn validate_relocation_free_object(
             }
         }
         RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => {
-            if object.unresolved_byte_literal_addresses.is_empty() {
+            if object.unresolved_byte_literal_addresses.is_empty()
+                && object.unresolved_implementation_table_addresses.is_empty()
+            {
                 return Err(RelocationFreeObjectError::ByteLiteralAddressesMissing);
             }
             if object.unresolved_normalized_foreign_calls.is_empty()
@@ -327,14 +334,25 @@ pub fn validate_relocation_free_object(
             if object.relocation_record_count
                 != u64::try_from(
                     object.unresolved_normalized_foreign_calls.len()
-                        + object.unresolved_byte_literal_addresses.len(),
+                        + object.unresolved_byte_literal_addresses.len()
+                        + object.unresolved_implementation_table_addresses.len(),
                 )
                 .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
             {
                 return Err(RelocationFreeObjectError::RelocationCountMismatch);
             }
-            for literal in &object.unresolved_byte_literal_addresses {
-                let last_field = match literal.fields {
+            for fields in object
+                .unresolved_byte_literal_addresses
+                .iter()
+                .map(|address| address.fields)
+                .chain(
+                    object
+                        .unresolved_implementation_table_addresses
+                        .iter()
+                        .map(|address| address.fields),
+                )
+            {
+                let last_field = match fields {
                     machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
                         patch_offset
                     }
@@ -591,7 +609,54 @@ fn encode_plan_content(
             literal.encode_identity(&mut output);
         }
     }
+    if !object.unresolved_implementation_table_addresses.is_empty() {
+        output.push(4);
+        output.extend_from_slice(
+            &(object.unresolved_implementation_table_addresses.len() as u64).to_le_bytes(),
+        );
+        for address in &object.unresolved_implementation_table_addresses {
+            address.encode_identity(&mut output);
+        }
+    }
     Ok(output)
+}
+
+fn decode_implementation_table_address(
+    cursor: &mut Cursor<'_>,
+) -> Result<machine_code::PlacedImplementationTableAddress, RelocationFreeObjectDecodeError> {
+    let machine = MachineId::new(u64::from_le_bytes(cursor.array()?))
+        .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
+    let block = SelectedBlockId(u32::from_le_bytes(cursor.array()?));
+    let instruction = SelectedInstructionId(u32::from_le_bytes(cursor.array()?));
+    let reference = machine_code::ImplementationTableReference {
+        table: u32::from_le_bytes(cursor.array()?),
+    };
+    let operation = OperationId::new(u64::from_le_bytes(cursor.array()?))
+        .ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?;
+    let instruction_function_offset = u64::from_le_bytes(cursor.array()?);
+    let instruction_section_offset = u64::from_le_bytes(cursor.array()?);
+    let instruction_byte_count = u64::from_le_bytes(cursor.array()?);
+    let fields = match cursor.byte()? {
+        1 => machine_code::ByteLiteralAddressFields::X86_64Relative32 {
+            patch_offset: u64::from_le_bytes(cursor.array()?),
+        },
+        2 => machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+            page_patch_offset: u64::from_le_bytes(cursor.array()?),
+            page_offset_patch_offset: u64::from_le_bytes(cursor.array()?),
+        },
+        tag => return Err(RelocationFreeObjectDecodeError::UnknownByteLiteralFieldEncoding(tag)),
+    };
+    Ok(machine_code::PlacedImplementationTableAddress {
+        machine,
+        block,
+        instruction,
+        reference,
+        operation,
+        instruction_function_offset,
+        instruction_section_offset,
+        instruction_byte_count,
+        fields,
+    })
 }
 
 fn decode_byte_literal_address(
@@ -853,6 +918,17 @@ fn decode_plan_content(
             unresolved_byte_literal_addresses.push(decode_byte_literal_address(cursor)?);
         }
     }
+    let mut unresolved_implementation_table_addresses = Vec::new();
+    if cursor.remaining() != 0 {
+        if cursor.byte()? != 4 {
+            return Err(RelocationFreeObjectDecodeError::TrailingBytes);
+        }
+        let count = cursor.length()?;
+        for _ in 0..count {
+            unresolved_implementation_table_addresses
+                .push(decode_implementation_table_address(cursor)?);
+        }
+    }
     Ok(RelocationFreeObjectPlan {
         identity,
         source_text_section,
@@ -869,6 +945,7 @@ fn decode_plan_content(
         normalized_imports,
         unresolved_normalized_foreign_calls,
         unresolved_byte_literal_addresses,
+        unresolved_implementation_table_addresses,
         relocation_record_count,
         relocation_requirements,
     })
@@ -1171,6 +1248,7 @@ mod tests {
             normalized_imports: vec![],
             unresolved_normalized_foreign_calls: vec![],
             unresolved_byte_literal_addresses: Vec::new(),
+            unresolved_implementation_table_addresses: Vec::new(),
             relocation_record_count: 0,
             relocation_requirements:
                 RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,

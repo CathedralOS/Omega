@@ -158,7 +158,7 @@ mod tests {
                     structural_result: None,
                     source: crate::NativeCallOrigin::Authored,
                     claim_transfers: Vec::new(),
-                    callee: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    target: target_operations::NativeCallTarget::Machine(semantic_vocabulary::MachineId::new(1).unwrap()),
                     arguments: Vec::new(),
                     result_placement: call_plan.result.clone(),
                     call_plan,

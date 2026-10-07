@@ -3,6 +3,7 @@
 
 mod attribution;
 mod byte_literals;
+pub(crate) mod implementation_tables;
 mod imports;
 mod mixed_scalar_abi;
 mod production;
@@ -13,8 +14,7 @@ mod structural;
 mod validation;
 
 pub use production::{
-    build_function_fragment_object_artifact,
-    build_function_fragment_object_artifact_with_private_functions,
+    FunctionFragmentObjectArtifactRequest, build_function_fragment_object_artifact,
 };
 pub use validation::validate_function_fragment_object_artifact;
 

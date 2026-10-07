@@ -19,6 +19,8 @@ pub struct ResolvedSelectedFormRow {
     /// Unresolved byte-literal image address carried through resolved layout
     /// row-relative; object construction binds it to the literal's symbol.
     pub byte_literal_address_fixup: Option<crate::SelectedFormByteLiteralAddressFixup>,
+    pub implementation_table_address_fixup:
+        Option<crate::SelectedFormImplementationTableAddressFixup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

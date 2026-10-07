@@ -104,6 +104,13 @@ pub(in crate::legalization) fn admit(
 }
 fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId), NodeRejection> {
     match &node.operation {
+        AbstractOperation::SelectImplementation {
+            psi_operation,
+            result,
+            ..
+        } if result.scalar_type == target_operations::selector_carrier_type() => {
+            Ok((*psi_operation, result.value))
+        }
         AbstractOperation::IeeeFloatCompare {
             psi_operation,
             result,
@@ -772,6 +779,7 @@ pub(super) fn validate(
             return Err(LegalizationError::custody());
         }
         let expected_type = match &node.operation {
+            AbstractOperation::SelectImplementation { result, .. } => result.scalar_type,
             AbstractOperation::AtomicEvent { event, .. } => {
                 super::atomic_access::event(event)
                     .and_then(|(_, result)| result)

@@ -507,16 +507,14 @@ pub(in crate::legalization) fn call_argument(
     position: usize,
     call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
-    callee: &PsiOptimizationFunction,
+    callee: abstract_operations::AbstractCallSignature<'_>,
     call: &CallPlan,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let destination = callee
-        .structural_parameters
-        .get(position)
-        .ok_or(LegalizationError::custody())?;
+    let declaration = super::call_signature::parameter(callee, position, argument.place)?;
+    let destination = &declaration;
     // Reference arguments load the exact live descriptor in their carrier.
     if argument
         .path
@@ -529,8 +527,7 @@ pub(in crate::legalization) fn call_argument(
             .find(|function| function.machine == caller.machine)
             .ok_or(LegalizationError::custody())?;
         let ordinal = callee
-            .parameters
-            .len()
+            .scalar_parameter_count()
             .checked_add(position)
             .ok_or(LegalizationError::custody())?;
         return super::reference_custody::referent_argument(
@@ -604,8 +601,7 @@ pub(in crate::legalization) fn call_argument(
             destination,
             call,
             callee
-                .parameters
-                .len()
+                .scalar_parameter_count()
                 .checked_add(position)
                 .ok_or(LegalizationError::custody())?,
             native,
@@ -622,8 +618,7 @@ pub(in crate::legalization) fn call_argument(
             caller,
             call,
             callee
-                .parameters
-                .len()
+                .scalar_parameter_count()
                 .checked_add(position)
                 .ok_or(LegalizationError::custody())?,
             native,
@@ -699,7 +694,7 @@ pub(in crate::legalization) fn call_argument(
     }
     let placement = call
         .parameters
-        .get(callee.parameters.len() + position)
+        .get(callee.scalar_parameter_count() + position)
         .ok_or(LegalizationError::custody())?;
     if placement.shape != ValueShape::borrowed_reference(16, 8) {
         return Err(LegalizationError::custody());

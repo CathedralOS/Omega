@@ -28,7 +28,7 @@ fn target_register_arities_encode_and_reject_opposite_abi_effects() {
         (NativeTarget::windows_x64(), &["rcx", "rdx", "r8", "r9"]),
     ];
     let kind = SelectedInstructionKind::CallScalar {
-        callee: MachineId::new(7).unwrap(),
+        target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
     };
     let alternative = MachineAlternativeKey {
         family: MachineAlternativeFamily::CallScalar,

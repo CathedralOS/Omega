@@ -34,6 +34,8 @@ pub(super) fn emit(
     let internal_machine_fixup = translate_fixup(row, instruction)?;
     let normalized_foreign_call_fixup = translate_foreign_fixup(row, instruction)?;
     let byte_literal_address_fixup = translate_byte_literal_fixup(row, instruction)?;
+    let implementation_table_address_fixup =
+        translate_implementation_table_fixup(row, instruction)?;
     bytes.extend_from_slice(&row.bytes);
     Ok(FunctionFragmentInstructionSpan {
         instruction: row.instruction,
@@ -85,6 +87,7 @@ pub(super) fn emit(
         internal_machine_fixup,
         normalized_foreign_call_fixup,
         byte_literal_address_fixup,
+        implementation_table_address_fixup,
         provenance: instruction.provenance.clone(),
         control,
     })
@@ -100,9 +103,10 @@ fn translate_byte_literal_fixup(
     ResolvedFragmentEmissionError,
 > {
     let literal = match instruction.kind {
-        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
-            Some(machine_code::ByteLiteralReference { operation, place })
-        }
+        SelectedInstructionKind::ImmutableImageAddress {
+            reference:
+                selected_instructions::SelectedImageAddressReference::ByteLiteral { operation, place },
+        } => Some(machine_code::ByteLiteralReference { operation, place }),
         _ => None,
     };
     match (row.byte_literal_address_fixup, literal) {
@@ -120,6 +124,37 @@ fn translate_byte_literal_fixup(
     }
 }
 
+fn translate_implementation_table_fixup(
+    row: &ResolvedSelectedFormRow,
+    instruction: &SelectedInstruction,
+) -> Result<
+    Option<machine_code::FunctionFragmentImplementationTableAddressFixup>,
+    ResolvedFragmentEmissionError,
+> {
+    let reference = match instruction.kind {
+        SelectedInstructionKind::ImmutableImageAddress {
+            reference:
+                selected_instructions::SelectedImageAddressReference::ImplementationTable { table },
+        } => Some(machine_code::ImplementationTableReference { table }),
+        _ => None,
+    };
+    match (row.implementation_table_address_fixup, reference) {
+        (None, None) => Ok(None),
+        (Some(fixup), Some(reference)) if fixup.reference == reference && row.branch.is_none() => {
+            Ok(Some(
+                machine_code::FunctionFragmentImplementationTableAddressFixup {
+                    reference,
+                    fields: fixup
+                        .fields
+                        .shifted(row.offset)
+                        .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)?,
+                },
+            ))
+        }
+        _ => Err(ResolvedFragmentEmissionError::RootMismatch),
+    }
+}
+
 fn translate_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &SelectedInstruction,
@@ -127,17 +162,27 @@ fn translate_fixup(
     let Some(fixup) = row.internal_machine_fixup else {
         if matches!(
             instruction.kind,
-            SelectedInstructionKind::CallScalar { .. }
-                | SelectedInstructionKind::CallUnit { .. }
-                | SelectedInstructionKind::CallAggregate { .. }
+            SelectedInstructionKind::CallScalar {
+                target: selected_instructions::SelectedCallTarget::Machine(_)
+            } | SelectedInstructionKind::CallUnit {
+                target: selected_instructions::SelectedCallTarget::Machine(_)
+            } | SelectedInstructionKind::CallAggregate {
+                target: selected_instructions::SelectedCallTarget::Machine(_)
+            }
         ) {
             return Err(ResolvedFragmentEmissionError::RootMismatch);
         }
         return Ok(None);
     };
-    let (SelectedInstructionKind::CallScalar { callee }
-    | SelectedInstructionKind::CallUnit { callee }
-    | SelectedInstructionKind::CallAggregate { callee }) = instruction.kind
+    let (SelectedInstructionKind::CallScalar {
+        target: selected_instructions::SelectedCallTarget::Machine(callee),
+    }
+    | SelectedInstructionKind::CallUnit {
+        target: selected_instructions::SelectedCallTarget::Machine(callee),
+    }
+    | SelectedInstructionKind::CallAggregate {
+        target: selected_instructions::SelectedCallTarget::Machine(callee),
+    }) = instruction.kind
     else {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     };
@@ -299,7 +344,9 @@ mod tests {
     fn selected_call(callee: MachineId) -> SelectedInstruction {
         SelectedInstruction {
             id: SelectedInstructionId(17),
-            kind: SelectedInstructionKind::CallScalar { callee },
+            kind: SelectedInstructionKind::CallScalar {
+                target: selected_instructions::SelectedCallTarget::Machine(callee),
+            },
             constraint: RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 0,
@@ -332,6 +379,7 @@ mod tests {
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
             byte_literal_address_fixup: None,
+            implementation_table_address_fixup: None,
         };
         assert_eq!(
             super::translate_foreign_fixup(&row, &instruction).unwrap(),
@@ -354,6 +402,7 @@ mod tests {
             internal_machine_fixup: Some(fixup),
             normalized_foreign_call_fixup: None,
             byte_literal_address_fixup: None,
+            implementation_table_address_fixup: None,
         }
     }
 

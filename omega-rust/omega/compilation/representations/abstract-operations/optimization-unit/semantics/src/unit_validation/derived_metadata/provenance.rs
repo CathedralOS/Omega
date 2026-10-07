@@ -27,7 +27,8 @@ pub(crate) fn expected_provenance(
                 )
                 .collect()
         }
-        O::EstablishPrimitiveLocal { psi_operation, .. }
+        O::SelectImplementation { psi_operation, .. }
+        | O::EstablishPrimitiveLocal { psi_operation, .. }
         | O::PrimitiveLocalStore { psi_operation, .. }
         | O::PrimitiveScalarRead { psi_operation, .. }
         | O::StructuralCaseMembership { psi_operation, .. }

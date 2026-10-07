@@ -107,9 +107,15 @@ pub fn encode_aarch64_selected_scalar_call_template(
     effects: &MachineEncodedEffects,
 ) -> Result<ValidatedAarch64SelectedScalarCallTemplate, Aarch64ScalarCallTemplateError> {
     let callee = match kind {
-        SelectedInstructionKind::CallScalar { callee }
-        | SelectedInstructionKind::CallAggregate { callee }
-        | SelectedInstructionKind::CallUnit { callee } => callee,
+        SelectedInstructionKind::CallScalar {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        }
+        | SelectedInstructionKind::CallAggregate {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        }
+        | SelectedInstructionKind::CallUnit {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        } => callee,
         _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
     };
     let bytes = 0x9400_0000_u32.to_le_bytes();
@@ -148,9 +154,15 @@ pub fn validate_aarch64_selected_scalar_call_template(
         return Err(Aarch64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
     let callee = match kind {
-        SelectedInstructionKind::CallScalar { callee }
-        | SelectedInstructionKind::CallAggregate { callee }
-        | SelectedInstructionKind::CallUnit { callee } => callee,
+        SelectedInstructionKind::CallScalar {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        }
+        | SelectedInstructionKind::CallAggregate {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        }
+        | SelectedInstructionKind::CallUnit {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        } => callee,
         _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
     };
     let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
@@ -167,84 +179,8 @@ pub fn validate_aarch64_selected_scalar_call_template(
     if alternative != expected_alternative {
         return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
     }
-    let aggregate = matches!(kind, SelectedInstructionKind::CallAggregate { .. });
-    let floating_scalar = !unit
-        && !aggregate
-        && operand_views.iter().any(|id| {
-            physical
-                .model()
-                .views
-                .iter()
-                .any(|view| view.id == *id && view.name.starts_with("d"))
-        });
-    let (expected_operand_views, expected) = if unit || aggregate || floating_scalar {
-        let darwin = abi == Aarch64SelectedAbi::Darwin;
-        let keys = if aggregate {
-            crate::aarch64_register_aggregate_call_keys(darwin)
-                .into_iter()
-                .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
-                .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
-                .collect::<Vec<_>>()
-        } else if floating_scalar {
-            crate::aarch64_float_scalar_call_keys(darwin)
-        } else {
-            match abi {
-                Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_register_unit_call_keys()
-                    .into_iter()
-                    .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
-                    .collect::<Vec<_>>(),
-                Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_unit_call_keys()
-                    .into_iter()
-                    .chain(crate::aarch64_darwin_mixed_unit_call_keys())
-                    .collect::<Vec<_>>(),
-            }
-        };
-        let catalog = aarch64_register_constraint_catalog_for(physical);
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| {
-                keys.contains(&row.key)
-                    && row.operands.len() == operand_views.len()
-                    && row
-                        .operands
-                        .iter()
-                        .zip(operand_views)
-                        .all(|(operand, view)| operand.fixed_view == Some(*view))
-            })
-            .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
-        let mut expected = expected_effects(abi, physical, 0);
-        expected.external_operand_reads = row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-            .map(|operand| operand.operand)
-            .collect();
-        expected.external_operand_writes = row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-            .map(|operand| operand.operand)
-            .collect();
-        expected.implicit_unit_uses = row.implicit_uses.clone();
-        expected.implicit_unit_defs = row.implicit_defs.clone();
-        expected.implicit_unit_clobbers = row.clobbers.clone();
-        (operand_views.to_vec(), expected)
-    } else {
-        let arity = operand_views
-            .len()
-            .checked_sub(1)
-            .filter(|arity| *arity <= 8)
-            .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
-        let expected_operand_views = expected_operand_views(physical, arity);
-        if operand_views != expected_operand_views {
-            return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
-        }
-        (
-            expected_operand_views,
-            expected_effects(abi, physical, arity),
-        )
-    };
+    let (expected_operand_views, expected) =
+        expected_call_mechanics(abi, physical, kind, operand_views)?;
     if effects != &expected {
         return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
     }
@@ -356,7 +292,7 @@ mod tests {
     ) {
         let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
         let kind = SelectedInstructionKind::CallScalar {
-            callee: MachineId::new(7).unwrap(),
+            target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
         };
         let alternative = MachineAlternativeKey {
             family: MachineAlternativeFamily::CallScalar,
@@ -645,5 +581,249 @@ mod tests {
             ),
             Err(Aarch64ScalarCallTemplateError::FixupMismatch)
         );
+    }
+}
+
+fn expected_call_mechanics(
+    abi: Aarch64SelectedAbi,
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    operand_views: &[RegisterViewId],
+) -> Result<(Vec<RegisterViewId>, MachineEncodedEffects), Aarch64ScalarCallTemplateError> {
+    let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
+    let aggregate = matches!(kind, SelectedInstructionKind::CallAggregate { .. });
+    let floating_scalar = !unit
+        && !aggregate
+        && operand_views.iter().any(|id| {
+            physical
+                .model()
+                .views
+                .iter()
+                .any(|view| view.id == *id && view.name.starts_with("d"))
+        });
+    let (expected_operand_views, expected) = if unit || aggregate || floating_scalar {
+        let darwin = abi == Aarch64SelectedAbi::Darwin;
+        let keys = if aggregate {
+            crate::aarch64_register_aggregate_call_keys(darwin)
+                .into_iter()
+                .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
+                .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
+                .collect::<Vec<_>>()
+        } else if floating_scalar {
+            crate::aarch64_float_scalar_call_keys(darwin)
+        } else {
+            match abi {
+                Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
+                    .collect::<Vec<_>>(),
+                Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::aarch64_darwin_mixed_unit_call_keys())
+                    .collect::<Vec<_>>(),
+            }
+        };
+        let catalog = aarch64_register_constraint_catalog_for(physical);
+        let row = catalog
+            .constraints
+            .iter()
+            .find(|row| {
+                keys.contains(&row.key)
+                    && row.operands.len() == operand_views.len()
+                    && row
+                        .operands
+                        .iter()
+                        .zip(operand_views)
+                        .all(|(operand, view)| operand.fixed_view == Some(*view))
+            })
+            .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
+        let mut expected = expected_effects(abi, physical, 0);
+        expected.external_operand_reads = row
+            .operands
+            .iter()
+            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
+            .map(|operand| operand.operand)
+            .collect();
+        expected.external_operand_writes = row
+            .operands
+            .iter()
+            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
+            .map(|operand| operand.operand)
+            .collect();
+        expected.implicit_unit_uses = row.implicit_uses.clone();
+        expected.implicit_unit_defs = row.implicit_defs.clone();
+        expected.implicit_unit_clobbers = row.clobbers.clone();
+        (operand_views.to_vec(), expected)
+    } else {
+        let arity = operand_views
+            .len()
+            .checked_sub(1)
+            .filter(|arity| *arity <= 8)
+            .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
+        let expected_operand_views = expected_operand_views(physical, arity);
+        if operand_views != expected_operand_views {
+            return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
+        }
+        (
+            expected_operand_views,
+            expected_effects(abi, physical, arity),
+        )
+    };
+
+    Ok((expected_operand_views, expected))
+}
+
+/// Encode the exact slot load, zero-slot trap, and register call. ABI operands
+/// remain those of the requirement; the selector occupies its own fixed view.
+pub fn encode_aarch64_selected_dynamic_call_template(
+    target: NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+    operand_views: &[RegisterViewId],
+    effects: &MachineEncodedEffects,
+) -> Result<(Vec<u8>, MachineEncodedEffects), Aarch64ScalarCallTemplateError> {
+    let abi = aarch64_selected_abi(target)
+        .map_err(|_| Aarch64ScalarCallTemplateError::UnsupportedTarget)?;
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+        return Err(Aarch64ScalarCallTemplateError::NonCanonicalPhysicalModel);
+    }
+    let Some(selected_instructions::SelectedCallTarget::Dynamic { slot, .. }) = kind.call_target()
+    else {
+        return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch);
+    };
+    let family = match kind {
+        SelectedInstructionKind::CallUnit { .. } => MachineAlternativeFamily::CallUnit,
+        SelectedInstructionKind::CallScalar { .. } => MachineAlternativeFamily::CallScalar,
+        SelectedInstructionKind::CallAggregate { .. } => MachineAlternativeFamily::CallAggregate,
+        _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
+    };
+    if alternative != (MachineAlternativeKey { family, variant: 1 }) {
+        return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
+    }
+    let selector = physical
+        .model()
+        .view_named("x16")
+        .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?
+        .id;
+    let mut ordinary = operand_views.to_vec();
+    let position = ordinary
+        .iter()
+        .position(|view| *view == selector)
+        .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
+    ordinary.remove(position);
+    let (_, baseline) = expected_call_mechanics(abi, physical, kind, &ordinary)?;
+    if position != baseline.external_operand_reads.len() {
+        return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
+    }
+    let expected = selected_instructions::calls::dynamic::encoded_effects(
+        &baseline,
+        physical.model().architecture,
+    )
+    .ok_or(Aarch64ScalarCallTemplateError::EffectMismatch)?;
+    if *effects != expected {
+        return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
+    }
+    let offset = u64::from(slot) * 8;
+    let mut bytes = Vec::with_capacity(36);
+    // x16 is selection; x17 is volatile call scratch, covered by ABI clobbers.
+    for half in 0..4 {
+        let immediate = ((offset >> (half * 16)) & 0xffff) as u32;
+        let opcode = if half == 0 { 0xd280_0000 } else { 0xf280_0000 };
+        bytes
+            .extend_from_slice(&(opcode | (half as u32) << 21 | immediate << 5 | 17).to_le_bytes());
+    }
+    for word in [
+        0x8b11_0211_u32, // add x17, x16, x17
+        0xf940_0231,     // ldr x17, [x17]
+        0xb500_0051,     // cbnz x17, +8
+        0xd420_0000,     // brk #0
+        0xd63f_0220,     // blr x17
+    ] {
+        bytes.extend_from_slice(&word.to_le_bytes());
+    }
+    Ok((bytes, expected))
+}
+
+#[cfg(test)]
+mod dynamic_call_tests {
+    use super::*;
+    #[test]
+    fn dispatch_register_is_separate_from_each_supported_data_arity_and_result() {
+        let physical = register_model::validate_physical_register_model(
+            crate::aarch64_physical_register_model(),
+        )
+        .unwrap();
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let abi = aarch64_selected_abi(target).unwrap();
+            for arity in [0, 1, 8] {
+                let mut operands = expected_operand_views(&physical, arity);
+                let selector = physical.model().view_named("x16").unwrap().id;
+                operands.insert(arity, selector);
+                let baseline = expected_effects(abi, &physical, arity);
+                let effects = selected_instructions::calls::dynamic::encoded_effects(
+                    &baseline,
+                    physical.model().architecture,
+                )
+                .unwrap();
+                let kind = SelectedInstructionKind::CallScalar {
+                    target: selected_instructions::SelectedCallTarget::Dynamic {
+                        interface: 7,
+                        slot: 0x1234_5678,
+                    },
+                };
+                let alternative = MachineAlternativeKey {
+                    family: MachineAlternativeFamily::CallScalar,
+                    variant: 1,
+                };
+                let (bytes, actual) = encode_aarch64_selected_dynamic_call_template(
+                    target,
+                    &physical,
+                    kind,
+                    alternative,
+                    &operands,
+                    &effects,
+                )
+                .unwrap();
+                assert_eq!(bytes.len(), 36);
+                assert_eq!(
+                    actual.external_operand_reads,
+                    (0..=arity as u16).collect::<Vec<_>>()
+                );
+                assert_eq!(actual.external_operand_writes, vec![arity as u16 + 1]);
+                assert_eq!(
+                    actual.control,
+                    MachineEncodedControlEffect::IndirectTableCallOrTrapV1
+                );
+                assert_eq!(&bytes[28..32], &0xd420_0000_u32.to_le_bytes());
+                assert_eq!(&bytes[32..36], &0xd63f_0220_u32.to_le_bytes());
+                let mut missing_dispatch = operands.clone();
+                missing_dispatch.remove(arity);
+                assert!(
+                    encode_aarch64_selected_dynamic_call_template(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &missing_dispatch,
+                        &effects
+                    )
+                    .is_err()
+                );
+                let mut altered = effects.clone();
+                altered.external_operand_writes = vec![arity as u16];
+                assert!(
+                    encode_aarch64_selected_dynamic_call_template(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        &altered
+                    )
+                    .is_err()
+                );
+            }
+        }
     }
 }

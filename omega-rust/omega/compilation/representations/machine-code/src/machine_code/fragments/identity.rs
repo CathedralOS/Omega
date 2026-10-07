@@ -75,6 +75,12 @@ pub fn function_fragment_emission_identity(
                     fixup.fields.encode_identity(&mut identity);
                     hasher.update(identity);
                 }
+                if let Some(fixup) = row.implementation_table_address_fixup {
+                    let mut identity = b"implementation-table-address".to_vec();
+                    fixup.reference.encode_identity(&mut identity);
+                    fixup.fields.encode_identity(&mut identity);
+                    hasher.update(identity);
+                }
                 encode_instruction_provenance(&mut hasher, &row.provenance);
                 encode_control(&mut hasher, &row.control);
             }
@@ -234,9 +240,18 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
             encode_successor(hasher, successor);
         }
         FunctionFragmentControlProvenance::None => hasher.update([0]),
-        FunctionFragmentControlProvenance::DirectInternalCall { callee, owner } => {
-            hasher.update([3]);
-            hasher.update(callee.get().to_le_bytes());
+        FunctionFragmentControlProvenance::InternalCall { target, owner } => {
+            match target {
+                selected_instructions::SelectedCallTarget::Machine(machine) => {
+                    hasher.update([3]);
+                    hasher.update(machine.get().to_le_bytes());
+                }
+                selected_instructions::SelectedCallTarget::Dynamic { interface, slot } => {
+                    hasher.update([9]);
+                    hasher.update(interface.to_le_bytes());
+                    hasher.update(slot.to_le_bytes());
+                }
+            }
             match *owner {
                 target_operations::CallSiteOwner::Operation(operation) => {
                     hasher.update([0]);

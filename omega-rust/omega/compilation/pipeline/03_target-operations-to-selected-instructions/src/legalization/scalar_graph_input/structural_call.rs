@@ -16,19 +16,20 @@ pub(in crate::legalization) fn argument_at(
     position: usize,
     call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
-    called: &PsiOptimizationFunction,
+    called: abstract_operations::AbstractCallSignature<'_>,
     call: &CallPlan,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
-    let destination_parameter = called
-        .structural_parameters
-        .get(position)
-        .ok_or(LegalizationError::custody())?;
+    let declaration = crate::legalization::scalar_graph_input::call_signature::parameter(
+        called,
+        position,
+        semantic.place,
+    )?;
+    let destination_parameter = &declaration;
     let parameter_ordinal = called
-        .parameters
-        .len()
+        .scalar_parameter_count()
         .checked_add(position)
         .ok_or(LegalizationError::custody())?;
     if let Some(argument) = byte_views::argument(

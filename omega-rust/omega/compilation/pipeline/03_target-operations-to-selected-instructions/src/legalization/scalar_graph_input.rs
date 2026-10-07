@@ -28,6 +28,7 @@ pub(super) mod atomic_access;
 pub(super) mod borrowed_windows;
 pub(super) mod byte_views;
 pub(super) mod call_origin;
+pub(in crate::legalization) mod call_signature;
 pub(in crate::legalization) mod cleanup_calls;
 mod control;
 mod header;
@@ -523,11 +524,7 @@ pub(super) fn match_input(
         } = &node.operation
         {
             let call = callee_plan(*callee, native, plan, unit)?;
-            let called = unit
-                .functions
-                .iter()
-                .find(|function| function.machine == *callee)
-                .ok_or(LegalizationError::custody())?;
+            let called = call_signature::signature(*callee, plan)?;
             if call.result.is_some()
                 != matches!(
                     node.operation,
@@ -537,17 +534,16 @@ pub(super) fn match_input(
                     }
                 )
                 || call.parameters.len() != arguments.len() + structural_arguments.len()
-                || called.parameters.len() != arguments.len()
-                || called.structural_parameters.len() != structural_arguments.len()
-                || arguments
-                    .iter()
-                    .zip(&called.parameters)
-                    .zip(&call.parameters)
-                    .any(|((value, parameter), placement)| {
-                        value_type(optimized, *value) != Some(parameter.scalar_type)
-                            || scalar_shape(parameter.scalar_type) != Some(placement.shape)
+                || called.scalar_parameter_count() != arguments.len()
+                || called.structural_parameter_count() != structural_arguments.len()
+                || arguments.iter().enumerate().zip(&call.parameters).any(
+                    |((position, value), placement)| {
+                        value_type(optimized, *value) != called.scalar_parameter(position)
+                            || called.scalar_parameter(position).and_then(scalar_shape)
+                                != Some(placement.shape)
                             || !(scalar_register(placement) || scalar_stack(placement))
-                    })
+                    },
+                )
             {
                 return Err(LegalizationError::custody());
             }
@@ -585,11 +581,40 @@ pub(super) fn match_input(
     })
 }
 pub(super) fn callee_plan(
-    callee: MachineId,
+    callee: impl Into<abstract_operations::AbstractCallTarget>,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<CallPlan, LegalizationError> {
+    let target = callee.into();
+    let Some(callee) = target.machine() else {
+        let signature = call_signature::signature(target, plan)?;
+        let mut parameters = (0..signature.scalar_parameter_count())
+            .map(|position| scalar_shape(signature.scalar_parameter(position)?))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(LegalizationError::custody)?;
+        for position in 0..signature.structural_parameter_count() {
+            let formal = signature
+                .structural_parameter(position)
+                .ok_or_else(LegalizationError::custody)?;
+            parameters.push(
+                crate::structural_inputs::structural_reference_input::parameter_shape(
+                    formal,
+                    &plan.structural_types,
+                )
+                .ok_or_else(LegalizationError::custody)?,
+            );
+        }
+        let result = match signature.scalar_result() {
+            Some(result) => Some(scalar_shape(result).ok_or_else(LegalizationError::custody)?),
+            None => None,
+        };
+        return evaluate_call_plan(
+            CallingPolicy::native_for_target(native.target),
+            &CallSignature { parameters, result },
+        )
+        .map_err(|_| LegalizationError::custody());
+    };
     let targets = native
         .functions
         .iter()

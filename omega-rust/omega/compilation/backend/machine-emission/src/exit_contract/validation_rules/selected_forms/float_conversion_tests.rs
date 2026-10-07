@@ -72,6 +72,7 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
                     byte_literal_address_fixup: None,
+                    implementation_table_address_fixup: None,
                 };
                 validate_non_return(
                     target::Architecture::Aarch64,

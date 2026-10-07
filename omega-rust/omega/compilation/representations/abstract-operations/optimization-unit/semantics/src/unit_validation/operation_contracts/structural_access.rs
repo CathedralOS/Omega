@@ -93,19 +93,36 @@ impl StructuralSourceContract<'_> {
     }
 }
 
-pub(crate) fn structural_arguments_match(
+pub(crate) fn structural_arguments_match<'declaration, Formal>(
     caller: &PsiOptimizationFunction,
     consumer: Option<semantic_vocabulary::OperationId>,
     arguments: &[terminal_psi::StructuralArgument],
-    parameters: &[terminal_psi::StructuralParameterDeclaration],
+    parameters: &'declaration [Formal],
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     projection: StructuralProjectionPolicy,
-) -> bool {
+) -> bool
+where
+    abstract_operations::StructuralCallFormal<'declaration>: From<&'declaration Formal>,
+{
     if arguments.len() != parameters.len() {
         return false;
     }
     for (argument, parameter) in arguments.iter().zip(parameters) {
+        let formal = abstract_operations::StructuralCallFormal::from(parameter);
+        // The borrowed formal owns only the expected shape. Legacy geometry
+        // queries take a declaration, but never inspect its place: associate
+        // that scratch shape with the actual caller home, not a fictional
+        // callee home. Source authority still comes from structural_source_contract.
+        let parameter = &terminal_psi::StructuralParameterDeclaration {
+            place: argument.place,
+            position: formal.position,
+            structural_type: formal.structural_type,
+            multiplicity: formal.multiplicity,
+            access: formal.access,
+            qualifications: formal.qualifications.to_vec(),
+            projected_qualifications: formal.projected_qualifications.to_vec(),
+        };
         // Case selection is a call-scoped loan over existing backing. It does
         // not permit an owned extraction, boundary escape, or a new reference
         // result merely because the selected payload has the requested shape.

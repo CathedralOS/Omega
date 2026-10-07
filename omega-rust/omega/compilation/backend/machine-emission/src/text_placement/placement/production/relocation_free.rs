@@ -78,6 +78,7 @@ pub(in crate::text_placement::placement) fn place(
         resolved_internal_machine_calls: Vec::new(),
         unresolved_normalized_foreign_calls: Vec::new(),
         unresolved_byte_literal_addresses: Vec::new(),
+        unresolved_implementation_table_addresses: Vec::new(),
         relocation_requirements:
             TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
     };

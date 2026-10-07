@@ -123,7 +123,7 @@ fn unit_call_shape(
 ) -> Option<(MachineId, &[ValueId], &[terminal_psi::CrashRouteBucket])> {
     let O::CallStructural {
         psi_operation,
-        callee,
+        callee: abstract_operations::AbstractCallTarget::Machine(callee),
         arguments,
         claim_transfers,
         crash_continuations,
@@ -218,7 +218,7 @@ fn structural_scalar_call_shape(
     let O::CallStructural {
         psi_operation,
         result: AbstractStructuralCallResult::Scalar(result),
-        callee,
+        callee: abstract_operations::AbstractCallTarget::Machine(callee),
         arguments,
         claim_transfers,
         crash_continuations,
@@ -332,7 +332,7 @@ fn structural_call_shape(
                 returned_claim_transfers,
                 selected_evidence,
             },
-        callee,
+        callee: abstract_operations::AbstractCallTarget::Machine(callee),
         arguments,
         claim_transfers,
         crash_continuations,
@@ -1247,7 +1247,8 @@ fn scalar_call_callee_pure(effects: &crate::EffectSummaryAnalysis, callee: Machi
 /// `callee` of the internal-call variants.
 fn member_call_target(operation: &O) -> Option<MachineId> {
     match operation {
-        O::Call { callee, .. } | O::CallStructural { callee, .. } => Some(*callee),
+        O::Call { callee, .. } => Some(*callee),
+        O::CallStructural { callee, .. } => callee.machine(),
         _ => None,
     }
 }

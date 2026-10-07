@@ -87,8 +87,8 @@ pub use scalar_call::{
     AARCH64_SCALAR_CALL_PATCH_WIDTH, AARCH64_SCALAR_CALL_REFERENCE_OFFSET,
     AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT, Aarch64ScalarCallFixup, Aarch64ScalarCallFixupKind,
     Aarch64ScalarCallFixupState, Aarch64ScalarCallTemplateError,
-    ValidatedAarch64SelectedScalarCallTemplate, encode_aarch64_selected_scalar_call_template,
-    validate_aarch64_selected_scalar_call_template,
+    ValidatedAarch64SelectedScalarCallTemplate, encode_aarch64_selected_dynamic_call_template,
+    encode_aarch64_selected_scalar_call_template, validate_aarch64_selected_scalar_call_template,
 };
 pub use selected_forms::{
     AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,

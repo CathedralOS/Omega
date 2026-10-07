@@ -113,7 +113,7 @@ pub(crate) fn realize(
                     ..
                 }
                 | O::CallStructural {
-                    callee,
+                    callee: abstract_operations::AbstractCallTarget::Machine(callee),
                     crash_continuations,
                     ..
                 } if !crash_continuations.is_empty() => Some(*callee),

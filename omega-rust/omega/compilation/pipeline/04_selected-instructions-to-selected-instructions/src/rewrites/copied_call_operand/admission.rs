@@ -319,7 +319,7 @@ pub(super) fn admit<'source>(
     // retained copy is fully effect-isolated while the call row — the
     // consumer's and the rewritten form's alike — carries the complete
     // activation contract: the `Call` barrier, the
-    // `DirectInternalNormalReturnV1` call effect, `DirectRelativeCallV1`
+    // `InternalNormalReturnV1` call effect, `DirectRelativeCallV1`
     // control, the retained `MayArchitecturalFaultV1` trap, the row's
     // implicit-unit roster restated, and the target's stack lifecycle on
     // every alternative.

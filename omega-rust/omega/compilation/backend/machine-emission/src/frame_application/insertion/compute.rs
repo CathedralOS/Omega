@@ -194,6 +194,12 @@ fn apply_function(
                     .shifted(row.offset - source_row_offset)
                     .ok_or(FrameApplicationError::OffsetOverflow)?;
             }
+            if let Some(fixup) = &mut row.implementation_table_address_fixup {
+                fixup.fields = fixup
+                    .fields
+                    .shifted(row.offset - source_row_offset)
+                    .ok_or(FrameApplicationError::OffsetOverflow)?;
+            }
         }
         block.byte_count = block
             .byte_count
@@ -432,8 +438,9 @@ mod tests {
             }),
             normalized_foreign_call_fixup: None,
             byte_literal_address_fixup: None,
+            implementation_table_address_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
-            control: FunctionFragmentControlProvenance::DirectInternalCall { callee, owner: target_operations::CallSiteOwner::Operation(semantic_vocabulary::OperationId::new(1).unwrap()) },
+            control: FunctionFragmentControlProvenance::InternalCall { target: selected_instructions::SelectedCallTarget::Machine(callee), owner: target_operations::CallSiteOwner::Operation(semantic_vocabulary::OperationId::new(1).unwrap()) },
         };
         let ret = FunctionFragmentInstructionSpan {
             instruction: SelectedInstructionId(2),
@@ -447,6 +454,7 @@ mod tests {
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
             byte_literal_address_fixup: None,
+            implementation_table_address_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
             control: FunctionFragmentControlProvenance::Return {
                 psi_return_edge: EdgeId::new(1).unwrap(),
@@ -670,8 +678,8 @@ mod tests {
         controls[0].control = FunctionFragmentControlProvenance::Return {
             psi_return_edge: EdgeId::new(2).unwrap(),
         };
-        controls[1].control = FunctionFragmentControlProvenance::DirectInternalCall {
-            callee: MachineId::new(2).unwrap(),
+        controls[1].control = FunctionFragmentControlProvenance::InternalCall {
+            target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(2).unwrap()),
             owner: target_operations::CallSiteOwner::Operation(
                 semantic_vocabulary::OperationId::new(1).unwrap(),
             ),

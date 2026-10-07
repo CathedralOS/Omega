@@ -180,7 +180,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::Load32 => return self.load32,
             MachineSemanticKind::Store64 => return self.store64,
             MachineSemanticKind::FrameAddress => return self.frame_address,
-            MachineSemanticKind::ByteLiteralImageAddress => {
+            MachineSemanticKind::ImmutableImageAddress => {
                 return self.byte_literal_image_address;
             }
             MachineSemanticKind::CallUnit => return None,

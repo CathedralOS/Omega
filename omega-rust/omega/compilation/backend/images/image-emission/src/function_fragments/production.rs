@@ -9,20 +9,26 @@ use object_file::{
 };
 use std::sync::Arc;
 
-pub fn build_function_fragment_object_artifact(
-    replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
-) -> Result<ObjectArtifact, Error> {
-    build_function_fragment_object_artifact_with_private_functions(replay, &[])
+pub struct FunctionFragmentObjectArtifactRequest<'inputs> {
+    pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
+    pub private_functions: &'inputs [machine_code::CompilerPrivateMachineCodeFunction],
+    pub dynamic_dispatch: &'inputs terminal_psi::TerminalDynamicDispatchCatalog,
+    pub implementation_table_addresses: &'inputs [machine_code::PlacedImplementationTableAddress],
 }
 
 /// Project admitted current fragments plus the materialized compiler-private
 /// callback functions into one object. Private bytes append after the program
 /// text under their private symbols; the program's fragment order and the
 /// import tail are unchanged.
-pub fn build_function_fragment_object_artifact_with_private_functions(
-    replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
-    private_functions: &[machine_code::CompilerPrivateMachineCodeFunction],
+pub fn build_function_fragment_object_artifact(
+    request: FunctionFragmentObjectArtifactRequest<'_>,
 ) -> Result<ObjectArtifact, Error> {
+    let FunctionFragmentObjectArtifactRequest {
+        replay,
+        private_functions,
+        dynamic_dispatch,
+        implementation_table_addresses,
+    } = request;
     let source = replay.as_ref();
     let text = source.source().text_section();
     let fragments = source::fragments(source);
@@ -191,6 +197,11 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
     // Literal octets follow every byte of code, ahead of the import tail, so
     // the symbol order is program, private, literal pool, import.
     let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
+    let (implementation_table_pool, data_bytes) = super::implementation_tables::place(
+        dynamic_dispatch,
+        implementation_table_addresses,
+        &mut object,
+    )?;
     // The text section is sized last: it covers program, private and pool bytes.
     object.layout.sections.insert(SectionPlan {
         kind: SectionKind::Text,
@@ -207,6 +218,11 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
         &functions,
         &mut relocations,
     )?;
+    super::implementation_tables::publish_relocations(
+        implementation_table_pool.as_ref(),
+        &functions,
+        &mut relocations,
+    )?;
     let artifact = ObjectArtifact {
         hosted_receiver: None,
         requires_graph_storage_replay,
@@ -219,7 +235,7 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
         object,
         relocations,
         text_bytes,
-        data_bytes: Vec::new(),
+        data_bytes,
         functions,
         private_functions: private_carriers,
         semantic_code_attribution,
@@ -229,6 +245,7 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
         boundary_settlements: super::structural::settlements(source)?,
         foreign_calls,
         byte_literal_pool,
+        implementation_table_pool,
     };
     // The object is projected from the container this compile just placed;
     // `validate_function_fragment_object_artifact_with_private_functions`

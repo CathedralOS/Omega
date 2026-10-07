@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_node_operation_contracts(
+    unit: &optimization_unit::PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     block: &optimization_unit::OptimizationBlock,
     node_index: usize,
@@ -23,6 +24,7 @@ pub(super) fn validate_node_operation_contracts(
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     if !operation_scalar_types_match(
+        unit,
         function,
         &node.operation,
         definitions,
@@ -38,6 +40,7 @@ pub(super) fn validate_node_operation_contracts(
         );
     }
     if !operation_structural_call_contract_matches(
+        unit,
         function,
         &node.operation,
         functions,
@@ -54,6 +57,7 @@ pub(super) fn validate_node_operation_contracts(
         );
     }
     if !operation_service_contract_matches(
+        unit,
         function,
         &node.operation,
         functions,

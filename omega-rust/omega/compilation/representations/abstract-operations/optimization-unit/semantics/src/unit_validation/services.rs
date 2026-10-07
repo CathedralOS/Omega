@@ -204,8 +204,8 @@ pub(crate) fn derive_root_service_reach(
                         _ => None,
                     }),
             );
+            pending.extend(unit.call_machine_references(operation));
             match operation {
-                O::Call { callee, .. } | O::CallStructural { callee, .. } => pending.push(*callee),
                 O::BoundaryCall { boundary, .. } => {
                     let declaration = boundaries.get(boundary).copied().ok_or(
                         OptimizationUnitValidationError::OperationServiceContractMismatch {

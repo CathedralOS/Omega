@@ -57,7 +57,9 @@ pub fn materialize_private_callback_function(
     }
     // The private channel publishes no object relocations, so a thunk that
     // names a byte literal's image storage has no symbol to bind it to.
-    if !section.unresolved_byte_literal_addresses.is_empty() {
+    if !section.unresolved_byte_literal_addresses.is_empty()
+        || !section.unresolved_implementation_table_addresses.is_empty()
+    {
         return Err(reject(
             "a private callback thunk cannot carry byte-literal image addresses",
         ));

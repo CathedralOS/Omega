@@ -2,7 +2,7 @@
 //! Executable bodies remain the responsibility of common graph replay.
 
 use super::structural_shapes;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult};
+use abstract_operations::{AbstractCallSignature, AbstractFunction, AbstractFunctionResult};
 use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use semantic_vocabulary::{IntegerCarrier, IntegerType, ScalarType};
 use target::NativeTarget;
@@ -55,26 +55,34 @@ pub(super) fn signature(
     source: &AbstractFunction,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<CallSignature> {
-    let structural_shapes = source
-        .structural_parameters
-        .iter()
-        .map(|parameter| {
-            let referent =
-                structural_shapes::reconstruct(parameter.structural_type, declarations).ok()?;
-            Some(structural_shapes::parameter_shape(
-                referent,
-                parameter.access,
-            ))
-        })
-        .collect::<Option<Vec<_>>>()?;
-    Some(CallSignature {
-        parameters: source
-            .parameters
-            .iter()
-            .map(|parameter| structural_shapes::scalar_shape(parameter.scalar_type))
-            .chain(structural_shapes.iter().copied())
-            .collect(),
-        result: match &source.result {
+    call_signature(AbstractCallSignature::Machine(source), declarations)
+}
+
+/// Requirement-owned formals have no machine or parameter storage identity.
+/// Reconstruct their ABI through the same scalar-prefix/structural-suffix rule
+/// as an ordinary machine, without selecting a representative implementation.
+pub(super) fn call_signature(
+    source: AbstractCallSignature<'_>,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<CallSignature> {
+    let mut parameters =
+        Vec::with_capacity(source.scalar_parameter_count() + source.structural_parameter_count());
+    for position in 0..source.scalar_parameter_count() {
+        parameters.push(structural_shapes::scalar_shape(
+            source.scalar_parameter(position)?,
+        ));
+    }
+    for position in 0..source.structural_parameter_count() {
+        let parameter = source.structural_parameter(position)?;
+        let referent =
+            structural_shapes::reconstruct(parameter.structural_type, declarations).ok()?;
+        parameters.push(structural_shapes::parameter_shape(
+            referent,
+            parameter.access,
+        ));
+    }
+    let result = match source {
+        AbstractCallSignature::Machine(machine) => match &machine.result {
             AbstractFunctionResult::Unit => None,
             AbstractFunctionResult::Scalar(result) => {
                 Some(structural_shapes::scalar_shape(result.scalar_type))
@@ -83,7 +91,11 @@ pub(super) fn signature(
                 Some(structural_shapes::reconstruct(result.structural_type, declarations).ok()?)
             }
         },
-    })
+        AbstractCallSignature::Requirement(requirement) => {
+            requirement.result.map(structural_shapes::scalar_shape)
+        }
+    };
+    Some(CallSignature { parameters, result })
 }
 
 /// One receiving entrance's retained rows against the derived signature plan:

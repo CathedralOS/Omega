@@ -22,6 +22,7 @@ pub(super) struct ReachableAuthorityEdges {
 
 pub(super) struct ReviewContext<'a> {
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
+    dynamic_dispatch: &'a terminal_psi::TerminalDynamicDispatchCatalog,
     pub(super) boundaries:
         BTreeMap<BoundaryMachineId, &'a terminal_psi::BoundaryMachineDeclaration>,
     pub(super) selected: &'a SelectedProviderPlanFacts,
@@ -87,6 +88,7 @@ impl<'a> ReviewContext<'a> {
         }
         Ok(Self {
             functions,
+            dynamic_dispatch: &plan.dynamic_dispatch,
             boundaries,
             selected,
             physical_policy,
@@ -207,6 +209,24 @@ impl<'a> ReviewContext<'a> {
                 match authority_edge(operation) {
                     AuthorityEdge::None => {}
                     AuthorityEdge::Internal(callee) => pending.push(callee),
+                    AuthorityEdge::Dynamic { interface, slot } => {
+                        // Formation captures no authority. Invocation may reach
+                        // any implementation's exact slot, never unrelated rows
+                        // or a representative provider's narrower authority.
+                        self.dynamic_dispatch.interface(interface)
+                            .and_then(|interface| interface.slots.get(slot as usize))
+                            .filter(|requirement| requirement.slot == slot)
+                            .ok_or_else(|| format!("dynamic authority edge names absent interface {interface} slot {slot}"))?;
+                        for table in &self.dynamic_dispatch.tables {
+                            if table.interface != interface {
+                                continue;
+                            }
+                            if let Some(machine) = table.rows.get(slot as usize).copied().flatten()
+                            {
+                                pending.push(machine);
+                            }
+                        }
+                    }
                     AuthorityEdge::Boundary(boundary) => {
                         boundaries.insert(boundary);
                     }

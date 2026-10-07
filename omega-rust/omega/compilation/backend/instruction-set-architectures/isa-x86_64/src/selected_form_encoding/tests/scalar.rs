@@ -11,7 +11,9 @@ fn scalar_call_is_explicitly_refused_before_encoding() {
         encode_x86_64_selected_form(
             &physical,
             SelectedInstructionKind::CallScalar {
-                callee: MachineId::new(1).unwrap(),
+                target: selected_instructions::SelectedCallTarget::Machine(
+                    MachineId::new(1).unwrap()
+                ),
             },
             alternative(MachineAlternativeFamily::ReturnUnit, 0),
             &[],

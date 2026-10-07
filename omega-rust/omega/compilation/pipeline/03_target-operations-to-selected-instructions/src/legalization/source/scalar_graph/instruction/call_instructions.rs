@@ -34,11 +34,7 @@ pub(super) fn project_call_structural(
     };
     let kind = {
         let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-        let called = unit
-            .functions
-            .iter()
-            .find(|function| function.machine == *callee)
-            .ok_or(Error::custody())?;
+        let called = scalar_graph_input::call_signature::signature(*callee, plan)?;
         let mut lowered = arguments
             .iter()
             .zip(&call_plan.parameters)
@@ -70,7 +66,7 @@ pub(super) fn project_call_structural(
                 optimized.machine,
                 result,
             )?,
-            callee: *callee,
+            target: scalar_graph_input::call_signature::native_target(*callee),
             arguments: lowered,
             structural_result: Some(result.clone()),
             result_placement: call_plan.result.clone(),
@@ -212,13 +208,9 @@ pub(super) fn project_call_unit(
     };
     let kind = {
         let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-        let called = unit
-            .functions
-            .iter()
-            .find(|function| function.machine == *callee)
-            .ok_or(Error::custody())?;
-        if called.parameters.len() != scalar_arguments.len()
-            || called.structural_parameters.len() != structural_arguments.len()
+        let called = scalar_graph_input::call_signature::signature(*callee, plan)?;
+        if called.scalar_parameter_count() != scalar_arguments.len()
+            || called.structural_parameter_count() != structural_arguments.len()
             || call_plan.parameters.len() != scalar_arguments.len() + structural_arguments.len()
         {
             return Err(Error::custody());
@@ -251,7 +243,7 @@ pub(super) fn project_call_unit(
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
             descriptor_origins: Vec::new(),
             structural_result: None,
-            callee: *callee,
+            target: scalar_graph_input::call_signature::native_target(*callee),
             arguments,
             result_placement: call_plan.result.clone(),
             source: NativeCallOrigin::Authored,
@@ -285,7 +277,7 @@ pub(super) fn project_call(
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
             descriptor_origins: Vec::new(),
             structural_result: None,
-            callee: *callee,
+            target: scalar_graph_input::call_signature::native_target(*callee),
             arguments: arguments
                 .iter()
                 .zip(&call_plan.parameters)

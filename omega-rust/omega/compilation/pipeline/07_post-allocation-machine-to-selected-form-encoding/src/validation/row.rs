@@ -184,11 +184,7 @@ pub(crate) fn validate(
             }
             Ok(())
         }
-        kind @ SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
-            let SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup } = &row.state
-            else {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-            };
+        kind @ SelectedInstructionKind::ImmutableImageAddress { reference } => {
             // The field coordinates come from the target's own declaration,
             // never from the producer's fixup.
             let fields = match architecture {
@@ -206,9 +202,26 @@ pub(crate) fn validate(
                     }
                 }
             };
-            if fixup.literal != (machine_code::ByteLiteralReference { operation, place })
-                || fixup.fields != fields
-            {
+            let matched = match (reference, &row.state) {
+                (
+                    selected_instructions::SelectedImageAddressReference::ByteLiteral {
+                        operation,
+                        place,
+                    },
+                    SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup },
+                ) => {
+                    fixup.literal == machine_code::ByteLiteralReference { operation, place }
+                        && fixup.fields == fields
+                }
+                (
+                    selected_instructions::SelectedImageAddressReference::ImplementationTable {
+                        table,
+                    },
+                    SelectedFormEncodingState::UnresolvedImplementationTableAddress { fixup },
+                ) => fixup.reference.table == table && fixup.fields == fields,
+                _ => false,
+            };
+            if !matched {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
             // The baseline route admits the same bytes and footprint the

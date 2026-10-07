@@ -7,3 +7,7 @@ mod placed_inputs;
 pub use placed_inputs::AbstractOperationPlanWithPlacedViewInputs;
 mod results;
 pub use results::{AbstractBoundaryResult, AbstractStructuralCallResult};
+mod targets;
+pub use targets::AbstractCallTarget;
+mod signatures;
+pub use signatures::{AbstractCallSignature, StructuralCallFormal};

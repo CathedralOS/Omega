@@ -46,7 +46,9 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
                     LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(8))
             }
             2 => function.blocks[0].instructions.swap(0, 1),
-            3 => call_mut(function, 0).callee = id(999),
+            3 => {
+                call_mut(function, 0).target = target_operations::NativeCallTarget::Machine(id(999))
+            }
             4 => call_mut(function, 0).arguments.swap(0, 1),
             5 => {
                 function.blocks[0].instructions[4]
@@ -183,7 +185,10 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
                 .unwrap()
                 .published_service_ceiling
                 .push(id(1)),
-            9 => structural_call_mut(&mut changed).callee = id(3),
+            9 => {
+                structural_call_mut(&mut changed).target =
+                    target_operations::NativeCallTarget::Machine(id(3))
+            }
             10 => structural_call_mut(&mut changed).arguments.swap(0, 1),
             11 => structural_argument_mut(&mut structural_call_mut(&mut changed).arguments[0])
                 .0

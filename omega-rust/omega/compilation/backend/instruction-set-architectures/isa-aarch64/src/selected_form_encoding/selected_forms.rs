@@ -135,8 +135,8 @@ fn family_and_operand_count(
         SelectedInstructionKind::MaterializeI64 { .. } => {
             (MachineAlternativeFamily::MaterializeI64, 1)
         }
-        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
-            (MachineAlternativeFamily::ByteLiteralImageAddress, 1)
+        SelectedInstructionKind::ImmutableImageAddress { .. } => {
+            (MachineAlternativeFamily::ImmutableImageAddress, 1)
         }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2),
         SelectedInstructionKind::MaterializeBooleanEqual => {
@@ -425,7 +425,7 @@ fn encode_unchecked(
         SelectedInstructionKind::MaterializeI64 { value } => {
             append_canonical_materialization(&mut words, registers[0], integer_bits(value)?);
         }
-        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+        SelectedInstructionKind::ImmutableImageAddress { .. } => {
             let [page, page_offset] = byte_literal_address_words(registers[0]);
             words.extend([page, page_offset]);
         }

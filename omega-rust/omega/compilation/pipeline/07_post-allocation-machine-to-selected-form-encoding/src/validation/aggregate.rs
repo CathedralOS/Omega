@@ -29,7 +29,8 @@ pub(super) fn validate(
                     .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
                 &mut counts.ordinary_normalized_foreign_import_fixups
             }
-            SelectedFormEncodingState::UnresolvedByteLiteralAddress { .. } => {
+            SelectedFormEncodingState::UnresolvedByteLiteralAddress { .. }
+            | SelectedFormEncodingState::UnresolvedImplementationTableAddress { .. } => {
                 &mut counts.ordinary_byte_literal_address_fixups
             }
         };

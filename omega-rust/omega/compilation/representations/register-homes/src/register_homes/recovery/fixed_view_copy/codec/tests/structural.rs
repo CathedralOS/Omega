@@ -63,7 +63,7 @@ fn structural_function() -> SelectedFunction {
             descriptor_origins: Vec::new(),
             structural_result: None,
             source: NativeCallOrigin::Authored,
-            callee: MachineId::new(42).unwrap(),
+            target: target_operations::NativeCallTarget::Machine(MachineId::new(42).unwrap()),
             call_plan: call_plan(&[MachineRegister::X86Rax, MachineRegister::X86Rcx], 0x4567),
             arguments: Vec::new(),
             result_placement: None,
@@ -126,6 +126,24 @@ fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_ro
     std::sync::Arc::make_mut(&mut plan.transformed)
         .functions
         .push(structural_function());
+    assert_eq!(
+        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
+        plan
+    );
+}
+
+#[test]
+fn dynamic_call_target_round_trips_selector_and_requirement_identity() {
+    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let mut function = structural_function();
+    function.calls[0].call.target = target_operations::NativeCallTarget::Dynamic {
+        selector: semantic_vocabulary::ValueId::new(47).unwrap(),
+        interface: 13,
+        slot: 29,
+    };
+    std::sync::Arc::make_mut(&mut plan.transformed)
+        .functions
+        .push(function);
     assert_eq!(
         FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
         plan

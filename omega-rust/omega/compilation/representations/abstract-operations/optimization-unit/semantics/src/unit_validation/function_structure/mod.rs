@@ -133,6 +133,7 @@ pub(crate) fn validate_function(
     provenance::validate_provenance_fuel_effects(function)?;
     fact_index::validate_fact_index(function)?;
     validate_values_and_bindings(
+        unit,
         function,
         &control_flow.blocks,
         &control_flow.predecessors,
@@ -145,6 +146,7 @@ pub(crate) fn validate_function(
     validate_places_and_claims(function)?;
     let requirements = current_ownership::validate_current_ownership_frontier_collecting(
         unit.psi,
+        &unit.dynamic_dispatch,
         function,
         &control_flow.blocks,
         &control_flow.successors,

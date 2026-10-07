@@ -71,6 +71,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::SelectImplementation { table } => {
+                    bytes.push(172);
+                    bytes.extend_from_slice(&table.to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::FloatResultPolicy { format, policy } => {
                     bytes.push(170);
                     encode_scalar_type(bytes, semantic_vocabulary::ScalarType::IeeeFloat(*format));

@@ -43,6 +43,8 @@ pub struct ObjectArtifact {
     /// The read-only image storage of every byte literal the program's code
     /// addresses, placed after the compiler's code; `None` without literals.
     pub(crate) byte_literal_pool: Option<ObjectByteLiteralPool>,
+    pub(crate) implementation_table_pool:
+        Option<crate::function_fragments::implementation_tables::ObjectImplementationTablePool>,
 }
 
 /// The byte-literal pool: one object-kind text symbol over the deduplicated

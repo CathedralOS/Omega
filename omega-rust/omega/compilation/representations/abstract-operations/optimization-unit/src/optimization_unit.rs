@@ -123,6 +123,7 @@ pub struct PsiOptimizationUnit {
     pub root_service_reach: TerminalRootServiceReach,
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     pub provider_candidates: Vec<ProviderCandidateConformance>,
+    pub dynamic_dispatch: terminal_psi::TerminalDynamicDispatchCatalog,
     pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
     /// Complete immutable verifier proof-question roster in reconstruction
     /// order. This is source-site authority, not a function-wide range index.
@@ -135,4 +136,66 @@ pub struct PsiOptimizationUnit {
     /// machine to the immutable verified Terminal-Psi function roster.
     pub pruned_machines: Vec<PrunedMachineCustody>,
     pub functions: Vec<PsiOptimizationFunction>,
+}
+
+impl PsiOptimizationUnit {
+    /// Possible invoked machines, separate from rows retained as table data.
+    /// Formation does not invoke a machine, and a dynamic call invokes only
+    /// its requirement slot across the interface's complete table alternatives.
+    pub fn call_machine_references<'a>(
+        &'a self,
+        operation: &'a AbstractOperation,
+    ) -> impl Iterator<Item = MachineId> + 'a {
+        let (machine, dynamic) = match operation {
+            AbstractOperation::Call { callee, .. } => (Some(*callee), None),
+            AbstractOperation::CallStructural { callee, .. } => match callee {
+                abstract_operations::AbstractCallTarget::Machine(machine) => (Some(*machine), None),
+                abstract_operations::AbstractCallTarget::Dynamic {
+                    interface, slot, ..
+                } => (None, Some((*interface, *slot))),
+            },
+            _ => (None, None),
+        };
+        machine.into_iter().chain(
+            self.dynamic_dispatch
+                .tables
+                .iter()
+                .filter_map(move |table| {
+                    let (interface, slot) = dynamic?;
+                    (table.interface == interface).then_some(())?;
+                    *table.rows.get(usize::try_from(slot).ok()?)?
+                }),
+        )
+    }
+
+    /// Exact machine references retained by an operation's callable selection.
+    /// Tables retain every executable row, including uncalled slots; a dynamic
+    /// operand can name any table of its interface, independent of local flow.
+    pub fn operation_machine_references<'a>(
+        &'a self,
+        operation: &'a AbstractOperation,
+    ) -> impl Iterator<Item = MachineId> + 'a {
+        let (machine, table, interface) = match operation {
+            AbstractOperation::Call { callee, .. } => (Some(*callee), None, None),
+            AbstractOperation::CallStructural { callee, .. } => match callee {
+                abstract_operations::AbstractCallTarget::Machine(machine) => {
+                    (Some(*machine), None, None)
+                }
+                abstract_operations::AbstractCallTarget::Dynamic { interface, .. } => {
+                    (None, None, Some(*interface))
+                }
+            },
+            AbstractOperation::SelectImplementation { table, .. } => (None, Some(*table), None),
+            _ => (None, None, None),
+        };
+        machine.into_iter().chain(
+            self.dynamic_dispatch
+                .tables
+                .iter()
+                .filter(move |candidate| {
+                    table == Some(candidate.id) || interface == Some(candidate.interface)
+                })
+                .flat_map(|table| table.rows.iter().copied().flatten()),
+        )
+    }
 }

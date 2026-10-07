@@ -12,8 +12,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{
-    AbstractBoundaryResult, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractParameter, AbstractResult, AbstractStructuralCallResult, CompletionClaimSource,
+    AbstractBoundaryResult, AbstractCallSignature, AbstractCallTarget, AbstractFunction,
+    AbstractFunctionResult, AbstractOperation, AbstractResult, AbstractStructuralCallResult,
+    CompletionClaimSource,
 };
 use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, NativePlace, ValueClass, ValueShape, evaluate_call_plan,
@@ -25,7 +26,7 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
-    BoundaryScalarArgument, CompilerBuiltinExecution, NativeCallOrigin,
+    BoundaryScalarArgument, CompilerBuiltinExecution, NativeCallOrigin, NativeCallTarget,
     NormalizedForeignCallBinding, ProviderExecutionBinding, ScalarAbiValue, ScalarFunctionAbi,
     TargetBoundaryResult, TargetControlTerminator, TargetFunction, TargetNativeCallbackArgument,
     TargetReferenceResult, TargetStructuralArgument, TargetStructuralArgumentSource,
@@ -37,6 +38,7 @@ use terminal_psi::{
     StructuralArgument, StructuralFieldType, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalDynamicDispatchCatalog,
 };
 
 mod canonical_roots;
@@ -74,7 +76,7 @@ enum EmbeddedCall<'a> {
     /// Ordinary calls share a scalar/structural argument roster and origin.
     Direct {
         origin: &'a NativeCallOrigin,
-        callee: MachineId,
+        target: NativeCallTarget,
         call_plan: &'a CallPlan,
         scalar_arguments: &'a [TargetUnitScalarCallArgument],
         arguments: &'a [TargetStructuralArgument],
@@ -129,7 +131,7 @@ enum BoundResult<'a> {
 /// The source side of one authored direct call: a `CallStructural`, or the
 /// scalar-only `Call` with empty structural and claim rosters.
 struct SourceDirectCall<'a> {
-    callee: MachineId,
+    target: AbstractCallTarget,
     scalar_arguments: &'a [ValueId],
     structural_arguments: &'a [StructuralArgument],
     claim_transfers: &'a [ClaimTransfer],
@@ -143,6 +145,7 @@ struct SourceDirectCall<'a> {
 struct Replay<'a> {
     source: &'a AbstractFunction,
     source_functions: &'a [AbstractFunction],
+    dynamic_dispatch: &'a TerminalDynamicDispatchCatalog,
     target: &'a TargetFunction,
     target_functions: &'a [TargetFunction],
     declarations: &'a [StructuralTypeDeclaration],
@@ -165,6 +168,7 @@ struct Replay<'a> {
 pub(super) fn validate(
     source: &AbstractFunction,
     source_functions: &[AbstractFunction],
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
     target: &TargetFunction,
     target_functions: &[TargetFunction],
     declarations: &[StructuralTypeDeclaration],
@@ -191,7 +195,7 @@ pub(super) fn validate(
                     origin,
                     psi_operation,
                     result,
-                    callee,
+                    target,
                     call_plan,
                     scalar_arguments,
                     arguments,
@@ -226,7 +230,7 @@ pub(super) fn validate(
                         *psi_operation,
                         EmbeddedCall::Direct {
                             origin,
-                            callee: *callee,
+                            target: *target,
                             call_plan,
                             scalar_arguments,
                             arguments,
@@ -349,6 +353,7 @@ pub(super) fn validate(
     let replay = Replay {
         source,
         source_functions,
+        dynamic_dispatch,
         target,
         target_functions,
         declarations,
@@ -400,7 +405,7 @@ pub(super) fn validate(
                 replay.direct_call(
                     *psi_operation,
                     SourceDirectCall {
-                        callee: *callee,
+                        target: *callee,
                         scalar_arguments: arguments,
                         structural_arguments,
                         claim_transfers,
@@ -442,7 +447,7 @@ pub(super) fn validate(
             } => replay.direct_call(
                 *psi_operation,
                 SourceDirectCall {
-                    callee: *callee,
+                    target: AbstractCallTarget::Machine(*callee),
                     scalar_arguments: arguments,
                     structural_arguments: &[],
                     claim_transfers: &[],
@@ -485,11 +490,11 @@ impl Replay<'_> {
     /// placement, or plan detail cannot carry matching destinations.
     fn expected_plan(
         &self,
-        callee: &AbstractFunction,
+        callee: AbstractCallSignature<'_>,
         operation: OperationId,
     ) -> Result<CallPlan, OperationId> {
         let signature =
-            structural_signatures::signature(callee, self.declarations).ok_or(operation)?;
+            structural_signatures::call_signature(callee, self.declarations).ok_or(operation)?;
         evaluate_call_plan(
             CallingPolicy::native_for_target(self.native_target),
             &signature,
@@ -511,7 +516,7 @@ impl Replay<'_> {
         };
         let EmbeddedCall::Direct {
             origin,
-            callee,
+            target,
             call_plan,
             scalar_arguments: actual_scalar,
             arguments: actual_structural,
@@ -537,13 +542,13 @@ impl Replay<'_> {
             || source.returned_claim_transfers != *actual_returned
             || *actual_crashes != source.crash_continuations
             || source.requirement_obligations != *actual_obligations
-            || *callee != source.callee
+            || !call_target_matches(source.target, *target)
         {
             return Err(psi_operation);
         }
         self.direct_row(
             psi_operation,
-            source.callee,
+            source.target,
             source.scalar_arguments,
             source.structural_arguments,
             source.result,
@@ -563,7 +568,7 @@ impl Replay<'_> {
     fn direct_row(
         &self,
         psi_operation: OperationId,
-        callee: MachineId,
+        target: AbstractCallTarget,
         scalar_arguments: &[ValueId],
         structural_arguments: &[StructuralArgument],
         expected_result: BoundResult<'_>,
@@ -572,18 +577,56 @@ impl Replay<'_> {
         actual_structural: &[TargetStructuralArgument],
         actual_result: &EmbeddedResult<'_>,
     ) -> Result<(), OperationId> {
-        let callee_function = self.callee(callee, psi_operation)?;
-        if callee_function.structural_parameters.len() != actual_structural.len()
-            || callee_function.parameters.len() != scalar_arguments.len()
+        let declaration = match target {
+            AbstractCallTarget::Machine(machine) => {
+                AbstractCallSignature::Machine(self.callee(machine, psi_operation)?)
+            }
+            AbstractCallTarget::Dynamic {
+                selector,
+                interface,
+                slot,
+            } => {
+                let requirement = self
+                    .dynamic_dispatch
+                    .interface(interface)
+                    .and_then(|interface| interface.slots.get(slot as usize))
+                    .filter(|requirement| requirement.slot == slot)
+                    .ok_or(psi_operation)?;
+                // The selector is an ordinary scalar value, but not an ABI
+                // argument. Exact source identity and type bind it here; the
+                // executable graph replay owns CFG dominance as for arguments.
+                let scalar_type = target_operations::selector_carrier_type();
+                let declared = self.source.parameters.iter().any(|parameter| {
+                    parameter.value == selector && parameter.scalar_type == scalar_type
+                }) || self.source.block_entries.iter().any(|entry| {
+                    entry.parameters.iter().any(|parameter| {
+                        parameter.value == selector && parameter.scalar_type == scalar_type
+                    })
+                }) || self.source.operations.iter().any(|operation| {
+                    scalar_home_result(operation).is_some_and(|(_, result)| {
+                        result.value == selector && result.scalar_type == scalar_type
+                    })
+                });
+                if !declared {
+                    return Err(psi_operation);
+                }
+                AbstractCallSignature::Requirement(requirement)
+            }
+        };
+        if declaration.structural_parameter_count() != actual_structural.len()
+            || declaration.scalar_parameter_count() != scalar_arguments.len()
             || actual_structural.len() != structural_arguments.len()
             || actual_scalar.len() != scalar_arguments.len()
-            || callee_function.parameters.iter().any(|parameter| {
-                structural_signatures::fixed_native_scalar_shape(parameter.scalar_type).is_none()
+            || (0..declaration.scalar_parameter_count()).any(|position| {
+                declaration
+                    .scalar_parameter(position)
+                    .and_then(structural_signatures::fixed_native_scalar_shape)
+                    .is_none()
             })
         {
             return Err(psi_operation);
         }
-        let expected_plan = self.expected_plan(callee_function, psi_operation)?;
+        let expected_plan = self.expected_plan(declaration, psi_operation)?;
         if *call_plan != expected_plan {
             return Err(psi_operation);
         }
@@ -591,21 +634,34 @@ impl Replay<'_> {
             psi_operation,
             actual_scalar,
             scalar_arguments,
-            &callee_function.parameters,
+            declaration,
             &expected_plan,
         )?;
-        for (index, ((actual, semantic), declared)) in actual_structural
+        for (index, (actual, semantic)) in actual_structural
             .iter()
             .zip(structural_arguments)
-            .zip(&callee_function.structural_parameters)
             .enumerate()
         {
+            let formal = declaration
+                .structural_parameter(index)
+                .ok_or(psi_operation)?;
+            // This projection carries permissions and types only. Its place is
+            // the authored argument's place; no callee storage is invented.
+            let declared = StructuralParameterDeclaration {
+                place: semantic.place,
+                position: formal.position,
+                structural_type: formal.structural_type,
+                multiplicity: formal.multiplicity,
+                access: formal.access,
+                qualifications: formal.qualifications.to_vec(),
+                projected_qualifications: formal.projected_qualifications.to_vec(),
+            };
             self.structural_argument(
                 psi_operation,
                 index + scalar_arguments.len(),
                 actual,
                 semantic,
-                declared,
+                &declared,
                 &expected_plan,
             )?;
         }
@@ -613,7 +669,7 @@ impl Replay<'_> {
             psi_operation,
             expected_result,
             actual_result,
-            callee_function,
+            declaration,
             &expected_plan,
         )
     }
@@ -671,7 +727,7 @@ impl Replay<'_> {
                     completion_claim_sources: actual_sources,
                     completion_receipts: actual_receipts,
                 },
-            callee,
+            target,
             call_plan,
             scalar_arguments: actual_scalar,
             arguments: actual_structural,
@@ -689,7 +745,7 @@ impl Replay<'_> {
         // so a call with receipts or any nonempty roster row is forged.
         if *actual_boundary != boundary
             || provider.boundary != boundary
-            || provider.candidate != *callee
+            || *target != NativeCallTarget::Machine(provider.candidate)
             || *actual_sources != *completion_claim_sources
             || *actual_receipts != *completion_receipts
             || !completion_receipts.is_empty()
@@ -709,7 +765,7 @@ impl Replay<'_> {
         };
         self.direct_row(
             psi_operation,
-            provider.candidate,
+            AbstractCallTarget::Machine(provider.candidate),
             arguments,
             structural_arguments,
             expected_result,
@@ -1846,31 +1902,25 @@ impl Replay<'_> {
         psi_operation: OperationId,
         actual: &[TargetUnitScalarCallArgument],
         values: &[ValueId],
-        declared: &[AbstractParameter],
+        declared: AbstractCallSignature<'_>,
         expected_plan: &CallPlan,
     ) -> Result<(), OperationId> {
-        if actual.len() != values.len() || values.len() != declared.len() {
+        if actual.len() != values.len() || values.len() != declared.scalar_parameter_count() {
             return Err(psi_operation);
         }
-        for (position, ((actual, value), declared)) in
-            actual.iter().zip(values).zip(declared).enumerate()
-        {
+        for (position, (actual, value)) in actual.iter().zip(values).enumerate() {
+            let declared = declared.scalar_parameter(position).ok_or(psi_operation)?;
             let Ok(index) = u32::try_from(position) else {
                 return Err(psi_operation);
             };
             if actual.parameter_index != index
                 || actual.source.source_value() != *value
-                || actual.scalar_type() != declared.scalar_type
+                || actual.scalar_type() != declared
                 || actual.placement != expected_plan.parameters[position]
             {
                 return Err(psi_operation);
             }
-            self.scalar_argument_source(
-                psi_operation,
-                *value,
-                declared.scalar_type,
-                &actual.source,
-            )?;
+            self.scalar_argument_source(psi_operation, *value, declared, &actual.source)?;
         }
         Ok(())
     }
@@ -2211,12 +2261,14 @@ impl Replay<'_> {
         psi_operation: OperationId,
         expected: BoundResult<'_>,
         actual: &EmbeddedResult<'_>,
-        callee: &AbstractFunction,
+        callee: AbstractCallSignature<'_>,
         expected_plan: &CallPlan,
     ) -> Result<(), OperationId> {
         match (expected, actual) {
             (BoundResult::Unit, EmbeddedResult::Unit) => {
-                if callee.result != AbstractFunctionResult::Unit {
+                if !matches!(callee, AbstractCallSignature::Machine(machine) if machine.result == AbstractFunctionResult::Unit)
+                    && !matches!(callee, AbstractCallSignature::Requirement(requirement) if requirement.result.is_none())
+                {
                     return Err(psi_operation);
                 }
                 Ok(())
@@ -2226,6 +2278,9 @@ impl Replay<'_> {
             }
             (BoundResult::PublishedScalar(expected), EmbeddedResult::Scalar(actual)) => {
                 scalar_result(psi_operation, &expected, actual, callee)?;
+                let AbstractCallSignature::Machine(callee) = callee else {
+                    return Err(psi_operation);
+                };
                 self.published_scalar_abi(psi_operation, actual, callee, expected_plan)
             }
             (
@@ -2237,6 +2292,10 @@ impl Replay<'_> {
                     reference_results,
                 },
             ) => {
+                // The public requirement schema has no structural result contract.
+                let AbstractCallSignature::Machine(callee) = callee else {
+                    return Err(psi_operation);
+                };
                 let declared = callee.result.structural().ok_or(psi_operation)?;
                 if **result != *expected
                     || *callee_result != declared

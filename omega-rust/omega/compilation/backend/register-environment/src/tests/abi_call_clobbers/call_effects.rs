@@ -102,7 +102,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                     pre_call_stack_alignment: convention.stack_alignment,
                 }
             } else {
-                MachineCallEffect::DirectInternalNormalReturnV1 {
+                MachineCallEffect::InternalNormalReturnV1 {
                     pre_call_stack_alignment: convention.stack_alignment,
                 }
             };

@@ -37,7 +37,7 @@
 //! under [`CopiedCallOperandEffects::CallLifecycleRetained`] the
 //! rewritten row's encoded alternatives must declare the direct internal
 //! call's complete activation contract — `DirectRelativeCallV1` control,
-//! the `Call` barrier, the `DirectInternalNormalReturnV1` call effect, and
+//! the `Call` barrier, the `InternalNormalReturnV1` call effect, and
 //! the target's stack lifecycle, `WriteReturnAddressBelowStackPointerV1`
 //! paired with `CallReturnAddressLifecycleV1` on stack-pushing targets or
 //! `NoneV1` paired with `UnchangedV1` on link-register targets — verbatim,
@@ -127,7 +127,7 @@ pub(super) enum CopiedCallOperandEffects {
     /// the rewrite binding the same constraint row — carries `NoneV1`
     /// memory and `NeverV1` trap at the declaration level (the lifecycle
     /// lives on the encoded surface), the `Call` barrier, the
-    /// `DirectInternalNormalReturnV1` call effect, and no cleanup. Every
+    /// `InternalNormalReturnV1` call effect, and no cleanup. Every
     /// encoded alternative restates the constraint row's read, write, and
     /// implicit-unit roster exactly and carries `DirectRelativeCallV1`
     /// control, the `MayArchitecturalFaultV1` surface the call retains,
@@ -324,7 +324,7 @@ impl CopiedCallOperandRule {
     /// doubles as the rewritten form's, the rewrite binding the same
     /// constraint row. Under `CallLifecycleRetained` the producer is fully
     /// effect-isolated while the call carries its complete activation
-    /// contract verbatim: `Call` barrier, `DirectInternalNormalReturnV1`
+    /// contract verbatim: `Call` barrier, `InternalNormalReturnV1`
     /// call effect, `DirectRelativeCallV1` control, the
     /// `MayArchitecturalFaultV1` surface, the row's read/write/implicit
     /// roster restated, and the target's stack lifecycle —
@@ -411,7 +411,7 @@ fn copy_alternative(alternative: &MachineAlternative) -> bool {
 
 /// The declared surface the call row — the consumer's and the rewritten
 /// form's alike — must carry: `NoneV1` memory and `NeverV1` trap at the
-/// declaration level, the `Call` barrier, the `DirectInternalNormalReturnV1`
+/// declaration level, the `Call` barrier, the `InternalNormalReturnV1`
 /// call effect, no cleanup, and every alternative encoding the constraint
 /// row's operand and implicit-unit roster exactly, `DirectRelativeCallV1`
 /// control, the retained `MayArchitecturalFaultV1` trap, and the target's
@@ -437,7 +437,7 @@ fn retained_call(
         && declaration.barrier == MachineBarrier::Call
         && matches!(
             declaration.call,
-            MachineCallEffect::DirectInternalNormalReturnV1 { .. }
+            MachineCallEffect::InternalNormalReturnV1 { .. }
         )
         && declaration.cleanup == MachineCleanupEffect::NoneV1
         && declaration

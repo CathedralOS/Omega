@@ -287,6 +287,9 @@ pub(super) fn check(
                         machine.target,
                         context.stack_pointer,
                         instruction.id,
+                        instruction.kind.call_target().ok_or(
+                            WholeFunctionExitContractError::NonReturnControlEffect(instruction.id),
+                        )?,
                         encoding_row,
                         resolved,
                         encoded,

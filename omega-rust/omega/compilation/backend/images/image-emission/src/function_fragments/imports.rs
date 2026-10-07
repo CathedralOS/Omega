@@ -174,7 +174,10 @@ pub(super) fn validate(
             .sum::<usize>();
     // Byte-literal records trail the import rows; their own replay owns them.
     let expected_records = expected_records
-        + super::byte_literals::relocation_count(artifact.byte_literal_pool.as_ref());
+        + super::byte_literals::relocation_count(artifact.byte_literal_pool.as_ref())
+        + super::implementation_tables::relocation_count(
+            artifact.implementation_table_pool.as_ref(),
+        );
     if artifact.foreign_calls != calls
         || artifact.relocations.record_count() != expected_records
         || fields.len() != import_calls.len()
@@ -188,7 +191,11 @@ pub(super) fn validate(
     let mut symbols = layout.symbols.iter().skip(
         artifact.functions.len()
             + artifact.private_functions.len()
-            + usize::from(artifact.byte_literal_pool.is_some()),
+            + usize::from(artifact.byte_literal_pool.is_some())
+            + artifact
+                .implementation_table_pool
+                .as_ref()
+                .map_or(0, |pool| pool.tables.len()),
     );
     let mut prior_locators = Vec::new();
     for field in fields {

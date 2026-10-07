@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationUnit;
 use terminal_psi::TerminalAffineCleanupAction;
 
@@ -32,10 +31,7 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                         _ => None,
                     }),
             );
-            match operation {
-                O::Call { callee, .. } | O::CallStructural { callee, .. } => callees.push(*callee),
-                _ => {}
-            }
+            callees.extend(unit.call_machine_references(operation));
         }
         callees.sort_unstable();
         callees.dedup();

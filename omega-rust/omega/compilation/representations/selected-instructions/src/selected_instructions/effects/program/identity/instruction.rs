@@ -54,7 +54,7 @@ fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffec
     match instruction.call {
         MachineCallEffect::NoneV1 => bytes.push(0),
         MachineCallEffect::SupervisorNormalReturnV1 => bytes.push(3),
-        MachineCallEffect::DirectInternalNormalReturnV1 {
+        MachineCallEffect::InternalNormalReturnV1 {
             pre_call_stack_alignment,
         } => {
             bytes.push(1);
@@ -199,7 +199,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
         SelectedInstructionKind::CallUnit { .. } => 19,
-        SelectedInstructionKind::ByteLiteralImageAddress { .. } => 232,
+        SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
     });
     match kind {
         SelectedInstructionKind::LoadPacked { byte_offset, width }
@@ -386,18 +386,17 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.push(predicate.mask_bit());
         }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
-        SelectedInstructionKind::CallScalar { callee }
-        | SelectedInstructionKind::CallAggregate { callee }
-        | SelectedInstructionKind::CallUnit { callee } => {
-            bytes.extend_from_slice(&callee.get().to_le_bytes());
+        SelectedInstructionKind::CallScalar { target }
+        | SelectedInstructionKind::CallAggregate { target }
+        | SelectedInstructionKind::CallUnit { target } => {
+            target.encode_identity(bytes);
         }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&ordinal.to_le_bytes());
         }
-        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
-            bytes.extend_from_slice(&place.get().to_le_bytes());
+        SelectedInstructionKind::ImmutableImageAddress { reference } => {
+            reference.encode_identity(bytes);
         }
     }
 }

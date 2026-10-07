@@ -39,6 +39,9 @@ pub(super) fn project(
     }
     let (operation, result) = scalar_graph_input::instruction(node).ok_or(Error::custody())?;
     let kind = match &node.operation {
+        AbstractOperation::SelectImplementation { table, .. } => {
+            LegalizedScalarInstructionKind::SelectImplementation { table: *table }
+        }
         AbstractOperation::AtomicEvent { event, .. } => {
             let access =
                 scalar_graph_input::atomic_access::access(event, optimized, &unit.structural_types)

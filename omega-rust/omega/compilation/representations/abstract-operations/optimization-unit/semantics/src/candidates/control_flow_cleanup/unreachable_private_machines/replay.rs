@@ -1,6 +1,5 @@
 //! Independent unreachable private-machine replay mechanics.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     NodeLocation, ProvenanceDisposition, PsiOptimizationFunction, PsiOptimizationUnit,
@@ -104,6 +103,12 @@ pub(crate) fn unreachable_private_machine_complement(unit: &PsiOptimizationUnit)
         .collect::<BTreeSet<_>>();
     let mut reachable = BTreeSet::from([unit.entry]);
     reachable.extend(
+        unit.dynamic_dispatch
+            .tables
+            .iter()
+            .flat_map(|table| table.rows.iter().copied().flatten()),
+    );
+    reachable.extend(
         unit.provider_candidates
             .iter()
             .map(|candidate| candidate.candidate),
@@ -117,7 +122,12 @@ pub(crate) fn unreachable_private_machine_complement(unit: &PsiOptimizationUnit)
     let references = unit
         .functions
         .iter()
-        .map(|function| (function.machine, validator_machine_references(function)))
+        .map(|function| {
+            (
+                function.machine,
+                validator_machine_references(unit, function),
+            )
+        })
         .collect::<BTreeMap<_, _>>();
     let mut work = reachable.iter().copied().collect::<Vec<_>>();
     while let Some(machine) = work.pop() {
@@ -131,6 +141,7 @@ pub(crate) fn unreachable_private_machine_complement(unit: &PsiOptimizationUnit)
 }
 
 pub(crate) fn validator_machine_references(
+    unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
 ) -> BTreeSet<MachineId> {
     let mut references = BTreeSet::new();
@@ -150,12 +161,7 @@ pub(crate) fn validator_machine_references(
                     _ => None,
                 }),
         );
-        match operation {
-            O::Call { callee, .. } | O::CallStructural { callee, .. } => {
-                references.insert(*callee);
-            }
-            _ => {}
-        }
+        references.extend(unit.operation_machine_references(operation));
     }
     references
 }

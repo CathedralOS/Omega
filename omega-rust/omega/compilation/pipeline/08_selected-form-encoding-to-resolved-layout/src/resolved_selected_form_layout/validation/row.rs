@@ -46,6 +46,7 @@ pub(super) fn validate(
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.is_some()
                 || candidate.byte_literal_address_fixup.is_some()
+                || candidate.implementation_table_address_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -55,12 +56,13 @@ pub(super) fn validate(
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup },
         ) => {
-            if !matches!(instruction.kind, SelectedInstructionKind::CallScalar { callee } | SelectedInstructionKind::CallUnit { callee } | SelectedInstructionKind::CallAggregate { callee } if callee == fixup.callee)
+            if !matches!(instruction.kind, SelectedInstructionKind::CallScalar { target: selected_instructions::SelectedCallTarget::Machine(callee) } | SelectedInstructionKind::CallUnit { target: selected_instructions::SelectedCallTarget::Machine(callee) } | SelectedInstructionKind::CallAggregate { target: selected_instructions::SelectedCallTarget::Machine(callee) } if callee == fixup.callee)
                 || candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup != Some(*fixup)
                 || candidate.normalized_foreign_call_fixup.is_some()
                 || candidate.byte_literal_address_fixup.is_some()
+                || candidate.implementation_table_address_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -76,6 +78,7 @@ pub(super) fn validate(
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.as_ref() != Some(fixup)
                 || candidate.byte_literal_address_fixup.is_some()
+                || candidate.implementation_table_address_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -85,12 +88,29 @@ pub(super) fn validate(
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup },
         ) => {
-            if !matches!(instruction.kind, SelectedInstructionKind::ByteLiteralImageAddress { operation, place } if fixup.literal == (machine_code::ByteLiteralReference { operation, place }))
+            if !matches!(instruction.kind, SelectedInstructionKind::ImmutableImageAddress { reference: selected_instructions::SelectedImageAddressReference::ByteLiteral { operation, place } } if fixup.literal == (machine_code::ByteLiteralReference { operation, place }))
                 || candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.is_some()
                 || candidate.byte_literal_address_fixup != Some(*fixup)
+                || candidate.implementation_table_address_fixup.is_some()
+            {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            }
+            Ok(())
+        }
+        (
+            SelectedFormMachineDisposition::RetainedV1,
+            SelectedFormEncodingState::UnresolvedImplementationTableAddress { fixup },
+        ) => {
+            if !matches!(instruction.kind, SelectedInstructionKind::ImmutableImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table}} if table==fixup.reference.table)
+                || candidate.bytes != bytes
+                || candidate.branch.is_some()
+                || candidate.internal_machine_fixup.is_some()
+                || candidate.normalized_foreign_call_fixup.is_some()
+                || candidate.byte_literal_address_fixup.is_some()
+                || candidate.implementation_table_address_fixup != Some(*fixup)
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }

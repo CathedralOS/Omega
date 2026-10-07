@@ -660,7 +660,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::CompareI64Immediate => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
-        MachineSemanticKind::ByteLiteralImageAddress => (vec![], vec![0]),
+        MachineSemanticKind::ImmutableImageAddress => (vec![], vec![0]),
         MachineSemanticKind::MaterializeBooleanEqual
         | MachineSemanticKind::MaterializeBooleanU64LessThan
         | MachineSemanticKind::MaterializeBooleanI64LessThan
@@ -978,7 +978,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         }
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
         // `lea r64, [rip+disp32]` with the disp32 left for object construction.
-        MachineSemanticKind::ByteLiteralImageAddress => MachineSizeKnowledge::ExactBytes(7),
+        MachineSemanticKind::ImmutableImageAddress => MachineSizeKnowledge::ExactBytes(7),
         MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(17),
         // `xor` the RDX high half, unsigned `div`, then move the remainder

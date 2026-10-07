@@ -18,7 +18,8 @@ use self::envelope::v52_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 52;
+// Version 53 retains tagged internal call targets and immutable image owners.
+const VERSION: u32 = 53;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.

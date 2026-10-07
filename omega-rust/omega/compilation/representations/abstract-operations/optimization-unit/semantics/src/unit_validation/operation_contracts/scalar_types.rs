@@ -13,6 +13,7 @@ mod byte_views;
 mod element_views;
 
 pub(crate) fn operation_scalar_types_match(
+    unit: &optimization_unit::PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     operation: &O,
     definitions: &BTreeMap<ValueId, ValueDefinition>,
@@ -39,6 +40,33 @@ pub(crate) fn operation_scalar_types_match(
         return false;
     }
     match operation {
+        O::SelectImplementation { result, table, .. } => {
+            matches!(result.scalar_type, ScalarType::Integer(integer)
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                    && integer.bits() == 64 && fixed(integer))
+                && unit.dynamic_dispatch.table(*table).is_some()
+        }
+        O::CallStructural {
+            callee: abstract_operations::AbstractCallTarget::Dynamic { selector, interface, slot },
+            arguments,
+            result,
+            ..
+        } => {
+            let Some(signature) = unit.dynamic_dispatch.interface(*interface)
+                .and_then(|interface| usize::try_from(*slot).ok().and_then(|slot| interface.slots.get(slot)))
+            else { return false; };
+            matches!(scalar(*selector), Some(ScalarType::Integer(integer))
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                    && integer.bits() == 64 && fixed(integer))
+                && arguments.len() == signature.scalar_parameters.len()
+                && arguments.iter().zip(&signature.scalar_parameters)
+                    .all(|(argument, expected)| scalar(*argument) == Some(*expected))
+                && match result {
+                    AbstractStructuralCallResult::Unit => signature.result.is_none(),
+                    AbstractStructuralCallResult::Scalar(result) => signature.result == Some(result.scalar_type),
+                    AbstractStructuralCallResult::Structural { .. } => false,
+                }
+        }
         O::EstablishByteSequenceConcatenation { .. }
         | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
@@ -333,7 +361,7 @@ pub(crate) fn operation_scalar_types_match(
             arguments,
             result: AbstractStructuralCallResult::Unit,
             ..
-        } => functions.get(callee).is_some_and(|callee| {
+        } => callee.machine().and_then(|machine| functions.get(&machine)).is_some_and(|callee| {
             matches!(
                 callee.result,
                 abstract_operations::AbstractFunctionResult::Unit
@@ -348,7 +376,7 @@ pub(crate) fn operation_scalar_types_match(
             callee,
             arguments,
             ..
-        } => functions.get(callee).is_some_and(|callee| {
+        } => callee.machine().and_then(|machine| functions.get(&machine)).is_some_and(|callee| {
             arguments.len() == callee.parameters.len()
                 && arguments
                     .iter()
@@ -365,7 +393,7 @@ pub(crate) fn operation_scalar_types_match(
             arguments,
             result: AbstractStructuralCallResult::Structural { .. },
             ..
-        } => functions.get(callee).is_some_and(|callee| {
+        } => callee.machine().and_then(|machine| functions.get(&machine)).is_some_and(|callee| {
             callee.parameters.len() == arguments.len()
                 && callee
                     .parameters

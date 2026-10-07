@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use register_model::{RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionId,
+    MachineEncodedTrapBehavior, SelectedCallTarget, SelectedInstructionId,
 };
 use target::{Architecture, NativeTarget};
 
@@ -93,26 +93,40 @@ pub(in crate::exit_contract) fn validate_internal_call(
     target: NativeTarget,
     stack_pointer: RegisterViewId,
     instruction: SelectedInstructionId,
+    call_target: SelectedCallTarget,
     encoding: &SelectedFormEncodingRow,
     layout: &ResolvedSelectedFormRow,
     encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
-    let SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } = &encoding.state else {
-        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-            instruction,
-        ));
-    };
     let Some((bytes, footprint)) = encoded.encoded(encoding) else {
         return Err(WholeFunctionExitContractError::NonReturnControlEffect(
             instruction,
         ));
     };
+    // Direct calls retain a relocation field. Runtime table calls instead
+    // already contain their register CALL/BLR and zero-slot trap, so their
+    // returning path owns the same frame without an internal-machine fixup.
+    let control_matches = match (call_target, &encoding.state) {
+        (
+            SelectedCallTarget::Machine(callee),
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup },
+        ) => {
+            fixup.callee == callee
+                && layout.internal_machine_fixup == Some(*fixup)
+                && footprint.encoded.control == MachineEncodedControlEffect::DirectRelativeCallV1
+        }
+        (SelectedCallTarget::Dynamic { .. }, SelectedFormEncodingState::Encoded) => {
+            layout.internal_machine_fixup.is_none()
+                && footprint.encoded.control
+                    == MachineEncodedControlEffect::IndirectTableCallOrTrapV1
+        }
+        _ => false,
+    };
     if encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
         || bytes != layout.bytes
         || layout.branch.is_some()
-        || layout.internal_machine_fixup != Some(*fixup)
         || layout.normalized_foreign_call_fixup.is_some()
-        || footprint.encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
+        || !control_matches
         || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
     {
         return Err(WholeFunctionExitContractError::NonReturnControlEffect(
@@ -221,24 +235,35 @@ fn call_memory_stack_effects_match(
     stack_pointer: RegisterViewId,
     footprint: &machine_code::SelectedFormDecodedFootprint,
 ) -> bool {
-    match target.architecture {
+    let stack_matches = match target.architecture {
         Architecture::X86_64 => {
-            footprint.encoded.memory
-                == MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+            footprint.encoded.stack
+                == MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
                     stack_pointer,
-                    byte_count: 8,
+                    return_address_byte_count: 8,
                 }
-                && footprint.encoded.stack
-                    == MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+        }
+        Architecture::Aarch64 => footprint.encoded.stack == MachineEncodedStackEffect::UnchangedV1,
+    };
+    let memory_matches = match footprint.encoded.control {
+        MachineEncodedControlEffect::IndirectTableCallOrTrapV1 => {
+            matches!(footprint.encoded.memory,
+                MachineEncodedMemoryEffect::ReadPointerV1 { pointer_operand, byte_count: 8 }
+                    if footprint.encoded.external_operand_reads.last() == Some(&pointer_operand))
+        }
+        MachineEncodedControlEffect::DirectRelativeCallV1 => match target.architecture {
+            Architecture::X86_64 => {
+                footprint.encoded.memory
+                    == MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
                         stack_pointer,
-                        return_address_byte_count: 8,
+                        byte_count: 8,
                     }
-        }
-        Architecture::Aarch64 => {
-            footprint.encoded.memory == MachineEncodedMemoryEffect::NoneV1
-                && footprint.encoded.stack == MachineEncodedStackEffect::UnchangedV1
-        }
-    }
+            }
+            Architecture::Aarch64 => footprint.encoded.memory == MachineEncodedMemoryEffect::NoneV1,
+        },
+        _ => false,
+    };
+    stack_matches && memory_matches
 }
 
 #[cfg(test)]
@@ -334,6 +359,7 @@ mod tests {
                 internal_machine_fixup: None,
                 normalized_foreign_call_fixup: None,
                 byte_literal_address_fixup: None,
+                implementation_table_address_fixup: None,
             };
             let validate =
                 |encoding: &SelectedFormEncodingRow,

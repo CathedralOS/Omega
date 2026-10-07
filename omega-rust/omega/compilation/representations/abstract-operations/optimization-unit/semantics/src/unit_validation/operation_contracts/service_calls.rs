@@ -26,6 +26,7 @@ use semantic_vocabulary::{
 use std::collections::BTreeMap;
 
 pub(crate) fn operation_service_contract_matches(
+    unit: &optimization_unit::PsiOptimizationUnit,
     caller: &PsiOptimizationFunction,
     operation: &O,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
@@ -41,9 +42,11 @@ pub(crate) fn operation_service_contract_matches(
         O::Call { callee, .. } => functions
             .get(callee)
             .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
-        O::CallStructural { callee, .. } => functions
-            .get(callee)
-            .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
+        O::CallStructural { .. } => unit.call_machine_references(operation).all(|machine| {
+            functions
+                .get(&machine)
+                .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling))
+        }),
         O::BoundaryCall { boundary, .. } => boundaries
             .get(boundary)
             .is_some_and(|boundary| reached_is_published(&boundary.published_service_ceiling)),
@@ -59,6 +62,7 @@ pub(crate) fn operation_service_contract_matches(
 /// evidence to compare, never the authority from which the expected contract
 /// is inferred.
 pub(crate) fn operation_structural_call_contract_matches(
+    unit: &optimization_unit::PsiOptimizationUnit,
     caller: &PsiOptimizationFunction,
     operation: &O,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
@@ -67,6 +71,45 @@ pub(crate) fn operation_structural_call_contract_matches(
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> bool {
     match operation {
+        O::CallStructural {
+            callee:
+                abstract_operations::AbstractCallTarget::Dynamic {
+                    interface, slot, ..
+                },
+            structural_arguments,
+            claim_transfers,
+            result,
+            ..
+        } => {
+            let Some(signature) =
+                unit.dynamic_dispatch
+                    .interface(*interface)
+                    .and_then(|interface| {
+                        usize::try_from(*slot)
+                            .ok()
+                            .and_then(|slot| interface.slots.get(slot))
+                    })
+            else {
+                return false;
+            };
+            let policy = match result {
+                AbstractStructuralCallResult::Unit => StructuralProjectionPolicy::Unit,
+                AbstractStructuralCallResult::Scalar(_) => StructuralProjectionPolicy::Projected,
+                AbstractStructuralCallResult::Structural { .. } => return false,
+            };
+            // Requirement slots carry no implementation-private claim IDs.
+            // Ordinary caller ownership still checks every actual projection.
+            claim_transfers.is_empty()
+                && structural_arguments_match(
+                    caller,
+                    operation.psi_operation(),
+                    structural_arguments,
+                    &signature.structural_parameters,
+                    types,
+                    domains,
+                    policy,
+                )
+        }
         O::EstablishStructuralArray { .. } => {
             super::scalar_arrays::structural_array_establishment_matches(caller, operation, types)
         }
@@ -86,44 +129,50 @@ pub(crate) fn operation_structural_call_contract_matches(
             claim_transfers,
             result: AbstractStructuralCallResult::Unit,
             ..
-        } => functions.get(callee).is_some_and(|callee| {
-            structural_arguments_match(
-                caller,
-                operation.psi_operation(),
-                structural_arguments,
-                &callee.structural_parameters,
-                types,
-                domains,
-                StructuralProjectionPolicy::Unit,
-            ) && validate_internal_claim_transfers(
-                caller,
-                callee,
-                structural_arguments,
-                claim_transfers,
-            )
-        }),
+        } => callee
+            .machine()
+            .and_then(|machine| functions.get(&machine))
+            .is_some_and(|callee| {
+                structural_arguments_match(
+                    caller,
+                    operation.psi_operation(),
+                    structural_arguments,
+                    &callee.structural_parameters,
+                    types,
+                    domains,
+                    StructuralProjectionPolicy::Unit,
+                ) && validate_internal_claim_transfers(
+                    caller,
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                )
+            }),
         O::CallStructural {
             callee,
             structural_arguments,
             claim_transfers,
             result: AbstractStructuralCallResult::Scalar(_),
             ..
-        } => functions.get(callee).is_some_and(|callee| {
-            structural_arguments_match(
-                caller,
-                operation.psi_operation(),
-                structural_arguments,
-                &callee.structural_parameters,
-                types,
-                domains,
-                StructuralProjectionPolicy::Projected,
-            ) && validate_internal_claim_transfers(
-                caller,
-                callee,
-                structural_arguments,
-                claim_transfers,
-            )
-        }),
+        } => callee
+            .machine()
+            .and_then(|machine| functions.get(&machine))
+            .is_some_and(|callee| {
+                structural_arguments_match(
+                    caller,
+                    operation.psi_operation(),
+                    structural_arguments,
+                    &callee.structural_parameters,
+                    types,
+                    domains,
+                    StructuralProjectionPolicy::Projected,
+                ) && validate_internal_claim_transfers(
+                    caller,
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                )
+            }),
         O::CallStructural {
             result:
                 AbstractStructuralCallResult::Structural {
@@ -135,60 +184,65 @@ pub(crate) fn operation_structural_call_contract_matches(
             structural_arguments,
             claim_transfers,
             ..
-        } => functions.get(callee).is_some_and(|callee| {
-            // A call returning reference custody has its own complete rule:
-            // the caller instantiates the callee's exact source roster, and
-            // claim traffic stays empty because carriers carry no claims.
-            if callee.result.structural().is_some_and(|signature| {
-                crate::unit_validation::references::contains_reference(
-                    types,
-                    signature.structural_type,
-                )
-            }) {
-                return reference_call_matches(caller, operation, callee, types, domains);
-            }
-            structural_arguments_match(
-                caller,
-                operation.psi_operation(),
-                structural_arguments,
-                &callee.structural_parameters,
-                types,
-                domains,
-                // Argument custody does not depend on the callee's result
-                // producer or carrier family. Replay ordinary projections and
-                // literal backing with the same source/access contract.
-                StructuralProjectionPolicy::Projected,
-            ) && validate_internal_claim_transfers(
-                caller,
-                callee,
-                structural_arguments,
-                claim_transfers,
-            ) && validate_structural_call_result(
-                result,
-                callee,
-                exact_payloadless_structural_call(operation, callee, types, domains)
-                    || plain_scalar_array_call(operation, callee, types)
-                    || plain_scalar_sum_call(operation, callee, types)
-                    || plain_record_call(operation, callee, types)
-                    || exact_plain_affine_structural_call(operation, callee, types),
-                claim_transfers,
-                returned_claim_transfers,
-                types,
-            ) && structural_call_contract_surface_matches(operation, callee)
-                && payloadless_selected_evidence_surface_matches(operation, callee, types, domains)
-                && (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-                    || !terminal_semantics::descriptor_results::is_shared_descriptor(
-                        types.values().copied(),
-                        result.structural_type,
-                    )
-                    || descriptor_call_origins_match(
-                        caller,
-                        result.place,
-                        functions,
-                        boundary_machines,
+        } => callee
+            .machine()
+            .and_then(|machine| functions.get(&machine))
+            .is_some_and(|callee| {
+                // A call returning reference custody has its own complete rule:
+                // the caller instantiates the callee's exact source roster, and
+                // claim traffic stays empty because carriers carry no claims.
+                if callee.result.structural().is_some_and(|signature| {
+                    crate::unit_validation::references::contains_reference(
                         types,
-                    ))
-        }),
+                        signature.structural_type,
+                    )
+                }) {
+                    return reference_call_matches(caller, operation, callee, types, domains);
+                }
+                structural_arguments_match(
+                    caller,
+                    operation.psi_operation(),
+                    structural_arguments,
+                    &callee.structural_parameters,
+                    types,
+                    domains,
+                    // Argument custody does not depend on the callee's result
+                    // producer or carrier family. Replay ordinary projections and
+                    // literal backing with the same source/access contract.
+                    StructuralProjectionPolicy::Projected,
+                ) && validate_internal_claim_transfers(
+                    caller,
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                ) && validate_structural_call_result(
+                    result,
+                    callee,
+                    exact_payloadless_structural_call(operation, callee, types, domains)
+                        || plain_scalar_array_call(operation, callee, types)
+                        || plain_scalar_sum_call(operation, callee, types)
+                        || plain_record_call(operation, callee, types)
+                        || exact_plain_affine_structural_call(operation, callee, types),
+                    claim_transfers,
+                    returned_claim_transfers,
+                    types,
+                ) && structural_call_contract_surface_matches(operation, callee)
+                    && payloadless_selected_evidence_surface_matches(
+                        operation, callee, types, domains,
+                    )
+                    && (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                        || !terminal_semantics::descriptor_results::is_shared_descriptor(
+                            types.values().copied(),
+                            result.structural_type,
+                        )
+                        || descriptor_call_origins_match(
+                            caller,
+                            result.place,
+                            functions,
+                            boundary_machines,
+                            types,
+                        ))
+            }),
         O::BoundaryCall {
             boundary,
             structural_arguments,

@@ -107,9 +107,15 @@ pub fn encode_x86_64_selected_scalar_call_template(
     effects: &MachineEncodedEffects,
 ) -> Result<ValidatedX86_64SelectedScalarCallTemplate, X86_64ScalarCallTemplateError> {
     let callee = match kind {
-        SelectedInstructionKind::CallScalar { callee }
-        | SelectedInstructionKind::CallAggregate { callee }
-        | SelectedInstructionKind::CallUnit { callee } => callee,
+        SelectedInstructionKind::CallScalar {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        }
+        | SelectedInstructionKind::CallAggregate {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        }
+        | SelectedInstructionKind::CallUnit {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        } => callee,
         _ => return Err(X86_64ScalarCallTemplateError::InstructionKindMismatch),
     };
     let bytes = [0xe8, 0, 0, 0, 0];
@@ -148,9 +154,15 @@ pub fn validate_x86_64_selected_scalar_call_template(
         return Err(X86_64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
     let callee = match kind {
-        SelectedInstructionKind::CallScalar { callee }
-        | SelectedInstructionKind::CallAggregate { callee }
-        | SelectedInstructionKind::CallUnit { callee } => callee,
+        SelectedInstructionKind::CallScalar {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        }
+        | SelectedInstructionKind::CallAggregate {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        }
+        | SelectedInstructionKind::CallUnit {
+            target: selected_instructions::SelectedCallTarget::Machine(callee),
+        } => callee,
         _ => return Err(X86_64ScalarCallTemplateError::InstructionKindMismatch),
     };
     let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
@@ -167,100 +179,8 @@ pub fn validate_x86_64_selected_scalar_call_template(
     if alternative != expected_alternative {
         return Err(X86_64ScalarCallTemplateError::AlternativeMismatch);
     }
-    let aggregate = matches!(kind, SelectedInstructionKind::CallAggregate { .. });
-    let floating_scalar = !unit
-        && !aggregate
-        && operand_views.iter().any(|id| {
-            physical
-                .model()
-                .views
-                .iter()
-                .any(|view| view.id == *id && view.name.starts_with("xmm"))
-        });
-    let (expected_operand_views, expected) = if unit || aggregate || floating_scalar {
-        let keys = if aggregate {
-            match abi {
-                X86_64SelectedAbi::SystemV => {
-                    crate::register_model::x86_64_system_v_aggregate_call_keys()
-                        .into_iter()
-                        .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
-                        .chain(crate::x86_64_indirect_aggregate_call_keys(false))
-                        .collect()
-                }
-                X86_64SelectedAbi::Microsoft => {
-                    crate::register_model::x86_64_microsoft_aggregate_call_keys()
-                        .into_iter()
-                        .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
-                        .chain(crate::x86_64_indirect_aggregate_call_keys(true))
-                        .collect()
-                }
-            }
-        } else if floating_scalar {
-            crate::x86_64_float_scalar_call_keys(abi == X86_64SelectedAbi::Microsoft)
-        } else {
-            match abi {
-                X86_64SelectedAbi::SystemV => crate::x86_64_system_v_register_unit_call_keys()
-                    .into_iter()
-                    .chain(crate::x86_64_system_v_mixed_unit_call_keys())
-                    .collect::<Vec<_>>(),
-                X86_64SelectedAbi::Microsoft => crate::x86_64_microsoft_register_unit_call_keys()
-                    .into_iter()
-                    .chain(crate::x86_64_microsoft_mixed_unit_call_keys())
-                    .collect::<Vec<_>>(),
-            }
-        };
-        let catalog = x86_64_register_constraint_catalog_for(physical);
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| {
-                keys.contains(&row.key)
-                    && row.operands.len() == operand_views.len()
-                    && row
-                        .operands
-                        .iter()
-                        .zip(operand_views)
-                        .all(|(operand, view)| operand.fixed_view == Some(*view))
-            })
-            .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
-        let mut expected = expected_effects(abi, physical, 0);
-        expected.external_operand_reads = row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-            .map(|operand| operand.operand)
-            .collect();
-        expected.external_operand_writes = row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-            .map(|operand| operand.operand)
-            .collect();
-        expected.implicit_unit_uses = row.implicit_uses.clone();
-        expected.implicit_unit_defs = row.implicit_defs.clone();
-        expected.implicit_unit_clobbers = row.clobbers.clone();
-        (operand_views.to_vec(), expected)
-    } else {
-        let arity = operand_views
-            .len()
-            .checked_sub(1)
-            .filter(|arity| {
-                *arity
-                    <= match abi {
-                        X86_64SelectedAbi::SystemV => 6,
-                        X86_64SelectedAbi::Microsoft => 4,
-                    }
-            })
-            .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
-        let expected_operand_views = expected_operand_views(abi, physical, arity);
-        if operand_views != expected_operand_views {
-            return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
-        }
-        (
-            expected_operand_views,
-            expected_effects(abi, physical, arity),
-        )
-    };
+    let (expected_operand_views, expected) =
+        expected_call_mechanics(abi, physical, kind, operand_views)?;
     if effects != &expected {
         return Err(X86_64ScalarCallTemplateError::EffectMismatch);
     }
@@ -392,7 +312,7 @@ mod tests {
     ) {
         let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
         let kind = SelectedInstructionKind::CallScalar {
-            callee: MachineId::new(7).unwrap(),
+            target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
         };
         let alternative = MachineAlternativeKey {
             family: MachineAlternativeFamily::CallScalar,
@@ -544,7 +464,7 @@ mod tests {
         let native = NativeTarget::windows_x64();
         let catalog = crate::x86_64_machine_effect_catalog(native, &constraints).unwrap();
         let kind = SelectedInstructionKind::CallAggregate {
-            callee: MachineId::new(7).unwrap(),
+            target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
         };
         for (arity, key) in crate::register_model::x86_64_microsoft_aggregate_call_keys()
             .into_iter()
@@ -756,5 +676,264 @@ mod tests {
             ),
             Err(X86_64ScalarCallTemplateError::FixupMismatch)
         );
+    }
+}
+
+fn expected_call_mechanics(
+    abi: X86_64SelectedAbi,
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    operand_views: &[RegisterViewId],
+) -> Result<(Vec<RegisterViewId>, MachineEncodedEffects), X86_64ScalarCallTemplateError> {
+    let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
+    let aggregate = matches!(kind, SelectedInstructionKind::CallAggregate { .. });
+    let floating_scalar = !unit
+        && !aggregate
+        && operand_views.iter().any(|id| {
+            physical
+                .model()
+                .views
+                .iter()
+                .any(|view| view.id == *id && view.name.starts_with("xmm"))
+        });
+    let (expected_operand_views, expected) = if unit || aggregate || floating_scalar {
+        let keys = if aggregate {
+            match abi {
+                X86_64SelectedAbi::SystemV => {
+                    crate::register_model::x86_64_system_v_aggregate_call_keys()
+                        .into_iter()
+                        .chain(crate::x86_64_system_v_mixed_aggregate_call_keys())
+                        .chain(crate::x86_64_indirect_aggregate_call_keys(false))
+                        .collect()
+                }
+                X86_64SelectedAbi::Microsoft => {
+                    crate::register_model::x86_64_microsoft_aggregate_call_keys()
+                        .into_iter()
+                        .chain(crate::x86_64_microsoft_mixed_aggregate_call_keys())
+                        .chain(crate::x86_64_indirect_aggregate_call_keys(true))
+                        .collect()
+                }
+            }
+        } else if floating_scalar {
+            crate::x86_64_float_scalar_call_keys(abi == X86_64SelectedAbi::Microsoft)
+        } else {
+            match abi {
+                X86_64SelectedAbi::SystemV => crate::x86_64_system_v_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::x86_64_system_v_mixed_unit_call_keys())
+                    .collect::<Vec<_>>(),
+                X86_64SelectedAbi::Microsoft => crate::x86_64_microsoft_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::x86_64_microsoft_mixed_unit_call_keys())
+                    .collect::<Vec<_>>(),
+            }
+        };
+        let catalog = x86_64_register_constraint_catalog_for(physical);
+        let row = catalog
+            .constraints
+            .iter()
+            .find(|row| {
+                keys.contains(&row.key)
+                    && row.operands.len() == operand_views.len()
+                    && row
+                        .operands
+                        .iter()
+                        .zip(operand_views)
+                        .all(|(operand, view)| operand.fixed_view == Some(*view))
+            })
+            .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
+        let mut expected = expected_effects(abi, physical, 0);
+        expected.external_operand_reads = row
+            .operands
+            .iter()
+            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
+            .map(|operand| operand.operand)
+            .collect();
+        expected.external_operand_writes = row
+            .operands
+            .iter()
+            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
+            .map(|operand| operand.operand)
+            .collect();
+        expected.implicit_unit_uses = row.implicit_uses.clone();
+        expected.implicit_unit_defs = row.implicit_defs.clone();
+        expected.implicit_unit_clobbers = row.clobbers.clone();
+        (operand_views.to_vec(), expected)
+    } else {
+        let arity = operand_views
+            .len()
+            .checked_sub(1)
+            .filter(|arity| {
+                *arity
+                    <= match abi {
+                        X86_64SelectedAbi::SystemV => 6,
+                        X86_64SelectedAbi::Microsoft => 4,
+                    }
+            })
+            .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
+        let expected_operand_views = expected_operand_views(abi, physical, arity);
+        if operand_views != expected_operand_views {
+            return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
+        }
+        (
+            expected_operand_views,
+            expected_effects(abi, physical, arity),
+        )
+    };
+
+    Ok((expected_operand_views, expected))
+}
+
+pub fn encode_x86_64_selected_dynamic_call_template(
+    target: NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+    operand_views: &[RegisterViewId],
+    effects: &MachineEncodedEffects,
+) -> Result<(Vec<u8>, MachineEncodedEffects), X86_64ScalarCallTemplateError> {
+    let abi = x86_64_selected_abi(target)
+        .map_err(|_| X86_64ScalarCallTemplateError::UnsupportedTarget)?;
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
+        return Err(X86_64ScalarCallTemplateError::NonCanonicalPhysicalModel);
+    }
+    let Some(selected_instructions::SelectedCallTarget::Dynamic { slot, .. }) = kind.call_target()
+    else {
+        return Err(X86_64ScalarCallTemplateError::InstructionKindMismatch);
+    };
+    let family = match kind {
+        SelectedInstructionKind::CallUnit { .. } => MachineAlternativeFamily::CallUnit,
+        SelectedInstructionKind::CallScalar { .. } => MachineAlternativeFamily::CallScalar,
+        SelectedInstructionKind::CallAggregate { .. } => MachineAlternativeFamily::CallAggregate,
+        _ => return Err(X86_64ScalarCallTemplateError::InstructionKindMismatch),
+    };
+    if alternative != (MachineAlternativeKey { family, variant: 1 }) {
+        return Err(X86_64ScalarCallTemplateError::AlternativeMismatch);
+    }
+    let selector = physical
+        .model()
+        .view_named("r11")
+        .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?
+        .id;
+    let mut ordinary = operand_views.to_vec();
+    let position = ordinary
+        .iter()
+        .position(|view| *view == selector)
+        .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
+    ordinary.remove(position);
+    let (_, baseline) = expected_call_mechanics(abi, physical, kind, &ordinary)?;
+    if position != baseline.external_operand_reads.len() {
+        return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
+    }
+    let expected = selected_instructions::calls::dynamic::encoded_effects(
+        &baseline,
+        physical.model().architecture,
+    )
+    .ok_or(X86_64ScalarCallTemplateError::EffectMismatch)?;
+    if *effects != expected {
+        return Err(X86_64ScalarCallTemplateError::EffectMismatch);
+    }
+    let offset = u64::from(slot) * 8;
+    let mut bytes = Vec::with_capacity(24);
+    bytes.extend_from_slice(&[0x49, 0xba]); // movabs r10, offset
+    bytes.extend_from_slice(&offset.to_le_bytes());
+    bytes.extend_from_slice(&[
+        0x4f, 0x8b, 0x1c, 0x13, // mov r11, [r11+r10]
+        0x4d, 0x85, 0xdb, // test r11, r11
+        0x75, 0x02, // jne over ud2
+        0x0f, 0x0b, // ud2
+        0x41, 0xff, 0xd3, // call r11
+    ]);
+    Ok((bytes, expected))
+}
+
+#[cfg(test)]
+mod dynamic_call_tests {
+    use super::*;
+    #[test]
+    fn dispatch_register_is_separate_from_each_supported_data_arity_and_result() {
+        let physical = register_model::validate_physical_register_model(
+            crate::x86_64_physical_register_model(),
+        )
+        .unwrap();
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::macos_x64(),
+            NativeTarget::windows_x64(),
+        ] {
+            let abi = x86_64_selected_abi(target).unwrap();
+            for arity in [0, 1, 4] {
+                let mut operands = expected_operand_views(abi, &physical, arity);
+                let selector = physical.model().view_named("r11").unwrap().id;
+                operands.insert(arity, selector);
+                let baseline = expected_effects(abi, &physical, arity);
+                let effects = selected_instructions::calls::dynamic::encoded_effects(
+                    &baseline,
+                    physical.model().architecture,
+                )
+                .unwrap();
+                let kind = SelectedInstructionKind::CallScalar {
+                    target: selected_instructions::SelectedCallTarget::Dynamic {
+                        interface: 7,
+                        slot: 0x1234_5678,
+                    },
+                };
+                let alternative = MachineAlternativeKey {
+                    family: MachineAlternativeFamily::CallScalar,
+                    variant: 1,
+                };
+                let (bytes, actual) = encode_x86_64_selected_dynamic_call_template(
+                    target,
+                    &physical,
+                    kind,
+                    alternative,
+                    &operands,
+                    &effects,
+                )
+                .unwrap();
+                assert_eq!(bytes.len(), 24);
+                assert_eq!(
+                    actual.external_operand_reads,
+                    (0..=arity as u16).collect::<Vec<_>>()
+                );
+                assert_eq!(actual.external_operand_writes, vec![arity as u16 + 1]);
+                assert_eq!(
+                    actual.control,
+                    MachineEncodedControlEffect::IndirectTableCallOrTrapV1
+                );
+                assert_eq!(
+                    &bytes[2..10],
+                    &(u64::from(0x1234_5678_u32) * 8).to_le_bytes()
+                );
+                assert_eq!(&bytes[19..21], &[0x0f, 0x0b]);
+                assert_eq!(&bytes[21..24], &[0x41, 0xff, 0xd3]);
+                let mut missing_dispatch = operands.clone();
+                missing_dispatch.remove(arity);
+                assert!(
+                    encode_x86_64_selected_dynamic_call_template(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &missing_dispatch,
+                        &effects
+                    )
+                    .is_err()
+                );
+                let mut altered = effects.clone();
+                altered.external_operand_writes = vec![arity as u16];
+                assert!(
+                    encode_x86_64_selected_dynamic_call_template(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        &altered
+                    )
+                    .is_err()
+                );
+            }
+        }
     }
 }

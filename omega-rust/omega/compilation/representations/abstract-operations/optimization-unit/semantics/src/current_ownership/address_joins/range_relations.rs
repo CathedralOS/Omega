@@ -219,7 +219,7 @@ fn call_guarantees(
             arguments,
             result,
             ..
-        } => (*callee, arguments, result.scalar()?),
+        } => (callee.machine()?, arguments, result.scalar()?),
         _ => return None,
     };
     let callee = functions.get(&callee)?;

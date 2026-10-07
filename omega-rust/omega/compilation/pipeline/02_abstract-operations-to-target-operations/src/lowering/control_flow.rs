@@ -26,7 +26,8 @@ mod borrowed_windows;
 mod byte_arguments;
 mod byte_concatenation;
 mod byte_write;
-mod direct_calls;
+mod call_signature;
+mod calls;
 mod dominance;
 mod element_view_write;
 mod ieee_float_arithmetic;
@@ -171,6 +172,7 @@ pub(super) fn lower(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     borrowed_reference_sources: references::BorrowedSources,
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
@@ -248,6 +250,7 @@ pub(super) fn lower(
             | AbstractOperation::StructuralByteSequenceFieldLength { result, .. }
             | AbstractOperation::StructuralByteSequenceFieldRead { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. }
+            | AbstractOperation::SelectImplementation { result, .. }
             | AbstractOperation::CallStructural {
                 result: AbstractStructuralCallResult::Scalar(result),
                 ..
@@ -543,6 +546,7 @@ pub(super) fn lower(
                 function,
                 target,
                 functions,
+                dynamic_dispatch,
                 structural_types,
                 boundary_machines,
                 settlements,
@@ -562,7 +566,7 @@ pub(super) fn lower(
             &live,
             structural_types,
         )?;
-        direct_calls::lower_cleanup_calls(
+        calls::lower_cleanup_calls(
             &function.operations[range.end - 1],
             function,
             target,

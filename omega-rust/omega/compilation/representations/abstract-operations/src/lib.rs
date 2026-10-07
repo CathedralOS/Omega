@@ -8,14 +8,14 @@
 pub mod abstract_operations;
 pub use abstract_operations::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
-    AbstractBlockEntry, AbstractBoundaryResult, AbstractFunction, AbstractFunctionResult,
+    AbstractBlockEntry, AbstractBoundaryResult, AbstractCallSignature, AbstractCallTarget, AbstractFunction, AbstractFunctionResult,
     AbstractOperation, AbstractOperationPlan, AbstractOperationPlanWithPlacedViewInputs,
     AbstractParameter, AbstractResult, AbstractStructuralBinding, AbstractStructuralCallResult,
     AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
     AtomicCoherenceViolation, AtomicModificationAfter, AtomicModificationAfterViolation,
     AtomicReadsFrom, AtomicReadsFromViolation, CompletionClaimSource, IntegerArithmetic,
     IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy,
-    StructuralTypeCatalog, ValueBinding, atomic, calls, control_flow,
+    StructuralCallFormal, StructuralTypeCatalog, ValueBinding, atomic, calls, control_flow,
     happens_before_atomic_coherence_violation, operations, ownership, values,
 };
 pub use abstract_operations::{

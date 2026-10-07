@@ -55,7 +55,7 @@ pub(super) fn resolve(
         (abstract_operations::AbstractBoundaryResult::Unit, AbstractFunctionResult::Unit) => {
             AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,
-                callee,
+                callee: callee.into(),
                 arguments: arguments.clone(),
                 structural_arguments: structural_arguments.clone(),
                 claim_transfers,
@@ -89,7 +89,7 @@ pub(super) fn resolve(
                     returned_claim_transfers: Vec::new(),
                     selected_evidence: Vec::new(),
                 },
-                callee,
+                callee: callee.into(),
                 arguments: arguments.clone(),
                 structural_arguments: structural_arguments.clone(),
                 claim_transfers,
@@ -101,7 +101,7 @@ pub(super) fn resolve(
         // structural operands it is the scalar-only `Call`, whose callee must
         // publish a standalone scalar ABI; otherwise a scalar-result
         // `CallStructural` carries its borrowed operands. Both lower through
-        // `direct_calls`.
+        // `calls`.
         (
             abstract_operations::AbstractBoundaryResult::Scalar(result),
             AbstractFunctionResult::Scalar(candidate_result),
@@ -126,7 +126,7 @@ pub(super) fn resolve(
                 AbstractOperation::CallStructural {
                     psi_operation: *psi_operation,
                     result: AbstractStructuralCallResult::Scalar(*result),
-                    callee,
+                    callee: callee.into(),
                     arguments: arguments.clone(),
                     structural_arguments: structural_arguments.clone(),
                     claim_transfers,
@@ -154,7 +154,7 @@ pub(super) fn retain_origin(
     let [
         TargetUnitOperation::Call {
             psi_operation,
-            callee,
+            target,
             origin: actual,
             ..
         },
@@ -167,7 +167,7 @@ pub(super) fn retain_origin(
         });
     };
     if *psi_operation != installed.psi_operation
-        || *callee != installed.provider.candidate
+        || *target != target_operations::NativeCallTarget::Machine(installed.provider.candidate)
         || *actual != target_operations::NativeCallOrigin::Authored
     {
         return Err(LoweringError::InstalledProviderCallEvidenceMismatch {

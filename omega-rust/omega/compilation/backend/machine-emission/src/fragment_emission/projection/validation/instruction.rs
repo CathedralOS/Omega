@@ -26,9 +26,10 @@ pub(super) fn check(
     )?;
     control::check(function, block, selected, &span.control)?;
     let literal = match selected.kind {
-        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
-            Some(machine_code::ByteLiteralReference { operation, place })
-        }
+        SelectedInstructionKind::ImmutableImageAddress {
+            reference:
+                selected_instructions::SelectedImageAddressReference::ByteLiteral { operation, place },
+        } => Some(machine_code::ByteLiteralReference { operation, place }),
         _ => None,
     };
     match (
@@ -40,6 +41,26 @@ pub(super) fn check(
         (Some(source), Some(actual), Some(literal)) => require(
             source.literal == literal
                 && actual.literal == literal
+                && source.fields.shifted(row.offset) == Some(actual.fields),
+        )?,
+        _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
+    }
+    let reference = match selected.kind {
+        SelectedInstructionKind::ImmutableImageAddress {
+            reference:
+                selected_instructions::SelectedImageAddressReference::ImplementationTable { table },
+        } => Some(machine_code::ImplementationTableReference { table }),
+        _ => None,
+    };
+    match (
+        row.implementation_table_address_fixup,
+        span.implementation_table_address_fixup,
+        reference,
+    ) {
+        (None, None, None) => {}
+        (Some(source), Some(actual), Some(reference)) => require(
+            source.reference == reference
+                && actual.reference == reference
                 && source.fields.shifted(row.offset) == Some(actual.fields),
         )?,
         _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
@@ -91,7 +112,7 @@ pub(super) fn check(
         _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
     }
     match (&row.internal_machine_fixup, &span.internal_machine_fixup, selected.kind) {
-        (Some(source), Some(actual), SelectedInstructionKind::CallScalar { callee } | SelectedInstructionKind::CallUnit { callee } | SelectedInstructionKind::CallAggregate { callee }) => {
+        (Some(source), Some(actual), SelectedInstructionKind::CallScalar { target: selected_instructions::SelectedCallTarget::Machine(callee) } | SelectedInstructionKind::CallUnit { target: selected_instructions::SelectedCallTarget::Machine(callee) } | SelectedInstructionKind::CallAggregate { target: selected_instructions::SelectedCallTarget::Machine(callee) }) => {
             require(row.branch.is_none() && source.callee == callee && actual.callee == callee
                 && source.state == SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
                 && actual.state == FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1
@@ -105,7 +126,7 @@ pub(super) fn check(
                 && Some(actual.reference_function_offset) == row.offset.checked_add(u64::from(source.reference_row_offset))
                 && actual.patch_byte_width == source.patch_byte_width && actual.addend == source.addend)
         },
-        (None, None, kind) if !matches!(kind, SelectedInstructionKind::CallScalar { .. } | SelectedInstructionKind::CallUnit { .. } | SelectedInstructionKind::CallAggregate { .. }) => Ok(()),
+        (None, None, kind) if !matches!(kind, SelectedInstructionKind::CallScalar { target: selected_instructions::SelectedCallTarget::Machine(_) } | SelectedInstructionKind::CallUnit { target: selected_instructions::SelectedCallTarget::Machine(_) } | SelectedInstructionKind::CallAggregate { target: selected_instructions::SelectedCallTarget::Machine(_) }) => Ok(()),
         _ => Err(ResolvedFragmentEmissionError::ArtifactMismatch),
     }
 }

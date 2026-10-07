@@ -1,9 +1,11 @@
-//! Direct calls resolve one callee contract, then each operand's actual storage.
+//! Calls resolve their declared contract, then each operand's actual storage.
 //! A sibling operand and the call's result kind never change argument transport.
 //! Published scalar calls retain their independently checked standalone ABI;
 //! ordinary calls use the declared signature and live reference custody.
 //! Structural results establish their own homes and returned reference leaves
 //! only after argument preparation succeeds.
+//! Dynamic targets borrow the public requirement slot, never one table row.
+//! Their opaque selection operand stays separate from the ordinary argument ABI.
 
 use super::LiveDefinitions;
 use crate::LoweringError;
@@ -14,8 +16,8 @@ use crate::lowering::scalar_abi::fixed_native_scalar_shape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use crate::lowering::unit::roster_arguments::lower_structural_argument;
 use abstract_operations::{
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
-    AbstractStructuralCallResult,
+    AbstractCallSignature, AbstractCallTarget, AbstractFunction, AbstractFunctionResult,
+    AbstractOperation, AbstractResult, AbstractStructuralCallResult, StructuralCallFormal,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
@@ -43,9 +45,12 @@ enum CallContract {
     Ordinary,
 }
 
-/// One direct call's operands, whichever abstract operation spelled it.
-struct DirectCall<'a> {
+/// One invocation's operands, whichever abstract operation spelled it.
+struct Invocation<'a> {
     psi_operation: OperationId,
+    target: AbstractCallTarget,
+    // Diagnostics name the direct callee or the dynamic occurrence's caller;
+    // this coordinate never supplies a requirement signature or implementation.
     callee: MachineId,
     scalar_arguments: &'a [ValueId],
     structural_arguments: &'a [StructuralArgument],
@@ -55,13 +60,14 @@ struct DirectCall<'a> {
     result: &'a AbstractStructuralCallResult,
 }
 
-/// Lower one direct call to its `TargetUnitOperation::Call` row.
+/// Lower one invocation to its `TargetUnitOperation::Call` row.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_direct_call(
+pub(super) fn lower_call(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     types: &StructuralTypeLookup<'_>,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     prepared: &PreparedFunctionSignature,
@@ -85,9 +91,10 @@ pub(super) fn lower_direct_call(
             requirement_obligations,
             crash_continuations,
         } => {
-            let call = DirectCall {
+            let call = Invocation {
                 psi_operation: *psi_operation,
-                callee: *callee,
+                target: *callee,
+                callee: callee.machine().unwrap_or(function.machine),
                 scalar_arguments: arguments,
                 structural_arguments,
                 claim_transfers,
@@ -110,8 +117,9 @@ pub(super) fn lower_direct_call(
                 value: *result,
                 scalar_type: *scalar_type,
             });
-            let call = DirectCall {
+            let call = Invocation {
                 psi_operation: *psi_operation,
+                target: AbstractCallTarget::Machine(*callee),
                 callee: *callee,
                 scalar_arguments: arguments,
                 structural_arguments: &[],
@@ -124,17 +132,46 @@ pub(super) fn lower_direct_call(
         }
         _ => return Err(unsupported()),
     };
-    let callee_function = functions
-        .get(&call.callee)
-        .copied()
-        .ok_or(LoweringError::UnknownCallTarget(call.callee))?;
+    let (declaration, callee_function) = match call.target {
+        AbstractCallTarget::Machine(machine) => {
+            let callee = functions
+                .get(&machine)
+                .copied()
+                .ok_or(LoweringError::UnknownCallTarget(machine))?;
+            (AbstractCallSignature::Machine(callee), Some(callee))
+        }
+        AbstractCallTarget::Dynamic {
+            interface,
+            slot,
+            selector,
+        } => {
+            let requirement = dynamic_dispatch
+                .interface(interface)
+                .and_then(|interface| interface.slots.get(slot as usize))
+                .filter(|requirement| requirement.slot == slot)
+                .ok_or_else(unsupported)?;
+            let operand = super::scalar_sources::source(selector, function, live)?;
+            if !matches!(operand.scalar_type(), semantic_vocabulary::ScalarType::Integer(integer)
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64)
+            {
+                return Err(LoweringError::ValueTypeMismatch(selector));
+            }
+            (AbstractCallSignature::Requirement(requirement), None)
+        }
+    };
     let (signature, structural_home) = match contract {
         CallContract::PublishedScalar => (
-            published_scalar_contract(&call, callee_function, target, scalar_abis)?,
+            published_scalar_contract(
+                &call,
+                callee_function.ok_or_else(unsupported)?,
+                target,
+                scalar_abis,
+            )?
+            .into(),
             None,
         ),
         CallContract::Ordinary => {
-            ordinary_contract(&call, callee_function, function, target, types)?
+            ordinary_contract(&call, declaration, callee_function, function, target, types)?
         }
     };
     // Check the whole roster before preparing any argument. Carrier moves
@@ -155,12 +192,16 @@ pub(super) fn lower_direct_call(
     let arguments = call
         .structural_arguments
         .iter()
-        .zip(&callee_function.structural_parameters)
+        .zip(
+            (0..declaration.structural_parameter_count())
+                .map(|position| declaration.structural_parameter(position)),
+        )
         .zip(&signature.parameters)
         .map(|((argument, declaration), destination)| {
+            let declaration = declaration.ok_or_else(unsupported)?;
             structural_argument(
                 argument,
-                declaration,
+                &declaration,
                 destination,
                 call.callee,
                 function,
@@ -188,7 +229,20 @@ pub(super) fn lower_direct_call(
     operations.push(TargetUnitOperation::Call {
         origin: target_operations::NativeCallOrigin::Authored,
         psi_operation: call.psi_operation,
-        callee: call.callee,
+        target: match call.target {
+            AbstractCallTarget::Machine(machine) => {
+                target_operations::NativeCallTarget::Machine(machine)
+            }
+            AbstractCallTarget::Dynamic {
+                selector,
+                interface,
+                slot,
+            } => target_operations::NativeCallTarget::Dynamic {
+                selector,
+                interface,
+                slot,
+            },
+        },
         call_plan: signature.call_plan,
         result,
         scalar_arguments,
@@ -208,8 +262,8 @@ pub(super) fn lower_direct_call(
 #[allow(clippy::too_many_arguments)]
 fn land_result(
     contract: CallContract,
-    call: &DirectCall<'_>,
-    callee_function: &AbstractFunction,
+    call: &Invocation<'_>,
+    callee_function: Option<&AbstractFunction>,
     structural_home: Option<TargetStructuralHomeRequirement>,
     moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), super::references::ReferenceCustody>,
     function: &AbstractFunction,
@@ -238,6 +292,7 @@ fn land_result(
             returned_claim_transfers,
             ..
         } => {
+            let callee_function = callee_function.ok_or_else(unsupported)?;
             let result_home = structural_home.ok_or_else(unsupported)?;
             let callee_result = callee_function
                 .result
@@ -292,7 +347,7 @@ fn land_result(
 /// claims, whose fixed-native scalar result matches the call's and sits in one
 /// register, and whose published standalone scalar ABI equals this plan.
 fn published_scalar_contract(
-    call: &DirectCall<'_>,
+    call: &Invocation<'_>,
     callee_function: &AbstractFunction,
     target: NativeTarget,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
@@ -392,49 +447,48 @@ fn require_exact_target_abi(
 
 /// Ordinary calls share the declared signature, independently of result kind
 /// and operand storage. Exact claim transfers, proof obligations and crash
-/// routes travel unchanged on the emitted call. Descriptor forwarding retains
-/// its separate transport contract.
+/// routes travel unchanged on the emitted call. Selector forwarding uses the
+/// ordinary scalar carrier without lending any data authority.
 fn ordinary_contract(
-    call: &DirectCall<'_>,
-    callee_function: &AbstractFunction,
+    call: &Invocation<'_>,
+    declaration: AbstractCallSignature<'_>,
+    callee_function: Option<&AbstractFunction>,
     function: &AbstractFunction,
     target: NativeTarget,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<
     (
-        PreparedFunctionSignature,
+        super::call_signature::PreparedCallSignature,
         Option<TargetStructuralHomeRequirement>,
     ),
     LoweringError,
 > {
-    if call.scalar_arguments.len() != callee_function.parameters.len() {
+    if call.scalar_arguments.len() != declaration.scalar_parameter_count() {
         return Err(LoweringError::CallArgumentCountMismatch {
             callee: call.callee,
-            expected: callee_function.parameters.len(),
+            expected: declaration.scalar_parameter_count(),
             actual: call.scalar_arguments.len(),
         });
     }
-    if call.structural_arguments.len() != callee_function.structural_parameters.len() {
+    if call.structural_arguments.len() != declaration.structural_parameter_count() {
         return Err(LoweringError::StructuralCallArgumentCountMismatch {
             callee: call.callee,
-            expected: callee_function.structural_parameters.len(),
+            expected: declaration.structural_parameter_count(),
             actual: call.structural_arguments.len(),
         });
     }
     let home = match call.result {
         AbstractStructuralCallResult::Unit => {
-            if callee_function.result != AbstractFunctionResult::Unit {
+            if declaration.scalar_result().is_some()
+                || callee_function
+                    .is_some_and(|callee| callee.result != AbstractFunctionResult::Unit)
+            {
                 return Err(LoweringError::UnitCallTargetKindMismatch(call.callee));
             }
             None
         }
         AbstractStructuralCallResult::Scalar(result) => {
-            if callee_function
-                .result
-                .scalar()
-                .map(|declared| declared.scalar_type)
-                != Some(result.scalar_type)
-            {
+            if declaration.scalar_result() != Some(result.scalar_type) {
                 return Err(LoweringError::UnitScalarCallResultTypeMismatch {
                     callee: call.callee,
                     result: result.value,
@@ -442,14 +496,26 @@ fn ordinary_contract(
             }
             None
         }
-        AbstractStructuralCallResult::Structural { .. } => Some(structural_result_home(
-            call,
-            callee_function,
-            function,
-            types,
-        )?),
+        AbstractStructuralCallResult::Structural { .. } => {
+            // Structural result origins are declaration-owned. The current
+            // interface vocabulary does not publish those origins yet; never
+            // infer them from one implementation row.
+            let callee = callee_function
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            Some(structural_result_home(call, callee, function, types)?)
+        }
     };
-    let signature = prepare_function_signature(callee_function, target, types)?;
+    let signature = if matches!(call.result, AbstractStructuralCallResult::Structural { .. }) {
+        prepare_function_signature(
+            callee_function
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
+            target,
+            types,
+        )?
+        .into()
+    } else {
+        super::call_signature::prepare(function.machine, declaration, target, types)?
+    };
     Ok((signature, home))
 }
 
@@ -459,7 +525,7 @@ fn ordinary_contract(
 /// qualifications; the caller may add only domains this call's own
 /// establishment rows mint.
 fn structural_result_home(
-    call: &DirectCall<'_>,
+    call: &Invocation<'_>,
     callee_function: &AbstractFunction,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -538,10 +604,10 @@ fn bounded_owned_byte_result(
 /// One scalar argument resolves through the dominating scalar sources and must
 /// carry its callee parameter's declared type.
 fn scalar_argument(
-    call: &DirectCall<'_>,
+    call: &Invocation<'_>,
     position: usize,
     value: ValueId,
-    parameter: &ScalarAbiValue,
+    parameter: &super::call_signature::PreparedScalarCallFormal,
     function: &AbstractFunction,
     live: &LiveDefinitions,
 ) -> Result<TargetUnitScalarCallArgument, LoweringError> {
@@ -566,8 +632,8 @@ fn scalar_argument(
 #[allow(clippy::too_many_arguments)]
 fn structural_argument(
     argument: &StructuralArgument,
-    declaration: &StructuralParameterDeclaration,
-    destination: &TargetStructuralParameter,
+    formal: &StructuralCallFormal<'_>,
+    placement: &super::call_signature::PreparedStructuralCallFormal,
     callee: MachineId,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -578,6 +644,29 @@ fn structural_argument(
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
+    // Existing geometry classifiers consume declaration-shaped inputs but read
+    // only formal type/access and placement. Bind that scratch view to the
+    // actual caller operand, not an invented callee place. Its identity grants
+    // no storage or permission: every transport below reconstructs source
+    // custody from `function`, `prepared` and `live` independently.
+    let declaration = &StructuralParameterDeclaration {
+        place: argument.place,
+        position: formal.position,
+        structural_type: formal.structural_type,
+        multiplicity: formal.multiplicity,
+        access: formal.access,
+        qualifications: formal.qualifications.to_vec(),
+        projected_qualifications: formal.projected_qualifications.to_vec(),
+    };
+    let destination = &TargetStructuralParameter {
+        place: argument.place,
+        structural_type: formal.structural_type,
+        multiplicity: formal.multiplicity,
+        access: formal.access,
+        projected_qualifications: formal.projected_qualifications.to_vec(),
+        shape: placement.shape,
+        placement: placement.placement.clone(),
+    };
     if let Some(argument) = super::byte_arguments::shared_owner_view(
         argument,
         declaration,

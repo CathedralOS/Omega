@@ -47,6 +47,7 @@ pub(in super::super) fn layout(
                 internal_machine_fixup,
                 normalized_foreign_call_fixup,
                 byte_literal_address_fixup,
+                implementation_table_address_fixup,
             ) = row::resolve(
                 architecture,
                 block,
@@ -70,6 +71,7 @@ pub(in super::super) fn layout(
                 internal_machine_fixup,
                 normalized_foreign_call_fixup,
                 byte_literal_address_fixup,
+                implementation_table_address_fixup,
             });
             instruction_offset = instruction_offset
                 .checked_add(byte_count)

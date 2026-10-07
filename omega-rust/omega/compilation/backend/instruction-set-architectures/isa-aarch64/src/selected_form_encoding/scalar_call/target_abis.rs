@@ -31,7 +31,7 @@ fn target_register_arities_encode_and_reject_opposite_abi_effects() {
         ),
     ];
     let kind = SelectedInstructionKind::CallScalar {
-        callee: MachineId::new(7).unwrap(),
+        target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
     };
     let alternative = MachineAlternativeKey {
         family: MachineAlternativeFamily::CallScalar,

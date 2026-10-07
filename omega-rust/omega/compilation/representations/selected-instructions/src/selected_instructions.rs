@@ -78,7 +78,9 @@ pub use identity::{
     RedundantCompareIdentity, RedundantExtensionIdentity, SelectedBlockId, SelectedInstructionId,
     SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity, VirtualRegisterId,
 };
-pub use instructions::{SelectedInstruction, SelectedInstructionKind};
+pub use instructions::{
+    SelectedCallTarget, SelectedImageAddressReference, SelectedInstruction, SelectedInstructionKind,
+};
 pub use legalized_operations::{
     SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
 };

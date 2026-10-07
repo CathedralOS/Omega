@@ -25,9 +25,10 @@ pub struct TargetOperationPlan {
 
 pub mod calls;
 pub use calls::{
-    MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, TargetBoundaryResult,
-    TargetCallResult, TargetNativeCallbackArgument, TargetOperationPlanWithPlacedViewInputs,
-    TargetPlacedViewInput, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    MixedStructuralScalarFunctionAbi, NativeCallTarget, ScalarAbiValue, ScalarFunctionAbi,
+    TargetBoundaryResult, TargetCallResult, TargetNativeCallbackArgument,
+    TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, selector_carrier_type,
 };
 pub mod control_flow;
 pub use control_flow::{

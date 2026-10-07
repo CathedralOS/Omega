@@ -164,7 +164,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallScalar { .. } => 12,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
         SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
-        SelectedInstructionKind::ByteLiteralImageAddress { .. } => 232,
+        SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
         SelectedInstructionKind::ScanByteSequence { .. } => 233,
         SelectedInstructionKind::CompareByteSequences => 234,
         SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
@@ -322,18 +322,17 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        SelectedInstructionKind::CallScalar { callee }
-        | SelectedInstructionKind::CallAggregate { callee }
-        | SelectedInstructionKind::CallUnit { callee } => {
-            bytes.extend_from_slice(&callee.get().to_le_bytes());
+        SelectedInstructionKind::CallScalar { target }
+        | SelectedInstructionKind::CallAggregate { target }
+        | SelectedInstructionKind::CallUnit { target } => {
+            target.encode_identity(bytes);
         }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&ordinal.to_le_bytes());
         }
-        SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
-            bytes.extend_from_slice(&place.get().to_le_bytes());
+        SelectedInstructionKind::ImmutableImageAddress { reference } => {
+            reference.encode_identity(bytes);
         }
         SelectedInstructionKind::ScanByteSequence { predicate } => {
             bytes.push(predicate.mask_bit());
@@ -453,7 +452,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
             }
         }
         35 => SelectedInstructionKind::CallAggregate {
-            callee: decode_id(cursor, MachineId::new)?,
+            target: decode_call_target(cursor)?,
         },
         36 => SelectedInstructionKind::ReturnAggregate {
             fragment_count: cursor.byte()?,
@@ -520,15 +519,23 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
             }
         }
         19 => SelectedInstructionKind::CallUnit {
-            callee: decode_id(cursor, MachineId::new)?,
+            target: decode_call_target(cursor)?,
         },
         87 => SelectedInstructionKind::NormalizedForeignCall {
             boundary: decode_id(cursor, BoundaryMachineId::new)?,
             ordinal: cursor.u32()?,
         },
-        232 => SelectedInstructionKind::ByteLiteralImageAddress {
-            operation: decode_id(cursor, OperationId::new)?,
-            place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
+        232 => SelectedInstructionKind::ImmutableImageAddress {
+            reference: match cursor.byte()? {
+                0 => selected_instructions::SelectedImageAddressReference::ByteLiteral {
+                    operation: decode_id(cursor, OperationId::new)?,
+                    place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
+                },
+                1 => selected_instructions::SelectedImageAddressReference::ImplementationTable {
+                    table: cursor.u32()?,
+                },
+                tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+            },
         },
         tag @ 233 => SelectedInstructionKind::ScanByteSequence {
             predicate: {
@@ -712,7 +719,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         },
         11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
         12 => SelectedInstructionKind::CallScalar {
-            callee: decode_id(cursor, MachineId::new)?,
+            target: decode_call_target(cursor)?,
         },
         13 => SelectedInstructionKind::ConditionalBranchI64LessThan,
         tag => return Err(FixedViewCopyDecodeError::UnknownInstructionKind(tag)),
@@ -824,14 +831,15 @@ mod tests {
 
     #[test]
     fn call_i64_uses_append_only_tag_twelve_and_binds_callee() {
-        let callee = MachineId::new(47).unwrap();
+        let target =
+            selected_instructions::SelectedCallTarget::Machine(MachineId::new(47).unwrap());
         let mut bytes = Vec::new();
-        encode_kind(&mut bytes, SelectedInstructionKind::CallScalar { callee });
+        encode_kind(&mut bytes, SelectedInstructionKind::CallScalar { target });
         assert_eq!(bytes[0], 12);
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(
             decode_kind(&mut cursor).unwrap(),
-            SelectedInstructionKind::CallScalar { callee }
+            SelectedInstructionKind::CallScalar { target }
         );
     }
 
@@ -911,7 +919,7 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
             byte_offset: 0,
         },
         SelectedInstructionKind::CallUnit {
-            callee: MachineId::new(47).unwrap(),
+            target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(47).unwrap()),
         },
     ] {
         let mut bytes = Vec::new();
@@ -1048,4 +1056,17 @@ fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> 
             .map(move |carrier| (operation, carrier))
     })
     .find(|(operation, carrier)| saturating_family_tag(*operation, *carrier) == tag)
+}
+
+fn decode_call_target(
+    cursor: &mut Cursor<'_>,
+) -> Result<selected_instructions::SelectedCallTarget, FixedViewCopyDecodeError> {
+    Ok(match cursor.byte()? {
+        0 => selected_instructions::SelectedCallTarget::Machine(decode_id(cursor, MachineId::new)?),
+        1 => selected_instructions::SelectedCallTarget::Dynamic {
+            interface: cursor.u32()?,
+            slot: cursor.u32()?,
+        },
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    })
 }

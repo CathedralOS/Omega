@@ -56,7 +56,7 @@
 //! bound catalog must declare the call row — the consumer's and the
 //! rewritten form's alike — with its complete activation surface:
 //! `DirectRelativeCallV1` control, the `Call` barrier, the
-//! `DirectInternalNormalReturnV1` call effect, the retained
+//! `InternalNormalReturnV1` call effect, the retained
 //! `MayArchitecturalFaultV1` trap, and the target's stack lifecycle —
 //! `WriteReturnAddressBelowStackPointerV1` memory paired with
 //! `CallReturnAddressLifecycleV1` stack on x86-64, `NoneV1` paired with
@@ -233,7 +233,7 @@ pub enum CopiedCallOperandError {
     /// constraints, and selected keys, does not declare the consumer or
     /// producer form under the record's constraint key, or the
     /// declarations do not satisfy the rule's retained-call axis — the
-    /// call's `Call` barrier, `DirectInternalNormalReturnV1` effect,
+    /// call's `Call` barrier, `InternalNormalReturnV1` effect,
     /// `DirectRelativeCallV1` control, retained fault surface, and the
     /// target's stack lifecycle carried verbatim, the retained copy
     /// fully effect-isolated.

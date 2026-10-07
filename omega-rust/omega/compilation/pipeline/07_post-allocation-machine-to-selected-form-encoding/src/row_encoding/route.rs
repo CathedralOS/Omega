@@ -144,7 +144,7 @@ pub(super) fn route_of(kind: SelectedInstructionKind) -> RowRoute {
             RowRoute::InternalCallTemplate
         }
         Kind::NormalizedForeignCall { .. } => RowRoute::NormalizedForeignCallTemplate,
-        Kind::ByteLiteralImageAddress { .. } => RowRoute::ByteLiteralAddress,
+        Kind::ImmutableImageAddress { .. } => RowRoute::ByteLiteralAddress,
         Kind::ConditionalBranchNonZero
         | Kind::ConditionalBranchU64LessThan
         | Kind::ConditionalBranchI64LessThan

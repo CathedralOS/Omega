@@ -16,9 +16,9 @@ pub(super) fn check(
     instruction: &SelectedInstruction,
     actual: &Control,
 ) -> Result<(), ResolvedFragmentEmissionError> {
-    if let SelectedInstructionKind::CallScalar { callee }
-    | SelectedInstructionKind::CallUnit { callee }
-    | SelectedInstructionKind::CallAggregate { callee } = instruction.kind
+    if let SelectedInstructionKind::CallScalar { target }
+    | SelectedInstructionKind::CallUnit { target }
+    | SelectedInstructionKind::CallAggregate { target } = instruction.kind
     {
         let mut rows = function
             .calls
@@ -27,9 +27,13 @@ pub(super) fn check(
         let row = rows
             .next()
             .ok_or(ResolvedFragmentEmissionError::ArtifactMismatch)?;
-        require(rows.next().is_none() && row.call.callee == callee)?;
+        require(
+            rows.next().is_none()
+                && selected_instructions::SelectedCallTarget::from_native(row.call.target)
+                    == target,
+        )?;
         return require(
-            matches!(actual, Control::DirectInternalCall { callee: target, owner } if *target == callee && *owner == row.owner),
+            matches!(actual, Control::InternalCall { target: actual_target, owner } if *actual_target == target && *owner == row.owner),
         );
     }
     if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind {

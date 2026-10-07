@@ -131,6 +131,16 @@ pub fn relocation_free_text_section_identity(
             hasher.update(identity);
         }
     }
+    if !section.unresolved_implementation_table_addresses.is_empty() {
+        hasher.update(b"implementation-table-addresses");
+        hasher
+            .update((section.unresolved_implementation_table_addresses.len() as u64).to_le_bytes());
+        for placed in &section.unresolved_implementation_table_addresses {
+            let mut identity = Vec::new();
+            placed.encode_identity(&mut identity);
+            hasher.update(identity);
+        }
+    }
     hasher.update([match section.relocation_requirements {
         TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => 1,
         TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
@@ -229,6 +239,7 @@ mod tests {
             resolved_internal_machine_calls: Vec::new(),
             unresolved_normalized_foreign_calls: Vec::new(),
             unresolved_byte_literal_addresses: Vec::new(),
+            unresolved_implementation_table_addresses: Vec::new(),
             relocation_requirements:
                 TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
         };
@@ -304,6 +315,7 @@ mod tests {
             ],
             unresolved_normalized_foreign_calls: Vec::new(),
             unresolved_byte_literal_addresses: Vec::new(),
+            unresolved_implementation_table_addresses: Vec::new(),
             resolved_internal_machine_calls: vec![
                 PlacedInternalMachineCallResolution {
                     kind: InternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1,

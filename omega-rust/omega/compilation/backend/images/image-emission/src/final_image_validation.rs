@@ -12,6 +12,8 @@ use image::{
 
 use super::ObjectArtifact;
 
+mod implementation_tables;
+
 pub(super) fn validate_terminal_image(
     artifact: &ObjectArtifact,
     object: &object_file::ObjectPlan,
@@ -294,16 +296,15 @@ fn validate_terminal_image_with_import_count(
     let encoded_final_data =
         encoded_final_data_with_image_import_slots(artifact, object, relocations)?;
     output.validate_final_initialized_data_relocation_envelope(&encoded_final_data, relocations)?;
-    // The compiler emits no initialized data, so no data relocation may
-    // appear in its object.
-    if relocations
-        .records()
-        .any(|(_, relocation)| relocation.section == object_file::SectionKind::Data)
-    {
-        return Err(Diagnostic::error(
-            "terminal-Psi object retains an initialized-data relocation it never emitted",
-        ));
-    }
+    // Initialized compiler data belongs only to the exact immutable selector
+    // table pool. Image preparation cannot add, substitute or drop its rows.
+    super::function_fragments::implementation_tables::validate_image_data_relocations(
+        artifact,
+        object,
+        relocations,
+    )
+    .map_err(|error| Diagnostic::error(error.to_string()))?;
+    implementation_tables::validate_targets(artifact, output)?;
     validate_callback_relocation_targets(artifact, object, relocations, output)?;
     validate_byte_literal_address_targets(artifact, output)?;
     Ok(evidence)

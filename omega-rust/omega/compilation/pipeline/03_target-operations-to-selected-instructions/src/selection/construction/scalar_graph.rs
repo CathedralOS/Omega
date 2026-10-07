@@ -306,6 +306,34 @@ fn select_function(
                 boolean_value::emit(operation, &mut builder)?
             } else {
                 match &operation.kind {
+                    LegalizedScalarInstructionKind::SelectImplementation { table } => {
+                        if scalar_type != target_operations::selector_carrier_type() {
+                            return Err(invalid());
+                        }
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        let key = builder
+                            .constraints
+                            .keys
+                            .byte_literal_image_address
+                            .ok_or_else(invalid)?;
+                        builder.emit(
+                            SelectedInstructionKind::ImmutableImageAddress {
+                                reference: selected_instructions::SelectedImageAddressReference::ImplementationTable {
+                                    table: *table,
+                                },
+                            },
+                            key,
+                            &[output],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::AtomicAccess { .. } => {
                         return Err(invalid());
                     }
@@ -628,6 +656,17 @@ impl Builder<'_> {
                     super::super::scalar_call_abi::normalized_foreign::call_constraint(
                         &record.call,
                         self.environment,
+                    )
+                    .ok_or_else(SelectedInstructionError::custody)?,
+                )
+            } else if matches!(
+                kind.call_target(),
+                Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
+            ) {
+                std::borrow::Cow::Owned(
+                    selected_instructions::calls::dynamic::instantiate_constraint(
+                        row(self.catalog, key)?,
+                        self.environment.physical(),
                     )
                     .ok_or_else(SelectedInstructionError::custody)?,
                 )

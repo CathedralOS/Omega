@@ -26,7 +26,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
     }
     let call = &row.call;
     encode_call_source(bytes, &call.source, true);
-    bytes.extend_from_slice(&call.callee.get().to_le_bytes());
+    bytes.extend_from_slice(&call.target.canonical_bytes());
     encode_call_plan(bytes, &call.call_plan);
     length(bytes, call.arguments.len());
     for argument in &call.arguments {
@@ -112,7 +112,15 @@ pub(super) fn decode_call(
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
     let source = decode_call_source(cursor, true)?;
-    let callee = decode_id(cursor, MachineId::new)?;
+    let target = match cursor.byte()? {
+        0 => target_operations::NativeCallTarget::Machine(decode_id(cursor, MachineId::new)?),
+        1 => target_operations::NativeCallTarget::Dynamic {
+            selector: decode_id(cursor, ValueId::new)?,
+            interface: cursor.u32()?,
+            slot: cursor.u32()?,
+        },
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    };
     let call_plan = decode_call_plan(cursor)?;
     let count = cursor.length()?;
     let mut arguments = Vec::new();
@@ -193,7 +201,7 @@ pub(super) fn decode_call(
         call: LegalizedScalarCall {
             descriptor_origins,
             source,
-            callee,
+            target,
             call_plan,
             arguments,
             result_placement,

@@ -193,7 +193,8 @@ pub(in crate::legalization::scalar_graph_input) fn definition(
                 )?,
             }),
         )),
-        TargetUnitOperation::IeeeFloatCompare { result_home, .. }
+        TargetUnitOperation::SelectImplementation { result_home, .. }
+        | TargetUnitOperation::IeeeFloatCompare { result_home, .. }
         | TargetUnitOperation::ScalarRepresentationView { result_home, .. }
         | TargetUnitOperation::FloatResultPolicy { result_home, .. }
         | TargetUnitOperation::NearestIeeeFloatArithmetic { result_home, .. }

@@ -58,7 +58,7 @@ pub(super) fn decode_instruction(
     let call = match cursor.byte()? {
         0 => MachineCallEffect::NoneV1,
         3 if allow_scalar_call => MachineCallEffect::SupervisorNormalReturnV1,
-        1 if allow_scalar_call => MachineCallEffect::DirectInternalNormalReturnV1 {
+        1 if allow_scalar_call => MachineCallEffect::InternalNormalReturnV1 {
             pre_call_stack_alignment: cursor.u16()?,
         },
         2 if allow_scalar_call => MachineCallEffect::DirectExternalNormalReturnV1 {
@@ -214,8 +214,7 @@ fn decode_kind(
             }
         }
         19 => SelectedInstructionKind::CallUnit {
-            callee: MachineId::new(cursor.u64()?)
-                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            target: decode_call_target(cursor)?,
         },
         51 => SelectedInstructionKind::BitwiseAndI64,
         52 => SelectedInstructionKind::BitwiseXorI64,
@@ -325,8 +324,7 @@ fn decode_kind(
             fragment_count: cursor.byte()?,
         },
         35 if allow_scalar_call => SelectedInstructionKind::CallAggregate {
-            callee: MachineId::new(cursor.u64()?)
-                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            target: decode_call_target(cursor)?,
         },
         8 => SelectedInstructionKind::ExactSubtractI64Immediate {
             immediate: decode_integer(cursor)?,
@@ -342,8 +340,21 @@ fn decode_kind(
         12 if allow_i64_less_than => SelectedInstructionKind::ConditionalBranchI64LessThan,
         14 if allow_jump => SelectedInstructionKind::Jump,
         13 if allow_scalar_call => SelectedInstructionKind::CallScalar {
-            callee: MachineId::new(cursor.u64()?)
-                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            target: decode_call_target(cursor)?,
+        },
+        232 => SelectedInstructionKind::ImmutableImageAddress {
+            reference: match cursor.byte()? {
+                0 => crate::SelectedImageAddressReference::ByteLiteral {
+                    operation: OperationId::new(cursor.u64()?)
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                    place: semantic_vocabulary::PlaceId::new(cursor.u64()?)
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                },
+                1 => crate::SelectedImageAddressReference::ImplementationTable {
+                    table: cursor.u32()?,
+                },
+                _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
+            },
         },
         87 => SelectedInstructionKind::NormalizedForeignCall {
             boundary: semantic_vocabulary::BoundaryMachineId::new(cursor.u64()?)
@@ -529,7 +540,7 @@ fn decode_alternative_for_version(
         25 => MachineAlternativeFamily::AddressOffset,
         17 => MachineAlternativeFamily::Store64,
         18 => MachineAlternativeFamily::FrameAddress,
-        232 => MachineAlternativeFamily::ByteLiteralImageAddress,
+        232 => MachineAlternativeFamily::ImmutableImageAddress,
         19 => MachineAlternativeFamily::CallUnit,
         3 => MachineAlternativeFamily::ExactAddI64,
         51 => MachineAlternativeFamily::BitwiseAndI64,
@@ -754,6 +765,7 @@ fn decode_encoded_effects(
             target: register_model::RegisterViewId(cursor.u16()?),
         },
         4 if allow_scalar_call => MachineEncodedControlEffect::DirectRelativeCallV1,
+        13 if allow_scalar_call => MachineEncodedControlEffect::IndirectTableCallOrTrapV1,
         11 if allow_scalar_call => MachineEncodedControlEffect::SupervisorCallV1,
         12 => MachineEncodedControlEffect::AtomicRetryUntilCommitV1,
         5 if allow_jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
@@ -988,4 +1000,20 @@ mod float_result_policy_tests {
         assert!(decode_kind(&mut Cursor::new(&[231]), true, true, true).is_err());
         assert!(decode_alternative(&mut Cursor::new(&[231])).is_err());
     }
+}
+
+fn decode_call_target(
+    cursor: &mut Cursor<'_>,
+) -> Result<crate::SelectedCallTarget, PreAllocationMachineEffectDecodeError> {
+    Ok(match cursor.byte()? {
+        0 => crate::SelectedCallTarget::Machine(
+            MachineId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        ),
+        1 => crate::SelectedCallTarget::Dynamic {
+            interface: cursor.u32()?,
+            slot: cursor.u32()?,
+        },
+        _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
+    })
 }

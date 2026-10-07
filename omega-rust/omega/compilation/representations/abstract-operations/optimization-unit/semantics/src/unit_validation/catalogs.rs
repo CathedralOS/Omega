@@ -96,6 +96,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     }
     let services = index_service_catalog(unit)?;
     let (structural_types, structural_domains) = index_structural_catalogs(unit)?;
+    validate_dynamic_catalog(unit, &machines, &structural_types)?;
     for boundary in &unit.boundary_machines {
         if !valid_service_ceiling(&boundary.published_service_ceiling, &services) {
             return Err(
@@ -141,6 +142,93 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         pruned,
         ownership_frontiers,
     })
+}
+
+fn validate_dynamic_catalog(
+    unit: &PsiOptimizationUnit,
+    machines: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let invalid = || OptimizationUnitValidationError::DynamicDispatchCatalogMismatch;
+    for (ordinal, interface) in unit.dynamic_dispatch.interfaces.iter().enumerate() {
+        if usize::try_from(interface.id).ok() != Some(ordinal) || interface.identity.is_empty() {
+            return Err(invalid());
+        }
+        for (ordinal, slot) in interface.slots.iter().enumerate() {
+            if usize::try_from(slot.slot).ok() != Some(ordinal)
+                || slot.declaring_trait_identity.is_empty()
+                || slot.requirement_identity.is_empty()
+                || slot
+                    .structural_parameters
+                    .iter()
+                    .any(|formal| !types.contains_key(&formal.structural_type))
+            {
+                return Err(invalid());
+            }
+        }
+    }
+    for (ordinal, table) in unit.dynamic_dispatch.tables.iter().enumerate() {
+        let interface = unit
+            .dynamic_dispatch
+            .interface(table.interface)
+            .ok_or_else(invalid)?;
+        if usize::try_from(table.id).ok() != Some(ordinal)
+            || table.implementation_identity.is_empty()
+            || table.rows.len() != interface.slots.len()
+        {
+            return Err(invalid());
+        }
+        for (row, slot) in table.rows.iter().zip(&interface.slots) {
+            let Some(machine) = row else {
+                continue;
+            };
+            let function = machines.get(machine).ok_or_else(invalid)?;
+            let result_matches = match &function.result {
+                abstract_operations::AbstractFunctionResult::Unit => slot.result.is_none(),
+                abstract_operations::AbstractFunctionResult::Scalar(result) => {
+                    slot.result == Some(result.scalar_type)
+                }
+                abstract_operations::AbstractFunctionResult::Structural(_) => false,
+            };
+            if !result_matches
+                // The public requirement currently has no entry-claim schema.
+                // An implementation's private ingress evidence cannot become
+                // an implicit obligation of a selector caller.
+                || !function.entry_claim_declarations.is_empty()
+                || !function.content_entry_claims.is_empty()
+                || !function.entry_claims.is_empty()
+                || function.parameters.len() != slot.scalar_parameters.len()
+                || !function
+                    .parameters
+                    .iter()
+                    .zip(&slot.scalar_parameters)
+                    .all(|(actual, formal)| actual.scalar_type == *formal)
+                || function.structural_parameters.len() != slot.structural_parameters.len()
+                || !function
+                    .structural_parameters
+                    .iter()
+                    .zip(&slot.structural_parameters)
+                    .all(|(actual, formal)| {
+                        // Compare the same place-free signature projection
+                        // used at the call site. The present requirement
+                        // schema exposes empty qualification rosters; reject
+                        // stronger private preconditions rather than infer
+                        // caller authority from one executable table row.
+                        let actual = abstract_operations::StructuralCallFormal::from(actual);
+                        let formal = abstract_operations::StructuralCallFormal::from(formal);
+                        actual.position == formal.position
+                            && actual.structural_type == formal.structural_type
+                            && actual.multiplicity == formal.multiplicity
+                            && actual.access == formal.access
+                            && actual.qualifications == formal.qualifications
+                            && actual.projected_qualifications == formal.projected_qualifications
+                    })
+            {
+                return Err(invalid());
+            }
+        }
+    }
+    Ok(())
 }
 
 fn validate_structural_field_range_authority(

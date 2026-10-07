@@ -118,7 +118,7 @@ pub(in crate::function_fragments) fn validate_function(
             .find(|row| row.instruction == contract.instruction)
             .ok_or_else(invalid)?;
         if actual.owner != contract.owner
-            || actual.target != expected.callee
+            || expected.target != target_operations::NativeCallTarget::Machine(actual.target)
             || actual.semantic_result != scalar_result::result(source, selected, contract)?
             || actual.result != actual.semantic_result.map(|result| result.scalar_type)
             || actual.structural_result.is_some()
@@ -136,7 +136,9 @@ pub(in crate::function_fragments) fn validate_function(
             || call_span
                 .internal_machine_fixup
                 .as_ref()
-                .is_none_or(|fixup| fixup.callee != expected.callee)
+                .is_none_or(|fixup| {
+                    expected.target != target_operations::NativeCallTarget::Machine(fixup.callee)
+                })
         {
             return Err(invalid());
         }

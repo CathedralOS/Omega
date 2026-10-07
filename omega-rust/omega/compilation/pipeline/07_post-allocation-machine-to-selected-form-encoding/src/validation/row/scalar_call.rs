@@ -27,6 +27,49 @@ pub(super) fn validate(
     row: &SelectedFormEncodingRow,
     encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
+    if matches!(
+        kind.call_target(),
+        Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
+    ) {
+        if row.state != SelectedFormEncodingState::Encoded {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        let Some((bytes, footprint)) = encoded.encoded(row) else {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        };
+        let views = operand_views(machine);
+        let (expected_bytes, effects) = match target.architecture {
+            Architecture::Aarch64 => isa_aarch64::encode_aarch64_selected_dynamic_call_template(
+                target,
+                physical,
+                kind,
+                machine.alternative.key,
+                &views,
+                &machine.alternative.encoded,
+            )
+            .map_err(OptimizedSelectedFormEncodingError::Aarch64ScalarCall)?,
+            Architecture::X86_64 => isa_x86_64::encode_x86_64_selected_dynamic_call_template(
+                target,
+                physical,
+                kind,
+                machine.alternative.key,
+                &views,
+                &machine.alternative.encoded,
+            )
+            .map_err(OptimizedSelectedFormEncodingError::X86_64ScalarCall)?,
+        };
+        let decoded = decoded_footprint(
+            &views_for_effects(machine, &effects, true)?,
+            &views_for_effects(machine, &effects, false)?,
+            &effects,
+        );
+        if bytes != expected_bytes || footprint != &decoded {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        validate_machine_footprint(instruction, machine, &decoded)?;
+        validate_size(instruction, machine.alternative.size, bytes.len())?;
+        return Ok(());
+    }
     let SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } = &row.state else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };

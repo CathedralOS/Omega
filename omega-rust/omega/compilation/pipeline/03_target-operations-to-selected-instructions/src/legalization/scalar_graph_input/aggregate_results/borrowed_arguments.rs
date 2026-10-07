@@ -14,7 +14,7 @@ pub(super) fn reconstruct(
     position: usize,
     call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
-    callee: &PsiOptimizationFunction,
+    callee: abstract_operations::AbstractCallSignature<'_>,
     call: &CallPlan,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
@@ -36,15 +36,17 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
     position: usize,
     owner: target_operations::CallSiteOwner,
     caller: &PsiOptimizationFunction,
-    callee: &PsiOptimizationFunction,
+    callee: abstract_operations::AbstractCallSignature<'_>,
     call: &CallPlan,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let destination = callee
-        .structural_parameters
-        .get(position)
-        .ok_or(LegalizationError::custody())?;
+    let declaration = crate::legalization::scalar_graph_input::call_signature::parameter(
+        callee,
+        position,
+        argument.place,
+    )?;
+    let destination = &declaration;
     // The argument carries the access the call site actually grants, which must
     // equal the callee's declared access; the *source* may hold wider authority
     // (an owned or mutable root can lend a write-only or shared view, but a
@@ -78,7 +80,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
             owner.operation().ok_or(LegalizationError::custody())?,
             caller,
             call,
-            callee.parameters.len() + position,
+            callee.scalar_parameter_count() + position,
             native,
             plan,
         );
@@ -246,7 +248,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
     let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
     let placement = call
         .parameters
-        .get(callee.parameters.len() + position)
+        .get(callee.scalar_parameter_count() + position)
         .ok_or(LegalizationError::custody())?;
     if selected != destination.structural_type || placement.shape != shape {
         return Err(LegalizationError::custody());

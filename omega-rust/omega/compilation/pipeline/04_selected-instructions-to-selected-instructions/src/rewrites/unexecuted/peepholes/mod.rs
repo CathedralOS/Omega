@@ -45,7 +45,7 @@
 //!   `copied_call_operand/pair`, the first descriptor whose consumer
 //!   carries a stack effect: the rewritten call retains its complete
 //!   activation surface — `Call` barrier,
-//!   `DirectInternalNormalReturnV1` call effect, `DirectRelativeCallV1`
+//!   `InternalNormalReturnV1` call effect, `DirectRelativeCallV1`
 //!   control, retained `MayArchitecturalFaultV1` trap, the row's
 //!   implicit-unit and caller-saved clobber roster, the ABI `fixed_view`
 //!   pins, and the target's stack lifecycle

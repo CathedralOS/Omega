@@ -1489,7 +1489,7 @@ fn apply(
                 source_functions,
                 declarations,
                 *psi_operation,
-                *callee,
+                callee.machine()?,
                 Some(result),
                 structural_arguments,
             )?;

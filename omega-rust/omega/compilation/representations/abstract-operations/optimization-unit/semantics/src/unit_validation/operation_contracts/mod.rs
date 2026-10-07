@@ -32,6 +32,7 @@ pub(crate) use structural_access::{
 };
 
 pub(crate) fn validate_values_and_bindings(
+    unit: &optimization_unit::PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &optimization_unit::OptimizationBlock>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
@@ -55,6 +56,7 @@ pub(crate) fn validate_values_and_bindings(
                 &dominators,
             )?;
             node_contracts::validate_node_operation_contracts(
+                unit,
                 function,
                 block,
                 node_index,

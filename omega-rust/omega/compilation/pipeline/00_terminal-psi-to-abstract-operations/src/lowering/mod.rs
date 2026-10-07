@@ -41,6 +41,7 @@ pub(crate) fn lower_decoded_module(
         structural_types: module.structural_types.clone().into(),
         boundary_machines: module.boundary_machines.clone(),
         provider_candidates: module.provider_candidates.clone(),
+        dynamic_dispatch: module.dynamic_dispatch.clone(),
         functions,
     })
 }

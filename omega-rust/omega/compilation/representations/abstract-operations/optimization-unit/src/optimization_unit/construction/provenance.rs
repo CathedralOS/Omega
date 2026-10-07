@@ -48,6 +48,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::StructuralLeafCopy { psi_operation, .. }
         | O::EstablishRecord { psi_operation, .. }
         | O::CallStructural { psi_operation, .. }
+        | O::SelectImplementation { psi_operation, .. }
         | O::BoundaryCall { psi_operation, .. }
         | O::PortWrite { psi_operation, .. }
         | O::Call { psi_operation, .. }

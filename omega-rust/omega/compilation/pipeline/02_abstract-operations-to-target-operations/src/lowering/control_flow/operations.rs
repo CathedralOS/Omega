@@ -21,6 +21,7 @@ pub(super) fn lower_operation(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
@@ -334,14 +335,32 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        // Every other direct call, whatever its result, lowers to one `Call`
-        // row through the shared direct-call lowering.
+        AbstractOperation::SelectImplementation {
+            psi_operation,
+            result,
+            table,
+        } => {
+            if dynamic_dispatch.table(*table).is_none() {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            let result_home =
+                super::primitive_storage::retain_result(*psi_operation, *result, live)?;
+            provenance.operations.push(*psi_operation);
+            operations.push(TargetUnitOperation::SelectImplementation {
+                result_home,
+                table: *table,
+            });
+            Ok(())
+        }
+        // Direct and selected calls share argument transport and result homes;
+        // the call target alone determines how invocation finds executable code.
         AbstractOperation::CallStructural { .. } | AbstractOperation::Call { .. } => {
-            super::direct_calls::lower_direct_call(
+            super::calls::lower_call(
                 operation,
                 function,
                 target,
                 functions,
+                dynamic_dispatch,
                 structural_types,
                 scalar_abis,
                 prepared,

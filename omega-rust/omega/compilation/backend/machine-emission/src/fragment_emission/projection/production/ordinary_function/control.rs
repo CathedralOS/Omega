@@ -14,9 +14,9 @@ pub(super) fn provenance(
     FunctionFragmentControlProvenance,
     crate::fragment_emission::projection::ResolvedFragmentEmissionError,
 > {
-    if let SelectedInstructionKind::CallScalar { callee }
-    | SelectedInstructionKind::CallUnit { callee }
-    | SelectedInstructionKind::CallAggregate { callee } = instruction.kind
+    if let SelectedInstructionKind::CallScalar { target }
+    | SelectedInstructionKind::CallUnit { target }
+    | SelectedInstructionKind::CallAggregate { target } = instruction.kind
     {
         let mut rows = function
             .calls
@@ -25,11 +25,13 @@ pub(super) fn provenance(
         let row = rows.next().ok_or(
             crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch,
         )?;
-        if rows.next().is_some() || row.call.callee != callee {
+        if rows.next().is_some()
+            || selected_instructions::SelectedCallTarget::from_native(row.call.target) != target
+        {
             return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
         }
-        return Ok(FunctionFragmentControlProvenance::DirectInternalCall {
-            callee,
+        return Ok(FunctionFragmentControlProvenance::InternalCall {
+            target,
             owner: row.owner,
         });
     }

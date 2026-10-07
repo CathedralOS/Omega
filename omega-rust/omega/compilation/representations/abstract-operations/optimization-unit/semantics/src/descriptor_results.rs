@@ -558,7 +558,7 @@ fn adapt(
                 } => {
                     let mut matching = functions
                         .iter()
-                        .filter(|function| function.machine == *callee);
+                        .filter(|function| Some(function.machine) == callee.machine());
                     if let Some(callee) = matching.next().copied() {
                         if matching.next().is_some()
                             || callee.structural_parameters.len() != structural_arguments.len()

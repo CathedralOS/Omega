@@ -144,9 +144,27 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                     .flat_map(|edge| edge.provenance.iter().copied()),
             );
             match &node.operation {
-                O::CallStructural { callee, .. } | O::Call { callee, .. } => {
-                    summary.callees.insert(*callee);
-                    if !machines.contains(callee) {
+                O::CallStructural { .. } | O::Call { .. } => {
+                    let callees = unit
+                        .call_machine_references(&node.operation)
+                        .collect::<Vec<_>>();
+                    if callees.is_empty() || callees.iter().any(|callee| !machines.contains(callee))
+                    {
+                        summary.observable = EffectKnowledge::May;
+                        summary.structural_state = EffectKnowledge::May;
+                        summary.crash = EffectKnowledge::May;
+                        summary.suspension = EffectKnowledge::May;
+                    }
+                    summary.callees.extend(callees);
+                    // A dynamic row may trap or retain unknown body guarantees;
+                    // an exact set of executable rows alone proves neither away.
+                    if matches!(
+                        &node.operation,
+                        O::CallStructural {
+                            callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
+                            ..
+                        }
+                    ) {
                         summary.observable = EffectKnowledge::May;
                         summary.structural_state = EffectKnowledge::May;
                         summary.crash = EffectKnowledge::May;
@@ -230,7 +248,8 @@ fn operation_effect(
 ) {
     use EffectKnowledge::{May, No, Yes};
     match operation {
-        O::IntegerConstant { .. }
+        O::SelectImplementation { .. }
+        | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. }

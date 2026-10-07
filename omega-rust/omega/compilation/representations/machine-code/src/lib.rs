@@ -97,3 +97,7 @@ pub use machine_code::{
     target_frame_protocol_encoding_identity, whole_function_exit_contract_identity, x86_fma,
     x86_scalar_fma_fragment_identity,
 };
+pub use machine_code::{
+    FunctionFragmentImplementationTableAddressFixup, ImplementationTableReference,
+    PlacedImplementationTableAddress, SelectedFormImplementationTableAddressFixup,
+};

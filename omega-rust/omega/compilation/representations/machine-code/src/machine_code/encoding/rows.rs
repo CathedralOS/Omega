@@ -144,6 +144,9 @@ impl SelectedFormEncodedRowStore {
 /// encoding can bind yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedFormEncodingState {
+    UnresolvedImplementationTableAddress {
+        fixup: crate::SelectedFormImplementationTableAddressFixup,
+    },
     Encoded,
     DeferredControl {
         reason: DeferredControlEncodingReason,

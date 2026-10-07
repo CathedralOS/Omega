@@ -1583,14 +1583,17 @@ pub(super) fn apply_operation(
             result: AbstractStructuralCallResult::Structural { result, .. },
             ..
         } if contains_reference(structural_types, result.structural_type) => {
-            let callee = functions.get(callee).ok_or_else(|| {
-                invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "reference call target is absent",
-                )
-            })?;
+            let callee = callee
+                .machine()
+                .and_then(|machine| functions.get(&machine))
+                .ok_or_else(|| {
+                    invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "reference call target is absent",
+                    )
+                })?;
             let declaration = callee.result.structural().ok_or_else(|| {
                 invalid(
                     function,

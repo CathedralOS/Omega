@@ -25,7 +25,7 @@ pub(super) fn validate(
     let TargetUnitOperation::Call {
         origin: NativeCallOrigin::Authored,
         psi_operation,
-        callee,
+        target: callee,
         call_plan,
         result,
         scalar_arguments,
@@ -66,7 +66,7 @@ pub(super) fn validate(
                 ..
             } => (
                 *psi_operation,
-                *callee,
+                abstract_operations::AbstractCallTarget::Machine(*callee),
                 arguments.as_slice(),
                 &[][..],
                 &[][..],
@@ -75,21 +75,22 @@ pub(super) fn validate(
             ),
             _ => return Err(LegalizationError::custody()),
         };
-    let expected = callee_plan(*callee, native, plan, unit)?;
-    let callee_function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == *callee)
-        .ok_or_else(|| LegalizationError::custody())?;
+    let expected = callee_plan(called, native, plan, unit)?;
+    let signature = super::super::super::call_signature::signature(called, plan)?;
+    let callee_function = called.machine().and_then(|machine| {
+        unit.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    });
     if psi_operation != &actual
-        || callee != &called
+        || *callee != super::super::super::call_signature::native_target(called)
         || call_plan != &expected
         || claim_transfers != claims
         || requirement_obligations != requirements
         || crash_continuations != crashes
         || arguments.len() != structural_arguments.len()
-        || callee_function.structural_parameters.len() != arguments.len()
-        || callee_function.parameters.len() != values.len()
+        || signature.structural_parameter_count() != arguments.len()
+        || signature.scalar_parameter_count() != values.len()
         || scalar_arguments.len() != values.len()
         || expected.parameters.len() != values.len() + arguments.len()
         || scalar_arguments
@@ -100,8 +101,7 @@ pub(super) fn validate(
             .any(|(position, ((argument, value), placement))| {
                 argument.parameter_index != position as u32
                     || argument.placement != *placement
-                    || argument.source.scalar_type()
-                        != callee_function.parameters[position].scalar_type
+                    || Some(argument.source.scalar_type()) != signature.scalar_parameter(position)
                     || !sources.iter().any(|(source, definition)| {
                         source == value && *definition == argument.source
                     })
@@ -132,13 +132,20 @@ pub(super) fn validate(
             position,
             *psi_operation,
             optimized,
-            callee_function,
+            signature,
             &expected,
             native,
             plan,
             custody,
         )? != *argument
         {
+            return Err(LegalizationError::custody());
+        }
+    }
+    if let Some(selector) = called.selector() {
+        if !sources.iter().any(|(value, source)| {
+            *value == selector && source.scalar_type() == target_operations::selector_carrier_type()
+        }) {
             return Err(LegalizationError::custody());
         }
     }

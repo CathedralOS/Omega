@@ -33,15 +33,16 @@ pub(crate) fn validate(
             .iter()
             .flat_map(|block| &block.operations)
         {
-            let (psi_operation, callee, origin, scalar_arguments, arguments) = match operation {
+            let (psi_operation, call_target, origin, scalar_arguments, arguments) = match operation
+            {
                 TargetUnitOperation::Call {
                     psi_operation,
-                    callee,
+                    target,
                     origin,
                     scalar_arguments,
                     arguments,
                     ..
-                } => (*psi_operation, *callee, origin, scalar_arguments, arguments),
+                } => (*psi_operation, *target, origin, scalar_arguments, arguments),
                 _ => continue,
             };
             let NativeCallOrigin::InstalledProvider {
@@ -103,7 +104,8 @@ pub(crate) fn validate(
             };
             if !result_matches
                 || &call.provider != provider
-                || callee != call.provider.candidate
+                || call_target
+                    != target_operations::NativeCallTarget::Machine(call.provider.candidate)
                 || scalar_arguments.len() != call.scalar_arguments.len()
                 || !scalar_arguments
                     .iter()

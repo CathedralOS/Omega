@@ -55,12 +55,18 @@ pub fn publish_fragment_object(
     let plan = optimized.shared_program();
     let validation = optimized.validation();
     let source = std::sync::Arc::new(stage_fragment_object(emission)?);
-    let mut object =
-        image_emission::build_function_fragment_object_artifact_with_private_functions(
-            std::sync::Arc::clone(&source),
-            request.private_functions,
-        )
-        .map_err(|error| publication_error("fragment object publication", error))?;
+    let mut object = image_emission::build_function_fragment_object_artifact(
+        image_emission::FunctionFragmentObjectArtifactRequest {
+            replay: std::sync::Arc::clone(&source),
+            private_functions: request.private_functions,
+            dynamic_dispatch: &plan.dynamic_dispatch,
+            implementation_table_addresses: &source
+                .source()
+                .text_section()
+                .unresolved_implementation_table_addresses,
+        },
+    )
+    .map_err(|error| publication_error("fragment object publication", error))?;
     // The publication receipt retains the complete immutable object, including
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.

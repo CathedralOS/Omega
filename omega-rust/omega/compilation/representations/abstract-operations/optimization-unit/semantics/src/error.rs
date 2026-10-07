@@ -24,6 +24,7 @@ pub enum OptimizationUnitValidationError {
     PrunedEntryMachine(MachineId),
     PrunedProviderMachine(MachineId),
     DuplicateBoundaryMachine(BoundaryMachineId),
+    DynamicDispatchCatalogMismatch,
     DuplicateService(ServiceId),
     InvalidServiceIdentity(ServiceId),
     InvalidServiceParent {

@@ -31,7 +31,7 @@ pub(super) fn declaration(
         memory: MachineMemoryEffect::NoneV1,
         trap: MachineTrapBehavior::NeverV1,
         barrier: MachineBarrier::Call,
-        call: MachineCallEffect::DirectInternalNormalReturnV1 {
+        call: MachineCallEffect::InternalNormalReturnV1 {
             pre_call_stack_alignment: 16,
         },
         cleanup: MachineCleanupEffect::NoneV1,

@@ -246,8 +246,10 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
 }
 
 /// One slot's call shape from its checked plan. The selector is operand 0
-/// of the plan and no implementation receives it, so formal positions shift
-/// down by one into the implementations' own numbering.
+/// of the plan and no implementation receives it. Terminal scalar and
+/// structural formals have independent dense rosters, just as ordinary
+/// machine lowering does: source positions minus the selector are not
+/// structural-lane positions when scalar arguments precede a borrow.
 fn lower_slot(
     checked: &CheckedTrees,
     plan: &CheckedDynamicSlotPlan,
@@ -269,14 +271,17 @@ fn lower_slot(
     let structural_parameters = plan
         .structural_parameters
         .iter()
-        .map(|parameter| {
+        .enumerate()
+        .map(|(position, parameter)| {
+            if parameter.position == 0 {
+                return unsupported("dynamic slot structural formal precedes its selector");
+            }
             Ok(TerminalDynamicStructuralFormal {
-                position: parameter
-                    .position
-                    .checked_sub(1)
-                    .ok_or(LoweringError::Unsupported(
-                        "dynamic slot structural formal precedes its selector",
-                    ))?,
+                position: u32::try_from(position).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "dynamic slot structural parameter count exceeds u32",
+                    )
+                })?,
                 structural_type: crate::terminal_identities::lookup_type_id(
                     type_ids,
                     &parameter.type_identity,

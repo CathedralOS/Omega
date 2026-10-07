@@ -1,5 +1,6 @@
 use abstract_operations::{
-    AbstractOperation, AbstractResult, AbstractStructuralCallResult, CompletionClaimSource,
+    AbstractCallTarget, AbstractOperation, AbstractResult, AbstractStructuralCallResult,
+    CompletionClaimSource,
 };
 use terminal_psi::{Operation, OperationKind, TerminalMachine};
 
@@ -10,6 +11,59 @@ pub(super) fn lower(
     machine: &TerminalMachine,
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
+        OperationKind::SelectImplementation { table } => {
+            let result = operation.result.scalar()
+                .filter(|result| matches!(result.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
+                    if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64))
+                .ok_or(LoweringError::UnsupportedDynamicDispatch(operation.id))?;
+            AbstractOperation::SelectImplementation {
+                psi_operation: operation.id,
+                result: AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                table,
+            }
+        }
+        OperationKind::CallDynamic {
+            selector,
+            interface,
+            slot,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } => AbstractOperation::CallStructural {
+            psi_operation: operation.id,
+            callee: AbstractCallTarget::Dynamic {
+                selector,
+                interface,
+                slot,
+            },
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            result: match &operation.result {
+                terminal_psi::OperationResult::Unit => AbstractStructuralCallResult::Unit,
+                terminal_psi::OperationResult::Scalar(result) => {
+                    AbstractStructuralCallResult::Scalar(AbstractResult {
+                        value: result.id,
+                        scalar_type: result.scalar_type,
+                    })
+                }
+                terminal_psi::OperationResult::Structural(result) => {
+                    AbstractStructuralCallResult::Structural {
+                        result: result.clone(),
+                        returned_claim_transfers: Vec::new(),
+                        selected_evidence: Vec::new(),
+                    }
+                }
+            },
+        },
         OperationKind::CallUnit {
             callee,
             arguments,
@@ -21,7 +75,7 @@ pub(super) fn lower(
             crash_continuations,
         } => AbstractOperation::CallStructural {
             psi_operation: operation.id,
-            callee,
+            callee: callee.into(),
             arguments,
             structural_arguments,
             claim_transfers,
@@ -46,7 +100,7 @@ pub(super) fn lower(
                     value: result.id,
                     scalar_type: result.scalar_type,
                 }),
-                callee,
+                callee: callee.into(),
                 arguments,
                 structural_arguments,
                 claim_transfers,
@@ -73,7 +127,7 @@ pub(super) fn lower(
                     returned_claim_transfers,
                     selected_evidence,
                 },
-                callee,
+                callee: callee.into(),
                 arguments: Vec::new(),
                 structural_arguments,
                 claim_transfers,
@@ -102,7 +156,7 @@ pub(super) fn lower(
                     returned_claim_transfers,
                     selected_evidence: Vec::new(),
                 },
-                callee,
+                callee: callee.into(),
                 arguments,
                 structural_arguments,
                 claim_transfers,

@@ -44,7 +44,7 @@ fn every_mixed_unit_call_row_has_exact_template_operands_and_effects() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     let catalog = x86_64_register_constraint_catalog(&physical);
     let kind = SelectedInstructionKind::CallUnit {
-        callee: MachineId::new(7).unwrap(),
+        target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
     };
     let alternative = MachineAlternativeKey {
         family: MachineAlternativeFamily::CallUnit,

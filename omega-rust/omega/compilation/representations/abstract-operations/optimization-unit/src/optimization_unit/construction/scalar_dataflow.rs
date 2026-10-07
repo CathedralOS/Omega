@@ -25,6 +25,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
             result: AbstractStructuralCallResult::Scalar(result),
             ..
         }
+        | O::SelectImplementation { result, .. }
         | O::PrimitiveScalarRead { result, .. }
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
@@ -176,9 +177,14 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             region: terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. },
             ..
         } => vec![*start, *end],
-        O::Call { arguments, .. }
-        | O::CallStructural { arguments, .. }
-        | O::BoundaryCall { arguments, .. } => arguments.clone(),
+        O::CallStructural {
+            callee, arguments, ..
+        } => callee
+            .selector()
+            .into_iter()
+            .chain(arguments.iter().copied())
+            .collect(),
+        O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => arguments.clone(),
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }

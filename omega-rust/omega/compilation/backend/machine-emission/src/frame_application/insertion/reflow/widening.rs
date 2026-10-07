@@ -100,6 +100,12 @@ fn widen(
                         .shifted(4)
                         .ok_or(FrameApplicationError::OffsetOverflow)?;
                 }
+                if let Some(fixup) = &mut row.implementation_table_address_fixup {
+                    fixup.fields = fixup
+                        .fields
+                        .shifted(4)
+                        .ok_or(FrameApplicationError::OffsetOverflow)?;
+                }
                 if let Some(fixup) = &mut row.internal_machine_fixup {
                     fixup.opcode_function_offset = grow(fixup.opcode_function_offset)?;
                     fixup.patch_function_offset = grow(fixup.patch_function_offset)?;

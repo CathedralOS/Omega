@@ -29,7 +29,8 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         O::IntegerArithmetic { arithmetic, .. } => {
             Some(obligation_family(arithmetic.obligation()))
         }
-        O::EstablishPrimitiveLocal { .. }
+        O::SelectImplementation { .. }
+        | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }

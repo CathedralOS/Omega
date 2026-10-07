@@ -125,7 +125,7 @@ pub(super) fn produce(
                     )?;
                 }
             }
-            Control::DirectInternalCall { .. }
+            Control::InternalCall { .. }
             | Control::NormalizedForeignCall { .. }
             | Control::None => {}
         }
@@ -247,7 +247,7 @@ pub(super) fn validate(
                     .map(|successor| successor.psi_edge)
                     .collect()
             }
-            Control::DirectInternalCall { .. }
+            Control::InternalCall { .. }
             | Control::NormalizedForeignCall { .. }
             | Control::None => Vec::new(),
         };
@@ -310,7 +310,7 @@ fn supports(
                         ))
             }
             Control::None
-            | Control::DirectInternalCall { .. }
+            | Control::InternalCall { .. }
             | Control::NormalizedForeignCall { .. } => false,
         },
     }

@@ -689,7 +689,7 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::TrappingInteger { form } => {
             decoded == super::trapping_forms::realization(form, registers)
         }
-        SelectedInstructionKind::ByteLiteralImageAddress { .. } => {
+        SelectedInstructionKind::ImmutableImageAddress { .. } => {
             decoded
                 == [
                     DecodedWord::UnresolvedPageAddress {
@@ -1145,7 +1145,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
         | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0], false),
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![0], false),
-        SelectedInstructionKind::ByteLiteralImageAddress { .. } => (vec![], vec![0], false),
+        SelectedInstructionKind::ImmutableImageAddress { .. } => (vec![], vec![0], false),
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU16

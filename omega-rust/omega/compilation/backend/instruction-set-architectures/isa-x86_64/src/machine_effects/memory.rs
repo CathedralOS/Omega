@@ -217,7 +217,7 @@ pub(super) fn declaration(
             MachineBarrier::None
         },
         call: if is_call {
-            MachineCallEffect::DirectInternalNormalReturnV1 {
+            MachineCallEffect::InternalNormalReturnV1 {
                 pre_call_stack_alignment: 16,
             }
         } else {

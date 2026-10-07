@@ -38,6 +38,7 @@ pub(super) fn resolve(
         Option<SelectedFormInternalMachineFixup>,
         Option<SelectedFormNormalizedForeignCallFixup>,
         Option<machine_code::SelectedFormByteLiteralAddressFixup>,
+        Option<machine_code::SelectedFormImplementationTableAddressFixup>,
     ),
     OptimizedResolvedSelectedFormLayoutError,
 > {
@@ -46,7 +47,7 @@ pub(super) fn resolve(
     let bytes = encoded.bytes(pre.code);
     match (&pre.machine_disposition, &pre.state) {
         (SelectedFormMachineDisposition::RetainedV1, SelectedFormEncodingState::Encoded) => {
-            Ok((bytes.to_vec(), None, None, None, None))
+            Ok((bytes.to_vec(), None, None, None, None, None))
         }
         (
             SelectedFormMachineDisposition::RetainedV1,
@@ -61,6 +62,7 @@ pub(super) fn resolve(
                 bytes,
                 *fixup,
             )?),
+            None,
             None,
             None,
         )),
@@ -79,6 +81,7 @@ pub(super) fn resolve(
                 fixup.clone(),
             )?),
             None,
+            None,
         )),
         (
             SelectedFormMachineDisposition::RetainedV1,
@@ -89,7 +92,24 @@ pub(super) fn resolve(
             None,
             None,
             Some(validate_byte_literal_fixup(instruction, bytes, *fixup)?),
+            None,
         )),
+        (
+            SelectedFormMachineDisposition::RetainedV1,
+            SelectedFormEncodingState::UnresolvedImplementationTableAddress { fixup },
+        ) => {
+            let SelectedInstructionKind::ImmutableImageAddress {
+                reference:
+                    selected_instructions::SelectedImageAddressReference::ImplementationTable { table },
+            } = instruction.kind
+            else {
+                return unexpected(instruction.id);
+            };
+            if fixup.reference.table != table || !address_fields_inside(fixup.fields, bytes.len()) {
+                return unexpected(instruction.id);
+            }
+            Ok((bytes.to_vec(), None, None, None, None, Some(*fixup)))
+        }
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::DeferredControl {
@@ -105,7 +125,7 @@ pub(super) fn resolve(
             physical,
             widened,
         )
-        .map(|(bytes, branch)| (bytes, branch, None, None, None)),
+        .map(|(bytes, branch)| (bytes, branch, None, None, None, None)),
         _ => unexpected(instruction.id),
     }
 }
@@ -120,7 +140,10 @@ fn validate_byte_literal_fixup(
     machine_code::SelectedFormByteLiteralAddressFixup,
     OptimizedResolvedSelectedFormLayoutError,
 > {
-    let SelectedInstructionKind::ByteLiteralImageAddress { operation, place } = instruction.kind
+    let SelectedInstructionKind::ImmutableImageAddress {
+        reference:
+            selected_instructions::SelectedImageAddressReference::ByteLiteral { operation, place },
+    } = instruction.kind
     else {
         return unexpected(instruction.id);
     };
@@ -152,9 +175,15 @@ fn validate_internal_fixup(
     bytes: &[u8],
     fixup: SelectedFormInternalMachineFixup,
 ) -> Result<SelectedFormInternalMachineFixup, OptimizedResolvedSelectedFormLayoutError> {
-    let (SelectedInstructionKind::CallScalar { callee }
-    | SelectedInstructionKind::CallUnit { callee }
-    | SelectedInstructionKind::CallAggregate { callee }) = instruction.kind
+    let (SelectedInstructionKind::CallScalar {
+        target: selected_instructions::SelectedCallTarget::Machine(callee),
+    }
+    | SelectedInstructionKind::CallUnit {
+        target: selected_instructions::SelectedCallTarget::Machine(callee),
+    }
+    | SelectedInstructionKind::CallAggregate {
+        target: selected_instructions::SelectedCallTarget::Machine(callee),
+    }) = instruction.kind
     else {
         return unexpected(instruction.id);
     };
@@ -459,4 +488,24 @@ fn unexpected<T>(
     instruction: SelectedInstructionId,
 ) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
     Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction))
+}
+fn address_fields_inside(
+    fields: machine_code::ByteLiteralAddressFields,
+    byte_count: usize,
+) -> bool {
+    let Ok(byte_count) = u64::try_from(byte_count) else {
+        return false;
+    };
+    match fields {
+        machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
+            patch_offset.checked_add(4) == Some(byte_count)
+        }
+        machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+            page_patch_offset,
+            page_offset_patch_offset,
+        } => {
+            page_patch_offset.checked_add(4) == Some(page_offset_patch_offset)
+                && page_offset_patch_offset.checked_add(4) == Some(byte_count)
+        }
+    }
 }

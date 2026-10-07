@@ -584,7 +584,9 @@ fn plan() -> PreAllocationMachineEffectPlan {
                 InstructionMachineEffects {
                     instruction: SelectedInstructionId(0),
                     kind: SelectedInstructionKind::CallUnit {
-                        callee: MachineId::new(8).unwrap(),
+                        target: selected_instructions::SelectedCallTarget::Machine(
+                            MachineId::new(8).unwrap(),
+                        ),
                     },
                     constraint: call_constraint,
                     unit_uses: vec![RegisterUnitId(1), RegisterUnitId(2)],
@@ -593,7 +595,7 @@ fn plan() -> PreAllocationMachineEffectPlan {
                     memory: MachineMemoryEffect::NoneV1,
                     trap: MachineTrapBehavior::MayArchitecturalFaultV1,
                     barrier: MachineBarrier::Call,
-                    call: MachineCallEffect::DirectInternalNormalReturnV1 {
+                    call: MachineCallEffect::InternalNormalReturnV1 {
                         pre_call_stack_alignment: 16,
                     },
                     cleanup: MachineCleanupEffect::NoneV1,
@@ -1221,7 +1223,7 @@ fn structural_call_content_is_authenticated_and_closed() {
     let source = plan();
     let mut substituted = source.clone();
     substituted.functions[1].blocks[0].instructions[0].kind = SelectedInstructionKind::CallUnit {
-        callee: MachineId::new(99).unwrap(),
+        target: selected_instructions::SelectedCallTarget::Machine(MachineId::new(99).unwrap()),
     };
     assert_ne!(
         pre_allocation_machine_effect_identity(&substituted),
