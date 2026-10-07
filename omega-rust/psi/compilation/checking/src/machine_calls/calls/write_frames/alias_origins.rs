@@ -50,17 +50,7 @@ pub(crate) fn stable_local_reference_alias_origin(
     stored: &[StoredLocalOrigins],
     include_shared: bool,
 ) -> Option<FramePlaceOrigin> {
-    let mut reference = local.type_reference;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
-    let TypeReferenceNode::Reference { access, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
+    let access = local_declared_reference_access(program, local)?;
     if !access.is_exclusive() && !include_shared {
         return None;
     }
@@ -91,6 +81,26 @@ pub(crate) fn stable_local_reference_alias_origin(
     )
 }
 
+/// A local's declared reference access after peeling constraint shells —
+/// `None` when the declared type is not a reference.
+fn local_declared_reference_access(
+    program: &TypedTrees,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<language_core::ReferenceAccess> {
+    let mut reference = local.type_reference;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    let TypeReferenceNode::Reference { access, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    Some(*access)
+}
+
 /// The divergent counterpart of [`stable_local_reference_alias_origin`]: an
 /// exclusive-reference local whose initializer resolves to several proven
 /// candidate origins keeps the whole finite set rather than failing closed.
@@ -111,17 +121,7 @@ pub(crate) fn stable_local_reference_alias_origins(
     symbols: &TopLevelSymbols<'_>,
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
-    let mut reference = local.type_reference;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
-    let TypeReferenceNode::Reference { access, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
+    let access = local_declared_reference_access(program, local)?;
     if !access.is_exclusive() {
         return None;
     }
