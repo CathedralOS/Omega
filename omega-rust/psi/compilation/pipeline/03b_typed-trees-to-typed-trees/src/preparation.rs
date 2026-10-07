@@ -9,22 +9,78 @@ mod deferred_constants;
 mod opaque_property_receipts;
 mod selections;
 
-use crate::CheckingRequest;
 use typed_trees::TypedTrees;
+
+/// Invocation-owned admission inputs for typed elaboration. Package declaration
+/// authority is checked by the following stage, not accepted here.
+#[derive(Clone, Copy)]
+pub struct PreparationRequest<'request> {
+    admits_pending_inputs: bool,
+    asm_authority: Option<validation::AsmAuthorityAdmission>,
+    opaque_property_receipts: &'request [validation::OpaqueDataPropertyReceipt],
+    wire_compatibility_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
+}
+
+impl<'request> PreparationRequest<'request> {
+    /// Final source admission requires all constant operands to be settled.
+    pub const fn settled() -> Self {
+        Self {
+            admits_pending_inputs: false,
+            asm_authority: None,
+            opaque_property_receipts: &[],
+            wire_compatibility_demands: &[],
+        }
+    }
+
+    /// Private compile-time probes can retain pending source obligations.
+    pub const fn preliminary() -> Self {
+        Self {
+            admits_pending_inputs: true,
+            ..Self::settled()
+        }
+    }
+
+    /// Admit privileged instructions against this invocation's evaluated Build.
+    pub const fn with_asm_authority(
+        mut self,
+        authority: validation::AsmAuthorityAdmission,
+    ) -> Self {
+        self.asm_authority = Some(authority);
+        self
+    }
+
+    /// Rejoin independently rederived receipts before specialization grows arenas.
+    pub const fn with_opaque_property_receipts(
+        mut self,
+        receipts: &'request [validation::OpaqueDataPropertyReceipt],
+    ) -> Self {
+        self.opaque_property_receipts = receipts;
+        self
+    }
+
+    /// Check authored wire demands independently on every invocation.
+    pub const fn with_wire_compatibility_demands(
+        mut self,
+        demands: &'request [language_semantics::wire::WireCompatibilityDemand],
+    ) -> Self {
+        self.wire_compatibility_demands = demands;
+        self
+    }
+}
 
 /// Judgments retained while closing the typed program. Its ordinary TypedTrees
 /// form is passed separately; this record is not another program representation.
 pub struct TypedPreparation {
-    pub(crate) static_machine_selections: validation::ValidatedStaticMachineSelections,
-    pub(crate) mathematics: proof::mathematical_declarations::CheckedMathematics,
-    pub(crate) opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+    pub static_machine_selections: validation::ValidatedStaticMachineSelections,
+    pub mathematics: proof::mathematical_declarations::CheckedMathematics,
+    pub opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
 }
 
 /// Complete typed bodies before their immutable checking boundary. Input
 /// admission keeps diagnostic order; source receipts join before arena growth.
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
-    request: &CheckingRequest<'_>,
+    request: &PreparationRequest<'_>,
 ) -> Result<(typed_trees::FrozenTypedTrees, TypedPreparation), Vec<diagnostics::Diagnostic>> {
     // Declaration descriptions may retain pending implementations, but the
     // executable roster must be complete before any proof or memo lookup.
@@ -64,7 +120,7 @@ pub fn prepare_typed_trees(
     // Projected statement receivers retain their lexical root before their
     // field endpoint is known. Resolve both call forms before specialization
     // and effect inference, not only when finalizing authored selections.
-    crate::lookup::resolve_projected_receiver_calls(&mut program)?;
+    crate::receivers::resolve_projected_receiver_calls(&mut program)?;
     // MP2b must judge the authored requirement -> selected implementation edge
     // before MP4 consumes the call-site selections and clears the template's
     // parameter list.
@@ -141,7 +197,7 @@ pub fn prepare_typed_trees(
     // than from an ambient same-named machine.
     validation::resolve_dynamic_call_targets(&mut program)?;
     // Concrete substitutions may make previously open field types selectable.
-    crate::lookup::resolve_projected_receiver_calls(&mut program)?;
+    crate::receivers::resolve_projected_receiver_calls(&mut program)?;
     // Named-machine result overloads are provisionally bound to the first
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts

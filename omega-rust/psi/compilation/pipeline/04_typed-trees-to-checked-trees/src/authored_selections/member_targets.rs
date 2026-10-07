@@ -6,10 +6,10 @@ use validation::selection_resolution::declaration_target;
 use crate::authored_selections::operator_targets::{
     authored_operand_descriptor, authored_operand_type,
 };
-use crate::semantic::calls::MeasureReceiver;
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
+use validation::collection_operations::MeasureReceiver;
 use validation::declaration_type_reference;
 
 pub(crate) fn checked_member_target(
@@ -222,7 +222,7 @@ fn collection_measure_target(
     type_reference: typed_trees::types::TypeReferenceHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<AuthoredSelectionResolutionTarget> {
-    let measure = crate::semantic::calls::collection_measure_member(
+    let measure = validation::collection_operations::collection_measure_member(
         program,
         member,
         MeasureReceiver::Declared(type_reference),
@@ -238,7 +238,7 @@ fn collection_measure_target(
 /// exists) does not depend on the order they are visited in.
 pub(crate) fn expression_is_contextual_statement_primitive(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    _facts: &CheckFacts,
     containing_expression: typed_trees::expression::ExpressionHandle,
     operand: typed_trees::expression::ExpressionHandle,
     owners: Option<&validation::expression_owners::OwnerEnvironmentIndex>,

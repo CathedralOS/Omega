@@ -111,20 +111,22 @@ pub(crate) fn prepare_checked_build(
         || {
             let started = std::time::Instant::now();
             let program = typed_trees_to_checked_trees::project_build_program(typed, entry)?;
+            let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
             let checking = typed_trees_to_checked_trees::CheckingRequest::settled()
                 .with_declaration_authority(
                     packages.map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
                 );
-            let result = typed_trees_to_checked_trees::prepare_typed_trees(program, &checking)
-                .and_then(|(program, preparation)| {
-                    typed_trees_to_checked_trees::lower_typed_trees_reusing(
-                        program,
-                        preparation,
-                        &checking,
-                        prior,
-                        retain,
-                    )
-                });
+            let result =
+                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation_request)
+                    .and_then(|(program, preparation)| {
+                        typed_trees_to_checked_trees::lower_typed_trees_reusing(
+                            program,
+                            preparation,
+                            &checking,
+                            prior,
+                            retain,
+                        )
+                    });
             if !result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
                 artifacts::compile_timings::counters::record_settled_check(started.elapsed());
             }

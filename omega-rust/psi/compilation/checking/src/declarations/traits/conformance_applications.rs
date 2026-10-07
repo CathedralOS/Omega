@@ -339,7 +339,7 @@ fn close_const_argument(
                 ))
             })?;
         let value = CanonicalConstIdentity::integer(primitive.name(), value);
-        validation::validate_exact_const_value_encoding(
+        crate::validate_exact_const_value_encoding(
             program,
             parameter_carrier,
             value.encoding.as_str(),
@@ -413,7 +413,7 @@ fn close_const_argument(
         )));
     };
     for carrier in [declaration.declared_type, parameter_carrier] {
-        validation::validate_exact_const_value_encoding(program, carrier, encoding).map_err(
+        crate::validate_exact_const_value_encoding(program, carrier, encoding).map_err(
             |reason| {
                 Diagnostic::error(format!(
                     "conformance `{conformance}` parameter `{parameter}` names const `{}` whose canonical value does not replay against its exact carriers: {reason}",
@@ -717,9 +717,8 @@ fn application_identity(
                     .find(|signature| signature.symbol == row.requirement)
             })
         {
-            let signature_bytes = validation::contract_identities::canonical_state_signature_bytes(
-                program, signature,
-            );
+            let signature_bytes =
+                crate::contract_identities::canonical_state_signature_bytes(program, signature);
             bytes.push(1);
             bytes.extend((signature_bytes.len() as u64).to_le_bytes());
             bytes.extend(signature_bytes);

@@ -1,8 +1,6 @@
 //! Substituting fixed-array const and const index expression parameters.
 
-use validation::expression_traversal::{
-    collect_expression_tree, collect_statement_expression_trees,
-};
+use validation::expression_traversal::collect_statement_expression_trees;
 
 use crate::monomorphization::{
     Candidate, ExpressionHandle, ExpressionNode, StatementNode, SymbolHandle, TypeConstraintNode,

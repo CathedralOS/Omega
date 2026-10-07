@@ -5,6 +5,13 @@
 
 #[test]
 fn checking_does_not_reopen_typed_preparation() {
+    let entrance = include_str!("lib.rs");
+    for removed_owner in ["mod preparation;", "mod monomorphization;", "mod lookup;"] {
+        assert!(
+            !entrance.contains(removed_owner),
+            "checking restored {removed_owner}"
+        );
+    }
     let source = include_str!("checking.rs");
     for forbidden in [
         "&mut program",

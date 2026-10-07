@@ -80,30 +80,32 @@ impl ProviderCheckingInputs {
         })
     }
 
-    /// Supply representation evidence and this invocation's exact Build and
-    /// package authority. Psi independently checks privileged instructions and
-    /// authored declaration selections; preparation does not approve either.
-    pub fn checking_request<'request>(
+    /// Derive the distinct source-elaboration and declaration-admission inputs
+    /// from this invocation's Build and independently rederived receipts.
+    pub fn admission_requests<'request>(
         &'request self,
         settlement: &'request ProviderCheckingRequest<'_>,
-    ) -> typed_trees_to_checked_trees::CheckingRequest<'request> {
+    ) -> (
+        typed_trees_to_typed_trees::PreparationRequest<'request>,
+        typed_trees_to_checked_trees::CheckingRequest<'request>,
+    ) {
         let settings = settlement.build_settings;
-        typed_trees_to_checked_trees::CheckingRequest::settled()
+        let preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_opaque_property_receipts(&self.opaque_property_receipts)
             .with_asm_authority(
-                typed_trees_to_checked_trees::AsmAuthorityAdmission::from_freestanding(
-                    settings.freestanding,
-                )
-                .with_grants(
-                    settings.privileged_services.port_io,
-                    settings.privileged_services.interrupt_table,
-                ),
-            )
+                validation::AsmAuthorityAdmission::from_freestanding(settings.freestanding)
+                    .with_grants(
+                        settings.privileged_services.port_io,
+                        settings.privileged_services.interrupt_table,
+                    ),
+            );
+        let checking = typed_trees_to_checked_trees::CheckingRequest::settled()
             .with_declaration_authority(
                 settlement
                     .package_inputs
                     .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-            )
+            );
+        (preparation, checking)
     }
 
     /// Bind callback placements and provider grants after Psi has checked the

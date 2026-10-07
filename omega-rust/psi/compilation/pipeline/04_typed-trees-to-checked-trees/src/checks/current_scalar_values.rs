@@ -574,10 +574,10 @@ fn length_occurrence<'lengths>(
     let length = lengths
         .iter()
         .find(|length| length.collection == name.symbol)?;
-    (crate::semantic::calls::collection_measure_member(
+    (validation::collection_operations::collection_measure_member(
         program,
         member,
-        crate::semantic::calls::MeasureReceiver::Declared(length.type_reference),
+        validation::collection_operations::MeasureReceiver::Declared(length.type_reference),
     ) == Some(language_semantics::declaration_selection::CollectionMeasure::Length))
     .then_some(length)
 }

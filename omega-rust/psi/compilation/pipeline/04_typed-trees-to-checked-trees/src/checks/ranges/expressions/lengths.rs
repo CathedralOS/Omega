@@ -28,7 +28,7 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
         // `as_slice` returns whatever it chooses and contributes no length.
         ExpressionNode::Call(call)
             if matches!(
-                crate::semantic::calls::collection_view_call(program, call),
+                validation::collection_operations::collection_view_call(program, call),
                 Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
             ) =>
         {

@@ -132,8 +132,8 @@ pub(crate) fn check_selected_execution(
         authored_root_grants: &build_config.grants,
     };
     let prepared = ProviderCheckingInputs::prepare(&typed, &provider_request)?;
-    let checking = prepared
-        .checking_request(&provider_request)
+    let (preparation_request, checking) = prepared.admission_requests(&provider_request);
+    let preparation_request = preparation_request
         .with_wire_compatibility_demands(&build_config.wire_compatibility_demands);
     // Package review's bound pass hands back the discovery pass's judgment of
     // this occurrence. Bindings choose providers after the language judgment,
@@ -144,16 +144,17 @@ pub(crate) fn check_selected_execution(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
             let started = std::time::Instant::now();
-            let result = typed_trees_to_checked_trees::prepare_typed_trees(typed, &checking)
-                .and_then(|(typed, preparation)| {
-                    typed_trees_to_checked_trees::lower_typed_trees_reusing(
-                        typed,
-                        preparation,
-                        &checking,
-                        settled_check_reuse.prior.product.as_ref(),
-                        settled_check_reuse.retain,
-                    )
-                });
+            let result =
+                typed_trees_to_typed_trees::prepare_typed_trees(typed, &preparation_request)
+                    .and_then(|(typed, preparation)| {
+                        typed_trees_to_checked_trees::lower_typed_trees_reusing(
+                            typed,
+                            preparation,
+                            &checking,
+                            settled_check_reuse.prior.product.as_ref(),
+                            settled_check_reuse.retain,
+                        )
+                    });
             if !result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
                 artifacts::compile_timings::counters::record_settled_check(started.elapsed());
             }

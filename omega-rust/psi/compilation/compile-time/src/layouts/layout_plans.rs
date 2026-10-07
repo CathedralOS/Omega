@@ -204,7 +204,7 @@ fn normalize_private_callback_demands(
             })?;
 
         let closed_application =
-            typed_trees_to_checked_trees::close_conformance_application(typed, selected)
+            validation::conformance_applications::close_conformance_application(typed, selected)
                 .map_err(|diagnostic| diagnostic.to_string())?;
         let slot_identity = format!(
             "{}#{:016x}",

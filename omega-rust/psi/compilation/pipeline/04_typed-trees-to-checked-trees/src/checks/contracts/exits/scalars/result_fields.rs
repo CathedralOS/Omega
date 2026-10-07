@@ -190,7 +190,7 @@ impl ExitScalars<'_, '_> {
                 }
             }
         }
-        let mut place = flow::canonical_place_from_expression_in_state(
+        let mut place = validation::canonical_place_from_expression_in_state(
             self.program,
             self.exit.state_symbol,
             self.exit.statement_index,
@@ -287,7 +287,7 @@ impl ExitScalars<'_, '_> {
                 primitive,
             )?
         } else {
-            let mut place = flow::canonical_place_from_expression_in_state(
+            let mut place = validation::canonical_place_from_expression_in_state(
                 self.program,
                 state.symbol,
                 self.exit.statement_index,

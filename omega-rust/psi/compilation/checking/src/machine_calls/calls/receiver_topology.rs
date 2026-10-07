@@ -5,6 +5,7 @@ use ::symbols::SymbolHandle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
 use checked_trees::name::Identifier;
 use checked_trees::statement::TableCall;
+use diagnostics::Diagnostic;
 
 pub fn statement_call_can_dispatch_to_machine(
     program: &dyn crate::CheckingInput,

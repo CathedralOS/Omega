@@ -26,6 +26,7 @@
 //! in an abstract signature's parameters) and `result_shape` (whether an
 //! expression's result is a reference). `owner_tests` is test-only.
 
+pub mod collection_operations;
 mod declaration_types;
 pub use declaration_types::declaration_type_reference;
 

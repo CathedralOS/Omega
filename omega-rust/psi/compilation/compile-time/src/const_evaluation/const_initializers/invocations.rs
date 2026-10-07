@@ -62,9 +62,10 @@ impl CheckedInitializers {
         for machine in machines {
             bodies.push_machine(machine);
         }
+        let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
         let checking = typed_trees_to_checked_trees::CheckingRequest::settled();
         let (bodies, preparation) =
-            typed_trees_to_checked_trees::prepare_typed_trees(bodies, &checking)?;
+            typed_trees_to_typed_trees::prepare_typed_trees(bodies, &preparation_request)?;
         let checked =
             typed_trees_to_checked_trees::lower_typed_trees(bodies, preparation, &checking)?;
         let crash_causes = typed_trees_to_checked_trees::infer_checked_crash_causes(
@@ -174,6 +175,7 @@ impl Invocation<'_> {
             &retained,
             self.machine.symbol,
             "@const-invocation",
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
             &typed_trees_to_checked_trees::CheckingRequest::settled(),
             expression,
             &callee,

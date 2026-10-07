@@ -3,10 +3,10 @@
 This stage checks an immutable typed program and retains checked facts. Start at
 [checking.rs](src/checking.rs): validation, checked facts, execution plans, and
 publication are visible there in order. Its caller first invokes
-[preparation.rs](src/preparation.rs) to specialize bodies and settle call
+[typed-to-typed preparation](../03b_typed-trees-to-typed-trees/README.md) to specialize bodies and settle call
 identities, then transfers the frozen typed owner and preparation judgments.
-Preparation is temporarily housed in this package; independent typed-to-typed
-stage extraction remains unfinished.
+Preparation and specialization are independent of checking; this package
+contains no typed elaboration or fallback route.
 [finalize_execution.rs](src/execution/finalize_execution.rs) consumes completed
 check facts, finalizes scalar graphs, assembles structural control and return
 plans, then completes affine cleanup. It returns the facts only after cleanup
@@ -49,15 +49,17 @@ diagnostics clear; these views are not persisted rejection certificates.
 
 Semantic fact construction owns declaration facts, proof obligations and initial
 domain assumptions. Shared call-coordinate queries come directly from
-`semantic::calls`, not through the semantic fact builder.
+the independent validation owner's `machine_calls/calls`, not through the
+semantic fact builder.
 
 `lower_typed_trees` is the crate's one lowering entrance. Its `CheckingRequest`
 names the preliminary-package or settled-package checkpoint and carries
-representation receipts and invocation-owned admission authority. It accepts no
-runtime provider choices. [Operator candidates](src/monomorphization/operator_candidates.rs)
-derive from authored conformance edges; [finite families](src/monomorphization/dynamic_families.rs)
+invocation-owned package declaration authority. Representation receipts, wire
+demands, and instruction admission belong to `PreparationRequest`. It accepts no
+runtime provider choices. [Operator candidates](../03b_typed-trees-to-typed-trees/src/monomorphization/operator_candidates.rs)
+derive from authored conformance edges; [finite families](../03b_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs)
 materialize every checked boundary candidate's complete declared roster, alongside
-local dynamic selections. [Dynamic slots](src/monomorphization/dynamic_slots.rs)
+local dynamic selections. [Dynamic slots](../03b_typed-trees-to-typed-trees/src/monomorphization/dynamic_slots.rs)
 instantiate each requirement a selector reaches and retarget its calls, so
 selector calls plan through the ordinary call routes against a concrete
 signature. There is no second semantic-to-checked route, and
@@ -101,7 +103,7 @@ transactionally so a failed reconstruction leaves its original fixture intact.
 | --- | --- |
 | `semantic/mod.rs`, `semantic/contracts/`, `semantic/points.rs` | Contract payloads, places, obligation origins, and program points. |
 | `semantic.rs` | The semantic-fact area root: `facts` states the knowledge, `calls` names the coordinates it is stated about, `places` renders the storage. |
-| `semantic/calls.rs`, `semantic/calls/traversal/` | Shared exact state/statement/call coordinates. |
+| `semantic/calls.rs`, `semantic/calls/parameter_domains.rs` | Checked argument referents and parameter-domain projection; exact call coordinates come from validation. |
 | `flow/`, `flow/call_phases.rs` | Entry facts, call requires, invalidation, guarantees, exits, and transfer order. |
 | `flow/place/`, `flow/domain/` | Canonical places and dependency-overlap invalidation. |
 | `flow/ownership/` | Type-multiplicity-based moves, drops, argument routes, and result storage. |
@@ -132,36 +134,8 @@ authority. Omega's coordinator owns the
 [ordered settlement boundary](../../../../omega/compilation/driver/README.md#checked-settlement)
 outside this crate.
 
-[Specialization](src/monomorphization/mod.rs) runs explicit fixed-point rounds:
-discover call tuples, validate bounds, prepare the round's contract analyses,
-materialize missing instances, then rewrite calls and recheck selections.
-Authored templates remain generic and unchanged. Application candidates borrow
-the round's immutable template metadata while owning their bindings.
-[Selection](src/monomorphization/selection.rs),
-[body cloning](src/monomorphization/body_cloning.rs),
-[body rewriting](src/monomorphization/body_rewriting.rs), and
-[identity encoding](../../checking/src/machine_calls/contract_identities.rs) own those mechanisms.
-Cloned runtime calls resolve subjects in a state-owned traversal rather than
-rediscovering their enclosing statement trees for each call. The collected
-subjects preserve the first lexical owner and exact generational handles.
-Separate saved operator-provider templates retain their distinct-source path.
-
-Selected-provider checking prepares its immutable authored snapshot and reach
-summary once per invocation, only when providers are selected. Fixed-point rounds
-avoid a working graph copy when all demanded tuples already have exact receipts.
-A provider with new tuples still gets isolated replay/type-import storage;
-that copy is not shared mutable template authority.
-
-This removes the per-template whole-program snapshot, not all copying or
-whole-program scans. Selected graphs are copied through staging and then into
-their destination; generated names and evidence still allocate. Shared source
-payloads retain their existing owners. The manual `specialization_allocations`
-example counts successful allocation/reallocation requests and requested bytes
-during complete static specialization, excluding input construction/cloning.
-It varies demanded templates and unrelated machines and checks exact repeated
-output and allocation counts. It does not measure peak memory or speedup.
-Run `cargo run -p typed-trees-to-checked-trees --example specialization_allocations`
-(or use `mbx run` when available).
+Typed elaboration and its allocation probe are documented with the
+[preparation stage](../03b_typed-trees-to-typed-trees/README.md).
 
 ## Flow, ranges, and progress
 

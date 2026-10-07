@@ -87,14 +87,14 @@ fn main() {
     for (templates, unrelated) in [(1, 0), (1, 64), (8, 0), (8, 64)] {
         let input = program(templates, unrelated);
         let mut expected = input.clone();
-        typed_trees_to_checked_trees::specialize_static_machine_calls(&mut expected).unwrap();
+        typed_trees_to_typed_trees::specialize_static_machine_calls(&mut expected).unwrap();
         assert_eq!(expected.machine_specializations.len(), templates * 3);
         let mut measurements = Vec::new();
         for _ in 0..3 {
             let mut current = input.clone();
             let calls_before = ALLOCATION_CALLS.load(Ordering::Relaxed);
             let bytes_before = ALLOCATED_BYTES.load(Ordering::Relaxed);
-            typed_trees_to_checked_trees::specialize_static_machine_calls(&mut current).unwrap();
+            typed_trees_to_typed_trees::specialize_static_machine_calls(&mut current).unwrap();
             let calls = ALLOCATION_CALLS.load(Ordering::Relaxed) - calls_before;
             let bytes = ALLOCATED_BYTES.load(Ordering::Relaxed) - bytes_before;
             assert_eq!(current, expected, "specialization output is deterministic");

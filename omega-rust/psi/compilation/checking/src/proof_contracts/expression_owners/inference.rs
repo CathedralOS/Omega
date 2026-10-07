@@ -2,7 +2,7 @@
 //! collection view, and member resolution each environment can answer.
 
 use super::{InferredType, OwnerMemberTarget, TypeEnvironment};
-use crate::call_topology::MeasureReceiver;
+use crate::collection_operations::MeasureReceiver;
 use language_semantics::declaration_selection::CollectionMeasure;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
@@ -91,7 +91,7 @@ pub(super) fn member_target_in_environment(
 }
 
 /// The measure a member selects on its inferred receiver, asked of
-/// [`crate::call_topology::collection_measure_member`] in that query's
+/// [`crate::collection_operations::collection_measure_member`] in that query's
 /// receiver vocabulary. A nominal or compiler-text receiver has no measure.
 pub(super) fn collection_measure_in_environment(
     program: &dyn crate::CheckingInput,
@@ -103,7 +103,7 @@ pub(super) fn collection_measure_in_environment(
         InferredType::CollectionView(_) => MeasureReceiver::Window,
         InferredType::Nominal(_) | InferredType::CompilerString => return None,
     };
-    crate::call_topology::collection_measure_member(program, member, receiver)
+    crate::collection_operations::collection_measure_member(program, member, receiver)
 }
 
 pub(super) fn resolve_member_symbol_from_authored_source(
@@ -332,7 +332,7 @@ pub(super) fn inferred_type_is_collection(
     match inferred {
         InferredType::Nominal(_) => false,
         InferredType::TypeReference(type_reference) => {
-            crate::call_topology::type_reference_is_collection(program, type_reference)
+            crate::collection_operations::type_reference_is_collection(program, type_reference)
         }
         InferredType::CollectionView(_) => true,
         InferredType::CompilerString => false,

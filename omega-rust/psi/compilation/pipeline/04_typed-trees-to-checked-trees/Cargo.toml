@@ -9,6 +9,7 @@ name = "typed_trees_to_checked_trees"
 path = "src/lib.rs"
 
 [dependencies]
+typed-trees-to-typed-trees = { path = "../03b_typed-trees-to-typed-trees" }
 arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }

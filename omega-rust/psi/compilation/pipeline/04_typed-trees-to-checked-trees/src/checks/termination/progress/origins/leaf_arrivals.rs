@@ -235,8 +235,11 @@ pub(super) fn shared_reference_boundary(
     segments: &[PlaceSegment],
 ) -> Option<usize> {
     for boundary in 1..=segments.len() {
-        let reached =
-            flow::project_type_reference_from_segments(program, root_type, &segments[..boundary])?;
+        let reached = validation::project_type_reference_from_segments(
+            program,
+            root_type,
+            &segments[..boundary],
+        )?;
         if let Some(access) = reference_type(program, reached) {
             return (!access.is_exclusive()).then_some(boundary);
         }
@@ -270,7 +273,7 @@ where
         return None;
     }
     let projection = projections.remove(0);
-    let mut candidate = flow::canonical_place_from_expression_in_state(
+    let mut candidate = validation::canonical_place_from_expression_in_state(
         program,
         state.state_symbol,
         index,
@@ -322,7 +325,7 @@ pub(super) fn leaf_candidate_arrival(
             )?;
             continue;
         }
-        let reached = flow::project_type_reference_from_segments(
+        let reached = validation::project_type_reference_from_segments(
             program,
             local.type_reference,
             &candidate.segments,

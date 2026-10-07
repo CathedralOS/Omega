@@ -53,7 +53,7 @@ pub(super) fn checked_operand_type(
             let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
                 return None;
             };
-            crate::authored_selections::call_targets::exact_named_operator_call(program, call)
+            validation::selection_resolution::exact_named_operator_call(program, call)
                 .or_else(|| {
                     checked_named_operator_call(
                         program,

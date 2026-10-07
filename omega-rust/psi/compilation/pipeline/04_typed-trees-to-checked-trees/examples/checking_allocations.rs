@@ -87,9 +87,11 @@ fn main() {
         .unwrap();
         let program =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
         let checking = typed_trees_to_checked_trees::CheckingRequest::settled();
         let (expected, preparation) =
-            typed_trees_to_checked_trees::prepare_typed_trees(program.clone(), &checking).unwrap();
+            typed_trees_to_typed_trees::prepare_typed_trees(program.clone(), &preparation_request)
+                .unwrap();
         let expected =
             typed_trees_to_checked_trees::lower_typed_trees(expected, preparation, &checking)
                 .unwrap();
@@ -102,7 +104,8 @@ fn main() {
             let before_bytes = ALLOCATED_BYTES.load(Ordering::Relaxed);
             let start = Instant::now();
             let (input, preparation) =
-                typed_trees_to_checked_trees::prepare_typed_trees(input, &checking).unwrap();
+                typed_trees_to_typed_trees::prepare_typed_trees(input, &preparation_request)
+                    .unwrap();
             let checked =
                 typed_trees_to_checked_trees::lower_typed_trees(input, preparation, &checking)
                     .unwrap();

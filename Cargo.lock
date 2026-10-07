@@ -34,6 +34,7 @@ dependencies = [
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
+ "typed-trees-to-typed-trees",
 ]
 
 [[package]]
@@ -192,6 +193,7 @@ dependencies = [
  "trust-model",
  "typed-trees",
  "typed-trees-to-checked-trees",
+ "typed-trees-to-typed-trees",
  "validation",
 ]
 
@@ -228,6 +230,7 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "typed-trees",
  "typed-trees-to-checked-trees",
+ "typed-trees-to-typed-trees",
  "validation",
 ]
 
@@ -481,6 +484,7 @@ dependencies = [
  "trust-model",
  "typed-trees",
  "typed-trees-to-checked-trees",
+ "typed-trees-to-typed-trees",
  "validation",
 ]
 
@@ -1568,6 +1572,7 @@ dependencies = [
  "symbols",
  "typed-trees",
  "typed-trees-to-checked-trees",
+ "validation",
 ]
 
 [[package]]
@@ -1667,6 +1672,7 @@ dependencies = [
  "trust-model",
  "typed-trees",
  "typed-trees-to-checked-trees",
+ "typed-trees-to-typed-trees",
  "validation",
 ]
 
@@ -2191,6 +2197,30 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-typed-trees",
+ "validation",
+]
+
+[[package]]
+name = "typed-trees-to-typed-trees"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "checked-trees",
+ "diagnostics",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
+ "numerics",
+ "proof",
  "source-files-to-tokens",
  "symbol-resolved-trees",
  "symbol-resolved-trees-to-typed-trees",

@@ -425,7 +425,7 @@ pub(super) fn caller_argument_place(
         if depth == 0 {
             return None;
         }
-        let place = flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             program,
             state.state_symbol,
             statement_index,

@@ -96,7 +96,7 @@ pub fn checked_collection_view_intrinsic_from_exact_owner(
     // The call shape decides which operation the spelling may select; this
     // site additionally requires every exact owner environment to agree on the
     // receiver's carrier type before the intrinsic is recorded.
-    let expected = crate::call_topology::collection_view_call(program, call)?;
+    let expected = crate::collection_operations::collection_view_call(program, call)?;
     let mut retained = None;
     for environment in exact_owner_environments(program, contract_facts, expression, owner_index)? {
         let receiver =
@@ -152,7 +152,7 @@ pub(super) fn checked_machine_call_target_from_type_owners(
 
 pub(super) fn checked_machine_call_target_from_executable_owner(
     program: &dyn crate::CheckingInput,
-    contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
+    _contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,

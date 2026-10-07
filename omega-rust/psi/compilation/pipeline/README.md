@@ -14,6 +14,7 @@ authority.
 | 01 — parsing | [parser.rs](01_tokens-to-syntax-trees/src/parser.rs) | [syntax trees](../representations/syntax-trees/) |
 | 02 — resolution | [resolution.rs](02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
+| 03b — typed elaboration | [preparation.rs](03b_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
 | 04 — checking and evidence | [checking.rs](04_typed-trees-to-checked-trees/src/checking.rs) | [checked trees](../representations/checked-trees/) |
 | 05 — lowering | [machine_lowering.rs](05_checked-trees-to-lowered-psi/src/machine_lowering.rs) | [Lowered Psi](../representations/lowered-psi/) |
 | 06 — selected optimization | [psi_optimization.rs](06_lowered-psi-to-lowered-psi/src/psi_optimization.rs) | the same Lowered Psi representation |
@@ -319,7 +320,7 @@ evidence are complete.
 [explicit family contract](../../../../wiki/spec/language/generics.md#finite-specialization-boundary)
 and [dynamic rows](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 Runtime selection lowers through instantiated selector slots
-(`04_typed-trees-to-checked-trees/src/monomorphization/dynamic_slots.rs`), but a
+(`03b_typed-trees-to-typed-trees/src/monomorphization/dynamic_slots.rs`), but a
 finite-family selector call keeps its requirement target and declines, so tuple
 expansion, runtime family selection, and indexed result custody are all
 unimplemented. Explicit source disjunctions, not

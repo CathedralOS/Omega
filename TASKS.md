@@ -2971,32 +2971,22 @@ of a check the same flow already performed, not the check itself.
   fields hold no `String`, plan digests (and so package-review records) are
   unchanged, and the provider and native corpus slices are unchanged.
 
-- **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) `CheckedTrees` embeds the
-  typed program, but stage 04 rewrites it in place first, so the embedded
-  value is a checking-time variant rather than typing's output.
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs::lower_typed_trees`
-  takes the program by value and then:
-  - runs the specialization fixed point
-    (`specialize_static_machine_calls_with_selections`,
-    `generate_dynamic_family_specializations`,
-    `bind_selected_operator_calls`, with `normalize_open_index_identities`
-    every round);
-  - runs the binding and landing passes `resolve_projected_receiver_calls`
-    (twice), `resolve_dynamic_call_targets`,
-    `resolve_named_result_overloads`, `bind_float_conversion_casts`,
-    `land_float_literal_destinations` (twice), `refine_default_domain_zero`,
-    `bind_pre_specialization_authored_selections`;
-  - after checking, writes conclusions back through
-    `finalize_checked_authored_selections(&mut program, &facts)`
-    (`src/authored_selections/finalization.rs`).
+- **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) Complete qualification of the
+  frozen typed-to-checked boundary. Typed elaboration now belongs to
+  `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`;
+  stage 04 consumes `FrozenTypedTrees` and publishes authored selections and
+  specialization commitments into `CheckFacts`. Source queries remain with
+  independent validation/proof owners; no checking-time mutation or typed
+  commitment fallback is permitted.
 
-  Move the specialization fixed point and its rebinding passes
-  into a new `typed-trees-to-typed-trees` stage between stages 03 and 04,
-  calling each pass once at its required point; record finalized authored
-  selections in `CheckFacts` instead of the typed program; delete the moved
-  calls from stage 04 with no fallback route. The new stage takes the same
-  selected-provider inputs stage 04 takes, so land it before or with
-  **PROVIDER-SELECTION-AFTER-TERMINAL**.
+  Remaining: qualify the extracted stage and its query consumers against the
+  full check corpus and native `--filter generics,operators,providers/` on
+  macOS. Attribute any moved behavior on the current base without changing
+  authored oracles. Coordinate the remaining repeated specialization/rebinding
+  passes with **SPECIALIZATION-LOOP-ONCE**, now owned by the preparation stage;
+  run each pass once at its required point without losing authored requirement
+  identity or call-contract diagnostics. Runtime selected-provider choices are
+  not a preparation input; source checks every candidate before Omega selection.
 
   The checking invocation also owns every derived index, memo and recursion
   stack in explicit arena/context storage passed by borrow. Remove
@@ -3008,14 +2998,12 @@ of a check the same flow already performed, not the check itself.
   as a replacement global cache, and do not port runtime borrow checking into
   Omega.
 
-  Acceptance: `lower_typed_trees`
-  performs no `&mut` pass over the program and nothing writes to
-  `CheckedTrees.typed` after construction (source-scanning guard), and the
-  checking/stage-04 production paths contain no `thread_local!` or `RefCell`
-  working state (source-scanning guard). Nested checking and partitioned
-  workers use explicit disjoint contexts over shared immutable arenas, and the
-  full check corpus plus native corpus `--filter
-  generics,operators,providers/` are unchanged.
+  Acceptance: the immutable-boundary source guard, full check corpus and focused
+  native cohort are unchanged, with no writes to `CheckedTrees.typed` after
+  construction and no preparation fallback in stage 04. Checking/stage-04
+  production paths contain no `thread_local!` or `RefCell` working state
+  (source-scanning guard). Nested checking and partitioned workers use explicit
+  disjoint contexts over shared immutable arenas.
 
 - **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct and dynamic ELF image
   emission now each build their final image once. Only retained artifacts

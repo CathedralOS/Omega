@@ -123,7 +123,7 @@ pub(crate) fn project_selected_conformance_application(
     declaration_kind: &str,
     declaration_path: &str,
 ) -> Result<ProjectedSelectedConformanceApplication, Vec<Diagnostic>> {
-    let closed = typed_trees_to_checked_trees::close_conformance_application(
+    let closed = validation::conformance_applications::close_conformance_application(
         compilation.checking_input,
         selected,
     )

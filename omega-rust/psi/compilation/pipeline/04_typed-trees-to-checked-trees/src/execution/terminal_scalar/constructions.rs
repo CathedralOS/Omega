@@ -289,7 +289,7 @@ pub(super) fn retain_shapes(
                             parameter_index,
                         } = place.source
                         {
-                            let authored = crate::semantic::calls::find_state(program, state)?;
+                            let authored = program.state_by_symbol(state)?;
                             let parameter = program
                                 .state_parameters(authored)
                                 .iter()

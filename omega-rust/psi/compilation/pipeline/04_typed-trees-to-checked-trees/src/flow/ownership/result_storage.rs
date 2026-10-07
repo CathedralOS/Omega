@@ -18,8 +18,7 @@ pub(super) fn is_private_result_place(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(result) = super::super::calls::call_target_return_type(program, call.target_symbol)
-    else {
+    let Some(result) = validation::call_target_return_type(program, call.target_symbol) else {
         return false;
     };
     let Some(root_type) = unconstrained_type(program, result) else {

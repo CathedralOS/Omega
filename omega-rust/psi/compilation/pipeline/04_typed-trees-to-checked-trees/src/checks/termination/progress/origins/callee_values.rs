@@ -94,7 +94,7 @@ pub(super) fn callee_value_place_leaf(
     if depth == 0 {
         return None;
     }
-    let place = flow::canonical_place_from_expression(program, expression)?;
+    let place = validation::canonical_place_from_expression(program, expression)?;
     let root = match place.root {
         PlaceRoot::Symbol(root) => root,
         PlaceRoot::Expression(rooted) => {

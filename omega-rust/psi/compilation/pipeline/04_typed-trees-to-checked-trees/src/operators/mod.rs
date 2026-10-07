@@ -1,20 +1,17 @@
-//! Checked operator evidence and executable call binding.
+//! Checked operator evidence.
 //!
 //! Validation owns readonly use discovery, destination-sensitive receiver
 //! typing and binding-site domain selection. `build_operator_facts` combines
 //! those shared discoveries with this stage's crash and realization contracts.
-//! `applications` retains checked boundary application demands; `call_binding`
-//! and `float_shorthand_calls` rewrite typed calls during preparation.
+//! `applications` retains checked boundary application demands. The preceding
+//! typed-to-typed stage owns token and shorthand call rewrites.
 
 use checked_trees::{CheckedOperatorFacts, CheckedValueFacts};
 use typed_trees::expression::ExpressionNode;
 
 mod applications;
-mod call_binding;
-mod float_shorthand_calls;
 
 pub(crate) use applications::bind_boundary_operator_application_demands;
-pub(crate) use call_binding::bind_selected_operator_calls;
 
 pub(crate) fn build_operator_facts(
     program: &dyn ::validation::CheckingInput,

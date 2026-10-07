@@ -1,8 +1,6 @@
 use arena::{Handle, HandleSpan};
 
-use crate::{
-    BorrowCallFact, BorrowLoanFact, BorrowWritableRootFact,
-};
+use crate::{BorrowCallFact, BorrowLoanFact, BorrowWritableRootFact};
 
 use super::super::{FlowConstraintKind, FlowConstraintRef, FlowFacts};
 

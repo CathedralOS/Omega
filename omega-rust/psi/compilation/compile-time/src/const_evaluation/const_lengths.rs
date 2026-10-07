@@ -306,7 +306,7 @@ impl<'selection> LengthJobs<'selection> {
         // A newly literal type can close a static application's remaining
         // tuple. Resume the same specialization owner in the same arena; it
         // appends real instances and cannot replay an evaluated leaf.
-        typed_trees_to_checked_trees::specialize_static_machine_calls(typed)?;
+        typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
         let domain = EvaluationDomain::all().demanded_roots(typed, &[machine]);
         execution = domain.execution_program(typed);
 
@@ -335,9 +335,10 @@ impl<'selection> LengthJobs<'selection> {
             },
             &EvaluationDomain::all(),
         )?;
+        let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
         let checking = typed_trees_to_checked_trees::CheckingRequest::settled();
         let (execution, preparation) =
-            typed_trees_to_checked_trees::prepare_typed_trees(execution, &checking)?;
+            typed_trees_to_typed_trees::prepare_typed_trees(execution, &preparation_request)?;
         let checked =
             typed_trees_to_checked_trees::lower_typed_trees(execution, preparation, &checking)?;
         // Admission sees the selected operation's executable meaning, not a

@@ -324,7 +324,7 @@ fn selected_meaning_borrows_operands(
     let (Some(Some(target)), None) = (targets.next(), targets.next()) else {
         return false;
     };
-    super::calls::call_target_parameters(program, target).is_some_and(|parameters| {
+    validation::call_target_parameters(program, target).is_some_and(|parameters| {
         parameters.len() == 2
             && parameters.iter().all(|parameter| {
                 matches!(
@@ -352,7 +352,7 @@ fn append_move_events_for_call_arguments(
     // by the call-flow argument-move pass. Expression recursion handles only
     // operators/unresolved targets; otherwise a boundary-trait value call
     // would record every owned argument twice.
-    if super::calls::call_target_parameters(program, call.target_symbol).is_some()
+    if validation::call_target_parameters(program, call.target_symbol).is_some()
         || expression_call_is_owned_by_call_flow(program, state_symbol, call)
     {
         return;

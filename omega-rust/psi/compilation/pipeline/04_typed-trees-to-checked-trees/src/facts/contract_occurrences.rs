@@ -84,10 +84,10 @@ pub(crate) fn append_expression_occurrences(
             // their ordinary complete-place identity.
             if validation::expression_place_type_reference(program, member.receiver, &[])
                 .and_then(|receiver| {
-                    crate::semantic::calls::collection_measure_member(
+                    validation::collection_operations::collection_measure_member(
                         program,
                         member,
-                        crate::semantic::calls::MeasureReceiver::Declared(receiver),
+                        validation::collection_operations::MeasureReceiver::Declared(receiver),
                     )
                 })
                 .is_some()

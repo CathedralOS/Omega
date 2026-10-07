@@ -23,6 +23,7 @@ terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-p
 proof-admission = { path = "../../../../psi/compilation/proof/admission" }
 
 [dev-dependencies]
+typed-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }
 # Dev builds enable test-support so the psi_optimization_allocations example and
 # the test_support exports it drives compile alongside the unit tests.
 abstract-operations-to-abstract-operations = { path = ".", features = ["test-support"] }

@@ -127,7 +127,7 @@ pub(super) fn selected_operator(
 
 /// Targetless collection views borrow existing storage. Nominal/operator calls
 /// are resolved before this intrinsic path is considered, and
-/// [`crate::semantic::calls::collection_view_call`] rejects them. Only the two
+/// [`validation::collection_operations::collection_view_call`] rejects them. Only the two
 /// element views are claimed here: `as_view`/`bytes` view a text carrier, not
 /// collection storage whose elements this lane could keep observed.
 pub(super) fn append_builtin_collection_view(
@@ -139,7 +139,7 @@ pub(super) fn append_builtin_collection_view(
     source: FlowOwnershipEventSource,
 ) -> bool {
     if !matches!(
-        crate::semantic::calls::collection_view_call(program, call),
+        validation::collection_operations::collection_view_call(program, call),
         Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
     ) {
         return false;

@@ -4,10 +4,10 @@
 //! qualified type for a formal adds obligations on the actual argument; it does
 //! not add assumptions to the caller or mutate the generic declaration.
 
-use super::{CallSite, call_site_argument_expressions};
 use facts::FactPayload;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use validation::{CallSite, call_site_argument_expressions};
 
 pub(crate) fn call_parameter_domains(
     program: &dyn ::validation::CheckingInput,

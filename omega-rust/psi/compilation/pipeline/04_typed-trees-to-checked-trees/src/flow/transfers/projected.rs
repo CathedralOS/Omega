@@ -198,7 +198,7 @@ fn stable_segment(segment: &facts::PlaceSegment) -> bool {
 /// The place a builtin collection-view call lends to its result, or `None`
 /// when `expression` is not a compiler-owned `as_slice`/`as_mut_slice` view on
 /// a collection receiver. The call shape comes from
-/// [`crate::semantic::calls::collection_view_call`], which this lane and the
+/// [`validation::collection_operations::collection_view_call`], which this lane and the
 /// ownership lane's `append_builtin_collection_view` now share: a resolved
 /// `target_symbol` means a declared machine or boundary operator answered
 /// instead, and its returned view may be only a partial projection of the
@@ -218,7 +218,7 @@ pub(super) fn collection_view_source_place(
         return None;
     };
     if !matches!(
-        crate::semantic::calls::collection_view_call(program, call),
+        validation::collection_operations::collection_view_call(program, call),
         Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
     ) {
         return None;

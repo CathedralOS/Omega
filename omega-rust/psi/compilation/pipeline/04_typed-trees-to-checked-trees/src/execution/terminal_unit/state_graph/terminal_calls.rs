@@ -79,7 +79,7 @@ pub(super) fn invoked_callable(
     if static_machine_parameter.is_valid() {
         return None;
     }
-    control::terminal_callable_target(program, machine, path.symbol).map(|(target, _)| target)
+    validation::terminal_callable_target(program, machine, path.symbol).map(|(target, _)| target)
 }
 
 /// Only a destination outside the retained graph needs a call operation.
@@ -260,7 +260,7 @@ pub(super) fn arm_call(
     // machine rather than its entry state. Compare executable destinations
     // without replacing that source identity in the ordinary call fact.
     if occurrences.next().is_some()
-        || control::terminal_callable_target(program, machine, call.target_symbol)
+        || validation::terminal_callable_target(program, machine, call.target_symbol)
             .is_none_or(|(selected, _)| selected != target)
     {
         return None;

@@ -2,13 +2,13 @@
 //! trees.
 
 use validation::expression_traversal::{
-    collect_contract_facts, collect_expression_tree, collect_statement_expression_trees,
+    collect_contract_facts, collect_statement_expression_trees,
 };
 
 use crate::monomorphization::selection::static_bindings::infer_static_bindings;
 use crate::monomorphization::{
-    CallSite, CalleeState, Candidate, ExpressionHandle, ExpressionNode, ProofFact,
-    StaticMachineArgument, SymbolHandle, SymbolKind, TypeReferenceHandle, const_arguments,
+    CallSite, CalleeState, Candidate, ExpressionHandle, StaticMachineArgument, SymbolHandle,
+    SymbolKind, TypeReferenceHandle, const_arguments,
 };
 
 /// An explicit argument has no binder slot of its selected kind. Omitted

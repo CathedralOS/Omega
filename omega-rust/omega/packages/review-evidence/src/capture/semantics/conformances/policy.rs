@@ -217,7 +217,7 @@ fn validate_retained_application(
     };
     // This reclassifies retained arguments against the same checked declaration
     // telescope. It executes no source code and consumes no proof certificate.
-    let closed = typed_trees_to_checked_trees::close_conformance_application(
+    let closed = validation::conformance_applications::close_conformance_application(
         compilation.checking_input,
         &selected,
     )

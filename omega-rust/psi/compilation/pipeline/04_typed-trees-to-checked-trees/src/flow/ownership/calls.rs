@@ -126,7 +126,7 @@ fn affine_call_result_type(
         receiver_path.as_deref(),
         &call.target,
     );
-    let result = super::super::calls::call_target_return_type(program, target)?;
+    let result = validation::call_target_return_type(program, target)?;
     // Retain the owned root type before any referent/qualification stripping.
     // Linear/conditional results still need their explicit claim mapping.
     (matches!(

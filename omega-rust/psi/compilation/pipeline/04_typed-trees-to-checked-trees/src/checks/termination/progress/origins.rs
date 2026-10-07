@@ -30,7 +30,7 @@ pub(super) fn at_call(
         segments: Vec::new(),
     };
     for projection in subject.projections {
-        flow::push_field_place_segments(program, &mut place.segments, projection);
+        validation::push_field_place_segments(program, &mut place.segments, projection);
     }
     // The shared backward trace keeps value-position call results opaque;
     // progress supplies the two producers it can prove exactly: an owned

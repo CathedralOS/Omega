@@ -193,7 +193,7 @@ fn reference_source_place_shaped(
             ExpressionNode::Call(call)
                 if through_collection_views
                     && matches!(
-                        crate::semantic::calls::collection_view_call(program, call),
+                        validation::collection_operations::collection_view_call(program, call),
                         Some(
                             language_semantics::declaration_selection::CollectionViewOperation::SharedSlice
                                 | language_semantics::declaration_selection::CollectionViewOperation::MutableSlice

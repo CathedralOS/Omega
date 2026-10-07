@@ -90,7 +90,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         // Only a compiler-owned element view of a collection keeps the
         // receiver's declared extent; the text views carry no element count.
         if !matches!(
-            crate::semantic::calls::collection_view_call(self.program, call),
+            validation::collection_operations::collection_view_call(self.program, call),
             Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
         ) {
             return None;

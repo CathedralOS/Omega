@@ -4,9 +4,7 @@ use crate::authored_selections::contract_resolution;
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
-use validation::selection_resolution::{
-    AuthoredSelectionResolutionTarget, declaration_target, exact_named_operator_call,
-};
+use validation::selection_resolution::exact_named_operator_call;
 
 pub(crate) fn checked_operator_conformance_targets(
     facts: &CheckFacts,

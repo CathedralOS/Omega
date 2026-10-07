@@ -25,8 +25,8 @@ pub(crate) mod program_validation;
 use crate::checking::program_validation::prepare_typed_program;
 use crate::checks;
 use crate::facts::build_check_facts;
-use crate::preparation::TypedPreparation;
 use checked_trees::CheckedTrees;
+use typed_trees_to_typed_trees::TypedPreparation;
 
 /// One typed->checked lowering request. `settled()` is the final package
 /// checkpoint. Candidate specializations derive from the source itself.
@@ -48,21 +48,14 @@ pub struct CheckingRequest<'a> {
     /// The pre-settlement checkpoint: deferred constants and pending opaque
     /// `[copy]` claims are tolerated.
     pub(crate) admits_pending_inputs: bool,
-    pub(crate) asm_authority: Option<validation::AsmAuthorityAdmission>,
-    pub(crate) opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
     pub(crate) declaration_authority: Option<&'a dyn validation::DeclarationSelectionAuthority>,
-    pub(crate) wire_compatibility_demands:
-        &'a [language_semantics::wire::WireCompatibilityDemand],
 }
 
 impl<'a> CheckingRequest<'a> {
     const fn at_checkpoint(admits_pending_inputs: bool) -> Self {
         Self {
             admits_pending_inputs,
-            asm_authority: None,
-            opaque_property_receipts: &[],
             declaration_authority: None,
-            wire_compatibility_demands: &[],
         }
     }
 
@@ -74,41 +67,6 @@ impl<'a> CheckingRequest<'a> {
     /// The pre-settlement package checkpoint.
     pub const fn preliminary() -> Self {
         Self::at_checkpoint(true)
-    }
-
-    /// Request privileged-instruction admission under the evaluated build.
-    /// Language-only probes leave this absent: checking an unused runtime
-    /// body during constant evaluation is not permission to install it.
-    /// Final product checking supplies authority and validates it on every
-    /// invocation, independently of the memoized language judgment.
-    pub const fn with_asm_authority(
-        mut self,
-        authority: validation::AsmAuthorityAdmission,
-    ) -> Self {
-        self.asm_authority = Some(authority);
-        self
-    }
-
-    /// Independently rederived representation receipts. Input preparation
-    /// rejoins the same authored declaration's dependency-scope instances;
-    /// property validation still checks every exact resulting row.
-    pub const fn with_opaque_property_receipts(
-        mut self,
-        receipts: &'a [validation::OpaqueDataPropertyReceipt],
-    ) -> Self {
-        self.opaque_property_receipts = receipts;
-        self
-    }
-
-    /// Authored wire requirements for this invocation. Generated codecs are
-    /// checked even without demands; changing demands cannot reuse a previous
-    /// invocation's acceptance of the same typed source.
-    pub const fn with_wire_compatibility_demands(
-        mut self,
-        demands: &'a [language_semantics::wire::WireCompatibilityDemand],
-    ) -> Self {
-        self.wire_compatibility_demands = demands;
-        self
     }
 
     /// Reconciled package authority for this invocation. Psi checks authored
@@ -221,10 +179,7 @@ fn check_program(
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let CheckingRequest {
         admits_pending_inputs,
-        opaque_property_receipts: _,
         declaration_authority: _,
-        asm_authority: _,
-        wire_compatibility_demands: _,
     } = *request;
     let TypedPreparation {
         static_machine_selections,

@@ -1,46 +1,14 @@
 //! Typed trees to checked trees.
 //!
-//! Checking starts at [`lower_typed_trees`] in `checking.rs`. It consumes
-//! the readonly typed owner produced by [`prepare_typed_trees`], plus retained
-//! preparation judgments and a [`CheckingRequest`] naming source admission.
-//! [`lower_typed_trees_reusing`] takes an earlier invocation-owned judgment
-//! under the same immutable input. No checking entry rewrites typed tables.
+//! Start at checking.rs: lower_typed_trees consumes FrozenTypedTrees from
+//! typed-trees-to-typed-trees and retained preparation judgments. Checking
+//! validates source semantics, publishes CheckFacts and execution plans, and
+//! never rewrites the typed representation. Invocation-owned declaration
+//! authority remains fresh even when an exact-input language judgment is reused.
 //!
-//! `preparation.rs` owns the preceding typed-to-typed operation: specialize
-//! bodies and rebind call identities, then seal the result. It is still housed
-//! in this package while its shared source-query dependencies are separated;
-//! independent stage extraction remains TYPED-FROZEN-BEFORE-CHECKING work.
-//!
-//! Wire codec and compatibility admission runs at the entrance for every
-//! request, including a reused judgment; Build supplies demands, not their
-//! verdict.
-//! The preparation phase closes the typed program; checking validates that
-//! immutable result, builds the facts a checked machine publishes, analyses
-//! its flow and values, and plans its execution:
-//!
-//! 1. The independent `proof` package elaborates mathematical declarations
-//!    and signatures before executable checking.
-//! 2. `lookup` resolves projected receiver calls to their exact owners.
-//! 3. `authored_selections` binds what the source selected before
-//!    specialization can rewrite it.
-//! 4. `monomorphization` specializes generic and provider templates, then
-//!    binds each specialization's contract identity.
-//! 5. `operators` binds token-bound machine calls.
-//! 6. `checking::program_validation` rejects a typed program that cannot be
-//!    checked at all.
-//! 7. `facts` and `semantic` build the published knowledge: what is known,
-//!    the call coordinates it is known about, and the places it names.
-//! 8. `flow`, `values` and `borrow` analyse temporal flow, value origins and
-//!    borrow custody over those facts.
-//! 9. `checks` runs the checking rules and records their evidence.
-//! 10. `execution` completes the plans a checked machine executes.
-//!
-//! Beside the route, `conformance` closes trait applications, `labels` names
-//! things for diagnostics and for the operator labels that facts retain and
-//! later checks compare, and `product_pruning` and `package_review` are
-//! orchestration seams rather than steps: the compiler calls them after a
-//! checked tree exists, to prune a product and to rederive retained facts it
-//! must be able to reject when they drift.
+//! Source elaboration and specialization belong to the preceding preparation
+//! stage. Independent validation and proof packages own shared semantic queries;
+//! facts, flow, values, borrow, checks and execution build the checked result.
 
 // The route, in the order `lower_typed_trees` runs it.
 mod authored_selections;
@@ -52,16 +20,12 @@ mod facts;
 mod flow;
 #[cfg(test)]
 mod immutable_checking_input;
-mod lookup;
-mod monomorphization;
 mod operators;
-mod preparation;
 mod proof;
 mod semantic;
 mod values;
 
 // Beside the route.
-mod conformance;
 mod labels;
 
 // Orchestration seams, called after a checked tree exists.
@@ -74,11 +38,6 @@ pub use build_program::{project_build_program, project_selected_program};
 pub use checking::{
     CheckingOutcome, CheckingRequest, RetainedCheck, lower_typed_trees, lower_typed_trees_reusing,
 };
-pub use preparation::{
-    TypedPreparation, normalize_open_index_identities, prepare_typed_trees,
-    specialize_static_machine_calls,
-};
-
 pub use package_review::{
     derive_authored_machine_crash_buckets, derive_authored_signature_crash_buckets,
     derive_checked_collection_view_intrinsic,

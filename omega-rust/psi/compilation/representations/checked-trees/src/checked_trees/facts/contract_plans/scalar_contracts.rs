@@ -197,4 +197,3 @@ impl ClosedScalarValueContractPlan {
         self.has_outcome_specific_clauses
     }
 }
-

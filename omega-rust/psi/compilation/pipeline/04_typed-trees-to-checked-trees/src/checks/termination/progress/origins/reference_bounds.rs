@@ -339,8 +339,12 @@ where
     Resolve:
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
-    let mut candidate =
-        flow::canonical_place_from_expression_in_state(program, state.state_symbol, index, value)?;
+    let mut candidate = validation::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        index,
+        value,
+    )?;
     candidate.segments.extend_from_slice(extra);
     match candidate.root {
         PlaceRoot::Symbol(root) => {
@@ -375,7 +379,7 @@ where
                             .map(|parameter| parameter.type_reference)
                     })
             })?;
-            let reached = flow::project_type_reference_from_segments(
+            let reached = validation::project_type_reference_from_segments(
                 program,
                 root_type,
                 &candidate.segments,

@@ -30,7 +30,7 @@ pub(crate) fn helper_call_borrow_loan_place(
     // semantics, and nothing here establishes it -- widening it would mint a
     // loan against a place this lane never proved is the source.
     if matches!(
-        crate::semantic::calls::collection_view_call(program, call),
+        validation::collection_operations::collection_view_call(program, call),
         Some(
             CollectionViewOperation::SharedSlice
                 | CollectionViewOperation::MutableSlice

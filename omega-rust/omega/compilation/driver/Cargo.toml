@@ -13,6 +13,7 @@ name = "compiler"
 path = "src/lib.rs"
 
 [dependencies]
+typed-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }
 compilation-products = { path = "../products" }
 lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi" }

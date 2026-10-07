@@ -110,7 +110,7 @@ pub(super) fn project_contract_conformance_application(
             matching.len()
         )));
     };
-    let closed = typed_trees_to_checked_trees::close_conformance_application(
+    let closed = validation::conformance_applications::close_conformance_application(
         compilation.checking_input,
         argument,
     )

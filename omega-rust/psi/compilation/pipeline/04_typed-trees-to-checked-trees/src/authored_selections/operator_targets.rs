@@ -6,7 +6,6 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 use crate::authored_selections::contract_resolution;
 use crate::authored_selections::member_targets::{
     expression_is_contextual_statement_primitive, expression_is_intrinsic_primitive_without_origin,
-    reachable_expressions,
 };
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use diagnostics::Diagnostic;
@@ -16,6 +15,7 @@ use language_semantics::declaration_selection::{
 use symbols::{BuiltinFunction, SymbolHandle};
 use typed_trees::expression::ExpressionNode;
 use validation::declaration_type_reference;
+use validation::expression_owners::reachable_expressions;
 use validation::selection_resolution::AuthoredSelectionResolutionTarget;
 use validation::selection_resolution::{declaration_target, exact_named_operator_call};
 

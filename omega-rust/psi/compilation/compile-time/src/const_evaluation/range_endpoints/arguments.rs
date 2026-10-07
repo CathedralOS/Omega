@@ -210,6 +210,7 @@ impl Invocation<'_> {
             &retained,
             machine.symbol,
             "@const-endpoint",
+            &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
             &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
             expression,
             machine.name.as_str(),

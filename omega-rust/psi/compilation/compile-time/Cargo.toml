@@ -9,6 +9,7 @@ name = "build_time_evaluation"
 path = "src/lib.rs"
 
 [dependencies]
+typed-trees-to-typed-trees = { path = "../pipeline/03b_typed-trees-to-typed-trees" }
 build-time-values = { path = "../../foundation/build-time-values" }
 checked-trees = { path = "../representations/checked-trees" }
 validation = { path = "../checking" }
@@ -30,4 +31,3 @@ syntax-trees = { path = "../representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 typed-trees = { path = "../representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../pipeline/04_typed-trees-to-checked-trees" }
-

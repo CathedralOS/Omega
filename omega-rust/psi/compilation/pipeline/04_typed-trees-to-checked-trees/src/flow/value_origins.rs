@@ -310,7 +310,7 @@ where
         {
             return Some(place);
         }
-        let mut source = flow::canonical_place_from_expression_in_state(
+        let mut source = validation::canonical_place_from_expression_in_state(
             program,
             state.state_symbol,
             statement_index,
@@ -382,17 +382,17 @@ fn result_call<'program>(
         match program.expression_table.expression(expression) {
             ExpressionNode::Member(member) => {
                 let mut peeled = Vec::new();
-                flow::push_field_place_segments(
+                validation::push_field_place_segments(
                     program,
                     &mut peeled,
-                    flow::effective_member_symbol(program, member.receiver, member),
+                    validation::effective_member_symbol(program, member.receiver, member),
                 );
                 peeled.extend_from_slice(&relative);
                 relative = peeled;
                 expression = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
-                relative.insert(0, flow::index_place_segment(program, indexed.index));
+                relative.insert(0, validation::index_place_segment(program, indexed.index));
                 expression = indexed.collection;
             }
             ExpressionNode::Call(call) => {

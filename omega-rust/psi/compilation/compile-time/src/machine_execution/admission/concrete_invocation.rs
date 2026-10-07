@@ -88,9 +88,10 @@ pub(super) fn zero_argument_invocation_discharges(
     // owning program has not reached settlement, so the probe lowers in the
     // same mode. Contract checking is not gated on the mode, so authored
     // `requires` premises are still decided at the synthesized call.
+    let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
     let checking = typed_trees_to_checked_trees::CheckingRequest::preliminary();
     let Ok((probe, preparation)) =
-        typed_trees_to_checked_trees::prepare_typed_trees(probe, &checking)
+        typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request)
     else {
         return false;
     };
@@ -127,9 +128,10 @@ pub(super) fn argument_independent_closure_discharges(
     let mut probe = program.clone();
     // Same preliminary-package window as the zero-argument probe above.
     probe.pending_const_range_endpoints.clear();
+    let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
     let checking = typed_trees_to_checked_trees::CheckingRequest::preliminary();
     let Ok((probe, preparation)) =
-        typed_trees_to_checked_trees::prepare_typed_trees(probe, &checking)
+        typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request)
     else {
         return false;
     };
@@ -187,6 +189,7 @@ pub(crate) fn snapshot_arguments_discharge(
     retained: &[SymbolHandle],
     owner: SymbolHandle,
     probe_name: &str,
+    preparation_request: &typed_trees_to_typed_trees::PreparationRequest,
     checking: &typed_trees_to_checked_trees::CheckingRequest,
     expression: ExpressionHandle,
     callee: &str,
@@ -239,7 +242,7 @@ pub(crate) fn snapshot_arguments_discharge(
         .expression_table
         .set_source_span(concrete, program.expression_table.source_span(expression));
     let owner = append_invocation_probe(&mut probe, owner, probe_name, concrete, return_type);
-    let checked = typed_trees_to_checked_trees::prepare_typed_trees(probe, checking)
+    let checked = typed_trees_to_typed_trees::prepare_typed_trees(probe, preparation_request)
         .and_then(|(probe, preparation)| {
             typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, checking)
         })
