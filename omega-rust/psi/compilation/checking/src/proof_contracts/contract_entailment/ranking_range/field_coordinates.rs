@@ -133,15 +133,17 @@ impl<'program> FieldCoordinates<'program> {
             let entry_symbol = match entry_parameters {
                 None => coordinate.parameter.symbol,
                 Some(entries) => {
-                    let (_, entry) =
-                        program.state_parameters(state).iter().zip(entries).find(
-                            |(parameter, _)| parameter.symbol == coordinate.parameter.symbol,
-                        )?;
-                    if !entry.is_valid() {
+                    let Some(entry) = super::coordinate_entry_symbol(
+                        program,
+                        state,
+                        entries,
+                        coordinate.parameter.symbol,
+                    )?
+                    else {
                         // A role-less record serves its own guards only; its
                         // fields never rewrite a template coordinate.
                         continue;
-                    }
+                    };
                     if coordinate
                         .at_arrival(
                             program,
@@ -149,10 +151,10 @@ impl<'program> FieldCoordinates<'program> {
                                 state,
                                 entry_parameters: entries,
                             },
-                            *entry,
+                            entry,
                         )
                         .is_none()
-                        && !required.contains(entry)
+                        && !required.contains(&entry)
                     {
                         // Contested copies of an unrequired role can never
                         // name which value this coordinate reads. A contested
@@ -161,7 +163,7 @@ impl<'program> FieldCoordinates<'program> {
                         // formal still reads the role's value.
                         return None;
                     }
-                    *entry
+                    entry
                 }
             };
             if entry_symbol != formal {

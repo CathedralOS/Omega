@@ -1108,6 +1108,23 @@ pub(super) fn hypothesis_landed_endpoints(
     Some(())
 }
 
+/// The entry symbol paired to `parameter` over an entry-parameter telescope:
+/// `?` when no formal pairs it, `Ok(None)` when the role is empty (each
+/// caller continues), `Ok(Some(entry))` for a valid role.
+pub(super) fn coordinate_entry_symbol(
+    program: &TypedTrees,
+    state: &State,
+    entries: &[symbols::SymbolHandle],
+    parameter: symbols::SymbolHandle,
+) -> Option<Option<symbols::SymbolHandle>> {
+    let (_, entry) = program
+        .state_parameters(state)
+        .iter()
+        .zip(entries)
+        .find(|(candidate, _)| candidate.symbol == parameter)?;
+    Some(entry.is_valid().then_some(*entry))
+}
+
 pub(super) fn computed_rank(
     program: &TypedTrees,
     machine: &Machine,
