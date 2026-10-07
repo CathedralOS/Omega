@@ -865,8 +865,6 @@ defines the complete product bar.
     machine `Main::render`, whose states take `line: &mut [u8; 24] in Utf8`
     ("state signature: parameter signature: structural parameter type",
     state 1). **STATIC-MACHINE-MIGRATION** records the glider shape.
-  - `simulation/game_of_life`: remeasure after deletion of the former private
-    `proof_search_integer_certificate_work` pass.
 
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):
