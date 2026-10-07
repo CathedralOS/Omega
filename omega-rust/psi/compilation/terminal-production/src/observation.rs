@@ -6,6 +6,7 @@
 
 /// One measured leg inside Terminal artifact production.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(usize)]
 pub enum TerminalProductionStage {
     MachineSelection,
     Lowering,
@@ -15,37 +16,41 @@ pub enum TerminalProductionStage {
     BoundaryOperatorScope,
 }
 
+/// Stable name, input and output labels for each production leg, in
+/// `TerminalProductionStage` declaration order.
+const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 6] = [
+    (
+        "terminal-production/machine-selection",
+        "CheckedTrees",
+        "TerminalMachine",
+    ),
+    ("terminal-production/lowering", "CheckedTrees", "LoweredPsi"),
+    (
+        "terminal-production/optimization",
+        "LoweredPsi",
+        "OptimizedLoweredPsi",
+    ),
+    (
+        "terminal-production/entry-receipt",
+        "OptimizedLoweredPsi",
+        "ProgramEntryReceipt",
+    ),
+    (
+        "terminal-production/publication",
+        "OptimizedLoweredPsi",
+        "CanonicalTerminalArtifact",
+    ),
+    (
+        "terminal-production/boundary-scope",
+        "LoweredPsi+CanonicalTerminalArtifact",
+        "BoundaryOperatorScope",
+    ),
+];
+
 impl TerminalProductionStage {
     /// Stable name, input and output labels for this production leg.
     pub const fn observation_labels(self) -> (&'static str, &'static str, &'static str) {
-        match self {
-            Self::MachineSelection => (
-                "terminal-production/machine-selection",
-                "CheckedTrees",
-                "TerminalMachine",
-            ),
-            Self::Lowering => ("terminal-production/lowering", "CheckedTrees", "LoweredPsi"),
-            Self::Optimization => (
-                "terminal-production/optimization",
-                "LoweredPsi",
-                "OptimizedLoweredPsi",
-            ),
-            Self::EntryReceipt => (
-                "terminal-production/entry-receipt",
-                "OptimizedLoweredPsi",
-                "ProgramEntryReceipt",
-            ),
-            Self::Publication => (
-                "terminal-production/publication",
-                "OptimizedLoweredPsi",
-                "CanonicalTerminalArtifact",
-            ),
-            Self::BoundaryOperatorScope => (
-                "terminal-production/boundary-scope",
-                "LoweredPsi+CanonicalTerminalArtifact",
-                "BoundaryOperatorScope",
-            ),
-        }
+        OBSERVATION_LABELS[self as usize]
     }
 }
 
