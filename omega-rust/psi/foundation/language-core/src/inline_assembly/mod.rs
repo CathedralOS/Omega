@@ -662,6 +662,28 @@ impl AsmInstructionContract {
             clobbers: NO_CLOBBERS,
         }
     }
+
+    /// Contract for an instruction that demands machine-owner authority but
+    /// is otherwise side-effect free: it orders no memory, changes no
+    /// interrupt or status flags, and uses only its listed constraints.
+    fn machine_authority(
+        shape: AsmInstructionShape,
+        target: AsmTargetApplicability,
+        operands: &'static [AsmOperandConstraint],
+        clobbers: &'static [&'static str],
+    ) -> Self {
+        Self {
+            availability: AsmInstructionAvailability::UserChecked,
+            shape,
+            target,
+            required_authority: AsmAuthorityRequirement::MachineOwner,
+            operands,
+            memory_ordering: AsmMemoryOrdering::None,
+            interrupt_flag_effect: AsmInterruptFlagEffect::None,
+            flags_data_flow: AsmFlagsDataFlow::None,
+            clobbers,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -924,17 +946,12 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             AsmControlRegister::Cr3 => CR3_READ_OPERANDS,
             AsmControlRegister::Cr4 => CR4_READ_OPERANDS,
         };
-        return Some(Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: AsmInstructionShape::ControlRegisterRead(register),
-            target: X86_64,
-            required_authority: MachineOwner,
+        return Some(Contract(AsmInstructionContract::machine_authority(
+            AsmInstructionShape::ControlRegisterRead(register),
+            X86_64,
             operands,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: CONTROL_REGISTER_READ_CLOBBERS,
-        }));
+            CONTROL_REGISTER_READ_CLOBBERS,
+        )));
     }
     if let Some(register) = AsmControlRegister::from_write_mnemonic(mnemonic) {
         let operands = match register {
@@ -943,17 +960,12 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             AsmControlRegister::Cr3 => CR3_WRITE_OPERANDS,
             AsmControlRegister::Cr4 => CR4_WRITE_OPERANDS,
         };
-        return Some(Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: AsmInstructionShape::ControlRegisterWrite(register),
-            target: X86_64,
-            required_authority: MachineOwner,
+        return Some(Contract(AsmInstructionContract::machine_authority(
+            AsmInstructionShape::ControlRegisterWrite(register),
+            X86_64,
             operands,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: CONTROL_REGISTER_WRITE_CLOBBERS,
-        }));
+            CONTROL_REGISTER_WRITE_CLOBBERS,
+        )));
     }
     if let Some(register) = AsmSystemRegister::from_read_mnemonic(mnemonic) {
         let operands = match register {
@@ -967,17 +979,12 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             AsmSystemRegister::EsrEl1 => ESR_EL1_READ_OPERANDS,
             AsmSystemRegister::FarEl1 => FAR_EL1_READ_OPERANDS,
         };
-        return Some(Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: AsmInstructionShape::SystemRegisterRead(register),
-            target: Aarch64,
-            required_authority: MachineOwner,
+        return Some(Contract(AsmInstructionContract::machine_authority(
+            AsmInstructionShape::SystemRegisterRead(register),
+            Aarch64,
             operands,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: SYSTEM_REGISTER_READ_CLOBBERS,
-        }));
+            SYSTEM_REGISTER_READ_CLOBBERS,
+        )));
     }
     if let Some(register) = AsmSystemRegister::from_write_mnemonic(mnemonic) {
         let operands = match register {
@@ -995,32 +1002,22 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // Register writes with architecturally deferred effect (translation
         // base, memory attributes, control state) synchronize context through
         // a caller-sequenced `isb`; the contract records no implicit fence.
-        return Some(Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: AsmInstructionShape::SystemRegisterWrite(register),
-            target: Aarch64,
-            required_authority: MachineOwner,
+        return Some(Contract(AsmInstructionContract::machine_authority(
+            AsmInstructionShape::SystemRegisterWrite(register),
+            Aarch64,
             operands,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: SYSTEM_REGISTER_WRITE_CLOBBERS,
-        }));
+            SYSTEM_REGISTER_WRITE_CLOBBERS,
+        )));
     }
 
     let entry = match mnemonic {
         "jmp" => Contract(AsmInstructionContract::without_side_effects(JumpState, Any)),
-        "hlt" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: Halt,
-            target: Any,
-            required_authority: MachineOwner,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
+        "hlt" => Contract(AsmInstructionContract::machine_authority(
+            Halt,
+            Any,
+            NO_OPERANDS,
+            NO_CLOBBERS,
+        )),
         "out" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: PortOut,
@@ -1120,28 +1117,18 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             flags_data_flow: RestoreFlags,
             clobbers: FLAGS_OPERAND_CLOBBERS,
         }),
-        "rdmsr" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MsrRead,
-            target: X86_64,
-            required_authority: MachineOwner,
-            operands: MSR_READ_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: MSR_READ_CLOBBERS,
-        }),
-        "wrmsr" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MsrWrite,
-            target: X86_64,
-            required_authority: MachineOwner,
-            operands: MSR_WRITE_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: MSR_WRITE_CLOBBERS,
-        }),
+        "rdmsr" => Contract(AsmInstructionContract::machine_authority(
+            MsrRead,
+            X86_64,
+            MSR_READ_OPERANDS,
+            MSR_READ_CLOBBERS,
+        )),
+        "wrmsr" => Contract(AsmInstructionContract::machine_authority(
+            MsrWrite,
+            X86_64,
+            MSR_WRITE_OPERANDS,
+            MSR_WRITE_CLOBBERS,
+        )),
 
         // Instruction-stream serialization and scheduling-hint directives.
         // Neither reads nor mutates modeled machine state, so they carry no
@@ -1192,39 +1179,24 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // modeled place: serializing, machine-owner operations whose operand
         // list and clobber list are both empty. `invd` drops modified lines
         // without writeback; `wbnoinvd` writes back without invalidating.
-        "wbinvd" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: CacheOperation(AsmCacheOperationKind::WriteBackInvalidate),
-            target: X86_64,
-            required_authority: MachineOwner,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "invd" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: CacheOperation(AsmCacheOperationKind::Invalidate),
-            target: X86_64,
-            required_authority: MachineOwner,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "wbnoinvd" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: CacheOperation(AsmCacheOperationKind::WriteBackNoInvalidate),
-            target: X86_64,
-            required_authority: MachineOwner,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
+        "wbinvd" => Contract(AsmInstructionContract::machine_authority(
+            CacheOperation(AsmCacheOperationKind::WriteBackInvalidate),
+            X86_64,
+            NO_OPERANDS,
+            NO_CLOBBERS,
+        )),
+        "invd" => Contract(AsmInstructionContract::machine_authority(
+            CacheOperation(AsmCacheOperationKind::Invalidate),
+            X86_64,
+            NO_OPERANDS,
+            NO_CLOBBERS,
+        )),
+        "wbnoinvd" => Contract(AsmInstructionContract::machine_authority(
+            CacheOperation(AsmCacheOperationKind::WriteBackNoInvalidate),
+            X86_64,
+            NO_OPERANDS,
+            NO_CLOBBERS,
+        )),
 
         // This remains deriver-only: an admitted provider supplies the
         // descriptor operand under the instruction's checked authority
