@@ -19,6 +19,34 @@ use typed_trees::TypedTrees;
 use typed_trees::operator::OperatorDefinition;
 use typed_trees::types::PrimitiveType;
 
+/// Select a sealed semantic overload by the operand kinds established by the
+/// calling contract. Proof-position calls may retain their overload family
+/// rather than an early target symbol: arity alone cannot select among the
+/// eight integer carriers. A retained target still constrains candidates, and
+/// neither a same-named user declaration nor a different signature is eligible.
+pub(crate) fn exact_toolchain_float_semantic_application(
+    program: &TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+    operand_kinds: &[FloatSemanticValueKind],
+) -> Option<&'static FloatSemanticOperation> {
+    let candidates = typed_trees::operator::named_expression_call_candidates(program, call);
+    let mut selected = candidates.iter().filter(|operator| {
+        let parameters = program.operator_parameters(operator);
+        parameters.len() == operand_kinds.len()
+            && parameters
+                .iter()
+                .zip(operand_kinds)
+                .all(|(parameter, kind)| {
+                    typed_value_kind(program, parameter.type_reference) == Some(*kind)
+                })
+    });
+    let operator = selected.next()?;
+    if selected.next().is_some() {
+        return None;
+    }
+    exact_toolchain_float_semantic_contract(program, operator).map(|(semantic, _)| semantic)
+}
+
 pub(crate) fn symbol_is_declared_in_sealed_source(
     program: &TypedTrees,
     symbol: symbols::SymbolHandle,

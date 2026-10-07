@@ -1133,6 +1133,15 @@ fail/float/format_conversion_requires_result_proof rejected 469ms expected @c9e4
 	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
 fail/float/integer_conversion_lookalike rejected 510ms expected @aef1e846927f+wt
 	machine `lookalike` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
+fail/float/integer_to_float_coercion_requires_denotation rejected 518ms expected @f277acaa6269+wt
+	machine `rounded32` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
+	machine `rounded64` state `entry` cannot prove integer-to-`f64` cast operand `9007199254740993` preserves its denotation; prove exact format representability or use a named conversion to round
+	machine `unsigned_loss` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
+	machine `unknown` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
+	machine `endpoints_are_not_enough` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
+	machine `stale_guard` state `guarded` cannot prove integer-to-`f64` cast operand `sample.value` preserves its denotation; prove exact format representability or use a named conversion to round
+fail/float/integer_to_float_semantics_lookalike rejected 35ms expected @f277acaa6269+wt
+	`FloatSemantics::from_integer` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::from_integer` grants no primitive implementation or proof authority
 fail/float/local_initializer_range_unproven rejected 666ms expected @9ef088fc5f88+wt
 	cannot prove initializer `20.0` satisfies the bounded value of machine `literal` state `entry` local `bounded`; expected 0..=0.5
 	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
@@ -2847,6 +2856,7 @@ pass/float/nested_float_operator_applications_exit checked 9657ms check-target:m
 pass/float/runtime_coercion_future_policy_exit checked 5024ms check-target:macos_arm64 @8794607e5caa+wt
 pass/float/runtime_exact_format_narrowing_exit checked 4634ms check-target:macos_arm64 @4ea513cebecf+wt
 pass/float/runtime_exact_integer_coercion_exit checked 5070ms check-target:macos_arm64 @aef1e846927f+wt
+pass/float/runtime_exact_integer_to_float_coercion_exit checked 4791ms check-target:macos_arm64 @f277acaa6269+wt
 pass/float/runtime_finite_record_invariant_window_exit checked 5990ms check-target:macos_arm64 @222cdf8fe2a0+wt
 pass/float/runtime_float_call_same_carrier_cast_exit checked 9730ms check-target:macos_arm64 @4f590536f488+wt
 pass/float/runtime_float_digit_separators_exit checked 88080ms check-target:macos_arm64 @e129ea486356

@@ -16,6 +16,10 @@
 //! The cast binder retains the authored target on its derived call so this
 //! check shares the ordinary walk's guard and write lifetime, not a second
 //! initializer or guard replay before binding.
+//! Integer sources use the shared integer analysis. Every integer in the
+//! contiguous precision band is exact; outside it only a proved singleton
+//! can establish representability here. Compare its mathematical integer with
+//! the exact rounded meaning, not an already-rounded host float.
 
 use diagnostics::Diagnostic;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
@@ -37,12 +41,55 @@ pub(crate) fn validate_exact_float_coercion(
 ) -> bool {
     let source = super::expression_result_type_reference(program, machine, state, operand)
         .and_then(|reference| program.primitive_type_reference(reference));
-    let Some(source @ (PrimitiveType::F32 | PrimitiveType::F64)) = source else {
+    let Some(source) = source else {
         return true;
     };
     let Some(target) = program.primitive_type_reference(target) else {
         return true;
     };
+    if numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name()).is_some()
+        && matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
+    {
+        let format = if target == PrimitiveType::F32 {
+            FloatFormat::BINARY32
+        } else {
+            FloatFormat::BINARY64
+        };
+        let proven = crate::proof_contracts::arithmetic_domains::integer_source_bounds(
+            program,
+            machine,
+            state,
+            operand,
+            source,
+            environment,
+            diagnostics,
+        )
+        .is_some_and(|(minimum, maximum)| {
+            let exact_limit = 1i128 << format.precision;
+            if minimum >= -exact_limit && maximum <= exact_limit {
+                true
+            } else if minimum == maximum {
+                let integer = numerics::bignum::BigInt::from_i128(minimum);
+                FloatSemantics::from_integer(format, &integer)
+                    == FloatMeaning::FiniteNonZero(numerics::bignum::BigRational::from_integer(
+                        integer,
+                    ))
+            } else {
+                false
+            }
+        });
+        if !proven {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` cannot prove integer-to-`{}` cast operand `{}` \
+                 preserves its denotation; prove exact format representability or use a named conversion to round",
+                machine.name, state.name, target.name(), program.expression_table.display_name(operand),
+            )).with_source_span(program.expression_table.source_span(operand)));
+        }
+        return proven;
+    }
+    if !matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
+        return true;
+    }
     if source == target || (source == PrimitiveType::F32 && target == PrimitiveType::F64) {
         return true;
     }

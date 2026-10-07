@@ -417,6 +417,43 @@ pub(crate) fn known_u64_value(
     })
 }
 
+/// Source bounds at this use, through the ordinary arithmetic analysis and
+/// its live environment. Complete open endpoints with the source carrier,
+/// never with a coercion's receiving type. Exact unsigned snapshots retain
+/// values beyond the signed compatibility interval.
+pub(crate) fn integer_source_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    primitive: PrimitiveType,
+    environment: &ValueEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<(i128, i128)> {
+    let carrier = primitive_range(primitive)?;
+    let (interval, _, _) = validate_value_range(
+        program,
+        machine,
+        Some(state),
+        expression,
+        environment,
+        None,
+        ArithmeticDomain::Exact,
+        "integer-to-float coercion source",
+        diagnostics,
+    );
+    if let Some(value) = known_u64_value(program, environment, expression) {
+        return Some((i128::from(value), i128::from(value)));
+    }
+    let interval = interval.intersect(carrier);
+    let minimum = i128::from(interval.low?);
+    let maximum = interval
+        .high
+        .map(i128::from)
+        .or_else(|| (primitive == PrimitiveType::U64).then_some(i128::from(u64::MAX)))?;
+    (minimum <= maximum).then_some((minimum, maximum))
+}
+
 /// Whether a place's declared type is an atomic integer (`AtomicU32`, ...),
 /// whose arithmetic wraps by hardware semantics, through reference/constraint
 /// shells.

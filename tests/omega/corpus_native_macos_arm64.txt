@@ -918,6 +918,7 @@ pass/float/nested_float_operator_applications_exit built 15621ms exit:70 @480083
 pass/float/runtime_coercion_future_policy_exit built 4695ms exit:0 @03c8392bc065+wt
 pass/float/runtime_exact_format_narrowing_exit built 4533ms exit:0 @4ea513cebecf+wt
 pass/float/runtime_exact_integer_coercion_exit built 5037ms exit:0 @aef1e846927f+wt
+pass/float/runtime_exact_integer_to_float_coercion_exit built 4571ms exit:0 @f277acaa6269+wt
 pass/float/runtime_finite_record_invariant_window_exit built 6015ms exit:0 @222cdf8fe2a0+wt
 pass/float/runtime_float_call_same_carrier_cast_exit built 9271ms exit:0 @4f590536f488+wt
 pass/float/runtime_float_digit_separators_exit built 11752ms exit:0 @9beb2be72f2d+wt

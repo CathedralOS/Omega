@@ -2,8 +2,8 @@
 //!
 //! All casts retain their authored target on the derived call, so ordinary
 //! occurrence checking discharges unchanged denotation using live value facts.
-//! Selection alone proves nothing. Integer-to-float widening
-//! uses whole-carrier representability. Named conversions may round, but `as`
+//! Selection alone proves nothing. Integer-to-float coercions use the same
+//! live occurrence facts as other conversions. Named conversions may round, but `as`
 //! cannot silently do so. Same-format qualification remains a cast; it is
 //! not an invitation to call a similarly named operator. All three conversion
 //! directions share selection and source custody with explicit named calls.
@@ -49,7 +49,6 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
 };
-use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -227,8 +226,8 @@ fn selected_conversion(
     let destination_is_float = matches!(destination, PrimitiveType::F32 | PrimitiveType::F64);
     let supported = if destination_is_float {
         (source_is_float && source != destination)
-            || (cast.domain == ArithmeticDomain::Exact
-                && integer_to_float_widening(source, destination))
+            || numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name())
+                .is_some()
     } else {
         source_is_float
     };
@@ -276,9 +275,9 @@ fn selected_conversion(
     // The destination/source names select a family, not its semantics. A
     // format coercion can use only the selected requirement whose sealed
     // guarantee actually states the IEEE format conversion just proved exact.
-    if source_is_float
-        && destination_is_float
-        && crate::float_format_conversion_contract(program, operator) != Some((source, destination))
+    if destination_is_float
+        && crate::numeric_float_conversion_contract(program, operator)
+            != Some((source, destination))
     {
         return None;
     }
@@ -289,19 +288,6 @@ fn selected_conversion(
         return None;
     }
     Some((operator.symbol, Identifier::generated(requirement_member)))
-}
-
-/// Whole-carrier representability is enough for these coercions. Other
-/// conversions need a value-specific proof or an explicitly named rounding
-/// operation; a total library conversion alone does not authorize an `as`.
-fn integer_to_float_widening(source: PrimitiveType, destination: PrimitiveType) -> bool {
-    matches!(
-        (source, destination),
-        (
-            PrimitiveType::I8 | PrimitiveType::I16 | PrimitiveType::U8 | PrimitiveType::U16,
-            PrimitiveType::F32 | PrimitiveType::F64
-        ) | (PrimitiveType::I32 | PrimitiveType::U32, PrimitiveType::F64)
-    )
 }
 
 /// Destination namespaces for fixed integers and IEEE floats. Address,

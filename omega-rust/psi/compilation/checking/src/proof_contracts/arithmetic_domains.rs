@@ -79,8 +79,9 @@ pub(crate) use guard_narrowing::{
 };
 pub use integer_ranges::integer_widen_is_total;
 pub(crate) use integer_ranges::{
-    integer_bit_width, literal_i64, primitive_range, validate_anonymous_integer_range,
-    validate_value_range, validate_value_range_retaining_decisions,
+    integer_bit_width, integer_source_bounds, literal_i64, primitive_range,
+    validate_anonymous_integer_range, validate_value_range,
+    validate_value_range_retaining_decisions,
 };
 pub(crate) use interval::Interval;
 pub(crate) use invariant_bounds::{

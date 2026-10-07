@@ -3,6 +3,9 @@
 //! The result projection, source parameter and format constant must join the
 //! same ensures equality through the sealed float catalogs. No conversion
 //! meaning comes from a destination annotation or a callable named `from_f64`.
+//! Float and integer inputs share the same result/format/parameter join. The
+//! integer semantic family has eight carriers, so its proof-position overload
+//! is selected by that exact parameter kind before checking sealed custody.
 
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
@@ -18,12 +21,25 @@ pub fn float_format_conversion_contract(
     program: &TypedTrees,
     operator: &OperatorDefinition,
 ) -> Option<(PrimitiveType, PrimitiveType)> {
+    numeric_float_conversion_contract(program, operator)
+        .filter(|(source, _)| matches!(source, PrimitiveType::F32 | PrimitiveType::F64))
+}
+
+/// A sealed conversion to a float carrier, from either a float projection or
+/// the selected integer parameter. The declaration name selects no semantics.
+pub fn numeric_float_conversion_contract(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+) -> Option<(PrimitiveType, PrimitiveType)> {
+    use numerics::float_semantics_catalog::{FloatSemanticKernel, FloatSemanticValueKind};
     let [parameter] = program.operator_parameters(operator) else {
         return None;
     };
     let source = program.primitive_type_reference(parameter.type_reference)?;
     let target = program.primitive_type_reference(operator.return_type)?;
-    if !matches!(source, PrimitiveType::F32 | PrimitiveType::F64)
+    if !(matches!(source, PrimitiveType::F32 | PrimitiveType::F64)
+        || numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name())
+            .is_some())
         || !matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
     {
         return None;
@@ -69,21 +85,24 @@ pub fn float_format_conversion_contract(
                 else {
                     continue;
                 };
-                let Some(selected) =
-                    typed_trees::operator::resolve_named_expression_call(program, conversion)
-                else {
-                    continue;
+                let source_kind = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
+                    FloatSemanticValueKind::Meaning
+                } else {
+                    FloatSemanticValueKind::Integer(
+                        numerics::float_semantics_catalog::IntegerCarrier::from_spelling(
+                            source.name(),
+                        )?,
+                    )
                 };
-                let Some((semantic, _)) =
-                    super::semantic_operations::exact_toolchain_float_semantic_contract(
-                        program, selected,
+                let Some(semantic) =
+                    super::semantic_operations::exact_toolchain_float_semantic_application(
+                        program,
+                        conversion,
+                        &[FloatSemanticValueKind::Format, source_kind],
                     )
                 else {
                     continue;
                 };
-                if semantic.name != "convert" {
-                    continue;
-                }
                 let [format, value] = program
                     .expression_table
                     .expression_handles(conversion.arguments)
@@ -100,16 +119,37 @@ pub fn float_format_conversion_contract(
                 {
                     continue;
                 }
-                let Some((value, source_primitive, _)) = projection(program, *value) else {
-                    continue;
+                let value = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
+                    if semantic.name != "convert" {
+                        continue;
+                    }
+                    let Some((value, source_primitive, _)) = projection(program, *value) else {
+                        continue;
+                    };
+                    if source_primitive != source {
+                        continue;
+                    }
+                    value
+                } else {
+                    let [
+                        FloatSemanticValueKind::Format,
+                        FloatSemanticValueKind::Integer(carrier),
+                    ] = semantic.parameters
+                    else {
+                        continue;
+                    };
+                    if semantic.name != "from_integer"
+                        || !matches!(semantic.kernel(), FloatSemanticKernel::FromInteger(_))
+                        || PrimitiveType::from_name(carrier.spelling()) != Some(source)
+                    {
+                        continue;
+                    }
+                    *value
                 };
                 let ExpressionNode::Name(value) = program.expression_table.expression(value) else {
                     continue;
                 };
-                if source_primitive == source
-                    && value.symbol.is_valid()
-                    && value.symbol == parameter.symbol
-                {
+                if value.symbol.is_valid() && value.symbol == parameter.symbol {
                     return Some((source, target));
                 }
             }
