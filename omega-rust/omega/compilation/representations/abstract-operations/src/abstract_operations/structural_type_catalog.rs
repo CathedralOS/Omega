@@ -3,6 +3,7 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
+use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::StructuralTypeDeclaration;
 
 /// Immutable shared structural declarations at native compilation boundaries.
@@ -68,5 +69,17 @@ impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
 impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
     fn eq(&self, other: &StructuralTypeCatalog) -> bool {
         self.as_slice() == other.as_slice()
+    }
+}
+
+/// Return the sole borrowed identity match, stopping at the second match.
+pub(super) fn unique_structural_type<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration>,
+    identity: StructuralTypeId,
+) -> Option<&'a StructuralTypeDeclaration> {
+    let mut declarations = types.filter(|declaration| declaration.id == identity);
+    match (declarations.next(), declarations.next()) {
+        (Some(declaration), None) => Some(declaration),
+        _ => None,
     }
 }

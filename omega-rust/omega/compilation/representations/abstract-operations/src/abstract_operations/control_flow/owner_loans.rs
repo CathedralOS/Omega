@@ -18,6 +18,7 @@
 //! join or changing an owned argument into a borrowed pointer. A shared
 //! borrowed byte view keeps its declared domain under the same rule.
 
+use crate::abstract_operations::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -59,13 +60,7 @@ pub fn is_bounded_owner_loan_in(
     types: &[StructuralTypeDeclaration],
 ) -> bool {
     is_bounded_owner_loan(parameter, |identity| {
-        let mut declarations = types
-            .iter()
-            .filter(|declaration| declaration.id == identity);
-        match (declarations.next(), declarations.next()) {
-            (Some(declaration), None) => Some(declaration),
-            _ => None,
-        }
+        unique_structural_type(types.iter(), identity)
     })
 }
 
@@ -97,13 +92,7 @@ pub fn is_shared_byte_view_in(
     types: &[StructuralTypeDeclaration],
 ) -> bool {
     is_shared_byte_view(parameter, |identity| {
-        let mut declarations = types
-            .iter()
-            .filter(|declaration| declaration.id == identity);
-        match (declarations.next(), declarations.next()) {
-            (Some(declaration), None) => Some(declaration),
-            _ => None,
-        }
+        unique_structural_type(types.iter(), identity)
     })
 }
 
@@ -114,13 +103,7 @@ pub fn is_shared_bounded_owner_loan_in(
     types: &[StructuralTypeDeclaration],
 ) -> bool {
     is_shared_bounded_owner_loan(parameter, |identity| {
-        let mut declarations = types
-            .iter()
-            .filter(|declaration| declaration.id == identity);
-        match (declarations.next(), declarations.next()) {
-            (Some(declaration), None) => Some(declaration),
-            _ => None,
-        }
+        unique_structural_type(types.iter(), identity)
     })
 }
 
@@ -148,13 +131,7 @@ pub fn is_owned_bounded_byte_parameter_in(
     types: &[StructuralTypeDeclaration],
 ) -> bool {
     is_owned_bounded_byte_parameter(parameter, |identity| {
-        let mut declarations = types
-            .iter()
-            .filter(|declaration| declaration.id == identity);
-        match (declarations.next(), declarations.next()) {
-            (Some(declaration), None) => Some(declaration),
-            _ => None,
-        }
+        unique_structural_type(types.iter(), identity)
     })
 }
 
@@ -184,15 +161,7 @@ pub fn is_shared_view_carrier_loan_in(
 ) -> bool {
     is_shared_view_carrier_loan(
         parameter,
-        |identity| {
-            let mut declarations = types
-                .iter()
-                .filter(|declaration| declaration.id == identity);
-            match (declarations.next(), declarations.next()) {
-                (Some(declaration), None) => Some(declaration),
-                _ => None,
-            }
-        },
+        |identity| unique_structural_type(types.iter(), identity),
         types,
     )
 }

@@ -15,6 +15,7 @@
 //! an address grants no readable authority to a write-only loan. Referents
 //! containing loans or descriptors remain unsupported.
 
+use crate::abstract_operations::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
@@ -54,13 +55,7 @@ pub fn is_address_join_in(
     types: &[StructuralTypeDeclaration],
 ) -> bool {
     is_address_join(parameter, |identity| {
-        let mut declarations = types
-            .iter()
-            .filter(|declaration| declaration.id == identity);
-        match (declarations.next(), declarations.next()) {
-            (Some(declaration), None) => Some(declaration),
-            _ => None,
-        }
+        unique_structural_type(types.iter(), identity)
     })
 }
 
