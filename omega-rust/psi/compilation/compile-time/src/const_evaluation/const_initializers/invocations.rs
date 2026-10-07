@@ -71,7 +71,7 @@ impl CheckedInitializers {
             &checked.typed,
             &checked.facts,
         );
-        let mut typed = checked.typed;
+        let mut typed = checked.typed.into_inner();
         for probe in probes {
             typed.push_machine(probe);
         }

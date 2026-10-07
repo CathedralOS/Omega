@@ -130,7 +130,7 @@ impl PreparedBuildMachineProgram {
             .typed
             .product_declaration_frontier
             .clone()
-            .unwrap_or_else(|| Arc::new(program.typed.clone()));
+            .unwrap_or_else(|| Arc::new(program.typed.as_ref().clone()));
         Self {
             program: PreparedBuildMachineBody::Checked(CheckedBuildProgram {
                 checked: Arc::new(program),
