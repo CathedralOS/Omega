@@ -1,8 +1,7 @@
 //! Exact fixed integer carrier and inclusive interval payload.
 use super::{Cursor, FixedViewCopyDecodeError, decode_scalar, encode_scalar};
-use crate::register_homes::recovery::fixed_view_copy::codec::values::{
-    decode_integer, encode_integer,
-};
+use crate::register_homes::recovery::fixed_view_copy::codec::values::decode_integer;
+use legalized_operations::encode_integer;
 use semantic_vocabulary::{BoundedIntegerType, ScalarType};
 
 pub(super) fn encode(bytes: &mut Vec<u8>, bounds: BoundedIntegerType) {

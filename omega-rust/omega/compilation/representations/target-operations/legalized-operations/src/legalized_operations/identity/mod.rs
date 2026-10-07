@@ -27,5 +27,5 @@ pub use calling::{
 };
 pub use normalized_foreign::{encode_call_binding, encode_machine_function_identity};
 pub use read_byte::encode_hosted_read_byte_identity;
-pub use scalar::{encode_register, encode_scalar_type};
+pub use scalar::{encode_integer, encode_register, encode_scalar_type};
 pub use structural::encode_provider_execution;

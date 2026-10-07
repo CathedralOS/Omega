@@ -1,6 +1,6 @@
 use optimization_unit::{FuelSettlement, PsiProvenance, encode_value_definition_site_identity};
 use selected_instructions::{SelectedInstructionProvenance, VirtualRegisterOrigin};
-use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
+use semantic_vocabulary::{IntegerSign, ScalarType};
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -74,7 +74,7 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                     bytes.push(0);
                     bytes.extend_from_slice(&defining_instruction.0.to_le_bytes());
                     bytes.extend_from_slice(&source_value.get().to_le_bytes());
-                    encode_integer_value(&mut bytes, *value);
+                    legalized_operations::encode_integer(&mut bytes, *value);
                     encode_provenance(&mut bytes, provenance);
                     encode_len(&mut bytes, future_uses.len());
                     for future_use in future_uses {
@@ -126,18 +126,6 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     }
 }
 
-fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
-    match value {
-        IntegerValue::Signed(value) => {
-            bytes.push(0);
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        IntegerValue::Unsigned(value) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-    }
-}
 
 fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
@@ -290,7 +278,7 @@ mod tests {
         SelectedInstructionProvenance, VirtualRegisterId, VirtualRegisterOrigin,
     };
     use semantic_vocabulary::{
-        BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+        BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
         OperationId, ScalarType, ValueId,
     };
 
@@ -341,7 +329,7 @@ mod tests {
                         RecoveryClassification::ImmediateU64RematerializationCandidate {
                             defining_instruction: SelectedInstructionId(7),
                             source_value: value,
-                            value: IntegerValue::Unsigned(12),
+                            value: ::Unsigned(12),
                             provenance: SelectedInstructionProvenance {
                                 operations: vec![operation],
                                 values: vec![value],

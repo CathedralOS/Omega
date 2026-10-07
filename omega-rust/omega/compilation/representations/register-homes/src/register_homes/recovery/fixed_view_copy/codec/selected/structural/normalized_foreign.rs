@@ -45,9 +45,11 @@ use super::{
     declarations::{decode_string, decode_target_argument, encode_target_argument},
     settlements::{decode_effect, decode_ownership, decode_provider_execution, encode_effect},
 };
+use legalized_operations::encode_integer;
+
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, length},
-    values::{decode_integer, decode_scalar, encode_integer, encode_scalar},
+    values::{decode_integer, decode_scalar, encode_scalar},
 };
 
 /// Machine-state bit positions beyond the closed `MachineState` vocabulary

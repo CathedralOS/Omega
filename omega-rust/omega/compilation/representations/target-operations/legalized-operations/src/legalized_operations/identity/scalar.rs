@@ -3,7 +3,7 @@ use abstract_operations::ValueBinding;
 use semantic_vocabulary::{IntegerType, IntegerValue};
 use target_operations::MachineRegister;
 
-pub(super) fn encode_integer(bytes: &mut Vec<u8>, value: IntegerValue) {
+pub fn encode_integer(bytes: &mut Vec<u8>, value: IntegerValue) {
     match value {
         IntegerValue::Signed(value) => {
             bytes.push(0);

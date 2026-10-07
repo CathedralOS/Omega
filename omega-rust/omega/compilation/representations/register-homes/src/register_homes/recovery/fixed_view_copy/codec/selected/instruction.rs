@@ -1,3 +1,4 @@
+use legalized_operations::encode_integer;
 use register_model::{RegisterClassId, RegisterUnitId, RegisterViewId};
 use selected_instructions::effects::program::encoding::saturating_kind;
 use selected_instructions::{
@@ -18,7 +19,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
     },
     values::{
         access_tag, decode_access, decode_bool, decode_constraint_key, decode_integer,
-        encode_constraint_key, encode_integer,
+        encode_constraint_key,
     },
 };
 
