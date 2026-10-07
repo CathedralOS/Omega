@@ -765,6 +765,31 @@ def render_local_prompt(template, manifest, session, repository, state):
     return template.format_map(values)
 
 
+def session_probes(repository, sessions, arguments):
+    """The probes both render commands run before prompt assembly: host gates,
+    route freshness, partition hints, staleness, claims. Returns the per-name
+    (host_gates, claims) result maps consumed by each session row."""
+    gate_results = host_gate_results(repository, sessions,
+                                     skip=arguments.skip_host_gates)
+    route_data = ("skipped" if arguments.skip_route_check
+                  else route_crates(repository))
+    freshness = {
+        session["name"]: freshness_probe(repository, session, route_data)
+        for session in sessions
+    }
+    if not arguments.skip_route_check:
+        route_check(sessions, freshness)
+    hints = {
+        session["name"]: partition_hints(repository, session, sessions,
+                                         route_data)
+        for session in sessions
+    }
+    stale_check(sessions, hints)
+    claims_state = claims_report(repository, sessions,
+                                 skip=arguments.skip_claims_check)
+    return gate_results, freshness, hints, claims_state
+
+
 def command_local(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
     sessions, skipped = sessions_for(manifest, "local")
@@ -780,23 +805,8 @@ def command_local(arguments, repository):
                 f"local sessions: {', '.join(sorted(known)) or '(none)'}")
         sessions = [session for session in sessions
                     if session["name"] in wanted]
-    gate_results = host_gate_results(repository, sessions,
-                                     skip=arguments.skip_host_gates)
-    route_data = "skipped" if arguments.skip_route_check else route_crates(repository)
-    freshness = {
-        session["name"]: freshness_probe(repository, session, route_data)
-        for session in sessions
-    }
-    if not arguments.skip_route_check:
-        route_check(sessions, freshness)
-    hints = {
-        session["name"]: partition_hints(repository, session, sessions,
-                                         route_data)
-        for session in sessions
-    }
-    stale_check(sessions, hints)
-    claims_state = claims_report(repository, sessions,
-                                 skip=arguments.skip_claims_check)
+    (gate_results, freshness, hints,
+     claims_state) = session_probes(repository, sessions, arguments)
     template = (Path(__file__).resolve().parent
                 / "prompt_template_local.md").read_text(encoding="utf-8")
     wave_directory = build_directory(repository, manifest["wave"])
@@ -947,24 +957,8 @@ def command_plan(arguments, repository):
     manifest = load_manifest(arguments.manifest, repository)
     sessions, skipped = sessions_for(manifest, "plan")
     sessions = filter_layer(sessions, arguments.layer)
-    gate_results = host_gate_results(repository, sessions,
-                                     skip=arguments.skip_host_gates)
-    skip_route_check = arguments.skip_route_check
-    route_data = "skipped" if skip_route_check else route_crates(repository)
-    freshness = {
-        session["name"]: freshness_probe(repository, session, route_data)
-        for session in sessions
-    }
-    if not skip_route_check:
-        route_check(sessions, freshness)
-    hints = {
-        session["name"]: partition_hints(repository, session, sessions,
-                                         route_data)
-        for session in sessions
-    }
-    stale_check(sessions, hints)
-    claims_state = claims_report(repository, sessions,
-                                 skip=arguments.skip_claims_check)
+    (gate_results, freshness, hints,
+     claims_state) = session_probes(repository, sessions, arguments)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
         encoding="utf-8")
     wave_directory = build_directory(repository, manifest["wave"])
