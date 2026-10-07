@@ -21,7 +21,7 @@ use terminal_psi::{Operation, OperationKind};
 use super::{
     OperationSemanticError, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
     ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
-    ScalarLeafResultShape,
+    ScalarLeafResultShape, ScalarLeafSchema,
 };
 
 mod canonical_goal;
@@ -35,52 +35,9 @@ pub use elision::{ProofBearingScalarLeafElision, elidable_proof_bearing_scalar_l
 
 /// One proof-bearing scalar leaf row. The canonical goal is operation-local;
 /// any multi-operation affine, interval, shift, or divide summary belongs to
-/// an untrusted certificate producer rather than this schema.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProofBearingScalarLeafSchema {
-    result: ScalarLeafResultShape,
-    operands: ScalarLeafOperandShape,
-    denotation: ScalarLeafDenotation,
-    goal: ScalarLeafGoalShape,
-    fact: ScalarLeafFactShape,
-    crash: ScalarLeafCrashPolicy,
-    fuel: ScalarLeafFuelPolicy,
-    frontier: ScalarLeafFrontierPolicy,
-}
-
-impl ProofBearingScalarLeafSchema {
-    pub const fn result(self) -> ScalarLeafResultShape {
-        self.result
-    }
-
-    pub const fn operands(self) -> ScalarLeafOperandShape {
-        self.operands
-    }
-
-    pub const fn denotation(self) -> ScalarLeafDenotation {
-        self.denotation
-    }
-
-    pub const fn goal(self) -> ScalarLeafGoalShape {
-        self.goal
-    }
-
-    pub const fn fact(self) -> ScalarLeafFactShape {
-        self.fact
-    }
-
-    pub const fn crash(self) -> ScalarLeafCrashPolicy {
-        self.crash
-    }
-
-    pub const fn fuel(self) -> ScalarLeafFuelPolicy {
-        self.fuel
-    }
-
-    pub const fn frontier(self) -> ScalarLeafFrontierPolicy {
-        self.frontier
-    }
-}
+/// an untrusted certificate producer rather than this schema. Rows share
+/// [`ScalarLeafSchema`]'s layout; the cohort keeps its own name.
+pub type ProofBearingScalarLeafSchema = ScalarLeafSchema;
 
 /// Exact join from a Terminal operation row into the shared fixed-width
 /// integer policy catalog. Exact cast remains outside that settled catalog.

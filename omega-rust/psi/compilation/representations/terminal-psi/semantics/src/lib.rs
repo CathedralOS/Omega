@@ -105,7 +105,7 @@ pub use scalar_field_requirements::{
 pub use scalar_leaf_schema::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
     ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
-    ScalarLeafResultShape,
+    ScalarLeafResultShape, ScalarLeafSchema,
 };
 pub use scalar_leaf_semantics::{
     GoalFreeScalarLeafSemantics, ScalarLeafLiteral, constant_goal_free_scalar_leaf,

@@ -93,18 +93,18 @@ pub enum ScalarLeafFrontierPolicy {
 /// reduction. Every semantic axis remains explicit even where this first Rust
 /// cohort has only one admitted policy value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct GoalFreeScalarLeafSchema {
+pub struct ScalarLeafSchema {
     pub(crate) result: ScalarLeafResultShape,
     pub(crate) operands: ScalarLeafOperandShape,
     pub(crate) denotation: ScalarLeafDenotation,
-    goal: ScalarLeafGoalShape,
-    fact: ScalarLeafFactShape,
-    crash: ScalarLeafCrashPolicy,
-    fuel: ScalarLeafFuelPolicy,
-    frontier: ScalarLeafFrontierPolicy,
+    pub(crate) goal: ScalarLeafGoalShape,
+    pub(crate) fact: ScalarLeafFactShape,
+    pub(crate) crash: ScalarLeafCrashPolicy,
+    pub(crate) fuel: ScalarLeafFuelPolicy,
+    pub(crate) frontier: ScalarLeafFrontierPolicy,
 }
 
-impl GoalFreeScalarLeafSchema {
+impl ScalarLeafSchema {
     pub const fn result(self) -> ScalarLeafResultShape {
         self.result
     }
@@ -138,12 +138,15 @@ impl GoalFreeScalarLeafSchema {
     }
 }
 
+/// The goal-free cohort of [`ScalarLeafSchema`] rows.
+pub type GoalFreeScalarLeafSchema = ScalarLeafSchema;
+
 pub(crate) const fn goal_free_scalar_leaf(
     result: ScalarLeafResultShape,
     operands: ScalarLeafOperandShape,
     denotation: ScalarLeafDenotation,
-) -> Option<GoalFreeScalarLeafSchema> {
-    Some(GoalFreeScalarLeafSchema {
+) -> Option<ScalarLeafSchema> {
+    Some(ScalarLeafSchema {
         result,
         operands,
         denotation,
