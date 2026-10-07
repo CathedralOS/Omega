@@ -394,39 +394,7 @@ pub(super) fn validate_borrowed_argument(
     } else {
         destination_shape
     };
-    let expected = evaluate_call_plan(
-        source.call_plan.policy,
-        &CallSignature {
-            parameters: call
-                .arguments
-                .iter()
-                .enumerate()
-                .map(|(position, argument)| match argument {
-                    LegalizedScalarArgument::Scalar {
-                        source: value,
-                        placement,
-                    } => {
-                        let shape = scalar_shape(scalar_value_type(source, *value)?)?;
-                        (placement.shape == shape).then_some(shape)
-                    }
-                    LegalizedScalarArgument::Structural { target, .. } => {
-                        Some(if position == argument_index {
-                            shape
-                        } else {
-                            target.shape
-                        })
-                    }
-                })
-                .collect::<Option<Vec<_>>>()?,
-            // The placement shape is the ABI input; reference-bearing
-            // structural results have no physical home to rejoin here.
-            result: call
-                .result_placement
-                .as_ref()
-                .map(|placement| placement.shape),
-        },
-    )
-    .ok()?;
+    let expected = expected_signature_plan(source, call, argument_index, shape)?;
     // Attachment names the enclosing declaration, not an extra argument or
     // a different pointer ABI for scalar-returning callers. Rejoin that type;
     // every argument has its own explicit declaration and placement.
@@ -595,37 +563,7 @@ fn validate_reference_argument(
     }
     crate::selection::reference_input::borrowed_argument(source, semantic, target)?;
     let shape = target.shape;
-    let expected = evaluate_call_plan(
-        source.call_plan.policy,
-        &CallSignature {
-            parameters: call
-                .arguments
-                .iter()
-                .enumerate()
-                .map(|(position, argument)| match argument {
-                    LegalizedScalarArgument::Scalar {
-                        source: value,
-                        placement,
-                    } => {
-                        let value_shape = scalar_shape(scalar_value_type(source, *value)?)?;
-                        (placement.shape == value_shape).then_some(value_shape)
-                    }
-                    LegalizedScalarArgument::Structural { target, .. } => {
-                        Some(if position == argument_index {
-                            shape
-                        } else {
-                            target.shape
-                        })
-                    }
-                })
-                .collect::<Option<Vec<_>>>()?,
-            result: call
-                .result_placement
-                .as_ref()
-                .map(|placement| placement.shape),
-        },
-    )
-    .ok()?;
+    let expected = expected_signature_plan(source, call, argument_index, shape)?;
     (call.call_plan == expected
         && Some(&target.destination) == expected.parameters.get(argument_index))
     .then_some(())
@@ -682,4 +620,46 @@ fn projected_loan_shape(
         shape.byte_size,
         shape.alignment,
     ))
+}
+
+/// The call plan the argument rosters imply when the `argument_index` slot
+/// claims `shape`; `None` when a scalar's declared placement disagrees with
+/// its value type or plan evaluation rejects the signature.
+fn expected_signature_plan(
+    source: &LegalizedScalarFunction,
+    call: &LegalizedScalarCall,
+    argument_index: usize,
+    shape: calling_conventions::ValueShape,
+) -> Option<calling_conventions::CallPlan> {
+    evaluate_call_plan(
+        source.call_plan.policy,
+        &CallSignature {
+            parameters: call
+                .arguments
+                .iter()
+                .enumerate()
+                .map(|(position, argument)| match argument {
+                    LegalizedScalarArgument::Scalar {
+                        source: value,
+                        placement,
+                    } => {
+                        let shape = scalar_shape(scalar_value_type(source, *value)?)?;
+                        (placement.shape == shape).then_some(shape)
+                    }
+                    LegalizedScalarArgument::Structural { target, .. } => {
+                        Some(if position == argument_index {
+                            shape
+                        } else {
+                            target.shape
+                        })
+                    }
+                })
+                .collect::<Option<Vec<_>>>()?,
+            result: call
+                .result_placement
+                .as_ref()
+                .map(|placement| placement.shape),
+        },
+    )
+    .ok()
 }
