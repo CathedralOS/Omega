@@ -2296,34 +2296,6 @@ crash and native exit behavior.
   subjects, passed to a successor and compared there, run natively; a read
   without a dominating case still rejects.
 
-- **COMPUTED-FLOAT-BARE-LITERAL-COMPARISON.** (new-scope)
-  Revalidate the remaining computed-call/literal comparison lead:
-  `machine code() -> bool { F64::square_root(64.0f64) == 8.0 }` with
-  `omega::language::core::float_operations` imported. It fails stage 05 with
-  “scalar computation needs one checked expression and one source binding”;
-  the reverse operand order and initializer form also fail. Suffix, explicit
-  cast and typed-local variants are controls, not acceptable rewrites.
-
-  This is not a claim that all computed-float comparisons fail:
-  `pass/float/computed_comparison_literal_landing_exit` already has native
-  and interpreter exit 0 records. Compare the exact remaining expression with
-  that control before extending the repair.
-
-  Suspected mechanism: `values/scalar/expression_plans.rs` excludes a tree
-  containing a descendant custody cast while `computations.rs` claims only a
-  root cast; `semantic_casts::requires_custody` classifies the whole subtree,
-  leaving both rows absent. Confirm that mechanism in current source. The open
-  `operand-level-float-landing-custody` decision in `OWNER_QUESTIONS.md` owns
-  the representation choice; no second planner or source-spelling workaround.
-
-  Acceptance after that decision: add
-  `pass/float/computed_float_bare_literal_comparison`, covering both operand
-  orders, comparison operators and result/initializer positions for f32/f64.
-  It executes its authored results with the existing control unchanged and
-  without losing qualification obligations.
-
-
-
 - **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
   `pass/core/interrupt_obligations_surface` has one blocking line, proved by
   measurement. `reject_unselected_direct_requirement_calls`

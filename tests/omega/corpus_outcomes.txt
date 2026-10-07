@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 14.15, "load1_start": 14.15, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 16, "jobs": null, "load1_end": 6.22, "load1_start": 5.81, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2925,6 +2925,7 @@ pass/float/build_runtime_semantics_twins_x86_baseline rejected 9392ms check-targ
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` has no native boundary realization
 pass/float/builtin_extrema_field_store_exit checked 5149ms check-target:macos_arm64 @2d8ed253669f
 pass/float/computed_comparison_literal_landing_exit checked 5759ms check-target:macos_arm64 @7a3fe5365463
+pass/float/computed_float_bare_literal_comparison checked 3981ms check-target:macos_arm64 @042fba1c8b0d+wt
 pass/float/data_where_float_field_restored_exit checked 2202ms check-target:macos_arm64 @8cb8c462809d+wt
 pass/float/f32_arg_const_arith_landed_exit checked 4338ms check-target:macos_arm64 @2d8ed253669f
 pass/float/f32_per_operation_rounding_exit checked 4917ms check-target:macos_arm64 @2d8ed253669f
