@@ -108,7 +108,6 @@ fn collect_type_references(
         ),
         TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. }
-        | TypeReference::SelfType { .. }
         | TypeReference::Unit => {}
     }
 }

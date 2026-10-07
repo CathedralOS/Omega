@@ -65,12 +65,7 @@ fn collect_closed_conformance_applications(
                 .ok_or(LoweringError::Unsupported(
                     "closed conformance application lost its declaration",
                 ))?;
-            let selected_rows =
-                checked
-                    .closed_conformance_rows(selected)
-                    .ok_or(LoweringError::Unsupported(
-                        "closed conformance application lost its normalized row map",
-                    ))?;
+            let selected_rows = selected.rows.as_slice();
             let mut realization_callables = checked
                 .facts
                 .proof
@@ -339,7 +334,6 @@ fn collect_closed_conformance_applications(
                 owner: *owner,
                 declaration_identity: checked.symbols.display_path(application.declaration, "::"),
                 telescope,
-                subject_identity: application.subject_identity.clone(),
                 trait_identity: checked
                     .symbols
                     .display_path(application.trait_definition, "::"),

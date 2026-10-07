@@ -1,10 +1,7 @@
 //! Read-only type substitution through already checked static-call selections.
 //! This grants neither callable admission nor a returned-view loan.
 
-use super::type_refinement::{
-    TypeBinding, required_type_matches_exact, required_type_matches_exact_with_subject,
-    selected_subject_carrier,
-};
+use super::type_refinement::{TypeBinding, required_type_matches_exact};
 use super::{
     ExpressionHandle, ExpressionNode, Machine, State, StaticMachineArgument, SymbolHandle,
     TypeParameterKind, TypedTrees, machine_and_state, machine_parameter_signature,
@@ -69,36 +66,26 @@ pub fn closed_static_call_type_bindings(
         if required.len() != actual.len() {
             return None;
         }
-        let subject = required
-            .iter()
-            .zip(actual)
-            .find(|(required, _)| {
-                crate::declarations::traits::required_is_subject_parameter(program, required)
-            })
-            .map(|(_, parameter)| selected_subject_carrier(program, Some(machine), parameter))
-            .unwrap_or_else(TypeReferenceHandle::invalid);
         for (required, actual) in required.iter().zip(actual) {
             if required.is_mutable != actual.is_mutable
                 || required.is_const != actual.is_const
-                || !required_type_matches_exact_with_subject(
+                || !required_type_matches_exact(
                     program,
                     actual.type_reference,
                     required.type_reference,
                     &generic_types,
                     &mut bindings,
-                    subject,
                 )
             {
                 return None;
             }
         }
-        if !required_type_matches_exact_with_subject(
+        if !required_type_matches_exact(
             program,
             entry.return_type,
             requirement.return_type,
             &generic_types,
             &mut bindings,
-            subject,
         ) {
             return None;
         }

@@ -4,7 +4,7 @@ mod limits;
 pub use limits::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 
 /// Independent of legacy review rows and of the complete baseline grammar.
-pub const PACKAGE_POLICY_ROW_VERSION: u16 = 3;
+pub const PACKAGE_POLICY_ROW_VERSION: u16 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyRowKind {

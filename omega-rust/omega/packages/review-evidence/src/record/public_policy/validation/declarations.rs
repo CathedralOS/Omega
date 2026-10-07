@@ -4,7 +4,6 @@ use crate::record::PackagePolicyDomainShape;
 use crate::record::PackagePolicyOperatorShape;
 use crate::record::PackagePolicyPublicApi;
 use crate::record::PackagePolicyTraitShape;
-use crate::record::PackageReviewConformanceSubject;
 use crate::record::PackageReviewDomainAliasAtom;
 use crate::record::PackageReviewDomainEstablishmentRoute;
 use crate::record::PackageReviewEvidenceInterface;
@@ -13,7 +12,6 @@ use crate::record::PackageReviewPropositionBinderKind;
 use crate::record::PackageReviewPropositionShape;
 use crate::record::PackageReviewPublicPropositionBody;
 use crate::record::PackageReviewTypeIdentity;
-use crate::record::package::callable_policy::validation::signature::BinderKind;
 use crate::record::package::callable_policy::validation::signature::lifetimes;
 use crate::record::package::callable_policy::validation::signature::nominal;
 use crate::record::package::callable_policy::validation::signature::owned_pair;
@@ -95,15 +93,6 @@ pub(super) fn conformance_scope(value: &PackagePolicyConformanceShape) -> Result
     nominal(&value.identity)?;
     let scope = super::scope(&value.type_parameters, value.lifetime_parameter_count);
     signatures::parameters(&scope, 0)?;
-    match &value.subject {
-        PackageReviewConformanceSubject::Subjectless => {}
-        PackageReviewConformanceSubject::Nominal(value) => nominal(value)?,
-        PackageReviewConformanceSubject::TypeParameter(ordinal) => {
-            if !matches!(scope.static_kind(*ordinal), Some(BinderKind::Type)) {
-                return Err("public conformance subject is not a type binder");
-            }
-        }
-    }
     contracts::evidence(&value.interface, &scope)
 }
 

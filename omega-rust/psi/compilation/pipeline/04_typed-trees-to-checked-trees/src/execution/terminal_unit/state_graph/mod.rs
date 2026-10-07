@@ -233,7 +233,7 @@ pub(super) fn build_traced(
         // previous iteration. Synthetic expression continuations are not
         // authored state boundaries and receive no such rows here.
         requires.extend(
-            validation::state_declaration_predicates(program, &facts.operators, owner, state)
+            validation::state_declaration_predicates(program, &facts.operators, state)
                 .into_iter()
                 .map(|row| {
                     Some(checked_trees::ClosedScalarContractValue::Predicate(

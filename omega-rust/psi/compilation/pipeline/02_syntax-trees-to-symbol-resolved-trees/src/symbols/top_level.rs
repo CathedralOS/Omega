@@ -202,27 +202,22 @@ pub(super) fn assign_top_level_symbols(
 }
 
 fn attach_conformance_parameter_scopes(program: &mut SymbolResolvedTrees) {
-    let scopes =
-        program
-            .conformances
-            .iter()
-            .filter_map(|conformance| {
-                let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
-                    rows,
-                } = &conformance.implementation
-                else {
-                    return None;
-                };
-                Some((
-                    rows.iter()
-                        .filter(|row| row.source.owns_realization())
-                        .filter_map(|row| row.provisional_realization_ordinal)
-                        .collect::<Vec<_>>(),
-                    conformance.lifetime_parameters.clone(),
-                    conformance.type_parameters,
-                ))
-            })
-            .collect::<Vec<_>>();
+    let scopes = program
+        .conformances
+        .iter()
+        .map(|conformance| {
+            (
+                conformance
+                    .rows
+                    .iter()
+                    .filter(|row| row.source.owns_realization())
+                    .filter_map(|row| row.provisional_realization_ordinal)
+                    .collect::<Vec<_>>(),
+                conformance.lifetime_parameters.clone(),
+                conformance.type_parameters,
+            )
+        })
+        .collect::<Vec<_>>();
     let mut ordinal = 0usize;
     program.machines.for_each_mut(|machine| {
         if let Some((_, lifetimes, parameters)) = scopes
@@ -284,7 +279,6 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
                             signature,
                             parameter_symbol,
                             &local_type_parameters,
-                            conformance.symbol,
                         );
                     }
                     symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
@@ -298,7 +292,6 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
                         &mut contract,
                         parameter_symbol,
                         &local_type_parameters,
-                        conformance.symbol,
                     );
                     symbol_resolved_trees::data::TypeParameterKind::Proposition { contract }
                 }
@@ -342,7 +335,6 @@ pub(super) fn assign_machine_parameter_signature_symbols(
     contract: &mut symbol_resolved_trees::signature::StateSignature,
     owner_symbol: SymbolHandle,
     inherited_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    self_symbol: SymbolHandle,
 ) {
     use symbol_resolved_trees::data::TypeParameterKind;
 
@@ -385,25 +377,23 @@ pub(super) fn assign_machine_parameter_signature_symbols(
         let resolved_kind = match kind {
             TypeParameterKind::Type => TypeParameterKind::Type,
             TypeParameterKind::Const { mut type_reference } => {
-                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                     tables.symbols,
                     tables.child_type_references,
                     tables.type_constraints,
                     &local_type_parameters,
-                    self_symbol,
                     &mut type_reference,
-                );
+);
                 TypeParameterKind::Const { type_reference }
             }
             TypeParameterKind::Value { mut type_reference } => {
-                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                     tables.symbols,
                     tables.child_type_references,
                     tables.type_constraints,
                     &local_type_parameters,
-                    self_symbol,
                     &mut type_reference,
-                );
+);
                 TypeParameterKind::Value { type_reference }
             }
             TypeParameterKind::Machine { mut contract } => {
@@ -413,7 +403,6 @@ pub(super) fn assign_machine_parameter_signature_symbols(
                         signature,
                         parameter_symbol,
                         &local_type_parameters,
-                        self_symbol,
                     );
                 }
                 TypeParameterKind::Machine { contract }
@@ -427,7 +416,6 @@ pub(super) fn assign_machine_parameter_signature_symbols(
                     &mut contract,
                     parameter_symbol,
                     &local_type_parameters,
-                    self_symbol,
                 );
                 TypeParameterKind::Proposition { contract }
             }
@@ -443,22 +431,20 @@ pub(super) fn assign_machine_parameter_signature_symbols(
         .span_mut_or_empty(contract.parameters)
     {
         parameter.symbol = next_child_of_kind(&mut children, tables.symbols, SymbolKind::Parameter);
-        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
             tables.symbols,
             tables.child_type_references,
             tables.type_constraints,
             &local_type_parameters,
-            self_symbol,
             &mut parameter.type_reference,
         );
     }
     if let Some(return_type) = &mut contract.return_type {
-        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
             tables.symbols,
             tables.child_type_references,
             tables.type_constraints,
             &local_type_parameters,
-            self_symbol,
             return_type,
         );
     }
@@ -473,17 +459,15 @@ pub(super) fn assign_proposition_parameter_signature_symbols(
     contract: &mut symbol_resolved_trees::data::PropositionParameterSignature,
     owner_symbol: SymbolHandle,
     inherited_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    self_symbol: SymbolHandle,
 ) {
     let mut children = symbols.child_handles(owner_symbol).into_iter().flatten();
     for parameter in state_parameters.span_mut_or_empty(contract.parameters) {
         parameter.symbol = next_child_of_kind(&mut children, symbols, SymbolKind::Parameter);
-        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
             symbols,
             child_type_references,
             type_constraints,
             inherited_type_parameters,
-            self_symbol,
             &mut parameter.type_reference,
         );
     }

@@ -388,7 +388,6 @@ impl SyntaxTrees {
                     })
             }
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
-            TypeReferenceNode::SelfType => self.type_references.insert_self_type(),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
         };
         for pending in other.type_references.pending_const_arguments(handle) {

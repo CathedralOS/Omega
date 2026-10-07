@@ -134,7 +134,6 @@ pub(super) fn assign_expression_symbols(
                 symbols,
                 child_type_references,
                 local_type_parameters,
-                SymbolHandle::invalid(),
                 cast.target_type,
             );
             crate::symbols::type_references::each_type_reference_handle(
@@ -144,7 +143,6 @@ pub(super) fn assign_expression_symbols(
                         symbols,
                         child_type_references,
                         local_type_parameters,
-                        SymbolHandle::invalid(),
                         handle,
                     );
                 },
@@ -267,7 +265,6 @@ pub(super) fn assign_expression_symbols(
                 symbols,
                 child_type_references,
                 local_type_parameters,
-                SymbolHandle::invalid(),
                 type_reference,
             );
         }

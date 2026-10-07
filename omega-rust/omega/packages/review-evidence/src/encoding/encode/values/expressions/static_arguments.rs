@@ -93,7 +93,6 @@ fn encode_contract_static_argument_body(
         PackageReviewContractStaticArgument::ConformanceApplication {
             declaration,
             arguments,
-            subject,
             trait_identity,
             trait_arguments,
         } => {
@@ -103,9 +102,6 @@ fn encode_contract_static_argument_body(
             })?;
             encoder.field("arguments", |encoder| {
                 encoder.sequence(arguments, encode_contract_static_argument)
-            })?;
-            encoder.field("subject", |encoder| {
-                encode_contract_static_argument(encoder, subject)
             })?;
             encoder.field("trait_identity", |encoder| {
                 encode_nominal(encoder, trait_identity)

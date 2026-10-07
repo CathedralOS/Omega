@@ -955,6 +955,6 @@ fn case_fact_type_mentions(
                     .iter()
                     .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
         }
-        TypeReferenceNode::SelfType | TypeReferenceNode::Unit => false,
+        TypeReferenceNode::Unit => false,
     }
 }

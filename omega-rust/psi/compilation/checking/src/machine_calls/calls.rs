@@ -339,8 +339,8 @@ pub(crate) fn callee_entry_contract(
 /// A boundary or requirement call targets the trait's declared signature
 /// symbol rather than a machine-body state. Its declared result is exact
 /// evidence only for a closed signature: trait- or requirement-level `Type`
-/// parameters and `Self` name declaration-local subjects, so those calls stay
-/// unresolved rather than inventing a caller-side carrier.
+/// parameters name declaration-local types, so those calls stay unresolved
+/// rather than inventing a caller-side argument.
 fn requirement_call_result_type(
     program: &TypedTrees,
     target: symbols::SymbolHandle,
@@ -360,47 +360,10 @@ fn requirement_call_result_type(
         .trait_machine_signatures(definition)
         .iter()
         .find(|signature| signature.symbol == target)?;
-    if !signature.type_parameters.is_empty()
-        || !signature.return_type.is_valid()
-        || type_reference_mentions_self(program, signature.return_type)
-    {
+    if !signature.type_parameters.is_empty() || !signature.return_type.is_valid() {
         return None;
     }
     Some(signature.return_type)
-}
-
-/// `Self` names the implementing carrier inside the requirement declaration;
-/// exporting that leaf as a caller's result type would invent evidence the
-/// call never proved. Recurses through transparent and aggregate shells.
-fn type_reference_mentions_self(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    let mut pending = vec![reference];
-    let mut visited = Vec::new();
-    while let Some(reference) = pending.pop() {
-        if visited.contains(&reference)
-            || !program
-                .type_reference_table
-                .contains_type_reference(reference)
-        {
-            continue;
-        }
-        visited.push(reference);
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { name, .. } if name.as_str() == "Self" => return true,
-            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
-            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
-            TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
-            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
-                program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .copied(),
-            ),
-            _ => {}
-        }
-    }
-    false
 }
 
 #[allow(clippy::too_many_arguments)]

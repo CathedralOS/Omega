@@ -35,7 +35,7 @@ pub(super) fn partition(
                 _ => break,
             }
         }
-        let field = match replay_partition_data(program, current, machine.symbol) {
+        let field = match replay_partition_data(program, current) {
             Some(data) => {
                 if visiting.contains(&data.symbol) {
                     // Valid recursive proof shapes remain opaque at the
@@ -89,9 +89,8 @@ pub(super) fn matching_prefix<'places>(
 fn replay_partition_data(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
-    machine_symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    if let Some(data) = crate::lookup::declared_data_type(program, type_reference, machine_symbol) {
+    if let Some(data) = crate::lookup::declared_data_type(program, type_reference) {
         return Some(data);
     }
     match program.type_reference_table.type_reference(type_reference) {

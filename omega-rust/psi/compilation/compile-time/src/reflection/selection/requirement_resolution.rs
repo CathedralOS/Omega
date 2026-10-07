@@ -8,7 +8,7 @@ use crate::reflection::selection::{
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
-use typed_trees::trait_definition::{Conformance, ConformanceImplementation, TraitDefinition};
+use typed_trees::trait_definition::{Conformance, TraitDefinition};
 use typed_trees::types::TypeReferenceHandle;
 
 /// The requirement claim resolved against the checking program: the exact
@@ -106,31 +106,33 @@ fn resolve_machine<'program>(
     }
 }
 
-/// The carrier a selected operation covers must be the member type's head
-/// nominal — the declaration for a named member, the element type for an
-/// array member, the referee for a reference member, the enclosing sum for a
-/// case member. A member type with no nominal subject admits no operation.
-fn check_carrier_covers_member(
+/// A selected machine covers a member when the data declaration owning the
+/// machine is the member type's head nominal — the declaration for a named
+/// member, the element type for an array member, the referee for a reference
+/// member, the enclosing sum for a case member. A member type with no
+/// nominal head admits no operation, and a machine owned by no data
+/// declaration names no covered type.
+fn check_machine_owner_covers_member(
     typed: &TypedTrees,
-    carrier: SymbolHandle,
+    machine: &Machine,
     member: &ScopedMember,
 ) -> Result<(), String> {
     let Some(head) = &member.head_nominal_identity else {
         return Err(format!(
-            "selection for `{}` requires an operation on the member's declared type, which has no nominal subject",
+            "selection for `{}` requires an operation on the member's declared type, which has no nominal head",
             member.member_identity
         ));
     };
-    if !carrier.is_valid() {
+    if !machine.attached_data_symbol.is_valid() {
         return Err(format!(
-            "selection for `{}` names an operation with no carrier",
+            "selection for `{}` names an operation owned by no data declaration",
             member.member_identity
         ));
     }
-    let carrier_identity = exact_symbol_identity(typed, carrier)?.0;
-    if carrier_identity != *head {
+    let owner_identity = exact_symbol_identity(typed, machine.attached_data_symbol)?.0;
+    if owner_identity != *head {
         return Err(format!(
-            "selection for `{}` names an operation on `{carrier_identity}` which does not cover the member's declared type",
+            "selection for `{}` names an operation on `{owner_identity}` which does not cover the member's declared type",
             member.member_identity
         ));
     }
@@ -178,34 +180,6 @@ fn carried_application_matches(
     }
 }
 
-/// Whether `machine` binds a requirement of the resolved trait through the
-/// attached-form name rule: `Carrier::requirement_name` attached to the
-/// conformance's carrier. This is the language's own binding for
-/// `AttachedRequirementMachines` conformances; an authored `satisfies` edge
-/// on the machine is checked separately by the machine path. When a trait
-/// application is demanded the conformance in scope carries it — the
-/// machine binds under that conformance's application.
-fn machine_binds_attached_requirement(
-    typed: &TypedTrees,
-    machine: &Machine,
-    conformance: &Conformance,
-    requirement: &ResolvedRequirement,
-) -> bool {
-    if machine.attached_data_symbol != conformance.carrier_symbol {
-        return false;
-    }
-    let carrier_name = typed.symbols.name(conformance.carrier_symbol);
-    typed
-        .trait_machine_signatures(requirement.definition)
-        .iter()
-        .any(|signature| {
-            requirement
-                .requirement_symbol
-                .is_none_or(|required| signature.symbol == required)
-                && machine.name.as_str() == format!("{carrier_name}::{}", signature.name.as_str())
-        })
-}
-
 pub(crate) fn check_conformance_refines(
     typed: &TypedTrees,
     conformance_identity: &str,
@@ -230,45 +204,25 @@ pub(crate) fn check_conformance_refines(
             member.member_identity
         ));
     }
-    check_carrier_covers_member(typed, conformance.carrier_symbol, member)?;
-    if let Some(requirement_symbol) = requirement.requirement_symbol {
-        let realized = match &conformance.implementation {
-            ConformanceImplementation::Closed { rows } => rows.iter().any(|row| {
-                row.requirement == requirement_symbol && row.realization_machine.is_valid()
-            }),
-            ConformanceImplementation::AttachedRequirementMachines => {
-                let requirement_name = typed
-                    .trait_machine_signatures(requirement.definition)
-                    .iter()
-                    .find(|signature| signature.symbol == requirement_symbol)
-                    .map(|signature| signature.name.as_str().to_owned());
-                match requirement_name {
-                    Some(requirement_name) => {
-                        let carrier_name = typed.symbols.name(conformance.carrier_symbol);
-                        let attached = format!("{carrier_name}::{requirement_name}");
-                        typed.machines().iter().any(|machine| {
-                            machine.attached_data_symbol == conformance.carrier_symbol
-                                && (machine.name.as_str() == attached
-                                    || typed.machine_trait_conformances(machine).iter().any(
-                                        |edge| {
-                                            edge.symbol == conformance.trait_symbol
-                                                && edge.requirement_symbol == requirement_symbol
-                                        },
-                                    ))
-                        })
-                    }
-                    None => false,
-                }
-            }
-        };
-        if !realized {
-            return Err(format!(
-                "selection for `{}` names conformance `{conformance_identity}` which does not realize the pinned requirement",
-                member.member_identity
-            ));
-        }
+    if let Some(requirement_symbol) = requirement.requirement_symbol
+        && !conformance
+            .rows
+            .iter()
+            .any(|row| row.requirement == requirement_symbol && row.realization_machine.is_valid())
+    {
+        return Err(format!(
+            "selection for `{}` names conformance `{conformance_identity}` which does not realize the pinned requirement",
+            member.member_identity
+        ));
     }
-    Ok(())
+    // A named implementation is a map of machines with no data subject, so
+    // its identity alone covers no member type. Covering a member through it
+    // needs the selected row's callable contract checked against the
+    // member's qualified type, which selection does not perform yet.
+    Err(format!(
+        "selection for `{}` names named implementation `{conformance_identity}`, which has no data subject; select the realizing machine whose owner covers the member",
+        member.member_identity
+    ))
 }
 
 pub(crate) fn check_machine_refines(
@@ -297,12 +251,12 @@ pub(crate) fn check_machine_refines(
                 )
         })
     {
-        return check_carrier_covers_member(typed, machine.attached_data_symbol, member);
+        return check_machine_owner_covers_member(typed, machine, member);
     }
-    // Path B: the machine is a realization of the required trait on the
-    // member's carrier — a closed conformance row, or the attached-form
-    // `Carrier::requirement` name binding — at the demanded application when
-    // one is pinned.
+    // Path B: the machine realizes a row of a named implementation of the
+    // required trait, at the demanded application when one is pinned. The
+    // implementation selects code; the machine's own owner still decides
+    // which member type it covers.
     for conformance in typed
         .conformances()
         .iter()
@@ -316,19 +270,14 @@ pub(crate) fn check_machine_refines(
             )
         })
     {
-        let realizes = match &conformance.implementation {
-            ConformanceImplementation::Closed { rows } => rows.iter().any(|row| {
-                row.realization_machine == machine.symbol
-                    && requirement
-                        .requirement_symbol
-                        .is_none_or(|required| row.requirement == required)
-            }),
-            ConformanceImplementation::AttachedRequirementMachines => {
-                machine_binds_attached_requirement(typed, machine, conformance, requirement)
-            }
-        };
+        let realizes = conformance.rows.iter().any(|row| {
+            row.realization_machine == machine.symbol
+                && requirement
+                    .requirement_symbol
+                    .is_none_or(|required| row.requirement == required)
+        });
         if realizes {
-            return check_carrier_covers_member(typed, conformance.carrier_symbol, member);
+            return check_machine_owner_covers_member(typed, machine, member);
         }
     }
     Err(format!(

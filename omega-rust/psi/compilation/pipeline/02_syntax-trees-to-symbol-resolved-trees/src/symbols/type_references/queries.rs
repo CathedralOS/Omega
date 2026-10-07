@@ -33,7 +33,6 @@ fn type_reference_symbol(
         symbol_resolved_trees::types::TypeReference::ConstExpression(_) => SymbolHandle::invalid(),
         symbol_resolved_trees::types::TypeReference::DynamicTrait { symbol, .. } => *symbol,
         symbol_resolved_trees::types::TypeReference::Named { symbol, .. } => *symbol,
-        symbol_resolved_trees::types::TypeReference::SelfType { symbol } => *symbol,
         symbol_resolved_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
     }
 }

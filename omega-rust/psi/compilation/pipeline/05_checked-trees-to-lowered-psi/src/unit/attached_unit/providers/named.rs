@@ -1,7 +1,6 @@
 //! Closed named implementations retain provider identity independently of bodies.
 
 use super::{CatalogRequirement, CheckedTrees, LoweringError, Machine, unsupported};
-use typed_trees::trait_definition::{ConformanceImplementation, ConformanceSubject};
 
 pub(super) fn provider_identities(
     checked: &CheckedTrees,
@@ -18,13 +17,9 @@ pub(super) fn provider_identities(
     let typed = &checked.typed;
     let mut identities = Vec::new();
     for implementation in typed.conformances().iter().filter(|implementation| {
-        matches!(implementation.subject, ConformanceSubject::Subjectless)
-            && implementation.type_parameters.is_empty()
-            && implementation.lifetime_parameters.is_empty()
+        implementation.type_parameters.is_empty() && implementation.lifetime_parameters.is_empty()
     }) {
-        let ConformanceImplementation::Closed { rows } = &implementation.implementation else {
-            continue;
-        };
+        let rows = &implementation.rows;
         let mut matching = rows.iter().filter(|row| {
             row.declaring_trait == definition.symbol && row.requirement == signature.symbol
         });

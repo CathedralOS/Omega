@@ -205,7 +205,6 @@ pub(in crate::record) fn static_argument(
         Argument::ConformanceApplication {
             declaration,
             arguments,
-            subject,
             trait_identity,
             trait_arguments,
         } => {
@@ -214,7 +213,6 @@ pub(in crate::record) fn static_argument(
             for argument in arguments {
                 static_argument(argument, scope, nesting + 1)?;
             }
-            static_argument(subject, scope, nesting + 1)?;
             for argument in trait_arguments {
                 value_type(argument)?;
             }

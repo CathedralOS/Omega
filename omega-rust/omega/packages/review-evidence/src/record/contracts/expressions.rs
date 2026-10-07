@@ -130,7 +130,6 @@ pub enum PackageReviewContractStaticArgument {
     ConformanceApplication {
         declaration: PackageReviewNominalIdentity,
         arguments: Vec<PackageReviewContractStaticArgument>,
-        subject: Box<PackageReviewContractStaticArgument>,
         trait_identity: PackageReviewNominalIdentity,
         trait_arguments: Vec<PackageReviewTypeIdentity>,
     },

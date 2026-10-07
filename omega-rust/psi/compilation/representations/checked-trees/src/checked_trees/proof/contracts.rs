@@ -243,8 +243,8 @@ pub struct ContractExpressionStaticConformanceApplicationFact {
 pub enum EvidenceAssignmentSource {
     /// Preserve the identity of one exact incoming term.
     Forwarded { term: Handle<CheckedEvidenceTerm> },
-    /// Introduce a fresh term through one explicitly selected, complete,
-    /// subjectless conformance. Rows are retained so later proof consumers do
+    /// Introduce a fresh term through one explicitly selected, complete named
+    /// implementation. Rows are retained so later proof consumers do
     /// not repeat selection or reconstruct completeness from a name.
     ProducerConformance {
         conformance: SymbolHandle,

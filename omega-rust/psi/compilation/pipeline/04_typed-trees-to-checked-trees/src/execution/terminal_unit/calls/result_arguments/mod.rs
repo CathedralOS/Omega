@@ -98,15 +98,7 @@ pub(super) fn argument(
         return Some(argument);
     }
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
-    // An attached method's owned `self` formal carries `Named { machine,
-    // "Self" }`, the machine's alias for its retained owner application. A
-    // receiver-specialized callee's application is already concrete
-    // (`Task<Token>`), so it supplies the formal's real multiplicity and
-    // claim-path carrier below; a non-self formal keeps its authored type.
-    // A by-value `self` formal is spelled `Self`; its referent is the
-    // receiver value's own declared type, whose identity already matched the
-    // attached data above. A local binding names that type directly.
-    let formal_type = { parameter.type_reference };
+    let formal_type = parameter.type_reference;
     let projected = !place.segments.is_empty();
     let unrestricted = result.multiplicity == Multiplicity::Unrestricted;
     let linear = result.multiplicity == Multiplicity::Linear;

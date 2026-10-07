@@ -15,6 +15,10 @@ machine build(builder: &mut Build) {
         InterruptAcknowledgement::complete,
         AcknowledgementCompletion
     >(builder);
+    Build::select_provider<
+        InterruptMaskControl,
+        InterruptMaskProviderMaskControl
+    >(builder);
     Build::select_representation<
         InterruptAcknowledgement,
         CriticalAcknowledgementRepresentation

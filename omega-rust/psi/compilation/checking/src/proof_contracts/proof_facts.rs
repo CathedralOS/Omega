@@ -81,13 +81,13 @@ fn validate_witness_evidence_interface(
         ),
         TypeReferenceNode::DynamicTrait { name, .. } => {
             diagnostics.push(Diagnostic::error(format!(
-                    "witness-bearing proposition `{proposition}` names selected dynamic evidence `dyn {name}`; name the carrierless trait interface directly"
+                    "witness-bearing proposition `{proposition}` names selected dynamic evidence `dyn {name}`; name the trait interface directly"
                 )));
             return;
         }
         _ => {
             diagnostics.push(Diagnostic::error(format!(
-                    "witness-bearing proposition `{proposition}` evidence `{}` must name one carrierless trait interface",
+                    "witness-bearing proposition `{proposition}` evidence `{}` must name one proof evidence trait interface",
                     program.display_type_reference(evidence)
                 )));
             return;
@@ -129,9 +129,9 @@ fn validate_witness_evidence_interface(
     }
 
     let mut visiting = Vec::new();
-    if let Some(reason) = carrierless_trait_violation(program, trait_definition, &mut visiting) {
+    if let Some(reason) = evidence_trait_violation(program, trait_definition, &mut visiting) {
         diagnostics.push(Diagnostic::error(format!(
-            "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` is not carrierless: {reason}"
+            "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` is not a proof evidence interface: {reason}"
         )));
     }
 }
@@ -169,7 +169,10 @@ fn evidence_argument_is_resolved(program: &TypedTrees, argument: TypeReferenceHa
     }
 }
 
-fn carrierless_trait_violation(
+/// A witness-bearing evidence interface must describe proof-only machines:
+/// a boundary trait, directly or through an inherited parent, describes
+/// externally executed services instead.
+fn evidence_trait_violation(
     program: &TypedTrees,
     trait_definition: &TraitDefinition,
     visiting: &mut Vec<SymbolHandle>,
@@ -181,41 +184,7 @@ fn carrierless_trait_violation(
         return None;
     }
     visiting.push(trait_definition.symbol);
-
-    for requirement in program.trait_machine_signatures(trait_definition) {
-        for parameter in program.state_signature_parameters(requirement) {
-            if type_reference_contains_self(program, parameter.type_reference) {
-                visiting.pop();
-                return Some(format!(
-                    "requirement `{}` has a carrier-dependent parameter",
-                    requirement.name
-                ));
-            }
-        }
-        if requirement.return_type.is_valid()
-            && type_reference_contains_self(program, requirement.return_type)
-        {
-            visiting.pop();
-            return Some(format!(
-                "requirement `{}` has a carrier-dependent result",
-                requirement.name
-            ));
-        }
-    }
-
     for parent in program.trait_requirements(trait_definition) {
-        if program
-            .type_reference_table
-            .type_reference_handles(parent.arguments)
-            .iter()
-            .any(|argument| type_reference_contains_self(program, *argument))
-        {
-            visiting.pop();
-            return Some(format!(
-                "parent interface `{}` is applied to `Self`",
-                parent.name
-            ));
-        }
         let Some(parent_definition) = program
             .traits()
             .iter()
@@ -223,44 +192,16 @@ fn carrierless_trait_violation(
         else {
             continue;
         };
-        if let Some(reason) = carrierless_trait_violation(program, parent_definition, visiting) {
+        if let Some(reason) = evidence_trait_violation(program, parent_definition, visiting) {
             visiting.pop();
             return Some(format!(
-                "parent interface `{}` is not carrierless: {reason}",
+                "parent interface `{}` is not a proof evidence interface: {reason}",
                 parent.name
             ));
         }
     }
-
     visiting.pop();
     None
-}
-
-fn type_reference_contains_self(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    if !type_reference.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => name.as_str() == "Self",
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_contains_self(program, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_contains_self(program, *base_type)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            type_reference_contains_self(program, *element_type)
-        }
-        TypeReferenceNode::Generic { arguments, .. } => program
-            .type_reference_table
-            .type_reference_handles(*arguments)
-            .iter()
-            .any(|argument| type_reference_contains_self(program, *argument)),
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => false,
-    }
 }
 
 fn transparent_proposition_cycle(

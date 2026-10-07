@@ -205,16 +205,19 @@ pub boundary trait FirstSecondaryProcessorRoot:
 // The provider realizing the first root. `enter` is the processor's
 // installed startup entry: it resolves the handed envelope's
 // acknowledgement requirement — the startup handshake the ledger
-// tests.
+// tests. The named implementation owns the complete root map; its one
+// row binds the inherited requirement to that existing entry machine,
+// and provider selection installs the root through the implementation.
 pub data FirstSecondaryProcessor {
 }
 
-pub FirstSecondaryProcessorConformance:
-    FirstSecondaryProcessor satisfies FirstSecondaryProcessorRoot;
+pub FirstSecondaryProcessorConformance satisfies FirstSecondaryProcessorRoot {
+    SecondaryProcessorEntry::enter = FirstSecondaryProcessor::enter;
+}
 
 machine FirstSecondaryProcessor::enter(
     envelope: StartupEnvelope in Pending
-) satisfies SecondaryProcessorEntry::enter
+)
 reaches MachineControl
 {
     StartupEnvelope::confirm(envelope);
@@ -308,12 +311,13 @@ pub boundary trait SecondSecondaryProcessorRoot:
 pub data SecondSecondaryProcessor {
 }
 
-pub SecondSecondaryProcessorConformance:
-    SecondSecondaryProcessor satisfies SecondSecondaryProcessorRoot;
+pub SecondSecondaryProcessorConformance satisfies SecondSecondaryProcessorRoot {
+    SecondaryProcessorEntry::enter = SecondSecondaryProcessor::enter;
+}
 
 machine SecondSecondaryProcessor::enter(
     envelope: StartupEnvelope in Pending
-) satisfies SecondaryProcessorEntry::enter
+)
 reaches MachineControl
 {
     StartupEnvelope::confirm(envelope);

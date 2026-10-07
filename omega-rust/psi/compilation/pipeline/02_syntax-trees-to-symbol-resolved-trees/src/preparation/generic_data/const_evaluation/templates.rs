@@ -311,7 +311,7 @@ fn collect_type_expression_handles(
                 }
             }
         }
-        TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
+        TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -517,7 +517,6 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
         }
         TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Named(_)
-        | TypeReferenceNode::SelfType
         | TypeReferenceNode::Unit => Ok(()),
     }
 }
@@ -596,7 +595,6 @@ pub(in crate::preparation) fn collect_type_positions(
         }
         TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Named(_)
-        | TypeReferenceNode::SelfType
         | TypeReferenceNode::Unit => {}
     }
 }

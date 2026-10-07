@@ -3,10 +3,9 @@
 //! lengths. `satisfier_parameter_correspondence` is the one parameter-count
 //! judgment that trait, top-level and operator conformance paths share.
 //!
-//! Whole conformances supply their declared subject explicitly. Exact
-//! satisfaction edges instead infer Self from the callable signature. A
-//! machine's namespace never chooses that substitution: namespace-only
-//! owners such as F32 declare operations over a different runtime carrier.
+//! Requirement parameters are ordinary explicit parameters: the trait's types
+//! bind from its explicit application, never from a subject position or the
+//! realization's namespace.
 
 use crate::value_custody::type_references::{type_reference_label, type_references_match};
 use diagnostics::Diagnostic;
@@ -151,7 +150,6 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     state: &State,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
-    conformance_subject: SymbolHandle,
     trait_lifetime_arguments: Option<&[u32]>,
     explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
@@ -220,13 +218,9 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         .conformances()
         .iter()
         .filter(|conformance| {
-            program
-                .closed_conformance_rows(conformance)
-                .is_some_and(|rows| {
-                    rows.iter().any(|row| {
-                        row.realization_machine == machine.symbol && row.source.owns_realization()
-                    })
-                })
+            conformance.rows.iter().any(|row| {
+                row.realization_machine == machine.symbol && row.source.owns_realization()
+            })
         })
         .flat_map(|conformance| program.conformance_type_parameters(conformance))
         .map(|parameter| parameter.symbol)
@@ -426,7 +420,6 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
             requirement,
             &required_generic_types,
             &mut type_bindings,
-            conformance_subject,
             index,
             actual,
             required,
@@ -564,31 +557,14 @@ fn validate_trait_parameter_match(
     requirement: &StateSignature,
     trait_type_parameters: &[TypeParameter],
     type_bindings: &mut Vec<TraitTypeBinding>,
-    conformance_subject: SymbolHandle,
     index: usize,
     actual: &StateParameter,
     required: &StateParameter,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // A requirement's `self` position names the SUBJECT, and the satisfier
-    // corresponds to it parameter by parameter rather than by spelling: under
-    // the static-machine contract the subject is an ordinary parameter
-    // declaring the conforming data (`counter: &mut Counter`), which denotes
-    // exactly what `&mut self` denotes. Access still has to agree, so
-    // `is_mutable` is compared either way.
-    // Only a whole conformance supplies a nominal subject. Qualification of
-    // an exact satisfier supplies a namespace, not a runtime carrier: the
-    // ordinary Self substitution below also applies to Namespace::operation.
-    let has_nominal_subject =
-        conformance_subject.is_valid() && required_is_subject_parameter(program, required);
-    let subject_matches = if has_nominal_subject {
-        program
-            .data_binding_position(conformance_subject, std::slice::from_ref(actual))
-            .is_some()
-    } else {
-        true
-    };
-    if !subject_matches || actual.is_mutable != required.is_mutable {
+    // Every requirement parameter is an ordinary explicit parameter; no
+    // position names a subject. Access has to agree before types compare.
+    if actual.is_mutable != required.is_mutable {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` does not satisfy trait `{}` machine `{}` parameter {}: expected `{}`, got `{}`",
             machine.name,
@@ -599,19 +575,6 @@ fn validate_trait_parameter_match(
             parameter_shape_label(program, required),
             parameter_shape_label(program, actual)
         )));
-        return;
-    }
-
-    // The subject position establishes shape, not a reusable type-variable
-    // binding. A receiver carries the syntax placeholder `Self` and a named
-    // subject carries the conforming data's own type; binding the trait's
-    // `Self` to either makes a later concrete `other: &Type` spuriously
-    // mismatch. The carrier is inferred from the first non-subject `Self`
-    // occurrence instead. The subject's own type needs no comparison here:
-    // The whole-conformance path checks the declared subject independently
-    // of the realization's namespace; the legacy receiver path checks the
-    // realization's attached data. Exact ordinary parameters use the matcher.
-    if has_nominal_subject {
         return;
     }
 
@@ -697,25 +660,6 @@ pub(crate) fn type_references_match_with_trait_bindings(
 ) -> bool {
     if !actual.is_valid() || !required.is_valid() {
         return actual.is_valid() == required.is_valid();
-    }
-
-    // `Self` in a requirement type binds to the CARRIER on first use and must
-    // match on every later use (rearrange settle 2026-07-18: free-machine
-    // requirements are Self-shaped -- `machine add(a: Self, b: Self) -> Self`
-    // -- and the carrier type is INFERRED from the satisfier's signature).
-    if required_is_self_type(program, required) {
-        if let Some(binding) = bindings.iter().find(|binding| {
-            !binding.parameter_symbol.is_valid() && binding.parameter_name == "Self"
-        }) {
-            return binding_matches_actual(program, binding, actual);
-        }
-
-        bindings.push(TraitTypeBinding {
-            parameter_symbol: SymbolHandle::invalid(),
-            parameter_name: "Self".to_owned(),
-            target: TraitTypeBindingTarget::Type(actual),
-        });
-        return true;
     }
 
     if let Some(parameter) = required_trait_type_parameter(program, required, trait_type_parameters)
@@ -1191,25 +1135,6 @@ fn indexed_law_callable_telescope_groups<'program>(
             (!telescope.is_empty()).then_some(telescope)
         })
         .collect()
-}
-
-pub(crate) fn required_is_self_type(program: &TypedTrees, required: TypeReferenceHandle) -> bool {
-    matches!(
-        program.type_reference_table.type_reference(required),
-        TypeReferenceNode::Named { name, .. } if name.as_str() == "Self"
-    )
-}
-
-/// A requirement's subject position: a `self` receiver, or under named
-/// subjects the parameter whose unwrapped type is the trait's `Self`
-/// placeholder. This only locates the position; the carrier identity comes
-/// from the conforming declaration it is compared against.
-pub(crate) fn required_is_subject_parameter(
-    program: &TypedTrees,
-    required: &typed_trees::signature::StateParameter,
-) -> bool {
-    crate::value_custody::places::unwrapped_type_reference(program, required.type_reference)
-        .is_some_and(|carrier| required_is_self_type(program, carrier))
 }
 
 pub(crate) fn required_trait_type_parameter<'program>(

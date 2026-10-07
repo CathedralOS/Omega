@@ -29,7 +29,6 @@ pub use signature_vocabulary::{
     PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
 pub use traits::{
-    PackageReviewConformanceShape, PackageReviewConformanceSubject,
-    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
-    PackageReviewTraitShape,
+    PackageReviewConformanceShape, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
+    PackageReviewTraitRequirement, PackageReviewTraitShape,
 };

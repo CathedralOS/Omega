@@ -15,9 +15,7 @@ use std::borrow::Cow;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{StaticMachineArgument, StaticSymbolApplication};
 use typed_trees::name::Identifier;
-use typed_trees::trait_definition::ConformanceSubject;
 use typed_trees::typed_trees::{ClosedConformanceApplication, ClosedConformanceConstArgument};
-use typed_trees::types::TypeReferenceNode;
 
 /// Retain the complete source-qualified conformance meaning without historical
 /// report/commitment fields. This component is inert, not complete package
@@ -94,25 +92,6 @@ pub fn project_checked_conformance_policy<'a>(
             argument_type_reference(instantiated.to_mut(), argument, &parameter.kind, 0)?,
         ));
     }
-    let subject_reference = match declaration.subject {
-        ConformanceSubject::Subjectless => None,
-        ConformanceSubject::Carrier(_) => {
-            if !declaration.carrier_symbol.is_valid() {
-                return Err(rejected("a carrier without exact declaration custody"));
-            }
-            Some(
-                instantiated
-                    .to_mut()
-                    .type_reference_table
-                    .insert(TypeReferenceNode::Named {
-                        symbol: declaration.carrier_symbol,
-                        name: Identifier::generated(
-                            compilation.symbols.name(declaration.carrier_symbol),
-                        ),
-                    }),
-            )
-        }
-    };
     let project_type = |reference| {
         signature_type_identity(
             &instantiated,
@@ -194,7 +173,6 @@ pub fn project_checked_conformance_policy<'a>(
             .iter()
             .map(|symbol| callable_identity(compilation, *symbol))
             .collect::<Result<Vec<_>, _>>()?,
-        subject: subject_reference.map(project_type).transpose()?,
         trait_identity: nominal_identity(compilation, application.trait_definition)?,
         trait_lifetime_arguments,
         trait_arguments,
@@ -247,7 +225,6 @@ fn validate_retained_application(
         || closed.type_arguments != application.type_arguments
         || closed.const_arguments != application.const_arguments
         || closed.machine_arguments != application.machine_arguments
-        || closed.subject_identity != application.subject_identity
         || closed.trait_definition != application.trait_definition
         || closed.trait_lifetime_arguments != application.trait_lifetime_arguments
         || closed.trait_arguments != application.trait_arguments

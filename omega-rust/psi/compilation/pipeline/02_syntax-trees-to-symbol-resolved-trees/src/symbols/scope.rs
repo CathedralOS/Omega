@@ -42,7 +42,6 @@ pub(super) fn attached_machines(
 fn attached_machine_list(
     program: &symbol_resolved_trees::SymbolResolvedTrees,
 ) -> Vec<AttachedMachine> {
-    use symbol_resolved_trees::trait_definition::ConformanceImplementation;
     program
         .machines
         .iter()
@@ -52,9 +51,7 @@ fn attached_machine_list(
             // They are routed there after ordinary resolution, not competing
             // ambient methods. Referenced authored machines remain ordinary.
             let closed_realization = program.conformances.iter().any(|conformance| {
-                let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
-                    return false;
-                };
+                let rows = &conformance.rows;
                 rows.iter().any(|row| {
                     row.source.owns_realization()
                         && row.provisional_realization_ordinal.map_or_else(

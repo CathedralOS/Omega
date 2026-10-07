@@ -7,11 +7,12 @@ use typed_trees::data::{DataField, DataMember};
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// Check the first closed `PlacementCustody` agreement slice. The agreement is
-/// ordinary conformance evidence: this pass only replays one exact concrete
-/// policy/schema plan, its direct erased fields, and one acyclic ordinary
-/// record path from a represented outer field to erased leaves through at
-/// most twenty-three additional represented records.
+/// Check the first closed `PlacementCustody<C, P, T>` agreement slice. The
+/// agreement is an ordinary named implementation whose explicit arguments name
+/// the custody record `C`, the policy `P` and the schema `T`: this pass only
+/// replays one exact concrete policy/schema plan, its direct erased fields,
+/// and one acyclic ordinary record path from a represented outer field to
+/// erased leaves through at most twenty-three additional represented records.
 pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for conformance in program.conformances() {
         let Some(trait_definition) = program
@@ -28,10 +29,11 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
         let arguments = program
             .type_reference_table
             .type_reference_handles(conformance.arguments);
-        let [policy_argument, schema_argument] = arguments else {
+        let [custody_argument, policy_argument, schema_argument] = arguments else {
             continue;
         };
-        let (Some(policy_symbol), Some(schema_symbol)) = (
+        let (Some(custody_symbol), Some(policy_symbol), Some(schema_symbol)) = (
+            concrete_named_symbol(program, *custody_argument),
             concrete_named_symbol(program, *policy_argument),
             concrete_named_symbol(program, *schema_argument),
         ) else {
@@ -53,7 +55,7 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
         };
         let Some(custody) = crate::program_scope::data_definitions::data_definition_by_symbol(
             program,
-            conformance.carrier_symbol,
+            custody_symbol,
         ) else {
             continue;
         };

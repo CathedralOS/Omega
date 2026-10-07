@@ -309,10 +309,8 @@ fn collect_provider_selections<'a>(
         if let Some(implementation) = typed.conformances().iter().find(|implementation| {
             implementation.symbol == provider_type.symbol
                 && crate::provider_identity::eligible(implementation)
-        }) && let typed_trees::trait_definition::ConformanceImplementation::Closed { rows } =
-            &implementation.implementation
-        {
-            for row in rows {
+        }) {
+            for row in &implementation.rows {
                 if crate::provider_identity::named_requirement_lifetime_arguments(
                     typed,
                     implementation,

@@ -6,9 +6,9 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-/// Validate checked call coordinates and reject ordinary whole-trait
-/// implementations that attempt to mint the called boundary capability.
-/// This does not select a provider or grant native execution authority.
+/// Validate checked call coordinates and require every called boundary
+/// capability to name one exact authored declaration. This does not select a
+/// provider or grant native execution authority.
 pub fn validate_boundary_calls(
     checked: &checked_trees::CheckedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -36,6 +36,13 @@ pub fn validate_boundary_calls(
 /// Approval is exact to the authored boundary declaration, never its service
 /// reach or a provider selected for another capability. All calls consume the
 /// same derived roster; it carries no provider-selection authority.
+///
+/// A named implementation of a boundary trait is a provider candidate that
+/// Build selects for the capability's slot, whichever package declares it;
+/// declaring one mints no authority, because implementing or ordinarily
+/// calling a requirement introduces no capacity (`wiki/spec/resources/
+/// authority.md`, "External roots and issuance"). Data never implements a
+/// whole capability, so no declaration revokes approval.
 fn approved_boundary_traits(program: &typed_trees::TypedTrees) -> Vec<SymbolHandle> {
     let mut approved = Vec::new();
     for definition in program
@@ -65,15 +72,7 @@ fn approved_boundary_traits(program: &typed_trees::TypedTrees) -> Vec<SymbolHand
             && !definition.name.as_str().is_empty()
             && exact_symbol_owners == 1
             && exact_name_owners == 1;
-        // A requirement-level checked adapter or external leaf is a supply
-        // edge, not an in-package implementation of the whole capability.
-        let implemented_in_package = program.conformances().iter().any(|conformance| {
-            matches!(
-                conformance.subject,
-                typed_trees::trait_definition::ConformanceSubject::Carrier(_)
-            ) && conformance.trait_symbol == definition.symbol
-        });
-        if has_exact_identity && !implemented_in_package {
+        if has_exact_identity {
             approved.push(definition.symbol);
         }
     }

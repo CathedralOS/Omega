@@ -238,7 +238,6 @@ crashes Trap
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfType -> expected_member(parser, start, end)
             KeywordKind::SelfValue -> expected_member(parser, start, end)
             _ -> retain_member(parser, input, start, end)
         }

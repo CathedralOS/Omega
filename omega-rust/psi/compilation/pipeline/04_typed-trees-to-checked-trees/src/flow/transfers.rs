@@ -670,9 +670,7 @@ fn exact_structural_symbol_place(
                 {
                     return false;
                 }
-                let Some(data) =
-                    crate::lookup::declared_data_type(program, current, machine_symbol)
-                else {
+                let Some(data) = crate::lookup::declared_data_type(program, current) else {
                     return false;
                 };
                 let field = if let Some(variant_symbol) = selected_variant.take() {
@@ -707,9 +705,7 @@ fn exact_structural_symbol_place(
                 {
                     return false;
                 }
-                let Some(data) =
-                    crate::lookup::declared_data_type(program, current, machine_symbol)
-                else {
+                let Some(data) = crate::lookup::declared_data_type(program, current) else {
                     return false;
                 };
                 if !program.data_members(data).iter().any(|member| {

@@ -16,7 +16,6 @@ use crate::declarations::traits::conformance::trait_applications::validate_trait
 use crate::declarations::traits::trait_definition_by_symbol;
 use crate::value_custody::type_references::type_reference_label;
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::domain::ProofFact;
@@ -761,7 +760,6 @@ fn validate_machine_single_requirement(
         entry_state,
         trait_definition,
         requirement,
-        SymbolHandle::invalid(),
         Some(trait_lifetime_arguments),
         explicit_type_arguments,
         diagnostics,

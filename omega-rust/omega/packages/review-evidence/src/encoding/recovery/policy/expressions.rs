@@ -250,7 +250,6 @@ pub(in crate::encoding::recovery) fn static_argument(
             8 => Argument::ConformanceApplication {
                 declaration: nominal(reader)?,
                 arguments: reader.sequence(1, static_argument)?,
-                subject: reader.boxed(static_argument)?,
                 trait_identity: nominal(reader)?,
                 trait_arguments: reader.sequence(8, type_identity)?,
             },

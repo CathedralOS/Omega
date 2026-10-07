@@ -42,7 +42,7 @@ use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
-use typed_trees::trait_definition::{Conformance, ConformanceImplementation, TraitDefinition};
+use typed_trees::trait_definition::{Conformance, TraitDefinition};
 use typed_trees::typed_trees::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceConstArgument, ClosedConformanceRowIdentity,
@@ -55,10 +55,8 @@ mutation_matrix::custody_field_inventory! {
     /// exactly one field per leg so a rejection attributes to that claim
     /// alone. The record has no wire form, so no field is
     /// canonical-encoding-closed; `lifecycle` and `origin` are unrepresentable
-    /// (single-variant vocabularies) and stay outside the inventory. A
-    /// representation implementation names no data subject, so its
-    /// `ApplicationSubjectIdentity` substitution adopts a foreign identity
-    /// where the honest application retains none. The independent checker is
+    /// (single-variant vocabularies) and stay outside the inventory. The
+    /// independent checker is
     /// `rederive_opaque_representation_selections`, and joined
     /// `run_one_field_substitution_matrix` legs re-assert the substituted
     /// row's internal commitment honesty.
@@ -74,7 +72,6 @@ mutation_matrix::custody_field_inventory! {
         ApplicationTypeArguments,
         ApplicationConstArguments,
         ApplicationMachineArguments,
-        ApplicationSubjectIdentity,
         ApplicationTraitDefinition,
         ApplicationTraitLifetimeArguments,
         ApplicationTraitArguments,
@@ -110,7 +107,7 @@ pub enum RetainedSelectionRejection {
 /// One authentic program: the compiler-owned
 /// `OpaqueRepresentation<Opaque, Representation>` trait declared in toolchain
 /// source, two boundary-opaque declarations with checked-shape carriers named
-/// as the second argument of subjectless closed implementations, and one
+/// as the second argument of named closed implementations, and one
 /// authoritative build machine whose state selects both representations.
 pub struct Fixture {
     pub typed: TypedTrees,
@@ -350,7 +347,7 @@ pub fn fixture() -> Fixture {
             trait_symbol,
             arguments,
             alias: Some(Identifier::generated(alias)),
-            implementation: ConformanceImplementation::Closed { rows: Vec::new() },
+            rows: Vec::new(),
             ..Default::default()
         });
     }
@@ -535,8 +532,6 @@ pub fn honest_retained_selection_custody_case() -> RetainedSelectionCustodyCase 
 /// An authentic foreign row of the same family: every substitutable lane
 /// carries foreign evidence assembled through the honest constructor, so
 /// donor-drawn substitutions move real values rather than fabricated noise.
-/// `subject_identity` takes a foreign identity where the honest subjectless
-/// application retains none.
 pub fn foreign_retained_selection_donor() -> RetainedSelectionCustodyCase {
     let fixture = fixture();
     let mut parts = SelectionParts::of(&fixture.selections[0]);
@@ -561,7 +556,6 @@ pub fn foreign_retained_selection_donor() -> RetainedSelectionCustodyCase {
         binder_carrier: fixture.foreign_type_reference,
     }];
     parts.application.machine_arguments = vec![fixture.foreign_machine];
-    parts.application.subject_identity = Some(String::from("ForeignBytes"));
     parts.application.trait_definition = fixture.foreign_trait;
     parts.application.trait_lifetime_arguments = vec![String::from("'foreign")];
     parts.application.trait_arguments = vec![String::from("named(name(Foreign))")];
@@ -621,9 +615,6 @@ pub fn corrupt_retained_selection_custody_for_test(
         }
         Field::ApplicationMachineArguments => {
             parts.application.machine_arguments = donor_parts.application.machine_arguments.clone();
-        }
-        Field::ApplicationSubjectIdentity => {
-            parts.application.subject_identity = donor_parts.application.subject_identity.clone();
         }
         Field::ApplicationTraitDefinition => {
             parts.application.trait_definition = donor_parts.application.trait_definition;

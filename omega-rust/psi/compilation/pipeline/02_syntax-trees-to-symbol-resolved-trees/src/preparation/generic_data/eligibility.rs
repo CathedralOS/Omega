@@ -165,7 +165,6 @@ pub(in crate::preparation::generic_data) fn generic_inline_data_edges(
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::SelfType
             | TypeReferenceNode::Unit => {}
         }
     }

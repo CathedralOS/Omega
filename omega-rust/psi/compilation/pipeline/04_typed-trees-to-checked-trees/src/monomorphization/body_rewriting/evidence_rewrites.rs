@@ -68,9 +68,7 @@ pub(crate) fn evidence_requirement_rewrites(
         else {
             continue;
         };
-        let Some(rows) = program.closed_conformance_rows(selected) else {
-            continue;
-        };
+        let rows = selected.rows.as_slice();
         let application =
             crate::conformance::conformance_applications::close_conformance_application(
                 program, binding,

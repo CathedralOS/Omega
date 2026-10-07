@@ -146,7 +146,6 @@ pub(in crate::preparation) fn normalize(
                 TypeReferenceNode::Named(_)
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::SelfType
                 | TypeReferenceNode::Unit => {}
             }
         }

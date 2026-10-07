@@ -470,10 +470,6 @@ impl Equality<'_, '_> {
                     _ => false,
                 }
             }
-            (
-                TypeReference::SelfType { symbol: left },
-                TypeReference::SelfType { symbol: right },
-            ) => self.live(*left) && left == right,
             (TypeReference::Reference(left), TypeReference::Reference(right)) => {
                 left.access == right.access
                     && match (&left.lifetime, &right.lifetime) {

@@ -398,12 +398,7 @@ fn validate_cleanup_machine(
     let shape_is_exact = matches!(parameters, [owner]
     if owner.is_mutable
         && !owner.is_const
-            && mutable_reference_targets(
-                program,
-                owner.type_reference,
-                machine.symbol,
-                attached_symbol,
-            ));
+            && mutable_reference_targets(program, owner.type_reference, attached_symbol));
     if !shape_is_exact {
         diagnostics.push(Diagnostic::error(format!(
             "cleanup machine `{}` must take exactly one exclusive loan of its own data \
@@ -469,42 +464,35 @@ fn validate_cleanup_machine(
 fn mutable_reference_targets(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    expected_self_symbol: symbols::SymbolHandle,
     attached_symbol: symbols::SymbolHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            mutable_reference_targets(program, *base_type, expected_self_symbol, attached_symbol)
+            mutable_reference_targets(program, *base_type, attached_symbol)
         }
         TypeReferenceNode::Reference {
             referee,
             access: ReferenceAccess::Mutable,
             ..
-        } => named_type_matches(program, *referee, expected_self_symbol, attached_symbol),
+        } => named_type_matches(program, *referee, attached_symbol),
         _ => false,
     }
 }
 
-/// Whether a reference's referee names this cleanup machine's own data.
-///
-/// A receiver's synthesized referee is the machine symbol under the literal
-/// name `Self`. The same shape written statically names the data directly, as
-/// `&mut Guard`, whose referee is the attached data's symbol under its own
-/// name. The symbol is what identifies the storage in the static spelling, so
-/// the name is not compared there.
+/// Whether a reference's referee names this cleanup machine's own data,
+/// written as `&mut Guard`. The symbol identifies the storage, so the
+/// spelling is not compared.
 fn named_type_matches(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    expected_self_symbol: symbols::SymbolHandle,
     attached_symbol: symbols::SymbolHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            named_type_matches(program, *base_type, expected_self_symbol, attached_symbol)
+            named_type_matches(program, *base_type, attached_symbol)
         }
-        TypeReferenceNode::Named { symbol, name } => {
-            (*symbol == expected_self_symbol && name.as_str() == "Self")
-                || (attached_symbol.is_valid() && *symbol == attached_symbol)
+        TypeReferenceNode::Named { symbol, .. } => {
+            attached_symbol.is_valid() && *symbol == attached_symbol
         }
         _ => false,
     }

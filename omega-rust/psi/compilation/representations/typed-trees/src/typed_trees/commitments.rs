@@ -157,7 +157,6 @@ pub struct ClosedConformanceApplication {
     pub type_arguments: Vec<String>,
     pub const_arguments: Vec<ClosedConformanceConstArgument>,
     pub machine_arguments: Vec<symbols::SymbolHandle>,
-    pub subject_identity: Option<String>,
     pub trait_definition: symbols::SymbolHandle,
     /// Concrete target-trait lifetime application after substituting the
     /// declaration's checked lifetime ordinals through this application.

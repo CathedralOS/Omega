@@ -11,7 +11,7 @@ use crate::symbols::targets::{
     assign_runtime_subject_argument_symbol, assign_static_argument_symbols,
     assign_transition_target_symbols, build_operand_route, resolve_call_target_symbol,
 };
-use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints;
+use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints;
 use language_semantics::declaration_selection::BuildOperation;
 
 pub(super) fn assign_local_type_symbols(
@@ -24,12 +24,11 @@ pub(super) fn assign_local_type_symbols(
     reference: &mut symbol_resolved_trees::types::TypeReference,
     symbols: &SymbolTable,
 ) {
-    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+    assign_type_reference_symbol_with_locals_and_constraints(
         symbols,
         child_type_references,
         type_constraints,
         machine.type_parameters,
-        machine.symbol,
         reference,
     );
     crate::symbols::type_references::assign_type_value_expression_symbols(

@@ -44,7 +44,6 @@ fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees
                 type_arguments: Vec::new(),
                 const_arguments: Vec::new(),
                 machine_arguments: Vec::new(),
-                subject_identity: Some("package::Spread".to_owned()),
                 trait_definition: symbols::SymbolHandle::from_arena_index(8),
                 trait_lifetime_arguments: Vec::new(),
                 trait_arguments: vec!["package::WindowProcedure::call#exact".to_owned()],

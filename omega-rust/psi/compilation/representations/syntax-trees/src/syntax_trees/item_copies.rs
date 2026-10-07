@@ -166,78 +166,68 @@ impl SyntaxTrees {
                 Item::Capability(self.copy_capability_definition(other, capability))
             }
             Item::Conformance(conformance) => {
-                let body = match &conformance.body {
-                    crate::item::ConformanceBody::AttachedRequirementMachines => {
-                        crate::item::ConformanceBody::AttachedRequirementMachines
-                    }
-                    crate::item::ConformanceBody::Closed { members } => {
-                        let copied = other
-                            .items
-                            .conformance_members(*members)
-                            .iter()
-                            .map(|member| match member {
-                                crate::item::ConformanceMember::Machine(machine) => {
-                                    crate::item::ConformanceMember::Machine(
-                                        self.copy_machine(other, machine),
-                                    )
-                                }
-                                crate::item::ConformanceMember::Synthesized(machine) => {
-                                    crate::item::ConformanceMember::Synthesized(
-                                        self.copy_machine(other, machine),
-                                    )
-                                }
-                                crate::item::ConformanceMember::TraitDefault {
-                                    declaring_trait,
-                                    requirement_ordinal,
-                                    machine,
-                                } => crate::item::ConformanceMember::TraitDefault {
-                                    declaring_trait: declaring_trait.clone(),
-                                    requirement_ordinal: *requirement_ordinal,
-                                    machine: self.copy_machine(other, machine),
-                                },
-                                crate::item::ConformanceMember::Reference {
-                                    declaring_trait,
-                                    requirement,
-                                    target,
-                                } => crate::item::ConformanceMember::Reference {
-                                    declaring_trait: declaring_trait.clone(),
-                                    requirement: requirement.clone(),
-                                    target: self.copy_item_identifier_span(other, *target),
-                                },
-                            })
-                            .collect::<Vec<_>>();
-                        let mut copied_start = arena::Handle::invalid();
-                        let mut copied_count = 0u32;
-                        for member in copied {
-                            let handle = self.items.append_conformance_member(member);
-                            if copied_count == 0 {
-                                copied_start = handle;
-                            }
-                            copied_count = copied_count
-                                .checked_add(1)
-                                .expect("conformance member span count overflow");
+                let copied = other
+                    .items
+                    .conformance_members(conformance.members)
+                    .iter()
+                    .map(|member| match member {
+                        crate::item::ConformanceMember::Machine(machine) => {
+                            crate::item::ConformanceMember::Machine(
+                                self.copy_machine(other, machine),
+                            )
                         }
-                        crate::item::ConformanceBody::Closed {
-                            members: if copied_count == 0 {
-                                arena::HandleSpan::empty()
-                            } else {
-                                arena::HandleSpan::from_parts(copied_start, copied_count)
-                            },
+                        crate::item::ConformanceMember::Synthesized(machine) => {
+                            crate::item::ConformanceMember::Synthesized(
+                                self.copy_machine(other, machine),
+                            )
                         }
+                        crate::item::ConformanceMember::TraitDefault {
+                            declaring_trait,
+                            requirement_ordinal,
+                            machine,
+                        } => crate::item::ConformanceMember::TraitDefault {
+                            declaring_trait: declaring_trait.clone(),
+                            requirement_ordinal: *requirement_ordinal,
+                            machine: self.copy_machine(other, machine),
+                        },
+                        crate::item::ConformanceMember::Reference {
+                            declaring_trait,
+                            requirement,
+                            target,
+                        } => crate::item::ConformanceMember::Reference {
+                            declaring_trait: declaring_trait.clone(),
+                            requirement: requirement.clone(),
+                            target: self.copy_item_identifier_span(other, *target),
+                        },
+                    })
+                    .collect::<Vec<_>>();
+                let mut copied_start = arena::Handle::invalid();
+                let mut copied_count = 0u32;
+                for member in copied {
+                    let handle = self.items.append_conformance_member(member);
+                    if copied_count == 0 {
+                        copied_start = handle;
                     }
+                    copied_count = copied_count
+                        .checked_add(1)
+                        .expect("conformance member span count overflow");
+                }
+                let members = if copied_count == 0 {
+                    arena::HandleSpan::empty()
+                } else {
+                    arena::HandleSpan::from_parts(copied_start, copied_count)
                 };
                 Item::Conformance(crate::item::ConformanceItem {
                     is_public: conformance.is_public,
                     lifetime_parameters: conformance.lifetime_parameters.clone(),
                     type_parameters: self
                         .copy_type_parameter_span(other, conformance.type_parameters),
-                    subject: conformance.subject.clone(),
                     trait_name: conformance.trait_name.clone(),
                     trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
                     trait_arguments: self
                         .copy_type_reference_handle_span(other, conformance.trait_arguments),
                     alias: conformance.alias.clone(),
-                    body,
+                    members,
                 })
             }
             Item::Const(constant) => Item::Const(crate::item::ConstDefinition {

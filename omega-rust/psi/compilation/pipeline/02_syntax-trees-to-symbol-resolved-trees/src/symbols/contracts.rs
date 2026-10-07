@@ -251,14 +251,13 @@ fn assign_contract_span(
                             start.generation(),
                         );
                         let mut argument = child_type_references.get(handle).clone();
-                        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                             symbols,
                             child_type_references,
                             machine.type_constraints,
                             &local_type_parameters,
-                            machine.symbol,
                             &mut argument,
-                        );
+);
                         *child_type_references.get_mut(handle) = argument;
                     }
                     membership.value
@@ -391,7 +390,6 @@ fn assign_contract_call_symbols(
                         symbols,
                         child_type_references,
                         machine.type_parameters,
-                        machine.symbol,
                         handle,
                     );
                 },

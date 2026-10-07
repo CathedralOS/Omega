@@ -46,9 +46,6 @@ pub(crate) fn encode_application(
     encoder.field("machine_arguments", |encoder| {
         encoder.sequence(&application.machine_arguments, encode_nominal)
     })?;
-    encoder.field("subject", |encoder| {
-        encoder.option(application.subject.as_ref(), type_identity)
-    })?;
     encoder.field("trait_identity", |encoder| {
         encode_nominal(encoder, &application.trait_identity)
     })?;

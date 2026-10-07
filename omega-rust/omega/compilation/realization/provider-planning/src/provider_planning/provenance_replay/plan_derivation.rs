@@ -12,8 +12,7 @@ use crate::provider_planning::operator_provider_evidence::{
 };
 use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_installed_external_binding_identity, exact_satisfied_requirement_identity,
-    external_provider_binding, inferred_compiler_leaf_binding, provider_boundary_arguments,
-    realization_machine_identity,
+    external_provider_binding, inferred_compiler_leaf_binding, realization_machine_identity,
 };
 use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
@@ -147,12 +146,9 @@ pub(crate) fn derive_provider_plans(
                 clause.requirement_symbol,
             );
             let requirement_symbol = clause.requirement_symbol;
-            for (schema_declaration, schema_trait, schema) in provider_plan_schema_targets(
-                context,
-                provider_type_symbol,
-                clause.symbol,
-                &semantic_requirement_identity,
-            ) {
+            if let Some((schema_declaration, schema_trait, schema)) =
+                provider_plan_schema_target(context, clause.symbol)
+            {
                 let plan_name = satisfies_plan_name(&target, &schema_trait, &provider_type);
                 let position = derived_plan_position(
                     &mut plans,
@@ -224,11 +220,7 @@ fn derive_named_provider_plans(
             {
                 return None;
             }
-            let typed_trees::trait_definition::ConformanceImplementation::Closed { rows } =
-                &implementation.implementation
-            else {
-                return None;
-            };
+            let rows = &implementation.rows;
             let definition = typed.traits().iter().find(|definition| {
                 definition.symbol == implementation.trait_symbol
                     && definition.is_boundary
@@ -498,84 +490,26 @@ fn derive_top_level_requirement_plans(
     plans
 }
 
-/// Select the boundary schema under which an exact inherited routed-input
-/// requirement is installed. A provider may implement the stable parent
-/// requirement while explicitly conforming to a target root that inherits it
-/// and adds `Calling<C>`. In that case the descendant schema owns plan/ABI
-/// refinement, but the row keeps the parent's exact requirement identity.
-/// A checked calling application also selects the descendant schema without
-/// requiring an unrelated routed entry claim. Other requirements retain their
-/// direct provider-plan behavior.
-fn provider_plan_schema_targets(
+/// The boundary schema under which an exact requirement edge is installed:
+/// the edge's own boundary trait, with no whole-trait application. A root that
+/// inherits the requirement and adds `Calling<C>` is installed through a named
+/// implementation of that root, whose plan `derive_named_provider_plans`
+/// derives from its explicit rows; an exact edge never claims a descendant
+/// schema on behalf of the data that owns its machine.
+fn provider_plan_schema_target(
     context: ProviderPlanningContext<'_>,
-    provider_type_symbol: Option<symbols::SymbolHandle>,
     satisfied_trait_symbol: symbols::SymbolHandle,
-    requirement_identity: &str,
-) -> Vec<(ProviderSchemaDeclaration, String, ServiceSchema)> {
-    let typed = context.typed;
-    let direct = typed
-        .traits()
-        .iter()
-        .find(|definition| definition.is_boundary && definition.symbol == satisfied_trait_symbol);
-
-    let mut refined = typed
-        .conformances()
-        .iter()
-        .filter(|conformance| Some(conformance.carrier_symbol) == provider_type_symbol)
-        .filter_map(|conformance| {
-            let definition = typed.traits().iter().find(|definition| {
-                definition.is_boundary && definition.symbol == conformance.trait_symbol
-            })?;
-            let arguments = provider_boundary_arguments(typed, definition, provider_type_symbol);
-            let schema =
-                crate::service_schema::from_typed_instance(context, definition, &arguments)?;
-            schema
-                .methods
-                .iter()
-                .any(|method| {
-                    method.requirement_identity == requirement_identity
-                        && (!method.entry_claims.is_empty()
-                            || method.calling_plan_commitment.is_some())
-                })
-                .then(|| {
-                    (
-                        ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-                        schema.trait_name.clone(),
-                        schema,
-                    )
-                })
-        })
-        .collect::<Vec<_>>();
-    refined.sort_by(|left, right| left.1.cmp(&right.1));
-    refined.dedup_by(|left, right| left.0 == right.0);
-
-    let has_descendant = refined.iter().any(|(schema, _, _)| {
-        direct.is_some_and(|definition| schema.symbol() != definition.symbol)
-    });
-    if has_descendant {
-        refined.retain(|(schema, _, _)| {
-            direct.is_none_or(|definition| schema.symbol() != definition.symbol)
-        });
-    }
-    if !refined.is_empty() {
-        return refined;
-    }
-
-    direct
-        .and_then(|definition| {
-            let arguments = provider_boundary_arguments(typed, definition, provider_type_symbol);
-            crate::service_schema::from_typed_instance(context, definition, &arguments).map(
-                |schema| {
-                    (
-                        ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-                        schema.trait_name.clone(),
-                        schema,
-                    )
-                },
-            )
-        })
-        .into_iter()
-        .collect()
+) -> Option<(ProviderSchemaDeclaration, String, ServiceSchema)> {
+    let definition =
+        context.typed.traits().iter().find(|definition| {
+            definition.is_boundary && definition.symbol == satisfied_trait_symbol
+        })?;
+    let schema = crate::service_schema::from_typed_instance(context, definition, &[])?;
+    Some((
+        ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
+        schema.trait_name.clone(),
+        schema,
+    ))
 }
 
 fn derive_boundary_operator_plans(

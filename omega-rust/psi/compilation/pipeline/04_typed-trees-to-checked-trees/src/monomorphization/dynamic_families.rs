@@ -195,10 +195,7 @@ fn collect_selection_demands(
             continue;
         }
         seen_conformances.push(conformance.symbol);
-        let Some(rows) = program.closed_conformance_rows(conformance) else {
-            continue;
-        };
-        for row in rows {
+        for row in &conformance.rows {
             let Some((_, requirement)) = program
                 .traits()
                 .iter()

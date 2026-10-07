@@ -6,7 +6,6 @@ use crate::capture::contracts::expressions::static_arguments::{
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::lifetimes::substituted_lifetime_binder_ordinal;
 use crate::capture::semantics::types::signature_type_identity;
-use crate::record::PackageReviewContractStaticArgument;
 use diagnostics::Diagnostic;
 use std::borrow::Cow;
 use symbols::SymbolHandle;
@@ -124,8 +123,6 @@ pub(crate) fn project_selected_conformance_application(
     declaration_kind: &str,
     declaration_path: &str,
 ) -> Result<ProjectedSelectedConformanceApplication, Vec<Diagnostic>> {
-    use typed_trees::trait_definition::ConformanceSubject;
-
     let closed =
         typed_trees_to_checked_trees::close_conformance_application(&compilation.typed, selected)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -201,66 +198,6 @@ pub(crate) fn project_selected_conformance_application(
     // Only synthesized type nodes belong to projection. Keep facts, selected
     // applications, and source custody borrowed from the checked compilation.
     let mut instantiated = Cow::Borrowed(&compilation.typed);
-    let subject = match &declaration.subject {
-        ConformanceSubject::Subjectless => {
-            return Err(vec![Diagnostic::error(format!(
-                "{declaration_kind} `{declaration_path}` selects a subjectless conformance for a type-parameter bound"
-            ))]);
-        }
-        ConformanceSubject::Carrier(_) => {
-            if let Some(position) = parameters
-                .iter()
-                .position(|parameter| parameter.symbol == declaration.carrier_symbol)
-            {
-                let subject = arguments[position].clone();
-                if !matches!(
-                    subject,
-                    PackageReviewContractStaticArgument::Type(_)
-                        | PackageReviewContractStaticArgument::GenericTypeBinder(_)
-                        | PackageReviewContractStaticArgument::GenericType { .. }
-                ) {
-                    return Err(vec![Diagnostic::error(format!(
-                        "{declaration_kind} `{declaration_path}` selected conformance instantiates its subject from a non-type argument"
-                    ))]);
-                }
-                subject
-            } else {
-                let carrier = compilation
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.symbol == declaration.carrier_symbol)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(format!(
-                            "{declaration_kind} `{declaration_path}` selected conformance has no exact nominal subject"
-                        ))]
-                    })?;
-                if !carrier.is_public {
-                    return Err(vec![Diagnostic::error(format!(
-                        "{declaration_kind} `{declaration_path}` exposes non-public selected-conformance subject `{}`",
-                        carrier.name
-                    ))]);
-                }
-                let carrier_name = carrier.name.clone();
-                let carrier = instantiated.to_mut().type_reference_table.insert(
-                    typed_trees::types::TypeReferenceNode::Named {
-                        symbol: declaration.carrier_symbol,
-                        name: carrier_name,
-                    },
-                );
-                PackageReviewContractStaticArgument::Type(signature_type_identity(
-                    &instantiated,
-                    compilation.custody.sources().exact_toolchain_sources(),
-                    carrier,
-                    binders,
-                    lifetime_binders,
-                    &[],
-                    &[],
-                    false,
-                )?)
-            }
-        }
-    };
-
     let mut substitutions = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(supplied) {
         substitutions.push((
@@ -357,7 +294,6 @@ pub(crate) fn project_selected_conformance_application(
         declaration: nominal_identity(compilation, declaration.symbol)?,
         lifetime_arguments,
         arguments,
-        subject,
         trait_symbol: declaration.trait_symbol,
         trait_lifetime_arguments,
         trait_arguments,

@@ -622,19 +622,11 @@ pub(crate) fn finalize_conformance_reference_selections(
     let selections = program
         .conformances
         .iter()
-        .flat_map(|conformance| match &conformance.implementation {
-            symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
-                rows,
-            } => rows
-                .iter()
-                .filter_map(|row| {
-                    row.authored_realization_source_span
-                        .map(|source_span| (source_span, row.realization_machine))
-                })
-                .collect::<Vec<_>>(),
-            symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
-                Vec::new()
-            }
+        .flat_map(|conformance| {
+            conformance.rows.iter().filter_map(|row| {
+                row.authored_realization_source_span
+                    .map(|source_span| (source_span, row.realization_machine))
+            })
         })
         .collect::<Vec<_>>();
     for (source_span, realization_machine) in selections {

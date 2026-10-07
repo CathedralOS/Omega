@@ -161,7 +161,6 @@ fn type_carrier_is_supported(
         | TypeReference::Generic(_)
         | TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. }
-        | TypeReference::SelfType { .. }
         | TypeReference::Named { .. }
         | TypeReference::Unit => false,
     }

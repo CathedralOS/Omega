@@ -276,7 +276,6 @@ fn lower_static_requirement_dispatch(
             application.owner == terminal_machine
                 && application.declaration_identity == declaration_identity
                 && application.telescope.is_empty()
-                && application.subject_identity == checked_application.subject_identity
                 && application.trait_identity == trait_identity
                 && application.trait_arguments == checked_application.trait_arguments
                 && application.rows.len() == expected_rows.len()

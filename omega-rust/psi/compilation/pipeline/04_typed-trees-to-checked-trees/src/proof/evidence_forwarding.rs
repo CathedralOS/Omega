@@ -81,7 +81,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
                 forwarding.source.as_str(),
             ) else {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "subjectless conformance `{}` does not provide the exact `{}` evidence interface required by `{}`",
+                    "named implementation `{}` does not provide the exact `{}` evidence interface required by `{}`",
                     forwarding.source, output_term.evidence_type, forwarding.target
                 )));
                 continue;
@@ -89,7 +89,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
             source
         } else {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "evidence forwarding source `{}` is not a named requires binding of this machine, an explicit subjectless conformance, or an available proof-output term",
+                "evidence forwarding source `{}` is not a named requires binding of this machine, a named implementation, or an available proof-output term",
                 forwarding.source
             )));
             continue;
@@ -256,18 +256,14 @@ fn checked_evidence_producer(
     conformance_symbol: SymbolHandle,
     source_name: &str,
 ) -> Option<checked_trees::EvidenceAssignmentSource> {
-    use typed_trees::trait_definition::{
-        ConformanceImplementation, ConformanceRowSource, ConformanceSubject,
-    };
+    use typed_trees::trait_definition::ConformanceRowSource;
 
     let expected_interface = output.evidence_interface.as_ref()?;
     let conformance = program
         .conformances()
         .iter()
         .find(|candidate| candidate.symbol == conformance_symbol)?;
-    if !matches!(conformance.subject, ConformanceSubject::Subjectless)
-        || conformance.alias.as_ref()?.as_str() != source_name
-    {
+    if conformance.alias.as_ref()?.as_str() != source_name {
         return None;
     }
     let evidence_trait = program
@@ -285,9 +281,7 @@ fn checked_evidence_producer(
     {
         return None;
     }
-    let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
-        unreachable!("selected evidence producers are closed")
-    };
+    let rows = &conformance.rows;
     let rows = rows
         .iter()
         .map(|row| {

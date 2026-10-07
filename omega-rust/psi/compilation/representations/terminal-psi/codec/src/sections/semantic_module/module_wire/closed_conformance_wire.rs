@@ -31,10 +31,6 @@ pub(super) fn encode_closed_conformance_application(
         });
         writer.string("closed conformance argument", &binding.argument)?;
     }
-    writer.boolean(application.subject_identity.is_some());
-    if let Some(subject) = &application.subject_identity {
-        writer.string("closed conformance subject identity", subject)?;
-    }
     writer.string(
         "closed conformance trait identity",
         &application.trait_identity,
@@ -119,10 +115,6 @@ pub(super) fn decode_closed_conformance_application(
                 argument: reader.string("closed conformance argument")?,
             })
         })?,
-        subject_identity: reader
-            .boolean()?
-            .then(|| reader.string("closed conformance subject identity"))
-            .transpose()?,
         trait_identity: reader.string("closed conformance trait identity")?,
         trait_lifetime_arguments: reader.strings("closed conformance trait lifetime arguments")?,
         trait_arguments: reader.strings("closed conformance trait arguments")?,

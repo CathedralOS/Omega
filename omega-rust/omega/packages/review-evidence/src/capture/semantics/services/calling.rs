@@ -87,8 +87,7 @@ pub(super) fn boundary_arguments<'a>(
         .conformances()
         .iter()
         .filter(|candidate| {
-            candidate.trait_symbol == schema_symbol
-                && Some(candidate.carrier_symbol) == provider_type
+            candidate.trait_symbol == schema_symbol && Some(candidate.symbol) == provider_type
         })
         .map(|candidate| {
             compilation

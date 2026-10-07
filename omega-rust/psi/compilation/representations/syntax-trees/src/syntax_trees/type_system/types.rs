@@ -330,19 +330,6 @@ impl TypeReferenceTable {
             .collect()
     }
 
-    /// `Self` nodes created at or after a specialization watermark. Trait
-    /// synthesis replaces these only in the fresh copy, never in the authored
-    /// trait signature.
-    pub fn self_type_nodes_from(&self, watermark: u32) -> Vec<TypeReferenceHandle> {
-        self.type_references
-            .iter()
-            .filter_map(|(handle, node)| {
-                (handle.arena_index() >= watermark && matches!(node, TypeReferenceNode::SelfType))
-                    .then_some(handle)
-            })
-            .collect()
-    }
-
     /// Const-generic expression nodes awaiting the orchestration prepass.
     pub fn const_expression_nodes(
         &self,
@@ -399,10 +386,6 @@ impl TypeReferenceTable {
 
     pub fn insert_named(&mut self, name: Identifier) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Named(name))
-    }
-
-    pub fn insert_self_type(&mut self) -> TypeReferenceHandle {
-        self.insert(TypeReferenceNode::SelfType)
     }
 
     pub fn insert_unit(&mut self) -> TypeReferenceHandle {
@@ -598,7 +581,6 @@ pub enum TypeReferenceNode {
         trait_arguments: HandleSpan<TypeReferenceHandle>,
     },
     Named(Identifier),
-    SelfType,
     #[default]
     Unit,
 }

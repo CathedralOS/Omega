@@ -273,8 +273,7 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
         syntax.tables.type_references.type_reference(right),
     ) {
         (TypeReferenceNode::Named(left), TypeReferenceNode::Named(right)) => left == right,
-        (TypeReferenceNode::SelfType, TypeReferenceNode::SelfType)
-        | (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
+        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
         (
             TypeReferenceNode::Reference {
                 referee: left,

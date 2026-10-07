@@ -86,118 +86,102 @@ fn lower_item_with_exposure(
                 syntax_trees,
                 conformance.type_parameters,
             )?;
-            let implementation = match &conformance.body {
-                syntax::item::ConformanceBody::AttachedRequirementMachines => {
-                    symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
-                }
-                syntax::item::ConformanceBody::Closed { members } => {
-                    let conformance_name = conformance
-                        .alias
-                        .as_ref()
-                        .unwrap_or(&conformance.trait_name)
-                        .as_str();
-                    let mut rows = Vec::new();
-                    for member in syntax_trees.items.conformance_members(*members) {
-                        match member {
-                            syntax::item::ConformanceMember::Machine(machine) => {
-                                rows.push(lower_closed_machine_row(
-                                    lowerer,
-                                    syntax_trees,
-                                    conformance,
-                                    conformance_name,
-                                    None,
-                                    None,
-                                    machine,
-                                    symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline,
-                                )?);
-                            }
-                            syntax::item::ConformanceMember::Synthesized(machine) => {
-                                rows.push(lower_closed_machine_row(
-                                    lowerer,
-                                    syntax_trees,
-                                    conformance,
-                                    conformance_name,
-                                    None,
-                                    None,
-                                    machine,
-                                    symbol_resolved_trees::trait_definition::ConformanceRowSource::Synthesized,
-                                )?);
-                            }
-                            syntax::item::ConformanceMember::TraitDefault {
-                                declaring_trait,
-                                requirement_ordinal,
-                                machine,
-                            } => {
-                                rows.push(lower_closed_machine_row(
-                                    lowerer,
-                                    syntax_trees,
-                                    conformance,
-                                    conformance_name,
-                                    Some(declaring_trait),
-                                    Some(*requirement_ordinal),
-                                    machine,
-                                    symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault,
-                                )?);
-                            }
-                            syntax::item::ConformanceMember::Reference {
-                                declaring_trait,
-                                requirement,
-                                target,
-                            } => {
-                                let realization_name = syntax_trees
-                                    .items
-                                    .identifier_path_members(*target)
-                                    .iter()
-                                    .map(|member| member.as_str())
-                                    .collect::<Vec<_>>()
-                                    .join("::");
-                                let target_members = syntax_trees
-                                    .items
-                                    .identifier_path_members(*target);
-                                let authored_realization_source_span = target_members
-                                    .first()
-                                    .zip(target_members.last())
-                                    .and_then(|(first, last)| {
-                                        (first.source_span().source_id
-                                            == last.source_span().source_id)
-                                            .then(|| {
-                                                source::SourceSpan::new(
-                                                    first.source_span().source_id,
-                                                    source::Span::new(
-                                                        first.source_span().span.start,
-                                                        last.source_span().span.end,
-                                                    ),
-                                                )
-                                            })
-                                    });
-                                rows.push(
-                                    symbol_resolved_trees::trait_definition::ConformanceRow {
-                                        declaring_trait: symbols::SymbolHandle::invalid(),
-                                        declaring_trait_name: crate::lowering::name::lower_name(
-                                            declaring_trait,
-                                        ),
-                                        requirement: symbols::SymbolHandle::invalid(),
-                                        requirement_name: crate::lowering::name::lower_name(requirement),
-                                        provisional_requirement_ordinal: None,
-                                        realization_machine: symbols::SymbolHandle::invalid(),
-                                        realization_state: symbols::SymbolHandle::invalid(),
-                                        realization_name:
-                                            symbol_resolved_trees::name::DiagnosticName::generated(
-                                                realization_name,
+            let conformance_name = conformance
+                .alias
+                .as_ref()
+                .unwrap_or(&conformance.trait_name)
+                .as_str();
+            let mut rows = Vec::new();
+            for member in syntax_trees.items.conformance_members(conformance.members) {
+                match member {
+                    syntax::item::ConformanceMember::Machine(machine) => {
+                        rows.push(lower_closed_machine_row(
+                            lowerer,
+                            syntax_trees,
+                            conformance_name,
+                            None,
+                            None,
+                            machine,
+                            symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline,
+                        )?);
+                    }
+                    syntax::item::ConformanceMember::Synthesized(machine) => {
+                        rows.push(lower_closed_machine_row(
+                            lowerer,
+                            syntax_trees,
+                            conformance_name,
+                            None,
+                            None,
+                            machine,
+                            symbol_resolved_trees::trait_definition::ConformanceRowSource::Synthesized,
+)?);
+                    }
+                    syntax::item::ConformanceMember::TraitDefault {
+                        declaring_trait,
+                        requirement_ordinal,
+                        machine,
+                    } => {
+                        rows.push(lower_closed_machine_row(
+                            lowerer,
+                            syntax_trees,
+                            conformance_name,
+                            Some(declaring_trait),
+                            Some(*requirement_ordinal),
+                            machine,
+                            symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault,
+)?);
+                    }
+                    syntax::item::ConformanceMember::Reference {
+                        declaring_trait,
+                        requirement,
+                        target,
+                    } => {
+                        let realization_name = syntax_trees
+                            .items
+                            .identifier_path_members(*target)
+                            .iter()
+                            .map(|member| member.as_str())
+                            .collect::<Vec<_>>()
+                            .join("::");
+                        let target_members = syntax_trees.items.identifier_path_members(*target);
+                        let authored_realization_source_span = target_members
+                            .first()
+                            .zip(target_members.last())
+                            .and_then(|(first, last)| {
+                                (first.source_span().source_id == last.source_span().source_id)
+                                    .then(|| {
+                                        source::SourceSpan::new(
+                                            first.source_span().source_id,
+                                            source::Span::new(
+                                                first.source_span().span.start,
+                                                last.source_span().span.end,
                                             ),
-                                        authored_realization_source_span,
-                                        provisional_realization_ordinal: None,
-                                        source: symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference,
-                                    },
-                                );
-                            }
-                        }
-                    }
-                    symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
-                        rows,
+                                        )
+                                    })
+                            });
+                        rows.push(
+                            symbol_resolved_trees::trait_definition::ConformanceRow {
+                                declaring_trait: symbols::SymbolHandle::invalid(),
+                                declaring_trait_name: crate::lowering::name::lower_name(
+                                    declaring_trait,
+                                ),
+                                requirement: symbols::SymbolHandle::invalid(),
+                                requirement_name: crate::lowering::name::lower_name(requirement),
+                                provisional_requirement_ordinal: None,
+                                realization_machine: symbols::SymbolHandle::invalid(),
+                                realization_state: symbols::SymbolHandle::invalid(),
+                                realization_name:
+                                    symbol_resolved_trees::name::DiagnosticName::generated(
+                                        realization_name,
+                                    ),
+                                authored_realization_source_span,
+                                provisional_realization_ordinal: None,
+                                source: symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference,
+                            },
+                        );
                     }
                 }
-            };
+            }
             lowerer.symbol_resolved_trees.conformances.push(
                 symbol_resolved_trees::trait_definition::Conformance {
                     symbol: symbols::SymbolHandle::invalid(),
@@ -208,17 +192,6 @@ fn lower_item_with_exposure(
                         .map(crate::lowering::name::lower_name)
                         .collect(),
                     type_parameters,
-                    subject: match &conformance.subject {
-                        syntax::item::ConformanceSubject::Carrier(type_name) => {
-                            symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
-                                crate::lowering::name::lower_name(type_name),
-                            )
-                        }
-                        syntax::item::ConformanceSubject::Subjectless => {
-                            symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
-                        }
-                    },
-                    carrier_symbol: symbols::SymbolHandle::invalid(),
                     trait_name: crate::lowering::name::lower_name(&conformance.trait_name),
                     trait_symbol: symbols::SymbolHandle::invalid(),
                     trait_lifetime_arguments: conformance
@@ -231,7 +204,7 @@ fn lower_item_with_exposure(
                         .alias
                         .as_ref()
                         .map(crate::lowering::name::lower_name),
-                    implementation,
+                    rows,
                 },
             );
         }
@@ -396,7 +369,6 @@ fn item_expression_exposure(
 fn lower_closed_machine_row(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    conformance: &syntax::item::ConformanceItem,
     conformance_name: &str,
     declaring_trait: Option<&syntax::identifier::Identifier>,
     requirement_ordinal: Option<usize>,
@@ -404,18 +376,11 @@ fn lower_closed_machine_row(
     source: symbol_resolved_trees::trait_definition::ConformanceRowSource,
 ) -> Result<symbol_resolved_trees::trait_definition::ConformanceRow, Diagnostic> {
     let requirement_name = machine.name.clone();
-    let namespace = match &conformance.subject {
-        syntax::item::ConformanceSubject::Carrier(type_name) => {
-            format!("{}::{conformance_name}", type_name.as_str())
-        }
-        syntax::item::ConformanceSubject::Subjectless => conformance_name.to_owned(),
-    };
     let realization_name = declaring_trait.map_or_else(
-        || format!("{}::{}", namespace, requirement_name.as_str(),),
+        || format!("{conformance_name}::{}", requirement_name.as_str()),
         |declaring_trait| {
             format!(
-                "{}::{}::{}",
-                namespace,
+                "{conformance_name}::{}::{}",
                 declaring_trait.as_str(),
                 requirement_name.as_str(),
             )
@@ -429,10 +394,9 @@ fn lower_closed_machine_row(
     // degrading to an unresolved generated root.
     realization.name =
         syntax::identifier::Identifier::new(realization_name.clone(), machine.name.source_span());
-    realization.attached_data = match &conformance.subject {
-        syntax::item::ConformanceSubject::Carrier(type_name) => Some(type_name.clone()),
-        syntax::item::ConformanceSubject::Subjectless => None,
-    };
+    // A member belongs to the implementation's map, not to any data
+    // declaration; its parameters name every data type explicitly.
+    realization.attached_data = None;
     lower_machine_into(lowerer, syntax_trees, &realization)?;
     Ok(symbol_resolved_trees::trait_definition::ConformanceRow {
         declaring_trait: symbols::SymbolHandle::invalid(),

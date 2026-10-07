@@ -13,7 +13,7 @@ use crate::symbols::type_references::{
     assign_machine_declaration_identity_argument_symbols,
     assign_proposition_family_argument_symbols, assign_trait_bound_slot_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
-    assign_type_reference_symbol_with_locals_and_self_type_and_constraints,
+    assign_type_reference_symbol_with_locals_and_constraints,
 };
 
 pub(super) fn assign_machine_symbols(
@@ -176,27 +176,25 @@ pub(super) fn assign_machine_symbols(
                 symbol_resolved_trees::data::TypeParameterKind::Const {
                     mut type_reference,
                 } => {
-                    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                    assign_type_reference_symbol_with_locals_and_constraints(
                         symbols,
                         child_type_references,
                         type_constraints,
                         &local_type_parameters,
-                        machine_symbol,
                         &mut type_reference,
-                    );
+);
                     symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
                 }
                 symbol_resolved_trees::data::TypeParameterKind::Value {
                     mut type_reference,
                 } => {
-                    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                    assign_type_reference_symbol_with_locals_and_constraints(
                         symbols,
                         child_type_references,
                         type_constraints,
                         &local_type_parameters,
-                        machine_symbol,
                         &mut type_reference,
-                    );
+);
                     symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
                 }
                 symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
@@ -210,9 +208,8 @@ pub(super) fn assign_machine_symbols(
                             child_type_references,
                             type_constraints,
                             &local_type_parameters,
-                            machine_symbol,
                             *trait_arguments,
-                        );
+);
                     }
                     if let Some(signature) = contract.structural_mut() {
                         assign_machine_parameter_signature_symbols(
@@ -226,8 +223,7 @@ pub(super) fn assign_machine_symbols(
                             signature,
                             parameter_symbol,
                             &local_type_parameters,
-                            machine_symbol,
-                        );
+);
                     }
                     symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
                 }
@@ -240,14 +236,13 @@ pub(super) fn assign_machine_symbols(
         for owned_data in machine_owned_data.span_mut_or_empty(machine.owned_data) {
             owned_data.symbol =
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
-            assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+            assign_type_reference_symbol_with_locals_and_constraints(
                 symbols,
                 child_type_references,
                 type_constraints,
                 &local_type_parameters,
-                machine_symbol,
                 &mut owned_data.type_reference,
-            );
+);
             if owned_data.initial_value.is_valid() {
                 assign_expression_table_symbols(
                     symbols,
@@ -371,9 +366,8 @@ pub(super) fn assign_machine_symbols(
                 child_type_references,
                 type_constraints,
                 &local_type_parameters,
-                machine_symbol,
                 conformance.arguments,
-            );
+);
             if conformance.via_expression.is_valid() {
                 assign_expression_table_symbols(
                     symbols,
@@ -436,7 +430,6 @@ pub(super) fn assign_machine_symbols(
                 child_type_references,
                 type_constraints,
                 &local_type_parameters,
-                machine_symbol,
                 bound.arguments,
             );
             assign_trait_bound_slot_argument_symbols(
@@ -469,25 +462,23 @@ pub(super) fn assign_machine_symbols(
                 if !parameter.symbol.is_valid() {
                     parameter.symbol = declaration;
                 }
-                assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                assign_type_reference_symbol_with_locals_and_constraints(
                     symbols,
                     child_type_references,
                     type_constraints,
                     &local_type_parameters,
-                    machine_symbol,
                     &mut parameter.type_reference,
-                );
+);
             }
 
             if let Some(return_type) = &mut state.return_type {
-                assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                assign_type_reference_symbol_with_locals_and_constraints(
                     symbols,
                     child_type_references,
                     type_constraints,
                     &local_type_parameters,
-                    machine_symbol,
                     return_type,
-                );
+);
             }
         }
     });

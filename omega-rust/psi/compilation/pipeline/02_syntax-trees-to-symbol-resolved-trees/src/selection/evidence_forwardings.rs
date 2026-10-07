@@ -3,8 +3,8 @@
 //!
 //! Forwardings are recorded by root index and state name while machines
 //! lower; once every state has a symbol they bind to it, and a source that
-//! is not an incoming `requires` binding resolves to the subjectless
-//! conformance alias it names.
+//! is not an incoming `requires` binding resolves to the named
+//! implementation it names.
 
 use symbol_resolved_trees::SymbolResolvedTrees;
 
@@ -30,21 +30,14 @@ pub(crate) fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees)
             ));
         }
     }
-    let subjectless_conformances = program
+    let named_implementations = program
         .conformances
         .iter()
         .filter_map(|conformance| {
-            (matches!(
-                conformance.subject,
-                symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless
-            ))
-            .then(|| {
-                conformance
-                    .alias
-                    .as_ref()
-                    .map(|alias| (alias.as_str().to_owned(), conformance.symbol))
-            })
-            .flatten()
+            conformance
+                .alias
+                .as_ref()
+                .map(|alias| (alias.as_str().to_owned(), conformance.symbol))
         })
         .collect::<Vec<_>>();
     for forwarding in &mut program.evidence_forwardings {
@@ -63,7 +56,7 @@ pub(crate) fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees)
             *machine == forwarding.machine_symbol && name == forwarding.source.as_str()
         }) {
             forwarding.source_conformance =
-                subjectless_conformances.iter().find_map(|(alias, symbol)| {
+                named_implementations.iter().find_map(|(alias, symbol)| {
                     (alias == forwarding.source.as_str()).then_some(*symbol)
                 });
         }

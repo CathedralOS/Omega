@@ -25,16 +25,11 @@ pub struct ConformanceSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subject: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subject_symbol: Option<u32>,
     pub trait_name: String,
     pub trait_symbol: u32,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub trait_lifetime_arguments: Vec<String>,
     pub arguments: Vec<TypeReferenceSnapshot>,
-    pub implementation: &'static str,
     pub rows: Vec<ConformanceRowSnapshot>,
 }
 
@@ -390,30 +385,22 @@ pub(crate) fn conformance_snapshot(
     program: &SymbolResolvedTrees,
     conformance: &crate::trait_definition::Conformance,
 ) -> ConformanceSnapshot {
-    let (implementation, rows) = match &conformance.implementation {
-        crate::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
-            ("attached_requirement_machines", Vec::new())
-        }
-        crate::trait_definition::ConformanceImplementation::Closed { rows } => (
-            "closed",
-            rows.iter()
-                .map(|row| ConformanceRowSnapshot {
-                    declaring_trait: row.declaring_trait.arena_index(),
-                    requirement: row.requirement.arena_index(),
-                    realization_machine: row.realization_machine.arena_index(),
-                    realization_state: row.realization_state.arena_index(),
-                    source: match row.source {
-                        crate::trait_definition::ConformanceRowSource::Inline => "inline",
-                        crate::trait_definition::ConformanceRowSource::Reference => "reference",
-                        crate::trait_definition::ConformanceRowSource::Synthesized => "synthesized",
-                        crate::trait_definition::ConformanceRowSource::TraitDefault => {
-                            "trait_default"
-                        }
-                    },
-                })
-                .collect(),
-        ),
-    };
+    let rows = conformance
+        .rows
+        .iter()
+        .map(|row| ConformanceRowSnapshot {
+            declaring_trait: row.declaring_trait.arena_index(),
+            requirement: row.requirement.arena_index(),
+            realization_machine: row.realization_machine.arena_index(),
+            realization_state: row.realization_state.arena_index(),
+            source: match row.source {
+                crate::trait_definition::ConformanceRowSource::Inline => "inline",
+                crate::trait_definition::ConformanceRowSource::Reference => "reference",
+                crate::trait_definition::ConformanceRowSource::Synthesized => "synthesized",
+                crate::trait_definition::ConformanceRowSource::TraitDefault => "trait_default",
+            },
+        })
+        .collect();
     ConformanceSnapshot {
         has_symbol: conformance.symbol.is_valid(),
         name: conformance.alias.as_ref().map_or_else(
@@ -427,11 +414,6 @@ pub(crate) fn conformance_snapshot(
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
-        subject: conformance.carrier_name().map(ToString::to_string),
-        subject_symbol: conformance
-            .carrier_symbol
-            .is_valid()
-            .then(|| conformance.carrier_symbol.arena_index()),
         trait_name: conformance.trait_name.to_string(),
         trait_symbol: conformance.trait_symbol.arena_index(),
         trait_lifetime_arguments: to_strings(conformance.trait_lifetime_arguments.iter()),
@@ -440,7 +422,6 @@ pub(crate) fn conformance_snapshot(
             .iter()
             .map(|argument| type_reference_snapshot(program, argument))
             .collect(),
-        implementation,
         rows,
     }
 }

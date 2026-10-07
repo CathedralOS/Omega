@@ -19,36 +19,6 @@ pub(crate) fn infer_static_bindings(
     if !required.is_valid() || !actual.is_valid() {
         return;
     }
-    // An attached method's `self` formal carries `Named { machine, "Self" }`:
-    // the attached machine's alias for its owner application rather than the
-    // `Box<T>` it denotes. Expand the alias on either side so a `self`
-    // argument binds the method's parameters like any other generic use.
-    if let Some(application) = self_alias_application(program, required) {
-        return infer_static_bindings(
-            program,
-            application,
-            actual,
-            type_parameters,
-            const_parameters,
-            fixed_range_parameters,
-            candidate_index,
-            type_proposals,
-            const_proposals,
-        );
-    }
-    if let Some(application) = self_alias_application(program, actual) {
-        return infer_static_bindings(
-            program,
-            required,
-            application,
-            type_parameters,
-            const_parameters,
-            fixed_range_parameters,
-            candidate_index,
-            type_proposals,
-            const_proposals,
-        );
-    }
     if let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(required)
         && let Some(index) =
@@ -413,37 +383,4 @@ pub(crate) fn same_type_identity(
     right: TypeReferenceHandle,
 ) -> bool {
     program.normalized_type_identity(left) == program.normalized_type_identity(right)
-}
-
-/// The `Self` alias of an attached machine resolves to the machine's owner
-/// type: the retained owner application (`Box<T>` for `machine
-/// Box::settle<T>(self)`) when the attachment is generic, and the bare
-/// attached-data reference otherwise. A `self` formal is the only declaration
-/// that may carry the alias, so an occurrence anywhere else — or one whose
-/// machine predates retained applications — declines to expand.
-fn self_alias_application(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    let TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    if name.as_str() != "Self" || !symbol.is_valid() {
-        return None;
-    }
-    let machine = crate::lookup::machine_by_symbol(program, *symbol)?;
-    if machine.attached_data_application.is_valid()
-        && machine.attached_data_application != reference
-    {
-        return Some(machine.attached_data_application);
-    }
-    if !machine.attached_data_symbol.is_valid() {
-        return None;
-    }
-    program
-        .type_reference_table
-        .find_named_type_reference(machine.attached_data_symbol)
-        .filter(|owner| *owner != reference)
 }

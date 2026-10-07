@@ -488,7 +488,11 @@ pub data PlacementReturn<Source, Custody> {
     custody: Custody;
 }
 
-pub trait PlacementCustody<P, T> {
+// `C` is the authored custody record for the non-runtime fields of `T` under
+// placement `P`; a named implementation of this exact application is the
+// agreement the compiler checks. The custody record is an ordinary argument,
+// never a subject that owns the implementation.
+pub trait PlacementCustody<C, P, T> {
 }
 
 // Granular placed-field requirements. These are ordinary generic contracts so

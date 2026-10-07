@@ -234,8 +234,7 @@ fn subject_field_name(
 }
 
 /// Whether `symbol` names a parameter that holds a subject position: a
-/// machine state parameter carrying `is_self`, declaring the owning
-/// machine's attached data, or typed by the `Self` carrier. A resolved
+/// machine state parameter declaring the owning machine's attached data. A resolved
 /// name's symbol identifies one parameter program-wide, so the answer
 /// never depends on which signature asks.
 fn receiver_is_subject_parameter(program: &crate::TypedTrees, receiver: SymbolHandle) -> bool {
@@ -249,35 +248,12 @@ fn receiver_is_subject_parameter(program: &crate::TypedTrees, receiver: SymbolHa
                     return program.type_reference_names_attached_data(
                         parameter.type_reference,
                         machine.attached_data_symbol,
-                    ) || type_reference_is_self(program, parameter.type_reference);
+                    );
                 }
             }
         }
     }
     false
-}
-
-/// Whether `type_reference` spells the `Self` carrier once references and
-/// constraint shells are stripped. On an attached machine the named-data
-/// read already covers it; on an unattached signature `Self` is the
-/// binder the subject position still reads through.
-fn type_reference_is_self(
-    program: &crate::TypedTrees,
-    type_reference: crate::types::TypeReferenceHandle,
-) -> bool {
-    if !type_reference.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        crate::types::TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_is_self(program, *referee)
-        }
-        crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_self(program, *base_type)
-        }
-        crate::types::TypeReferenceNode::Named { name, .. } => name.as_str() == "Self",
-        _ => false,
-    }
 }
 
 /// Recognizes `<name>.len [+/- k]` -- the sibling-length class. `None` is

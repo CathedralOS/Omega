@@ -142,12 +142,6 @@ fn collect_selections_in(
         return;
     };
     let implementation_name = program.symbols.name(implementation);
-    if program.closed_conformance_rows(conformance).is_none() {
-        diagnostics.push(Diagnostic::error(format!(
-            "`{implementation_name}` declares no complete row map and cannot be selected at runtime; declare it with a `{{ ... }}` implementation block"
-        )));
-        return;
-    }
     let selector_arguments = program
         .type_reference_table
         .type_reference_handles(*arguments);
@@ -254,10 +248,7 @@ pub fn collect_dynamic_slot_demands(
         else {
             continue;
         };
-        for row in program
-            .closed_conformance_rows(implementation)
-            .unwrap_or_default()
-        {
+        for row in &implementation.rows {
             let Some(trait_arguments) = super::arguments_for_declaring_trait(
                 program,
                 selector_definition,

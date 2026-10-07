@@ -97,11 +97,7 @@ pub(crate) fn refinement_fit_diagnostics(
     binder_name: &str,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    // A bodyless conformance retains no rows here; evidence binding rejects
-    // it on its own ground before a structural bound could be read off it.
-    let Some(rows) = program.closed_conformance_rows(conformance) else {
-        return diagnostics;
-    };
+    let rows = conformance.rows.as_slice();
     let selected_name = conformance
         .alias
         .as_ref()

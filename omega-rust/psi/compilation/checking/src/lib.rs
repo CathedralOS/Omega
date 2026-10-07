@@ -197,7 +197,7 @@ pub use proof_contracts::properties::{
     declared_property_requirements, effective_data_carry_policy, effective_type_carry_policy,
     type_satisfies_declared_property,
 };
-pub use proof_contracts::proposition_entailment::select_subjectless_evidence_conformance;
+pub use proof_contracts::proposition_entailment::select_named_evidence_implementation;
 pub use proof_contracts::quotients::{
     CheckedTerminationOracle, QuotientRequestAdmission, ValidatedQuotientFormation,
     admit_checked_quotient_requests, validate_quotient_formations,

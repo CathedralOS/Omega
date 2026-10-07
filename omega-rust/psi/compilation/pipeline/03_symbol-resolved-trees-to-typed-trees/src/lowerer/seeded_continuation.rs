@@ -1495,7 +1495,6 @@ fn plain_type_is_supported(
             }),
             _ => false,
         },
-        TypeReference::SelfType { symbol } => *symbol == owner,
         TypeReference::Unit => true,
         TypeReference::Reference(reference) => {
             reference.lifetime.as_ref().is_none_or(|lifetime| {

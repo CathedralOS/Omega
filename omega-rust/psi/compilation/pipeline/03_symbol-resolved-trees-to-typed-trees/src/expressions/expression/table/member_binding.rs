@@ -158,7 +158,7 @@ fn declared_field<'program>(
         return None;
     }
     let symbol = match peel(program, receiver) {
-        TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => *symbol,
+        TypeReference::Named { symbol, .. } => *symbol,
         _ => return None,
     };
     declared_data_field(program, symbol, member)

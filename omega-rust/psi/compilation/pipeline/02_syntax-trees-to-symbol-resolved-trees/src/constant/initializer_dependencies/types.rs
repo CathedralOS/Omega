@@ -149,7 +149,7 @@ impl<'program> Collector<'program> {
             {
                 self.constant(*symbol, name.source_span())?;
             }
-            TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => {
+            TypeReference::Named { symbol, .. } => {
                 self.type_declaration(*symbol)?;
             }
             TypeReference::ConstExpression(expression) => self.expressions.push(*expression),

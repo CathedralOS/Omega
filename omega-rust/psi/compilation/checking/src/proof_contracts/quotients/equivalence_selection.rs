@@ -114,15 +114,6 @@ pub(crate) fn validate_equivalence_selection(
         )));
         return;
     }
-    if !matches!(
-        conformance.subject,
-        typed_trees::trait_definition::ConformanceSubject::Subjectless
-    ) {
-        diagnostics.push(Diagnostic::error(format!(
-            "quotient data `{}` conformance `{}` must be carrierless proof evidence for its exact relation `{}`",
-            definition.name, selection.conformance_name, relation.name
-        )));
-    }
     let conformance_arguments = program
         .type_reference_table
         .type_reference_handles(conformance.arguments);
@@ -140,14 +131,7 @@ pub(crate) fn validate_equivalence_selection(
             definition.name, selection.conformance_name,
         )));
     }
-    let Some(rows) = program.closed_conformance_rows(conformance) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "quotient data `{}` conformance `{}` must be one closed implementation; attached structural satisfier discovery is not permitted",
-            definition.name, selection.conformance_name,
-        )));
-        return;
-    };
-    for row in rows {
+    for row in &conformance.rows {
         let Some(declaring_trait) = program
             .traits()
             .iter()

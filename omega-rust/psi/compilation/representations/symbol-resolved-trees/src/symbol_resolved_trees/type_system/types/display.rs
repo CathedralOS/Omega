@@ -42,7 +42,6 @@ impl TypeReference {
                 count => format!("dyn {name}<{count} arguments>"),
             },
             TypeReference::Named { name, .. } => name.to_string(),
-            TypeReference::SelfType { .. } => "Self".to_owned(),
             TypeReference::Unit => "()".to_owned(),
         }
     }
@@ -88,7 +87,6 @@ impl TypeReference {
                 count => format!("dyn {name}<{count} arguments>"),
             },
             TypeReference::Named { name, .. } => name.to_string(),
-            TypeReference::SelfType { .. } => "Self".to_owned(),
             TypeReference::Unit => "()".to_owned(),
         }
     }

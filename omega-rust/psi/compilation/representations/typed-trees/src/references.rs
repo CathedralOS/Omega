@@ -436,7 +436,7 @@ pub fn visit_closed_conformance(
 }
 
 /// References owned by retained non-machine declarations: data fields and
-/// `where` facts, trait requirement signatures, conformance carriers,
+/// `where` facts, trait requirement signatures, named implementation rows,
 /// proposition binders/bodies, measure bodies, const initializers, operator
 /// signatures, domain facts, and wire field types.
 pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferences) {
@@ -534,18 +534,13 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             continue;
         }
         visit_symbol(retained, conformance.symbol);
-        visit_symbol(retained, conformance.carrier_symbol);
         visit_type_parameters(program, retained, conformance.type_parameters);
         visit_symbol(retained, conformance.trait_symbol);
-        if let crate::trait_definition::ConformanceImplementation::Closed { rows } =
-            &conformance.implementation
-        {
-            for row in rows {
-                visit_symbol(retained, row.declaring_trait);
-                visit_symbol(retained, row.requirement);
-                visit_symbol(retained, row.realization_machine);
-                visit_symbol(retained, row.realization_state);
-            }
+        for row in &conformance.rows {
+            visit_symbol(retained, row.declaring_trait);
+            visit_symbol(retained, row.requirement);
+            visit_symbol(retained, row.realization_machine);
+            visit_symbol(retained, row.realization_state);
         }
         for argument in program
             .type_reference_table

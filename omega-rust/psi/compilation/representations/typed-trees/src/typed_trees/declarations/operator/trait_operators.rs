@@ -63,11 +63,6 @@ pub fn trait_operator_matches_application(
             (*bound == symbol).then(|| program.display_type_reference(*actual))
         })
     };
-    if let Some(subject) = binding_identity(trait_definition.symbol)
-        && application.subject_identity.as_deref() != Some(subject.as_str())
-    {
-        return false;
-    }
     application.trait_definition != trait_definition.symbol
         || program
             .trait_type_parameters(trait_definition)

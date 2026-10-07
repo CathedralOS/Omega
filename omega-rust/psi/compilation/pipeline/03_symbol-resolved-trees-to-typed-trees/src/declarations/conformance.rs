@@ -8,18 +8,6 @@ pub(crate) fn lower_conformance(
 ) -> Result<(), Diagnostic> {
     let symbol_resolved_trees = lowerer.source_trees;
     let conformance_exposure = declaration_exposure(conformance.is_public);
-    if let symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(carrier_name) =
-        &conformance.subject
-    {
-        crate::type_reference::retain_type_reference_selection(
-            symbol_resolved_trees,
-            &mut lowerer.typed_trees,
-            carrier_name,
-            conformance.carrier_symbol,
-            conformance_exposure,
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
-        )?;
-    }
     if symbol_resolved_trees
         .roots
         .traits
@@ -94,49 +82,41 @@ pub(crate) fn lower_conformance(
             .map(crate::lowerer::name::lower_name)
             .collect(),
         type_parameters: arena::HandleSpan::empty(),
-        subject: match &conformance.subject {
-            symbol_resolved_trees::trait_definition::ConformanceSubject::Carrier(
-                type_name,
-            ) => typed_trees::trait_definition::ConformanceSubject::Carrier(
-                crate::lowerer::name::lower_name(type_name),
-            ),
-            symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => {
-                typed_trees::trait_definition::ConformanceSubject::Subjectless
-            }
-        },
-        carrier_symbol: conformance.carrier_symbol,
         trait_name: crate::lowerer::name::lower_name(&conformance.trait_name),
         trait_symbol: conformance.trait_symbol,
         trait_lifetime_arguments,
         arguments,
-        alias: conformance.alias.as_ref().map(crate::lowerer::name::lower_name),
-        implementation: match &conformance.implementation {
-            symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
-                typed_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines
-            }
-            symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } => {
-                typed_trees::trait_definition::ConformanceImplementation::Closed {
-                    rows: rows
-                        .iter()
-                        .map(|row| typed_trees::trait_definition::ConformanceRow {
-                            declaring_trait: row.declaring_trait,
-                            declaring_trait_name: crate::lowerer::name::lower_name(&row.declaring_trait_name),
-                            requirement: row.requirement,
-                            requirement_name: crate::lowerer::name::lower_name(&row.requirement_name),
-                            realization_machine: row.realization_machine,
-                            realization_state: row.realization_state,
-                            realization_name: crate::lowerer::name::lower_name(&row.realization_name),
-                            source: match row.source {
-                                symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline => typed_trees::trait_definition::ConformanceRowSource::Inline,
-                                symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference => typed_trees::trait_definition::ConformanceRowSource::Reference,
-                                symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault => typed_trees::trait_definition::ConformanceRowSource::TraitDefault,
-                                symbol_resolved_trees::trait_definition::ConformanceRowSource::Synthesized => typed_trees::trait_definition::ConformanceRowSource::Synthesized,
-                            },
-                        })
-                        .collect(),
-                }
-            }
-        },
+        alias: conformance
+            .alias
+            .as_ref()
+            .map(crate::lowerer::name::lower_name),
+        rows: conformance
+            .rows
+            .iter()
+            .map(|row| typed_trees::trait_definition::ConformanceRow {
+                declaring_trait: row.declaring_trait,
+                declaring_trait_name: crate::lowerer::name::lower_name(&row.declaring_trait_name),
+                requirement: row.requirement,
+                requirement_name: crate::lowerer::name::lower_name(&row.requirement_name),
+                realization_machine: row.realization_machine,
+                realization_state: row.realization_state,
+                realization_name: crate::lowerer::name::lower_name(&row.realization_name),
+                source: match row.source {
+                    symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline => {
+                        typed_trees::trait_definition::ConformanceRowSource::Inline
+                    }
+                    symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference => {
+                        typed_trees::trait_definition::ConformanceRowSource::Reference
+                    }
+                    symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault => {
+                        typed_trees::trait_definition::ConformanceRowSource::TraitDefault
+                    }
+                    symbol_resolved_trees::trait_definition::ConformanceRowSource::Synthesized => {
+                        typed_trees::trait_definition::ConformanceRowSource::Synthesized
+                    }
+                },
+            })
+            .collect(),
     };
     conformance.type_parameters =
         lowerer.with_type_reference_exposure(conformance_exposure, |lowerer| {
@@ -151,16 +131,12 @@ pub(crate) fn lower_conformance(
     // and substitute the selected row instead of leaving family symbols
     // such as `Element` in executable checked code. Referenced external
     // machines keep their independently declared telescope.
-    let realization_machines = match &conformance.implementation {
-        typed_trees::trait_definition::ConformanceImplementation::Closed { rows } => rows
-            .iter()
-            .filter(|row| row.source.owns_realization())
-            .map(|row| row.realization_machine)
-            .collect::<Vec<_>>(),
-        typed_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
-            Vec::new()
-        }
-    };
+    let realization_machines = conformance
+        .rows
+        .iter()
+        .filter(|row| row.source.owns_realization())
+        .map(|row| row.realization_machine)
+        .collect::<Vec<_>>();
     for machine in lowerer.typed_trees.machines_mut() {
         if realization_machines.contains(&machine.symbol) {
             machine.lifetime_parameters = conformance.lifetime_parameters.clone();

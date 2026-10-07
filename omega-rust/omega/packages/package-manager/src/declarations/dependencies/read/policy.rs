@@ -3,7 +3,7 @@ use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, const
 use build_declarations::{BUILD_TYPE_NAME, DependencyOperation, is_dependency_call_name};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
-use syntax_trees::item::{CapabilityMember, ConformanceBody, ConformanceMember, Item};
+use syntax_trees::item::{CapabilityMember, ConformanceMember, Item};
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
 pub(super) fn reject_authored_toolchain_vocabulary(
@@ -106,10 +106,7 @@ pub(super) fn reject_unprojected_dependency_syntax(
                 }
             }
             Item::Conformance(conformance) => {
-                let ConformanceBody::Closed { members } = &conformance.body else {
-                    continue;
-                };
-                for member in syntax_trees.items.conformance_members(*members) {
+                for member in syntax_trees.items.conformance_members(conformance.members) {
                     match member {
                         ConformanceMember::Machine(machine)
                         | ConformanceMember::Synthesized(machine)

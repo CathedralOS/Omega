@@ -181,12 +181,6 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 exposure,
             )
         }
-        resolved::types::TypeReferenceNode::SelfType { symbol } => Ok(typed_trees
-            .type_reference_table
-            .insert(typed::types::TypeReferenceNode::Named {
-                symbol: *symbol,
-                name: typed::name::Identifier::generated_static("Self"),
-            })),
         resolved::types::TypeReferenceNode::Unit => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Unit)),

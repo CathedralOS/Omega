@@ -119,7 +119,6 @@ pub(crate) fn conformances(
                 identity: row.identity,
                 lifetime_parameter_count: row.lifetime_parameter_count,
                 type_parameters,
-                subject: row.subject,
                 interface: row.interface,
             })
         })

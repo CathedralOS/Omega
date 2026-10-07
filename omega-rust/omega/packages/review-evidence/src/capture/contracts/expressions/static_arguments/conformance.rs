@@ -220,7 +220,6 @@ pub(super) fn project_contract_conformance_application(
         PackageReviewContractStaticArgument::ConformanceApplication {
             declaration: projected.declaration,
             arguments: projected.arguments,
-            subject: Box::new(projected.subject),
             trait_identity: nominal_identity(compilation, projected.trait_symbol)?,
             trait_arguments: projected.trait_arguments,
         },

@@ -102,7 +102,7 @@ pub(super) fn collect_binder_mentions(
                 collect_binder_mentions(syntax, *argument, parameters, mentions);
             }
         }
-        TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
+        TypeReferenceNode::Unit => {}
     }
 }
 

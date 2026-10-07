@@ -33,7 +33,6 @@ pub data KeywordKind [copy] {
     case Platform;
     case Pub;
     case Return;
-    case SelfType;
     case SelfValue;
     case State;
     case Struct;

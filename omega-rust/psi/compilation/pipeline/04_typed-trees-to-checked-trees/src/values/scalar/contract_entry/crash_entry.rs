@@ -707,7 +707,7 @@ impl<'program> Reader<'program> {
     }
 
     fn field_path(&mut self, expression: ExpressionHandle, depth: usize) -> Option<FieldPath> {
-        let machine = self.machine?;
+        self.machine?;
         self.charge(depth)?;
         if !self
             .program
@@ -729,19 +729,8 @@ impl<'program> Reader<'program> {
             return None;
         }
         let mut receiver = self.field_path(member.receiver, depth + 1)?;
-        let self_root = receiver.path.is_empty() && false;
-        let owner = self.nominal(
-            receiver.type_reference,
-            receiver.path.is_empty(),
-            self_root,
-            depth + 1,
-        )?;
-        let field = if receiver.path.is_empty() && false {
-            if owner.symbol != machine.attached_data_symbol {
-                return None;
-            }
-            validation::exact_self_field(self.program, machine, expression)?
-        } else {
+        let owner = self.nominal(receiver.type_reference, receiver.path.is_empty(), depth + 1)?;
+        let field = {
             let mut fields = self
                 .program
                 .data_members(owner)
@@ -795,7 +784,6 @@ impl<'program> Reader<'program> {
         &mut self,
         mut type_reference: TypeReferenceHandle,
         root: bool,
-        self_root: bool,
         mut depth: usize,
     ) -> Option<&'program DataDefinition> {
         loop {
@@ -822,18 +810,7 @@ impl<'program> Reader<'program> {
                 }
                 TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
                 TypeReferenceNode::Named { symbol, name } => {
-                    // Resolution assigns SelfType the attached machine's
-                    // symbol; typing retains that exact symbol as Named Self.
-                    // Only the validated self formal may use this alias.
-                    let self_alias = self_root
-                        && self.machine.is_some_and(|machine| {
-                            *symbol == machine.symbol && name.as_str() == "Self"
-                        });
-                    let data_symbol = if self_alias {
-                        self.machine?.attached_data_symbol
-                    } else {
-                        *symbol
-                    };
+                    let data_symbol = *symbol;
                     let mut owners = self
                         .program
                         .data_definitions()
@@ -842,7 +819,7 @@ impl<'program> Reader<'program> {
                     let owner = owners.next()?;
                     return (owners.next().is_none()
                         && self.program.symbols.get(data_symbol).kind == SymbolKind::Data
-                        && (self_alias || owner.name.as_str() == name.as_str())
+                        && owner.name.as_str() == name.as_str()
                         && self.program.symbols.name(data_symbol) == owner.name.as_str()
                         && self.program.data_type_parameters(owner).is_empty()
                         && owner.lifetime_parameters.is_empty())

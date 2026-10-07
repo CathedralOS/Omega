@@ -18,7 +18,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::types::{
     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use tokens::PunctuationKind;
 
 /// Type, extent and domain names share the ordinary static-path grammar.
 /// Keep one source span so later selection retains the authored occurrence.
@@ -149,11 +149,6 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         } else {
             Ok((type_reference, input))
         };
-    }
-
-    if input.at_keyword(KeywordKind::SelfType) {
-        let input = input.take_keyword(KeywordKind::SelfType, "Self")?;
-        return Ok((syntax_trees.type_references.insert_self_type(), input));
     }
 
     // `dyn Trait<Args>` names a trait application with the same argument

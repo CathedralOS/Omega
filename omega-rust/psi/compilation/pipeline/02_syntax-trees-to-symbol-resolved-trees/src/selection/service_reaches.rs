@@ -366,9 +366,9 @@ fn type_symbol(
             type_symbol(program, program.child_type_reference(constrained.base_type))
         }
         TypeReference::Generic(generic) => Some(generic.base_symbol),
-        TypeReference::DynamicTrait { symbol, .. }
-        | TypeReference::Named { symbol, .. }
-        | TypeReference::SelfType { symbol } => Some(*symbol),
+        TypeReference::DynamicTrait { symbol, .. } | TypeReference::Named { symbol, .. } => {
+            Some(*symbol)
+        }
         TypeReference::FixedArray(_)
         | TypeReference::Slice(_)
         | TypeReference::ConstExpression(_)

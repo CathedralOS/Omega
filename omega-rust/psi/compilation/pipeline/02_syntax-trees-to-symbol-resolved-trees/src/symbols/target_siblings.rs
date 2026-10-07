@@ -121,6 +121,6 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
             };
             state.is_valid().then_some(state)
         };
-        retarget_machine_calls(program, sibling.machine, &[], &mut decide);
+        retarget_machine_calls(program, sibling.machine, &mut decide);
     }
 }

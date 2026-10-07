@@ -103,14 +103,6 @@ fn validate_public_conformance_headers(program: &TypedTrees, diagnostics: &mut V
         .iter()
         .filter(|conformance| conformance.is_public)
     {
-        if conformance.carrier_symbol.is_valid() {
-            validate_public_conformance_header_selection(
-                program,
-                conformance.symbol,
-                conformance.carrier_symbol,
-                diagnostics,
-            );
-        }
         validate_public_conformance_header_selection(
             program,
             conformance.symbol,

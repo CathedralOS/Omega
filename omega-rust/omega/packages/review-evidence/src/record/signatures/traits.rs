@@ -77,16 +77,6 @@ pub struct PackageReviewTraitShape {
     pub(crate) requirements: Vec<PackageReviewTraitRequirement>,
 }
 
-/// The carrier named by one public complete conformance. A generic carrier is
-/// represented by its alpha-normalized conformance-telescope ordinal; a
-/// concrete carrier keeps its exact package/toolchain nominal identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageReviewConformanceSubject {
-    Subjectless,
-    TypeParameter(u32),
-    Nominal(PackageReviewNominalIdentity),
-}
-
 /// One independently nameable, public, complete conformance declaration.
 ///
 /// `interface` is the complete normalized inherited requirement map proven by
@@ -98,7 +88,6 @@ pub struct PackageReviewConformanceShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
-    pub(crate) subject: PackageReviewConformanceSubject,
     pub(crate) interface: PackageReviewEvidenceInterface,
 }
 

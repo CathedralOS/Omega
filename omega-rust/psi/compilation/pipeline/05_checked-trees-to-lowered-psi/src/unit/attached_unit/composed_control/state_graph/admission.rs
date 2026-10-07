@@ -212,7 +212,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         let declaration_rows = validation::state_declaration_predicates(
             &checked.typed,
             &checked.facts.operators,
-            machine,
             source,
         )
         .into_iter()

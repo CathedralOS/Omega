@@ -343,7 +343,7 @@ fn collect_type_reference_domain_symbols(
             return;
         }
         TypeReference::Constrained(constrained) => constrained,
-        TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => {
+        TypeReference::Named { symbol, .. } => {
             collect_member_domain_symbols(program, *symbol, ancestors, domains);
             return;
         }

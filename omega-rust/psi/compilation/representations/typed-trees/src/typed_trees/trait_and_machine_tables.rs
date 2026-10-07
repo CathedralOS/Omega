@@ -215,16 +215,6 @@ impl TypedTrees {
             .span_or_empty(conformance.type_parameters)
     }
 
-    pub fn closed_conformance_rows<'conformance>(
-        &self,
-        conformance: &'conformance trait_definition::Conformance,
-    ) -> Option<&'conformance [trait_definition::ConformanceRow]> {
-        match &conformance.implementation {
-            trait_definition::ConformanceImplementation::AttachedRequirementMachines => None,
-            trait_definition::ConformanceImplementation::Closed { rows } => Some(rows),
-        }
-    }
-
     pub fn push_trait_type_parameter(
         &mut self,
         trait_definition: &mut trait_definition::TraitDefinition,
@@ -663,9 +653,8 @@ impl TypedTrees {
             crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 self.type_reference_names_attached_data(*base_type, attached_data_symbol)
             }
-            crate::types::TypeReferenceNode::Named { symbol, name } => {
+            crate::types::TypeReferenceNode::Named { symbol, .. } => {
                 *symbol == attached_data_symbol
-                    || (name.as_str() == "Self" && attached_data_symbol.is_valid())
             }
             _ => false,
         }

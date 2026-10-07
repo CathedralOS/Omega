@@ -34,9 +34,7 @@
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataField, DataMember, DataShapeKind};
-use resolved::trait_definition::{
-    Conformance, ConformanceImplementation, ConformanceRow, ConformanceRowSource,
-};
+use resolved::trait_definition::{Conformance, ConformanceRow, ConformanceRowSource};
 use symbol_resolved_trees as resolved;
 use typed_trees::types::PrimitiveType;
 
@@ -186,9 +184,7 @@ pub(crate) fn implementation_name(
 
 /// The `equals` row of one closed implementation.
 fn equals_row(conformance: &Conformance) -> Option<&ConformanceRow> {
-    let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
-        return None;
-    };
+    let rows = &conformance.rows;
     rows.iter()
         .find(|row| row.requirement_name.as_str() == EQUALS_REQUIREMENT)
 }

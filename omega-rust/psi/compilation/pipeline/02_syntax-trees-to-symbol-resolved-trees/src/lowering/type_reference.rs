@@ -273,9 +273,6 @@ fn lower_type_reference_node(
             symbol: SymbolHandle::invalid(),
             name: crate::lowering::name::lower_name(name),
         }),
-        syntax::types::TypeReferenceNode::SelfType => Ok(TypeReference::SelfType {
-            symbol: SymbolHandle::invalid(),
-        }),
         syntax::types::TypeReferenceNode::Unit => Ok(TypeReference::Unit),
     }
 }

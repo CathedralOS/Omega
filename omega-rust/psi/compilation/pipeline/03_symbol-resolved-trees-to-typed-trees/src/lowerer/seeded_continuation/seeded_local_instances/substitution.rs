@@ -760,9 +760,7 @@ fn type_matches(
                     },
                 )
         }
-        TypeReference::Constrained(_)
-        | TypeReference::ConstExpression(_)
-        | TypeReference::SelfType { .. } => false,
+        TypeReference::Constrained(_) | TypeReference::ConstExpression(_) => false,
     }
 }
 

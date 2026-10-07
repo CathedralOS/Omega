@@ -191,18 +191,17 @@ pub(crate) fn structural_member_identity(
     })
 }
 
-/// Data definition a type reference reaches, resolving a `Self` reference on
-/// the machine that owns it.
-pub(crate) fn declared_data_type<'a>(
-    program: &'a typed_trees::TypedTrees,
+/// Data definition a type reference names, through reference and constraint
+/// shells.
+pub(crate) fn declared_data_type(
+    program: &typed_trees::TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
-    machine_symbol: SymbolHandle,
-) -> Option<&'a typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     match program.type_reference_table.type_reference(type_reference) {
         typed_trees::types::TypeReferenceNode::Reference { referee, .. }
         | typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..
-        } => declared_data_type(program, *referee, machine_symbol),
+        } => declared_data_type(program, *referee),
         typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if symbol.is_valid()
                 && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data =>
@@ -211,16 +210,6 @@ pub(crate) fn declared_data_type<'a>(
                 .data_definitions()
                 .iter()
                 .find(|definition| definition.symbol == *symbol && definition.name == *name)
-        }
-        typed_trees::types::TypeReferenceNode::Named { symbol, name }
-            if *symbol == machine_symbol && name.as_str() == "Self" =>
-        {
-            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
-            machine.attached_data_symbol.is_valid().then_some(())?;
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == machine.attached_data_symbol)
         }
         _ => None,
     }

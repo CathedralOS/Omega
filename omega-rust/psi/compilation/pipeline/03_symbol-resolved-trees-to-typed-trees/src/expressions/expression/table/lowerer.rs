@@ -1233,7 +1233,6 @@ fn resolved_data_definition_for_type<'program>(
         resolved::types::TypeReference::Generic(reference) => {
             (reference.base_symbol, Some(&reference.base_name))
         }
-        resolved::types::TypeReference::SelfType { symbol } => (*symbol, None),
         resolved::types::TypeReference::Constrained(reference) => {
             return resolved_data_definition_for_type(
                 program,

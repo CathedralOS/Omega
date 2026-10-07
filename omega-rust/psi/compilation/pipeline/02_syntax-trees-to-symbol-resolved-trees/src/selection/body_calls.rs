@@ -16,9 +16,7 @@ pub(crate) struct CallSite<'a> {
     pub(crate) target: &'a DiagnosticName,
     /// The resolved declaration the call is qualified by, or invalid.
     pub(crate) receiver_symbol: SymbolHandle,
-    /// The call names a member of the machine's own subject: it has no
-    /// receiver or a target already among the subject's
-    /// states.
+    /// The call is unqualified: it names no receiver declaration.
     pub(crate) local_receiver: bool,
     /// Authored operands, excluding any receiver.
     pub(crate) argument_count: usize,
@@ -29,7 +27,6 @@ pub(crate) struct CallSite<'a> {
 pub(crate) fn retarget_machine_calls(
     program: &mut SymbolResolvedTrees,
     machine: SymbolHandle,
-    subject_states: &[SymbolHandle],
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
     let Some((state_spans, declaration_expressions)) = program
@@ -67,10 +64,10 @@ pub(crate) fn retarget_machine_calls(
     };
     let mut visited = Vec::new();
     for expression in declaration_expressions {
-        retarget_expression(program, expression, subject_states, decide, &mut visited);
+        retarget_expression(program, expression, decide, &mut visited);
     }
     for statements in state_spans {
-        retarget_statement_span(program, statements, subject_states, decide);
+        retarget_statement_span(program, statements, decide);
     }
 }
 
@@ -96,7 +93,6 @@ fn append_contract_expressions(
 fn retarget_statement_span(
     program: &mut SymbolResolvedTrees,
     statements: arena::HandleSpan<symbol_resolved_trees::statement::StatementNode>,
-    subject_states: &[SymbolHandle],
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
     for offset in 0..statements.count() {
@@ -131,8 +127,7 @@ fn retarget_statement_span(
                     target_symbol: call.target_symbol,
                     target: &call.target,
                     receiver_symbol: call.receiver_symbol,
-                    local_receiver: call.receiver.is_empty()
-                        || subject_states.contains(&call.target_symbol),
+                    local_receiver: call.receiver.is_empty(),
                     argument_count: program
                         .tables
                         .bodies
@@ -180,7 +175,7 @@ fn retarget_statement_span(
         }
         let mut visited = Vec::new();
         for expression in expressions {
-            retarget_expression(program, expression, subject_states, decide, &mut visited);
+            retarget_expression(program, expression, decide, &mut visited);
         }
     }
 }
@@ -204,7 +199,6 @@ fn append_transition_target_expressions(
 fn retarget_expression(
     program: &mut SymbolResolvedTrees,
     expression: symbol_resolved_trees::expression::ExpressionHandle,
-    subject_states: &[SymbolHandle],
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
     visited: &mut Vec<u32>,
 ) {
@@ -267,8 +261,7 @@ fn retarget_expression(
                 target_symbol: call.target_symbol,
                 target: &call.target,
                 receiver_symbol,
-                local_receiver: !call.receiver.is_valid()
-                    || subject_states.contains(&call.target_symbol),
+                local_receiver: !call.receiver.is_valid(),
                 argument_count: program
                     .tables
                     .bodies
@@ -321,6 +314,6 @@ fn retarget_expression(
         | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
     }
     for child in children {
-        retarget_expression(program, child, subject_states, decide, visited);
+        retarget_expression(program, child, decide, visited);
     }
 }

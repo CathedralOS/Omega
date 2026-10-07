@@ -115,9 +115,8 @@ fn dispatched_implementations(program: &TypedTrees) -> Vec<(SymbolHandle, Vec<us
                         .find(|conformance| conformance.symbol == selection.implementation)
                 })
                 .flat_map(|conformance| {
-                    program
-                        .closed_conformance_rows(conformance)
-                        .unwrap_or_default()
+                    conformance
+                        .rows
                         .iter()
                         .filter(|row| row.requirement == slot.requirement)
                         .filter_map(|row| target_machine(program, row.realization_machine))

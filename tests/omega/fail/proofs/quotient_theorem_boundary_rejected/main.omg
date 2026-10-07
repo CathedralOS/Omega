@@ -30,7 +30,7 @@ ensures a == c
 {
 }
 
-RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
     Reflexive::reflexive = equivalent_reflexive;
     Symmetric::symmetric = equivalent_symmetric;
     Transitive::transitive = equivalent_transitive;

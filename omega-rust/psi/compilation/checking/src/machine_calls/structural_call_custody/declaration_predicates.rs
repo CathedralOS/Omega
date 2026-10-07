@@ -68,12 +68,11 @@ pub struct DeclarationPredicateRow {
     pub predicate: CheckedBooleanExpression,
 }
 
-/// The roster of one state of `machine`, in parameter order, then the
+/// The roster of one machine state, in parameter order, then the
 /// depth-first declaration order of the storage each parameter reaches.
 pub fn state_declaration_predicates(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> Vec<DeclarationPredicateRow> {
     let mut rows = Vec::new();
@@ -107,10 +106,9 @@ pub fn state_declaration_predicates(
             restored_on_return,
             rows: &mut rows,
         };
-        match parameter_data_definition(program, machine, referee) {
-            // A receiver names its owner as `Self`, and a lifetime-only
-            // application names the declaration itself; both own the
-            // declaration's storage exactly as its plain name does.
+        match parameter_data_definition(program, referee) {
+            // A lifetime-only application names the declaration itself and
+            // owns its storage exactly as its plain name does.
             Some(definition) => {
                 let mut visited = vec![definition.symbol];
                 emitter.definition_storage(&mut Vec::new(), definition, &mut visited);
@@ -122,33 +120,29 @@ pub fn state_declaration_predicates(
 }
 
 /// The data declaration a parameter's referee names when the ordinary field
-/// resolution cannot: the attached owner behind `Self`, or the declaration a
-/// lifetime-only application instantiates.
+/// resolution cannot: the declaration a lifetime-only application
+/// instantiates.
 fn parameter_data_definition<'program>(
     program: &'program TypedTrees,
-    machine: &typed_trees::machine::Machine,
     referee: TypeReferenceHandle,
 ) -> Option<&'program DataDefinition> {
-    let owner = match program
-        .type_reference_table
-        .type_reference(crate::program_scope::type_shape::unconstrained_base(program, referee))
-    {
-        TypeReferenceNode::Named { symbol, name }
-            if *symbol == machine.symbol || name.as_str() == "Self" =>
-        {
-            machine.attached_data_symbol
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } if arguments.is_empty() => *base_symbol,
-        _ => return None,
+    let TypeReferenceNode::Generic {
+        base_symbol: owner,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(
+        crate::program_scope::type_shape::unconstrained_base(program, referee),
+    )
+    else {
+        return None;
     };
+    if !arguments.is_empty() {
+        return None;
+    }
     program
         .data_definitions()
         .iter()
-        .find(|definition| definition.symbol == owner && definition.generic_instance.is_none())
+        .find(|definition| definition.symbol == *owner && definition.generic_instance.is_none())
 }
 
 /// The roster of a machine's entry state: its invocation-entry requirements
@@ -168,7 +162,7 @@ pub fn machine_declaration_predicates(
     program
         .machine_states(machine)
         .first()
-        .map(|entry| state_declaration_predicates(program, operators, machine, entry))
+        .map(|entry| state_declaration_predicates(program, operators, entry))
         .unwrap_or_default()
 }
 

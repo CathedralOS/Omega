@@ -426,30 +426,20 @@ pub struct QuotientEquivalenceSelection {
     pub conformance_name: Identifier,
 }
 
-/// The subject of a whole-trait conformance. Carrier-owned conformances inherit
-/// the carrier's static telescope. Subjectless conformances own proof evidence
-/// only and therefore never infer an arbitrary parameter as a carrier.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum ConformanceSubject {
-    #[default]
-    Subjectless,
-    Carrier(Identifier),
-}
-
-/// A whole-trait conformance. A name-first bodyless declaration checks
-/// separately attached exact-requirement machines; a block owns a closed
-/// member map: `Primary: Point satisfies Shape { ... }`. The concrete
-/// subjectless form is `EvidenceName: satisfies Evidence { ... }`.
+/// A named implementation: `Primary satisfies Shape<Point> { ... }`. The name
+/// identifies a closed map of machines; it owns no data subject, and the
+/// trait's types are ordinary arguments of its application. Every declaration
+/// carries its complete member block, so no row is discovered from machines
+/// attached elsewhere.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConformanceItem {
     /// Source visibility for the complete name-first conformance declaration.
     /// Exact machine requirement-satisfier edges own no standalone visibility.
     pub is_public: bool,
-    /// Generic binders belong to the declared conformance name, not to its
-    /// carrier or trait application.
+    /// Generic binders belong to the declared implementation name, not to its
+    /// trait application.
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
-    pub subject: ConformanceSubject,
     pub trait_name: Identifier,
     /// Complete declaration-site lifetime application of `trait_name`, in the
     /// target trait's declaration order. Every name must refer to this
@@ -457,20 +447,8 @@ pub struct ConformanceItem {
     pub trait_lifetime_arguments: Vec<Identifier>,
     pub trait_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub alias: Option<Identifier>,
-    pub body: ConformanceBody,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum ConformanceBody {
-    /// Bodyless static declaration whose rows are discovered from separately
-    /// attached exact-requirement machines. It remains distinct so a parsed
-    /// empty closed block can never silently fall back to ambient lookup.
-    #[default]
-    AttachedRequirementMachines,
     /// The authored, closed implementation surface.
-    Closed {
-        members: HandleSpan<ConformanceMember>,
-    },
+    pub members: HandleSpan<ConformanceMember>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

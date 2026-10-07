@@ -1,4 +1,3 @@
-use super::namespace::take_optional_semicolon;
 use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
 use crate::declarations::machines::parse_machine;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
@@ -6,9 +5,13 @@ use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{ConformanceBody, ConformanceMember, Item, State};
+use syntax_trees::item::{ConformanceMember, Item, State};
 use tokens::{KeywordKind, PunctuationKind};
 
+/// `Name<binders> satisfies Trait<Args> { rows }`. The name identifies a
+/// closed map of machines; data never satisfies a trait, so there is no
+/// `Name: Data` subject and no bodyless form whose rows come from machines
+/// attached elsewhere.
 pub(super) fn parse_conformance<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     alias: syntax_trees::identifier::Identifier,
@@ -16,21 +19,12 @@ pub(super) fn parse_conformance<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, Item> {
     let (generic_parameters, rest) =
         parse_generic_parameters(syntax_trees, rest, GenericParameterSyntax::StaticBinders)?;
-    let (subject, mut rest) = if rest.at_contextual("satisfies") {
-        (syntax_trees::item::ConformanceSubject::Subjectless, rest)
-    } else {
-        let rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
-        if rest.at_contextual("satisfies") {
-            (syntax_trees::item::ConformanceSubject::Subjectless, rest)
-        } else {
-            let (subject, rest) = rest.take_identifier()?;
-            (
-                syntax_trees::item::ConformanceSubject::Carrier(subject),
-                rest,
-            )
-        }
-    };
-    rest = rest.take_contextual("satisfies")?;
+    if rest.at_punctuation(PunctuationKind::Colon) {
+        return Err(rest.error_here(
+            "data does not satisfy traits; declare a named implementation `Name satisfies Trait<Data> { ... }` that names each data type as an ordinary trait argument and binds every requirement row",
+        ));
+    }
+    let rest = rest.take_contextual("satisfies")?;
     let ((trait_name, trait_lifetime_arguments, trait_arguments), rest) =
         parse_conformance_trait_application(syntax_trees, rest)?;
     let ((), rest) = crate::parameters::contracts::parse_machine_parameter_contracts(
@@ -38,38 +32,31 @@ pub(super) fn parse_conformance<'tokens, 'source>(
         generic_parameters.type_parameters,
         rest,
     )?;
-    let (body, rest) = if rest.at_punctuation(PunctuationKind::LeftBrace) {
-        parse_conformance_body(syntax_trees, rest)?
-    } else if matches!(subject, syntax_trees::item::ConformanceSubject::Carrier(_)) {
-        (
-            ConformanceBody::AttachedRequirementMachines,
-            take_optional_semicolon(rest)?,
-        )
-    } else {
+    if !rest.at_punctuation(PunctuationKind::LeftBrace) {
         return Err(rest.error_here(
-            "a carrierless name-first conformance owns one complete closed implementation; add `{ ... }` after the selected trait application",
+            "a named implementation owns one complete closed map; add `{ ... }` binding every requirement after the selected trait application",
         ));
-    };
+    }
+    let (members, rest) = parse_conformance_members(syntax_trees, rest)?;
     Ok((
         Item::Conformance(syntax_trees::item::ConformanceItem {
             is_public: false,
             lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters: generic_parameters.type_parameters,
-            subject,
             trait_name,
             trait_lifetime_arguments,
             trait_arguments,
             alias: Some(alias),
-            body,
+            members,
         }),
         rest,
     ))
 }
 
-fn parse_conformance_body<'tokens, 'source>(
+fn parse_conformance_members<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, ConformanceBody> {
+) -> ParseResult<'tokens, 'source, HandleSpan<ConformanceMember>> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut member_start = Handle::invalid();
     let mut member_count = 0u32;
@@ -91,7 +78,7 @@ fn parse_conformance_body<'tokens, 'source>(
             }
             if machine.attached_data.is_some() {
                 return Err(input.error_here(
-                    "a conformance-block machine names only its requirement slot; the enclosing conformance supplies the carrier",
+                    "a conformance-block machine names only its requirement slot; declare its data parameters explicitly",
                 ));
             }
             if machine.bodyless {
@@ -141,7 +128,7 @@ fn parse_conformance_body<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(member_start, member_count)
     };
-    Ok((ConformanceBody::Closed { members }, input))
+    Ok((members, input))
 }
 
 fn normalize_conformance_machine_entry(

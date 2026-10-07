@@ -441,7 +441,7 @@ pub(super) fn append_body_symbols(
                     [symbol_seed(SymbolKind::State, &state.name, has_sources)],
                 );
                 state.symbol = inserted.start();
-                new_states.push((machine.symbol, machine.type_parameters, *state_handle));
+                new_states.push((machine.type_parameters, *state_handle));
             }
             let parameters = declarations
                 .state_parameters
@@ -471,7 +471,7 @@ pub(super) fn append_body_symbols(
     // All synthetic headers now exist, including forward state references.
     // Only their signatures need this assignment; authored headers retain the
     // exact declarations and type handles established by the first phase.
-    for (machine, type_parameters, state_handle) in new_states {
+    for (type_parameters, state_handle) in new_states {
         let state = declarations.machine_states.get_mut(state_handle);
         let type_parameters = declarations
             .data_type_parameters
@@ -480,22 +480,20 @@ pub(super) fn append_body_symbols(
             .state_parameters
             .span_mut_or_empty(state.parameters)
         {
-            super::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+            super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                 &program.symbols,
                 &mut declarations.child_type_references,
                 &program.tables.types.constraints,
                 type_parameters,
-                machine,
                 &mut parameter.type_reference,
             );
         }
         if let Some(return_type) = &mut state.return_type {
-            super::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+            super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                 &program.symbols,
                 &mut declarations.child_type_references,
                 &program.tables.types.constraints,
                 type_parameters,
-                machine,
                 return_type,
             );
         }

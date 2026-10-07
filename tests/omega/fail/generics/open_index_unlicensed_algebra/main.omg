@@ -4,10 +4,6 @@ data IndexSpace {}
 
 domain<T, const I: i32> T::Indexed<I>;
 
-data Nat {
-    tag: u8;
-}
-
 trait IndexAdd<Operand> {
     operator + add(a: Operand, b: Operand) -> Operand;
     machine add_comm(a: Operand, b: Operand)
@@ -41,9 +37,7 @@ ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
     _ = plus_index(a, plus_index(b, c));
 }
 
-Canonical:
-    Nat satisfies IndexAdd<i32>
-{
+Canonical satisfies IndexAdd<i32> {
     IndexAdd::add = plus_index;
     IndexAdd::add_comm = plus_index_comm;
     IndexAdd::add_assoc = plus_index_assoc;

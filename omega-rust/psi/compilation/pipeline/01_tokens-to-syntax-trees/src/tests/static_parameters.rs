@@ -45,7 +45,7 @@ fn implicit_self_expressions_and_transition_targets_reject() {
 fn explicit_owned_shared_mutable_and_write_only_parameters_parse() {
     let source = r#"
         data Counter { value: u32; }
-        trait Readable { machine read(counter: &Self) -> u32; }
+        trait Readable<Readout> { machine read(counter: &Readout) -> u32; }
         machine consume(counter: Counter) {}
         machine read(counter: &Counter) -> u32 { counter.value }
         machine write(counter: &write Counter) { counter.value = 1; }

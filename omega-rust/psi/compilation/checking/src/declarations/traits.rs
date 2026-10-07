@@ -1,13 +1,13 @@
 //! Traits: each trait's requirements, the conformance bounds that traits and
-//! generic machines declare, the conformances that machines and named
-//! conformance items claim, external `via` realizations, and local dynamic
-//! trait values.
+//! generic machines declare, the exact satisfaction edges machines claim, the
+//! named implementations that own complete row maps, external `via`
+//! realizations, and local dynamic trait values.
 //!
 //! There is no single entrance; `program_validation::validate` calls these
 //! validators. Before its per-machine loop, in this order:
 //! `validate_trait_requirements` (`requirements`),
 //! `validate_trait_conformance_bounds` for each trait, `validate_conformances`
-//! for named data conformance items (`data_conformance`), and
+//! for named implementations (`named_implementations`), and
 //! `collect_dynamic_implementation_selections` (`dynamic`). For each machine, in
 //! this order: `validate_generic_conformance_bounds`,
 //! `validate_machine_trait_conformances`, `validate_external_via_expression`
@@ -26,15 +26,15 @@
 //! `revalidate_top_level_requirement_realization`.
 //!
 //! `trait_definition_by_symbol` is the trait lookup that the `conformance`,
-//! `data_conformance` and `requirements` children share.
+//! `named_implementations` and `requirements` children share.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::trait_definition::TraitDefinition;
 
 mod conformance;
-mod data_conformance;
 mod dynamic;
+mod named_implementations;
 mod requirements;
 
 pub use conformance::compose_forwarded_trait_arguments;
@@ -42,12 +42,11 @@ pub use conformance::generic_bound_operator_requirement;
 pub use conformance::resolve_closed_requirement_application;
 pub use conformance::revalidate_top_level_requirement_realization;
 pub(crate) use conformance::{
-    GenericBoundRequirement, named_conformance_argument_matches, required_is_self_type,
-    required_is_subject_parameter, validate_external_leaf_native_shapes,
-    validate_external_via_expression, validate_generic_conformance_bounds,
-    validate_machine_trait_conformances, validate_trait_conformance_bounds,
+    GenericBoundRequirement, named_conformance_argument_matches,
+    validate_external_leaf_native_shapes, validate_external_via_expression,
+    validate_generic_conformance_bounds, validate_machine_trait_conformances,
+    validate_trait_conformance_bounds,
 };
-pub(crate) use data_conformance::{arguments_for_declaring_trait, validate_conformances};
 pub use dynamic::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
     collect_dynamic_slot_demands, dynamic_call_demand, dynamic_expression_call_demand,
@@ -56,6 +55,7 @@ pub use dynamic::{
 pub(crate) use dynamic::{
     dynamic_receiver_call_error, dynamic_requirement_ineligibility, dynamic_selector_application,
 };
+pub(crate) use named_implementations::{arguments_for_declaring_trait, validate_conformances};
 pub(crate) use requirements::validate_trait_requirements;
 
 /// The trait `symbol` declares, or `None` for an invalid symbol or a symbol

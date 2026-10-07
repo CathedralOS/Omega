@@ -45,7 +45,6 @@ pub(in crate::encoding::recovery) fn application(
         type_arguments: reader.sequence(8, type_identity)?,
         const_arguments: reader.sequence(1, const_argument)?,
         machine_arguments: reader.sequence(41, nominal)?,
-        subject: reader.option(type_identity)?,
         trait_identity: nominal(reader)?,
         trait_lifetime_arguments: reader.sequence(4, Reader::u32)?,
         trait_arguments: reader.sequence(8, type_identity)?,

@@ -237,36 +237,23 @@ helper that passes does not close an item.
   `NormalCounter satisfies CounterOperations<CounterData>` names code, not
   data; `CounterData` is an ordinary trait argument. There is no `Self`, hidden
   first type binder, implicit implementing type or special subjectless variant.
-  - Current frontier: an evidence binder is `Order satisfies Trait<Args>`
-    with no subject (`where T satisfies` and `Name: Subject satisfies`
-    reject); it accepts only an implementation of its exact trait
-    application. `Impl::member(args)` calls that implementation's row and
-    selects the implementation for visibility; an unknown or ambiguous row
-    name rejects naming the rows. Nominal machine binders take a trait
-    application (`where machine Step satisfies Visitor<Context>::visit;`)
-    and instantiate the requirement's signature under it. Ordinary trait
-    fixtures, Equatable synthesis, `Content` projections, algebra laws
-    (`core/algebra.omg`), placed access (`core/layout.omg`), CallingPolicy
-    targets, OpaqueRepresentation and PrivateCallbackSlot layouts use named
-    implementations with explicit trait arguments.
-    Remaining data-subject conformances (`Name: Data satisfies Trait`,
-    bodyless attached-machine maps): the interrupt and secondary-processor
-    canary boundary roots (`FatalExceptionRoot`, `TimerRoot`,
-    `InterruptMaskControl`, ...), whose in-package approval in
-    `checking/src/machine_calls/boundary_calls.rs` still keys on a carrier
-    subject, as do the provider matches in review-evidence
-    `capture/semantics/services/calling.rs` and provider-planning
-    `provenance_replay/` and reflection's carrier coverage in
-    `compile-time/src/reflection/selection/requirement_resolution.rs`; and
-    the `dyn` fixtures (owned by
-    **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**). Then delete
-    `ConformanceSubject::Carrier`, `carrier_symbol`, `SelfType` and
-    `AttachedRequirementMachines`, and the product lexer's `Self` keyword
-    (`source/psi/lex/lexer.omg`). `Trait::member<Args, Impl>(...)`
-    explicit-application calls are unimplemented. Trait-header evidence
-    binders parse but have no positional application, so std's `Calling<C>`
-    names the policy type and plan computation checks its exact
-    `CallingPolicy::plan` edge.
+  - Current frontier: data-subject satisfaction is deleted from the
+    reference compiler and the product lexer. Every conformance is a named
+    implementation `Name<binders> satisfies Trait<Args> { rows }`; an
+    evidence binder is `Order satisfies Trait<Args>`. `Name: Data satisfies`,
+    bodyless maps and `where T satisfies` reject, `Self` is an unknown type
+    name, and a trait requirement declares its bare name. Syntax, resolved,
+    typed and Terminal closed-conformance applications and package review
+    records carry no subject. Boundary roots (the interrupt and
+    secondary-processor canaries) are named implementations whose rows name
+    existing entry machines; provider planning installs each through the
+    implementation's own plan and resolves installation reach from its rows.
+    Remaining: `Trait::member<Args, Impl>(...)` explicit-application calls
+    are unimplemented; trait-header evidence binders parse but have no
+    positional application, so std's `Calling<C>` names the policy type and
+    plan computation checks its exact `CallingPolicy::plan` edge; reflection
+    selection rejects a named implementation as a member's operation until
+    callable-contract checking lands (**Semantic reflection**).
   - Own parsing, resolution, typing, checking and conformance publication in
     `omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees` through
     `07_lowered-psi-to-terminal-psi`, their representations and

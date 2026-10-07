@@ -107,22 +107,17 @@ pub(crate) fn complete(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut completed_type_roots = Vec::new();
     for conformance in &trees.conformances {
-        if let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
-            &conformance.implementation
-        {
-            for row in rows {
-                if [row.realization_machine, row.realization_state]
-                    .into_iter()
-                    .any(|symbol| {
-                        selected_machine(trees, symbol).is_some_and(|index| {
-                            trees.machines[index].has_structural_type_equations
-                        })
-                    })
-                {
-                    return Err(vec![Diagnostic::error(
-                        "conformance realization retains an undisclosed machine structural equation",
-                    )]);
-                }
+        for row in &conformance.rows {
+            if [row.realization_machine, row.realization_state]
+                .into_iter()
+                .any(|symbol| {
+                    selected_machine(trees, symbol)
+                        .is_some_and(|index| trees.machines[index].has_structural_type_equations)
+                })
+            {
+                return Err(vec![Diagnostic::error(
+                    "conformance realization retains an undisclosed machine structural equation",
+                )]);
             }
         }
     }
@@ -316,9 +311,7 @@ fn require_closed_selected_arguments(
         }
         visited.push(handle);
         match trees.child_type_reference(handle) {
-            TypeReference::Named { symbol, .. }
-            | TypeReference::SelfType { symbol }
-            | TypeReference::DynamicTrait { symbol, .. } => {
+            TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
                 if is_binder(*symbol) {
                     return Err(reject());
                 }

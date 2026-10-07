@@ -6,12 +6,9 @@ use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
-use crate::record::{
-    PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewEvidenceInterface,
-};
+use crate::record::{PackageReviewConformanceShape, PackageReviewEvidenceInterface};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
-use typed_trees::trait_definition::{ConformanceImplementation, ConformanceSubject};
 
 pub(crate) fn project_public_conformances(
     compilation: &PackageReviewInput<'_>,
@@ -34,56 +31,6 @@ pub(crate) fn project_public_conformances(
             &identity.path,
             &conformance.lifetime_parameters,
         )?;
-        let subject = match &conformance.subject {
-            ConformanceSubject::Subjectless => PackageReviewConformanceSubject::Subjectless,
-            ConformanceSubject::Carrier(_) => {
-                if let Some(ordinal) = parameters
-                    .iter()
-                    .position(|parameter| parameter.symbol == conformance.carrier_symbol)
-                {
-                    if !matches!(
-                        parameters[ordinal].kind,
-                        typed_trees::data::TypeParameterKind::Type
-                    ) {
-                        return Err(vec![Diagnostic::error(format!(
-                            "public conformance `{}` uses a non-type static parameter as its subject",
-                            identity.path
-                        ))]);
-                    }
-                    PackageReviewConformanceSubject::TypeParameter(
-                        u32::try_from(ordinal).map_err(|_| {
-                            vec![Diagnostic::error(format!(
-                                "public conformance `{}` subject exceeds the portable review parameter range",
-                                identity.path
-                            ))]
-                        })?,
-                    )
-                } else {
-                    let carriers = compilation
-                        .data_definitions()
-                        .iter()
-                        .filter(|definition| definition.symbol == conformance.carrier_symbol)
-                        .collect::<Vec<_>>();
-                    let [carrier] = carriers.as_slice() else {
-                        return Err(vec![Diagnostic::error(format!(
-                            "public conformance `{}` resolves its subject to {} data declarations; expected exactly one nominal data carrier or one telescope parameter",
-                            identity.path,
-                            carriers.len()
-                        ))]);
-                    };
-                    if !carrier.is_public {
-                        return Err(vec![Diagnostic::error(format!(
-                            "public conformance `{}` exposes private carrier `{}`",
-                            identity.path, carrier.name
-                        ))]);
-                    }
-                    PackageReviewConformanceSubject::Nominal(nominal_identity(
-                        compilation,
-                        conformance.carrier_symbol,
-                    )?)
-                }
-            }
-        };
         let traits = compilation
             .traits()
             .iter()
@@ -164,17 +111,8 @@ pub(crate) fn project_public_conformances(
             arguments: interface_arguments,
             requirements,
         };
-        let mut realized = match &conformance.implementation {
-            ConformanceImplementation::AttachedRequirementMachines => {
-                interface.requirements.clone()
-            }
-            ConformanceImplementation::Closed { rows } => Vec::with_capacity(rows.len()),
-        };
-        let closed_rows = match &conformance.implementation {
-            ConformanceImplementation::AttachedRequirementMachines => &[][..],
-            ConformanceImplementation::Closed { rows } => rows.as_slice(),
-        };
-        for row in closed_rows {
+        let mut realized = Vec::with_capacity(conformance.rows.len());
+        for row in &conformance.rows {
             if !row.realization_machine.is_valid() || !row.realization_state.is_valid() {
                 return Err(vec![Diagnostic::error(format!(
                     "public conformance `{}` has an incomplete checked realization row",
@@ -232,7 +170,6 @@ pub(crate) fn project_public_conformances(
                 identity,
                 lifetime_parameter_count: conformance.lifetime_parameters.len(),
                 type_parameters,
-                subject,
                 interface,
             },
             declaration: conformance.symbol,

@@ -11,7 +11,7 @@ use super::super::{
 use super::signatures::type_parameter;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
-    PackagePolicyTraitShape, PackageReviewCallableParameter, PackageReviewConformanceSubject,
+    PackagePolicyTraitShape, PackageReviewCallableParameter,
     PackageReviewTraitRequirementParameter,
 };
 
@@ -65,12 +65,6 @@ pub(in crate::encoding::recovery) fn conformance_shape(
         identity: nominal(reader)?,
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
-        subject: match reader.byte()? {
-            0 => PackageReviewConformanceSubject::Subjectless,
-            1 => PackageReviewConformanceSubject::TypeParameter(reader.u32()?),
-            2 => PackageReviewConformanceSubject::Nominal(nominal(reader)?),
-            _ => return Err(Error::InvalidTag),
-        },
         interface: evidence_interface(reader)?,
     })
 }

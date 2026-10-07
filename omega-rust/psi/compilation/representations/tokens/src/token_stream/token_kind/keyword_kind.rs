@@ -19,7 +19,6 @@ pub enum KeywordKind {
     Platform,
     Pub,
     Return,
-    SelfType,
     SelfValue,
     State,
     Struct,
@@ -55,7 +54,6 @@ impl KeywordKind {
             "platform" => Self::Platform,
             "pub" => Self::Pub,
             "return" => Self::Return,
-            "Self" => Self::SelfType,
             "self" => Self::SelfValue,
             "state" => Self::State,
             "struct" => Self::Struct,
@@ -70,6 +68,6 @@ impl KeywordKind {
     }
 
     pub fn is_strict_identifier_keyword(self) -> bool {
-        matches!(self, Self::SelfType | Self::SelfValue)
+        matches!(self, Self::SelfValue)
     }
 }

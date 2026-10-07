@@ -681,9 +681,7 @@ fn checked_static_requirement_dispatch<'program>(
     else {
         return Err(rejected("its selected conformance declaration is absent"));
     };
-    let selected_rows = program
-        .closed_conformance_rows(selected)
-        .ok_or_else(|| rejected("its selected conformance is not one complete closed map"))?;
+    let selected_rows = selected.rows.as_slice();
     let exact_rows = selected_rows
         .iter()
         .filter(|row| {

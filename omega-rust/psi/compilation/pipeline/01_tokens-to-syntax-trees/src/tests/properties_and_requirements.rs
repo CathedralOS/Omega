@@ -247,8 +247,8 @@ fn boundary_data_parses_as_an_opaque_carrier_without_a_shape() {
 #[test]
 fn parses_plain_and_boundary_traits() {
     let source = r#"
-        trait Drawable {
-            machine draw(value: &Self, canvas: &mut Canvas);
+        trait Drawable<Shape> {
+            machine draw(value: &Shape, canvas: &mut Canvas);
         }
 
         boundary trait Console {
@@ -463,8 +463,8 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
         machine App::predicate_then_reaches(app: &mut App) ensures app.a settled reaches Console {
         }
 
-        trait Visitor {
-            machine visit(value: &mut Self) requires value.a <= value.b reaches Console;
+        trait Visitor<Visited> {
+            machine visit(value: &mut Visited) requires value.a <= value.b reaches Console;
         }
         "#;
 
@@ -796,7 +796,7 @@ fn rejects_malformed_operator_tokens_on_machine_declarations() {
         // Conformance members supply implementations; they never introduce
         // token bindings.
         (
-            "Evidence: Widget satisfies Shape { machine + area() -> u64 { 1u64 } }",
+            "Evidence satisfies Shape { machine + area() -> u64 { 1u64 } }",
             "a conformance member supplies an implementation",
         ),
     ] {
@@ -1125,7 +1125,7 @@ fn rejects_top_level_installation_bound_reach_outside_fresh_boundary_requirement
         "boundary machine complete() reaches <= MachineControl {}",
         "x86_64 machine complete() reaches <= MachineControl {}",
         "boundary machine complete() satisfies Completion::complete reaches <= MachineControl;",
-        "Named: Subject satisfies Trait { machine complete() reaches <= MachineControl {} }",
+        "Named satisfies Trait { machine complete() reaches <= MachineControl {} }",
     ] {
         let error = super::parse_source_error(source, "tokenize should succeed", "installation-bound reach must stay on a fresh boundary requirement");
         assert!(

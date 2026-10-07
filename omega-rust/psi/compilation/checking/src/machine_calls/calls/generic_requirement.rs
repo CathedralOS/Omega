@@ -315,7 +315,7 @@ pub(super) fn unresolved_implementation_call(
         .conformances()
         .iter()
         .find(|conformance| conformance.symbol == implementation)
-        .and_then(|conformance| program.closed_conformance_rows(conformance))
+        .map(|conformance| conformance.rows.as_slice())
         .unwrap_or_default()
         .iter()
         .filter(|row| row.requirement_name.as_str() == target)

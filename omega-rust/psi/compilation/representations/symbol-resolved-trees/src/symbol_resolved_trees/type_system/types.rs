@@ -44,9 +44,6 @@ pub enum TypeReference {
         symbol: SymbolHandle,
         name: DiagnosticName,
     },
-    SelfType {
-        symbol: SymbolHandle,
-    },
     #[default]
     Unit,
 }
@@ -560,9 +557,6 @@ impl TypeReferenceTable {
                 symbol: *symbol,
                 name: name.clone(),
             }),
-            TypeReference::SelfType { symbol } => {
-                self.insert(TypeReferenceNode::SelfType { symbol: *symbol })
-            }
             TypeReference::Unit => self.insert(TypeReferenceNode::Unit),
         }
     }
@@ -610,9 +604,6 @@ pub enum TypeReferenceNode {
     Named {
         symbol: SymbolHandle,
         name: DiagnosticName,
-    },
-    SelfType {
-        symbol: SymbolHandle,
     },
     #[default]
     Unit,
@@ -733,7 +724,6 @@ impl TypeReference {
             | TypeReference::Generic(_)
             | TypeReference::ConstExpression(_)
             | TypeReference::DynamicTrait { .. }
-            | TypeReference::SelfType { .. }
             | TypeReference::Unit => None,
         }
     }

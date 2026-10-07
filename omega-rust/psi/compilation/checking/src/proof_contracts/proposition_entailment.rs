@@ -195,12 +195,12 @@ fn produced_evidence_labels(
         };
         let Some(expected_interface) = expected_interface else {
             diagnostics.push(Diagnostic::error(format!(
-                "subjectless conformance `{}` cannot provide unresolved generic evidence interface `{expected_interface_label}` required by `{}`",
+                "named implementation `{}` cannot provide unresolved generic evidence interface `{expected_interface_label}` required by `{}`",
                 assignment.source, assignment.target
             )));
             continue;
         };
-        if select_subjectless_evidence_conformance(
+        if select_named_evidence_implementation(
             program,
             conformance,
             assignment.source.as_str(),
@@ -209,7 +209,7 @@ fn produced_evidence_labels(
         .is_none()
         {
             diagnostics.push(Diagnostic::error(format!(
-                "subjectless conformance `{}` does not provide the exact `{expected_interface_label}` evidence interface required by `{}`",
+                "named implementation `{}` does not provide the exact `{expected_interface_label}` evidence interface required by `{}`",
                 assignment.source, assignment.target
             )));
             continue;
@@ -225,7 +225,7 @@ fn produced_evidence_labels(
     labels
 }
 
-pub fn select_subjectless_evidence_conformance<'program>(
+pub fn select_named_evidence_implementation<'program>(
     program: &'program TypedTrees,
     conformance_symbol: symbols::SymbolHandle,
     source_name: &str,
@@ -234,19 +234,11 @@ pub fn select_subjectless_evidence_conformance<'program>(
     &'program typed_trees::trait_definition::Conformance,
     symbols::SymbolHandle,
 )> {
-    use typed_trees::trait_definition::{ConformanceImplementation, ConformanceSubject};
-
     let conformance = program
         .conformances()
         .iter()
         .find(|candidate| candidate.symbol == conformance_symbol)?;
-    if !matches!(conformance.subject, ConformanceSubject::Subjectless)
-        || conformance.alias.as_ref()?.as_str() != source_name
-        || !matches!(
-            conformance.implementation,
-            ConformanceImplementation::Closed { .. }
-        )
-    {
+    if conformance.alias.as_ref()?.as_str() != source_name {
         return None;
     }
     let evidence_trait = program

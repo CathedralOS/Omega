@@ -1,11 +1,11 @@
 use crate::record::{
     PackagePolicyCrashRoute, PackagePolicyTermination, PackagePolicyTypeParameter,
     PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewConformanceBound,
-    PackageReviewConformanceSubject, PackageReviewContractFact, PackageReviewDataKind,
-    PackageReviewDataMember, PackageReviewDataProperties, PackageReviewDomainAliasAtom,
-    PackageReviewDomainClassification, PackageReviewDomainEstablishmentRoute,
-    PackageReviewDomainSemanticRole, PackageReviewEvidenceInterface, PackageReviewNominalIdentity,
-    PackageReviewOperatorCoordinate, PackageReviewSynchronousInvocation, PackageReviewTraitParent,
+    PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
+    PackageReviewDataProperties, PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
+    PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
+    PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
+    PackageReviewSynchronousInvocation, PackageReviewTraitParent,
     PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
 };
 
@@ -44,7 +44,6 @@ pub struct PackagePolicyConformanceShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) subject: PackageReviewConformanceSubject,
     pub(crate) interface: PackageReviewEvidenceInterface,
 }
 

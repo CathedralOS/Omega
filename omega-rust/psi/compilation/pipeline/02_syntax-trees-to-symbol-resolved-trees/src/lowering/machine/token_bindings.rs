@@ -477,15 +477,6 @@ fn names_symbol(
 ) -> bool {
     match type_reference {
         TypeReference::Named { symbol, .. } => *symbol == home,
-        TypeReference::SelfType { symbol } => {
-            // `Self` inside an attached machine's signature resolves to the
-            // machine's own symbol; the operand participates as the attached
-            // data, so `&self` on `machine [] Buffer::index` names `Buffer`.
-            *symbol == home
-                || program.machines.iter().any(|machine| {
-                    machine.symbol == *symbol && machine.attached_data_symbol == home
-                })
-        }
         TypeReference::Generic(generic) => {
             generic.base_symbol == home
                 || program
@@ -573,7 +564,6 @@ fn qualified_by_domain(
             domain_name,
         ),
         TypeReference::Named { .. }
-        | TypeReference::SelfType { .. }
         | TypeReference::Generic(_)
         | TypeReference::DynamicTrait { .. }
         | TypeReference::ConstExpression(_)
@@ -594,9 +584,9 @@ fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReferen
             )
     };
     match type_reference {
-        TypeReference::Named { symbol, .. }
-        | TypeReference::SelfType { symbol }
-        | TypeReference::DynamicTrait { symbol, .. } => is_declaration(symbol),
+        TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
+            is_declaration(symbol)
+        }
         TypeReference::Generic(generic) => {
             is_declaration(&generic.base_symbol)
                 || program
@@ -661,9 +651,7 @@ fn collect_declared_symbols(
             )
     };
     match type_reference {
-        TypeReference::Named { symbol, .. }
-        | TypeReference::SelfType { symbol }
-        | TypeReference::DynamicTrait { symbol, .. } => {
+        TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
             if is_declaration(symbol) {
                 symbols.push(*symbol);
             }
@@ -779,7 +767,7 @@ fn attached_domain<'program>(
 /// behind references and generic applications.
 fn carrier_symbol(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> SymbolHandle {
     match type_reference {
-        TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => *symbol,
+        TypeReference::Named { symbol, .. } => *symbol,
         TypeReference::Generic(generic) => generic.base_symbol,
         TypeReference::Reference(reference) => {
             carrier_symbol(program, program.child_type_reference(reference.referee))
@@ -891,14 +879,6 @@ impl<'program> ShapeNormalizer<'program> {
         symbol_or_spelling(symbol, spelling)
     }
 
-    fn symbol_or_spelling(&self, symbol: SymbolHandle, spelling: &str) -> String {
-        if self.display {
-            spelling.to_owned()
-        } else {
-            symbol_or_spelling(symbol, spelling)
-        }
-    }
-
     fn type_shape(&mut self, type_reference: &TypeReference) -> String {
         match type_reference {
             TypeReference::Reference(reference) => {
@@ -989,28 +969,6 @@ impl<'program> ShapeNormalizer<'program> {
                     .join(", ")
             ),
             TypeReference::Named { symbol, name } => self.binder_or_symbol(*symbol, name.as_str()),
-            TypeReference::SelfType { symbol } => {
-                // `Self` inside an attached machine's signature resolves to that
-                // machine's own symbol. The operand shape is the attached data's,
-                // so `&self` bindings on one owner collide as duplicate shapes
-                // instead of each spelling their own machine symbol.
-                let attached = self
-                    .program
-                    .machines
-                    .iter()
-                    .find(|machine| machine.symbol == *symbol)
-                    .filter(|machine| machine.attached_data_symbol.is_valid());
-                attached.map_or_else(
-                    || self.symbol_or_spelling(*symbol, "Self"),
-                    |machine| {
-                        let name = machine
-                            .attached_data
-                            .as_ref()
-                            .map_or("Self", |name| name.as_str());
-                        self.symbol_or_spelling(machine.attached_data_symbol, name)
-                    },
-                )
-            }
             TypeReference::Unit => "()".to_owned(),
         }
     }

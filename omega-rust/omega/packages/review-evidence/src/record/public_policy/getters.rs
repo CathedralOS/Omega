@@ -3,11 +3,11 @@ use crate::record::{
     PackagePolicyDomainShape, PackagePolicyOperatorShape, PackagePolicyTermination,
     PackagePolicyTraitRequirement, PackagePolicyTraitShape, PackagePolicyTypeParameter,
     PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewConformanceBound,
-    PackageReviewConformanceSubject, PackageReviewContractFact, PackageReviewDataKind,
-    PackageReviewDataMember, PackageReviewDataProperties, PackageReviewDomainAliasAtom,
-    PackageReviewDomainClassification, PackageReviewDomainEstablishmentRoute,
-    PackageReviewDomainSemanticRole, PackageReviewEvidenceInterface, PackageReviewNominalIdentity,
-    PackageReviewOperatorCoordinate, PackageReviewSynchronousInvocation, PackageReviewTraitParent,
+    PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
+    PackageReviewDataProperties, PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
+    PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
+    PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
+    PackageReviewSynchronousInvocation, PackageReviewTraitParent,
     PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
 };
 
@@ -90,9 +90,6 @@ impl PackagePolicyConformanceShape {
     }
     pub fn type_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.type_parameters
-    }
-    pub const fn subject(&self) -> &PackageReviewConformanceSubject {
-        &self.subject
     }
     pub const fn interface(&self) -> &PackageReviewEvidenceInterface {
         &self.interface

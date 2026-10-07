@@ -24,7 +24,6 @@ use crate::record::PackagePolicyDataShape;
 use crate::record::PackagePolicyDomainShape;
 use crate::record::PackagePolicyOperatorShape;
 use crate::record::PackagePolicyTraitShape;
-use crate::record::PackageReviewConformanceSubject;
 use crate::record::PackageReviewDataKind;
 use crate::record::PackageReviewDomainClassification;
 use crate::record::PackageReviewDomainSemanticRole;
@@ -130,23 +129,6 @@ pub(in crate::encoding) fn conformance_shape(
     })?;
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&shape.type_parameters, type_parameter)
-    })?;
-    encoder.field("subject", |encoder| {
-        match &shape.subject {
-            PackageReviewConformanceSubject::Subjectless => encoder.tag("subjectless", 0),
-            PackageReviewConformanceSubject::TypeParameter(ordinal) => {
-                encoder.tag("type_parameter", 1);
-                encoder.field("value", |encoder| {
-                    encoder.u32(*ordinal);
-                    Ok(())
-                })?;
-            }
-            PackageReviewConformanceSubject::Nominal(identity) => {
-                encoder.tag("nominal", 2);
-                encoder.field("identity", |encoder| encode_nominal(encoder, identity))?;
-            }
-        };
-        Ok(())
     })?;
     encoder.field("interface", |encoder| {
         encode_evidence_interface(encoder, &shape.interface)

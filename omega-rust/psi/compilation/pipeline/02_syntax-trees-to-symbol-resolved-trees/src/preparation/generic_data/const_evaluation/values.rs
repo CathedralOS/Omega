@@ -925,7 +925,7 @@ fn validate_selected_const_type(
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::SelfType => Err(
+ => Err(
             "const index types require finite structural values with decidable equality and one canonical form"
                 .to_owned(),
         ),

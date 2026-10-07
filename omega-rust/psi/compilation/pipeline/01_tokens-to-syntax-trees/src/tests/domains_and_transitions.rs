@@ -208,9 +208,9 @@ fn parses_trait_requirement_termination_guarantee() {
     // guarantee with bare `terminates` -- previously the signature clause
     // parser's skip-any-token fallback ATE it silently.
     let source = r#"
-        trait Worker {
-            machine run(value: &mut Self, n: u64) -> u64 terminates;
-            machine peek(value: &Self) -> u64;
+        trait Worker<Work> {
+            machine run(value: &mut Work, n: u64) -> u64 terminates;
+            machine peek(value: &Work) -> u64;
         }
         "#;
 
@@ -236,8 +236,8 @@ fn rejects_ranking_witness_on_trait_requirement() {
     // The witness belongs to implementations: a bodyless requirement has no
     // body to prove.
     let source = r#"
-        trait Worker {
-            machine run(value: &mut Self, n: u64) -> u64 terminates by n;
+        trait Worker<Work> {
+            machine run(value: &mut Work, n: u64) -> u64 terminates by n;
         }
         "#;
 

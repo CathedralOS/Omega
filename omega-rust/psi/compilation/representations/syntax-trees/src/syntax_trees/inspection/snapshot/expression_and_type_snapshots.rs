@@ -72,7 +72,6 @@ pub enum TypeReferenceSnapshot {
     Named {
         name: IdentifierSnapshot,
     },
-    SelfType,
     Unit,
     Missing,
 }
@@ -306,7 +305,6 @@ pub(crate) fn snapshot_type_reference_handle(
         TypeReferenceNode::Named(name) => TypeReferenceSnapshot::Named {
             name: snapshot_identifier(name),
         },
-        TypeReferenceNode::SelfType => TypeReferenceSnapshot::SelfType,
         TypeReferenceNode::Unit => TypeReferenceSnapshot::Unit,
     }
 }

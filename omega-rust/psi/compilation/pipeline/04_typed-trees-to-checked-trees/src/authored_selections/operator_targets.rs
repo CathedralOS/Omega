@@ -330,14 +330,10 @@ pub(crate) fn checked_structural_equality_call(
     }
     let selects_equality_row = program.conformances().iter().any(|conformance| {
         program.symbols.display_path(conformance.trait_symbol, "::") == "Equatable"
-            && program
-                .closed_conformance_rows(conformance)
-                .is_some_and(|rows| {
-                    rows.iter().any(|row| {
-                        row.realization_state == call.target_symbol
-                            && row.requirement_name.as_str() == "equals"
-                    })
-                })
+            && conformance.rows.iter().any(|row| {
+                row.realization_state == call.target_symbol
+                    && row.requirement_name.as_str() == "equals"
+            })
     });
     if !selects_equality_row {
         return false;

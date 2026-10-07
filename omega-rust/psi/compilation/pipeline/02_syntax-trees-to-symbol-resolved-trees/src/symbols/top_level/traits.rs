@@ -10,7 +10,7 @@ use crate::symbols::top_level::{
 use crate::symbols::type_references::{
     assign_trait_bound_slot_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
-    assign_type_reference_symbol_with_locals_and_self_type_and_constraints,
+    assign_type_reference_symbol_with_locals_and_constraints,
 };
 
 pub(super) fn assign_trait_symbols(
@@ -73,9 +73,8 @@ pub(super) fn assign_trait_symbols(
                 child_type_references,
                 type_constraints,
                 &local_type_parameters,
-                trait_symbol,
                 base.arguments,
-            );
+);
         }
 
         for bound in &mut trait_definition.conformance_bounds {
@@ -94,25 +93,23 @@ pub(super) fn assign_trait_symbols(
             };
             let resolved_kind = match kind {
                 symbol_resolved_trees::data::TypeParameterKind::Const { mut type_reference } => {
-                    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                    assign_type_reference_symbol_with_locals_and_constraints(
                         symbols,
                         child_type_references,
                         type_constraints,
                         &local_type_parameters,
-                        trait_symbol,
                         &mut type_reference,
-                    );
+);
                     symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
                 }
                 symbol_resolved_trees::data::TypeParameterKind::Value { mut type_reference } => {
-                    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                    assign_type_reference_symbol_with_locals_and_constraints(
                         symbols,
                         child_type_references,
                         type_constraints,
                         &local_type_parameters,
-                        trait_symbol,
                         &mut type_reference,
-                    );
+);
                     symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
                 }
                 symbol_resolved_trees::data::TypeParameterKind::Proposition { mut contract } => {
@@ -124,8 +121,7 @@ pub(super) fn assign_trait_symbols(
                         &mut contract,
                         parameter_symbol,
                         &local_type_parameters,
-                        trait_symbol,
-                    );
+);
                     symbol_resolved_trees::data::TypeParameterKind::Proposition { contract }
                 }
                 other => other,
@@ -142,7 +138,6 @@ pub(super) fn assign_trait_symbols(
                 child_type_references,
                 type_constraints,
                 &local_type_parameters,
-                trait_symbol,
                 bound.arguments,
             );
             assign_trait_bound_slot_argument_symbols(
@@ -170,7 +165,6 @@ pub(super) fn assign_trait_symbols(
                 child_type_references,
                 type_constraints,
                 &local_type_parameters,
-                trait_symbol,
                 requirement.arguments,
             );
             assign_trait_bound_slot_argument_symbols(
@@ -198,8 +192,7 @@ pub(super) fn assign_trait_symbols(
                 machine,
                 machine_symbol,
                 &local_type_parameters,
-                trait_symbol,
-            );
+);
         }
     });
     diagnostics

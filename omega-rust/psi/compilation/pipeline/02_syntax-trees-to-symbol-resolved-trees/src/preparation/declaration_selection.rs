@@ -647,17 +647,6 @@ impl<'base> ConstantSelection<'base> {
         )
     }
 
-    /// Select one data header in the authored occurrence's source context.
-    /// Absent and ambiguous selections both return `None`; the declaring
-    /// stage that owns the subject emits the exact diagnostic.
-    pub(crate) fn data_symbol(&self, name: &Identifier) -> Option<symbols::SymbolHandle> {
-        self.symbols.find_top_level_by_name_and_kinds_from_source(
-            name.as_str(),
-            &[SymbolKind::Data],
-            name.source_span(),
-        )
-    }
-
     /// The selected declaration's logical namespace path, for generated
     /// references that must re-resolve in another source's import scope.
     pub(crate) fn declaration_path(&self, symbol: symbols::SymbolHandle) -> String {

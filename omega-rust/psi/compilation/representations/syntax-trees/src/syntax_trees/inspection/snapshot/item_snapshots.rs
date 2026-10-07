@@ -33,17 +33,13 @@ pub enum ItemSnapshot {
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        type_name: Option<IdentifierSnapshot>,
-        #[serde(skip_serializing_if = "is_false")]
-        subjectless: bool,
         trait_name: IdentifierSnapshot,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         trait_lifetime_arguments: Vec<IdentifierSnapshot>,
         trait_arguments: Vec<TypeReferenceSnapshot>,
         #[serde(skip_serializing_if = "Option::is_none")]
         alias: Option<IdentifierSnapshot>,
-        body: ConformanceBodySnapshot,
+        members: Vec<ConformanceMemberSnapshot>,
     },
     Const {
         scope: IdentifierSnapshot,
@@ -199,15 +195,6 @@ pub enum ExternalBindingSnapshot {
 
 fn is_false(value: &bool) -> bool {
     !*value
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ConformanceBodySnapshot {
-    AttachedRequirementMachines,
-    Closed {
-        members: Vec<ConformanceMemberSnapshot>,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -408,13 +395,6 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
-            type_name: match &value.subject {
-                crate::item::ConformanceSubject::Carrier(type_name) => {
-                    Some(snapshot_identifier(type_name))
-                }
-                crate::item::ConformanceSubject::Subjectless => None,
-            },
-            subjectless: matches!(value.subject, crate::item::ConformanceSubject::Subjectless),
             trait_name: snapshot_identifier(&value.trait_name),
             trait_lifetime_arguments: value
                 .trait_lifetime_arguments
@@ -428,61 +408,52 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
                 .collect(),
             alias: value.alias.as_ref().map(snapshot_identifier),
-            body: match value.body {
-                crate::item::ConformanceBody::AttachedRequirementMachines => {
-                    ConformanceBodySnapshot::AttachedRequirementMachines
-                }
-                crate::item::ConformanceBody::Closed { members } => {
-                    ConformanceBodySnapshot::Closed {
-                        members: syntax_trees
-                            .items
-                            .conformance_members(members)
-                            .iter()
-                            .map(|member| match member {
-                                crate::item::ConformanceMember::Machine(machine) => {
-                                    ConformanceMemberSnapshot::Machine {
-                                        declaration: Box::new(snapshot_item(
-                                            syntax_trees,
-                                            &Item::Machine(machine.clone()),
-                                        )),
-                                    }
-                                }
-                                crate::item::ConformanceMember::Synthesized(machine) => {
-                                    ConformanceMemberSnapshot::Synthesized {
-                                        declaration: Box::new(snapshot_item(
-                                            syntax_trees,
-                                            &Item::Machine(machine.clone()),
-                                        )),
-                                    }
-                                }
-                                crate::item::ConformanceMember::TraitDefault {
-                                    declaring_trait,
-                                    requirement_ordinal,
-                                    machine,
-                                } => ConformanceMemberSnapshot::TraitDefault {
-                                    declaring_trait: snapshot_identifier(declaring_trait),
-                                    requirement_ordinal: *requirement_ordinal,
-                                    declaration: Box::new(snapshot_item(
-                                        syntax_trees,
-                                        &Item::Machine(machine.clone()),
-                                    )),
-                                },
-                                crate::item::ConformanceMember::Reference {
-                                    declaring_trait,
-                                    requirement,
-                                    target,
-                                } => ConformanceMemberSnapshot::Reference {
-                                    declaring_trait: snapshot_identifier(declaring_trait),
-                                    requirement: snapshot_identifier(requirement),
-                                    target: snapshot_identifier_slice(
-                                        syntax_trees.items.identifier_path_members(*target),
-                                    ),
-                                },
-                            })
-                            .collect(),
+            members: syntax_trees
+                .items
+                .conformance_members(value.members)
+                .iter()
+                .map(|member| match member {
+                    crate::item::ConformanceMember::Machine(machine) => {
+                        ConformanceMemberSnapshot::Machine {
+                            declaration: Box::new(snapshot_item(
+                                syntax_trees,
+                                &Item::Machine(machine.clone()),
+                            )),
+                        }
                     }
-                }
-            },
+                    crate::item::ConformanceMember::Synthesized(machine) => {
+                        ConformanceMemberSnapshot::Synthesized {
+                            declaration: Box::new(snapshot_item(
+                                syntax_trees,
+                                &Item::Machine(machine.clone()),
+                            )),
+                        }
+                    }
+                    crate::item::ConformanceMember::TraitDefault {
+                        declaring_trait,
+                        requirement_ordinal,
+                        machine,
+                    } => ConformanceMemberSnapshot::TraitDefault {
+                        declaring_trait: snapshot_identifier(declaring_trait),
+                        requirement_ordinal: *requirement_ordinal,
+                        declaration: Box::new(snapshot_item(
+                            syntax_trees,
+                            &Item::Machine(machine.clone()),
+                        )),
+                    },
+                    crate::item::ConformanceMember::Reference {
+                        declaring_trait,
+                        requirement,
+                        target,
+                    } => ConformanceMemberSnapshot::Reference {
+                        declaring_trait: snapshot_identifier(declaring_trait),
+                        requirement: snapshot_identifier(requirement),
+                        target: snapshot_identifier_slice(
+                            syntax_trees.items.identifier_path_members(*target),
+                        ),
+                    },
+                })
+                .collect(),
         },
         Item::Const(value) => ItemSnapshot::Const {
             scope: snapshot_identifier(&value.scope),

@@ -12,7 +12,6 @@ pub struct PackagePolicyClosedConformanceApplication {
     pub(crate) type_arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) const_arguments: Vec<PackagePolicyConformanceConstArgument>,
     pub(crate) machine_arguments: Vec<PackageReviewNominalIdentity>,
-    pub(crate) subject: Option<PackageReviewTypeIdentity>,
     pub(crate) trait_identity: PackageReviewNominalIdentity,
     pub(crate) trait_lifetime_arguments: Vec<u32>,
     pub(crate) trait_arguments: Vec<PackageReviewTypeIdentity>,
@@ -56,9 +55,6 @@ impl PackagePolicyClosedConformanceApplication {
     }
     pub fn machine_arguments(&self) -> &[PackageReviewNominalIdentity] {
         &self.machine_arguments
-    }
-    pub const fn subject(&self) -> Option<&PackageReviewTypeIdentity> {
-        self.subject.as_ref()
     }
     pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
         &self.trait_identity

@@ -455,7 +455,6 @@ fn collect_type_domain_homes(
         | TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. }
         | TypeReference::Named { .. }
-        | TypeReference::SelfType { .. }
         | TypeReference::Unit => {}
     }
 }
@@ -553,9 +552,6 @@ fn type_references_match(
                     .all(|(left, right)| type_references_match(program, left, right))
         }
         (TypeReference::Named { name: left, .. }, TypeReference::Named { name: right, .. }) => {
-            left == right
-        }
-        (TypeReference::SelfType { symbol: left }, TypeReference::SelfType { symbol: right }) => {
             left == right
         }
         (TypeReference::Unit, TypeReference::Unit) => true,

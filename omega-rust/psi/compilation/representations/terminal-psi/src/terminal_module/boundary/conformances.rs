@@ -6,7 +6,6 @@ pub struct ClosedConformanceApplication {
     pub owner: MachineId,
     pub declaration_identity: String,
     pub telescope: Vec<ClosedConformanceParameterBinding>,
-    pub subject_identity: Option<String>,
     pub trait_identity: String,
     pub trait_lifetime_arguments: Vec<String>,
     pub trait_arguments: Vec<String>,
@@ -110,13 +109,6 @@ pub fn closed_conformance_application_report_fingerprint(
 
     let mut bytes = Vec::new();
     push(&mut bytes, &application.declaration_identity);
-    push(
-        &mut bytes,
-        application
-            .subject_identity
-            .as_deref()
-            .unwrap_or("<subjectless>"),
-    );
     push(&mut bytes, &application.trait_identity);
     bytes.extend((application.trait_lifetime_arguments.len() as u64).to_le_bytes());
     for argument in &application.trait_lifetime_arguments {
@@ -181,15 +173,8 @@ pub fn closed_conformance_application_commitment(
     }
 
     let mut digest = Sha256::new();
-    digest.update(b"omega.psi.terminal.closed-conformance-application.v4\0");
+    digest.update(b"omega.psi.terminal.closed-conformance-application.v5\0");
     push(&mut digest, &application.declaration_identity);
-    push(
-        &mut digest,
-        application
-            .subject_identity
-            .as_deref()
-            .unwrap_or("<subjectless>"),
-    );
     push(&mut digest, &application.trait_identity);
     digest.update((application.trait_lifetime_arguments.len() as u64).to_le_bytes());
     for argument in &application.trait_lifetime_arguments {
@@ -249,12 +234,11 @@ mod tests {
     fn application(family_tuple: Vec<String>) -> ClosedConformanceApplication {
         ClosedConformanceApplication {
             owner: semantic_vocabulary::MachineId::new(1).unwrap(),
-            declaration_identity: "package::CarrierImplementsScanner".into(),
+            declaration_identity: "package::CarrierScanner".into(),
             telescope: Vec::new(),
-            subject_identity: Some("package::Carrier".into()),
             trait_identity: "package::Scanner".into(),
             trait_lifetime_arguments: Vec::new(),
-            trait_arguments: Vec::new(),
+            trait_arguments: vec!["package::Carrier".into()],
             realization_callables: Vec::new(),
             rows: vec![ClosedConformanceRow {
                 declaring_trait_identity: "package::Scanner".into(),

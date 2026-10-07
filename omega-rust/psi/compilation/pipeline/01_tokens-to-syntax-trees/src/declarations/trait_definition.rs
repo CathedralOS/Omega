@@ -293,10 +293,10 @@ fn parse_refinement_clause<'tokens, 'source>(
                 );
             let qualifies_base = qualifier
                 .iter()
-                .all(|segment| Some(segment.clone()) == base_name || segment.as_str() == "Self");
+                .all(|segment| Some(segment.clone()) == base_name);
             if !qualifies_base || qualifier.len() > 1 {
                 return Err(input.error_here(
-                    "a refinement clause qualifies its requirement with the base trait name or `Self`",
+                    "a refinement clause qualifies its requirement with the base trait name",
                 ));
             }
         }
@@ -647,23 +647,17 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
     Ok(((parameters, native_callback_parameters), input))
 }
 
+/// A requirement declares its bare name. The trait owns it; no implementing
+/// type qualifies it, because a trait has no subject.
 fn parse_trait_machine_name<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Identifier> {
-    let (mut name, mut input) = if input.at_keyword(KeywordKind::SelfType) {
-        let input = input.take_keyword(KeywordKind::SelfType, "Self")?;
-        (Identifier::generated("Self"), input)
-    } else {
-        input.take_identifier()?
-    };
-
-    while input.at_punctuation(PunctuationKind::ColonColon) {
-        input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-        let (member, next) = input.take_identifier()?;
-        name = member;
-        input = next;
+    let (name, input) = input.take_identifier()?;
+    if input.at_punctuation(PunctuationKind::ColonColon) {
+        return Err(input.error_here(
+            "a trait requirement declares its bare name; a trait has no subject type to qualify it, so declare each data type it needs as an ordinary trait parameter",
+        ));
     }
-
     Ok((name, input))
 }
 

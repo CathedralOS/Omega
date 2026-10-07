@@ -558,10 +558,7 @@ fn parses_generic_standalone_conformance_arguments() {
         trait Converter<Source, Target> {
         }
 
-        data Adapter {
-        }
-
-        ScalarConversion: Adapter satisfies Converter<i32, bool> {}
+        ScalarConversion satisfies Converter<i32, bool> {}
     "#;
 
     let parsed = super::parse_source(source, "generic conformance should parse");
@@ -589,8 +586,8 @@ fn parses_name_owned_generic_conformance_telescope() {
     let source = r#"
         trait Converter<'view, Source, Target> {}
 
-        GenericConversion<'scope, Source, const Width: u64, machine Convert>:
-            Source satisfies Converter<'scope, Source, u64>
+        GenericConversion<'scope, Source, const Width: u64, machine Convert>
+            satisfies Converter<'scope, Source, u64>
         where machine Convert(value: Source) -> u64;
         {}
     "#;
@@ -625,7 +622,7 @@ fn parses_name_owned_generic_conformance_telescope() {
 }
 
 #[test]
-fn parses_named_concrete_subjectless_conformance_block() {
+fn parses_named_implementation_block() {
     let source = r#"
         trait Evidence {
             machine witness(value: i32);
@@ -636,24 +633,20 @@ fn parses_named_concrete_subjectless_conformance_block() {
         }
     "#;
 
-    let parsed = super::parse_source(source, "subjectless conformance should parse");
+    let parsed = super::parse_source(source, "named implementation should parse");
     let conformance = super::root_conformance(&parsed, "conformance root item");
-    assert!(matches!(
-        conformance.subject,
-        syntax_trees::item::ConformanceSubject::Subjectless
-    ));
     assert_eq!(
         conformance.alias.as_ref().map(|alias| alias.as_str()),
         Some("ConcreteEvidence")
     );
-    assert!(matches!(
-        conformance.body,
-        syntax_trees::item::ConformanceBody::Closed { .. }
-    ));
+    assert_eq!(
+        parsed.items.conformance_members(conformance.members).len(),
+        1
+    );
 }
 
 #[test]
-fn name_first_subjectless_conformance_requires_a_closed_body() {
+fn named_implementation_requires_a_closed_body() {
     for source in [
         "satisfies Evidence { }",
         "ConcreteEvidence satisfies Evidence;",
@@ -663,9 +656,43 @@ fn name_first_subjectless_conformance_requires_a_closed_body() {
             .expect("tokenize should succeed");
         assert!(
             parse_syntax_trees(&tokens).is_err(),
-            "subjectless shorthand must not parse: {source}"
+            "bodyless implementation must not parse: {source}"
         );
     }
+}
+
+#[test]
+fn data_subject_satisfaction_is_rejected() {
+    for source in [
+        "trait Ranked<Item> { } data Card { } PowerOrder: Card satisfies Ranked<Card> { }",
+        "trait Ranked<Item> { } data Card { } PowerOrder: Card satisfies Ranked<Card>;",
+        "trait Ranked<Item> { } PowerOrder<Item>: Item satisfies Ranked<Item> { }",
+    ] {
+        let error = super::parse_source_error(
+            source,
+            "tokenize should succeed",
+            "data cannot satisfy a trait",
+        );
+        assert!(
+            error.message.contains("data does not satisfy traits"),
+            "unexpected diagnostic for {source}: {}",
+            error.message
+        );
+    }
+}
+
+#[test]
+fn qualified_trait_requirement_names_are_rejected() {
+    let error = super::parse_source_error(
+        "trait Ranked<Item> { machine Self::before(value: &Item, other: &Item) -> bool; }",
+        "tokenize should succeed",
+        "a requirement has no subject qualifier",
+    );
+    assert!(
+        error.message.contains("declares its bare name"),
+        "unexpected diagnostic: {}",
+        error.message
+    );
 }
 
 #[test]
@@ -684,16 +711,16 @@ fn retired_conformance_alias_order_is_rejected() {
 #[test]
 fn parses_closed_conformance_block_members() {
     let source = r#"
-        trait Ranked {
-            machine Self::before(value: &Self, other: &Self) -> bool;
-            machine Self::rank_value(value: &Self) -> u32;
+        trait Ranked<Item> {
+            machine before(value: &Item, other: &Item) -> bool;
+            machine rank_value(value: &Item) -> u32;
         }
 
         data Card { power: u32; }
 
         machine Card::stable_rank_value(value: &Card) -> u32 { }
 
-        PowerOrder: Card satisfies Ranked {
+        PowerOrder satisfies Ranked<Card> {
             machine before(value: &Card, other: &Card) -> bool { }
 
             Ranked::rank_value = Card::stable_rank_value;
@@ -702,10 +729,7 @@ fn parses_closed_conformance_block_members() {
 
     let parsed = super::parse_source(source, "closed conformance block should parse");
     let conformance = super::root_conformance(&parsed, "conformance root item");
-    let syntax_trees::item::ConformanceBody::Closed { members } = conformance.body else {
-        panic!("block must remain structurally distinct from bodyless attached-requirement lookup");
-    };
-    let [inline, reference] = parsed.items.conformance_members(members) else {
+    let [inline, reference] = parsed.items.conformance_members(conformance.members) else {
         panic!("two retained conformance members");
     };
     assert!(matches!(
@@ -737,9 +761,9 @@ fn parses_closed_conformance_block_members() {
 #[test]
 fn closed_conformance_member_cannot_repeat_satisfaction() {
     let source = r#"
-        trait Ranked { machine Self::before(value: &Self, other: &Self) -> bool; }
+        trait Ranked<Item> { machine before(value: &Item, other: &Item) -> bool; }
         data Card { }
-        PowerOrder: Card satisfies Ranked {
+        PowerOrder satisfies Ranked<Card> {
             machine before(value: &Card, other: &Card) -> bool
                 satisfies Ranked::before
             { }

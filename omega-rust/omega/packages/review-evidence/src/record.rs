@@ -150,7 +150,7 @@ pub use signatures::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
     PackagePolicyExternalRequirement, PackageReviewCallableParameter,
-    PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
+    PackageReviewConformanceBound, PackageReviewConformanceShape,
     PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
     PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
     PackageReviewExternalCallableParameter, PackageReviewForeignLocator,

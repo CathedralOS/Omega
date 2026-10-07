@@ -19,10 +19,7 @@ pub(crate) fn build_dynamic_conformance_facts(
             continue;
         };
         let mut rows = Vec::new();
-        for row in program
-            .closed_conformance_rows(implementation)
-            .unwrap_or_default()
-        {
+        for row in &implementation.rows {
             if !row.realization_machine.is_valid() || !row.realization_state.is_valid() {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "dynamic implementation row `{}::{}` reached checked lowering without an exact checked realization",

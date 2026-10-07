@@ -959,9 +959,8 @@ fn resolved_symbolic_max_bound(
 }
 
 /// Whether `symbol` names a parameter holding a subject position: a
-/// machine state parameter declaring the owning machine's attached data,
-/// or typed by the `Self` carrier -- the
-/// resolved-stage mirror of `typed_trees::dependent_ranges`'s
+/// machine state parameter declaring the owning machine's attached data --
+/// the resolved-stage mirror of `typed_trees::dependent_ranges`'s
 /// `receiver_is_subject_parameter`. A resolved name's symbol identifies
 /// one parameter program-wide, so the answer never depends on which
 /// signature asks.
@@ -981,7 +980,7 @@ fn resolved_receiver_is_subject_parameter(
                         source_trees,
                         &parameter.type_reference,
                         machine.attached_data_symbol,
-                    ) || resolved_type_is_self(source_trees, &parameter.type_reference);
+                    );
                 }
             }
         }
@@ -1011,26 +1010,6 @@ fn resolved_type_names_attached_data(
             source_trees,
             source_trees.child_type_reference(constrained.storage.base_type),
             attached_data_symbol,
-        ),
-        _ => false,
-    }
-}
-
-/// Whether `type_reference` is the `Self` carrier once references and
-/// constraints are stripped.
-fn resolved_type_is_self(
-    source_trees: &resolved::SymbolResolvedTrees,
-    type_reference: &TypeReference,
-) -> bool {
-    match type_reference {
-        TypeReference::SelfType { .. } => true,
-        TypeReference::Reference(reference) => resolved_type_is_self(
-            source_trees,
-            source_trees.child_type_reference(reference.storage.referee),
-        ),
-        TypeReference::Constrained(constrained) => resolved_type_is_self(
-            source_trees,
-            source_trees.child_type_reference(constrained.storage.base_type),
         ),
         _ => false,
     }

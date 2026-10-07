@@ -111,7 +111,6 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfType -> expected_data_name(parser, start, end)
             KeywordKind::SelfValue -> expected_data_name(parser, start, end)
             _ -> retain_data_name(parser, input, start, end)
         }
@@ -447,7 +446,6 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfType -> expected_data_case_name(parser, start, end)
             KeywordKind::SelfValue -> expected_data_case_name(parser, start, end)
             _ -> case_capacity(parser, input, start, end)
         }
@@ -538,7 +536,6 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfType -> expected_case_payload_field(parser, start, end)
             KeywordKind::SelfValue -> expected_case_payload_field(parser, start, end)
             _ -> payload_field_capacity(parser, input, start, end)
         }
@@ -611,7 +608,6 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfType -> expected_payload_field_type(parser, start, end)
             KeywordKind::SelfValue -> expected_payload_field_type(parser, start, end)
             _ -> payload_type_reference_capacity(parser, input, start, end)
         }
@@ -874,7 +870,6 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfType -> expected_field_colon(parser, start, end)
             KeywordKind::SelfValue -> expected_field_colon(parser, start, end)
             _ -> retain_field_name(parser, input, start, end)
         }
@@ -940,7 +935,6 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfType -> expected_field_type(parser, start, end)
             KeywordKind::SelfValue -> expected_field_type(parser, start, end)
             _ -> type_reference_capacity(parser, input, start, end)
         }
@@ -1103,7 +1097,6 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfType -> expected_type_domain(parser, start, end)
             KeywordKind::SelfValue -> expected_type_domain(parser, start, end)
             _ -> retain_type_domain(parser, input, start, end)
         }
@@ -1721,7 +1714,6 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         transition keyword {
-            KeywordKind::SelfType -> expected_generic_type(parser, start, end)
             KeywordKind::SelfValue -> expected_generic_type(parser, start, end)
             _ -> generic_type_name(parser, input, start, end)
         }

@@ -4,10 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
-use typed_trees::{
-    TypedTrees, expression::StaticMachineArgument, statement::StatementHandle,
-    trait_definition::ConformanceImplementation,
-};
+use typed_trees::{TypedTrees, expression::StaticMachineArgument, statement::StatementHandle};
 
 /// Exact declaration indices used to resolve machine references and to key
 /// machine-owner lookups without scanning the declaration table.
@@ -85,12 +82,9 @@ pub(super) fn interface_retention_set(
     // happens outside Psi, every realization named by a retained conformance
     // row is interface surface.
     for conformance in program.conformances() {
-        retain_symbol(&mut retained, index, conformance.carrier_symbol);
-        if let ConformanceImplementation::Closed { rows } = &conformance.implementation {
-            for row in rows {
-                retain_symbol(&mut retained, index, row.realization_machine);
-                retain_symbol(&mut retained, index, row.realization_state);
-            }
+        for row in &conformance.rows {
+            retain_symbol(&mut retained, index, row.realization_machine);
+            retain_symbol(&mut retained, index, row.realization_state);
         }
     }
 

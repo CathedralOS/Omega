@@ -142,8 +142,8 @@ machine CriticalStackPolicy::plan(
 // The fatal-exception root contract: one requirement inherited from
 // `InterruptEntry` (arrive holding a Pending acknowledgement, bound to
 // the authored calling policy). The compiler's provider selection
-// resolves this trait to the conformance below; nothing consumer-side
-// spells the provider's name again.
+// resolves this trait to the named implementation below; nothing
+// consumer-side spells the provider's name again.
 pub boundary trait FatalExceptionRoot: InterruptEntry + Calling<CriticalStackPolicy> {
 }
 
@@ -153,13 +153,16 @@ pub boundary trait FatalExceptionRoot: InterruptEntry + Calling<CriticalStackPol
 // stand-in until the fatal-halt body arrives with the controller leg.
 // The declared `reaches PortIo` is the realization's own bound; the
 // compiler-derived installation-reach resolution records it against the
-// requirement's `MachineControl + PortIo` upper bound.
+// requirement's `MachineControl + PortIo` upper bound. The named
+// implementation owns the complete root map; its one row names the
+// inherited requirement's declaring trait and the existing entry machine.
 pub data FatalExceptionProvider {
 }
-pub FatalExceptionProviderRoot: FatalExceptionProvider satisfies FatalExceptionRoot;
+pub FatalExceptionProviderRoot satisfies FatalExceptionRoot {
+    InterruptEntry::enter = FatalExceptionProvider::enter;
+}
 
 machine FatalExceptionProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
-    satisfies InterruptEntry::enter
     reaches PortIo
 {
     InterruptAcknowledgement::complete(acknowledgement);
@@ -268,10 +271,11 @@ pub boundary trait TimerRoot: InterruptEntry + Calling<TimerStackPolicy> {
 // `MachineControl + PortIo` bound.
 pub data TimerProvider {
 }
-pub TimerProviderRoot: TimerProvider satisfies TimerRoot;
+pub TimerProviderRoot satisfies TimerRoot {
+    InterruptEntry::enter = TimerProvider::enter;
+}
 
 machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
-    satisfies InterruptEntry::enter
     reaches PortIo
 {
     InterruptAcknowledgement::complete(acknowledgement);
@@ -288,10 +292,14 @@ machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pendin
 // therefore tolerated, not realized: the compiler lowers nothing for it,
 // and no compiler-side interrupt runtime supplies it. Do not read this
 // declaration as a precedent that an interrupt-family operation has a
-// compiler-known realization.
+// compiler-known realization. The leaf keeps its exact `via` edge, so it
+// is a candidate for the slot on its own; `build.omg` selects the named
+// implementation explicitly.
 pub data InterruptMaskProvider {
 }
-pub InterruptMaskProviderMaskControl: InterruptMaskProvider satisfies InterruptMaskControl;
+pub InterruptMaskProviderMaskControl satisfies InterruptMaskControl {
+    InterruptMaskControl::save_and_mask = InterruptMaskProvider::save_and_mask;
+}
 
 machine InterruptMaskProvider::save_and_mask() -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask

@@ -1792,6 +1792,8 @@ fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 459ms expected 
 	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[position]; output is part of [u8; N]::Utf8)
 fail/traits/conformance_item_missing_member rejected 14ms expected @e3131e3bcd65+wt
 	closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`
+fail/traits/data_subject_implementation_retired rejected 1ms expected @c9e4c60b2906+wt
+	tests/omega/fail/traits/data_subject_implementation_retired/main.omg:18:10: data does not satisfy traits; declare a named implementation `Name satisfies Trait<Data> { ... }` that names each data type as an ordinary trait argument and binds every requirement row
 fail/traits/dyn_data_carrier_selector_retired rejected 4ms expected @7f068b5c82b8
 	tests/omega/fail/traits/dyn_data_carrier_selector_retired/main.omg:13:33: `dyn Data::Implementation` is retired; name the trait application (`dyn Trait<Data>`) and select an implementation with `Implementation as dyn Trait<Data>`
 fail/traits/dyn_finite_family_non_member rejected 243ms expected @7f068b5c82b8
@@ -1839,6 +1841,8 @@ fail/traits/member_requires_beyond_requirement rejected 684ms expected @e83cb166
 	machine `Strict::shrink` realizes `Shrink::shrink` but requires `value <= 50`, which the requirement does not require; callers of the requirement prove only its own `requires`
 fail/traits/ordinary_trait_inherits_boundary rejected 275ms expected @2d8ed253669f
 	ordinary trait `HiddenDevice` cannot inherit boundary service `Device`; declare the child as `boundary trait`
+fail/traits/self_type_retired rejected 192ms expected @c9e4c60b2906+wt
+	trait `Area` state `area` parameter `shape` references unknown data type `Self`
 fail/traits/trait_contract_undeclared_parameter_member rejected 493ms expected @e3131e3bcd65+wt
 	authored MemberAccess declaration selection occurrence 0 (`value` in tests/omega/fail/traits/trait_contract_undeclared_parameter_member/main.omg) remained unresolved after successful checking (CheckedMember)
 fail/traits/trait_default_outside_requirement_call rejected 20ms expected @e3131e3bcd65+wt

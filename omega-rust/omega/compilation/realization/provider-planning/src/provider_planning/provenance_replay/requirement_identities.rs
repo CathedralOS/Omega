@@ -355,6 +355,10 @@ pub(crate) fn satisfied_row_requirement<'typed>(
     .ok()
 }
 
+/// The boundary application a provider plan's schema is instantiated at: a
+/// named implementation's own explicit trait arguments. An exact requirement
+/// edge's plan, whose provider is the data owning the realizing machine,
+/// carries no whole-trait application and receives none.
 pub(crate) fn provider_boundary_arguments(
     typed: &TypedTrees,
     boundary: &typed_trees::trait_definition::TraitDefinition,
@@ -364,9 +368,8 @@ pub(crate) fn provider_boundary_arguments(
         .conformances()
         .iter()
         .find(|conformance| {
-            (Some(conformance.carrier_symbol) == provider_symbol
-                || (Some(conformance.symbol) == provider_symbol
-                    && crate::provider_identity::eligible(conformance)))
+            Some(conformance.symbol) == provider_symbol
+                && crate::provider_identity::eligible(conformance)
                 && conformance.trait_symbol == boundary.symbol
         })
         .map(|conformance| {

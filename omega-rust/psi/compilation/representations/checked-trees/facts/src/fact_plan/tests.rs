@@ -222,10 +222,10 @@ fn expression_places_resolve_attached_data_members() {
             [(SymbolKind::State, SymbolNameRef::Static("main"))],
         )
         .start();
-    let self_symbol = symbols
+    let main_parameter_symbol = symbols
         .insert_children(
             state_symbol,
-            [(SymbolKind::Parameter, SymbolNameRef::Static("self"))],
+            [(SymbolKind::Parameter, SymbolNameRef::Static("main"))],
         )
         .start();
 
@@ -313,19 +313,19 @@ fn expression_places_resolve_attached_data_members() {
         contracts: HandleSpan::empty(),
         statement_nodes: HandleSpan::empty(),
     };
-    let self_type =
+    let main_type =
         program
             .type_reference_table
             .insert(typed_trees::types::TypeReferenceNode::Named {
-                symbol: machine_symbol,
-                name: Identifier::generated("Self"),
+                symbol: main_data_symbol,
+                name: Identifier::generated("Main"),
             });
     program.push_state_parameter(
         &mut state,
         typed_trees::signature::StateParameter {
-            symbol: self_symbol,
-            name: Identifier::generated("self"),
-            type_reference: self_type,
+            symbol: main_parameter_symbol,
+            name: Identifier::generated("main"),
+            type_reference: main_type,
             is_const: false,
             is_mutable: true,
             relevance: Default::default(),
@@ -334,19 +334,19 @@ fn expression_places_resolve_attached_data_members() {
     program.push_machine_state(&mut machine, state);
     program.push_machine(machine);
 
-    let self_expression = program
+    let main_expression = program
         .expression_table
         .insert(ExpressionNode::Name(TableNamePath {
             members: HandleSpan::empty(),
             member_symbols: HandleSpan::empty(),
-            head_symbol: self_symbol,
-            symbol: self_symbol,
+            head_symbol: main_parameter_symbol,
+            symbol: main_parameter_symbol,
         }));
     let member_expression =
         program
             .expression_table
             .insert(ExpressionNode::Member(TableMemberExpression {
-                receiver: self_expression,
+                receiver: main_expression,
                 member_symbol: SymbolHandle::invalid(),
                 member: Identifier::generated("player"),
                 case_variant: None,
@@ -357,7 +357,7 @@ fn expression_places_resolve_attached_data_members() {
     let place = facts.places.get(place);
     let segments = facts.place_segments.span_or_empty(place.segments);
 
-    assert_eq!(place.root, PlaceRoot::Symbol(self_symbol));
+    assert_eq!(place.root, PlaceRoot::Symbol(main_parameter_symbol));
     assert_eq!(segments.len(), 1);
     assert_eq!(
         segments[0],

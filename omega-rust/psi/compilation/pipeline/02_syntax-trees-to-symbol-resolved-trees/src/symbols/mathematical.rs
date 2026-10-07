@@ -11,10 +11,10 @@
 
 use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::mathematical::{MathematicalBody, MathematicalType};
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolKind, SymbolTable};
 
 use super::propositions::assign_expression_symbols;
-use super::type_references::assign_type_reference_symbol_with_locals_and_self_type;
+use super::type_references::assign_type_reference_symbol_with_locals;
 
 /// Top-level kinds a bare call target inside a mathematical term may name:
 /// another mathematical declaration first (the migrating surface), then the
@@ -50,11 +50,10 @@ pub(super) fn assign_mathematical_expression_symbols(
                 | TypeParameterKind::Value { type_reference } => type_reference,
                 _ => continue,
             };
-            assign_type_reference_symbol_with_locals_and_self_type(
+            assign_type_reference_symbol_with_locals(
                 symbols,
                 child_type_references,
                 &local_type_parameters,
-                SymbolHandle::invalid(),
                 type_reference,
             );
         }
@@ -70,11 +69,10 @@ pub(super) fn assign_mathematical_expression_symbols(
             let mut node = mathematical_types.get(handle).clone();
             match &mut node {
                 MathematicalType::Ordinary(reference) => {
-                    assign_type_reference_symbol_with_locals_and_self_type(
+                    assign_type_reference_symbol_with_locals(
                         symbols,
                         child_type_references,
                         &local_type_parameters,
-                        SymbolHandle::invalid(),
                         reference,
                     );
                 }

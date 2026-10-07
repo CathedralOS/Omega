@@ -4,10 +4,7 @@
 use crate::ProviderPlanningContext;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
 use symbols::SymbolHandle;
-use typed_trees::{
-    TypedTrees,
-    trait_definition::{Conformance, ConformanceImplementation, ConformanceSubject},
-};
+use typed_trees::{TypedTrees, trait_definition::Conformance};
 
 pub(crate) fn is_named_provider(typed: &TypedTrees, symbol: SymbolHandle) -> bool {
     typed
@@ -16,14 +13,11 @@ pub(crate) fn is_named_provider(typed: &TypedTrees, symbol: SymbolHandle) -> boo
         .any(|definition| definition.symbol == symbol && eligible(definition))
 }
 
+/// A closed nongeneric named implementation can be selected as a provider;
+/// a generic one needs an explicit application that provider selection does
+/// not carry.
 pub(crate) fn eligible(definition: &Conformance) -> bool {
-    matches!(definition.subject, ConformanceSubject::Subjectless)
-        && matches!(
-            definition.implementation,
-            ConformanceImplementation::Closed { .. }
-        )
-        && definition.type_parameters.is_empty()
-        && definition.lifetime_parameters.is_empty()
+    definition.type_parameters.is_empty() && definition.lifetime_parameters.is_empty()
 }
 
 pub(crate) fn named_provider<'a>(
@@ -115,9 +109,7 @@ pub fn provider_trait_application<'a>(
         if !provider_row_matches(context, plan, row, machine) {
             return None;
         }
-        let ConformanceImplementation::Closed { rows } = &implementation.implementation else {
-            return None;
-        };
+        let rows = &implementation.rows;
         let lifetime_arguments =
             named_requirement_lifetime_arguments(typed, implementation, declaring_trait)?;
         return (rows
@@ -183,10 +175,7 @@ pub(crate) fn named_provider_row<'a>(
 ) -> Option<&'a typed_trees::trait_definition::ConformanceRow> {
     let typed = context.typed;
     let definition = named_provider(context, plan)?;
-    let ConformanceImplementation::Closed { rows } = &definition.implementation else {
-        return None;
-    };
-    let mut matching = rows.iter().filter(|entry| {
+    let mut matching = definition.rows.iter().filter(|entry| {
         let Some(owner) = typed
             .traits()
             .iter()

@@ -195,17 +195,6 @@ pub fn close_conformance_application(
         }
     }
 
-    let subject_identity = conformance.carrier_name().map(|carrier| {
-        parameters
-            .iter()
-            .find(|parameter| parameter.name.as_str() == carrier.as_str())
-            .and_then(|parameter| {
-                substitutions.iter().find_map(|(symbol, identity)| {
-                    (*symbol == parameter.symbol).then(|| identity.clone())
-                })
-            })
-            .unwrap_or_else(|| carrier.as_str().to_owned())
-    });
     // The conformance's bound trait symbol is exact; a name match would grab
     // a same-named trait from a different checked instance (toolchain mounts
     // are per-package instances, so a foreign conformance can carry a
@@ -259,24 +248,7 @@ pub fn close_conformance_application(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let rows = match program.closed_conformance_rows(conformance) {
-        Some(rows) => rows,
-        None if program
-            .trait_machine_signatures(trait_definition)
-            .is_empty()
-            && program.trait_requirements(trait_definition).is_empty() =>
-        {
-            // A bodyless conformance to a true marker trait is already a
-            // complete empty map; no realization row exists to discover or
-            // synthesize.
-            &[]
-        }
-        None => {
-            return Err(Diagnostic::error(format!(
-                "conformance `{declaration_name}` is not one complete closed requirement map"
-            )));
-        }
-    };
+    let rows = conformance.rows.as_slice();
     let row_identities = rows
         .iter()
         .map(|row| ClosedConformanceRowIdentity {
@@ -293,7 +265,6 @@ pub fn close_conformance_application(
         &type_arguments,
         &const_arguments,
         &machine_arguments,
-        subject_identity.as_deref(),
         trait_definition.name.as_str(),
         &trait_lifetime_arguments,
         &trait_arguments,
@@ -306,7 +277,6 @@ pub fn close_conformance_application(
         type_arguments,
         const_arguments,
         machine_arguments,
-        subject_identity,
         trait_definition: trait_definition.symbol,
         trait_lifetime_arguments,
         trait_arguments,
@@ -634,7 +604,6 @@ fn application_identity(
     type_arguments: &[String],
     const_arguments: &[ClosedConformanceConstArgument],
     machine_arguments: &[SymbolHandle],
-    subject: Option<&str>,
     trait_name: &str,
     trait_lifetime_arguments: &[String],
     trait_arguments: &[String],
@@ -643,7 +612,7 @@ fn application_identity(
     const OFFSET: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
     let mut bytes = Vec::new();
-    let singleton_lanes = [declaration, subject.unwrap_or("<subjectless>"), trait_name];
+    let singleton_lanes = [declaration, trait_name];
     for lane in singleton_lanes {
         bytes.extend(1u64.to_le_bytes());
         bytes.extend((lane.len() as u64).to_le_bytes());

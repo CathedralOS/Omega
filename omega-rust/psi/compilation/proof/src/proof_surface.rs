@@ -377,7 +377,7 @@ fn collect_bounded_type_site(
             }
         }
         TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {}
-        TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
+        TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -417,7 +417,7 @@ fn collect_bounded_type_site_tree(
             }
         }
         TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {}
-        TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
+        TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -485,7 +485,6 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
             format!("dyn {trait_name}<{arguments}>")
         }
         TypeReferenceNode::Named(name) => name.to_string(),
-        TypeReferenceNode::SelfType => "Self".to_owned(),
         TypeReferenceNode::Unit => "()".to_owned(),
     }
 }

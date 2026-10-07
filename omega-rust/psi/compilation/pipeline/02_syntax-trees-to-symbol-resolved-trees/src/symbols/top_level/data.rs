@@ -68,7 +68,6 @@ pub(super) fn assign_data_symbols(
                         signature,
                         parameter_symbol,
                         &local_type_parameters,
-                        data_symbol,
                     );
                 }
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters)[index]

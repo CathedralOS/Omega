@@ -197,8 +197,8 @@ fn parses_x86_control_registers_as_structured_value_operations() {
 #[test]
 fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
     let source = r#"
-        trait Idle {
-            machine idle(value: &mut Self) {
+        trait Idle<Processor> {
+            machine idle(value: &mut Processor) {
                 asm { hlt; hlt }
             }
         }

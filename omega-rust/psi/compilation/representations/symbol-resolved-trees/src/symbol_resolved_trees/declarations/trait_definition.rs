@@ -48,29 +48,16 @@ pub struct TraitRefinementClause {
     pub service_reaches: Vec<DiagnosticName>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum ConformanceSubject {
-    #[default]
-    Subjectless,
-    Carrier(DiagnosticName),
-}
-
-/// One whole conformance. Every closed implementation retains its exact
-/// inherited requirement rows. Carrier-owned closed forms alone are eligible
-/// for local dynamic dispatch; subjectless forms remain proof evidence. The
-/// bodyless form remains a carrier-owned static declaration whose satisfiers
-/// are validated separately.
+/// One named implementation: a closed map from every inherited requirement to
+/// exactly one realization row. The implementation has no data subject; its
+/// trait application's types are ordinary arguments.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Conformance {
     pub symbol: SymbolHandle,
-    /// Source visibility retained independently from subject, trait, and rows.
+    /// Source visibility retained independently from trait and rows.
     pub is_public: bool,
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
-    pub subject: ConformanceSubject,
-    /// Exact carrier declaration for a carrier-owned conformance. Subjectless
-    /// proof evidence retains the invalid symbol.
-    pub carrier_symbol: SymbolHandle,
     pub trait_name: DiagnosticName,
     /// Exact trait declaration selected by `trait_name`.
     pub trait_symbol: SymbolHandle,
@@ -80,25 +67,7 @@ pub struct Conformance {
     pub trait_lifetime_arguments: Vec<DiagnosticName>,
     pub arguments: HandleSpan<crate::types::TypeReference>,
     pub alias: Option<DiagnosticName>,
-    pub implementation: ConformanceImplementation,
-}
-
-impl Conformance {
-    pub fn carrier_name(&self) -> Option<&DiagnosticName> {
-        match &self.subject {
-            ConformanceSubject::Carrier(name) => Some(name),
-            ConformanceSubject::Subjectless => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum ConformanceImplementation {
-    #[default]
-    AttachedRequirementMachines,
-    Closed {
-        rows: Vec<ConformanceRow>,
-    },
+    pub rows: Vec<ConformanceRow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

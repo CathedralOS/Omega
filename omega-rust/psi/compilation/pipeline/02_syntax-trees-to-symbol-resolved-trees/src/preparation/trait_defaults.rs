@@ -1,11 +1,10 @@
 //! Pre-resolution synthesis for trait machines with authored bodies, and for
 //! the sealed core `Equatable<T>` row.
 //!
-//! A standalone `Data satisfies Trait;` conformance may omit a machine when
-//! the trait supplies its body. Materialize that body as an ordinary attached
-//! machine before symbol resolution, so typing, effects, proofs, dispatch, both
-//! execution engines, and override precedence all reuse the established paths.
-//! A closed block instead receives each omitted default as its own member row.
+//! A named implementation may omit a requirement whose trait supplies a
+//! default body. Its closed block receives each omitted default as its own
+//! member row before symbol resolution, so typing, effects, proofs, dispatch
+//! and both execution engines reuse the ordinary member path.
 //!
 //! A closed `Name satisfies Equatable<T> { }` block that authors no `equals`
 //! member or reference row receives a compiler-emitted `equals` member whose
@@ -14,7 +13,7 @@
 //! `wiki/spec/language/conformances.md`). The row belongs to the named
 //! implementation, never to `T`.
 //!
-//! Trait and carrier identity join by exact source selection through the
+//! Trait identity joins by exact source selection through the
 //! shared constant-header table, never by leaf spelling: same-leaf module
 //! declarations cannot share a default template, and an ambiguous authored
 //! trait name defers to ordinary resolution instead of guessing an owner.
@@ -31,7 +30,7 @@
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use source::SourceMap;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use symbols::{SourceScopedTopLevelBinding, SymbolHandle};
 use syntax_trees::SyntaxTrees;
@@ -40,8 +39,8 @@ use syntax_trees::expression::{
 };
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{
-    ConformanceBody, ConformanceItem, ConformanceMember, Item, ItemHandle, Machine,
-    SatisfiesClause, State, StateSignatureNode,
+    ConformanceItem, ConformanceMember, Item, ItemHandle, Machine, SatisfiesClause, State,
+    StateSignatureNode,
 };
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -74,18 +73,6 @@ struct TraitRequirementInput {
 }
 
 #[derive(Clone)]
-struct DefaultCandidate {
-    origin: String,
-    /// Logical path of the trait that authored this default body.
-    declaring_trait_path: String,
-    requirement_owner: Option<String>,
-    signature: StateSignatureNode,
-    substitution: HashMap<String, TypeReferenceHandle>,
-}
-
-type EffectiveDefaults = BTreeMap<String, Vec<DefaultCandidate>>;
-
-#[derive(Clone)]
 struct ConformanceInput {
     handle: ItemHandle,
     declaration: ConformanceItem,
@@ -115,7 +102,7 @@ pub fn synthesize_trait_defaults(
 /// Resolution has already checked the complete namespace frontier in its
 /// current mode. Rechecking in complete-value mode would reject the deliberately
 /// unevaluated scalar declarations used only for initializer selection evidence.
-/// The shared selection supplies exact trait/carrier identity: every name this
+/// The shared selection supplies exact trait identity: every name this
 /// pass follows was already admitted by the caller's namespace validation.
 pub(crate) fn synthesize_trait_defaults_after_module_validation(
     syntax: &mut SyntaxTrees,
@@ -212,40 +199,8 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
         })
         .collect::<Vec<_>>();
 
-    let mut attached_methods = HashSet::new();
-    for item in syntax.root_items() {
-        let Item::Machine(machine) = item else {
-            continue;
-        };
-        let Some(attached) = machine.attached_data.as_ref() else {
-            continue;
-        };
-        // An authored attachment joins by its exact selected carrier, so a
-        // same-spelled data in another namespace does not suppress this
-        // declaration's default and this carrier's override suppresses the
-        // default regardless of the spelling either site used.
-        let Some(owner) = selection.data_symbol(attached) else {
-            continue;
-        };
-        for state in syntax.items.state_handles(machine.states) {
-            attached_methods.insert((owner, syntax.items.state(*state).name.as_str().to_string()));
-        }
-    }
-
     let mut diagnostics = Vec::new();
-    let mut reported_conflicts = HashSet::new();
     for conformance in conformances {
-        let subject = match &conformance.declaration.subject {
-            syntax_trees::item::ConformanceSubject::Carrier(type_name) => Some(type_name),
-            syntax_trees::item::ConformanceSubject::Subjectless => None,
-        };
-        let subject_symbol = subject.and_then(|name| selection.data_symbol(name));
-        if subject.is_some() && subject_symbol.is_none() {
-            // The authored carrier did not select one data declaration; the
-            // declaring stage owns that diagnostic rather than a guessed
-            // same-leaf attachment here.
-            continue;
-        }
         let Some(trait_symbol) = selection
             .trait_lookup(&conformance.declaration.trait_name)
             .unique()
@@ -263,17 +218,13 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
         let Some(conformed_trait) = traits.get(&trait_symbol) else {
             continue;
         };
-        let conformance_name = subject
-            .map(|name| name.as_str().to_string())
-            .unwrap_or_else(|| {
-                conformance
-                    .declaration
-                    .alias
-                    .as_ref()
-                    .expect("parsed subjectless conformances are named")
-                    .as_str()
-                    .to_string()
-            });
+        let conformance_name = conformance
+            .declaration
+            .alias
+            .as_ref()
+            .expect("parsed named implementations carry their name")
+            .as_str()
+            .to_string();
         if arguments.len() != conformed_trait.parameter_names.len() {
             diagnostics.push(Diagnostic::error(format!(
                 "conformance `{conformance_name} satisfies {trait_name}` expects {} generic argument(s), got {}",
@@ -289,139 +240,81 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             .zip(arguments.iter().copied())
             .collect::<HashMap<_, _>>();
 
-        if let ConformanceBody::Closed { members } = conformance.declaration.body.clone() {
-            let mut closed_members = syntax.items.conformance_members(members).to_vec();
-            let mut requirements = Vec::new();
-            collect_requirement_instances(
-                syntax,
-                trait_symbol,
-                &substitution,
-                &traits,
-                &mut HashSet::new(),
-                &mut HashSet::new(),
-                &mut requirements,
-            );
-            let mut existing_defaults = HashSet::new();
-            for member in &closed_members {
-                if let ConformanceMember::TraitDefault {
-                    declaring_trait,
-                    requirement_ordinal,
-                    ..
-                } = member
-                {
-                    existing_defaults
-                        .insert((declaring_trait.as_str().to_string(), *requirement_ordinal));
-                }
-            }
-
-            let mut added = false;
-            for requirement in requirements {
-                let declaring_path = traits
-                    .get(&requirement.declaring_trait)
-                    .map(|definition| definition.path.clone())
-                    .unwrap_or_else(|| selection.declaration_path(requirement.declaring_trait));
-                let key = (declaring_path.clone(), requirement.requirement_ordinal);
-                if existing_defaults.contains(&key) || !requirement.signature.is_default {
-                    continue;
-                }
-                let subject = match &conformance.declaration.subject {
-                    syntax_trees::item::ConformanceSubject::Carrier(type_name) => Some(type_name),
-                    syntax_trees::item::ConformanceSubject::Subjectless => None,
-                };
-                let signature = instantiate_default_signature(
-                    syntax,
-                    &requirement.signature,
-                    &requirement.substitution,
-                    subject,
-                );
-                let machine = machine_from_signature(
-                    syntax,
-                    attached_subject(&conformance.declaration),
-                    Identifier::generated(signature.name.as_str()),
-                    &signature,
-                    exact_unargumented_requirement_owner(&traits, requirement.declaring_trait),
-                    Identifier::generated(declaring_path.as_str()),
-                );
-                closed_members.push(ConformanceMember::TraitDefault {
-                    declaring_trait: Identifier::generated(declaring_path),
-                    requirement_ordinal: requirement.requirement_ordinal,
-                    machine,
-                });
-                existing_defaults.insert(key);
-                added = true;
-            }
-            if selection.declaration_path(trait_symbol) == EQUATABLE_TRAIT_PATH
-                && let Some(member) = synthesized_equality_member(
-                    syntax,
-                    &conformance.declaration,
-                    conformed_trait,
-                    &closed_members,
-                    &substitution,
-                )
-            {
-                closed_members.push(member);
-                added = true;
-            }
-            if added {
-                replace_closed_members(
-                    syntax,
-                    conformance.handle,
-                    conformance.declaration,
-                    closed_members,
-                );
-            }
-            continue;
-        }
-
-        let Some((subject_name, subject_symbol)) = subject.zip(subject_symbol) else {
-            continue;
-        };
-        let subject_path = selection.declaration_path(subject_symbol);
-
-        let defaults = collect_effective_defaults(
+        let mut closed_members = syntax
+            .items
+            .conformance_members(conformance.declaration.members)
+            .to_vec();
+        let mut requirements = Vec::new();
+        collect_requirement_instances(
             syntax,
             trait_symbol,
             &substitution,
             &traits,
             &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut requirements,
         );
-        for (method_name, candidates) in defaults {
-            let attached_method = (subject_symbol, method_name.clone());
-            if attached_methods.contains(&attached_method) {
+        let mut existing_defaults = HashSet::new();
+        for member in &closed_members {
+            if let ConformanceMember::TraitDefault {
+                declaring_trait,
+                requirement_ordinal,
+                ..
+            } = member
+            {
+                existing_defaults
+                    .insert((declaring_trait.as_str().to_string(), *requirement_ordinal));
+            }
+        }
+
+        let mut added = false;
+        for requirement in requirements {
+            let declaring_path = traits
+                .get(&requirement.declaring_trait)
+                .map(|definition| definition.path.clone())
+                .unwrap_or_else(|| selection.declaration_path(requirement.declaring_trait));
+            let key = (declaring_path.clone(), requirement.requirement_ordinal);
+            if existing_defaults.contains(&key) || !requirement.signature.is_default {
                 continue;
             }
-            if candidates.len() > 1 {
-                if reported_conflicts.insert(attached_method) {
-                    let origins = candidates
-                        .iter()
-                        .map(|candidate| format!("`{}`", candidate.origin))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let type_name = subject_name.as_str();
-                    diagnostics.push(Diagnostic::error(format!(
-                        "data `{type_name}` inherits conflicting default machine \
-                         `{subject_path}::{method_name}` from traits {origins}; write an override"
-                    )));
-                }
-                continue;
-            }
-            let Some(candidate) = candidates.first() else {
-                continue;
-            };
-            attached_methods.insert(attached_method);
             let signature = instantiate_default_signature(
                 syntax,
-                &candidate.signature,
-                &candidate.substitution,
-                Some(subject_name),
+                &requirement.signature,
+                &requirement.substitution,
             );
-            synthesize_default_machine(
+            let machine = machine_from_signature(
                 syntax,
-                subject_name,
-                &subject_path,
+                Identifier::generated(signature.name.as_str()),
                 &signature,
-                candidate.requirement_owner.as_deref(),
-                &candidate.declaring_trait_path,
+                exact_unargumented_requirement_owner(&traits, requirement.declaring_trait),
+                Identifier::generated(declaring_path.as_str()),
+            );
+            closed_members.push(ConformanceMember::TraitDefault {
+                declaring_trait: Identifier::generated(declaring_path),
+                requirement_ordinal: requirement.requirement_ordinal,
+                machine,
+            });
+            existing_defaults.insert(key);
+            added = true;
+        }
+        if selection.declaration_path(trait_symbol) == EQUATABLE_TRAIT_PATH
+            && let Some(member) = synthesized_equality_member(
+                syntax,
+                &conformance.declaration,
+                conformed_trait,
+                &closed_members,
+                &substitution,
+            )
+        {
+            closed_members.push(member);
+            added = true;
+        }
+        if added {
+            replace_closed_members(
+                syntax,
+                conformance.handle,
+                conformance.declaration,
+                closed_members,
             );
         }
     }
@@ -515,12 +408,10 @@ fn replace_closed_members(
             .checked_add(1)
             .expect("conformance member span count overflow");
     }
-    conformance.body = ConformanceBody::Closed {
-        members: if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        },
+    conformance.members = if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
     };
     syntax
         .items
@@ -565,7 +456,7 @@ fn synthesized_equality_member(
     if syntax.items.state_parameters(requirement.parameters).len() != 2 {
         return None;
     }
-    let mut signature = instantiate_default_signature(syntax, requirement, substitution, None);
+    let mut signature = instantiate_default_signature(syntax, requirement, substitution);
     let [left, right] = syntax.items.state_parameters(signature.parameters) else {
         return None;
     };
@@ -589,192 +480,19 @@ fn synthesized_equality_member(
     let statement = syntax.items.append_statement_handle(statement);
     signature.default_body = HandleSpan::from_parts(statement, 1);
     // The implementation's own name occurrence gives the row its package
-    // provenance: a subjectless block has no carrier occurrence to lend it,
-    // and a generated name would belong to no package that may select it.
+    // provenance: a generated name would belong to no package that may
+    // select it.
     let name = declaration.alias.as_ref().map_or_else(
         || Identifier::generated(EQUALS),
         |alias| Identifier::new(EQUALS, alias.source_span()),
     );
     Some(ConformanceMember::Synthesized(machine_from_signature(
         syntax,
-        attached_subject(declaration),
         name,
         &signature,
         None,
         Identifier::default(),
     )))
-}
-
-/// Compute the defaults visible from one trait. A declaration on the child,
-/// including a bodyless requirement, shadows all inherited declarations of
-/// the same name. Distinct inherited bodies remain separate candidates so the
-/// conformance site can require a written override; repeated paths to the same
-/// originating trait (a diamond) are deduplicated.
-fn collect_effective_defaults(
-    syntax: &mut SyntaxTrees,
-    owner: SymbolHandle,
-    substitution: &HashMap<String, TypeReferenceHandle>,
-    traits: &HashMap<SymbolHandle, TraitDefaultsInput>,
-    visiting: &mut HashSet<SymbolHandle>,
-) -> EffectiveDefaults {
-    if !visiting.insert(owner) {
-        // Requirement-cycle validation owns the diagnostic. Avoid recursing
-        // forever in this earlier desugaring pass.
-        return EffectiveDefaults::new();
-    }
-    let Some(trait_definition) = traits.get(&owner) else {
-        visiting.remove(&owner);
-        return EffectiveDefaults::new();
-    };
-
-    let mut defaults = EffectiveDefaults::new();
-    for requirement in &trait_definition.requirements {
-        let Some(required_trait) = traits.get(&requirement.symbol) else {
-            continue;
-        };
-        if requirement.arguments.len() != required_trait.parameter_names.len() {
-            // The ordinary requirement validator owns the arity diagnostic.
-            continue;
-        }
-        let required_arguments = requirement
-            .arguments
-            .iter()
-            .map(|argument| substitute_type_reference(syntax, *argument, substitution))
-            .collect::<Vec<_>>();
-        let required_substitution = required_trait
-            .parameter_names
-            .iter()
-            .cloned()
-            .zip(required_arguments)
-            .collect::<HashMap<_, _>>();
-        for (method_name, candidates) in collect_effective_defaults(
-            syntax,
-            requirement.symbol,
-            &required_substitution,
-            traits,
-            visiting,
-        ) {
-            let inherited = defaults.entry(method_name).or_default();
-            for candidate in candidates {
-                if !inherited
-                    .iter()
-                    .any(|existing: &DefaultCandidate| existing.origin == candidate.origin)
-                {
-                    inherited.push(candidate);
-                }
-            }
-        }
-    }
-
-    for declaration in &trait_definition.signatures {
-        let signature = &declaration.signature;
-        let method_name = signature.name.as_str().to_string();
-        defaults.remove(&method_name);
-        if signature.is_default {
-            defaults.insert(
-                method_name,
-                vec![DefaultCandidate {
-                    origin: trait_instance_label(syntax, &trait_definition.path, substitution),
-                    declaring_trait_path: trait_definition.path.clone(),
-                    requirement_owner: exact_unargumented_requirement_owner(traits, owner)
-                        .map(str::to_owned),
-                    signature: signature.clone(),
-                    substitution: substitution.clone(),
-                }],
-            );
-        }
-    }
-
-    visiting.remove(&owner);
-    defaults
-}
-
-fn trait_instance_label(
-    syntax: &SyntaxTrees,
-    trait_name: &str,
-    substitution: &HashMap<String, TypeReferenceHandle>,
-) -> String {
-    if substitution.is_empty() {
-        return trait_name.to_string();
-    }
-    let mut arguments = substitution
-        .iter()
-        .map(|(name, handle)| (name, type_reference_key(syntax, *handle)))
-        .collect::<Vec<_>>();
-    arguments.sort_by(|left, right| left.0.cmp(right.0));
-    format!(
-        "{trait_name}<{}>",
-        arguments
-            .into_iter()
-            .map(|(_, argument)| argument)
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
-}
-
-fn type_reference_key(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> String {
-    match syntax.type_references.type_reference(handle) {
-        TypeReferenceNode::Reference {
-            referee, access, ..
-        } => format!(
-            "&{}{}",
-            match access {
-                language_semantics::ReferenceAccess::Shared => "",
-                language_semantics::ReferenceAccess::Mutable => "mut ",
-                language_semantics::ReferenceAccess::WriteOnly => "write ",
-            },
-            type_reference_key(syntax, *referee)
-        ),
-        TypeReferenceNode::Constrained { base_type, .. } => type_reference_key(syntax, *base_type),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-        } => {
-            let length = match length {
-                FixedArrayLength::Literal(value) => value.to_string(),
-                FixedArrayLength::ConstParameter(name) | FixedArrayLength::ConstCall(name) => {
-                    name.as_str().to_string()
-                }
-            };
-            format!("[{}; {length}]", type_reference_key(syntax, *element_type))
-        }
-        TypeReferenceNode::Slice { element_type } => {
-            format!("[{}]", type_reference_key(syntax, *element_type))
-        }
-        TypeReferenceNode::Generic {
-            base_name,
-            arguments,
-            ..
-        } => format!(
-            "{}<{}>",
-            base_name.as_str(),
-            syntax
-                .type_references
-                .type_reference_handles(*arguments)
-                .iter()
-                .map(|argument| type_reference_key(syntax, *argument))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        TypeReferenceNode::ConstExpression(expression) => format!("const#{:?}", expression),
-        TypeReferenceNode::DynamicTrait {
-            trait_name,
-            trait_arguments,
-        } => format!(
-            "dyn {}<{}>",
-            trait_name.as_str(),
-            syntax
-                .type_references
-                .type_reference_handles(*trait_arguments)
-                .iter()
-                .map(|argument| type_reference_key(syntax, *argument))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        TypeReferenceNode::Named(name) => name.as_str().to_string(),
-        TypeReferenceNode::SelfType => "Self".to_string(),
-        TypeReferenceNode::Unit => "()".to_string(),
-    }
 }
 
 fn substitute_type_reference(
@@ -899,31 +617,20 @@ fn substitute_type_reference(
                     })
             }
         }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::SelfType
-        | TypeReferenceNode::Unit => handle,
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => handle,
     }
 }
 
-/// Copy one default for one conformance, binding the trait's generic
-/// parameters to that conformance's arguments and `Self` to its subject.
-///
-/// `Self` in a requirement denotes the conformance's subject type, so a default
-/// instantiated for `RequiredValue` declares `subject: &mut RequiredValue`
-/// exactly as a written satisfier would. Leaving `Self` in the instantiation
-/// would bind it to the attached machine rather than its carrier, and every
-/// requirement call passing the subject onward would then mismatch the
-/// satisfier's parameter. A subjectless conformance has no carrier to bind;
-/// its default keeps `Self` as written. The copy includes the body, so each
-/// instantiation owns its type nodes while its authored identifiers keep their
-/// source custody.
+/// Copy one default for one implementation, binding the trait's generic
+/// parameters to that implementation's arguments. The copy includes the body,
+/// so each instantiation owns its type nodes while its authored identifiers
+/// keep their source custody.
 fn instantiate_default_signature(
     syntax: &mut SyntaxTrees,
     signature: &StateSignatureNode,
     substitution: &HashMap<String, TypeReferenceHandle>,
-    subject: Option<&Identifier>,
 ) -> StateSignatureNode {
-    if substitution.is_empty() && subject.is_none() {
+    if substitution.is_empty() {
         return signature.clone();
     }
     let snapshot = syntax.clone();
@@ -938,51 +645,7 @@ fn instantiate_default_signature(
             .type_references
             .replace_type_reference(handle, replacement);
     }
-    if let Some(subject) = subject {
-        for handle in syntax.type_references.self_type_nodes_from(type_watermark) {
-            syntax
-                .type_references
-                .replace_type_reference(handle, TypeReferenceNode::Named(subject.clone()));
-        }
-    }
     copied
-}
-
-fn synthesize_default_machine(
-    syntax: &mut SyntaxTrees,
-    subject: &Identifier,
-    subject_path: &str,
-    signature: &StateSignatureNode,
-    requirement_owner: Option<&str>,
-    declaring_trait_path: &str,
-) {
-    synthesize_machine_named(
-        syntax,
-        subject.clone(),
-        Identifier::generated(format!("{subject_path}::{}", signature.name.as_str())),
-        signature,
-        requirement_owner,
-        Identifier::generated(declaring_trait_path),
-    );
-}
-
-fn synthesize_machine_named(
-    syntax: &mut SyntaxTrees,
-    attached: Identifier,
-    machine_name: Identifier,
-    signature: &StateSignatureNode,
-    requirement_owner: Option<&str>,
-    default_body_trait: Identifier,
-) {
-    let machine = machine_from_signature(
-        syntax,
-        attached,
-        machine_name,
-        signature,
-        requirement_owner,
-        default_body_trait,
-    );
-    syntax.push_root_item(Item::Machine(machine));
 }
 
 /// A requirement edge on a synthesized default only rejoins the declaring
@@ -1000,30 +663,11 @@ fn exact_unargumented_requirement_owner(
         .then_some(definition.path.as_str())
 }
 
-/// The authored occurrence that names the synthesized machine's carrier.
-/// Reusing the authored identifier keeps its source context, so a
-/// module-qualified or imported carrier resolves to the same declaration the
-/// conformance selected instead of a same-leaf generated spelling.
-fn attached_subject(declaration: &ConformanceItem) -> Identifier {
-    match &declaration.subject {
-        syntax_trees::item::ConformanceSubject::Carrier(type_name) => type_name.clone(),
-        // Closed conformances overwrite the provisional attachment with their
-        // own subject when the member is lowered; the parsed alias only keeps
-        // the synthesized machine well-formed until then.
-        syntax_trees::item::ConformanceSubject::Subjectless => declaration
-            .alias
-            .as_ref()
-            .expect("parsed subjectless conformances are named")
-            .clone(),
-    }
-}
-
 /// `default_body_trait` names the trait that authored `signature`'s body. The
 /// body keeps that trait's lexical scope for bare requirement names; it is
 /// empty for compiler-written bodies such as synthesized structural equality.
 fn machine_from_signature(
     syntax: &mut SyntaxTrees,
-    attached: Identifier,
     machine_name: Identifier,
     signature: &StateSignatureNode,
     requirement_owner: Option<&str>,
@@ -1059,7 +703,9 @@ fn machine_from_signature(
     Machine {
         name: machine_name,
         default_body_trait,
-        attached_data: Some(attached),
+        // The member belongs to its implementation's map, not to any data
+        // declaration.
+        attached_data: None,
         // A synthesized default body is an implementation of the requirement,
         // which owns any token binding (`StateSignature::spelling`); the
         // implementation never redeclares it.
