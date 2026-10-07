@@ -55,7 +55,6 @@
 
 mod literal_indexed_footprints;
 mod offset_bounds;
-mod qualification;
 mod raw_byte_region;
 mod recast_judgments;
 mod record_eligibility;
@@ -82,8 +81,6 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
-use qualification::{judge_qualification_cast, judge_statement_qualification_casts};
-
 use crate::value_custody::recasts::recast_judgments::{
     judge_scalar_recast, report_unspelled_reference_pun, strip_mutable,
 };
@@ -93,10 +90,6 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
     // (mirrors the D14 literal gate's shape -- collect the legal roots,
     // then sweep the whole expression table for strays).
     let mut blessed: Vec<ExpressionHandle> = Vec::new();
-    // Qualification casts judged WITH machine/state context (the declared-
-    // range discharge needs the value's declared type); the positional
-    // sweep below only judges strays (literal-only).
-    let mut judged_qualifications: Vec<ExpressionHandle> = Vec::new();
     // Inline positions judged under the same relation: the cast's own
     // stated type is the source of truth (there is no let to restate it).
     let mut judged_inline: Vec<ExpressionHandle> = Vec::new();
@@ -109,14 +102,6 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                 .iter()
                 .enumerate()
             {
-                judge_statement_qualification_casts(
-                    program,
-                    machine,
-                    state,
-                    statement,
-                    &mut judged_qualifications,
-                    diagnostics,
-                );
                 if let StatementNode::LocalData(local) = statement
                     && local.type_reference.is_valid()
                     && local.initial_value.is_valid()
@@ -237,19 +222,6 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                 )
                 .with_source_span(program.expression_table.source_span(handle)),
             );
-        }
-        // STR4 checked plans, slice 3 (decision 19): a NON-policy `in <Name>`
-        // cast suffix is the semantic-domain QUALIFICATION spelling. It is
-        // recognized here but its MINT rung (introduction authority +
-        // predicate discharge) has not landed -- the staged fence names the
-        // declared domain; an unmatched name gets the honest unknown error
-        // the parser used to give (now with the declaration check the parser
-        // could not perform).
-        if let ExpressionNode::Cast(cast) = node
-            && cast.semantic_domain.count() > 0
-            && !judged_qualifications.contains(&handle)
-        {
-            judge_qualification_cast(program, None, cast, diagnostics);
         }
     }
 }

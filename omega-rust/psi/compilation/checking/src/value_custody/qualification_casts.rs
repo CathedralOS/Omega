@@ -1,16 +1,47 @@
+//! Qualification consumes the source value judgment already produced by checking.
+//!
+//! The ordinary branch-sensitive arithmetic walk owns operand evaluation,
+//! selected call guarantees, local updates and invalidation. Its retained
+//! intervals are keyed by exact expression handles and hulled across clean
+//! observations before this query runs. The cast operand, never the asserted
+//! result type or receiving declaration, supplies the membership premise.
+//! Closed integer literals also retain their full-width value, beyond the
+//! compatibility interval's signed endpoint window. A missing judgment is not
+//! evidence; no declaration-only or initializer-replay engine fills it in.
+//! Predicate discharge and authorized provenance remain independent obligations.
+
+use crate::program_validation::{ExpressionInterval, expression_interval};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
-use typed_trees::statement::StatementNode;
+
+pub(crate) fn validate(
+    program: &TypedTrees,
+    intervals: &[ExpressionInterval],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (_, node) in program.expression_table.expression_entries() {
+        if let ExpressionNode::Cast(cast) = node
+            && !cast.semantic_domain.is_empty()
+        {
+            judge_qualification_cast(
+                program,
+                expression_interval(intervals, cast.value),
+                cast,
+                diagnostics,
+            );
+        }
+    }
+}
 
 /// Judge one qualification cast (`x as T in <DeclaredDomain>`, decision 19).
 /// Predicate domains discharge their propositions at this exact site. An
 /// empty domain qualifies vacuously. A routed domain cannot be fabricated by
 /// `as`, even when it has no predicate propositions.
-pub(super) fn judge_qualification_cast(
+fn judge_qualification_cast(
     program: &TypedTrees,
-    context: Option<(&typed_trees::machine::Machine, &typed_trees::state::State)>,
+    source: Option<&ExpressionInterval>,
     cast: &TableCastExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -39,34 +70,29 @@ pub(super) fn judge_qualification_cast(
         .find(|domain| domain.symbol == cast.semantic_domain_symbol);
     match declared {
         Some(domain) => {
+            // A predicate proof is not an authorized origin. In particular,
+            // computed bounds cannot mint a routed domain whose predicate
+            // happens to hold. Existing route transport keeps its own owner.
+            if !domain.establishment_routes.is_empty()
+                || (!domain.predicate_body.is_present()
+                    && !domain_is_vacuous(program, domain.symbol, &mut Vec::new()))
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`as ... in {name}` cannot establish a non-vacuous domain; every \
+                     predicate must be proved and routed provenance must come from an exact \
+                     requirement authorized by the domain"
+                )));
+                return;
+            }
             if !domain.predicate_body.is_present() {
-                if !domain_is_vacuous(program, domain.symbol, &mut Vec::new()) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "`as ... in {name}` cannot establish a non-vacuous domain; every \
-                         predicate must be proved and routed provenance must come from an exact \
-                         requirement authorized by the domain"
-                    )));
-                }
                 return;
             }
             let indices = cast_domain_index_bindings(program, domain, cast);
             let mut judgment = literal_mint_discharges(program, domain, cast.value, &indices);
-            if matches!(judgment, MintJudgment::NotLiteral)
-                && let Some((machine, state)) = context
+            if matches!(judgment, MintJudgment::NotProved)
+                && let Some(source) = source
                 && let Some(judged) =
-                    range_mint_discharges(program, machine, state, domain, cast.value, &indices)
-            {
-                judgment = judged;
-            }
-            // The GUARD chain's landing: an immutable parameter's own
-            // `requires` facts bound it; callers prove the requires at their
-            // call sites (incoming guards already serve there), so
-            // `transition raw >= 0 { true -> use(raw) }` +
-            // `machine use(..) requires raw >= 0` mints inside `use`.
-            if matches!(judgment, MintJudgment::NotLiteral)
-                && let Some((machine, state)) = context
-                && let Some(judged) =
-                    bounds_mint_discharges(program, machine, state, domain, cast.value, &indices)
+                    interval_mint_judgment(program, domain, source.low, source.high, &indices)
             {
                 judgment = judged;
             }
@@ -80,12 +106,10 @@ pub(super) fn judge_qualification_cast(
                          class)",
                     )));
                 }
-                MintJudgment::NotLiteral => {
+                MintJudgment::NotProved => {
                     diagnostics.push(Diagnostic::error(format!(
-                        "`as ... in {name}` mints LITERAL values, or names whose \
-                         DECLARED RANGE entails the domain facts, in this rung; \
-                         other values route through a validating call or guard \
-                         until full flow integration lands",
+                        "`as ... in {name}` cannot prove every domain predicate from the \
+                         checked operand value; constrain that value with a guarantee or guard",
                     )));
                 }
             }
@@ -192,191 +216,17 @@ fn domain_is_vacuous(
     !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
 }
 
-/// Flow-integration v1: when the cast VALUE is a Name whose declared type
-/// carries a range constraint, every domain fact must hold over the WHOLE
-/// interval (`subject >= K` iff low >= K; `subject <= K` iff high <= K; strict/
-/// equality forms accordingly). `None` when the value has no usable range
-/// (the caller falls back to the staged refusal).
-fn range_mint_discharges(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    domain: &typed_trees::domain::DomainDefinition,
-    value: ExpressionHandle,
-    indices: &[(SymbolHandle, i128)],
-) -> Option<MintJudgment> {
-    // The RAW declared type keeps the Constrained shell the range lives in
-    // (declared_place_type strips it -- the R2 slice-9 gotcha).
-    let declared = crate::value_custody::places::declared_place_type_raw(
-        program,
-        machine,
-        Some(state),
-        value,
-    )?;
-    let interval =
-        crate::proof_contracts::arithmetic_domains::range_constraint_interval(program, declared)?;
-    let (low, high) = (interval.low?, interval.high?);
-    interval_mint_judgment(program, domain, Some(low), Some(high), indices)
-}
-
-/// Walk one statement's expressions for qualification casts and judge each
-/// WITH machine/state context: the literal fold first, then the value's
-/// DECLARED RANGE (flow-integration v1 -- a Name whose declared type
-/// carries `[lo..=hi]` discharges facts the whole interval satisfies).
-pub(super) fn judge_statement_qualification_casts(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement: &StatementNode,
-    judged: &mut Vec<ExpressionHandle>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let mut roots: Vec<ExpressionHandle> = Vec::new();
-    match statement {
-        StatementNode::RootBinding(binding) => {
-            roots.extend(
-                [binding.receiver, binding.implementation_operand]
-                    .into_iter()
-                    .filter(|expression| expression.is_valid()),
-            );
-        }
-        StatementNode::AssemblyFact(fact) => roots.push(fact.expression),
-        StatementNode::Assignment(assignment) => {
-            roots.push(assignment.target);
-            roots.push(assignment.value);
-        }
-        StatementNode::Expression(expression) => roots.push(*expression),
-        StatementNode::LocalData(local) => roots.push(local.initial_value),
-        StatementNode::Call(call) => roots.extend(
-            program
-                .statement_table
-                .expression_handles(call.arguments)
-                .iter()
-                .copied(),
-        ),
-        StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = &transition.guard {
-                roots.push(*guard);
-            }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
-                match program.statement_table.transition_target(target) {
-                    typed_trees::statement::TransitionTargetNode::Value(value) => {
-                        roots.push(*value);
-                    }
-                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
-                        roots.extend(
-                            program
-                                .statement_table
-                                .expression_handles(*arguments)
-                                .iter()
-                                .copied(),
-                        );
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-    for root in roots {
-        judge_expression_qualification_casts(program, machine, state, root, judged, diagnostics);
-    }
-}
-
-fn judge_expression_qualification_casts(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expression: ExpressionHandle,
-    judged: &mut Vec<ExpressionHandle>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Cast(cast) => {
-            if cast.semantic_domain.count() > 0 {
-                judged.push(expression);
-                judge_qualification_cast(program, Some((machine, state)), cast, diagnostics);
-            }
-            judge_expression_qualification_casts(
-                program,
-                machine,
-                state,
-                cast.value,
-                judged,
-                diagnostics,
-            );
-        }
-        ExpressionNode::Binary(binary) => {
-            judge_expression_qualification_casts(
-                program,
-                machine,
-                state,
-                binary.left,
-                judged,
-                diagnostics,
-            );
-            judge_expression_qualification_casts(
-                program,
-                machine,
-                state,
-                binary.right,
-                judged,
-                diagnostics,
-            );
-        }
-        ExpressionNode::Unary(unary) => {
-            judge_expression_qualification_casts(
-                program,
-                machine,
-                state,
-                unary.operand,
-                judged,
-                diagnostics,
-            );
-        }
-        ExpressionNode::Borrow(inner) => {
-            judge_expression_qualification_casts(
-                program,
-                machine,
-                state,
-                inner.target,
-                judged,
-                diagnostics,
-            );
-        }
-        ExpressionNode::Call(call) => {
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                judge_expression_qualification_casts(
-                    program,
-                    machine,
-                    state,
-                    *argument,
-                    judged,
-                    diagnostics,
-                );
-            }
-        }
-        _ => {}
-    }
-}
-
 /// The mint's tri-state judgment for one qualification cast.
 enum MintJudgment {
     Discharged,
     FactFalse,
-    NotLiteral,
+    NotProved,
 }
 
 /// Fold every domain fact at the cast's literal value (`subject := literal`).
 /// Only integer literals and `subject <op> literal` / `literal <op> subject`
-/// comparison facts fold; anything else is conservatively NotLiteral.
-/// `introduction`-clause pseudo-facts (non-Binary) are skipped -- they are
-/// policy, not predicate.
+/// comparison facts fold; anything else is conservatively NotProved.
+/// Unsupported propositions are missing evidence, never ignorable facts.
 fn literal_mint_discharges(
     program: &TypedTrees,
     domain: &typed_trees::domain::DomainDefinition,
@@ -384,19 +234,27 @@ fn literal_mint_discharges(
     indices: &[(SymbolHandle, i128)],
 ) -> MintJudgment {
     let ExpressionNode::Integer(literal) = program.expression_table.expression(value) else {
-        return MintJudgment::NotLiteral;
+        return MintJudgment::NotProved;
     };
     let Ok(minted) = literal.text().parse::<i128>() else {
-        return MintJudgment::NotLiteral;
+        return MintJudgment::NotProved;
     };
     for fact in program.proof_facts.span_or_empty(domain.facts) {
         let typed_trees::domain::ProofFact::Expression(expression) = fact else {
-            continue;
+            return MintJudgment::NotProved;
         };
+        match program.expression_table.expression(*expression) {
+            ExpressionNode::Boolean(true) => continue,
+            ExpressionNode::Boolean(false) => return MintJudgment::FactFalse,
+            _ => {}
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
         else {
-            continue;
+            return MintJudgment::NotProved;
         };
+        if !crate::has_builtin_domain_decomposed_guard_meaning(program, domain, *expression) {
+            return MintJudgment::NotProved;
+        }
         let side_value = |handle: ExpressionHandle| -> Option<i128> {
             match program.expression_table.expression(handle) {
                 ExpressionNode::Name(_)
@@ -410,7 +268,7 @@ fn literal_mint_discharges(
             }
         };
         let (Some(left), Some(right)) = (side_value(binary.left), side_value(binary.right)) else {
-            return MintJudgment::NotLiteral;
+            return MintJudgment::NotProved;
         };
         use typed_trees::expression::BinaryOperator;
         let holds = match binary.operator {
@@ -420,31 +278,13 @@ fn literal_mint_discharges(
             BinaryOperator::GreaterOrEqual => left >= right,
             BinaryOperator::Equal => left == right,
             BinaryOperator::NotEqual => left != right,
-            _ => return MintJudgment::NotLiteral,
+            _ => return MintJudgment::NotProved,
         };
         if !holds {
             return MintJudgment::FactFalse;
         }
     }
     MintJudgment::Discharged
-}
-
-/// Bounds-route discharge: the immutable integer bounds of the cast value,
-/// including a parameter's own `requires` comparisons. `None` when the value
-/// has no builtin integer bounds.
-fn bounds_mint_discharges(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    domain: &typed_trees::domain::DomainDefinition,
-    value: ExpressionHandle,
-    indices: &[(SymbolHandle, i128)],
-) -> Option<MintJudgment> {
-    let interval =
-        crate::proof_contracts::arithmetic_domains::immutable_integer_expression_interval(
-            program, machine, state, value,
-        )?;
-    interval_mint_judgment(program, domain, interval.low, interval.high, indices)
 }
 
 /// Every `subject OP literal` domain fact must hold over the whole interval
@@ -461,12 +301,20 @@ fn interval_mint_judgment(
 
     for fact in program.proof_facts.span_or_empty(domain.facts) {
         let typed_trees::domain::ProofFact::Expression(expression) = fact else {
-            continue;
+            return None;
         };
+        match program.expression_table.expression(*expression) {
+            ExpressionNode::Boolean(true) => continue,
+            ExpressionNode::Boolean(false) => return Some(MintJudgment::FactFalse),
+            _ => {}
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
         else {
-            continue;
+            return None;
         };
+        if !crate::has_builtin_domain_decomposed_guard_meaning(program, domain, *expression) {
+            return None;
+        }
         let literal_of = |handle: ExpressionHandle| -> Option<i64> {
             match program.expression_table.expression(handle) {
                 ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
@@ -504,7 +352,7 @@ fn interval_mint_judgment(
             _ => return None,
         };
         if !holds {
-            return Some(MintJudgment::NotLiteral);
+            return Some(MintJudgment::NotProved);
         }
     }
     Some(MintJudgment::Discharged)

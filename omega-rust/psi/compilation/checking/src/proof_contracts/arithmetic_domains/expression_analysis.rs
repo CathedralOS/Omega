@@ -73,6 +73,12 @@ pub(crate) struct ArithmeticDecisions {
 }
 
 impl ArithmeticDecisions {
+    pub(super) fn record_interval(&mut self, expression: ExpressionHandle, interval: Interval) {
+        if interval.low.is_some() || interval.high.is_some() {
+            self.expression_intervals.push((expression, interval));
+        }
+    }
+
     pub(crate) fn extend(&mut self, other: Self) {
         self.exact_integer_casts.extend(other.exact_integer_casts);
         self.integer_assignments.extend(other.integer_assignments);
@@ -201,11 +207,7 @@ impl ExpressionWalk<'_> {
             }
         }
         let analysis = self.analyze_value(expression, node, diagnostics, decisions);
-        if analysis.interval.low.is_some() || analysis.interval.high.is_some() {
-            decisions
-                .expression_intervals
-                .push((expression, analysis.interval));
-        }
+        decisions.record_interval(expression, analysis.interval);
         analysis
     }
 

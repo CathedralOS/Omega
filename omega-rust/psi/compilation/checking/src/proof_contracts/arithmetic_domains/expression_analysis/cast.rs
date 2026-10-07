@@ -143,11 +143,18 @@ fn source_value(
         .to_integer_exact()
         .and_then(|value| literals::land_integer_value(&value, primitive))
     {
-        Some(literal) => Analysis {
-            domain: None,
-            interval: literal_interval(&literal),
-            primitive: Some(primitive),
-        },
+        Some(literal) => {
+            let interval = literal_interval(&literal);
+            // Anonymous arithmetic lands as one closed value without the
+            // typed operation walk. Publish that same checked operand value;
+            // qualification must not need another evaluator or target premise.
+            decisions.record_interval(cast.value, interval);
+            Analysis {
+                domain: None,
+                interval,
+                primitive: Some(primitive),
+            }
+        }
         None => {
             diagnostics.push(
                 Diagnostic::error(format!(

@@ -2045,10 +2045,7 @@ crash and native exit behavior.
   float conversion casts (`validation::bind_float_conversion_casts`) execute.
   Remaining:
   - **Float/receiver signatures.** Complete call composition for the
-    remaining signatures. Predicate-qualified computed conversion results still
-    need ordinary membership proofs: `3.0f64 as i32 in Three` with
-    `domain i32::Three(value) requires value == 3` remains refused by the
-    immutable qualification-bound query. Retain
+    remaining signatures. Retain
     `float/runtime_qualified_carrier_conversion_exit` (0) and
     `float/qualified_conversion_requires_operand_proof` for selected exact
     conversions beneath declared tags, aliases and inline arguments; a rounding
@@ -3201,6 +3198,12 @@ deletions, which the commit lists.
   scalar qualification through exact conversion, copies, returns, parameters
   and inline alias arguments; `float/qualified_conversion_requires_operand_proof`
   must reject unproved predicates, unauthorized provenance and lossy operands.
+  `domains/runtime_computed_qualification_exit` (0) constrains checked operand
+  facts and completed-result membership across selected conversions, local
+  updates, guarded arrivals, inline arguments and returns;
+  `domains/computed_qualification_requires_operand_facts` must reject missing
+  or withdrawn facts, later guards, false predicates, routed provenance and
+  callable lookalikes.
   `calls/runtime_anonymous_result_local_namespace_exit` (70) and
   `float/float_to_int_trapping_nan_traps` (trap) constrain authored local
   identity after anonymous operation results in ordinary bodies.

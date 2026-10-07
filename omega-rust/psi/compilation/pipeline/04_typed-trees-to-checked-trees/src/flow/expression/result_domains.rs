@@ -6,9 +6,10 @@
 //! a callee's requires context or an unselected arm. The subject is this result
 //! occurrence, not storage read while producing it.
 //!
-//! Tags and enforced floating ranges describe the completed result, not its
-//! operands or a receiving annotation. Range predicates join the same captured
-//! occurrence as tags; invocation checking need not reconstruct a source call
+//! Checked domain qualifications and enforced floating ranges describe the
+//! completed result, not its operands or a receiving annotation. Range
+//! predicates join the same captured occurrence as tags; invocation checking
+//! need not reconstruct a source call
 //! or skip its preconditions. This is transport, not establishment authority.
 //! The normalized instance travels with the declaration through every fact copy.
 //! Equality of exact instances is not a license to equate different open index
@@ -45,7 +46,18 @@ impl Execution<'_, '_, '_> {
         ) else {
             return;
         };
-        let domains = validation::scalar_type_tags(self.program, reference);
+        // Source validation has discharged qualification predicates before
+        // flow construction. The completed result owns every declared atom,
+        // not just predicate-free tags. Omitting predicate domains here made
+        // a checked cast lose its membership at an inline call or return.
+        // This does not establish a new domain on a bare operand or storage.
+        let domains = self
+            .program
+            .primitive_type_reference(reference)
+            .map(|_| {
+                crate::facts::field_domain::domain_constraint_identities(self.program, reference)
+            })
+            .unwrap_or_default();
         let mut predicates = Vec::new();
         crate::values::float_predicates::declared_type_predicates(
             self.program,

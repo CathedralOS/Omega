@@ -21,6 +21,7 @@ pub(crate) mod permission_provenance;
 pub(crate) mod placed_views;
 pub(crate) mod places;
 pub(crate) mod plan_laid;
+pub(crate) mod qualification_casts;
 pub(crate) mod recasts;
 pub(crate) mod record_local_disposition;
 pub(crate) mod reference_access;
