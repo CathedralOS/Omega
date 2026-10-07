@@ -556,7 +556,7 @@ fn compose_parameter_argument_places(
         let argument = arguments.get(argument_index)?;
         replacements.push((
             parameter.symbol,
-            source_independent_argument_place(program, *argument),
+            crate::flow::source_independent_place(program, *argument),
         ));
         argument_index = argument_index.saturating_add(1);
     }
@@ -791,24 +791,6 @@ fn immutable_integer_binding(
             _ => return false,
         }
     }
-}
-
-fn source_independent_argument_place(
-    program: &typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<crate::flow::CanonicalPlace> {
-    let place = crate::flow::canonical_place_from_expression(program, expression)?;
-    if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
-        || !place.segments.iter().all(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-            facts::PlaceSegment::Case { variant } => variant.is_valid(),
-            facts::PlaceSegment::FixedIndex { .. } => true,
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => false,
-        })
-    {
-        return None;
-    }
-    Some(place)
 }
 
 fn substitute_parameter_place(

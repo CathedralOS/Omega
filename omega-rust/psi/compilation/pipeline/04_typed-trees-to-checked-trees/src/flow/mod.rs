@@ -199,7 +199,8 @@ pub(crate) use place::{
     literal_value_path_is_inactive, literal_value_projections, narrow_pinned_index_segments,
     place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
     place_segment_has_unresolved_identity, projected_leaf_place, push_field_place_segments,
-    resolve_member_symbol_from_type_symbol, static_place_segment_pair_equal, symbol_type_symbol,
+    resolve_member_symbol_from_type_symbol, source_independent_place,
+    static_place_segment_pair_equal, symbol_type_symbol,
 };
 pub(crate) use reach::attach_reach_summaries;
 use state::build_state_flow_fact;

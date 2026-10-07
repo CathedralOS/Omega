@@ -268,3 +268,24 @@ pub(crate) fn projected_leaf_place(
         .any(|segment| super::comparison::place_segment_has_unresolved_identity(*segment)))
     .then_some(place)
 }
+
+/// The canonical place a source-independent expression names: a valid symbol
+/// root, and every segment a statically known field, case, or literal index —
+/// computed indices keep the place source-dependent.
+pub(crate) fn source_independent_place(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<CanonicalPlace> {
+    let place = canonical_place_from_expression(program, expression)?;
+    if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        || !place.segments.iter().all(|segment| match segment {
+            facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
+            facts::PlaceSegment::Case { variant } => variant.is_valid(),
+            facts::PlaceSegment::FixedIndex { .. } => true,
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => false,
+        })
+    {
+        return None;
+    }
+    Some(place)
+}

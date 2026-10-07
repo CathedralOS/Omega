@@ -472,7 +472,7 @@ fn proven_conditional_entry_claims(
         let mut case_tests = Vec::new();
         collect_positive_case_tests(program, entry.guard(), &mut case_tests);
         for (subject, variant) in case_tests {
-            let Some(subject) = source_independent_case_subject(program, subject) else {
+            let Some(subject) = crate::flow::source_independent_place(program, subject) else {
                 continue;
             };
             for parameter in &parameters {
@@ -520,24 +520,6 @@ fn proven_conditional_entry_claims(
         }
     }
     proven
-}
-
-fn source_independent_case_subject(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<crate::flow::CanonicalPlace> {
-    let place = crate::flow::canonical_place_from_expression(program, expression)?;
-    if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
-        || !place.segments.iter().all(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-            facts::PlaceSegment::Case { variant } => variant.is_valid(),
-            facts::PlaceSegment::FixedIndex { .. } => true,
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => false,
-        })
-    {
-        return None;
-    }
-    Some(place)
 }
 
 /// Extract positive case-membership conjuncts. Boolean-arm lowering may wrap
