@@ -366,19 +366,14 @@ pub(crate) fn prove_ranking_range_call(
         }
     }
     if !length_bindings.is_empty() {
-        let mut expressions = scalar_subjects(&caller, source_measure);
-        if caller.range.is_valid()
-            && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
-        {
-            expressions.extend([range.start, range.end]);
-        }
-        expressions.extend(arguments.iter().copied());
-        expressions.extend(guards.iter().map(|(guard, _)| *guard));
-        expressions.extend(projections::entry_expressions(
+        let expressions = installation_expressions(
             program,
-            caller.machine,
+            &caller,
             source,
-        ));
+            scalar_subjects(&caller, source_measure),
+            guards,
+            arguments,
+        );
         lengths::install(
             program,
             caller.machine,
@@ -425,19 +420,14 @@ pub(crate) fn prove_ranking_range_call(
             )?
         };
         let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
-        let mut expressions = vec![subject];
-        if caller.range.is_valid()
-            && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
-        {
-            expressions.extend([range.start, range.end]);
-        }
-        expressions.extend(arguments.iter().copied());
-        expressions.extend(guards.iter().map(|(guard, _)| *guard));
-        expressions.extend(projections::entry_expressions(
+        let expressions = installation_expressions(
             program,
-            caller.machine,
+            &caller,
             source,
-        ));
+            vec![subject],
+            guards,
+            arguments,
+        );
         coordinates.install(
             program,
             source,
@@ -461,19 +451,14 @@ pub(crate) fn prove_ranking_range_call(
             (!at_entry).then_some(caller_site.entry_parameters),
             &subjects,
         )?;
-        let mut expressions = subjects.clone();
-        if caller.range.is_valid()
-            && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
-        {
-            expressions.extend([range.start, range.end]);
-        }
-        expressions.extend(arguments.iter().copied());
-        expressions.extend(guards.iter().map(|(guard, _)| *guard));
-        expressions.extend(projections::entry_expressions(
+        let expressions = installation_expressions(
             program,
-            caller.machine,
+            &caller,
             source,
-        ));
+            subjects.clone(),
+            guards,
+            arguments,
+        );
         coordinates.install(
             program,
             source,
@@ -523,20 +508,14 @@ pub(crate) fn prove_ranking_range_call(
         match resolved {
             Some(coordinate) => {
                 let mut coordinates = lengths::SliceCoordinates::new(coordinate);
-                let mut expressions = vec![subject];
-                if caller.range.is_valid()
-                    && let ExpressionNode::Range(range) =
-                        program.expression_table.expression(caller.range)
-                {
-                    expressions.extend([range.start, range.end]);
-                }
-                expressions.extend(arguments.iter().copied());
-                expressions.extend(guards.iter().map(|(guard, _)| *guard));
-                expressions.extend(projections::entry_expressions(
+                let expressions = installation_expressions(
                     program,
-                    caller.machine,
+                    &caller,
                     source,
-                ));
+                    vec![subject],
+                    guards,
+                    arguments,
+                );
                 coordinates.install(
                     program,
                     caller.machine,
@@ -555,19 +534,14 @@ pub(crate) fn prove_ranking_range_call(
         // measure name the same projected slice coordinates a SliceLength
         // subject does; install them over the caller's whole read surface.
         let mut coordinates = lengths::SliceCoordinates::empty();
-        let mut expressions = scalar_subjects(&caller, source_measure);
-        if caller.range.is_valid()
-            && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
-        {
-            expressions.extend([range.start, range.end]);
-        }
-        expressions.extend(arguments.iter().copied());
-        expressions.extend(guards.iter().map(|(guard, _)| *guard));
-        expressions.extend(projections::entry_expressions(
+        let expressions = installation_expressions(
             program,
-            caller.machine,
+            &caller,
             source,
-        ));
+            scalar_subjects(&caller, source_measure),
+            guards,
+            arguments,
+        );
         coordinates.install(
             program,
             caller.machine,
@@ -1418,6 +1392,28 @@ pub(super) fn telescoped_length_bindings(
 /// The scalar expressions whose member chains may carry a produced rank or
 /// bound: the subject, a paired distance subject, and an `IncreasingTo`
 /// view's authored limit.
+/// The shared installation read surface: the seed subjects plus the
+/// caller's range endpoints when spelled, the spelled arguments, the guard
+/// conditions, and the caller's entry projections.
+fn installation_expressions(
+    program: &TypedTrees,
+    caller: &RankingRangeCallMember<'_>,
+    source: &State,
+    mut expressions: Vec<ExpressionHandle>,
+    guards: &[(ExpressionHandle, bool)],
+    arguments: &[ExpressionHandle],
+) -> Vec<ExpressionHandle> {
+    if caller.range.is_valid()
+        && let ExpressionNode::Range(range) = program.expression_table.expression(caller.range)
+    {
+        expressions.extend([range.start, range.end]);
+    }
+    expressions.extend(arguments.iter().copied());
+    expressions.extend(guards.iter().map(|(guard, _)| *guard));
+    expressions.extend(projections::entry_expressions(program, caller.machine, source));
+    expressions
+}
+
 fn scalar_subjects(
     member: &RankingRangeCallMember<'_>,
     measure: RankingRangeMeasure,
