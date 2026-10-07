@@ -25,6 +25,9 @@ BUILTIN = 1
 DATA = 2
 GENERIC = 3
 REFERENCE = 4
+ARRAY = 5
+SLICE = 6
+LITERAL = 7
 
 UNQUALIFIED = 0
 WRAPPING = 1
@@ -52,6 +55,12 @@ def generic(handle: int, domain: int = UNQUALIFIED) -> tuple[int, int, int]:
 
 
 REFERENCE_ROW = (REFERENCE, 0, UNQUALIFIED)
+SLICE_ROW = (SLICE, 0, UNQUALIFIED)
+LITERAL_ROW = (LITERAL, 0, UNQUALIFIED)
+
+
+def array(domain: int = UNQUALIFIED) -> tuple[int, int, int]:
+    return (ARRAY, 0, domain)
 
 
 @dataclass(frozen=True)
@@ -479,6 +488,55 @@ def main() -> None:
         b"machine f(a: P) { let x: Q; }",
         UNKNOWN_DATA_TYPE,
         b"P",
+    )
+
+    # Nested types: every row of a type's run binds in the owner's scope;
+    # names keep their declarations and forms bind by form.
+    accepted(
+        program,
+        "array-slice-and-application-rows",
+        b"data A<T, const N: u64> { b: Box<T>; c: [u8; N] in Trapping; d: &mut [A<u8, 4>]; }\n"
+        b"data Box<T> { v: T; }",
+        (
+            builtin("u64"),
+            generic(0), data(1),
+            builtin("u8"), generic(1), array(TRAPPING),
+            builtin("u8"), LITERAL_ROW, data(0), SLICE_ROW, REFERENCE_ROW,
+            generic(2),
+        ),
+    )
+    rejected(program, "unknown-array-element", b"data A { x: [Missing; 4]; }", UNKNOWN_DATA_TYPE, b"Missing")
+    rejected(
+        program,
+        "unknown-static-argument",
+        b"data A { x: Box<Missing>; }\ndata Box<T> { v: T; }",
+        UNKNOWN_DATA_TYPE,
+        b"Missing",
+    )
+    accepted(
+        program,
+        "overloads-differ-inside-types",
+        b"machine f(a: [u8; 4]) {} machine f(a: [u8; 5]) {} machine f(a: &[u8]) {} "
+        b"machine f(a: &mut [u8]) {} machine f(a: Box<u8>) {} machine f(a: Box<u16>) {}\n"
+        b"data Box<T> { v: T; }",
+        (
+            builtin("u8"), LITERAL_ROW, array(),
+            builtin("u8"), LITERAL_ROW, array(),
+            builtin("u8"), SLICE_ROW, REFERENCE_ROW,
+            builtin("u8"), SLICE_ROW, REFERENCE_ROW,
+            builtin("u8"), data(0),
+            builtin("u16"), data(0),
+            generic(0),
+        ),
+    )
+    rejected(
+        program,
+        "duplicate-overload-with-nested-types",
+        b"machine f(a: &[Box<u8>; 4]) {} machine f(b: &[Box<u8>; 4]) {}\ndata Box<T> { v: T; }",
+        DUPLICATE_MACHINE,
+        b"f(",
+        2,
+        length=1,
     )
 
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)

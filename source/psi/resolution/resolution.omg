@@ -35,14 +35,17 @@ pub data BuiltinType [copy] {
 // declaration of this unit (its `SyntaxTrees::data_items` handle), or a
 // generic parameter of the enclosing declaration (its
 // `SyntaxTrees::generic_parameters` handle).
-// A reference row (`&T`) names no declaration: it binds as `Reference`, and
-// its referee row carries the name's binding.
+// Reference, array, slice and integer rows name no declaration: each binds
+// by its form, and the rows of its run carry the names' bindings.
 pub data TypeBinding [copy] {
     case Unresolved;
     case Builtin(builtin: BuiltinType);
     case Data(item: u64 in Trapping);
     case GenericParameter(parameter: u64 in Trapping);
     case Reference;
+    case Array;
+    case Slice;
+    case Literal;
 }
 
 // The generic parameters a type name may bind: the enclosing declaration's

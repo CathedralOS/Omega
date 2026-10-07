@@ -298,3 +298,30 @@ crashes Trap
         false
     }
 }
+
+// Whether the current token is an integer literal.
+machine Parser::at_integer(parser: &mut Parser, input: &TokenStream) -> bool
+crashes Trap
+{
+    Parser::load_current(parser, input);
+    transition parser.current_present {
+        true -> loaded(parser, input)
+        _ -> absent()
+    }
+
+    state loaded(parser: &mut Parser, input: &TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        transition token {
+            Token::Integer { base, empty_digits, has_suffix } -> present()
+            _ -> absent()
+        }
+    }
+
+    state present() {
+        true
+    }
+
+    state absent() {
+        false
+    }
+}

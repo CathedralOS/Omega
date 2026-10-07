@@ -24,16 +24,19 @@ literals, names and `::` paths, `.field`, `[index]`, calls, `as Type` casts,
 `Path { field: value }` constructions, prefix `!`, `-`, `~`, `&` and `&mut`,
 and the binary operators in the reference grammar's two precedence tiers, all
 on explicit stacks rather than recursion. Every type position (fields, payload
-fields, generic binders, parameters, return types) shares one grammar in
-[`parse/types.omg`](parse/types.omg): `[& [mut]] Name [in Domain]`. Direct
-fields and case-payload fields retain separate bounded custody while mixed
+fields, generic binders, parameters, return types, `let` types and casts)
+shares one grammar in [`parse/types.omg`](parse/types.omg): references
+`&[mut] T`, arrays `[T; N]`, slices `[T]` and named types with static
+arguments `Name<T, 4>`, nested on an explicit frame stack, each form that
+admits one taking `in Domain`. A type's rows follow their children, so the
+type fills one contiguous run of the table ending at its root. Direct fields
+and case-payload fields retain separate bounded custody while mixed
 declarations preserve exact authored field/case order and shared named
 type-reference identity. Empty payload lists and trailing payload commas are
-accepted. Unsupported roots, retired inline discriminants, richer
-property/type forms (arrays, multi-domain unions, ranged suffixes, nested
-references), machine generics and bodyless declarations, and the `if`, `loop`,
-`while`, `match` and `return` statements reject instead of becoming a private
-bridge tree.
+accepted. Unsupported roots, retired inline discriminants, multi-domain
+unions, the retired ranged suffix, machine generics and bodyless declarations,
+data `where` and state clauses, and the `if`, `loop`, `while`, `match` and
+`return` statements reject instead of becoming a private bridge tree.
 
 Name resolution follows parsing over the same unit. It rejects any `use` root,
 since the unit is the whole source set and supplying more sources is the
@@ -44,10 +47,11 @@ type reference, data declarations' first, machine signatures' second and body
 types (`let` types and cast targets) third: an enclosing generic parameter by
 spelling (never a lifetime), then a builtin type, then a data declaration of
 the unit. It also binds every `in` qualifier to a compiler-known domain
-(`Wrapping`, `Saturating`, `Trapping`, `Finite`). A reference row binds as
-`Reference` and its referee row carries the name. Last, it rejects duplicate
-parameter names within a signature, duplicate state names within a machine,
-and a machine that repeats an earlier one's owner, name and parameter types
+(`Wrapping`, `Saturating`, `Trapping`, `Finite`). A type binds row by row over
+its run: reference, array, slice and integer rows bind by form, and named rows
+carry the names. Last, it rejects duplicate parameter names within a
+signature, duplicate state names within a machine, and a machine that repeats
+an earlier one's owner, name and parameter types, compared run by run
 (machines may otherwise overload). The binding tables are indexed by the
 syntax table's type-reference handles. Carrier compatibility (`Finite` on
 floats only, unbounded `UInt`/`Int` storage) belongs to typing, which does not
@@ -91,7 +95,7 @@ observes the diagnostic and every type and domain binding. Lexical or parse
 rejection exits without an observation.
 
 On macOS ARM64 both gates build their harnesses natively from a fresh CLI:
-all 188 parser cases and all 61 resolver cases pass. Each gate counts each
+all 209 parser cases and all 66 resolver cases pass. Each gate counts each
 distinct source it runs as one case. No cached executable may stand in for
 that run. Linux and Windows hosts have run neither gate.
 

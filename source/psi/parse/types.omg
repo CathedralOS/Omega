@@ -3,118 +3,129 @@ use psi::parse::parser;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
-// The one type-reference grammar every type position shares:
-// `[& [mut]] Name [in Domain]`. Each completed reference is appended to
-// `SyntaxTrees::type_references` (a reference's referee first), its handle
-// lands in `type_result` and its source end in `type_end`. The caller then
-// checks the token its own grammar expects after the type; `missing` is the
-// caller's diagnostic for an absent type name.
-pub machine Parser::parse_type_reference(
-    parser: &mut Parser,
-    input: &TokenStream,
-    missing: ParseDiagnosticCode
-)
+// One open type constructor. `start` is where its type begins; a
+// `Reference` keeps its `access`; an `Arguments` frame keeps its applied
+// name's end and the base of its staged arguments. `first_row` is the next
+// row when the frame opened, so the finished type's run begins there.
+pub data TypeFrameKind [copy] {
+    case Reference;
+    case Array;
+    case Arguments;
+}
+
+pub data TypeFrame [copy] {
+    kind: TypeFrameKind;
+    access: ReferenceAccess;
+    start: u64 in Trapping;
+    name_end: u64 in Trapping;
+    first_argument: u64 in Trapping;
+    first_row: u64 in Trapping;
+}
+
+// The one type grammar every type position shares:
+//
+//     type     = `&` [`mut`] type
+//              | `[` type [`;` length] `]` [`in` Domain]
+//              | Name [`<` argument {`,` argument} `>`] [`in` Domain]
+//     argument = type | integer
+//     length   = integer | Name
+//
+// Types nest, so the grammar keeps an explicit frame stack instead of
+// recursing: `&`, `[` and `Name<` each open a frame, and each completed type
+// closes the frames above it until one still expects more input. Every row
+// is appended after its children, so one type fills a contiguous run of
+// `SyntaxTrees::type_references` that ends at its root, and every row records
+// where its own run begins. The root's handle lands in `type_result` and its
+// source end in `type_end`. `missing` is the caller's diagnostic for an absent
+// type; nested positions use the array and static-argument diagnostics.
+pub machine Parser::parse_type_reference(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode)
 crashes Trap
 {
-    let reference: bool = Parser::at_punctuation(parser, input, PunctuationKind::Ampersand);
-    transition reference {
-        true -> reference_prefix(parser, input, missing)
-        _ -> base(parser, input, missing)
+    parser.type_frame_depth = 0;
+    parser.pending_type_argument_count = 0;
+    parser.type_split_greater = false;
+    transition { _ -> operand(parser, input, missing) }
+
+    // The start of one type: open frames for its prefixes, then read its name.
+    state operand(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        let reference: bool = Parser::at_punctuation(parser, input, PunctuationKind::Ampersand);
+        transition reference {
+            true -> reference_open(parser, input, code)
+            _ -> array_word(parser, input, code)
+        }
     }
 
-    state base(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode) {
-        Parser::parse_named_type(parser, input, missing);
+    state array_word(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        let array: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBracket);
+        transition array {
+            true -> array_open(parser, input)
+            _ -> literal_word(parser, input, code)
+        }
     }
 
-    state reference_prefix(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode) {
+    // An integer is a static argument; it is a type only inside `<...>`.
+    state literal_word(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        let integer: bool = Parser::at_integer(parser, input);
+        let argument: bool = Parser::in_type_arguments(parser);
+        transition integer && argument {
+            true -> literal(parser, input)
+            _ -> name(parser, input, code)
+        }
+    }
+
+    state reference_open(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::take_current(parser, input);
-        parser.type_reference_start = parser.token_start;
+        let start: u64 in Trapping = parser.token_start;
         let mutable: bool = Parser::at_word(parser, input, "mut");
         transition mutable {
-            true -> mutable_access(parser, input, missing)
-            _ -> referee(parser, input, missing, ReferenceAccess::Shared)
+            true -> mutable_open(parser, input, start, code)
+            _ -> push(parser, input, Parser::type_frame(parser, TypeFrameKind::Reference, ReferenceAccess::Shared, start),
+                code
+            )
         }
     }
 
-    state mutable_access(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode) {
+    state mutable_open(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, code: ParseDiagnosticCode) {
         Parser::take_current(parser, input);
-        transition { _ -> referee(parser, input, missing, ReferenceAccess::Mutable) }
-    }
-
-    state referee(
-        parser: &mut Parser,
-        input: &TokenStream,
-        missing: ParseDiagnosticCode,
-        access: ReferenceAccess
-    ) {
-        Parser::parse_named_type(parser, input, missing);
-        transition parser.output.accepted {
-            true -> reference_capacity(parser, input, access)
-            _ -> done()
+        transition {
+            _ -> push(parser, input, Parser::type_frame(parser, TypeFrameKind::Reference, ReferenceAccess::Mutable, start),
+                code
+            )
         }
     }
 
-    state reference_capacity(parser: &mut Parser, input: &TokenStream, access: ReferenceAccess) {
-        transition parser.output.type_reference_count < 1024 {
-            true -> retain_reference(parser, access)
-            _ -> full(parser, input)
+    state array_open(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        let start: u64 in Trapping = parser.token_start;
+        transition {
+            _ -> push(parser, input, Parser::type_frame(parser, TypeFrameKind::Array, ReferenceAccess::Shared, start),
+                ParseDiagnosticCode::ExpectedArrayElementType
+            )
         }
     }
 
-    state retain_reference(parser: &mut Parser, access: ReferenceAccess) {
-        let handle: u64 in Trapping = parser.output.type_reference_count as u64 in Trapping;
-        parser.output.type_references[parser.output.type_reference_count] = TypeReference {
-            kind: TypeReferenceKind::Reference,
-            name: Parser::identifier_span(parser, 0, 0),
-            domain: Parser::identifier_span(parser, 0, 0),
-            access: access,
-            referee: parser.type_result,
-            source_span: Parser::source_span(parser, parser.type_reference_start, parser.type_end)
-        };
-        parser.output.type_reference_count = parser.output.type_reference_count + 1;
-        parser.type_result = handle;
+    state push(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, code: ParseDiagnosticCode) {
+        transition parser.type_frame_depth < 16 {
+            true -> pushed(parser, input, frame, code)
+            _ -> reject(parser, input, ParseDiagnosticCode::TypeNestingCapacityExceeded)
+        }
     }
 
-    state full(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded);
+    state pushed(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, code: ParseDiagnosticCode) {
+        parser.type_frames[parser.type_frame_depth] = frame;
+        parser.type_frame_depth = parser.type_frame_depth + 1;
+        transition { _ -> operand(parser, input, code) }
     }
 
-    state done() {}
-}
-
-// Every type-reference store builds the same name/domain/span triple; the
-// constructor keeps the record literal out of six retain states.
-machine Parser::type_reference(
-    parser: &Parser,
-    kind: TypeReferenceKind,
-    name_start: u64 in Trapping,
-    name_end: u64 in Trapping,
-    domain_start: u64 in Trapping,
-    domain_end: u64 in Trapping,
-    span_end: u64 in Trapping
-) -> TypeReference {
-    TypeReference {
-        kind: kind,
-        name: Parser::identifier_span(parser, name_start, name_end),
-        domain: Parser::identifier_span(parser, domain_start, domain_end),
-        access: ReferenceAccess::Shared,
-        referee: 0,
-        source_span: Parser::source_span(parser, name_start, span_end)
-    }
-}
-
-// `Name [in Domain]`. `in` is a contextual word: only its spelling separates
-// the qualifier from whatever token the caller expects after the type.
-machine Parser::parse_named_type(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode)
-crashes Trap
-{
-    transition parser.output.type_reference_count < 1024 {
-        true -> name(parser, input, missing)
-        _ -> full(parser, input)
+    state literal(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        let row: TypeReference = Parser::type_row(parser, TypeReferenceKind::Literal,
+            parser.token_start, parser.token_end, parser.token_start, parser.token_end);
+        transition { _ -> append(parser, input, row) }
     }
 
-    state name(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode) {
-        Parser::expect_name(parser, input, missing);
+    state name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        Parser::expect_name(parser, input, code);
         transition parser.output.accepted {
             true -> named(parser, input)
             _ -> done()
@@ -122,41 +133,580 @@ crashes Trap
     }
 
     state named(parser: &mut Parser, input: &TokenStream) {
-        parser.type_name_start = parser.name_start;
-        parser.type_name_end = parser.name_end;
-        let qualified: bool = Parser::at_word(parser, input, "in");
-        transition qualified {
-            true -> qualifier(parser, input)
-            _ -> retain(parser, TypeReferenceKind::Named, 0, 0, parser.type_name_end)
+        let start: u64 in Trapping = parser.name_start;
+        let end: u64 in Trapping = parser.name_end;
+        let applied: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
+        transition applied {
+            true -> arguments_open(parser, input, start, end)
+            _ -> named_row(parser, input, start, end)
         }
     }
 
-    state qualifier(parser: &mut Parser, input: &TokenStream) {
+    state named_row(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, end: u64 in Trapping) {
+        let row: TypeReference = Parser::type_row(parser, TypeReferenceKind::Named, start, end, start, end);
+        transition { _ -> domain(parser, input, row) }
+    }
+
+    state arguments_open(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, end: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        let frame: TypeFrame = Parser::type_frame(parser, TypeFrameKind::Arguments, ReferenceAccess::Shared, start);
+        transition { _ -> push(parser, input, Parser::named_frame(frame, end), ParseDiagnosticCode::ExpectedStaticArgument) }
+    }
+
+    // `Named`, `Array` and `Slice` rows may close with `in Domain`.
+    state domain(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
+        let qualified: bool = Parser::at_word(parser, input, "in");
+        transition qualified && !parser.type_split_greater {
+            true -> domain_name(parser, input, row)
+            _ -> append(parser, input, row)
+        }
+    }
+
+    state domain_name(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
         Parser::take_current(parser, input);
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedTypeQualifierDomain);
         transition parser.output.accepted {
-            true -> retain(parser, TypeReferenceKind::Qualified, parser.name_start, parser.name_end, parser.name_end)
+            true -> qualified(parser, input, row)
             _ -> done()
         }
     }
 
-    state retain(
-        parser: &mut Parser,
-        kind: TypeReferenceKind,
-        domain_start: u64 in Trapping,
-        domain_end: u64 in Trapping,
-        type_end: u64 in Trapping
-    ) {
-        parser.type_result = parser.output.type_reference_count as u64 in Trapping;
-        parser.type_end = type_end;
-        parser.output.type_references[parser.output.type_reference_count] = Parser::type_reference(parser, kind,
-            parser.type_name_start, parser.type_name_end, domain_start, domain_end, type_end);
-        parser.output.type_reference_count = parser.output.type_reference_count + 1;
+    state qualified(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
+        let domain: IdentifierSpan = Parser::identifier_span(parser, parser.name_start, parser.name_end);
+        let span: SourceSpan = Parser::source_span(parser, row.source_span.span.start, parser.name_end);
+        transition { _ -> append(parser, input, Parser::with_domain(row, domain, span)) }
     }
 
-    state full(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded);
+    state append(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
+        transition parser.output.type_reference_count < 1024 {
+            true -> appended(parser, input, row)
+            _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)
+        }
+    }
+
+    state appended(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
+        parser.type_result = parser.output.type_reference_count as u64 in Trapping;
+        parser.type_end = row.source_span.span.end;
+        parser.output.type_references[parser.output.type_reference_count] = row;
+        parser.output.type_reference_count = parser.output.type_reference_count + 1;
+        transition { _ -> complete(parser, input) }
+    }
+
+    // A type just completed: hand it to the innermost open frame.
+    state complete(parser: &mut Parser, input: &TokenStream) {
+        transition parser.type_frame_depth > 0 {
+            true -> innermost(parser, input)
+            _ -> done()
+        }
+    }
+
+    state innermost(parser: &mut Parser, input: &TokenStream) {
+        let frame: TypeFrame = Parser::top_type_frame(parser);
+        transition { _ -> close(parser, input, frame) }
+    }
+
+    state close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        transition frame.kind {
+            TypeFrameKind::Reference -> reference_close(parser, input, frame)
+            TypeFrameKind::Array -> element_close(parser, input, frame)
+            TypeFrameKind::Arguments -> argument_close(parser, input, frame)
+        }
+    }
+
+    state reference_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        Parser::pop_type_frame(parser);
+        let row: TypeReference = Parser::type_row(parser, TypeReferenceKind::Reference, frame.start, parser.type_end, 0, 0);
+        let reference: TypeReference = Parser::with_children(row, frame.first_row, parser.type_result, 0);
+        transition { _ -> append(parser, input, Parser::with_access(reference, frame.access)) }
+    }
+
+    // After an array's element: `;` and a length make a fixed array, `]` a
+    // slice.
+    state element_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        let element: u64 in Trapping = parser.type_result;
+        let fixed: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
+        transition fixed {
+            true -> length(parser, input, frame, element)
+            _ -> slice_end(parser, input, frame, element)
+        }
+    }
+
+    state slice_end(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::RightBracket,
+            ParseDiagnosticCode::ExpectedArraySeparatorOrEnd
+        );
+        transition parser.output.accepted {
+            true -> slice(parser, input, frame, element)
+            _ -> done()
+        }
+    }
+
+    state slice(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+        Parser::pop_type_frame(parser);
+        let row: TypeReference = Parser::type_row(parser, TypeReferenceKind::Slice,
+            frame.start, parser.token_end, 0, 0);
+        transition { _ -> domain(parser, input, Parser::with_children(row, frame.first_row, element, 0)) }
+    }
+
+    // The length is its own `Literal` or `Named` row, appended before the
+    // array row so the run stays contiguous.
+    state length(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        let integer: bool = Parser::at_integer(parser, input);
+        transition integer {
+            true -> length_literal(parser, input, frame, element)
+            _ -> length_name(parser, input, frame, element)
+        }
+    }
+
+    state length_literal(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        transition { _ -> length_row(parser, input, frame, element, TypeReferenceKind::Literal) }
+    }
+
+    state length_name(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, element: u64 in Trapping) {
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedArrayLength);
+        transition parser.output.accepted {
+            true -> length_row(parser, input, frame, element, TypeReferenceKind::Named)
+            _ -> done()
+        }
+    }
+
+    state length_row(
+        parser: &mut Parser,
+        input: &TokenStream,
+        frame: TypeFrame,
+        element: u64 in Trapping,
+        kind: TypeReferenceKind
+    ) {
+        transition parser.output.type_reference_count < 1024 {
+            true -> length_appended(parser, input, frame, element,
+                Parser::type_row(parser, kind, parser.token_start, parser.token_end, parser.token_start, parser.token_end))
+            _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)
+        }
+    }
+
+    state length_appended(
+        parser: &mut Parser,
+        input: &TokenStream,
+        frame: TypeFrame,
+        element: u64 in Trapping,
+        row: TypeReference
+    ) {
+        let length: u64 in Trapping = parser.output.type_reference_count as u64 in Trapping;
+        parser.output.type_references[parser.output.type_reference_count] = row;
+        parser.output.type_reference_count = parser.output.type_reference_count + 1;
+        Parser::expect_punctuation(parser, input, PunctuationKind::RightBracket, ParseDiagnosticCode::ExpectedArrayEnd);
+        transition parser.output.accepted {
+            true -> array(parser, input, frame, element, length)
+            _ -> done()
+        }
+    }
+
+    state array(
+        parser: &mut Parser,
+        input: &TokenStream,
+        frame: TypeFrame,
+        element: u64 in Trapping,
+        length: u64 in Trapping
+    ) {
+        Parser::pop_type_frame(parser);
+        let row: TypeReference = Parser::type_row(parser, TypeReferenceKind::Array,
+            frame.start, parser.token_end, 0, 0);
+        transition { _ -> domain(parser, input, Parser::with_children(row, frame.first_row, element, length)) }
+    }
+
+    // After a static argument: `,` opens the next, `>` closes the list. A
+    // `>>` token closes two lists; the second close is owed in
+    // `type_split_greater`.
+    state argument_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        let argument: u64 in Trapping = parser.type_result;
+        Parser::push_type_argument(parser, input, argument);
+        transition parser.output.accepted {
+            true -> argument_separator(parser, input, frame)
+            _ -> done()
+        }
+    }
+
+    state argument_separator(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        let comma: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        transition comma && !parser.type_split_greater {
+            true -> next_argument(parser, input)
+            _ -> arguments_end(parser, input, frame)
+        }
+    }
+
+    state next_argument(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedStaticArgument) }
+    }
+
+    state arguments_end(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        transition parser.type_split_greater {
+            true -> owed_close(parser, input, frame)
+            _ -> greater(parser, input, frame)
+        }
+    }
+
+    // The second `>` of `>>` ends at the token's end.
+    state owed_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        parser.type_split_greater = false;
+        transition { _ -> applied(parser, input, frame, parser.token_end) }
+    }
+
+    state greater(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        let single: bool = Parser::at_punctuation(parser, input, PunctuationKind::Greater);
+        transition single {
+            true -> single_close(parser, input, frame)
+            _ -> double_greater(parser, input, frame)
+        }
+    }
+
+    state single_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        Parser::take_current(parser, input);
+        transition { _ -> applied(parser, input, frame, parser.token_end) }
+    }
+
+    state double_greater(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        let double: bool = Parser::at_punctuation(parser, input, PunctuationKind::GreaterGreater);
+        let nested: bool = Parser::outer_type_arguments(parser);
+        transition double && nested {
+            true -> double_close(parser, input, frame)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedStaticArgumentEnd)
+        }
+    }
+
+    // The first `>` of `>>` closes this list at the token's first byte.
+    state double_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
+        Parser::take_current(parser, input);
+        parser.type_split_greater = true;
+        transition { _ -> applied(parser, input, frame, parser.token_start + 1) }
+    }
+
+    state applied(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, end: u64 in Trapping) {
+        Parser::pop_type_frame(parser);
+        Parser::commit_type_arguments(parser, input, frame.first_argument);
+        transition parser.output.accepted {
+            true -> applied_row(parser, input, frame, end)
+            _ -> done()
+        }
+    }
+
+    state applied_row(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, end: u64 in Trapping) {
+        let row: TypeReference = Parser::type_row(parser, TypeReferenceKind::Named,
+            frame.start, end, frame.start, frame.name_end);
+        let applied: TypeReference = Parser::with_children(row, frame.first_row, 0, 0);
+        transition {
+            _ -> domain(parser, input,
+                Parser::with_arguments(applied, parser.committed_type_first, parser.committed_type_count)
+            )
+        }
+    }
+
+    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        Parser::reject_current(parser, input, code);
     }
 
     state done() {}
+}
+
+machine Parser::type_frame(
+    parser: &Parser,
+    kind: TypeFrameKind,
+    access: ReferenceAccess,
+    start: u64 in Trapping
+) -> TypeFrame {
+    TypeFrame {
+        kind: kind,
+        access: access,
+        start: start,
+        name_end: start,
+        first_argument: parser.pending_type_argument_count as u64 in Trapping,
+        first_row: parser.output.type_reference_count as u64 in Trapping
+    }
+}
+
+machine Parser::named_frame(frame: TypeFrame, name_end: u64 in Trapping) -> TypeFrame {
+    TypeFrame {
+        kind: frame.kind,
+        access: frame.access,
+        start: frame.start,
+        name_end: name_end,
+        first_argument: frame.first_argument,
+        first_row: frame.first_row
+    }
+}
+
+// A childless row spanning `start..end` and named `name_start..name_end`,
+// which begins its own run at the next row. The `with_` constructors below
+// add what each composite form carries.
+machine Parser::type_row(
+    parser: &Parser,
+    kind: TypeReferenceKind,
+    start: u64 in Trapping,
+    end: u64 in Trapping,
+    name_start: u64 in Trapping,
+    name_end: u64 in Trapping
+) -> TypeReference {
+    TypeReference {
+        kind: kind,
+        name: Parser::identifier_span(parser, name_start, name_end),
+        has_domain: false,
+        domain: Parser::identifier_span(parser, 0, 0),
+        access: ReferenceAccess::Shared,
+        inner: 0,
+        length: 0,
+        first_argument: 0,
+        argument_count: 0,
+        first_row: parser.output.type_reference_count as u64 in Trapping,
+        source_span: Parser::source_span(parser, start, end)
+    }
+}
+
+machine Parser::with_children(
+    row: TypeReference,
+    first_row: u64 in Trapping,
+    inner: u64 in Trapping,
+    length: u64 in Trapping
+) -> TypeReference {
+    TypeReference {
+        kind: row.kind,
+        name: row.name,
+        has_domain: row.has_domain,
+        domain: row.domain,
+        access: row.access,
+        inner: inner,
+        length: length,
+        first_argument: row.first_argument,
+        argument_count: row.argument_count,
+        first_row: first_row,
+        source_span: row.source_span
+    }
+}
+
+machine Parser::with_access(row: TypeReference, access: ReferenceAccess) -> TypeReference {
+    TypeReference {
+        kind: row.kind,
+        name: row.name,
+        has_domain: row.has_domain,
+        domain: row.domain,
+        access: access,
+        inner: row.inner,
+        length: row.length,
+        first_argument: row.first_argument,
+        argument_count: row.argument_count,
+        first_row: row.first_row,
+        source_span: row.source_span
+    }
+}
+
+machine Parser::with_arguments(
+    row: TypeReference,
+    first_argument: u64 in Trapping,
+    argument_count: u64 in Trapping
+) -> TypeReference {
+    TypeReference {
+        kind: row.kind,
+        name: row.name,
+        has_domain: row.has_domain,
+        domain: row.domain,
+        access: row.access,
+        inner: row.inner,
+        length: row.length,
+        first_argument: first_argument,
+        argument_count: argument_count,
+        first_row: row.first_row,
+        source_span: row.source_span
+    }
+}
+
+machine Parser::with_domain(row: TypeReference, domain: IdentifierSpan, source_span: SourceSpan) -> TypeReference {
+    TypeReference {
+        kind: row.kind,
+        name: row.name,
+        has_domain: true,
+        domain: domain,
+        access: row.access,
+        inner: row.inner,
+        length: row.length,
+        first_argument: row.first_argument,
+        argument_count: row.argument_count,
+        first_row: row.first_row,
+        source_span: source_span
+    }
+}
+
+machine Parser::top_type_frame(parser: &Parser) -> TypeFrame
+crashes Trap
+{
+    transition parser.type_frame_depth > 0 {
+        true -> element(parser, parser.type_frame_depth - 1)
+        _ -> invalid()
+    }
+
+    state element(parser: &Parser, top: u64)
+    requires top <= 15
+    {
+        parser.type_frames[top]
+    }
+
+    state invalid() -> TypeFrame {
+        crash Trap;
+    }
+}
+
+machine Parser::pop_type_frame(parser: &mut Parser)
+crashes Trap
+{
+    transition parser.type_frame_depth > 0 {
+        true -> pop(parser)
+        _ -> invalid()
+    }
+
+    state pop(parser: &mut Parser) {
+        parser.type_frame_depth = parser.type_frame_depth - 1;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
+// Whether the innermost open frame is a static argument list, where an
+// integer is an argument rather than a type error.
+machine Parser::in_type_arguments(parser: &Parser) -> bool
+crashes Trap
+{
+    transition parser.type_frame_depth > 0 {
+        true -> innermost(parser)
+        _ -> outside()
+    }
+
+    state innermost(parser: &Parser) {
+        let frame: TypeFrame = Parser::top_type_frame(parser);
+        transition frame.kind {
+            TypeFrameKind::Arguments -> inside()
+            _ -> outside()
+        }
+    }
+
+    state inside() {
+        true
+    }
+
+    state outside() {
+        false
+    }
+}
+
+// Whether a `>>` may close the innermost argument list and owe its second
+// `>` to an enclosing one: below the innermost frame, only references may
+// stand between it and another argument list.
+machine Parser::outer_type_arguments(parser: &Parser) -> bool
+crashes Trap
+{
+    transition parser.type_frame_depth > 1 {
+        true -> scan(parser, parser.type_frame_depth - 2)
+        _ -> absent()
+    }
+
+    state scan(parser: &Parser, index: u64)
+    requires index <= 14
+    {
+        let frame: TypeFrame = parser.type_frames[index];
+        transition frame.kind {
+            TypeFrameKind::Arguments -> present()
+            TypeFrameKind::Reference -> below(parser, index)
+            TypeFrameKind::Array -> absent()
+        }
+    }
+
+    state below(parser: &Parser, index: u64)
+    requires index <= 14
+    {
+        transition index > 0 {
+            true -> scan(parser, index - 1)
+            _ -> absent()
+        }
+    }
+
+    state present() {
+        true
+    }
+
+    state absent() {
+        false
+    }
+}
+
+// Stage one completed argument until its list closes.
+machine Parser::push_type_argument(parser: &mut Parser, input: &TokenStream, argument: u64 in Trapping)
+crashes Trap
+{
+    transition parser.pending_type_argument_count < 32 {
+        true -> stage(parser, argument)
+        _ -> full(parser, input)
+    }
+
+    state stage(parser: &mut Parser, argument: u64 in Trapping) {
+        parser.pending_type_arguments[parser.pending_type_argument_count] = argument as u64;
+        parser.pending_type_argument_count = parser.pending_type_argument_count + 1;
+    }
+
+    state full(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::TypeArgumentCapacityExceeded);
+    }
+}
+
+// Move the innermost list's staged arguments, from `base` up, into
+// `SyntaxTrees::type_arguments`; their range lands in
+// `committed_type_first`/`committed_type_count`.
+machine Parser::commit_type_arguments(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping)
+crashes Trap
+{
+    parser.committed_type_first = parser.output.type_argument_count as u64 in Trapping;
+    parser.committed_type_count = (parser.pending_type_argument_count as u64 in Trapping) - base;
+    transition { _ -> next(parser, input, base, base) }
+
+    state next(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+        transition cursor < parser.pending_type_argument_count {
+            true -> capacity(parser, input, base, cursor)
+            _ -> close(parser, base)
+        }
+    }
+
+    state capacity(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+        transition parser.output.type_argument_count < 512 {
+            true -> copy(parser, input, base, cursor)
+            _ -> full(parser, input)
+        }
+    }
+
+    state copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+        parser.output.type_arguments[parser.output.type_argument_count] = parser.pending_type_arguments[cursor] as u64;
+        parser.output.type_argument_count = parser.output.type_argument_count + 1;
+        transition { _ -> next(parser, input, base, cursor + 1) }
+    }
+
+    state close(parser: &mut Parser, base: u64 in Trapping) {
+        let restored: u64 = base as u64;
+        transition restored <= 32 {
+            true -> truncate(parser, restored)
+            _ -> invalid()
+        }
+    }
+
+    state truncate(parser: &mut Parser, base: u64)
+    requires base <= 32
+    {
+        parser.pending_type_argument_count = base;
+    }
+
+    state full(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::TypeArgumentCapacityExceeded);
+    }
+
+    state invalid() {
+        crash Trap;
+    }
 }

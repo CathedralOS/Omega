@@ -16,8 +16,10 @@ pub data UseItem [copy] {
 
 pub data TypeReferenceKind [copy] {
     case Named;
-    case Qualified;
     case Reference;
+    case Array;
+    case Slice;
+    case Literal;
 }
 
 pub data ReferenceAccess [copy] {
@@ -25,17 +27,28 @@ pub data ReferenceAccess [copy] {
     case Mutable;
 }
 
-// A qualified reference (`T in Domain`) records the domain span; a bare named
-// reference carries an empty domain span and leaves `name` covering the whole
-// source range. A reference (`&T`, `&mut T`) names its referee, an earlier
-// row of the same table, and its access; its name and domain spans are empty.
-// `access` and `referee` mean nothing for the other kinds.
+// One row per type form. A whole type fills a contiguous run of rows that
+// ends at its root: every row follows its children, and `first_row` is where
+// its own run begins. `Named` carries its `name`; an application
+// (`Binding<Console>`) also carries `argument_count` argument rows listed in
+// `SyntaxTrees::type_arguments` from `first_argument`. `Reference` (`&T`,
+// `&mut T`) carries its `access`. `Reference`, `Array` (`[T; N]`) and
+// `Slice` (`[T]`) name their referee or element in `inner`, and `Array` names
+// its length row, a `Literal` or a `Named` static value, in `length`.
+// `Literal` is an integer static argument or length spelled by `name`.
+// `Named`, `Array` and `Slice` rows may carry an `in Domain` qualifier.
+// Fields a form does not carry are zero.
 pub data TypeReference [copy] {
     kind: TypeReferenceKind;
     name: IdentifierSpan;
+    has_domain: bool;
     domain: IdentifierSpan;
     access: ReferenceAccess;
-    referee: u64 in Trapping;
+    inner: u64 in Trapping;
+    length: u64 in Trapping;
+    first_argument: u64 in Trapping;
+    argument_count: u64 in Trapping;
+    first_row: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -416,6 +429,14 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedClauseEnd;
     case ExpectedClauseFact;
     case ClauseCapacityExceeded;
+    case ExpectedArrayElementType;
+    case ExpectedArraySeparatorOrEnd;
+    case ExpectedArrayLength;
+    case ExpectedArrayEnd;
+    case ExpectedStaticArgument;
+    case ExpectedStaticArgumentEnd;
+    case TypeNestingCapacityExceeded;
+    case TypeArgumentCapacityExceeded;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -435,6 +456,7 @@ where
     case_count <= 512,
     payload_field_count <= 1024,
     type_reference_count <= 1024,
+    type_argument_count <= 512,
     machine_count <= 256,
     parameter_count <= 1024,
     state_count <= 1024,
@@ -466,6 +488,8 @@ where
     payload_field_count: u64;
     type_references: [TypeReference; 1024] in Trapping;
     type_reference_count: u64;
+    type_arguments: [u64; 512] in Trapping;
+    type_argument_count: u64;
     machines: [MachineItem; 256] in Trapping;
     machine_count: u64;
     parameters: [Parameter; 1024] in Trapping;
@@ -501,6 +525,7 @@ pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId)
     syntax_trees.case_count = 0;
     syntax_trees.payload_field_count = 0;
     syntax_trees.type_reference_count = 0;
+    syntax_trees.type_argument_count = 0;
     syntax_trees.machine_count = 0;
     syntax_trees.parameter_count = 0;
     syntax_trees.state_count = 0;
@@ -650,6 +675,24 @@ crashes Trap
     }
 
     state invalid() -> TypeReference {
+        crash Trap;
+    }
+}
+
+// The type row of one static argument, by its index in `type_arguments`.
+pub machine SyntaxTrees::type_argument(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition index < syntax_trees.type_argument_count {
+        true -> read(syntax_trees, index)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping {
+        syntax_trees.type_arguments[index] as u64 in Trapping
+    }
+
+    state invalid() -> u64 in Trapping {
         crash Trap;
     }
 }

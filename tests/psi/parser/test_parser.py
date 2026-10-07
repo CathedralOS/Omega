@@ -25,9 +25,7 @@ class Observation:
     fields: tuple[tuple[int, int, int, int, int, int, int], ...]
     payload_fields: tuple[tuple[int, int, int, int, int, int, int], ...]
     cases: tuple[tuple[int, int, int, int, int, int, int, int], ...]
-    type_references: tuple[
-        tuple[int, int, int, int, int, int, int, int, int, int, int, int, int], ...
-    ]
+    type_references: tuple[tuple[int, ...], ...]
     generic_parameters: tuple[
         tuple[int, int, int, int, int, int, int, int, int, int], ...
     ]
@@ -41,6 +39,7 @@ class Observation:
     arms: tuple[tuple[int, ...], ...] = ()
     pattern_fields: tuple[tuple[int, ...], ...] = ()
     clauses: tuple[tuple[int, ...], ...] = ()
+    type_arguments: tuple[int, ...] = ()
 
 
 class Reader:
@@ -144,6 +143,8 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    # kind, name span, source span, domain flag and span, access, then the
+    # inner, length, first-argument, argument-count and first-row handles.
     type_references = tuple(
         (
             reader.byte(),
@@ -159,9 +160,14 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.byte(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
         )
         for _ in range(reader.u64())
     )
+    type_arguments = tuple(reader.u64() for _ in range(reader.u64()))
     generic_parameters = tuple(
         (
             reader.byte(),
@@ -349,6 +355,7 @@ def decode(payload: bytes) -> Observation:
         arms,
         pattern_fields,
         clauses,
+        type_arguments,
     )
 
 
@@ -364,10 +371,30 @@ def run(program: str, source: bytes) -> tuple[int, bytes]:
     return completed.returncode, completed.stdout
 
 
-def with_reference_tail(row: tuple[int, ...]) -> tuple[int, ...]:
-    """A named or qualified row spelled without the reference tail has none:
-    zero access and a zero referee handle."""
-    return row if len(row) == 13 else row + (0, 0)
+def type_rows(rows: tuple[tuple[int, ...], ...]) -> tuple[tuple[int, ...], ...]:
+    """Complete rows spelled in the single-level shorthand: kind 1 named,
+    2 qualified or 3 reference, the name, source and domain spans, then an
+    optional access and referee. A qualified row is a named row with a
+    domain, an unqualified row reports a zero domain span, a reference's
+    referee is its inner row, and a leaf's run begins at itself. Full rows
+    pass through."""
+    completed: list[tuple[int, ...]] = []
+    for index, row in enumerate(rows):
+        if len(row) == 17:
+            completed.append(row)
+            continue
+        row = row if len(row) == 13 else row + (0, 0)
+        kind, name, span, has_domain, domain, access, referee = (
+            row[0], row[1:4], row[4:7], row[7], row[8:11], row[11], row[12]
+        )
+        if not has_domain:
+            domain = (0, 0, 0)
+        if kind == 3:
+            first_row = completed[referee][16]
+            completed.append((3, *name, *span, has_domain, *domain, access, referee, 0, 0, 0, first_row))
+        else:
+            completed.append((1, *name, *span, has_domain, *domain, access, 0, 0, 0, 0, index))
+    return tuple(completed)
 
 
 def accepted(
@@ -398,6 +425,7 @@ def accepted(
     arguments: tuple[int, ...] = (),
     construct_fields: tuple[tuple[int, ...], ...] = (),
     statements: tuple[tuple[int, ...], ...] = (),
+    type_arguments: tuple[int, ...] = (),
 ) -> None:
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
@@ -414,7 +442,7 @@ def accepted(
         fields,
         payload_fields,
         cases,
-        tuple(with_reference_tail(row) for row in type_references),
+        type_rows(type_references),
         generic_parameters,
         machines,
         parameters,
@@ -423,6 +451,7 @@ def accepted(
         arguments,
         construct_fields,
         statements,
+        type_arguments=type_arguments,
     )
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
@@ -953,7 +982,6 @@ def main() -> None:
             1,
         ),
         ("legacy-bare-case-is-rejected", b"data X { A; }", 12, (10, 11)),
-        ("array-types-not-yet-supported", b"data X { field: [u8; 4]; }", 13, (16, 17)),
         ("missing-qualified-domain", b"data X { field: T in ; }", 31, (21, 22)),
         ("missing-qualified-domain-end", b"data X { field: T in", 31, (20, 20)),
         ("second-type-qualifier", b"data X { field: T in A in B; }", 14, (23, 25), 1),
@@ -1731,6 +1759,150 @@ def main() -> None:
         ("statement-start", b"machine f() { ) }", 48, (14, 15), {}),
     )
     for name, source, diagnostic, span, counts in body_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    # Type forms. Rows follow their children, so a type fills one run that
+    # ends at its root; each row records where its run begins.
+    NAMED, REFERENCE, ARRAY, SLICE, LITERAL = 1, 3, 4, 5, 6
+
+    def span_of(source: bytes, fragment: bytes, occurrence: int = 1) -> tuple[int, int]:
+        start = -1
+        for _ in range(occurrence):
+            start = source.index(fragment, start + 1)
+        return (start, start + len(fragment))
+
+    def type_row(
+        kind: int,
+        span: tuple[int, int],
+        first_row: int,
+        name: tuple[int, int] | None = None,
+        domain: tuple[int, int] | None = None,
+        access: int = 0,
+        inner: int = 0,
+        length: int = 0,
+        first_argument: int = 0,
+        argument_count: int = 0,
+    ) -> tuple[int, ...]:
+        name_span = (1, *name) if name else (1, 0, 0)
+        domain_part = (1, 1, *domain) if domain else (0, 0, 0, 0)
+        return (kind, *name_span, 1, *span, *domain_part, access, inner, length,
+                first_argument, argument_count, first_row)
+
+    def leaf(kind: int, source: bytes, fragment: bytes, first_row: int, occurrence: int = 1) -> tuple[int, ...]:
+        span = span_of(source, fragment, occurrence)
+        return type_row(kind, span, first_row, name=span)
+
+    def types(
+        name: str,
+        source: bytes,
+        rows: tuple[tuple[int, ...], ...],
+        type_arguments: tuple[int, ...] = (),
+    ) -> None:
+        status, payload = run(program, source)
+        assert status == 0, f"{name}: status {status}"
+        actual = decode(payload)
+        assert actual.type_references == rows, f"{name}:\nexpected {rows}\nactual   {actual.type_references}"
+        assert actual.type_arguments == type_arguments, f"{name}:\n{actual.type_arguments}"
+
+    source = b"data D { a: [u8; 4]; }"
+    types("array-literal-length", source, (
+        leaf(NAMED, source, b"u8", 0),
+        leaf(LITERAL, source, b"4", 1),
+        type_row(ARRAY, span_of(source, b"[u8; 4]"), 0, inner=0, length=1),
+    ))
+    source = b"data D { a: [u64; 1024] in Trapping; }"
+    types("array-domain", source, (
+        leaf(NAMED, source, b"u64", 0),
+        leaf(LITERAL, source, b"1024", 1),
+        type_row(ARRAY, span_of(source, b"[u64; 1024] in Trapping"), 0,
+                 domain=span_of(source, b"Trapping"), inner=0, length=1),
+    ))
+    source = b"machine f(bytes: &[u8]) {}"
+    types("slice-reference", source, (
+        leaf(NAMED, source, b"u8", 0),
+        type_row(SLICE, span_of(source, b"[u8]"), 0, inner=0),
+        type_row(REFERENCE, span_of(source, b"&[u8]"), 0, access=1, inner=1),
+    ))
+    source = b"machine f(cells: &mut [u8; 2]) {}"
+    types("mutable-array-reference", source, (
+        leaf(NAMED, source, b"u8", 0),
+        leaf(LITERAL, source, b"2", 1),
+        type_row(ARRAY, span_of(source, b"[u8; 2]"), 0, inner=0, length=1),
+        type_row(REFERENCE, span_of(source, b"&mut [u8; 2]"), 0, access=2, inner=2),
+    ))
+    source = b"data D<const N: u64> { a: [u8; N]; }"
+    types("named-length", source, (
+        leaf(NAMED, source, b"u64", 0),
+        leaf(NAMED, source, b"u8", 1),
+        leaf(NAMED, source, b"N", 2, occurrence=2),
+        type_row(ARRAY, span_of(source, b"[u8; N]"), 1, inner=1, length=2),
+    ))
+    source = b"data Main { console: Binding<Console>; }"
+    types("application", source, (
+        leaf(NAMED, source, b"Console", 0),
+        type_row(NAMED, span_of(source, b"Binding<Console>"), 0, name=span_of(source, b"Binding"),
+                 first_argument=0, argument_count=1),
+    ), (0,))
+    source = b"data D { a: A<B<C>>; }"
+    split = span_of(source, b">>")[0]
+    types("nested-application-split-close", source, (
+        leaf(NAMED, source, b"C", 0),
+        type_row(NAMED, (span_of(source, b"B<C")[0], split + 1), 0, name=span_of(source, b"B"),
+                 first_argument=0, argument_count=1),
+        type_row(NAMED, span_of(source, b"A<B<C>>"), 0, name=span_of(source, b"A"),
+                 first_argument=1, argument_count=1),
+    ), (0, 1))
+    source = b"machine f(x: A<&B<C>>) {}"
+    split = span_of(source, b">>")[0]
+    types("reference-argument-split-close", source, (
+        leaf(NAMED, source, b"C", 0),
+        type_row(NAMED, (span_of(source, b"B<C")[0], split + 1), 0, name=span_of(source, b"B"),
+                 first_argument=0, argument_count=1),
+        type_row(REFERENCE, (span_of(source, b"&B")[0], split + 1), 0, access=1, inner=1),
+        type_row(NAMED, span_of(source, b"A<&B<C>>"), 0, name=span_of(source, b"A"),
+                 first_argument=1, argument_count=1),
+    ), (0, 2))
+    source = b"data D { a: AtMost<8> in Bounds; }"
+    types("application-literal-domain", source, (
+        leaf(LITERAL, source, b"8", 0),
+        type_row(NAMED, span_of(source, b"AtMost<8> in Bounds"), 0, name=span_of(source, b"AtMost"),
+                 domain=span_of(source, b"Bounds"), first_argument=0, argument_count=1),
+    ), (0,))
+    source = b"data D { a: [[u8; 2]; 3]; }"
+    types("nested-arrays", source, (
+        leaf(NAMED, source, b"u8", 0),
+        leaf(LITERAL, source, b"2", 1),
+        type_row(ARRAY, span_of(source, b"[u8; 2]"), 0, inner=0, length=1),
+        leaf(LITERAL, source, b"3", 3),
+        type_row(ARRAY, span_of(source, b"[[u8; 2]; 3]"), 0, inner=2, length=3),
+    ))
+    source = b"data D { a: Pair<u8, [u16; 2]>; }"
+    types("two-arguments", source, (
+        leaf(NAMED, source, b"u8", 0),
+        leaf(NAMED, source, b"u16", 1),
+        leaf(LITERAL, source, b"2", 2),
+        type_row(ARRAY, span_of(source, b"[u16; 2]"), 1, inner=1, length=2),
+        type_row(NAMED, span_of(source, b"Pair<u8, [u16; 2]>"), 0, name=span_of(source, b"Pair"),
+                 first_argument=0, argument_count=2),
+    ), (0, 3))
+
+    too_deep = b"data D { a: " + b"[" * 17 + b"u8; }"
+    capacity_arguments = b"data D { a: A<" + b"u8, " * 32 + b"u8>; }"
+    type_rejections = (
+        ("array-element", b"data D { a: [; }", 97, (13, 14), {}),
+        ("array-separator", b"data D { a: [u8 x]; }", 98, (16, 17), {"type_reference_count": 1}),
+        ("array-length", b"data D { a: [u8; ]; }", 99, (17, 18), {"type_reference_count": 1}),
+        ("array-end", b"data D { a: [u8; 4 x]; }", 100, (19, 20), {"type_reference_count": 2}),
+        ("static-argument", b"data D { a: A<>; }", 101, (14, 15), {}),
+        ("static-argument-end", b"data D { a: A<B x>; }", 102, (16, 17), {"type_reference_count": 1}),
+        ("split-close-without-outer", b"data D { a: A<B>>; }", 102, (15, 17), {"type_reference_count": 1}),
+        ("split-close-through-array", b"data D { a: [A<B>>; }", 102, (16, 18), {"type_reference_count": 1}),
+        ("type-nesting", too_deep, 103, (29, 31), {}),
+        ("type-argument-capacity", capacity_arguments, 104, span_of(capacity_arguments, b">"),
+         {"type_reference_count": 33}),
+        ("integer-type", b"data D { a: 5; }", 13, (12, 13), {}),
+    )
+    for name, source, diagnostic, span, counts in type_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
     nested = b"machine f() { " + b"(" * 32 + b"1" + b")" * 32 + b"; }"

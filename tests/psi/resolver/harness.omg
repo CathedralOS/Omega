@@ -183,6 +183,9 @@ crashes Trap
             TypeBinding::Data { item } -> type_row(resolver_harness, output, index, 2, item)
             TypeBinding::GenericParameter { parameter } -> type_row(resolver_harness, output, index, 3, parameter)
             TypeBinding::Reference -> type_row(resolver_harness, output, index, 4, 0)
+            TypeBinding::Array -> type_row(resolver_harness, output, index, 5, 0)
+            TypeBinding::Slice -> type_row(resolver_harness, output, index, 6, 0)
+            TypeBinding::Literal -> type_row(resolver_harness, output, index, 7, 0)
         }
     }
 

@@ -21,6 +21,8 @@ where
     expression_frame_depth <= 32,
     pending_argument_count <= 256,
     pending_field_count <= 64,
+    type_frame_depth <= 16,
+    pending_type_argument_count <= 32,
 {
     output: SyntaxTrees;
     source: SourceId;
@@ -52,8 +54,6 @@ where
     field_start: u64 in Trapping;
     field_name_start: u64 in Trapping;
     field_name_end: u64 in Trapping;
-    type_name_start: u64 in Trapping;
-    type_name_end: u64 in Trapping;
     // Grammar-step results: the last taken token, the last expected name,
     // and the last completed type reference's handle, start and end.
     token_start: u64 in Trapping;
@@ -61,8 +61,17 @@ where
     name_start: u64 in Trapping;
     name_end: u64 in Trapping;
     type_result: u64 in Trapping;
-    type_reference_start: u64 in Trapping;
     type_end: u64 in Trapping;
+    // Type stacks: open type constructors and the static arguments staged
+    // until their list closes; `type_split_greater` owes the second `>` of
+    // a `>>` that closed two lists.
+    type_frames: [TypeFrame; 16] in Trapping;
+    type_frame_depth: u64;
+    pending_type_arguments: [u64; 32] in Trapping;
+    pending_type_argument_count: u64;
+    type_split_greater: bool;
+    committed_type_first: u64 in Trapping;
+    committed_type_count: u64 in Trapping;
     machine_start: u64 in Trapping;
     machine_is_public: bool;
     machine_has_owner: bool;

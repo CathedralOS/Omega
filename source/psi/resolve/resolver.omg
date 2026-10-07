@@ -367,50 +367,67 @@ machine Resolver::data_scope(item: DataItem) -> TypeScope {
     }
 }
 
-// Bind one type reference in its owner's scope. A reference row binds its
-// referee; the grammar admits one reference level, so a referee is always a
-// named or qualified row.
+// Bind one type in its owner's scope. A type fills a contiguous run of
+// rows that ends at its root, so every row of the run binds in order: a
+// named row binds its name and an `in` domain, and a reference, array, slice
+// or integer row binds by its form. Nested rows need no recursion.
 machine Resolver::bind_type_reference(
     resolver: &mut Resolver,
     source_unit: &SourceUnit,
     syntax: &SyntaxTrees,
     scope: TypeScope,
-    reference: u64 in Trapping
+    root: u64 in Trapping
 )
 crashes Trap
 {
-    transition reference < syntax.type_reference_count {
-        true -> classify(resolver, source_unit, syntax, scope, reference)
-        _ -> invalid()
-    }
+    let root_row: TypeReference = SyntaxTrees::type_reference(syntax, root);
+    transition { _ -> next(resolver, source_unit, syntax, scope, root, root_row.first_row) }
 
-    state classify(
+    state next(
         resolver: &mut Resolver,
         source_unit: &SourceUnit,
         syntax: &SyntaxTrees,
         scope: TypeScope,
-        reference: u64 in Trapping
+        root: u64 in Trapping,
+        row: u64 in Trapping
     ) {
-        let type_reference: TypeReference = syntax.type_references[reference];
-        transition type_reference.kind {
-            TypeReferenceKind::Reference -> reference_row(resolver, source_unit, syntax, scope, reference,
-                type_reference.referee
-            )
-            _ -> named(resolver, source_unit, syntax, scope, reference)
+        transition row <= root && resolver.output.accepted {
+            true -> bind(resolver, source_unit, syntax, scope, root, row)
+            _ -> done()
         }
     }
 
-    state reference_row(
+    state bind(
         resolver: &mut Resolver,
         source_unit: &SourceUnit,
         syntax: &SyntaxTrees,
         scope: TypeScope,
-        reference: u64 in Trapping,
-        referee: u64 in Trapping
+        root: u64 in Trapping,
+        row: u64 in Trapping
     ) {
-        resolver.output.type_bindings[reference] = TypeBinding::Reference;
-        resolver.output.domain_bindings[reference] = DomainBinding::Unqualified;
-        Resolver::bind_named_type(resolver, source_unit, syntax, scope, referee);
+        Resolver::bind_type_row(resolver, source_unit, syntax, scope, row);
+        transition { _ -> next(resolver, source_unit, syntax, scope, root, row + 1) }
+    }
+
+    state done() {}
+}
+
+machine Resolver::bind_type_row(
+    resolver: &mut Resolver,
+    source_unit: &SourceUnit,
+    syntax: &SyntaxTrees,
+    scope: TypeScope,
+    row: u64 in Trapping
+)
+crashes Trap
+{
+    let type_reference: TypeReference = SyntaxTrees::type_reference(syntax, row);
+    transition type_reference.kind {
+        TypeReferenceKind::Named -> named(resolver, source_unit, syntax, scope, row, type_reference)
+        TypeReferenceKind::Reference -> formed(resolver, source_unit, row, type_reference, TypeBinding::Reference)
+        TypeReferenceKind::Array -> formed(resolver, source_unit, row, type_reference, TypeBinding::Array)
+        TypeReferenceKind::Slice -> formed(resolver, source_unit, row, type_reference, TypeBinding::Slice)
+        TypeReferenceKind::Literal -> formed(resolver, source_unit, row, type_reference, TypeBinding::Literal)
     }
 
     state named(
@@ -418,84 +435,73 @@ crashes Trap
         source_unit: &SourceUnit,
         syntax: &SyntaxTrees,
         scope: TypeScope,
-        reference: u64 in Trapping
+        row: u64 in Trapping,
+        type_reference: TypeReference
     ) {
-        Resolver::bind_named_type(resolver, source_unit, syntax, scope, reference);
-    }
-
-    state invalid() {
-        crash Trap;
-    }
-}
-
-// Bind a named or qualified row: the name, then its `in Domain` qualifier.
-machine Resolver::bind_named_type(
-    resolver: &mut Resolver,
-    source_unit: &SourceUnit,
-    syntax: &SyntaxTrees,
-    scope: TypeScope,
-    reference: u64 in Trapping
-)
-crashes Trap
-{
-    transition reference < syntax.type_reference_count {
-        true -> lookup(resolver, source_unit, syntax, scope, reference)
-        _ -> invalid()
-    }
-
-    state lookup(
-        resolver: &mut Resolver,
-        source_unit: &SourceUnit,
-        syntax: &SyntaxTrees,
-        scope: TypeScope,
-        reference: u64 in Trapping
-    ) {
-        let type_reference: TypeReference = syntax.type_references[reference];
         let binding: TypeBinding = Resolver::type_binding(source_unit, syntax, scope,
             type_reference.name.source_span.span
         );
         transition binding {
             TypeBinding::Unresolved -> unknown_type(resolver, type_reference.name)
-            _ -> bound(resolver, source_unit, reference, type_reference, binding)
+            _ -> formed(resolver, source_unit, row, type_reference, binding)
         }
     }
 
-    state invalid() {
-        crash Trap;
-    }
-
-    state bound(
+    state formed(
         resolver: &mut Resolver,
         source_unit: &SourceUnit,
-        reference: u64 in Trapping,
+        row: u64 in Trapping,
         type_reference: TypeReference,
         binding: TypeBinding
     ) {
-        resolver.output.type_bindings[reference] = binding;
-        transition type_reference.kind {
-            TypeReferenceKind::Named -> unqualified(resolver, reference)
-            TypeReferenceKind::Qualified -> qualified(resolver, source_unit, reference, type_reference.domain)
-            TypeReferenceKind::Reference -> invalid()
+        transition row < 1024 {
+            true -> store(resolver, source_unit, row, type_reference, binding)
+            _ -> invalid()
         }
     }
 
-    state unqualified(resolver: &mut Resolver, reference: u64 in Trapping) {
-        resolver.output.domain_bindings[reference] = DomainBinding::Unqualified;
+    state store(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        row: u64 in Trapping,
+        type_reference: TypeReference,
+        binding: TypeBinding
+    ) {
+        resolver.output.type_bindings[row] = binding;
+        transition type_reference.has_domain {
+            true -> qualified(resolver, source_unit, row, type_reference.domain)
+            _ -> unqualified(resolver, row)
+        }
+    }
+
+    state unqualified(resolver: &mut Resolver, row: u64 in Trapping) {
+        transition row < 1024 {
+            true -> unqualified_store(resolver, row)
+            _ -> invalid()
+        }
+    }
+
+    state unqualified_store(resolver: &mut Resolver, row: u64 in Trapping) {
+        resolver.output.domain_bindings[row] = DomainBinding::Unqualified;
     }
 
     state qualified(
         resolver: &mut Resolver,
         source_unit: &SourceUnit,
-        reference: u64 in Trapping,
+        row: u64 in Trapping,
         domain: IdentifierSpan
     ) {
-        Resolver::bind_domain(resolver, source_unit, reference, domain);
+        Resolver::bind_domain(resolver, source_unit, row, domain);
     }
 
     state unknown_type(resolver: &mut Resolver, name: IdentifierSpan) {
         NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::UnknownDataType,
             name.source_span
         );
+    }
+
+    state invalid() {
+        crash Trap;
     }
 }
 
@@ -1136,26 +1142,40 @@ crashes Trap
             right.owner.source_span.span
         );
         transition same_owner {
-            true -> parameter(resolver, syntax, left, right, 0)
+            true -> parameter(resolver, source_unit, syntax, left, right, 0)
             _ -> different()
         }
     }
 
-    state parameter(resolver: &Resolver, syntax: &SyntaxTrees, left: MachineItem, right: MachineItem, offset: u64 in Trapping) {
+    state parameter(
+        resolver: &Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        left: MachineItem,
+        right: MachineItem,
+        offset: u64 in Trapping
+    ) {
         transition offset < left.parameter_count {
-            true -> compare(resolver, syntax, left, right, offset)
+            true -> compare(resolver, source_unit, syntax, left, right, offset)
             _ -> same()
         }
     }
 
-    state compare(resolver: &Resolver, syntax: &SyntaxTrees, left: MachineItem, right: MachineItem, offset: u64 in Trapping) {
+    state compare(
+        resolver: &Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        left: MachineItem,
+        right: MachineItem,
+        offset: u64 in Trapping
+    ) {
         let left_parameter: Parameter = SyntaxTrees::parameter(syntax, left.first_parameter + offset);
         let right_parameter: Parameter = SyntaxTrees::parameter(syntax, right.first_parameter + offset);
-        let equal: bool = Resolver::same_type(resolver, syntax, left_parameter.type_reference,
+        let equal: bool = Resolver::same_type(resolver, source_unit, syntax, left_parameter.type_reference,
             right_parameter.type_reference
         );
         transition equal {
-            true -> parameter(resolver, syntax, left, right, offset + 1)
+            true -> parameter(resolver, source_unit, syntax, left, right, offset + 1)
             _ -> different()
         }
     }
@@ -1169,41 +1189,114 @@ crashes Trap
     }
 }
 
-// Whether two bound type-reference rows denote the same type: the same
-// binding and domain, and for references the same access over the same
-// referee.
-machine Resolver::same_type(resolver: &Resolver, syntax: &SyntaxTrees, left: u64 in Trapping, right: u64 in Trapping) -> bool
+// Whether two bound types are the same type. A run lists a type's rows
+// children-first, and each form fixes its child count, so two runs denote the
+// same type exactly when they have the same length and agree row by row in
+// form, access, argument count, binding and domain. Integer rows compare by
+// spelling until static evaluation lands.
+machine Resolver::same_type(
+    resolver: &Resolver,
+    source_unit: &SourceUnit,
+    syntax: &SyntaxTrees,
+    left: u64 in Trapping,
+    right: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    let left_root: TypeReference = SyntaxTrees::type_reference(syntax, left);
+    let right_root: TypeReference = SyntaxTrees::type_reference(syntax, right);
+    transition left - left_root.first_row == right - right_root.first_row {
+        true -> rows(resolver, source_unit, syntax, left_root.first_row, right_root.first_row, left)
+        _ -> different()
+    }
+
+    state rows(
+        resolver: &Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        left_row: u64 in Trapping,
+        right_row: u64 in Trapping,
+        left_root: u64 in Trapping
+    ) {
+        transition left_row <= left_root {
+            true -> row(resolver, source_unit, syntax, left_row, right_row, left_root)
+            _ -> equal()
+        }
+    }
+
+    state row(
+        resolver: &Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        left_row: u64 in Trapping,
+        right_row: u64 in Trapping,
+        left_root: u64 in Trapping
+    ) {
+        let same: bool = Resolver::same_type_row(resolver, source_unit, syntax, left_row, right_row);
+        transition same {
+            true -> rows(resolver, source_unit, syntax, left_row + 1, right_row + 1, left_root)
+            _ -> different()
+        }
+    }
+
+    state equal() {
+        true
+    }
+
+    state different() {
+        false
+    }
+}
+
+machine Resolver::same_type_row(
+    resolver: &Resolver,
+    source_unit: &SourceUnit,
+    syntax: &SyntaxTrees,
+    left: u64 in Trapping,
+    right: u64 in Trapping
+) -> bool
 crashes Trap
 {
     let left_row: TypeReference = SyntaxTrees::type_reference(syntax, left);
     let right_row: TypeReference = SyntaxTrees::type_reference(syntax, right);
-    transition left_row.kind {
-        TypeReferenceKind::Reference -> left_reference(resolver, left_row, right_row)
-        _ -> left_named(resolver, left, right_row, right)
+    transition left_row.kind == right_row.kind && left_row.access == right_row.access
+        && left_row.argument_count == right_row.argument_count {
+        true -> spelling(resolver, source_unit, left, right, left_row, right_row)
+        _ -> different()
     }
 
-    state left_reference(resolver: &Resolver, left_row: TypeReference, right_row: TypeReference) {
-        transition right_row.kind {
-            TypeReferenceKind::Reference -> references(resolver, left_row, right_row)
+    state spelling(
+        resolver: &Resolver,
+        source_unit: &SourceUnit,
+        left: u64 in Trapping,
+        right: u64 in Trapping,
+        left_row: TypeReference,
+        right_row: TypeReference
+    ) {
+        transition left_row.kind {
+            TypeReferenceKind::Literal -> literal(resolver, source_unit, left, right, left_row, right_row)
+            _ -> bounded(resolver, left, right)
+        }
+    }
+
+    state literal(
+        resolver: &Resolver,
+        source_unit: &SourceUnit,
+        left: u64 in Trapping,
+        right: u64 in Trapping,
+        left_row: TypeReference,
+        right_row: TypeReference
+    ) {
+        let same: bool = SourceUnit::spans_equal(source_unit, left_row.name.source_span.span,
+            right_row.name.source_span.span
+        );
+        transition same {
+            true -> bounded(resolver, left, right)
             _ -> different()
         }
     }
 
-    state references(resolver: &Resolver, left_row: TypeReference, right_row: TypeReference) {
-        transition left_row.access == right_row.access {
-            true -> bindings(resolver, left_row.referee, right_row.referee)
-            _ -> different()
-        }
-    }
-
-    state left_named(resolver: &Resolver, left: u64 in Trapping, right_row: TypeReference, right: u64 in Trapping) {
-        transition right_row.kind {
-            TypeReferenceKind::Reference -> different()
-            _ -> bindings(resolver, left, right)
-        }
-    }
-
-    state bindings(resolver: &Resolver, left: u64 in Trapping, right: u64 in Trapping) {
+    state bounded(resolver: &Resolver, left: u64 in Trapping, right: u64 in Trapping) {
         transition left < 1024 && right < 1024 {
             true -> compare(resolver, left, right)
             _ -> different()
@@ -1225,8 +1318,8 @@ crashes Trap
             TypeBinding::Builtin { builtin } -> builtin_binding(builtin, right)
             TypeBinding::Data { item } -> data_binding(item, right)
             TypeBinding::GenericParameter { parameter } -> generic_binding(parameter, right)
-            TypeBinding::Reference -> reference_binding(right)
             TypeBinding::Unresolved -> different()
+            _ -> formed()
         }
     }
 
@@ -1255,18 +1348,13 @@ crashes Trap
         }
     }
 
-    state reference_binding(right: TypeBinding) {
-        transition right {
-            TypeBinding::Reference -> equal()
-            _ -> different()
-        }
-    }
-
     state same_handle(left: u64 in Trapping, right: u64 in Trapping) {
         left == right
     }
 
-    state equal() {
+    // Reference, array, slice and integer rows bind by form, which the
+    // kinds already matched.
+    state formed() {
         true
     }
 

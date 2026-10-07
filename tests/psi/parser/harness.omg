@@ -226,6 +226,14 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedClauseEnd -> parse_diagnostic(parser_harness, output, 94)
             ParseDiagnosticCode::ExpectedClauseFact -> parse_diagnostic(parser_harness, output, 95)
             ParseDiagnosticCode::ClauseCapacityExceeded -> parse_diagnostic(parser_harness, output, 96)
+            ParseDiagnosticCode::ExpectedArrayElementType -> parse_diagnostic(parser_harness, output, 97)
+            ParseDiagnosticCode::ExpectedArraySeparatorOrEnd -> parse_diagnostic(parser_harness, output, 98)
+            ParseDiagnosticCode::ExpectedArrayLength -> parse_diagnostic(parser_harness, output, 99)
+            ParseDiagnosticCode::ExpectedArrayEnd -> parse_diagnostic(parser_harness, output, 100)
+            ParseDiagnosticCode::ExpectedStaticArgument -> parse_diagnostic(parser_harness, output, 101)
+            ParseDiagnosticCode::ExpectedStaticArgumentEnd -> parse_diagnostic(parser_harness, output, 102)
+            ParseDiagnosticCode::TypeNestingCapacityExceeded -> parse_diagnostic(parser_harness, output, 103)
+            ParseDiagnosticCode::TypeArgumentCapacityExceeded -> parse_diagnostic(parser_harness, output, 104)
         }
     }
 
@@ -562,47 +570,88 @@ machine ParserHarness::write_parse_observation(
         ParserHarness::write_u64(parser_harness, output.type_reference_count as u64 in Trapping);
         transition output.type_reference_count > 0 {
             true -> parse_type_reference(parser_harness, output, 0)
-            _ -> parse_generic_count(parser_harness, output)
+            _ -> parse_type_argument_count(parser_harness, output)
         }
     }
 
+    // Every row writes its kind tag (1 named, 3 reference, 4 array, 5 slice,
+    // 6 literal), its name and source spans, its domain flag and span (zero
+    // when unqualified), its access tag (zero unless a reference, then 1
+    // shared or 2 mutable) and its inner, length, first-argument,
+    // argument-count and first-row handles.
     state parse_type_reference(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
     requires index <= 1023
     {
-        let type_reference: TypeReference =
-            output.type_references[index];
+        let type_reference: TypeReference = output.type_references[index];
         transition type_reference.kind {
-            TypeReferenceKind::Named -> parse_named_type_reference(parser_harness, output, type_reference, index)
-            TypeReferenceKind::Qualified -> parse_qualified_type_reference(parser_harness, output, type_reference,
-                index
-            )
-            TypeReferenceKind::Reference -> parse_reference_type_reference(parser_harness, output, type_reference,
-                index
-            )
+            TypeReferenceKind::Named -> parse_type_row(parser_harness, output, type_reference, index, 1, 0)
+            TypeReferenceKind::Reference -> parse_reference_row(parser_harness, output, type_reference, index)
+            TypeReferenceKind::Array -> parse_type_row(parser_harness, output, type_reference, index, 4, 0)
+            TypeReferenceKind::Slice -> parse_type_row(parser_harness, output, type_reference, index, 5, 0)
+            TypeReferenceKind::Literal -> parse_type_row(parser_harness, output, type_reference, index, 6, 0)
         }
     }
 
-    state parse_reference_type_reference(
+    state parse_reference_row(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64
     )
     requires index <= 1023
     {
-        ParserHarness::write_byte(parser_harness, 3);
-        ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
-        ParserHarness::write_source_span(parser_harness, type_reference.source_span);
-        ParserHarness::write_byte(parser_harness, 0);
-        ParserHarness::write_source_span(parser_harness, type_reference.domain.source_span);
         transition type_reference.access {
-            ReferenceAccess::Shared -> parse_type_reference_tail(parser_harness, output, type_reference, index, 1)
-            ReferenceAccess::Mutable -> parse_type_reference_tail(parser_harness, output, type_reference, index, 2)
+            ReferenceAccess::Shared -> parse_type_row(parser_harness, output, type_reference, index, 3, 1)
+            ReferenceAccess::Mutable -> parse_type_row(parser_harness, output, type_reference, index, 3, 2)
         }
     }
 
-    // Every row ends with the access tag (zero unless a reference) and the
-    // referee handle (zero unless a reference).
-    state parse_type_reference_tail(
+    state parse_type_row(
+        parser_harness: &mut ParserHarness, output: &SyntaxTrees,
+        type_reference: TypeReference,
+        index: u64,
+        kind: u8,
+        access: u8
+    )
+    requires index <= 1023
+    {
+        ParserHarness::write_byte(parser_harness, kind);
+        ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
+        ParserHarness::write_source_span(parser_harness, type_reference.source_span);
+        transition type_reference.has_domain {
+            true -> parse_type_domain(parser_harness, output, type_reference, index, access)
+            _ -> parse_type_unqualified(parser_harness, output, type_reference, index, access)
+        }
+    }
+
+    state parse_type_domain(
+        parser_harness: &mut ParserHarness, output: &SyntaxTrees,
+        type_reference: TypeReference,
+        index: u64,
+        access: u8
+    )
+    requires index <= 1023
+    {
+        ParserHarness::write_byte(parser_harness, 1);
+        ParserHarness::write_source_span(parser_harness, type_reference.domain.source_span);
+        transition { _ -> parse_type_tail(parser_harness, output, type_reference, index, access) }
+    }
+
+    state parse_type_unqualified(
+        parser_harness: &mut ParserHarness, output: &SyntaxTrees,
+        type_reference: TypeReference,
+        index: u64,
+        access: u8
+    )
+    requires index <= 1023
+    {
+        ParserHarness::write_byte(parser_harness, 0);
+        ParserHarness::write_u64(parser_harness, 0);
+        ParserHarness::write_u64(parser_harness, 0);
+        ParserHarness::write_u64(parser_harness, 0);
+        transition { _ -> parse_type_tail(parser_harness, output, type_reference, index, access) }
+    }
+
+    state parse_type_tail(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         type_reference: TypeReference,
         index: u64,
@@ -611,51 +660,49 @@ machine ParserHarness::write_parse_observation(
     requires index <= 1023
     {
         ParserHarness::write_byte(parser_harness, access);
-        ParserHarness::write_u64(parser_harness, type_reference.referee);
+        ParserHarness::write_u64(parser_harness, type_reference.inner);
+        ParserHarness::write_u64(parser_harness, type_reference.length);
+        ParserHarness::write_u64(parser_harness, type_reference.first_argument);
+        ParserHarness::write_u64(parser_harness, type_reference.argument_count);
+        ParserHarness::write_u64(parser_harness, type_reference.first_row);
         let next: u64 = index + 1;
         transition next < output.type_reference_count {
             true -> parse_type_reference_bound(parser_harness, output, next)
-            _ -> parse_generic_count(parser_harness, output)
+            _ -> parse_type_argument_count(parser_harness, output)
         }
-    }
-
-    state parse_qualified_type_reference(
-        parser_harness: &mut ParserHarness, output: &SyntaxTrees,
-        type_reference: TypeReference,
-        index: u64
-    )
-    requires index <= 1023
-    {
-        ParserHarness::write_byte(parser_harness, 2);
-        ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
-        ParserHarness::write_source_span(parser_harness, type_reference.source_span);
-        ParserHarness::write_byte(parser_harness, 1);
-        ParserHarness::write_source_span(parser_harness, type_reference.domain.source_span);
-        transition { _ -> parse_type_reference_tail(parser_harness, output, type_reference, index, 0) }
-    }
-
-    state parse_named_type_reference(
-        parser_harness: &mut ParserHarness, output: &SyntaxTrees,
-        type_reference: TypeReference,
-        index: u64
-    )
-    requires index <= 1023
-    {
-        ParserHarness::write_byte(parser_harness, 1);
-        ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
-        ParserHarness::write_source_span(parser_harness, type_reference.source_span);
-        ParserHarness::write_byte(parser_harness, 0);
-        ParserHarness::write_u64(parser_harness, 0);
-        ParserHarness::write_u64(parser_harness, 0);
-        ParserHarness::write_u64(parser_harness, 0);
-        transition { _ -> parse_type_reference_tail(parser_harness, output, type_reference, index, 0) }
     }
 
     state parse_type_reference_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
         transition next < 1024 {
             true -> parse_type_reference(parser_harness, output, next)
+            _ -> parse_type_argument_count(parser_harness, output)
+        }
+    }
+
+    state parse_type_argument_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.type_argument_count as u64 in Trapping);
+        transition { _ -> parse_type_argument(parser_harness, output, 0) }
+    }
+
+    state parse_type_argument(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
+        transition index < output.type_argument_count {
+            true -> parse_type_argument_bound(parser_harness, output, index)
             _ -> parse_generic_count(parser_harness, output)
         }
+    }
+
+    state parse_type_argument_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64) {
+        transition index < 512 {
+            true -> parse_type_argument_row(parser_harness, output, index)
+            _ -> parse_generic_count(parser_harness, output)
+        }
+    }
+
+    state parse_type_argument_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
+    requires index <= 511
+    {
+        ParserHarness::write_u64(parser_harness, output.type_arguments[index] as u64 in Trapping);
+        transition { _ -> parse_type_argument(parser_harness, output, index + 1) }
     }
 
     state parse_generic_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
