@@ -243,13 +243,7 @@ pub(crate) fn direct_integer_requirement(
             else {
                 return None;
             };
-            let minimum_matches = match primitive_type {
-                PrimitiveType::I8 => minimum.value_i64() == Some(i64::from(i8::MIN)),
-                PrimitiveType::I16 => minimum.value_i64() == Some(i64::from(i16::MIN)),
-                PrimitiveType::I32 => minimum.value_i64() == Some(i64::from(i32::MIN)),
-                PrimitiveType::I64 => minimum.value_i64() == Some(i64::MIN),
-                _ => false,
-            };
+            let minimum_matches = signed_minimum_matches(primitive_type, minimum);
             (minimum_matches && primitive_type == subtrahend_type).then_some((
                 position,
                 primitive_type,
@@ -275,13 +269,7 @@ pub(crate) fn direct_integer_requirement(
                 }
                 _ => return None,
             };
-            let minimum_matches = match primitive_type {
-                PrimitiveType::I8 => minimum.value_i64() == Some(i64::from(i8::MIN)),
-                PrimitiveType::I16 => minimum.value_i64() == Some(i64::from(i16::MIN)),
-                PrimitiveType::I32 => minimum.value_i64() == Some(i64::from(i32::MIN)),
-                PrimitiveType::I64 => minimum.value_i64() == Some(i64::MIN),
-                _ => false,
-            };
+            let minimum_matches = signed_minimum_matches(primitive_type, minimum);
             (minimum_matches && primitive_type == addend_type).then_some((
                 position,
                 primitive_type,
@@ -617,5 +605,20 @@ pub(crate) fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTyp
         | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. }
         | CheckedUnitStructuralTypeShape::Sum { .. }
         | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
+    }
+}
+
+/// Whether `minimum` is the literal signed lower bound of `primitive_type`
+/// (`i8::MIN` … `i64::MIN`); other integer kinds have no signed minimum.
+fn signed_minimum_matches(
+    primitive_type: PrimitiveType,
+    minimum: &typed_trees::expression::IntegerLiteral,
+) -> bool {
+    match primitive_type {
+        PrimitiveType::I8 => minimum.value_i64() == Some(i64::from(i8::MIN)),
+        PrimitiveType::I16 => minimum.value_i64() == Some(i64::from(i16::MIN)),
+        PrimitiveType::I32 => minimum.value_i64() == Some(i64::from(i32::MIN)),
+        PrimitiveType::I64 => minimum.value_i64() == Some(i64::MIN),
+        _ => false,
     }
 }
