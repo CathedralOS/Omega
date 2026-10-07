@@ -5792,15 +5792,14 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current blocker: `OMEGA_CLI=<fresh debug CLI> OMEGA_TARGET=macos_arm64
   tests/psi/parser/test-parser.sh` reviews and checks the gate's three
-  packages (the gate package's check takes 113 s) and produces Terminal Psi;
-  Omega selection then refuses `ParserHarness::main`'s zero-initialized
-  `let mut lexer: Lexer;` at `selection/construction/scalar_graph/structural/zeroed.rs`:
-  zeroing stores one instruction per scalar leaf, and the Lexer's roughly
-  230k leaves (two 64 KiB byte arrays and 16,384 tokens) exceed
-  `MAX_ZEROED_LEAVES` (131,072). A zero-constructible home is all zero
-  bytes, so large homes need a bulk zero form, realized as a backend loop
-  like `CopyBytes`, rather than a higher leaf budget. `omega --check source/omega/main.omg`
-  is unverified on current main. Then run all 75 gate cases, keeping the
+  packages (the gate package's check takes 113 s), produces Terminal Psi,
+  and selects `ParserHarness::main`'s zero-initialized `Lexer` as one
+  `ZeroBytes` fill. The native build (228 s) then fails in register
+  allocation with `RegisterAllocation(RuntimeSpill(Rewrite(WorkBudgetExceeded)))`:
+  the runtime-spill rewrite's step bound, sized from the victim function's
+  instructions, blocks and memory accesses, exceeds its validation budget.
+  `omega --check source/omega/main.omg` is unverified on current main. Then
+  run all 75 gate cases, keeping the
   acceptance/rejection, lexical handoff, structural identity, capacity and
   determinism controls. Keep range-proven narrowing casts.
 

@@ -1,22 +1,26 @@
-//! Reconstruct every scalar or live-length cell of a zeroed establishment.
+//! Reconstruct a zeroed establishment's admitted home and, for a home that
+//! construction stores leaf by leaf, every scalar or live-length cell.
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
 use semantic_vocabulary::{ScalarType, StructuralCaseId, StructuralFieldId};
-use terminal_psi::{StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::{
+    StructuralMultiplicity, StructuralOperationResult, StructuralTypeDeclaration,
+    StructuralTypeShape,
+};
 
-/// Reconstruct a zeroed establishment's exact home shape and each scalar
-/// leaf's `(byte offset, width)` in canonical leaf order. Construction and
-/// independent instruction replay each consume this input.
-pub(super) fn storage<'a>(
+/// Admit a zeroed establishment and reconstruct its exact home shape. The
+/// home must be zero-constructible: its zero value is exactly all-zero
+/// bytes — every scalar zero is the all-zero bit pattern, a sum's zero
+/// selects its first case whose tag is 0, and a bounded byte field starts
+/// with a zero length. `zeroed_structural_shape` decides that from the
+/// declaration graph alone, so admission does not expand array elements and
+/// no leaf budget bounds the home's size.
+pub(super) fn home<'a>(
     source: &LegalizedScalarFunction,
     row: &'a LegalizedScalarInstruction,
-) -> Option<(
-    &'a terminal_psi::StructuralOperationResult,
-    ValueShape,
-    Vec<(u32, u8)>,
-)> {
+) -> Option<(&'a StructuralOperationResult, ValueShape)> {
     let LegalizedScalarInstructionKind::EstablishZeroedStructural { result, shape } = &row.kind
     else {
         return None;
@@ -34,9 +38,22 @@ pub(super) fn storage<'a>(
             result.structural_type,
             declarations,
         )? != *shape
+        || !terminal_semantics::zeroed_structural_shape(declarations.iter(), result.structural_type)
     {
         return None;
     }
+    Some((result, *shape))
+}
+
+/// Each scalar leaf's `(byte offset, width)` of an admitted zeroed home, in
+/// canonical leaf order. Leaf enumeration refuses expansions above its
+/// resource ceiling, so construction asks only for homes it stores leaf by
+/// leaf.
+pub(super) fn storage(
+    source: &LegalizedScalarFunction,
+    result: &StructuralOperationResult,
+) -> Option<Vec<(u32, u8)>> {
+    let declarations = &source.structural.as_ref()?.structural_types;
     let leaves =
         terminal_semantics::zeroed_structural_leaves(declarations.iter(), result.structural_type)?;
     let mut stores = Vec::with_capacity(leaves.len());
@@ -157,7 +174,7 @@ pub(super) fn storage<'a>(
         }
         stores.push((offset, width));
     }
-    Some((result, *shape, stores))
+    Some(stores)
 }
 
 /// The `(byte offset, width)` of a scalar payload field within a sum's first

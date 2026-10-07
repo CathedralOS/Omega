@@ -1342,6 +1342,7 @@ pass/slices/window_shrink_min_length_tail_index_compile checked 155ms
 pass/storage/forwarded_context_bounded_byte_field_exit built 813ms exit:0 @de74b73e1452+wt
 pass/storage/forwarded_context_byte_field_cross_state_store_exit built 847ms exit:66 @ea8076b7cb75+wt
 pass/storage/forwarded_context_byte_field_read_store_exit built 848ms exit:75 @2a7dbf752a77
+pass/storage/large_zero_initialized_local_exit built 1673ms exit:70 @234bf77c3938+wt
 pass/storage/runtime_alias_field_binary checked 217ms
 pass/storage/runtime_alias_integer_write checked 190ms
 pass/storage/runtime_local_slice_forward_exit built 2288ms exit:70 @693920652f41
