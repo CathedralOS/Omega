@@ -15,18 +15,8 @@ use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
 use super::static_application::derive_exact_representative_static_application;
+pub(in crate::proof_contracts::quotients) use super::theorem::MachineStateCoordinate;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::proof_contracts::quotients) struct RepresentativeTermination {
-    pub(super) machine_symbol: SymbolHandle,
-    pub(super) state_symbol: SymbolHandle,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::proof_contracts::quotients) struct RepresentativePurity {
-    pub(super) machine_symbol: SymbolHandle,
-    pub(super) state_symbol: SymbolHandle,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RepresentativeRuntimeParameter {
@@ -106,10 +96,10 @@ pub(super) fn representative_machine_state(
 pub(super) fn unconditional_representative_termination(
     termination: &dyn crate::proof_contracts::quotients::CheckedTerminationOracle,
     representative: &RepresentativeTelescope,
-) -> Option<RepresentativeTermination> {
+) -> Option<MachineStateCoordinate> {
     termination
         .unconditionally_terminates(representative.machine_symbol)
-        .then_some(RepresentativeTermination {
+        .then_some(MachineStateCoordinate {
             machine_symbol: representative.machine_symbol,
             state_symbol: representative.state_symbol,
         })
@@ -125,7 +115,7 @@ pub(in crate::proof_contracts::quotients) fn pure_representative_effect(
     representative: &RepresentativeTelescope,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
-) -> Option<RepresentativePurity> {
+) -> Option<MachineStateCoordinate> {
     crate::machine_calls::denotational_calls::has_pure_effect_closure(
         representative.machine_symbol,
         representative.state_symbol,
@@ -136,7 +126,7 @@ pub(in crate::proof_contracts::quotients) fn pure_representative_effect(
         operational,
         service_reaches,
     )
-    .then_some(RepresentativePurity {
+    .then_some(MachineStateCoordinate {
         machine_symbol: representative.machine_symbol,
         state_symbol: representative.state_symbol,
     })

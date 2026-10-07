@@ -60,7 +60,7 @@ pub(super) struct ContractFactLocation {
 
 pub(super) use representative::pure_representative_effect;
 use representative::{
-    RepresentativeTelescope, RepresentativeTermination, derive_representative_telescope,
+    RepresentativeTelescope, derive_representative_telescope,
     representative_machine_state, unconditional_representative_termination,
 };
 use runtime_correspondence::DefineRuntimePosition;
@@ -69,7 +69,7 @@ use runtime_correspondence::{
     closed_lift_literal_for_representative, derive_define_runtime_correspondence,
     derive_direct_lift_runtime_correspondence,
 };
-use theorem::{SelectedTheoremPurity, SelectedTheoremTelescope, SelectedTheoremTermination};
+use theorem::{MachineStateCoordinate, SelectedTheoremTelescope};
 use theorem_schema::{ExpectedTheoremSchema, derive_expected_theorem_schema};
 use theorem_schema_verification::{VerifiedTheoremSchema, verify_selected_theorem_schema};
 use transport_schema::{
@@ -101,7 +101,7 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) input_relations: Vec<InputRelation>,
     pub(super) result_relation: ExactQuotientRelation,
     pub(super) representative: RepresentativeTelescope,
-    pub(super) representative_termination: Option<RepresentativeTermination>,
+    pub(super) representative_termination: Option<MachineStateCoordinate>,
     /// Exact role-ordered explicitly selected theorem applications and common
     /// eligibility. Congruence and forward transport each retain their own
     /// verified role-specific correspondence.
@@ -138,8 +138,8 @@ pub(super) struct DirectTerminalRelationPlan {
 pub(super) struct PlannedQuotientTheoremEvidence {
     pub(super) role: QuotientTheoremRole,
     pub(super) selected_application: SelectedTheoremTelescope,
-    pub(super) termination: Option<SelectedTheoremTermination>,
-    pub(super) purity: Option<SelectedTheoremPurity>,
+    pub(super) termination: Option<MachineStateCoordinate>,
+    pub(super) purity: Option<MachineStateCoordinate>,
     pub(super) crash_free: bool,
 }
 

@@ -22,7 +22,7 @@ use super::correspondence_certificate::{
     QuotientCorrespondenceCertificate, QuotientCorrespondenceEvidence,
 };
 use super::precondition::{ContractFactLocation, ContractOwner};
-use super::representative::RepresentativePurity;
+use super::representative::MachineStateCoordinate;
 use super::result_flow::{CompleteResultFlow, CompleteStateForwardingResultFlow};
 use super::runtime_correspondence::{DirectLiftArgumentSource, direct_public_parameter_symbol};
 use super::theorem_schema::{TheoremApplicationSide, TheoremParameterRole};
@@ -44,7 +44,7 @@ pub(in crate::proof_contracts::quotients) fn canonical_direct_correspondence(
     public_state: &State,
     request_expression: ExpressionHandle,
     plan: &DirectTerminalRelationPlan,
-    representative_purity: RepresentativePurity,
+    representative_purity: MachineStateCoordinate,
     result_flow: CompleteResultFlow,
 ) -> Result<CanonicalQuotientCorrespondence, String> {
     let transport_lift = match plan
@@ -81,7 +81,7 @@ fn canonical_correspondence(
     public_state: &State,
     request_expression: ExpressionHandle,
     plan: &DirectTerminalRelationPlan,
-    representative_purity: RepresentativePurity,
+    representative_purity: MachineStateCoordinate,
     result_flow: CompleteResultFlow,
     transport_lift: bool,
 ) -> Result<CanonicalQuotientCorrespondence, String> {

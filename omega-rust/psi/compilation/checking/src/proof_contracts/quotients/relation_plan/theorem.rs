@@ -16,13 +16,7 @@ use typed_trees::state::State;
 use typed_trees::types::TypeReferenceNode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::proof_contracts::quotients) struct SelectedTheoremTermination {
-    pub(super) machine_symbol: SymbolHandle,
-    pub(super) state_symbol: SymbolHandle,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::proof_contracts::quotients) struct SelectedTheoremPurity {
+pub(in crate::proof_contracts::quotients) struct MachineStateCoordinate {
     pub(super) machine_symbol: SymbolHandle,
     pub(super) state_symbol: SymbolHandle,
 }
@@ -105,10 +99,10 @@ fn selected_theorem_machine_state(
 pub(super) fn unconditional_selected_theorem_termination(
     termination: &dyn crate::proof_contracts::quotients::CheckedTerminationOracle,
     theorem: &SelectedTheoremTelescope,
-) -> Option<SelectedTheoremTermination> {
+) -> Option<MachineStateCoordinate> {
     termination
         .unconditionally_terminates(theorem.machine_symbol)
-        .then_some(SelectedTheoremTermination {
+        .then_some(MachineStateCoordinate {
             machine_symbol: theorem.machine_symbol,
             state_symbol: theorem.state_symbol,
         })
@@ -118,7 +112,7 @@ pub(super) fn pure_selected_theorem_effect(
     theorem: &SelectedTheoremTelescope,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
-) -> Option<SelectedTheoremPurity> {
+) -> Option<MachineStateCoordinate> {
     crate::machine_calls::denotational_calls::has_pure_effect_closure(
         theorem.machine_symbol,
         theorem.state_symbol,
@@ -129,7 +123,7 @@ pub(super) fn pure_selected_theorem_effect(
         operational,
         service_reaches,
     )
-    .then_some(SelectedTheoremPurity {
+    .then_some(MachineStateCoordinate {
         machine_symbol: theorem.machine_symbol,
         state_symbol: theorem.state_symbol,
     })
