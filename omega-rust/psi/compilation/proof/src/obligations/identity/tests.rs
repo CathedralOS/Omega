@@ -2,10 +2,10 @@
 //! constraint and payload sensitivity, and schema marking.
 
 use super::proof_obligation_key;
+use crate::test_program::bounded_value;
 use crate::obligations::{
-    BinaryValueOperands, BoundedAssignmentObligation, BoundedValueObligation,
-    GuardedTransitionObligation, IntegerRange, ProofConstraint, ProofObligation,
-    ProofObligationOwner, ProofPlan,
+    BinaryValueOperands, BoundedAssignmentObligation, GuardedTransitionObligation, IntegerRange,
+    ProofConstraint, ProofObligation, ProofPlan,
 };
 use numerics::bignum::BigInt;
 use numerics::literals::IntegerLiteral;
@@ -84,26 +84,6 @@ impl Program {
             .expression_table
             .insert_tree(&Expression::Integer(IntegerLiteral::from_value(value)))
     }
-}
-
-fn bounded_value(
-    machine: SymbolHandle,
-    machine_name: &str,
-    data_symbol: SymbolHandle,
-    data_name: &str,
-    base: typed_trees::types::TypeReferenceHandle,
-    constraints: arena::HandleSpan<ProofConstraint>,
-) -> ProofObligation {
-    ProofObligation::BoundedValue(BoundedValueObligation {
-        owner: ProofObligationOwner::MachineOwnedData {
-            machine_symbol: machine,
-            machine: Identifier::generated(machine_name),
-            data_symbol,
-            data: Identifier::generated(data_name),
-        },
-        base_type: base,
-        constraints,
-    })
 }
 
 fn bounded_assignment(

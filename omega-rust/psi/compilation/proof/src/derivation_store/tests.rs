@@ -3,79 +3,10 @@
 //! indexes evidence, it does not verify it.
 
 use super::{DerivationStore, DerivationStoreFull};
-use crate::obligations::{
-    BoundedValueObligation, ProofObligation, ProofObligationKey, ProofObligationOwner, ProofPlan,
-    proof_obligation_key,
-};
-use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
-use typed_trees::TypedTrees;
-use typed_trees::name::Identifier;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-struct Program {
-    typed_trees: TypedTrees,
-    machine: SymbolHandle,
-    data: [SymbolHandle; 2],
-    int_type: SymbolHandle,
-}
-
-fn program() -> Program {
-    let mut builder = SymbolTableBuilder::new();
-    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-    let machine = SymbolTableBuilder::child_handles(
-        builder.insert_children(root, [(SymbolKind::Machine, SymbolNameRef::Static("Main"))]),
-    )
-    .next()
-    .expect("machine");
-    let members = SymbolTableBuilder::child_handles(builder.insert_children(
-        machine,
-        [
-            (SymbolKind::Data, SymbolNameRef::Static("count")),
-            (SymbolKind::Data, SymbolNameRef::Static("total")),
-            (SymbolKind::BuiltinType, SymbolNameRef::Static("Int")),
-        ],
-    ))
-    .collect::<Vec<_>>();
-    Program {
-        typed_trees: TypedTrees {
-            symbols: builder.finish(),
-            ..TypedTrees::default()
-        },
-        machine,
-        data: [members[0], members[1]],
-        int_type: members[2],
-    }
-}
-
-impl Program {
-    fn int_reference(&mut self) -> TypeReferenceHandle {
-        self.typed_trees
-            .type_reference_table
-            .insert(TypeReferenceNode::Named {
-                symbol: self.int_type,
-                name: Identifier::generated("Int"),
-            })
-    }
-}
-
-fn bounded_value(
-    machine: SymbolHandle,
-    machine_name: &str,
-    data_symbol: SymbolHandle,
-    data_name: &str,
-    base: TypeReferenceHandle,
-) -> ProofObligation {
-    ProofObligation::BoundedValue(BoundedValueObligation {
-        owner: ProofObligationOwner::MachineOwnedData {
-            machine_symbol: machine,
-            machine: Identifier::generated(machine_name),
-            data_symbol,
-            data: Identifier::generated(data_name),
-        },
-        base_type: base,
-        constraints: arena::HandleSpan::empty(),
-    })
-}
+use crate::test_program::{bounded_value, program};
+use crate::obligations::{ProofObligationKey, ProofPlan, proof_obligation_key};
+use symbols::SymbolHandle;
+use typed_trees::types::TypeReferenceHandle;
 
 /// The key for "bounded `data`" obligations: `data` selects the semantic
 /// row, everything else stays fixed.
@@ -85,7 +16,7 @@ fn key_for(
     data: SymbolHandle,
     base: TypeReferenceHandle,
 ) -> ProofObligationKey {
-    proof_obligation_key(plan, &bounded_value(machine, "Main", data, "count", base))
+    proof_obligation_key(plan, &bounded_value(machine, "Main", data, "count", base, arena::HandleSpan::empty()))
 }
 
 #[test]
@@ -97,21 +28,21 @@ fn lookup_uses_semantic_identity_not_spelling() {
     let plan = ProofPlan::new(&program.typed_trees);
 
     let mut store = DerivationStore::new();
-    let obligation = bounded_value(machine, "Main", count, "count", base);
+    let obligation = bounded_value(machine, "Main", count, "count", base, arena::HandleSpan::empty());
     let id = store
         .store_for(&plan, &obligation, "derivation")
         .expect("unbounded store accepts");
 
     // A display rename beside the same resolved symbols is the same
     // obligation, so its candidates include the retained derivation.
-    let renamed = bounded_value(machine, "RenamedMachine", count, "renamed", base);
+    let renamed = bounded_value(machine, "RenamedMachine", count, "renamed", base, arena::HandleSpan::empty());
     let candidates = store.candidates_for(&plan, &renamed).collect::<Vec<_>>();
     assert_eq!(candidates, [(id, &"derivation")]);
     assert_eq!(store.derivation(id), Some(&"derivation"));
 
     // A different resolved owner is a different obligation: a miss, not a
     // collision.
-    let other = bounded_value(machine, "Main", program.data[1], "count", base);
+    let other = bounded_value(machine, "Main", program.data[1], "count", base, arena::HandleSpan::empty());
     assert_eq!(store.candidates_for(&plan, &other).count(), 0);
 }
 
@@ -180,7 +111,7 @@ fn clear_drops_everything() {
     let id = store
         .store_for(
             &plan,
-            &bounded_value(machine, "Main", count, "count", base),
+            &bounded_value(machine, "Main", count, "count", base, arena::HandleSpan::empty()),
             1,
         )
         .expect("stored");

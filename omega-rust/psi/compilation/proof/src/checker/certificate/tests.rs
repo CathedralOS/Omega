@@ -7,6 +7,7 @@ use super::{
     guarded_bounds_certificate, refold_bounds_certificate, scalar_integer_term,
 };
 use crate::integer_range;
+use crate::test_program::{bounded_value, program};
 use numerics::bignum::BigInt;
 use proof_admission::{
     AcceptedFactRoute, AcceptedProofRule, EvidenceRoute, Obligation, ObligationClass,
@@ -457,91 +458,19 @@ fn plan_measurement_records_the_kernel_receipt() {
 // Derivation-recheck consultation: retained certificates are re-decided by
 // the admission kernel on every consult — a hit discharges the leg, a
 // kernel-rejected candidate is passed over, a miss and a capacity refusal
-// are explicit outcomes. The key scaffold mirrors `derivation_store::tests`:
-// a minimal TypedTrees with one machine and two data symbols so
-// `proof_obligation_key` produces canonical obligation identities.
+// are explicit outcomes. The key scaffold is `crate::test_program`, shared
+// with `derivation_store::tests` and `obligations::identity::tests`.
 
 use crate::checker::derivation_cache::{DerivationConsultation, ProofDerivationCache};
-use crate::obligations::{
-    BoundedValueObligation, ProofObligation, ProofObligationOwner, ProofPlan, proof_obligation_key,
-};
-use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
-use typed_trees::TypedTrees;
-use typed_trees::name::Identifier;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-struct ConsultationProgram {
-    typed_trees: TypedTrees,
-    machine: SymbolHandle,
-    data: [SymbolHandle; 2],
-    int_type: SymbolHandle,
-}
-
-fn consultation_program() -> ConsultationProgram {
-    let mut builder = SymbolTableBuilder::new();
-    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-    let machine = SymbolTableBuilder::child_handles(
-        builder.insert_children(root, [(SymbolKind::Machine, SymbolNameRef::Static("Main"))]),
-    )
-    .next()
-    .expect("machine");
-    let members = SymbolTableBuilder::child_handles(builder.insert_children(
-        machine,
-        [
-            (SymbolKind::Data, SymbolNameRef::Static("count")),
-            (SymbolKind::Data, SymbolNameRef::Static("total")),
-            (SymbolKind::BuiltinType, SymbolNameRef::Static("Int")),
-        ],
-    ))
-    .collect::<Vec<_>>();
-    ConsultationProgram {
-        typed_trees: TypedTrees {
-            symbols: builder.finish(),
-            ..TypedTrees::default()
-        },
-        machine,
-        data: [members[0], members[1]],
-        int_type: members[2],
-    }
-}
-
-impl ConsultationProgram {
-    fn int_reference(&mut self) -> TypeReferenceHandle {
-        self.typed_trees
-            .type_reference_table
-            .insert(TypeReferenceNode::Named {
-                symbol: self.int_type,
-                name: Identifier::generated("Int"),
-            })
-    }
-}
-
-fn key_obligation(
-    machine: SymbolHandle,
-    machine_name: &str,
-    data_symbol: SymbolHandle,
-    data_name: &str,
-    base: TypeReferenceHandle,
-) -> ProofObligation {
-    ProofObligation::BoundedValue(BoundedValueObligation {
-        owner: ProofObligationOwner::MachineOwnedData {
-            machine_symbol: machine,
-            machine: Identifier::generated(machine_name),
-            data_symbol,
-            data: Identifier::generated(data_name),
-        },
-        base_type: base,
-        constraints: arena::HandleSpan::empty(),
-    })
-}
+use crate::obligations::{ProofPlan, proof_obligation_key};
 
 #[test]
 fn kernel_rejected_candidates_are_passed_over_not_accepted() {
-    let mut program = consultation_program();
+    let mut program = program();
     let base = program.int_reference();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
-    let obligation = key_obligation(program.machine, "Main", program.data[0], "count", base);
+    let obligation = bounded_value(program.machine, "Main", program.data[0], "count", base, arena::HandleSpan::empty());
 
     // A stale or hostile entry under the right key gets the same treatment
     // as an honest one: the kernel re-decides it. This package's own claim
@@ -568,11 +497,11 @@ fn kernel_rejected_candidates_are_passed_over_not_accepted() {
 
 #[test]
 fn capacity_refusal_is_explicit_and_keeps_the_verdict_path() {
-    let mut program = consultation_program();
+    let mut program = program();
     let base = program.int_reference();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::with_capacity(0);
-    let obligation = key_obligation(program.machine, "Main", program.data[0], "count", base);
+    let obligation = bounded_value(program.machine, "Main", program.data[0], "count", base, arena::HandleSpan::empty());
 
     let certificate =
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 65)
@@ -587,7 +516,7 @@ fn capacity_refusal_is_explicit_and_keeps_the_verdict_path() {
 
 #[test]
 fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
-    let mut program = consultation_program();
+    let mut program = program();
     let base = program.int_reference();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
@@ -595,12 +524,12 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
     let certificate =
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 66)
             .expect("certificate");
-    let count = key_obligation(program.machine, "Main", program.data[0], "count", base);
+    let count = bounded_value(program.machine, "Main", program.data[0], "count", base, arena::HandleSpan::empty());
     DerivationConsultation::new(&plan, &count, &mut cache).retain(certificate);
 
     // A dependency change — here a different resolved owner — produces a
     // different key: the stale row is never consulted, not even to reject.
-    let moved = key_obligation(program.machine, "Main", program.data[1], "count", base);
+    let moved = bounded_value(program.machine, "Main", program.data[1], "count", base, arena::HandleSpan::empty());
     assert!(
         DerivationConsultation::new(&plan, &moved, &mut cache)
             .recheck()
@@ -611,7 +540,7 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
     // key-granularity invalidate reclaims it; neighbors survive untouched.
     // `total` on `data[1]` is a distinct row — `moved` consulted earlier
     // before anything was retained under its key, so it stayed a miss.
-    let total = key_obligation(program.machine, "Main", program.data[1], "total", base);
+    let total = bounded_value(program.machine, "Main", program.data[1], "total", base, arena::HandleSpan::empty());
     let neighbor =
         closed_bounds_certificate(literal_term(3), math_literal(0), math_literal(10), 67)
             .expect("certificate");
@@ -636,7 +565,7 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
             .is_some(),
         "the surviving row still discharges its leg"
     );
-    let ghost = key_obligation(program.machine, "Main", program.int_type, "ghost", base);
+    let ghost = bounded_value(program.machine, "Main", program.int_type, "ghost", base, arena::HandleSpan::empty());
     assert_eq!(cache.invalidate(&proof_obligation_key(&plan, &ghost)), 0);
 
     let report = cache.report();
@@ -647,13 +576,13 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
 
 #[test]
 fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
-    let mut program = consultation_program();
+    let mut program = program();
     let base = program.int_reference();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
 
-    let count_obligation = key_obligation(program.machine, "Main", program.data[0], "count", base);
-    let total_obligation = key_obligation(program.machine, "Main", program.data[1], "total", base);
+    let count_obligation = bounded_value(program.machine, "Main", program.data[0], "count", base, arena::HandleSpan::empty());
+    let total_obligation = bounded_value(program.machine, "Main", program.data[1], "total", base, arena::HandleSpan::empty());
     DerivationConsultation::new(&plan, &count_obligation, &mut cache).retain(
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 66)
             .expect("certificate"),
@@ -679,7 +608,7 @@ fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
 
     // A dependency-identical obligation hits a miss: the affected evidence
     // is gone, so the producer decides the leg fresh.
-    let renamed = key_obligation(program.machine, "Renamed", program.data[0], "renamed", base);
+    let renamed = bounded_value(program.machine, "Renamed", program.data[0], "renamed", base, arena::HandleSpan::empty());
     assert!(
         DerivationConsultation::new(&plan, &renamed, &mut cache)
             .recheck()
@@ -687,7 +616,7 @@ fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
     );
 
     // The unaffected row still discharges its obligation.
-    let total_again = key_obligation(program.machine, "Main", program.data[1], "total", base);
+    let total_again = bounded_value(program.machine, "Main", program.data[1], "total", base, arena::HandleSpan::empty());
     assert!(
         DerivationConsultation::new(&plan, &total_again, &mut cache)
             .recheck()

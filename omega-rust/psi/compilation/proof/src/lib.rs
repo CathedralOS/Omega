@@ -19,6 +19,8 @@ pub mod lemmas;
 pub mod obligations;
 mod proof_surface;
 #[cfg(test)]
+mod test_program;
+#[cfg(test)]
 mod tests;
 mod typed_expressions;
 
