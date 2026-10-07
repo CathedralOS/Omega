@@ -84,10 +84,33 @@ pub(super) fn call_expressions(
 }
 
 pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Result<bool, String> {
-    let mut pending = vec![(root, false)];
+    let mut contains_call = false;
+    for_each_initializer_expression(program, vec![root], |expression| {
+        // A `size_of`/`align_of` request is the compiler's layout query, not
+        // an invocation: it carries no callee for admission to select and no
+        // machine body for replay to re-execute.
+        contains_call |= matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Call(call) if call.layout_query.is_none()
+        );
+    })?;
+    Ok(contains_call)
+}
+
+/// Shared ordinary expression edges for custody and demand. This establishes
+/// arena shape only; declaration and invocation admission remain separate.
+/// The (expression, finish) DFS spine constant-initializer walks share:
+/// cycle detection, once-per-expression visits, and malformed-traversal
+/// errors. `visit` sees each expression once, pre-order.
+fn for_each_initializer_expression(
+    program: &TypedTrees,
+    roots: &[ExpressionHandle],
+    mut visit: impl FnMut(ExpressionHandle),
+) -> Result<(), String> {
+    let mut pending: Vec<(ExpressionHandle, bool)> =
+        roots.iter().rev().map(|root| (*root, false)).collect();
     let mut active = Vec::new();
     let mut complete = Vec::new();
-    let mut contains_call = false;
     while let Some((expression, finish)) = pending.pop() {
         if finish {
             if active.pop() != Some(expression) {
@@ -103,22 +126,14 @@ pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Res
             continue;
         }
         let children = expression_children(program, expression)?;
-        // A `size_of`/`align_of` request is the compiler's layout query, not
-        // an invocation: it carries no callee for admission to select and no
-        // machine body for replay to re-execute.
-        contains_call |= matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Call(call) if call.layout_query.is_none()
-        );
+        visit(expression);
         active.push(expression);
         pending.push((expression, true));
         pending.extend(children.into_iter().rev().map(|child| (child, false)));
     }
-    Ok(contains_call)
+    Ok(())
 }
 
-/// Shared ordinary expression edges for custody and demand. This establishes
-/// arena shape only; declaration and invocation admission remain separate.
 fn expression_children(
     program: &TypedTrees,
     expression: ExpressionHandle,
