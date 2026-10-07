@@ -79,22 +79,24 @@ pub(super) fn view_write(
             }
         }
     }
+    let indexed = indexed_byte_value(
+        program,
+        facts,
+        machine,
+        state,
+        &destination.root,
+        statement_index,
+        index,
+        assignment,
+        source,
+        trace,
+    )?;
     Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(
         checked_trees::CheckedByteSequenceWritePlan {
             statement_index,
             destination: destination.root.destination(),
-            index: value::runtime_index(facts, state, statement_index, index)?,
-            value: value::byte_value(
-                program,
-                facts,
-                machine,
-                state,
-                &destination.root,
-                statement_index,
-                assignment,
-                source,
-                trace,
-            )?,
+            index: indexed.0,
+            value: indexed.1,
         },
     ))
 }
@@ -216,6 +218,18 @@ pub(super) fn field_store(
         {
             return None;
         }
+        let indexed = indexed_byte_value(
+            program,
+            facts,
+            machine,
+            state,
+            &destination.root,
+            statement_index,
+            index,
+            assignment,
+            source,
+            trace,
+        )?;
         return Some(
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(
                 checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan {
@@ -223,18 +237,8 @@ pub(super) fn field_store(
                     destination: store_root,
                     carrier_path,
                     field_identity: terminal_field_identity(program, field.symbol)?,
-                    index: value::runtime_index(facts, state, statement_index, index)?,
-                    value: value::byte_value(
-                        program,
-                        facts,
-                        machine,
-                        state,
-                        &destination.root,
-                        statement_index,
-                        assignment,
-                        source,
-                        trace,
-                    )?,
+                    index: indexed.0,
+                    value: indexed.1,
                 },
             ),
         );
@@ -550,4 +554,38 @@ pub(super) fn field_view_is_mutable(
             _ => return false,
         }
     }
+}
+
+/// The `(index, value)` pair an indexed byte store evaluates against one
+/// destination root — shared by the whole-carrier and field-element lanes.
+#[allow(clippy::too_many_arguments)]
+fn indexed_byte_value(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    root: &Root<'_>,
+    statement_index: u32,
+    index: typed_trees::expression::ExpressionHandle,
+    assignment: &typed_trees::statement::TableAssignment,
+    source: AssignmentSource,
+    trace: &LocalConstructionTrace,
+) -> Option<(
+    checked_trees::CheckedScalarExpression,
+    checked_trees::CheckedStoreValue,
+)> {
+    Some((
+        value::runtime_index(facts, state, statement_index, index)?,
+        value::byte_value(
+            program,
+            facts,
+            machine,
+            state,
+            root,
+            statement_index,
+            assignment,
+            source,
+            trace,
+        )?,
+    ))
 }
