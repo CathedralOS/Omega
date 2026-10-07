@@ -191,69 +191,7 @@ fn append_expression_children(
     expression: &typed_trees::expression::ExpressionNode,
     children: &mut Vec<typed_trees::expression::ExpressionHandle>,
 ) {
-    use typed_trees::expression::ExpressionNode;
-    match expression {
-        ExpressionNode::Match(dispatch) => {
-            children.push(dispatch.subject);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    children.push(pattern);
-                }
-                children.push(arm.value);
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => children.extend(
-            program
-                .expression_table
-                .expression_handles(*values)
-                .iter()
-                .copied(),
-        ),
-        ExpressionNode::Atomic(atomic) => {
-            children.push(atomic.value);
-            children.push(atomic.result);
-        }
-        ExpressionNode::Binary(binary) => {
-            children.push(binary.left);
-            children.push(binary.right);
-        }
-        ExpressionNode::Call(call) => {
-            children.push(call.receiver);
-            children.extend(
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .copied(),
-            );
-        }
-        ExpressionNode::Cast(cast) => children.push(cast.value),
-        ExpressionNode::Indexed(indexed) => {
-            children.push(indexed.collection);
-            children.push(indexed.index);
-        }
-        ExpressionNode::Member(member) => children.push(member.receiver),
-        ExpressionNode::Borrow(reference) => children.push(reference.target),
-        ExpressionNode::Range(range) => {
-            children.push(range.start);
-            children.push(range.end);
-        }
-        ExpressionNode::StructLiteral(literal) => children.extend(
-            program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .map(|field| field.value),
-        ),
-        ExpressionNode::Unary(unary) => children.push(unary.operand),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
-    }
+    crate::facts::push_every_expression_child(program, expression, children)
 }
 
 fn evidence_term_belongs_to_target(

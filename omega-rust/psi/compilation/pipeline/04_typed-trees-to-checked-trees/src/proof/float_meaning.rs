@@ -440,56 +440,11 @@ fn expression_children(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     let mut children = Vec::new();
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            children.push(dispatch.subject);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    children.push(pattern);
-                }
-                children.push(arm.value);
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => children.extend(
-            program
-                .expression_table
-                .expression_handles(*values)
-                .iter()
-                .copied(),
-        ),
-        ExpressionNode::Atomic(atomic) => children.extend([atomic.value, atomic.result]),
-        ExpressionNode::Binary(binary) => children.extend([binary.left, binary.right]),
-        ExpressionNode::Borrow(borrow) => children.push(borrow.target),
-        ExpressionNode::Call(call) => {
-            children.push(call.receiver);
-            children.extend(
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .copied(),
-            );
-        }
-        ExpressionNode::Cast(cast) => children.push(cast.value),
-        ExpressionNode::Indexed(indexed) => children.extend([indexed.collection, indexed.index]),
-        ExpressionNode::Member(member) => children.push(member.receiver),
-        ExpressionNode::Range(range) => children.extend([range.start, range.end]),
-        ExpressionNode::StructLiteral(literal) => children.extend(
-            program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .map(|field| field.value),
-        ),
-        ExpressionNode::Unary(unary) => children.push(unary.operand),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
-    }
+    crate::facts::push_every_expression_child(
+        program,
+        program.expression_table.expression(expression),
+        &mut children,
+    );
     children
 }
 
