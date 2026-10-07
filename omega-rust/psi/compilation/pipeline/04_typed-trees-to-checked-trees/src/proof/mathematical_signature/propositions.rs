@@ -1,0 +1,288 @@
+//! Proposition construction: comparisons, connectives, and case sums
+//! become `Type 0` propositions in the bounded vocabulary — `Id` over the
+//! operand carrier, right-nested `Σ`, tagged sums, and boolean literals.
+
+use proof_admission::{Term, TermHandle, shift};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+};
+
+use super::{Elaborator, ScalarCarrier};
+
+impl<'a> Elaborator<'a> {
+    /// is a proposition form at all — `None` names an ordinary term and
+    /// falls back to `elaborate_expression`, while `Err` is a refused
+    /// proposition. Comparisons need a shared scalar carrier: integer
+    /// orders (`<`, `<=`, `>`, `>=`) denote `IntLt`/`IntLe` over the
+    /// shared `Int`, `==` denotes `Id` over the operands' carrier, `!=`
+    /// denotes `Not` applied to the same `Id`, `&&`
+    /// denotes a right-nested `Σ`, `||` the tagged `Two` sum, `true` and
+    /// `false` the `Two` identities, and any `bool`-carried subject — a
+    /// name, a call result, `!b`, a field or a cast — means
+    /// `subject = true`, the same proposition `lower_proposition` forms.
+    pub(super) fn elaborate_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+    ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
+        match self.program.expression_table.expression(handle) {
+            ExpressionNode::Boolean(value) => Ok(Some(self.boolean_proposition(*value))),
+            ExpressionNode::Name(..)
+            | ExpressionNode::Call(..)
+            | ExpressionNode::Unary(..)
+            | ExpressionNode::Member(..)
+            | ExpressionNode::Cast(..)
+            | ExpressionNode::Indexed(..) => self.subject_proposition(handle),
+            ExpressionNode::Binary(binary) => {
+                let binary = *binary;
+                match binary.operator {
+                    BinaryOperator::Equal => self.equality_proposition(handle, binary).map(Some),
+                    BinaryOperator::NotEqual => {
+                        self.inequality_proposition(handle, binary).map(Some)
+                    }
+                    BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual => {
+                        self.order_proposition(handle, binary).map(Some)
+                    }
+                    BinaryOperator::And | BinaryOperator::Or => self
+                        .connective_proposition(handle, binary.operator)
+                        .map(Some),
+                    _ => Ok(None),
+                }
+            }
+            _ => self.subject_proposition(handle),
+        }
+    }
+
+    /// A bare `bool`-carried subject — a name, call result, `!b`, field
+    /// projection or cast — denotes `Id bool subject true`; carriers
+    /// that are not `bool` are ordinary terms, not propositions.
+    pub(super) fn subject_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+    ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
+        match self.operand_carrier(handle) {
+            Some(ScalarCarrier::Boolean) => {
+                let subject = self.scalar_operand_term(handle, ScalarCarrier::Boolean)?;
+                let ty = self.carrier_term(ScalarCarrier::Boolean);
+                let truth = self.boolean_literal(true);
+                Ok(Some(self.arena.insert(Term::Id {
+                    ty,
+                    left: subject,
+                    right: truth,
+                })))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// `l != r : Type 0` — `Not (Id S l r)`, reusing the shared-carrier
+    /// equality endpoints so `x != y` and `y != x` order canonically the
+    /// way `x == y` and `y == x` do. `Not` is an opaque assumption at
+    /// `Type 0`, not the kernel's `sEmpty` elimination, so the negated
+    /// proposition composes inside `&&`/`||` without leaving the `Type 0`
+    /// vocabulary.
+    pub(super) fn inequality_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+        binary: TableBinaryExpression,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let equality = self.equality_proposition(handle, binary)?;
+        let position = self.proposition_negation();
+        let function = self.constant(position);
+        Ok(self.arena.insert(Term::Apply {
+            function,
+            argument: equality,
+        }))
+    }
+
+    /// `l = r : Type 0` — `Id` over the operands' shared scalar carrier.
+    /// `Int` serves every fixed-width integer comparison, `bool` and
+    /// `addr` their own carriers, and an interned `data` carrier serves
+    /// structural equality — the generic `Id S` route the bounded
+    /// denotation keeps for non-integer scalars. Anonymous literals adopt
+    /// the other operand's carrier; distinct determined carriers refuse.
+    pub(super) fn equality_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+        binary: TableBinaryExpression,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let carrier = self
+            .operand_carrier(binary.left)
+            .or_else(|| self.operand_carrier(binary.right))
+            .ok_or_else(|| {
+                self.refuse(format!(
+                    "cannot determine a shared scalar carrier for `{}`",
+                    self.program.render_proof_expression(
+                        handle,
+                        typed_trees::proposition::ProofSubstitutions::None
+                    )
+                ))
+            })?;
+        let mut left = self.scalar_operand_term(binary.left, carrier)?;
+        let mut right = self.scalar_operand_term(binary.right, carrier)?;
+        // `Id` endpoints order canonically — `x == y` and `y == x`
+        // denote one type. The bounded denotation canonicalizes at the
+        // proposition level; signatures carry no proposition stage, so
+        // the kernel terms themselves order here.
+        if self.denotation_key(left) > self.denotation_key(right) {
+            std::mem::swap(&mut left, &mut right);
+        }
+        let ty = self.carrier_term(carrier);
+        Ok(self.arena.insert(Term::Id { ty, left, right }))
+    }
+
+    /// `IntLt l r` or `IntLe l r : Type 0` — the shared order relations,
+    /// reserved for fixed non-address integer operands exactly as the
+    /// bounded denotation's `fixed_scalar_relation` gates them. `>` and
+    /// `>=` denote the flipped form.
+    pub(super) fn order_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+        binary: TableBinaryExpression,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let carrier = self
+            .operand_carrier(binary.left)
+            .or_else(|| self.operand_carrier(binary.right));
+        if carrier != Some(ScalarCarrier::Integer) {
+            return Err(self.refuse(format!(
+                "order relation `{}` denotes only over fixed non-address integers",
+                self.program.render_proof_expression(
+                    handle,
+                    typed_trees::proposition::ProofSubstitutions::None
+                )
+            )));
+        }
+        let left = self.integer_operand(binary.left)?;
+        let right = self.integer_operand(binary.right)?;
+        let (strict, left, right) = match binary.operator {
+            BinaryOperator::Less => (true, left, right),
+            BinaryOperator::LessOrEqual => (false, left, right),
+            BinaryOperator::Greater => (true, right, left),
+            _ => (false, right, left),
+        };
+        let position = if strict {
+            self.integer_less_than()
+        } else {
+            self.integer_less_or_equal()
+        };
+        let relation = self.constant(position);
+        let function = self.arena.insert(Term::Apply {
+            function: relation,
+            argument: left,
+        });
+        Ok(self.arena.insert(Term::Apply {
+            function,
+            argument: right,
+        }))
+    }
+
+    /// `a && b` denotes a right-nested `Σ` and `a || b` the tagged
+    /// `Σ(t : Two). caseTwo` sum — the connective denotations of the
+    /// bounded vocabulary. Operand spines flatten and order canonically,
+    /// so `a && b` and `b && a` denote one type.
+    pub(super) fn connective_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+        operator: BinaryOperator,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let mut operands = Vec::new();
+        self.proposition_spine(handle, operator, &mut operands);
+        let mut terms = Vec::with_capacity(operands.len());
+        for operand in operands {
+            match self.elaborate_proposition(operand)? {
+                Some(term) => terms.push(term),
+                None => {
+                    return Err(self.refuse(format!(
+                        "operand `{}` of a proposition connective is not a proposition",
+                        self.program.render_proof_expression(
+                            operand,
+                            typed_trees::proposition::ProofSubstitutions::None
+                        )
+                    )));
+                }
+            }
+        }
+        terms.sort_by_key(|term| self.denotation_key(*term));
+        Ok(match operator {
+            BinaryOperator::And => self.right_nested_sigma(&terms, 0),
+            _ => self.tagged_sum(&terms, 0),
+        })
+    }
+
+    /// Flatten a left-associative `&&`/`||` spine into authored order.
+    pub(super) fn proposition_spine(
+        &self,
+        handle: ExpressionHandle,
+        operator: BinaryOperator,
+        operands: &mut Vec<ExpressionHandle>,
+    ) {
+        match self.program.expression_table.expression(handle) {
+            ExpressionNode::Binary(binary) if binary.operator == operator => {
+                self.proposition_spine(binary.left, operator, operands);
+                self.proposition_spine(binary.right, operator, operands);
+            }
+            _ => operands.push(handle),
+        }
+    }
+
+    /// `Σ(P, λ_. Q)` right-nested over `terms`, each denoted in the
+    /// ambient scope: `Σ` binds `Variable 0`, so every later term shifts
+    /// under the binders before it.
+    pub(super) fn right_nested_sigma(&mut self, terms: &[TermHandle], under: u32) -> TermHandle {
+        let domain = shift(&mut self.arena, terms[0], 0, under);
+        let codomain = if terms.len() == 2 {
+            shift(&mut self.arena, terms[1], 0, under + 1)
+        } else {
+            self.right_nested_sigma(&terms[1..], under + 1)
+        };
+        self.arena.insert(Term::Sigma { domain, codomain })
+    }
+
+    /// `Σ(t : Two). caseTwo(λ(_ : Two). Type 0, zero, rest, t)` — the
+    /// binary coproduct the disjunction denotation nests, matching the
+    /// bounded vocabulary's own `tagged_sum` shape.
+    pub(super) fn tagged_sum(&mut self, terms: &[TermHandle], under: u32) -> TermHandle {
+        let two = self.arena.insert(Term::Two);
+        let type_zero = self.type_zero();
+        let motive = self.arena.insert(Term::Lambda {
+            domain: two,
+            body: type_zero,
+        });
+        let scrutinee = self.arena.insert(Term::Variable(0));
+        let zero_branch = shift(&mut self.arena, terms[0], 0, under + 1);
+        let one_branch = if terms.len() == 2 {
+            shift(&mut self.arena, terms[1], 0, under + 1)
+        } else {
+            self.tagged_sum(&terms[1..], under + 1)
+        };
+        let family = self.arena.insert(Term::CaseTwo {
+            motive,
+            zero_branch,
+            one_branch,
+            scrutinee,
+        });
+        self.arena.insert(Term::Sigma {
+            domain: two,
+            codomain: family,
+        })
+    }
+
+    /// `true` denotes `Id Two zero zero` and `false` `Id Two zero one` —
+    /// the bounded `Truth`/`Falsehood` denotations.
+    pub(super) fn boolean_proposition(&mut self, value: bool) -> TermHandle {
+        let ty = self.arena.insert(Term::Two);
+        let zero = self.arena.insert(Term::TwoZero);
+        let right = if value {
+            zero
+        } else {
+            self.arena.insert(Term::TwoOne)
+        };
+        self.arena.insert(Term::Id {
+            ty,
+            left: zero,
+            right,
+        })
+    }
+}
