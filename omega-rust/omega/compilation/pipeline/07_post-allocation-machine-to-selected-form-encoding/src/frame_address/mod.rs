@@ -227,21 +227,11 @@ pub(super) fn resolve(
                 },
             byte_offset: 0,
         } => {
-            let geometry = function_geometry(function, frame)?;
-            let committed = committed_extent(geometry)?;
-            let return_address_bytes = match geometry.return_address {
-                machine_code::ReturnAddressFrameCustody::CallerActivationStack {
-                    size_bytes,
-                    ..
-                } => u64::from(size_bytes),
-                machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
-                | machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
-            };
+            let base_bytes = incoming_frame_base_bytes(function, frame)?;
             // Incoming storage starts above the committed extent plus the
             // caller-activation return address; resident bytes never shift it.
-            let displacement = committed
-                .checked_add(return_address_bytes)
-                .and_then(|base| base.checked_add(u64::from(abi_stack_byte_offset)))
+            let displacement = base_bytes
+                .checked_add(u64::from(abi_stack_byte_offset))
                 .filter(|offset| *offset <= i32::MAX as u64)
                 .ok_or(Error::ArtifactMismatch)?;
             i64::try_from(displacement).map_err(|_| Error::ArtifactMismatch)?
@@ -406,22 +396,8 @@ pub(super) fn validate_address(
                 },
             byte_offset: 0,
         } => {
-            let geometry = function_geometry(function, frame)?;
-            let committed = committed_extent(geometry)?;
-            let return_address_bytes = match geometry.return_address {
-                machine_code::ReturnAddressFrameCustody::CallerActivationStack {
-                    size_bytes,
-                    ..
-                } => u64::from(size_bytes),
-                machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
-                | machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
-            };
-            let base = i64::try_from(
-                committed
-                    .checked_add(return_address_bytes)
-                    .ok_or(Error::ArtifactMismatch)?,
-            )
-            .map_err(|_| Error::ArtifactMismatch)?;
+            let base_bytes = incoming_frame_base_bytes(function, frame)?;
+            let base = i64::try_from(base_bytes).map_err(|_| Error::ArtifactMismatch)?;
             let incoming_offset = candidate.displacement.checked_sub(base);
             if incoming_offset != Some(i64::from(abi_stack_byte_offset))
                 || !(0..=i64::from(i32::MAX)).contains(&candidate.displacement)
@@ -586,4 +562,24 @@ pub(super) fn validate_address(
         }
         _ => Err(Error::ArtifactMismatch),
     }
+}
+
+/// The incoming frame's committed byte offset: the function's committed
+/// extent plus the caller-activation return address when one is committed.
+fn incoming_frame_base_bytes(
+    function: &PostAllocationMachineFunction,
+    frame: Option<&TargetFrameLayoutPlan>,
+) -> Result<u64, Error> {
+    let geometry = function_geometry(function, frame)?;
+    let committed = committed_extent(geometry)?;
+    let return_address_bytes = match geometry.return_address {
+        machine_code::ReturnAddressFrameCustody::CallerActivationStack { size_bytes, .. } => {
+            u64::from(size_bytes)
+        }
+        machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
+        | machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
+    };
+    committed
+        .checked_add(return_address_bytes)
+        .ok_or(Error::ArtifactMismatch)
 }
