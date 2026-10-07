@@ -106,6 +106,37 @@ pub(crate) enum LoweredScalarBranchTerminator {
     Crash(LoweredCrashExit),
 }
 
+impl LoweredScalarBranchTerminator {
+    /// The successor state ordinals this terminator can transfer to, in
+    /// target order: none for Return/Crash, and the armed cases following
+    /// the fallback continuation for a case split.
+    pub(crate) fn successors(&self) -> Vec<usize> {
+        match self {
+            Self::Jump { target, .. } | Self::Qualify { target, .. } => vec![*target],
+            Self::Conditional {
+                when_true_target,
+                when_false_target,
+                ..
+            }
+            | Self::CaseDispatch {
+                when_true_target,
+                when_false_target,
+                ..
+            } => vec![*when_true_target, *when_false_target],
+            Self::CaseDispatchSplit {
+                armed,
+                fallback_target,
+                ..
+            } => {
+                let mut successors = vec![*fallback_target];
+                successors.extend(armed.iter().map(|arm| arm.target));
+                successors
+            }
+            Self::Return { .. } | Self::Crash(_) => Vec::new(),
+        }
+    }
+}
+
 /// One armed case of a `CaseDispatchSplit`: `payloads` binds positionally as
 /// the case edge's block parameters, which the block then forwards as
 /// `arguments` to the arm's continuation `target`.

@@ -555,30 +555,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     }
     let successors = lowered_states
         .iter()
-        .map(|state| match &state.terminator {
-            LoweredScalarBranchTerminator::Jump { target, .. }
-            | LoweredScalarBranchTerminator::Qualify { target, .. } => vec![*target],
-            LoweredScalarBranchTerminator::Conditional {
-                when_true_target,
-                when_false_target,
-                ..
-            }
-            | LoweredScalarBranchTerminator::CaseDispatch {
-                when_true_target,
-                when_false_target,
-                ..
-            } => vec![*when_true_target, *when_false_target],
-            LoweredScalarBranchTerminator::CaseDispatchSplit {
-                armed,
-                fallback_target,
-                ..
-            } => {
-                let mut targets = vec![*fallback_target];
-                targets.extend(armed.iter().map(|arm| arm.target));
-                targets
-            }
-            _ => Vec::new(),
-        })
+        .map(|state| state.terminator.successors())
         .collect::<Vec<_>>();
     let mut indegree = vec![0usize; lowered_states.len()];
     for target in successors.iter().flatten() {
