@@ -170,12 +170,11 @@ impl<'program> Evaluator<'program> {
                             .real_fs
                             .as_ref()
                             .and_then(|filesystem| filesystem.descriptor_root(*fd))
+                            && issued != root
                         {
-                            if issued != root {
-                                return Err(Halt::Trap(
-                                    "Build descriptor belongs to another facet root".into(),
-                                ));
-                            }
+                            return Err(Halt::Trap(
+                                "Build descriptor belongs to another facet root".into(),
+                            ));
                         }
                     }
                     _ => {}

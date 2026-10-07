@@ -479,18 +479,10 @@ pub(crate) fn finish_commitment(mut entries: Vec<StagedOutputEntry>) -> BuildSta
     for entry in entries {
         let retained_kind = match entry.kind {
             StagedOutputEntryKind::Directory => RetainedStagedOutputEntryKind::Directory,
-            StagedOutputEntryKind::File(content) => {
-                debug_assert_eq!(content.length, content.bytes.len() as u64);
-                let retained_digest: [u8; 32] = Sha256::digest(&content.bytes).into();
-                debug_assert_eq!(content.digest, retained_digest);
-                RetainedStagedOutputEntryKind::File {
-                    bytes: content.bytes,
-                    executable: content.executable,
-                }
-            }
-            StagedOutputEntryKind::Symlink { target } => {
-                RetainedStagedOutputEntryKind::Symlink { target }
-            }
+            StagedOutputEntryKind::File(content) => RetainedStagedOutputEntryKind::File {
+                bytes: content.bytes,
+                executable: content.executable,
+            },
         };
         retained_entries.push(RetainedStagedOutputEntry {
             relative_path: entry.relative_path,

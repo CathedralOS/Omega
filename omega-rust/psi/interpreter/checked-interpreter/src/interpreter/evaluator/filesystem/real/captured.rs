@@ -437,14 +437,13 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         buffer.write(bytes)?;
         let length = bytes.len() as u64;
         let description_identity = open.description;
-        if offset.is_none() {
-            if let Some(description) = self
+        if offset.is_none()
+            && let Some(description) = self
                 .real_fs_mut()
                 .captured_descriptions
                 .get_mut(&description_identity)
-            {
-                description.cursor = position + length;
-            }
+        {
+            description.cursor = position + length;
         }
         Ok(Ok(length as i64))
     }

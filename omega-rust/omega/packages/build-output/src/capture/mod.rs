@@ -14,15 +14,12 @@ use crate::staged_output_tree::{
 };
 use diagnostics::Diagnostic;
 use filesystem_authority::FilesystemSponsor;
-use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CapturedFileContent {
-    pub(crate) length: u64,
-    pub(crate) digest: [u8; 32],
     pub(crate) executable: bool,
     pub(crate) bytes: Arc<[u8]>,
 }
@@ -30,7 +27,6 @@ pub(crate) struct CapturedFileContent {
 pub(crate) enum StagedOutputEntryKind {
     Directory,
     File(CapturedFileContent),
-    Symlink { target: Vec<u8> },
 }
 #[derive(Debug)]
 pub(crate) struct StagedOutputEntry {
@@ -190,7 +186,6 @@ fn capture_file(
         ))
     })?;
     let mut bytes = Vec::with_capacity(capacity);
-    let mut digest = Sha256::new();
     let mut buffer = [0u8; 64 * 1024];
     loop {
         let count = file.read(&mut buffer).map_err(|error| {
@@ -212,7 +207,6 @@ fn capture_file(
                     relative_path
                 ))
             })?;
-        digest.update(&buffer[..count]);
         bytes.extend_from_slice(&buffer[..count]);
         debug_assert_eq!(bytes.len(), total);
     }
@@ -232,8 +226,6 @@ fn capture_file(
         )));
     }
     Ok(CapturedFileContent {
-        length: expected_extent,
-        digest: digest.finalize().into(),
         executable: is_executable(&before),
         bytes: Arc::from(bytes.into_boxed_slice()),
     })
