@@ -63,17 +63,13 @@ fn settle_ieee_float_occurrence(
     ) else {
         return Err(fail("requires exactly one exact selected provider plan"));
     };
-    let Some(retained) = provenance.get(provider_plan_index) else {
-        return Err(fail("selected provider provenance is missing"));
-    };
-    if retained.plan != *plan
-        || plan.rows.len() != 1
-        || retained.provider.row_requirements.as_slice() != [occurrence.requirement_operator]
-    {
-        return Err(fail(
-            "selected provider provenance does not rejoin the exact requirement",
-        ));
-    }
+    let retained = retained_exact_provider(
+        provenance,
+        provider_plan_index,
+        plan,
+        occurrence.requirement_operator,
+        fail,
+    )?;
     let proposal = TerminalIeeeFloatComparisonOccurrenceProposal {
         terminal_machine: occurrence.terminal_machine,
         terminal_operation: occurrence.terminal_operation,
@@ -141,17 +137,13 @@ fn settle_integer_occurrence(
     ) else {
         return Err(fail("requires exactly one exact selected provider plan"));
     };
-    let Some(retained) = provenance.get(provider_plan_index) else {
-        return Err(fail("selected provider provenance is missing"));
-    };
-    if retained.plan != *plan
-        || plan.rows.len() != 1
-        || retained.provider.row_requirements.as_slice() != [occurrence.requirement_operator]
-    {
-        return Err(fail(
-            "selected provider provenance does not rejoin the exact requirement",
-        ));
-    }
+    let retained = retained_exact_provider(
+        provenance,
+        provider_plan_index,
+        plan,
+        occurrence.requirement_operator,
+        fail,
+    )?;
     let proposal = TerminalIntegerComparisonOccurrenceProposal {
         terminal_machine: occurrence.terminal_machine,
         terminal_operation: occurrence.terminal_operation,
@@ -173,4 +165,27 @@ fn settle_integer_occurrence(
         ));
     }
     Ok(proposal)
+}
+
+/// The provenance row the selected `plan` rejoins, or the caller's failure
+/// when the exact requirement does not survive selection.
+fn retained_exact_provider<'provenance>(
+    provenance: &'provenance [provider_planning::SelectedProviderReviewProvenance],
+    provider_plan_index: usize,
+    plan: &effects::provider_plan::ProviderPlan,
+    requirement_operator: symbols::SymbolHandle,
+    fail: impl Fn(&str) -> Diagnostic,
+) -> Result<&'provenance provider_planning::SelectedProviderReviewProvenance, Diagnostic> {
+    let Some(retained) = provenance.get(provider_plan_index) else {
+        return Err(fail("selected provider provenance is missing"));
+    };
+    if retained.plan != *plan
+        || plan.rows.len() != 1
+        || retained.provider.row_requirements.as_slice() != [requirement_operator]
+    {
+        return Err(fail(
+            "selected provider provenance does not rejoin the exact requirement",
+        ));
+    }
+    Ok(retained)
 }
