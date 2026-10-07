@@ -7,6 +7,7 @@ use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::{direct_scalar_field_type, remove_affine_root, resolve_structural_arguments};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
+use crate::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::values::{ScalarFieldNamespace, StructuralScalarRuntimeField};
@@ -20,30 +21,6 @@ use terminal_psi::{
 };
 
 impl TerminalExecution {
-    /// Cases built from scalars and plain records retain their whole payload
-    /// under one result identity. Calls may return that storage, and an
-    /// unrestricted occurrence needs no affine cleanup at frame exit. Keep
-    /// those two decisions on the same supported payload contract.
-    pub(crate) fn plain_case_type(&self, structural_type: StructuralTypeId) -> bool {
-        let Some(StructuralTypeShape::Sum { cases }) = self
-            .program
-            .structural_types
-            .get(&structural_type)
-            .map(|declaration| &declaration.shape)
-        else {
-            return false;
-        };
-        cases.iter().all(|case| {
-            case.fields.iter().all(|field| {
-                !field.relevance.is_erased()
-                    && match field.field_type {
-                        StructuralFieldType::Structural(child) => self.plain_record_type(child),
-                        _ => field.field_type.scalar_type().is_some(),
-                    }
-            })
-        })
-    }
-
     pub(crate) fn execute_establish_scalar_case(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -178,19 +155,7 @@ impl TerminalExecution {
         let member_root = StructuralRuntimePlace::from(&value);
         let mut staged_scalars: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue> =
             BTreeMap::new();
-        let mut staged_cases: BTreeMap<StructuralRuntimePlace, StructuralCaseContents> =
-            BTreeMap::new();
-        let mut staged_byte_fields: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView> =
-            BTreeMap::new();
-        let mut staged_byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView> =
-            BTreeMap::new();
-        let mut staged_primitives: BTreeMap<StructuralRuntimePlace, TerminalScalarValue> =
-            BTreeMap::new();
-        let mut staged_referents: BTreeMap<
-            StructuralRuntimePlace,
-            crate::reference::ReferenceReferent,
-        > = BTreeMap::new();
-        let mut staged_element_views = BTreeMap::new();
+        let mut storage = ConstructorStorage::default();
         let mut consumed = Vec::new();
         let mut frontier = self.live_affine_frontier.clone();
         let mut claim_operands = Vec::new();
@@ -238,127 +203,21 @@ impl TerminalExecution {
                     {
                         return Err(malformed());
                     }
-                    if argument.path.is_empty()
-                        && let Some(case) = self.scalar_case_values.get(&argument.place)
-                    {
-                        if declaration.field_type
-                            != StructuralFieldType::Structural(case.structural_type)
-                        {
-                            return Err(malformed());
-                        }
-                        staged_cases.insert(
-                            member.clone(),
-                            StructuralCaseContents {
-                                structural_type: case.structural_type,
-                                case: case.result_case,
-                            },
-                        );
-                        for (field, scalar) in &case.fields {
-                            staged_scalars.insert(
-                                StructuralScalarRuntimeField::case_payload(member.clone(), *field),
-                                *scalar,
-                            );
-                        }
-                        continue;
-                    }
-                    let child = resolve_structural_arguments(
-                        &self.program.structural_types,
-                        &self.structural_values,
-                        std::slice::from_ref(argument),
-                    )?
-                    .pop()
-                    .ok_or_else(malformed)?;
-                    if !child.qualifications.is_empty()
+                    let child = ConstructorValue::resolve(self, argument)?;
+                    if !child.qualifications().is_empty()
                         || declaration.field_type
-                            != StructuralFieldType::Structural(child.structural_type)
+                            != StructuralFieldType::Structural(child.structural_type())
                     {
                         return Err(malformed());
                     }
-                    // Retarget every live subtree cell into member coordinates;
-                    // non-copyable children additionally vacate their source region
-                    // once the whole roster validates.
-                    let retarget = |parent: &StructuralRuntimePlace| {
-                        (parent.opaque_identity == child.opaque_identity
-                            && parent.path.starts_with(&child.path))
-                        .then(|| StructuralRuntimePlace {
-                            opaque_identity: member.opaque_identity,
-                            path: member
-                                .path
-                                .iter()
-                                .chain(&parent.path[child.path.len()..])
-                                .cloned()
-                                .collect(),
-                        })
-                    };
-                    if self
-                        .program
-                        .structural_types
-                        .get(&child.structural_type)
-                        .is_some_and(|row| {
-                            matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                        })
-                    {
-                        let descriptor = self.element_view_argument(argument, &child)?;
-                        staged_element_views.insert(member.clone(), descriptor.clone());
-                    }
-                    for (carrier, descriptor) in &self.structural_element_view_fields {
-                        if let Some(place) = retarget(carrier) {
-                            staged_element_views.insert(place, descriptor.clone());
-                        }
-                    }
-                    for (carrier, referent) in &self.reference_referents {
-                        if let Some(place) = retarget(carrier) {
-                            if !transfers_custody {
-                                return Err(malformed());
-                            }
-                            staged_referents.insert(place, referent.clone());
-                        }
-                    }
-                    for (cell, scalar) in &self.structural_scalar_fields {
-                        if let Some(parent) = retarget(&cell.parent) {
-                            staged_scalars.insert(cell.relocated(parent), *scalar);
-                        }
-                    }
-                    for (carrier, contents) in &self.structural_cases {
-                        if let Some(place) = retarget(carrier) {
-                            staged_cases.insert(place, *contents);
-                        }
-                    }
-                    for (cell, view) in &self.structural_byte_sequence_fields {
-                        if let Some(parent) = retarget(&cell.parent) {
-                            staged_byte_fields.insert(
-                                StructuralByteSequenceRuntimeField {
-                                    parent,
-                                    field: cell.field,
-                                },
-                                view.clone(),
-                            );
-                        }
-                    }
-                    for (carrier, view) in &self.structural_byte_storage {
-                        if let Some(place) = retarget(carrier) {
-                            staged_byte_arrays.insert(place, view.clone());
-                        }
-                    }
-                    for (carrier, scalar) in &self.structural_primitive_storage {
-                        if let Some(place) = retarget(carrier) {
-                            staged_primitives.insert(place, *scalar);
-                        }
-                    }
+                    storage.stage(self, argument, &child, &member, transfers_custody)?;
                 }
             }
         }
         let claims = self.stage_constructor_claims(result, &claim_operands, &mut frontier)?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged_scalars);
-        self.structural_cases.extend(staged_cases);
-        self.structural_byte_sequence_fields
-            .extend(staged_byte_fields);
-        self.structural_byte_storage.extend(staged_byte_arrays);
-        self.structural_primitive_storage.extend(staged_primitives);
-        self.reference_referents.extend(staged_referents);
-        self.structural_element_view_fields
-            .extend(staged_element_views);
+        storage.publish(self);
         self.structural_cases.insert(
             member_root,
             StructuralCaseContents {

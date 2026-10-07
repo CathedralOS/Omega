@@ -3060,6 +3060,8 @@ deletions, which the commit lists.
     unsupported independently of this work.
   Regression controls: `arithmetic/runtime_short_circuit_cast_decisions_exit`
   (70), `arithmetic/runtime_qualified_cast_decision_exit` (0),
+  `arithmetic/runtime_returned_constructor_operation_exit` and
+  `structural/runtime_nested_constructor_payload_exit` (0 in both engines),
   `samples/cli/collections/heat_grid` (45), nested projected stores and
   `collections/runtime_fixed_array_{captured_selector,selector_call}_store_exit`
   (70) and `collections/runtime_{indexed_assignment,element_view}_selector_snapshot_exit`

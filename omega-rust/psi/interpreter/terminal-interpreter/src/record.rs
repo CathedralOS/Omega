@@ -4,15 +4,17 @@
 //! only their disjoint complement. Records, arrays and cases share that staged
 //! ownership transaction in `record/operands.rs`, so nesting neither remints a
 //! child's claim nor disposes it as an affine subtree.
-use crate::custody::resolve_structural_arguments;
+//! `record/storage.rs` stages the complete typed payload for constructors and
+//! independent owned call/block arguments; copying only scalar fields would
+//! drop nested array backing, case discriminators and primitive cells.
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralRuntimePlace;
 use crate::values::StructuralScalarRuntimeField;
-use crate::values::{TerminalScalarValue, TerminalStructuralValue};
+use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::StructuralTypeId;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use terminal_psi::OperationKind;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralFieldType;
@@ -22,7 +24,9 @@ use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
 
 mod operands;
+pub(crate) mod storage;
 mod structural_array;
+use storage::{ConstructorStorage, ConstructorValue};
 
 impl TerminalExecution {
     pub(crate) fn establish_record(
@@ -57,7 +61,7 @@ impl TerminalExecution {
             path: Vec::new(),
         };
         let mut staged = BTreeMap::new();
-        let mut storage = structural_array::ConstructorStorage::default();
+        let mut storage = ConstructorStorage::default();
         let mut staged_bytes = BTreeMap::new();
 
         let mut consumed = Vec::new();
@@ -88,19 +92,16 @@ impl TerminalExecution {
                         argument,
                         vec![StructuralPathSegment::Field(declaration.identity.clone())],
                     ));
-                    let child = resolve_structural_arguments(
-                        &self.program.structural_types,
-                        &self.structural_values,
-                        std::slice::from_ref(argument),
-                    )?
-                    .pop()
-                    .ok_or_else(malformed)?;
+                    let child = ConstructorValue::resolve(self, argument)?;
                     if matches!(
                         declaration.field_type.byte_sequence_carrier(),
                         Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
                             access: None | Some(StructuralAccess::SharedBorrow),
                         })
                     ) {
+                        let ConstructorValue::Placed(child) = &child else {
+                            return Err(malformed());
+                        };
                         let bytes = self
                             .byte_sequence_values
                             .get(&argument.place)
@@ -155,6 +156,9 @@ impl TerminalExecution {
                         carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
                     ) = declaration.field_type.byte_sequence_carrier()
                     {
+                        let ConstructorValue::Placed(child) = &child else {
+                            return Err(malformed());
+                        };
                         let predicates = terminal_semantics::byte_qualification_predicates_in(
                             self.program.catalogs.structural_domains.iter(),
                             child.structural_type,
@@ -195,9 +199,9 @@ impl TerminalExecution {
                         continue;
                     }
                     if argument.access != StructuralAccess::Owned
-                        || !child.qualifications.is_empty()
+                        || !child.qualifications().is_empty()
                         || declaration.field_type
-                            != StructuralFieldType::Structural(child.structural_type)
+                            != StructuralFieldType::Structural(child.structural_type())
                     {
                         return Err(malformed());
                     }
@@ -231,23 +235,22 @@ impl TerminalExecution {
         self.structural_values.insert(result.place, value);
         Ok(())
     }
-    /// Stage independent payloads for each owned unrestricted occurrence. The
+    /// Stage independent aggregate payloads for each owned unrestricted occurrence. The
     /// supplied descriptors and allocation cursor belong to the caller's
     /// uncommitted transaction; source fields remain untouched even in swaps.
-    pub(crate) fn stage_owned_record_arguments(
+    pub(crate) fn stage_owned_aggregate_arguments(
         &self,
         parameters: &[StructuralParameterDeclaration],
         values: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
         cursor: &mut Option<u64>,
-    ) -> Result<Vec<(StructuralScalarRuntimeField, TerminalScalarValue)>, TerminalInterpretError>
-    {
-        let mut payload = Vec::new();
+    ) -> Result<ConstructorStorage, TerminalInterpretError> {
+        let mut payload = ConstructorStorage::default();
         for parameter in parameters {
             if parameter.access != StructuralAccess::Owned
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || !self.plain_record_type(parameter.structural_type)
+                || !self.plain_aggregate_type(parameter.structural_type)
             {
                 continue;
             }
@@ -256,23 +259,15 @@ impl TerminalExecution {
             )?;
             let source = StructuralRuntimePlace::from(&*value);
             let identity = self.local_structural_identities.allocate_staged(cursor)?;
-            payload.extend(
-                self.structural_scalar_fields
-                    .iter()
-                    .filter(|(field, _)| {
-                        field.parent.opaque_identity == source.opaque_identity
-                            && field.parent.path.starts_with(&source.path)
-                    })
-                    .map(|(field, scalar)| {
-                        (
-                            field.relocated(StructuralRuntimePlace {
-                                opaque_identity: identity,
-                                path: field.parent.path[source.path.len()..].to_vec(),
-                            }),
-                            *scalar,
-                        )
-                    }),
-            );
+            payload.stage_subtree(
+                self,
+                &source,
+                &StructuralRuntimePlace {
+                    opaque_identity: identity,
+                    path: Vec::new(),
+                },
+                false,
+            )?;
             value.opaque_identity = identity;
             value.path.clear();
         }
@@ -303,8 +298,7 @@ impl TerminalExecution {
                         )
                     }
                     _ => {
-                        self.plain_record_type(result.structural_type)
-                            || self.plain_case_type(result.structural_type)
+                        self.plain_aggregate_type(result.structural_type)
                             || terminal_semantics::descriptor_results::owned_shared_byte_descriptor_shape(
                                 self.program.structural_types.values(),
                                 result.structural_type,
@@ -326,35 +320,21 @@ impl TerminalExecution {
         }
     }
 
-    pub(crate) fn plain_record_type(&self, root: StructuralTypeId) -> bool {
-        let mut pending = vec![root];
-        let mut visited = BTreeSet::new();
-        while let Some(identity) = pending.pop() {
-            if !visited.insert(identity) {
-                continue;
-            }
-            let Some(StructuralTypeShape::Record { fields }) = self
-                .program
-                .structural_types
-                .get(&identity)
-                .map(|declaration| &declaration.shape)
-            else {
-                return false;
-            };
-            for field in fields {
-                if field.relevance.is_erased() {
-                    if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
-                        continue;
-                    }
-                    return false;
-                }
-                match field.field_type {
-                    StructuralFieldType::Structural(child) => pending.push(child),
-                    _ if field.field_type.scalar_type().is_some() => {}
-                    _ => return false,
-                }
-            }
-        }
-        true
+    /// Aggregate snapshots use the canonical owned-storage contract. Packed
+    /// primitive, scalar-array and descriptor roots keep their own codecs;
+    /// records, arrays of records and cases all copy the same subtree cells.
+    pub(crate) fn plain_aggregate_type(&self, root: StructuralTypeId) -> bool {
+        self.program.structural_types.get(&root).is_some_and(|row| {
+            matches!(
+                row.shape,
+                StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::FixedArray { .. }
+                    | StructuralTypeShape::Sum { .. }
+                    | StructuralTypeShape::Mixed { .. }
+            )
+        }) && terminal_semantics::descriptor_results::plain_owned_shape(
+            self.program.structural_types.values(),
+            root,
+        )
     }
 }

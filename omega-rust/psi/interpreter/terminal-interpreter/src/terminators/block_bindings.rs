@@ -36,10 +36,7 @@ pub(crate) struct BlockBindings {
     /// frontier entries are split by the caller, not removed as transfers.
     projected_sources: BTreeSet<PlaceId>,
     affine_destinations: BTreeSet<StructuralAffineDiscard>,
-    record_payload: Vec<(
-        crate::values::StructuralScalarRuntimeField,
-        TerminalScalarValue,
-    )>,
+    aggregate_payload: crate::record::storage::ConstructorStorage,
     identity_cursor: Option<u64>,
 }
 
@@ -64,9 +61,7 @@ impl BlockBindings {
     }
 
     pub(crate) fn commit(self, execution: &mut TerminalExecution) {
-        execution
-            .structural_scalar_fields
-            .extend(self.record_payload);
+        self.aggregate_payload.publish(execution);
         for source in self.owned_sources {
             execution
                 .live_claims
@@ -470,7 +465,7 @@ impl TerminalExecution {
                     }
                 }
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    if self.plain_record_type(parameter.structural_type)
+                    if self.plain_aggregate_type(parameter.structural_type)
                         || matches!(
                             self.program
                                 .structural_types
@@ -620,7 +615,7 @@ impl TerminalExecution {
             descriptor_arguments,
             &resolved_arguments,
         )?;
-        let record_payload = self.stage_owned_record_arguments(
+        let aggregate_payload = self.stage_owned_aggregate_arguments(
             descriptor_parameters,
             &mut structural,
             &mut identity_cursor,
@@ -637,7 +632,7 @@ impl TerminalExecution {
             claims,
             projected_sources,
             affine_destinations,
-            record_payload,
+            aggregate_payload,
             identity_cursor,
         })
     }
@@ -772,7 +767,7 @@ impl TerminalExecution {
         // recognizes its exact producer, not a fresh payload or a copied loan.
         // Case payloads use their existing distinct runtime representation.
         declared == structural_type
-            && (scalar_case || self.plain_record_type(structural_type))
+            && (scalar_case || self.plain_aggregate_type(structural_type))
             && machine
                 .blocks
                 .values()

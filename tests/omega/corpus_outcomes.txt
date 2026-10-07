@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 3.16, "load1_start": 3.08, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 7.38, "load1_start": 7.77, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1999,6 +1999,7 @@ pass/arithmetic/runtime_pressure_trapping_add_exit checked 3364ms check-target:m
 pass/arithmetic/runtime_qualified_cast_decision_exit checked 1580ms check-target:macos_arm64 @3031abcffbe7
 pass/arithmetic/runtime_remainder_result_cast_exit checked 689ms check-target:macos_arm64 @7c72db8f2645+wt
 pass/arithmetic/runtime_requires_one_sided_bound_exit checked 1194ms check-target:macos_arm64 @2d8ed253669f
+pass/arithmetic/runtime_returned_constructor_operation_exit checked 1708ms check-target:macos_arm64 @6bf6ea6d1af9
 pass/arithmetic/runtime_shift_count_domain_exit checked 1358ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_shl_saturating_exit checked 3352ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_short_circuit_cast_decisions_exit checked 2659ms check-target:macos_arm64 @fa71a470ad1
@@ -3360,6 +3361,7 @@ pass/structural/element_store checked 1287ms check-target:macos_arm64 @2d8ed2536
 pass/structural/local_record_receivers checked 302ms @4e4bfed13aee+wt
 pass/structural/runtime_enum_equality_exit checked 8139ms check-target:macos_arm64 @cfe60a3a242
 pass/structural/runtime_mutable_record_copy_exit checked 1326ms check-target:macos_arm64 @ca8c127c90c5
+pass/structural/runtime_nested_constructor_payload_exit checked 1711ms check-target:macos_arm64 @6bf6ea6d1af9
 pass/structural/runtime_provider_payload_array_exit checked 767ms check-target:macos_arm64 @bbd0a9fdb8d4+wt
 pass/structural/runtime_selected_case_record_member_exit checked 1994ms check-target:macos_arm64 @9f5f12201f80+wt
 pass/structural/runtime_state_local_whole_store_exit checked 1022ms check-target:macos_arm64 @a917987f9778+wt

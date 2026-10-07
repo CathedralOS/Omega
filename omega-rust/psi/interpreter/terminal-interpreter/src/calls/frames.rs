@@ -178,7 +178,7 @@ impl TerminalExecution {
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
-        let record_payload = self.stage_owned_record_arguments(
+        let aggregate_payload = self.stage_owned_aggregate_arguments(
             &callee.structural_parameters,
             &mut structural_values,
             &mut identity_cursor,
@@ -242,7 +242,7 @@ impl TerminalExecution {
         self.primitive_loan_values = prepared_arguments.primitive_loans;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_scalar_fields.extend(record_payload);
+        aggregate_payload.publish(self);
         self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.element_view_values = prepared_arguments.element_views;
         self.scalar_case_values = prepared_arguments.scalar_cases;
@@ -280,7 +280,7 @@ impl TerminalExecution {
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
-        let record_payload = self.stage_owned_record_arguments(
+        let aggregate_payload = self.stage_owned_aggregate_arguments(
             &callee.structural_parameters,
             &mut structural_values,
             &mut identity_cursor,
@@ -344,7 +344,7 @@ impl TerminalExecution {
         self.primitive_loan_values = prepared_arguments.primitive_loans;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_scalar_fields.extend(record_payload);
+        aggregate_payload.publish(self);
         self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.element_view_values = prepared_arguments.element_views;
         self.scalar_case_values = prepared_arguments.scalar_cases;
@@ -385,23 +385,7 @@ impl TerminalExecution {
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
-            && (self
-                .program
-                .structural_types
-                .get(&result.structural_type)
-                .is_some_and(|declaration| match &declaration.shape {
-                    StructuralTypeShape::Sum { .. } => self.plain_case_type(result.structural_type),
-                    StructuralTypeShape::Record { .. } => {
-                        self.plain_record_type(result.structural_type)
-                    }
-                    _ => false,
-                })
-                || (result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && terminal_semantics::scalar_array_leaf_shape(
-                        self.program.structural_types.values(),
-                        result.structural_type,
-                    )
-                    .is_some()));
+            && self.plain_aggregate_type(result.structural_type);
         if structural_arguments
             .iter()
             .zip(&callee.structural_parameters)
@@ -470,7 +454,7 @@ impl TerminalExecution {
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
-        let record_payload = self.stage_owned_record_arguments(
+        let aggregate_payload = self.stage_owned_aggregate_arguments(
             &callee.structural_parameters,
             &mut structural_values,
             &mut identity_cursor,
@@ -543,7 +527,7 @@ impl TerminalExecution {
         self.primitive_loan_values = prepared_arguments.primitive_loans;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_scalar_fields.extend(record_payload);
+        aggregate_payload.publish(self);
         self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.element_view_values = prepared_arguments.element_views;
         self.scalar_case_values = prepared_arguments.scalar_cases;
