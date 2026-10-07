@@ -48,6 +48,21 @@ impl OperationFrame<'_, '_> {
         let Some(call) = operation.call() else {
             return unsupported("operation frame call entry received a non-call operation");
         };
+        // Address demand is independent of the call's result or route. Publish
+        // immutable scalar backing before lowering any structural operand, just
+        // as explicit reference construction and storage observations do.
+        for argument in &call.structural_arguments {
+            self.evaluation.prepare_borrowed_argument(
+                self.checked,
+                self.state,
+                argument,
+                self.values,
+                self.structural_types.declarations(),
+                self.next_place,
+                self.operations,
+                self.private_places,
+            )?;
+        }
         match (call.route(), call.result()) {
             (
                 CheckedUnitCallRoute::Module { .. },

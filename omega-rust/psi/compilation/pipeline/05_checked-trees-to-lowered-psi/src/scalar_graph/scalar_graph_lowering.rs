@@ -20,6 +20,7 @@ mod graph_preparation;
 mod graph_validation;
 pub(crate) mod guards;
 mod known_evaluation;
+mod parameter_homes;
 pub(crate) mod prepared_graph;
 pub(crate) mod primitive_locals;
 mod state_contracts;

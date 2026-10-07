@@ -359,11 +359,34 @@ pub(crate) fn borrowed_storage_argument(
             | TypeReferenceNode::FixedArray { .. } => parameter.type_reference,
             _ => return None,
         };
-        let parameter_index = dense_structural_index(program, parameters, position)?;
-        (
-            reference,
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-        )
+        let source = if program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+        {
+            if !place.segments.is_empty()
+                || (target_access != CheckedStructuralAccess::SharedBorrow && !parameter.is_mutable)
+            {
+                return None;
+            }
+            let parameter_index = u32::try_from(
+                parameters[..position]
+                    .iter()
+                    .filter(|parameter| {
+                        !parameter.is_const
+                            && strips_erased_parameter(parameter) != Some(true)
+                            && program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some()
+                    })
+                    .count(),
+            )
+            .ok()?;
+            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { parameter_index }
+        } else {
+            let parameter_index = dense_structural_index(program, parameters, position)?;
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
+        };
+        (reference, source)
     } else {
         // A projection borrows the same established local home. Resolve its
         // endpoint below while retaining the declaring local as the owner.

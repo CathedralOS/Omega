@@ -283,109 +283,144 @@ pub(in crate::legalization) fn structural_argument_at(
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use terminal_psi::{StructuralAccess, StructuralPathSegment};
     let declarations = plan.structural_types.as_slice();
-    let (root_type, root_access, root_multiplicity, source) = if let Some(caller_parameter) =
-        parameters
+    let (root_type, root_access, root_multiplicity, source, root, presentation_debt) =
+        if let Some(caller_parameter) = parameters
             .iter()
             .find(|parameter| parameter.place == semantic.place)
-    {
-        let semantic_parameter = optimized
-            .structural_parameters
-            .iter()
-            .chain(
-                optimized
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
-            .find(|parameter| parameter.place == semantic.place)
-            .ok_or(LegalizationError::custody())?;
-        if caller_parameter.structural_type != semantic_parameter.structural_type
-            || caller_parameter.access != semantic_parameter.access
-            || caller_parameter.multiplicity != semantic_parameter.multiplicity
-            || caller_parameter.projected_qualifications
-                != semantic_parameter.projected_qualifications
-            || caller_parameter.shape
-                != crate::structural_inputs::structural_reference_input::parameter_shape(
-                    semantic_parameter,
-                    declarations,
+        {
+            let semantic_parameter = optimized
+                .structural_parameters
+                .iter()
+                .chain(
+                    optimized
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.structural_parameters),
                 )
-                .ok_or(LegalizationError::custody())?
-        {
-            return Err(LegalizationError::custody());
-        }
-        (
-            caller_parameter.structural_type,
-            semantic_parameter.access,
-            semantic_parameter.multiplicity,
-            caller_parameter.placement.clone().into(),
-        )
-    } else {
-        // Reconstruct local storage from the optimized source's exact owner,
-        // shared with ordinary aggregate calls. A retained target row cannot
-        // grant backing or move an establishment across its consuming call.
-        // Claims are custody the call's completion receipts end, not bytes
-        // the foreign leaf transports.
-        let home = super::aggregate_results::result_home(optimized, semantic.place, plan)?;
-        if home.access() != terminal_psi::StructuralAccess::Owned
-            || !home.qualifications().is_empty()
-            || !home.projected_qualifications().is_empty()
-        {
-            return Err(LegalizationError::custody());
-        }
-        let site = |operation| {
-            optimized.blocks.iter().find_map(|block| {
-                block
-                    .nodes
-                    .iter()
-                    .position(|node| node.operation.psi_operation() == Some(operation))
-                    .map(|position| (block.id, position))
-            })
-        };
-        let after = site(call_operation).ok_or(LegalizationError::custody())?;
-        let (before, source) = match home.origin {
-            target_operations::TargetStructuralHomeOrigin::OperationResult {
-                operation, ..
-            } => (
-                site(operation).ok_or(LegalizationError::custody())?,
-                target_operations::TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation: operation,
-                },
-            ),
-            target_operations::TargetStructuralHomeOrigin::BlockParameter {
-                block,
-                ref declaration,
-            } => (
-                (block, 0),
-                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                .find(|parameter| parameter.place == semantic.place)
+                .ok_or(LegalizationError::custody())?;
+            if caller_parameter.structural_type != semantic_parameter.structural_type
+                || caller_parameter.access != semantic_parameter.access
+                || caller_parameter.multiplicity != semantic_parameter.multiplicity
+                || caller_parameter.projected_qualifications
+                    != semantic_parameter.projected_qualifications
+                || caller_parameter.shape
+                    != crate::structural_inputs::structural_reference_input::parameter_shape(
+                        semantic_parameter,
+                        declarations,
+                    )
+                    .ok_or(LegalizationError::custody())?
+            {
+                return Err(LegalizationError::custody());
+            }
+            (
+                caller_parameter.structural_type,
+                semantic_parameter.access,
+                semantic_parameter.multiplicity,
+                caller_parameter.placement.clone().into(),
+                semantic_parameter.clone(),
+                false,
+            )
+        } else {
+            // Reconstruct local storage from the optimized source's exact owner,
+            // shared with ordinary aggregate calls. A retained target row cannot
+            // grant backing or move an establishment across its consuming call.
+            // Claims are custody the call's completion receipts end, not bytes
+            // the foreign leaf transports.
+            let home = super::aggregate_results::result_home(optimized, semantic.place, plan)?;
+            if home.access() != terminal_psi::StructuralAccess::Owned
+                || !home.qualifications().is_empty()
+                || !home.projected_qualifications().is_empty()
+            {
+                return Err(LegalizationError::custody());
+            }
+            let site = |operation| {
+                optimized.blocks.iter().find_map(|block| {
+                    block
+                        .nodes
+                        .iter()
+                        .position(|node| node.operation.psi_operation() == Some(operation))
+                        .map(|position| (block.id, position))
+                })
+            };
+            let after = site(call_operation).ok_or(LegalizationError::custody())?;
+            let (before, source) = match home.origin {
+                target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation,
+                    ..
+                } => (
+                    site(operation).ok_or(LegalizationError::custody())?,
+                    target_operations::TargetStructuralArgumentSource::StructuralHome {
+                        psi_operation: operation,
+                    },
+                ),
+                target_operations::TargetStructuralHomeOrigin::BlockParameter {
                     block,
-                    place: declaration.place,
+                    ref declaration,
+                } => (
+                    (block, 0),
+                    target_operations::TargetStructuralArgumentSource::BlockParameter {
+                        block,
+                        place: declaration.place,
+                    },
+                ),
+            };
+            if (before.0 == after.0 && home.operation_result().is_some() && before.1 >= after.1)
+                || (before.0 != after.0
+                    && !super::target::control_flow::sources::dominates(
+                        optimized, before.0, after.0,
+                    ))
+            {
+                return Err(LegalizationError::custody());
+            }
+            (
+                home.structural_type(),
+                home.access(),
+                home.multiplicity(),
+                source,
+                terminal_psi::StructuralParameterDeclaration {
+                    place: home.place(),
+                    position: declaration_parameter.position,
+                    structural_type: home.structural_type(),
+                    access: home.access(),
+                    multiplicity: home.multiplicity(),
+                    qualifications: home.qualifications().to_vec(),
+                    projected_qualifications: home.projected_qualifications().to_vec(),
                 },
-            ),
+                home.has_claims()
+                    || home
+                        .operation_result()
+                        .is_some_and(|(_, result)| !result.qualification_establishments.is_empty()),
+            )
         };
-        if (before.0 == after.0 && home.operation_result().is_some() && before.1 >= after.1)
-            || (before.0 != after.0
-                && !super::target::control_flow::sources::dominates(optimized, before.0, after.0))
-        {
-            return Err(LegalizationError::custody());
-        }
-        (
-            home.structural_type(),
-            home.access(),
-            home.multiplicity(),
-            source,
-        )
-    };
     let pointer_size =
         u16::try_from(native.pointer_size).map_err(|_| LegalizationError::custody())?;
     let pointer_alignment =
         u16::try_from(native.pointer_alignment).map_err(|_| LegalizationError::custody())?;
-    let (projected_type, source_byte_offset, elements) =
+    let presentation = (semantic.access != StructuralAccess::Owned)
+        .then(|| {
+            crate::structural_inputs::structural_reference_input::borrowed_byte_view_presentation(
+                &root,
+                semantic,
+                declaration_parameter.structural_type,
+                declarations,
+            )
+        })
+        .flatten();
+    let (projected_type, source_byte_offset, elements) = if let Some((offset, _, _)) = presentation
+    {
+        if presentation_debt {
+            return Err(LegalizationError::custody());
+        }
+        (declaration_parameter.structural_type, offset, Vec::new())
+    } else {
         crate::structural_inputs::structural_reference_input::runtime_projection(
             root_type,
             &semantic.path,
             declarations,
         )
-        .ok_or(LegalizationError::custody())?;
+        .ok_or(LegalizationError::custody())?
+    };
     let root_shape =
         crate::structural_inputs::structural_reference_input::shape(root_type, declarations)
             .ok_or(LegalizationError::custody())?;
@@ -435,19 +470,40 @@ pub(in crate::legalization) fn structural_argument_at(
         StructuralAccess::SharedBorrow
         | StructuralAccess::MutableBorrow
         | StructuralAccess::WriteOnlyBorrow => {
-            if !matches!(destination.locations.as_slice(),
+            let descriptor = declarations.iter().any(|declaration| {
+                declaration.id == projected_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        )
+                    )
+            });
+            let destination_shape = if descriptor {
+                // A view's loan still has referent storage custody, but its
+                // boundary operand is the descriptor value, not its address.
+                abstract_operations_to_target_operations::classified_boundary_shape(
+                    projected_type,
+                    declarations,
+                    policy,
+                )
+                .map_err(|_| LegalizationError::custody())?
+            } else {
+                if !matches!(destination.locations.as_slice(),
                 [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
                 | [ValueLocation::Stack { value_byte_offset: 0, byte_size, .. }]
                     if *byte_size == u32::from(pointer_size))
-            {
-                return Err(LegalizationError::custody());
-            }
+                {
+                    return Err(LegalizationError::custody());
+                }
+                ValueShape::integer(u32::from(pointer_size), pointer_alignment)
+            };
             (
                 ValueShape::borrowed_reference(
                     projected_shape.byte_size,
                     projected_shape.alignment,
                 ),
-                ValueShape::integer(u32::from(pointer_size), pointer_alignment),
+                destination_shape,
                 terminal_psi::StructuralMultiplicity::Unrestricted,
             )
         }
@@ -464,17 +520,22 @@ pub(in crate::legalization) fn structural_argument_at(
         });
     // Dynamic selectors retain their accepted bound and use the same backing
     // projection as ordinary borrowed calls; no descriptor extent is invented.
-    if semantic.path.iter().any(|segment| match segment {
-        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => false,
-        StructuralPathSegment::RuntimeIndex { .. } => semantic.access == StructuralAccess::Owned,
-        _ => true,
-    }) || usize::try_from(declaration_parameter.position).ok() != Some(position)
+    if (presentation.is_none()
+        && semantic.path.iter().any(|segment| match segment {
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => false,
+            StructuralPathSegment::RuntimeIndex { .. } => {
+                semantic.access == StructuralAccess::Owned
+            }
+            _ => true,
+        }))
+        || usize::try_from(declaration_parameter.position).ok() != Some(position)
         || projected_type != declaration_parameter.structural_type
         || semantic.access != declaration_parameter.access
         || declaration_parameter.multiplicity != multiplicity
         || !declaration_parameter.qualifications.is_empty()
         || !declaration_parameter.projected_qualifications.is_empty()
-        || (!projects_view_backing
+        || (presentation.is_none()
+            && !projects_view_backing
             && projected_shape
                 .byte_size
                 .checked_add(source_byte_offset)
@@ -491,8 +552,8 @@ pub(in crate::legalization) fn structural_argument_at(
         structural_type: projected_type,
         shape,
         source_byte_offset,
-        fixed_array_length: None,
-        element_stride: None,
+        fixed_array_length: presentation.and_then(|(_, length, _)| length),
+        element_stride: presentation.and_then(|(_, _, stride)| stride),
         indices: super::target::control_flow::sources::call_indices(
             target_plan,
             optimized,

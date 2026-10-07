@@ -12,6 +12,7 @@ pub(crate) struct PrimitiveLocal {
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
     pub scalar_type: ScalarType,
+    pub is_mutable: bool,
 }
 
 pub(crate) fn allocate(
@@ -24,6 +25,39 @@ pub(crate) fn allocate(
     for state in &graph.states {
         let (_, source) = crate::declarations::state_declaration(checked, state.state)?;
         let statements = checked.statement_table.statements(source.statement_nodes);
+        let mut originals = state.primitive_locals.clone();
+        for argument in crate::expression_preparation::computation_graph::borrowed_arguments(
+            checked,
+            state.state,
+            None,
+        )? {
+            let Some(facts::PlaceRoot::Symbol(symbol)) = argument.structural_storage_root() else {
+                continue;
+            };
+            if originals.iter().any(|original| original.symbol == symbol) {
+                continue;
+            }
+            let Some((ordinal, local)) = checked.typed.state_local_declaration(source, symbol)
+            else {
+                continue;
+            };
+            let Some(primitive_type) = checked.primitive_type_reference(local.type_reference)
+            else {
+                continue;
+            };
+            originals.push(checked_trees::CheckedScalarPrimitiveLocalPlan {
+                statement_ordinal: u32::try_from(ordinal).map_err(|_| {
+                    LoweringError::Unsupported("primitive original statement exceeds u32")
+                })?,
+                symbol,
+                primitive_type,
+                type_identity: checked
+                    .typed
+                    .normalized_type_identity(local.type_reference)
+                    .into_string(),
+            });
+        }
+        originals.sort_by_key(|original| original.statement_ordinal);
         if state
             .primitive_locals
             .windows(2)
@@ -31,7 +65,7 @@ pub(crate) fn allocate(
         {
             return unsupported("scalar primitive locals disagree with declaration order");
         }
-        for local in &state.primitive_locals {
+        for local in &originals {
             let Some(checked_trees::statement::StatementNode::LocalData(authored)) =
                 statements.get(local.statement_ordinal as usize)
             else {
@@ -42,7 +76,6 @@ pub(crate) fn allocate(
                     .iter()
                     .any(|prior: &PrimitiveLocal| prior.symbol == local.symbol)
                 || authored.symbol != local.symbol
-                || !authored.is_mutable
                 || !matches!(
                     checked
                         .type_reference_table
@@ -60,8 +93,12 @@ pub(crate) fn allocate(
                     binding.statement_ordinal == local.statement_ordinal
                         && binding.primitive_type == local.primitive_type
                         && binding.destination
-                            == checked_trees::CheckedScalarBindingDestination::StorageInitialize {
-                                symbol: local.symbol,
+                            == if authored.is_mutable {
+                                checked_trees::CheckedScalarBindingDestination::StorageInitialize {
+                                    symbol: local.symbol,
+                                }
+                            } else {
+                                checked_trees::CheckedScalarBindingDestination::Immutable
                             }
                 })
             {
@@ -91,6 +128,7 @@ pub(crate) fn allocate(
                 place: place_id(allocate_dense(next_place)?),
                 structural_type: lookup_type_id(type_ids, &local.type_identity)?,
                 scalar_type: terminal_scalar_type(local.primitive_type)?,
+                is_mutable: authored.is_mutable,
             });
         }
     }
@@ -99,14 +137,47 @@ pub(crate) fn allocate(
 
 pub(super) fn destination(
     locals: &[PrimitiveLocal],
+    storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
+    authored: Option<&checked_trees::statement::StatementNode>,
     binding: &checked_trees::CheckedScalarBinding,
 ) -> Result<Option<StoreDestination>, LoweringError> {
     use checked_trees::CheckedScalarBindingDestination;
     let symbol = match binding.destination {
-        CheckedScalarBindingDestination::Immutable => return Ok(None),
+        CheckedScalarBindingDestination::Immutable => {
+            let Some(checked_trees::statement::StatementNode::LocalData(local)) = authored else {
+                return Ok(None);
+            };
+            let Some(home) = locals.iter().find(|home| home.symbol == local.symbol) else {
+                return Ok(None);
+            };
+            if home.is_mutable
+                || home.statement_ordinal != binding.statement_ordinal
+                || home.scalar_type != terminal_scalar_type(binding.primitive_type)?
+            {
+                return unsupported("immutable primitive address demand changes its declaration");
+            }
+            return Ok(Some(StoreDestination::Initialize {
+                place: home.place,
+                structural_type: home.structural_type,
+            }));
+        }
         CheckedScalarBindingDestination::StorageInitialize { symbol }
         | CheckedScalarBindingDestination::StorageAssign { symbol } => symbol,
     };
+    if matches!(
+        binding.destination,
+        CheckedScalarBindingDestination::StorageAssign { .. }
+    ) {
+        let mut homes = storage.iter().filter(|row| row.0 == symbol);
+        if let Some((_, place, scalar_type)) = homes.next() {
+            if homes.next().is_some()
+                || *scalar_type != terminal_scalar_type(binding.primitive_type)?
+            {
+                return unsupported("primitive assignment changes its original home or carrier");
+            }
+            return Ok(Some(StoreDestination::Assign { place: *place }));
+        }
+    }
     let Some(local) = locals.iter().find(|local| local.symbol == symbol) else {
         return Ok(None);
     };

@@ -35,7 +35,7 @@ impl Observation {
 pub(super) fn interpret(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
-    expected_stdout: Option<&str>,
+    fixture_dir: &std::path::Path,
     fuel_allowance: u64,
     standard_input: Box<dyn std::io::Read + Send>,
 ) -> Observation {
@@ -99,14 +99,11 @@ pub(super) fn interpret(
             ));
         }
     };
-    if let Some(expected) = expected_stdout {
-        let matches = std::str::from_utf8(&result.stdout)
-            .is_ok_and(|stdout| stdout.replace("\r\n", "\n") == expected.replace("\r\n", "\n"));
-        observation.facts.push(if matches {
-            "interpreter-stdout:match".to_owned()
-        } else {
-            "interpreter-stdout:differs".to_owned()
-        });
-    }
+    observation.facts.extend(super::output_oracles::observe(
+        fixture_dir,
+        "interpreter-",
+        Some(&result.stdout),
+        Some(&result.stderr),
+    ));
     observation
 }

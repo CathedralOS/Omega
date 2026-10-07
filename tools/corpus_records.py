@@ -365,6 +365,7 @@ def migration_roster(path, corpus):
         if not (directory / "main.omg").is_file():
             raise ValueError(f"migration canary missing: {fixture}")
         if not ((directory / "expected_stdout.txt").is_file()
+                or (directory / "expected_stderr.txt").is_file()
                 or any(directory.glob("expected_native_exit*.txt"))):
             raise ValueError(f"migration canary lacks authored oracle: {fixture}")
         marker = (f"unimplemented: capability={entry['capability']} "

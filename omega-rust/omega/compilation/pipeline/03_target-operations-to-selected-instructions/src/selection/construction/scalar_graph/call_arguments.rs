@@ -1,9 +1,11 @@
 //! Outgoing call arguments. Every scalar-graph call, whatever its result,
 //! places each argument in its ABI home here: an owned aggregate as its
-//! register fragments, a borrowed structural argument as a pointer, and a
+//! register fragments, an ordinary borrowed reference as a pointer, and a
 //! scalar as a copy or float transfer into the call row's class. A
 //! stack-placed argument is stored in its outgoing slot and yields no
 //! operand.
+//! A boundary borrowed-view operand instead places its descriptor fragments
+//! under the retained aggregate ABI, preserving the original backing and loan.
 use super::{
     Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, VirtualRegisterId,
@@ -143,6 +145,57 @@ pub(super) fn structural_argument(
             builder,
         );
     }
+    if target.destination.shape.class != calling_conventions::ValueClass::BorrowedReference
+        && source.structural.as_ref().is_some_and(|signature| {
+            signature.structural_types.iter().any(|declaration| {
+                declaration.id == target.structural_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        )
+                    )
+            })
+        })
+    {
+        if target.shape.byte_size != 16
+            || target.shape.alignment != 8
+            || target.destination.shape.byte_size != 16
+            || target.destination.shape.alignment != 8
+        {
+            return Err(SelectedInstructionError::custody());
+        }
+        let pointer = referent_pointer(
+            builder,
+            source,
+            operation,
+            argument_index,
+            semantic,
+            target,
+            indices,
+        )?;
+        let block = source
+            .blocks
+            .iter()
+            .find(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .any(|row| row.operation == operation.operation)
+            })
+            .ok_or_else(|| SelectedInstructionError::custody())?
+            .id;
+        return super::aggregate_argument::transport(
+            operation,
+            argument_index,
+            target,
+            Some(pointer.pointer),
+            target.source_byte_offset,
+            pointer.descriptor_words,
+            block,
+            builder,
+        );
+    }
     Ok(argument_pointer(
         builder,
         source,
@@ -166,6 +219,40 @@ fn argument_pointer(
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
+    let pointer = referent_pointer(
+        builder,
+        source,
+        operation,
+        argument_index,
+        semantic,
+        target,
+        indices,
+    )?;
+    place_pointer_argument(
+        builder,
+        operation,
+        argument_index,
+        semantic.place,
+        target,
+        pointer.pointer,
+    )
+}
+
+/// Prepare the exact referent independently of its pointer or descriptor ABI.
+struct PreparedReferent {
+    pointer: VirtualRegisterId,
+    descriptor_words: Option<[VirtualRegisterId; 2]>,
+}
+
+fn referent_pointer(
+    builder: &mut Builder<'_>,
+    source: &LegalizedScalarFunction,
+    operation: &legalized_operations::LegalizedScalarInstruction,
+    argument_index: usize,
+    semantic: &terminal_psi::StructuralArgument,
+    target: &target_operations::TargetStructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+) -> Result<PreparedReferent, SelectedInstructionError> {
     let referent = semantic
         .path
         .iter()
@@ -206,7 +293,7 @@ fn argument_pointer(
     };
     let pointer = if let Some(address) = &reference {
         structural::reference::borrowed_argument(builder, operation, semantic.place, address)?
-    } else if !semantic.path.is_empty()
+    } else if (!semantic.path.is_empty() || target.fixed_array_length.is_some())
         && (matches!(
             target.source,
             target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
@@ -241,9 +328,8 @@ fn argument_pointer(
             indices,
         )?
     };
-    let pointer = if target.shape.class == calling_conventions::ValueClass::BorrowedScalarReference
-    {
-        if reference
+    if target.shape.class == calling_conventions::ValueClass::BorrowedScalarReference {
+        let pointer = if reference
             .as_ref()
             .is_some_and(|address| address.scalar_descriptor)
             || semantic.path.is_empty()
@@ -286,9 +372,14 @@ fn argument_pointer(
                 pointer,
                 codec_register,
             )?
-        }
-    } else if let Some(length) = target.fixed_array_length {
-        structural::fixed_array_argument(
+        };
+        return Ok(PreparedReferent {
+            pointer,
+            descriptor_words: None,
+        });
+    }
+    let presentation = if let Some(length) = target.fixed_array_length {
+        Some(structural::fixed_array_argument(
             builder,
             operation,
             semantic.place,
@@ -298,12 +389,12 @@ fn argument_pointer(
             pointer,
             length,
             target.shape.byte_size,
-        )?
+        )?)
     } else if let Some((field_offset, _)) = byte_field {
         if field_offset != target.source_byte_offset {
             return Err(SelectedInstructionError::custody());
         }
-        structural::byte_field_argument(
+        Some(structural::byte_field_argument(
             builder,
             operation,
             semantic.place,
@@ -312,10 +403,30 @@ fn argument_pointer(
                 .map_err(|_| SelectedInstructionError::custody())?,
             pointer,
             field_offset,
-        )?
+        )?)
     } else {
-        pointer
+        None
     };
+    Ok(match presentation {
+        Some(presentation) => PreparedReferent {
+            pointer: presentation.address,
+            descriptor_words: presentation.words,
+        },
+        None => PreparedReferent {
+            pointer,
+            descriptor_words: None,
+        },
+    })
+}
+
+fn place_pointer_argument(
+    builder: &mut Builder<'_>,
+    operation: &legalized_operations::LegalizedScalarInstruction,
+    argument_index: usize,
+    pointer_place: semantic_vocabulary::PlaceId,
+    target: &target_operations::TargetStructuralArgument,
+    pointer: VirtualRegisterId,
+) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
     let Some(stack_byte_offset) =
         crate::structural_inputs::structural_reference_input::stack_pointer_offset(
             &target.destination,

@@ -732,6 +732,34 @@ pub(crate) fn primitive_array_shape(
     None
 }
 
+/// A byte-view boundary operand may present original fixed or live-length
+/// owner storage. Reconstruct that presentation from source custody, not from
+/// the target row's proposed descriptor extent.
+pub(crate) fn borrowed_byte_view_presentation(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    argument: &terminal_psi::StructuralArgument,
+    view_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, Option<u64>, Option<u32>)> {
+    if !declarations.iter().any(|declaration| {
+        declaration.id == view_type
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
+            )
+    }) {
+        return None;
+    }
+    if let Some((offset, length)) = fixed_byte_array_view(source, argument, view_type, declarations)
+    {
+        return Some((offset, Some(length), Some(1)));
+    }
+    bounded_byte_view(source, argument, view_type, declarations)
+        .map(|(offset, _)| (offset, None, None))
+}
+
 /// Reconstruct an initialized fixed-array loan, not an existing slice descriptor.
 pub(crate) fn fixed_byte_array_view(
     source: &terminal_psi::StructuralParameterDeclaration,

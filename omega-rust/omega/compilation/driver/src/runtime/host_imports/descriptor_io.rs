@@ -1,19 +1,17 @@
-//! Explicit trusted implementations of the MSVCRT descriptor calls over this
-//! runtime's finite input and private output, not a compiler semantic rewrite.
-//!
-//! The host offers two concrete implementations below. Their complete normalized
-//! locator, target, evaluated ABI and demanded declaration must match an already
-//! admitted native settlement before either is installed in that exact slot.
-//! This join checks compatibility; it does not prove foreign behavior or grant
-//! authority from an export spelling. The receiving runtime explicitly assumes
-//! semantic equivalence under the embedding contract. Unsupported contracts
-//! decline before effects. Std's checked byte/line wrappers remain guest code.
+//! Trusted descriptor implementations over finite input and private streams.
+//! Exact normalized locators, declarations and target ABI authenticate
+//! compatibility, not semantic authority inferred from export names. Integer
+//! loans expose only their primitive extent; readonly views supply exact copied
+//! bytes and their retained pointer/length ABI. Neither grants allocation tails.
+//! The host explicitly assumes equivalence of these offered implementations;
+//! checked library wrappers remain guest code, and no real host I/O occurs here.
 
-use std::io::Read;
-use std::sync::{Arc, Mutex};
-
+use super::TerminalRuntimeError;
+use super::buffered_output::BufferedStreams;
 use calling_conventions::{CallSignature, ValueShape, validate_boundary_entry_plan};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+use std::io::Read;
+use std::sync::{Arc, Mutex};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryScalarBuffer, TerminalEffect,
@@ -22,54 +20,78 @@ use terminal_interpreter::{
 };
 use terminal_psi::{
     BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
-    StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
 };
-
-use super::TerminalRuntimeError;
-use super::buffered_output::BufferedBytes;
 
 #[derive(Clone, Copy)]
 enum DescriptorOperation {
     Read,
     Write,
 }
-
-impl DescriptorOperation {
+#[derive(Clone, Copy)]
+enum DescriptorImplementation {
+    WindowsRead,
+    WindowsWrite,
+    DarwinWrite,
+}
+impl DescriptorImplementation {
+    fn operation(self) -> DescriptorOperation {
+        match self {
+            Self::WindowsRead => DescriptorOperation::Read,
+            _ => DescriptorOperation::Write,
+        }
+    }
     fn locator(self) -> Result<target::NormalizedForeignLocator, TerminalRuntimeError> {
-        target::normalize_foreign_locator(
-            target::ForeignLocatorCandidate::PeByName {
-                library: b"msvcrt.dll".to_vec(),
-                export: match self {
-                    Self::Read => b"_read".to_vec(),
-                    Self::Write => b"_write".to_vec(),
+        let (candidate, target) = match self {
+            Self::DarwinWrite => (
+                target::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
+                    symbol: b"_write".to_vec(),
                 },
-            },
-            target::TargetProfile::WindowsX64,
-        )
-        .map_err(|_| {
+                target::TargetProfile::MacosArm64,
+            ),
+            Self::WindowsRead | Self::WindowsWrite => (
+                target::ForeignLocatorCandidate::PeByName {
+                    library: b"msvcrt.dll".to_vec(),
+                    export: match self {
+                        Self::WindowsRead => b"_read".to_vec(),
+                        _ => b"_write".to_vec(),
+                    },
+                },
+                target::TargetProfile::WindowsX64,
+            ),
+        };
+        target::normalize_foreign_locator(candidate, target).map_err(|_| {
             TerminalRuntimeError::InvalidProvision(
                 "host descriptor implementation has an invalid locator",
             )
         })
     }
 }
+#[derive(Clone, Copy)]
+enum DescriptorBuffer {
+    Integer(IntegerType),
+    ReadonlyBytes,
+}
 
 pub(super) struct DescriptorIoImport<'input> {
     signature: TerminalImportSignature,
     operation: DescriptorOperation,
+    implementation: DescriptorImplementation,
+    buffer: DescriptorBuffer,
     input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
-    output: BufferedBytes,
-    signed: IntegerType,
-    unsigned: IntegerType,
+    output: BufferedStreams,
+    descriptor_type: IntegerType,
+    count_type: IntegerType,
+    result_type: IntegerType,
 }
-
 impl<'input> DescriptorIoImport<'input> {
     pub(super) fn admit(
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
         input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
-        output: BufferedBytes,
+        output: BufferedStreams,
     ) -> Result<Self, TerminalRuntimeError> {
         let invalid = || {
             TerminalRuntimeError::InvalidProvision(
@@ -77,47 +99,93 @@ impl<'input> DescriptorIoImport<'input> {
             )
         };
         let (locator, _) = binding.import().ok_or_else(invalid)?;
-        // These are host policy choices, not behavior inferred from an arbitrary
-        // import's text. A lookalike locator, ordinal, syscall or ABI gets none.
-        let mut operation = None;
-        for offered in [DescriptorOperation::Read, DescriptorOperation::Write] {
+        // Explicit host offers, never arbitrary export-name/source recognition.
+        let mut implementation = None;
+        for offered in [
+            DescriptorImplementation::WindowsRead,
+            DescriptorImplementation::WindowsWrite,
+            DescriptorImplementation::DarwinWrite,
+        ] {
             if offered.locator()? == *locator {
-                operation = Some(offered);
+                implementation = Some(offered);
                 break;
             }
         }
-        let operation = operation.ok_or_else(|| {
+        let implementation = implementation.ok_or_else(|| {
             TerminalRuntimeError::missing(
                 "runtime-host-import-bindings",
-                "no explicitly trusted host implementation matches this complete foreign locator",
+                "no trusted host implementation matches this complete foreign locator",
             )
         })?;
-        let signed = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
-        let unsigned = IntegerType::new(IntegerSign::Unsigned, 32).map_err(|_| invalid())?;
+        let operation = implementation.operation();
+        let descriptor_type = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
+        let width: u16 = match implementation {
+            DescriptorImplementation::DarwinWrite => 64,
+            _ => 32,
+        };
+        let count_type = IntegerType::new(IntegerSign::Unsigned, width).map_err(|_| invalid())?;
+        let result_type = IntegerType::new(IntegerSign::Signed, width).map_err(|_| invalid())?;
         let signature = TerminalImportSignature::from(declaration);
-        let [buffer] = signature.structural_parameters.as_slice() else {
+        let [formal] = signature.structural_parameters.as_slice() else {
             return Err(invalid());
         };
+        let buffer = match program
+            .structural_type(formal.structural_type)
+            .map(|row| &row.shape)
+        {
+            Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)))
+                if !integer.is_address() && integer.bits() % 8 == 0 && integer.bits() <= 128 =>
+            {
+                DescriptorBuffer::Integer(*integer)
+            }
+            Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access,
+            })) if matches!(implementation, DescriptorImplementation::DarwinWrite)
+                && formal.access == StructuralAccess::SharedBorrow
+                && access.is_none_or(|access| access == StructuralAccess::SharedBorrow) =>
+            {
+                DescriptorBuffer::ReadonlyBytes
+            }
+            _ => return Err(invalid()),
+        };
         let access_supported = match operation {
-            DescriptorOperation::Read => buffer.access == StructuralAccess::MutableBorrow,
+            DescriptorOperation::Read => formal.access == StructuralAccess::MutableBorrow,
             DescriptorOperation::Write => matches!(
-                buffer.access,
+                formal.access,
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
             ),
         };
-        let native_signature = CallSignature {
-            parameters: vec![
-                ValueShape::integer(4, 4),
-                // Foreign policy classifies the materialized reference as its
-                // target pointer carrier. The portable declaration separately
-                // fixes the borrowed referent to one i32 cell below.
-                ValueShape::integer(8, 8),
-                ValueShape::integer(4, 4),
-            ],
-            result: Some(ValueShape::integer(4, 4)),
+        let (scalar_parameters, parameter_order, native_parameters) = match buffer {
+            DescriptorBuffer::Integer(_) => (
+                vec![
+                    ScalarType::Integer(descriptor_type),
+                    ScalarType::Integer(count_type),
+                ],
+                vec![
+                    BoundaryParameterKind::Scalar,
+                    BoundaryParameterKind::Structural,
+                    BoundaryParameterKind::Scalar,
+                ],
+                vec![
+                    ValueShape::integer(4, 4),
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(u32::from(width / 8), width / 8),
+                ],
+            ),
+            DescriptorBuffer::ReadonlyBytes => (
+                vec![ScalarType::Integer(descriptor_type)],
+                vec![
+                    BoundaryParameterKind::Scalar,
+                    BoundaryParameterKind::Structural,
+                ],
+                vec![ValueShape::integer(4, 4), ValueShape::integer(16, 8)],
+            ),
         };
-        if locator.target() != target::TargetProfile::WindowsX64
-            || !binding.has_valid_entry_mechanism()
+        let native_signature = CallSignature {
+            parameters: native_parameters,
+            result: Some(ValueShape::integer(u32::from(width / 8), width / 8)),
+        };
+        if !binding.has_valid_entry_mechanism()
             || binding.requirement_identity() != declaration.identity
             || binding.provider_plan_report_identity() == 0
             || !binding
@@ -128,21 +196,13 @@ impl<'input> DescriptorIoImport<'input> {
             || validate_boundary_entry_plan(binding.boundary_entry_plan.clone(), &native_signature)
                 .is_err()
             || signature.completion != BoundaryCompletion::NormalReturn
-            || signature.scalar_parameters
-                != [ScalarType::Integer(signed), ScalarType::Integer(unsigned)]
-            || signature.result != BoundaryMachineResult::Scalar(ScalarType::Integer(signed))
-            || declaration.parameter_order
-                != [
-                    BoundaryParameterKind::Scalar,
-                    BoundaryParameterKind::Structural,
-                    BoundaryParameterKind::Scalar,
-                ]
+            || signature.scalar_parameters != scalar_parameters
+            || signature.result != BoundaryMachineResult::Scalar(ScalarType::Integer(result_type))
+            || declaration.parameter_order != parameter_order
             || !access_supported
-            || buffer.multiplicity != StructuralMultiplicity::Unrestricted
-            || !buffer.qualifications.is_empty()
-            || !buffer.projected_qualifications.is_empty()
-            || !matches!(program.structural_type(buffer.structural_type).map(|row| &row.shape),
-                Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))) if *integer == signed)
+            || formal.multiplicity != StructuralMultiplicity::Unrestricted
+            || !formal.qualifications.is_empty()
+            || !formal.projected_qualifications.is_empty()
             || !declaration.requires.is_empty()
             || !declaration.scalar_requires.is_empty()
             || !declaration.scalar_ensures.is_empty()
@@ -161,119 +221,191 @@ impl<'input> DescriptorIoImport<'input> {
         Ok(Self {
             signature,
             operation,
+            implementation,
+            buffer,
             input,
             output,
-            signed,
-            unsigned,
+            descriptor_type,
+            count_type,
+            result_type,
         })
     }
-
-    fn result(&self, count: i32) -> TerminalEffectResult {
-        TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
-            scalar_type: self.signed,
-            value: IntegerValue::Signed(i128::from(count)),
-        })
+    fn result(&self, count: i128) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        let value = IntegerValue::Signed(count);
+        if !self.result_type.admits(value) {
+            return Err(invalid_operands());
+        }
+        Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
+            scalar_type: self.result_type,
+            value,
+        }))
     }
 }
-
+fn invalid_operands() -> TerminalEffectRejection {
+    TerminalEffectRejection::new("descriptor I/O operands differ from the installed contract")
+}
+fn integer_bytes(
+    value: TerminalScalarValue,
+    expected: IntegerType,
+) -> Result<[u8; 16], TerminalEffectRejection> {
+    let TerminalScalarValue::Integer { scalar_type, value } = value else {
+        return Err(invalid_operands());
+    };
+    if scalar_type != expected || !expected.admits(value) {
+        return Err(invalid_operands());
+    }
+    Ok(match value {
+        IntegerValue::Signed(value) => value.to_le_bytes(),
+        IntegerValue::Unsigned(value) => value.to_le_bytes(),
+    })
+}
+fn integer_from_bytes(bytes: [u8; 16], integer: IntegerType) -> TerminalScalarValue {
+    let bits = integer.bits();
+    let raw = u128::from_le_bytes(bytes);
+    let raw = if bits == 128 {
+        raw
+    } else {
+        raw & ((1u128 << bits) - 1)
+    };
+    let value = match integer.sign() {
+        IntegerSign::Unsigned => IntegerValue::Unsigned(raw),
+        IntegerSign::Signed if bits == 128 => IntegerValue::Signed(raw as i128),
+        IntegerSign::Signed => {
+            IntegerValue::Signed(((raw << (128 - bits)) as i128) >> (128 - bits))
+        }
+    };
+    TerminalScalarValue::Integer {
+        scalar_type: integer,
+        value,
+    }
+}
 impl TerminalImportAdapter for DescriptorIoImport<'_> {
     fn implemented_signature(&self) -> TerminalImportSignature {
         self.signature.clone()
     }
 }
-
 impl TerminalEffectHandler for DescriptorIoImport<'_> {
     fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         Err(TerminalEffectRejection::new(
-            "descriptor I/O requires authenticated scalar-loan dispatch",
+            "descriptor I/O requires authenticated buffer dispatch",
         ))
     }
-
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         scalar_buffers: &mut [TerminalBoundaryScalarBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "descriptor I/O operands differ from the installed contract",
-            )
-        };
         let TerminalEffect::BoundaryCall {
             arguments,
             structural_arguments,
+            byte_sequence_arguments,
             ..
         } = effect
         else {
-            return Err(invalid());
+            return Err(invalid_operands());
         };
-        let [
-            TerminalScalarValue::Integer {
-                scalar_type: descriptor_type,
-                value: IntegerValue::Signed(descriptor),
-            },
-            TerminalScalarValue::Integer {
-                scalar_type: count_type,
-                value: IntegerValue::Unsigned(count),
-            },
-        ] = arguments.as_slice()
+        let Some(TerminalScalarValue::Integer {
+            scalar_type,
+            value: IntegerValue::Signed(descriptor),
+        }) = arguments.first()
         else {
-            return Err(invalid());
-        };
-        let [buffer] = scalar_buffers else {
-            return Err(invalid());
+            return Err(invalid_operands());
         };
         let [formal] = self.signature.structural_parameters.as_slice() else {
-            return Err(invalid());
+            return Err(invalid_operands());
         };
-        let TerminalScalarValue::Integer {
-            scalar_type: cell_type,
-            value: IntegerValue::Signed(cell),
-        } = buffer.value()
-        else {
-            return Err(invalid());
-        };
-        if !byte_buffers.is_empty()
+        if *scalar_type != self.descriptor_type
+            || !self
+                .descriptor_type
+                .admits(IntegerValue::Signed(*descriptor))
             || structural_arguments.len() != 1
-            || *descriptor_type != self.signed
-            || *count_type != self.unsigned
-            || cell_type != self.signed
-            || buffer.argument_index() != 0
-            || buffer.access() != formal.access
+            || !byte_buffers.is_empty()
+            || structural_arguments[0].structural_type != formal.structural_type
         {
-            return Err(invalid());
+            return Err(invalid_operands());
         }
-        let count = usize::try_from(*count).map_err(|_| invalid())?;
-        let mut bytes = i32::try_from(cell).map_err(|_| invalid())?.to_le_bytes();
-        if count > bytes.len() {
-            return Err(TerminalEffectRejection::new(
-                "descriptor byte count exceeds the exact borrowed scalar extent",
-            ));
-        }
-        let expected_descriptor = match self.operation {
-            DescriptorOperation::Read => 0,
-            DescriptorOperation::Write => 1,
+        let mut primitive_bytes = [0u8; 16];
+        let (bytes, count) = match self.buffer {
+            DescriptorBuffer::ReadonlyBytes => {
+                let [Some(bytes)] = byte_sequence_arguments.as_slice() else {
+                    return Err(invalid_operands());
+                };
+                if arguments.len() != 1 || !scalar_buffers.is_empty() {
+                    return Err(invalid_operands());
+                }
+                (bytes.as_slice(), bytes.len())
+            }
+            DescriptorBuffer::Integer(integer) => {
+                let [buffer] = scalar_buffers else {
+                    return Err(invalid_operands());
+                };
+                let [
+                    _,
+                    TerminalScalarValue::Integer {
+                        scalar_type,
+                        value: IntegerValue::Unsigned(count),
+                    },
+                ] = arguments.as_slice()
+                else {
+                    return Err(invalid_operands());
+                };
+                if *scalar_type != self.count_type
+                    || !self.count_type.admits(IntegerValue::Unsigned(*count))
+                    || buffer.argument_index() != 0
+                    || buffer.access() != formal.access
+                    || !matches!(byte_sequence_arguments.as_slice(), [None])
+                {
+                    return Err(invalid_operands());
+                }
+                primitive_bytes = integer_bytes(buffer.value(), integer)?;
+                let count = usize::try_from(*count).map_err(|_| invalid_operands())?;
+                // A logical integer formal can observe a narrower captured
+                // codec. Only its authenticated physical bytes are offered;
+                // the formal's width grants neither padding nor adjacent data.
+                let ScalarType::Integer(stored_integer) = buffer.storage_scalar_type() else {
+                    return Err(invalid_operands());
+                };
+                if stored_integer.is_address()
+                    || stored_integer.bits() % 8 != 0
+                    || stored_integer.bits() > integer.bits()
+                {
+                    return Err(invalid_operands());
+                }
+                let extent = usize::from(stored_integer.bits() / 8);
+                if count > extent {
+                    return Err(TerminalEffectRejection::new(
+                        "descriptor byte count exceeds the exact borrowed scalar extent",
+                    ));
+                }
+                (&primitive_bytes[..extent], count)
+            }
         };
-        if *descriptor != expected_descriptor {
-            return Ok(self.result(-1));
-        }
-        if count == 0 {
-            return Ok(self.result(0));
-        }
+        let result = self.result(i128::try_from(count).map_err(|_| invalid_operands())?)?;
         match self.operation {
             DescriptorOperation::Write => {
-                self.output.append(&bytes[..count])?;
-                Ok(self.result(i32::try_from(count).map_err(|_| invalid())?))
+                // Count/result validation precedes append; even mutable scalar
+                // inputs are read without replacing their captured payload.
+                if !matches!(*descriptor, 1 | 2)
+                    && matches!(self.implementation, DescriptorImplementation::WindowsWrite)
+                {
+                    return self.result(-1);
+                }
+                self.output.append(*descriptor, &bytes[..count])?;
+                Ok(result)
             }
             DescriptorOperation::Read => {
-                let input = self.input.as_ref().ok_or_else(invalid)?;
+                if *descriptor != 0 {
+                    return self.result(-1);
+                }
+                if count == 0 {
+                    return Ok(result);
+                }
+                let input = self.input.as_ref().ok_or_else(invalid_operands)?;
                 let mut input = input
                     .lock()
                     .map_err(|_| TerminalEffectRejection::new("stdin snapshot lock is poisoned"))?;
-                // One foreign read attempt. Failures return -1, not a fabricated
-                // Crash: the checked read_byte body's conversion owns its Trap.
-                let mut transferred = [0u8; 4];
+                let mut transferred = [0u8; 16];
                 let moved = match input.read(&mut transferred[..count]) {
                     Ok(moved) if moved <= count => moved,
                     Ok(_) => {
@@ -281,17 +413,19 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                             "input reader exceeded the requested byte extent",
                         ));
                     }
-                    Err(_) => return Ok(self.result(-1)),
+                    Err(_) => return self.result(-1),
                 };
                 drop(input);
-                bytes[..moved].copy_from_slice(&transferred[..moved]);
-                // MSVCRT writes only the transferred low bytes. Preserve every
-                // untouched byte of the actual little-endian i32 cell.
-                buffer.replace(TerminalScalarValue::Integer {
-                    scalar_type: self.signed,
-                    value: IntegerValue::Signed(i128::from(i32::from_le_bytes(bytes))),
-                })?;
-                Ok(self.result(i32::try_from(moved).map_err(|_| invalid())?))
+                let result = self.result(i128::try_from(moved).map_err(|_| invalid_operands())?)?;
+                primitive_bytes[..moved].copy_from_slice(&transferred[..moved]);
+                let DescriptorBuffer::Integer(integer) = self.buffer else {
+                    return Err(invalid_operands());
+                };
+                let [buffer] = scalar_buffers else {
+                    return Err(invalid_operands());
+                };
+                buffer.replace(integer_from_bytes(primitive_bytes, integer))?;
+                Ok(result)
             }
         }
     }

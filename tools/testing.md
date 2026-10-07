@@ -105,7 +105,8 @@ Pipe a long run through `tee`, never `tail`: `tail` buffers until EOF, so a
 
 Exit codes are the gate's verdict: 0 clean, 1 moved (structural or perf
 moves, no regression), 2 usage error, 3 regressed (a fixture verdict of
-`regressed`, or a failed authored exit or `expected_stdout.txt` oracle — including the
+`regressed`, or a failed authored exit, `expected_stdout.txt` or
+`expected_stderr.txt` oracle — including the
 `--record` refusal), 4 infrastructure failure (runner build failed, no
 binary, runner exited nonzero, unreadable records). `--bisect` remaps for
 `git bisect run`: regressed -> 1 (bad), infrastructure -> 125 (skip),
@@ -220,18 +221,21 @@ not loop cost — keep it out of routine iteration.
 The default run checks fixtures only. `--native` realizes each pass and run
 fixture that binds a program-entry root in its own `build.omg`, executes the
 run tier, `*_exit` fixtures and fixtures with `expected_native_exit.txt` in a
-temporary directory (stdin from `input.txt`, stdout compared with
-`expected_stdout.txt`), and diffs against
+temporary directory (stdin from `input.txt`, stdout/stderr compared independently
+with `expected_stdout.txt`/`expected_stderr.txt`), and diffs against
 that host's golden `tests/omega/corpus_native_<target>.txt`; records gain
-`exit:<code>` and `stdout:match|differs`. Use it with `--filter` for
+`exit:<code>` and the authored `stdout:match|differs|unavailable` or
+`stderr:match|differs|unavailable` facts. Use it with `--filter` for
 backend-visible changes.
 
 `expected_native_exit.txt` holds one decimal process exit code or `trap`.
 The latter requires SIGTRAP for ARM64, SIGILL for Unix x86-64, or
 STATUS_ILLEGAL_INSTRUCTION for Windows x86-64. Missing execution, timeout,
 segmentation faults and ordinary exits cannot satisfy a trap expectation.
-An `expected_stdout.txt` independently requires completed native execution
-with `stdout:match`, even when no exit oracle is authored. Wrong or missing
+An `expected_stdout.txt` or `expected_stderr.txt` independently requires completed
+native execution with the corresponding `stdout:match` or `stderr:match`, even
+when no exit oracle is authored. Both pipes drain concurrently and comparisons
+preserve arbitrary bytes, normalizing only CRLF to LF. Wrong or missing
 output and incomplete execution cannot be recorded as the expected result.
 Duplicate execution-fact keys are malformed runner evidence and fail as
 infrastructure errors rather than overwriting an earlier observation.
@@ -244,8 +248,9 @@ identical targets without replaying Build. `interpreter:trapped` requires the
 core's typed Trap outcome; decline, exhaustion and host signals cannot satisfy
 the interpreted trap oracle. Missing entry/import provisions remain explicit
 runtime-driver dependencies, not synthetic exits.
-When `--interpret` or `--both` is requested, an authored `expected_stdout.txt`
-also requires completed interpreter execution and `interpreter-stdout:match`.
+When `--interpret` or `--both` is requested, each authored stream oracle
+also requires completed interpreter execution and its own
+`interpreter-stdout:match` or `interpreter-stderr:match`.
 Matching exit codes cannot excuse missing or different output, and `--record`
 refuses that result before changing the golden.
 

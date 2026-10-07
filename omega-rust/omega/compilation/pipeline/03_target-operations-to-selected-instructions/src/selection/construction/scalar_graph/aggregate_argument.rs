@@ -1,6 +1,8 @@
-//! Transport owned aggregate bytes through the independently selected call ABI.
+//! Transport aggregate value bytes through the independently selected call ABI.
 //! Indirection copies the current value into call-owned backing; forwarding the
 //! input pointer would alias a copyable value with the callee's private storage.
+//! Borrowed-view descriptors use the same fragments without copying their backing
+//! or changing the loan's access authority.
 use super::{
     Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind,
     ValueLocation, VirtualRegisterId,
@@ -109,6 +111,31 @@ pub(super) fn argument(
             .find(|(owner, _)| *owner == place)
             .map(|(_, pointer)| *pointer)
     };
+    transport(
+        operation,
+        argument_index,
+        target,
+        pointer,
+        0,
+        None,
+        block,
+        builder,
+    )
+}
+
+/// Transport already-authenticated value backing through the retained ABI.
+/// A borrowed view copies its descriptor words, not its referent bytes or custody.
+pub(super) fn transport(
+    operation: &legalized_operations::LegalizedScalarInstruction,
+    argument_index: usize,
+    target: &target_operations::TargetStructuralArgument,
+    pointer: Option<VirtualRegisterId>,
+    pointer_byte_offset: u32,
+    descriptor_words: Option<[VirtualRegisterId; 2]>,
+    block: semantic_vocabulary::BlockId,
+    builder: &mut Builder<'_>,
+) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
+    let place = target.place;
     let indirect = crate::selection::aggregate_result_input::indirect_argument(&target.destination);
     let outgoing_plan = match &operation.kind {
         legalized_operations::LegalizedScalarInstructionKind::Call(call) => &call.call_plan,
@@ -295,7 +322,20 @@ pub(super) fn argument(
             .checked_add(offset)
             .ok_or_else(|| SelectedInstructionError::custody())?;
         let output = super::structural_case::register(builder, place, offset, 64, false)?;
-        if let Some(pointer) = pointer {
+        if let Some(words) = descriptor_words {
+            if byte_size != 8 || !matches!(value_byte_offset, 0 | 8) {
+                return Err(SelectedInstructionError::custody());
+            }
+            // These words were established from authenticated original
+            // backing. Descriptor scratch does not grant descriptor-sized
+            // reads from the backing array or inline bytes themselves.
+            builder.emit(
+                SelectedInstructionKind::CopyI64,
+                builder.constraints.keys.copy_i64,
+                &[words[(value_byte_offset / 8) as usize], output],
+                Default::default(),
+            )?;
+        } else if let Some(pointer) = pointer {
             super::structural_case::memory(
                 builder,
                 block,
@@ -304,7 +344,10 @@ pub(super) fn argument(
                 byte_size,
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
-            super::aggregate_memory::load(builder, pointer, output, source_offset, byte_size)?;
+            let pointer_offset = source_offset
+                .checked_sub(pointer_byte_offset)
+                .ok_or_else(|| SelectedInstructionError::custody())?;
+            super::aggregate_memory::load(builder, pointer, output, pointer_offset, byte_size)?;
         } else {
             let input = builder
                 .transport

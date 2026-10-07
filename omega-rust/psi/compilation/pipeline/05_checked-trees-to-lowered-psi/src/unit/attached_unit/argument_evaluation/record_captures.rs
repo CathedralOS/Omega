@@ -14,7 +14,7 @@ use terminal_psi::{
 
 impl Evaluation {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn prepare_observations_before(
+    pub(crate) fn prepare_storage_before(
         &mut self,
         checked: &checked_trees::CheckedTrees,
         state: symbols::SymbolHandle,
@@ -26,6 +26,50 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         private_places: &mut Vec<StructuralPlaceDeclaration>,
     ) -> Result<(), LoweringError> {
+        if !self
+            .computation_address_roots
+            .iter()
+            .any(|(owner, _)| *owner == state)
+        {
+            let roots = checked
+                .facts
+                .values
+                .scalar_computations
+                .roots
+                .iter()
+                .filter_map(|(_, root)| {
+                    (root.state == state).then_some((root.statement_ordinal, root.root))
+                })
+                .collect();
+            self.computation_address_roots.push((state, roots));
+        }
+        let roots = self
+            .computation_address_roots
+            .iter()
+            .find(|(owner, _)| *owner == state)
+            .ok_or(LoweringError::Unsupported(
+                "computed address demand lost its retained state",
+            ))?
+            .1
+            .iter()
+            .filter_map(|(ordinal, root)| (*ordinal == statement).then_some(*root))
+            .collect::<Vec<_>>();
+        for argument in
+            crate::expression_preparation::computation_graph::borrowed_arguments_from_roots(
+                checked, &roots,
+            )?
+        {
+            self.prepare_borrowed_argument(
+                checked,
+                state,
+                argument,
+                values,
+                types,
+                next_place,
+                operations,
+                private_places,
+            )?;
+        }
         for position in 0..self.place_observations.len() {
             let loan = &self.place_observations[position];
             if loan.statement_index >= statement {
@@ -37,7 +81,7 @@ impl Evaluation {
             // the same original primitive home for both; a local recast does
             // not need to be passed to a machine before it can be observed.
             if let LoanedSource::Local(symbol) = capture.source {
-                self.immutable_local_borrow_home(
+                self.prepare_immutable_local_borrow(
                     checked,
                     state,
                     Some(facts::PlaceRoot::Symbol(symbol)),

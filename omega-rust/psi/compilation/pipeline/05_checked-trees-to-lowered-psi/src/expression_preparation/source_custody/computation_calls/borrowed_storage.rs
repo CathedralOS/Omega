@@ -42,6 +42,7 @@ pub(super) fn source(
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
         | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
         | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => {
             crate::emission::call_source_custody::projected_receivers::source(
                 checked,
@@ -56,6 +57,29 @@ pub(super) fn source(
     let whole_source = source.path.is_empty();
     let parameters = checked.state_parameters(state);
     let reference = match argument.source {
+        CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { parameter_index } => {
+            let parameter = parameters
+                .iter()
+                .filter(|parameter| {
+                    !parameter.is_const
+                        && !parameter.relevance.is_erased()
+                        && checked
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                })
+                .nth(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "borrowed operand lost its scalar parameter",
+                ))?;
+            if !whole_source
+                || !argument.path.is_empty()
+                || source.captured_place().root_symbol != parameter.symbol
+                || (target_access != ReferenceAccess::Shared && !parameter.is_mutable)
+            {
+                return unsupported("borrowed operand substitutes scalar ingress custody");
+            }
+            parameter.type_reference
+        }
         CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
             let local = super::preceding_local(
                 checked,

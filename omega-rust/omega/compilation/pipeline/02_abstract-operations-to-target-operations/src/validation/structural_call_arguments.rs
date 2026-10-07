@@ -1267,135 +1267,226 @@ impl Replay<'_> {
                     )
             });
             let mut runtime_elements = Vec::new();
-            let (projected_type, projected_shape, byte_offset) = match declaration_parameter.access
-            {
-                StructuralAccess::Owned => {
-                    // Whole-place owned transport names the root itself; a
-                    // projected member moves its subtree by value, resolving
-                    // leaf type, shape, and byte offset exactly like a
-                    // borrowed projection.
-                    if semantic.path.is_empty() {
-                        (
+            let local_presentation = root.loan_presentation(semantic, declaration_parameter);
+            let presentation_root = self
+                .source
+                .arrival_parameter(semantic.place)
+                .or(local_presentation.as_ref());
+            let presentation = if descriptor_formal && semantic.access != StructuralAccess::Owned {
+                if let Some(source) = presentation_root {
+                    if let Some(window) = terminal_semantics::fixed_byte_array_window(
+                        self.declarations.iter(),
+                        source,
+                        semantic,
+                        declaration_parameter,
+                    ) {
+                        let (_, backing_offset) = structural_shapes::project_static_path(
                             root.structural_type,
-                            structural_shapes::reconstruct(root.structural_type, self.declarations)
-                                .map_err(|_| psi_operation)?,
-                            0,
-                        )
-                    } else {
-                        if semantic.path.iter().any(|segment| {
-                            !matches!(
-                                segment,
-                                StructuralPathSegment::Field(_)
-                                    | StructuralPathSegment::FixedIndex(_)
-                            )
-                        }) {
-                            return Err(psi_operation);
-                        }
-                        if semantic
-                            .path
-                            .iter()
-                            .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-                        {
-                            static_element_projection(
-                                root.structural_type,
-                                &semantic.path,
-                                self.declarations,
-                            )
-                            .ok_or(psi_operation)?
-                        } else {
-                            structural_shapes::projected_field(
-                                root.structural_type,
-                                &semantic.path,
-                                self.declarations,
-                            )
-                            .map_err(|_| psi_operation)?
-                        }
-                    }
-                }
-                StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow => {
-                    if semantic.path.is_empty() {
-                        // A whole loan names the exact root at offset zero.
-                        (
-                            root.structural_type,
-                            structural_shapes::reconstruct(root.structural_type, self.declarations)
-                                .map_err(|_| psi_operation)?,
-                            0,
-                        )
-                    } else if semantic.path.iter().any(|segment| {
-                        matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
-                    }) {
-                        let (ty, offset, elements) = structural_shapes::project_runtime_path(
-                            root.structural_type,
-                            &semantic.path,
+                            window.backing_path,
                             self.declarations,
                         )
                         .map_err(|_| psi_operation)?;
-                        runtime_elements = elements;
-                        (
-                            ty,
-                            structural_shapes::reconstruct(ty, self.declarations)
-                                .map_err(|_| psi_operation)?,
-                            offset,
-                        )
-                    } else if semantic
-                        .path
-                        .iter()
-                        .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-                    {
-                        // A fixed element (`&text[0]`) is one static offset
-                        // inside the referent, like a field; the element's
-                        // own declaration supplies its storage shape.
-                        static_element_projection(
-                            root.structural_type,
-                            &semantic.path,
-                            self.declarations,
-                        )
-                        .ok_or(psi_operation)?
-                    } else {
-                        if semantic
-                            .path
-                            .iter()
-                            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+                        if u64::from(backing_offset)
+                            .checked_add(window.backing_length)
+                            .is_none_or(|end| end > u64::from(source_byte_size))
                         {
                             return Err(psi_operation);
                         }
-                        match structural_shapes::projected_field(
+                        let offset = u64::from(backing_offset)
+                            .checked_add(window.offset)
+                            .and_then(|offset| u32::try_from(offset).ok())
+                            .ok_or(psi_operation)?;
+                        Some((offset, Some(window.length), Some(1)))
+                    } else if semantic.access == StructuralAccess::SharedBorrow
+                        && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                        && source.projected_qualifications.is_empty()
+                        && matches!(
+                            source.access,
+                            StructuralAccess::Owned
+                                | StructuralAccess::SharedBorrow
+                                | StructuralAccess::MutableBorrow
+                        )
+                    {
+                        if let Some(capacity) = terminal_semantics::shared_boundary_buffer_capacity(
+                            self.declarations.iter(),
                             root.structural_type,
-                            &semantic.path,
-                            self.declarations,
+                            semantic,
+                            declaration_parameter,
                         ) {
-                            Ok(projection) => projection,
-                            Err(_) => {
-                                // A leaf carrying BorrowedView storage
-                                // has no projected carrier identity; its
-                                // field offset inside the root replays
-                                // instead, and only a descriptor formal
-                                // admits it.
-                                let field_offset = structural_shapes::borrowed_view_field_offset(
+                            let (offset, actual_capacity) = if semantic.path.is_empty() {
+                                (0, capacity)
+                            } else {
+                                structural_shapes::bounded_byte_field_geometry(
                                     root.structural_type,
                                     &semantic.path,
                                     self.declarations,
                                 )
-                                .map_err(|_| psi_operation)?;
-                                if !descriptor_formal {
-                                    return Err(psi_operation);
-                                }
+                                .map_err(|_| psi_operation)?
+                            };
+                            if actual_capacity != capacity
+                                || u64::from(offset)
+                                    .checked_add(8)
+                                    .and_then(|end| end.checked_add(capacity))
+                                    .is_none_or(|end| end > u64::from(source_byte_size))
+                            {
+                                return Err(psi_operation);
+                            }
+                            Some((offset, None, None))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let (projected_type, projected_shape, byte_offset) =
+                if let Some((offset, _, _)) = presentation {
+                    (
+                        declaration_parameter.structural_type,
+                        structural_shapes::reconstruct(
+                            declaration_parameter.structural_type,
+                            self.declarations,
+                        )
+                        .map_err(|_| psi_operation)?,
+                        offset,
+                    )
+                } else {
+                    match declaration_parameter.access {
+                        StructuralAccess::Owned => {
+                            // Whole-place owned transport names the root itself; a
+                            // projected member moves its subtree by value, resolving
+                            // leaf type, shape, and byte offset exactly like a
+                            // borrowed projection.
+                            if semantic.path.is_empty() {
                                 (
-                                    declaration_parameter.structural_type,
+                                    root.structural_type,
                                     structural_shapes::reconstruct(
-                                        declaration_parameter.structural_type,
+                                        root.structural_type,
                                         self.declarations,
                                     )
                                     .map_err(|_| psi_operation)?,
-                                    field_offset,
+                                    0,
                                 )
+                            } else {
+                                if semantic.path.iter().any(|segment| {
+                                    !matches!(
+                                        segment,
+                                        StructuralPathSegment::Field(_)
+                                            | StructuralPathSegment::FixedIndex(_)
+                                    )
+                                }) {
+                                    return Err(psi_operation);
+                                }
+                                if semantic.path.iter().any(|segment| {
+                                    matches!(segment, StructuralPathSegment::FixedIndex(_))
+                                }) {
+                                    static_element_projection(
+                                        root.structural_type,
+                                        &semantic.path,
+                                        self.declarations,
+                                    )
+                                    .ok_or(psi_operation)?
+                                } else {
+                                    structural_shapes::projected_field(
+                                        root.structural_type,
+                                        &semantic.path,
+                                        self.declarations,
+                                    )
+                                    .map_err(|_| psi_operation)?
+                                }
+                            }
+                        }
+                        StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow => {
+                            if semantic.path.is_empty() {
+                                // A whole loan names the exact root at offset zero.
+                                (
+                                    root.structural_type,
+                                    structural_shapes::reconstruct(
+                                        root.structural_type,
+                                        self.declarations,
+                                    )
+                                    .map_err(|_| psi_operation)?,
+                                    0,
+                                )
+                            } else if semantic.path.iter().any(|segment| {
+                                matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
+                            }) {
+                                let (ty, offset, elements) =
+                                    structural_shapes::project_runtime_path(
+                                        root.structural_type,
+                                        &semantic.path,
+                                        self.declarations,
+                                    )
+                                    .map_err(|_| psi_operation)?;
+                                runtime_elements = elements;
+                                (
+                                    ty,
+                                    structural_shapes::reconstruct(ty, self.declarations)
+                                        .map_err(|_| psi_operation)?,
+                                    offset,
+                                )
+                            } else if semantic.path.iter().any(|segment| {
+                                matches!(segment, StructuralPathSegment::FixedIndex(_))
+                            }) {
+                                // A fixed element (`&text[0]`) is one static offset
+                                // inside the referent, like a field; the element's
+                                // own declaration supplies its storage shape.
+                                static_element_projection(
+                                    root.structural_type,
+                                    &semantic.path,
+                                    self.declarations,
+                                )
+                                .ok_or(psi_operation)?
+                            } else {
+                                if semantic.path.iter().any(|segment| {
+                                    !matches!(segment, StructuralPathSegment::Field(_))
+                                }) {
+                                    return Err(psi_operation);
+                                }
+                                match structural_shapes::projected_field(
+                                    root.structural_type,
+                                    &semantic.path,
+                                    self.declarations,
+                                ) {
+                                    Ok(projection) => projection,
+                                    Err(_) => {
+                                        // A leaf carrying BorrowedView storage
+                                        // has no projected carrier identity; its
+                                        // field offset inside the root replays
+                                        // instead, and only a descriptor formal
+                                        // admits it.
+                                        let field_offset =
+                                            structural_shapes::borrowed_view_field_offset(
+                                                root.structural_type,
+                                                &semantic.path,
+                                                self.declarations,
+                                            )
+                                            .map_err(|_| psi_operation)?;
+                                        if !descriptor_formal {
+                                            return Err(psi_operation);
+                                        }
+                                        (
+                                            declaration_parameter.structural_type,
+                                            structural_shapes::reconstruct(
+                                                declaration_parameter.structural_type,
+                                                self.declarations,
+                                            )
+                                            .map_err(|_| psi_operation)?,
+                                            field_offset,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            };
+                };
             let projects_view_backing = semantic.access != StructuralAccess::Owned
                 && !semantic.path.is_empty()
                 && self.declarations.iter().any(|row| {
@@ -1404,7 +1495,8 @@ impl Replay<'_> {
                             || matches!(row.shape, StructuralTypeShape::ElementView { .. }))
                 });
             if projected_type != declaration_parameter.structural_type
-                || (!projects_view_backing
+                || (presentation.is_none()
+                    && !projects_view_backing
                     && projected_shape
                         .byte_size
                         .checked_add(byte_offset)
@@ -1457,8 +1549,8 @@ impl Replay<'_> {
                 || actual.structural_type != projected_type
                 || actual.shape != expected_shape
                 || actual.source_byte_offset != byte_offset
-                || actual.fixed_array_length.is_some()
-                || actual.element_stride.is_some()
+                || actual.fixed_array_length != presentation.and_then(|(_, length, _)| length)
+                || actual.element_stride != presentation.and_then(|(_, _, stride)| stride)
                 || actual.indices.len() != runtime_elements.len()
                 || actual.indices.iter().zip(&runtime_elements).any(
                     |(actual, (selector, _, stride))| {

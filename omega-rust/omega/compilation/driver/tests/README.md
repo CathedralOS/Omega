@@ -39,6 +39,10 @@ or `trap`. This opts the fixture into execution regardless of its name and makes
 the native gate enforce that result even with `--record`. `trap` requires the
 target's trap signal/exception, not an arbitrary abnormal termination. These
 fixtures must bind the running host; missing execution fails the oracle.
+`expected_stdout.txt` and `expected_stderr.txt` also opt a fixture into execution
+and independently constrain each engine's captured stream. Matching exits cannot
+excuse missing/different output, and `--record` cannot bless that result. Captures
+drain both native pipes concurrently; byte comparison normalizes only CRLF to LF.
 The corpus also attempts them with `--interpret`/`--both` through the admitted
 Terminal program/instance core. `interpreter:trapped` comes only from the core's
 typed Trap outcome; a declined run, exhaustion or host signal cannot satisfy it.

@@ -75,7 +75,7 @@ use crate::unit::{
     OperationKind, OperationResult, PlaceId, ScalarType, ServiceId, ServiceReachId,
     StructuralAccess, StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
-    ValueDeclaration, allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
+    ValueDeclaration, allocate_dense, lookup_type_id, place_id, unsupported,
 };
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use semantic_vocabulary::{BlockId, OperationId};
@@ -367,7 +367,7 @@ impl OperationFrame<'_, '_> {
                     self.operations,
                     self.evaluation,
                 )?;
-                let primitive_home = self.evaluation.immutable_local_borrow_home(
+                self.evaluation.prepare_immutable_local_borrow(
                     self.checked,
                     self.state,
                     source.structural_storage_root(),
@@ -377,8 +377,6 @@ impl OperationFrame<'_, '_> {
                     self.operations,
                     self.private_places,
                 )?;
-                let mut locals = self.evaluation.structural_locals.clone();
-                locals.extend(primitive_home);
                 let mut selectors = parameters::mint_runtime_index_selectors(
                     std::slice::from_ref(source),
                     &self.evaluation.structural_fields,
@@ -394,7 +392,7 @@ impl OperationFrame<'_, '_> {
                     self.caller.local_places,
                     &earlier,
                     self.primitive_locals,
-                    &locals,
+                    &self.evaluation.structural_locals,
                     Some(parameters::ReferenceSourceEvaluation {
                         values: self.values,
                         selectors: &mut selectors,
@@ -473,60 +471,40 @@ impl OperationFrame<'_, '_> {
         parameter_index: u32,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let parameter = self
-            .checked
-            .state_parameters(authored)
-            .iter()
-            .filter(|parameter| {
-                !parameter.is_const
-                    && !parameter.relevance.is_erased()
-                    && self
-                        .checked
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_some()
-            })
-            .nth(parameter_index as usize)
-            .ok_or(LoweringError::Unsupported(
-                "primitive reference ingress is absent",
-            ))?;
-        let scalar_type = terminal_scalar_type(
-            self.checked
-                .primitive_type_reference(parameter.type_reference)
-                .ok_or(LoweringError::Unsupported(
-                    "primitive reference ingress lost its carrier",
-                ))?,
-        )?;
-        let position = self
-            .evaluation
-            .scalar_bindings
-            .immutable_position(parameter_index as usize)?;
-        let value = self.values.get(position).ok_or(LoweringError::Unsupported(
-            "primitive ingress value is absent",
-        ))?;
-        let structural_type = lookup_type_id(self.type_ids, &source.type_identity)?;
-        if value.scalar_type != scalar_type
-            || !self
-                .structural_types
-                .declarations()
-                .iter()
-                .any(|declaration| {
-                    declaration.id == structural_type
-                        && declaration.shape
-                            == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type)
-                })
-        {
-            return unsupported("primitive ingress value and storage carrier disagree");
-        }
-        let place = self.evaluation.immutable_primitive_home(
-            parameter.symbol,
-            value,
-            structural_type,
+        self.evaluation.prepare_borrowed_argument(
+            self.checked,
+            self.state,
+            source,
+            self.values,
             self.structural_types.declarations(),
             self.next_place,
             self.operations,
             self.private_places,
         )?;
+        let structural_type = lookup_type_id(self.type_ids, &source.type_identity)?;
+        let scalar_type = self
+            .structural_types
+            .declarations()
+            .iter()
+            .find_map(|actual| {
+                if actual.id == structural_type
+                    && let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) = actual.shape
+                {
+                    Some(scalar)
+                } else {
+                    None
+                }
+            })
+            .ok_or(LoweringError::Unsupported(
+                "primitive reference ingress lost its declared view",
+            ))?;
+        let place = self
+            .evaluation
+            .scalar_bindings
+            .scalar_parameter_home(parameter_index, scalar_type)?
+            .ok_or(LoweringError::Unsupported(
+                "primitive reference ingress lost its original home",
+            ))?;
         Ok(StructuralArgument {
             place,
             path: Vec::new(),

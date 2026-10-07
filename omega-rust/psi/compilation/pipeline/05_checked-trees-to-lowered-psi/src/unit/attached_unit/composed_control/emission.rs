@@ -69,7 +69,7 @@ pub(super) fn emit_call_operations(
     while let Some(step) = schedule.next() {
         let (operation_index, staged) = match *step {
             Step::CaptureBefore(statement) => {
-                evaluation.prepare_observations_before(
+                evaluation.prepare_storage_before(
                     checked,
                     state.state,
                     statement,

@@ -252,11 +252,116 @@ impl OperationFrame<'_, '_> {
 }
 
 impl super::argument_evaluation::Evaluation {
-    /// Immutable scalar locals are values until an address is observed. Rejoin
-    /// their authored ordinal to the completed SSA value, then give that value
-    /// one shared home using the same operation as addressable scalar ingress.
+    /// Publish original backing demanded by a checked borrowed operand. The
+    /// operand remains responsible for its loan; this only makes owned scalar
+    /// storage addressable on the caller's completed-value frontier.
     #[allow(clippy::too_many_arguments)]
-    pub(in crate::unit::attached_unit) fn immutable_local_borrow_home(
+    pub(in crate::unit::attached_unit) fn prepare_borrowed_argument(
+        &mut self,
+        checked: &CheckedTrees,
+        state: symbols::SymbolHandle,
+        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        values: &[terminal_psi::ValueDeclaration],
+        types: &[StructuralTypeDeclaration],
+        next_place: &mut u64,
+        operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
+        places: &mut Vec<StructuralPlaceDeclaration>,
+    ) -> Result<(), LoweringError> {
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
+            parameter_index,
+        } = source.source
+        {
+            let (_, authored) = crate::declarations::state_declaration(checked, state)?;
+            let parameter = checked
+                .state_parameters(authored)
+                .iter()
+                .filter(|parameter| {
+                    !parameter.is_const
+                        && !parameter.relevance.is_erased()
+                        && checked
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                })
+                .nth(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "primitive reference ingress is absent",
+                ))?;
+            let scalar_type = terminal_scalar_type(
+                checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "primitive reference ingress lost its carrier",
+                    ))?,
+            )?;
+            let position = self
+                .scalar_bindings
+                .immutable_position(parameter_index as usize)?;
+            let value = values.get(position).ok_or(LoweringError::Unsupported(
+                "primitive ingress value is absent",
+            ))?;
+            let identity = checked
+                .typed
+                .normalized_type_identity(parameter.type_reference)
+                .into_string();
+            let mut carriers = types.iter().filter(|actual| actual.identity == identity);
+            let carrier = carriers.next().ok_or(LoweringError::Unsupported(
+                "primitive ingress has no original storage carrier",
+            ))?;
+            if carriers.next().is_some()
+                || carrier.shape != StructuralTypeShape::PrimitiveScalar(scalar_type)
+                || value.scalar_type != scalar_type
+                || !value.qualifications.is_empty()
+            {
+                return unsupported("primitive ingress value and storage carrier disagree");
+            }
+            let place = if let Some(place) = self
+                .scalar_bindings
+                .scalar_parameter_home(parameter_index, scalar_type)?
+            {
+                place
+            } else {
+                self.immutable_primitive_home(
+                    parameter.symbol,
+                    value,
+                    carrier.id,
+                    types,
+                    next_place,
+                    operations,
+                    places,
+                )?
+            };
+            self.scalar_bindings.register_scalar_parameter_home(
+                parameter_index,
+                place,
+                scalar_type,
+                if parameter.is_mutable {
+                    terminal_psi::StructuralAccess::MutableBorrow
+                } else {
+                    terminal_psi::StructuralAccess::SharedBorrow
+                },
+            )?;
+        } else {
+            self.prepare_immutable_local_borrow(
+                checked,
+                state,
+                source.structural_storage_root(),
+                values,
+                types,
+                next_place,
+                operations,
+                places,
+            )?;
+        }
+        Ok(())
+    }
+    /// Immutable scalar locals are values until an address is observed. Rejoin
+    /// their authored ordinal to the completed SSA value, then publish that
+    /// value's one shared home in the ordinary storage roster. Reference
+    /// formation, observations and call operands all use this same join;
+    /// a temporary binding available only to reference construction loses
+    /// custody when a call borrows the scalar directly.
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::unit::attached_unit) fn prepare_immutable_local_borrow(
         &mut self,
         checked: &CheckedTrees,
         state_symbol: symbols::SymbolHandle,
@@ -266,22 +371,19 @@ impl super::argument_evaluation::Evaluation {
         next_place: &mut u64,
         operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
         places: &mut Vec<StructuralPlaceDeclaration>,
-    ) -> Result<
-        Option<crate::expression_preparation::bindings::StructuralLocalBinding>,
-        LoweringError,
-    > {
+    ) -> Result<bool, LoweringError> {
         let Some(facts::PlaceRoot::Symbol(symbol)) = root else {
-            return Ok(None);
+            return Ok(false);
         };
         let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
         let Some((statement, local)) = checked.typed.state_local_declaration(state, symbol) else {
-            return Ok(None);
+            return Ok(false);
         };
         let Some(primitive) = checked.primitive_type_reference(local.type_reference) else {
-            return Ok(None);
+            return Ok(false);
         };
         if local.is_mutable {
-            return Ok(None);
+            return Ok(false);
         }
         let scalar_type = crate::emission::scalar_types::terminal_scalar_type(primitive)?;
         let ordinal = crate::expression_preparation::source_custody::source_local_ordinal(
@@ -320,18 +422,32 @@ impl super::argument_evaluation::Evaluation {
             operations,
             places,
         )?;
-        Ok(Some(
-            crate::expression_preparation::bindings::StructuralLocalBinding {
-                result_binding_ordinal: None,
-                root: facts::PlaceRoot::Symbol(symbol),
-                structural_type,
-                argument: terminal_psi::StructuralArgument {
-                    place,
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                },
+        let home = crate::expression_preparation::bindings::StructuralLocalBinding {
+            result_binding_ordinal: None,
+            root: facts::PlaceRoot::Symbol(symbol),
+            structural_type,
+            argument: terminal_psi::StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::SharedBorrow,
             },
-        ))
+        };
+        let mut established = self
+            .structural_locals
+            .iter()
+            .filter(|binding| binding.root == home.root);
+        if let Some(binding) = established.next() {
+            if established.next().is_some()
+                || binding.result_binding_ordinal.is_some()
+                || binding.structural_type != home.structural_type
+                || binding.argument != home.argument
+            {
+                return unsupported("immutable primitive home changes its established custody");
+            }
+        } else {
+            self.structural_locals.push(home);
+        }
+        Ok(true)
     }
 
     /// One immutable scalar value receives one original addressable home.

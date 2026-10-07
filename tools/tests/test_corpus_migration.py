@@ -55,7 +55,7 @@ class MigrationEvidence(unittest.TestCase):
         self.assertEqual(record["facts"]["migration-task"], "TERMINAL-CONST-SCALARS")
         self.assertEqual(corpus_gate.native_exit_failures([record], self.corpus, "windows_x86_64"), [])
         self.assertEqual(corpus_gate.interpreter_exit_failures([record], self.corpus, "windows_x86_64"), [])
-        self.assertEqual(corpus_gate.execution_stdout_failures([record], self.corpus, "native"), [])
+        self.assertEqual(corpus_gate.execution_output_failures([record], self.corpus, "native"), [])
         self.assertEqual((self.directory / "expected_native_exit.txt").read_text(), "70")
         self.assertEqual((self.directory / "expected_stdout.txt").read_text(), "authored output")
         self.assertEqual(corpus_records.parse(corpus_records.render([record])), [record])
@@ -90,9 +90,9 @@ class MigrationEvidence(unittest.TestCase):
                                           [self.marker("interpreter")]), roster)
         self.assertEqual(corpus_records.migration_gap_route(record), "interpreter")
         self.assertTrue(corpus_gate.native_exit_failures([record], self.corpus, "windows_x86_64"))
-        self.assertTrue(corpus_gate.execution_stdout_failures([record], self.corpus, "native"))
+        self.assertTrue(corpus_gate.execution_output_failures([record], self.corpus, "native"))
         self.assertEqual(corpus_gate.interpreter_exit_failures([record], self.corpus, "windows_x86_64"), [])
-        self.assertEqual(corpus_gate.execution_stdout_failures([record], self.corpus, "interpreter"), [])
+        self.assertEqual(corpus_gate.execution_output_failures([record], self.corpus, "interpreter"), [])
 
     def test_fail_fixture_cannot_be_designated_or_classified(self):
         fail = self.record()
@@ -151,7 +151,7 @@ class MigrationEvidence(unittest.TestCase):
             self.assertEqual(corpus_records.migration_gap_route(record), "native")
             self.assertEqual(bool(corpus_gate.interpreter_exit_failures(
                 [record], self.corpus, "windows_x86_64")), fails)
-            self.assertEqual(corpus_gate.execution_stdout_failures(
+            self.assertEqual(corpus_gate.execution_output_failures(
                 [record], self.corpus, "interpreter"), [])
 
     def test_missing_pending_canary_requires_runner_hook(self):

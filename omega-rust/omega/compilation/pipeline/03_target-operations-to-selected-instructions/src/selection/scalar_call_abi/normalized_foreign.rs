@@ -244,43 +244,74 @@ pub(crate) fn validate(
             .parameters
             .iter()
             .find(|parameter| parameter.semantic.place == argument.place);
-        let (root_type, root_access, expected_source) = if let Some(parameter) = parameter {
-            (
-                parameter.semantic.structural_type,
-                parameter.semantic.access,
-                TargetStructuralArgumentSource::Placement(parameter.target.placement.clone()),
-            )
-        } else if let Some((producer, result)) =
-            crate::selection::aggregate_result_input::home(source, argument.place)
-        {
-            (
-                result.structural_type,
-                terminal_psi::StructuralAccess::Owned,
-                TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation: producer,
-                },
-            )
-        } else if let Some((block, parameter)) =
-            crate::selection::aggregate_result_input::block_home(source, argument.place)
-        {
-            (
-                parameter.structural_type,
-                parameter.access,
-                TargetStructuralArgumentSource::BlockParameter {
-                    block,
-                    place: parameter.place,
-                },
-            )
-        } else {
-            return Err(invalid());
+        let (root_type, root_access, expected_source, root, presentation_debt) =
+            if let Some(parameter) = parameter {
+                (
+                    parameter.semantic.structural_type,
+                    parameter.semantic.access,
+                    TargetStructuralArgumentSource::Placement(parameter.target.placement.clone()),
+                    parameter.semantic.clone(),
+                    false,
+                )
+            } else if let Some((producer, result)) =
+                crate::selection::aggregate_result_input::home(source, argument.place)
+            {
+                (
+                    result.structural_type,
+                    terminal_psi::StructuralAccess::Owned,
+                    TargetStructuralArgumentSource::StructuralHome {
+                        psi_operation: producer,
+                    },
+                    terminal_psi::StructuralParameterDeclaration {
+                        place: result.place,
+                        position: 0,
+                        structural_type: result.structural_type,
+                        access: terminal_psi::StructuralAccess::Owned,
+                        multiplicity: result.multiplicity,
+                        qualifications: result.qualifications.clone(),
+                        projected_qualifications: result.projected_qualifications.clone(),
+                    },
+                    !result.claims.is_empty() || !result.qualification_establishments.is_empty(),
+                )
+            } else if let Some((block, parameter)) =
+                crate::selection::aggregate_result_input::block_home(source, argument.place)
+            {
+                (
+                    parameter.structural_type,
+                    parameter.access,
+                    TargetStructuralArgumentSource::BlockParameter {
+                        block,
+                        place: parameter.place,
+                    },
+                    parameter.clone(),
+                    false,
+                )
+            } else {
+                return Err(invalid());
+            };
+        let semantic = terminal_psi::StructuralArgument {
+            place: argument.place,
+            path: argument.path.clone(),
+            access: argument.access,
         };
+        let presentation = (argument.access != terminal_psi::StructuralAccess::Owned).then(||
+            crate::structural_inputs::structural_reference_input::borrowed_byte_view_presentation(
+                &root, &semantic, argument.structural_type, &signature.structural_types,
+            )).flatten();
         let (projected_type, source_byte_offset, elements) =
-            crate::structural_inputs::structural_reference_input::runtime_projection(
-                argument.root_structural_type,
-                &argument.path,
-                &signature.structural_types,
-            )
-            .ok_or_else(invalid)?;
+            if let Some((offset, _, _)) = presentation {
+                if presentation_debt {
+                    return Err(invalid());
+                }
+                (argument.structural_type, offset, Vec::new())
+            } else {
+                crate::structural_inputs::structural_reference_input::runtime_projection(
+                    argument.root_structural_type,
+                    &argument.path,
+                    &signature.structural_types,
+                )
+                .ok_or_else(invalid)?
+            };
         let projected_shape = crate::structural_inputs::structural_reference_input::shape(
             projected_type,
             &signature.structural_types,
@@ -316,35 +347,63 @@ pub(crate) fn validate(
             terminal_psi::StructuralAccess::SharedBorrow
             | terminal_psi::StructuralAccess::MutableBorrow
             | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
-                if !matches!(argument.destination.locations.as_slice(),
+                let descriptor = signature.structural_types.iter().any(|declaration| {
+                    declaration.id == projected_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            )
+                        )
+                });
+                if descriptor {
+                    let classified =
+                        abstract_operations_to_target_operations::classified_boundary_shape(
+                            projected_type,
+                            &signature.structural_types,
+                            plan.call.policy,
+                        )
+                        .map_err(|_| invalid())?;
+                    (
+                        ValueShape::borrowed_reference(
+                            projected_shape.byte_size,
+                            projected_shape.alignment,
+                        ),
+                        classified,
+                    )
+                } else {
+                    if !matches!(argument.destination.locations.as_slice(),
                     [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
                     | [ValueLocation::Stack { value_byte_offset: 0, byte_size, .. }]
                         if *byte_size == u32::from(pointer_size))
-                {
-                    return Err(invalid());
+                    {
+                        return Err(invalid());
+                    }
+                    (
+                        ValueShape::borrowed_reference(
+                            projected_shape.byte_size,
+                            projected_shape.alignment,
+                        ),
+                        ValueShape::integer(u32::from(pointer_size), pointer_alignment),
+                    )
                 }
-                (
-                    ValueShape::borrowed_reference(
-                        projected_shape.byte_size,
-                        projected_shape.alignment,
-                    ),
-                    ValueShape::integer(u32::from(pointer_size), pointer_alignment),
-                )
             }
         };
-        if argument.path.iter().any(|segment| match segment {
-            terminal_psi::StructuralPathSegment::Field(_)
-            | terminal_psi::StructuralPathSegment::FixedIndex(_) => false,
-            terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
-                argument.access == terminal_psi::StructuralAccess::Owned
-            }
-            _ => true,
-        }) || argument.root_structural_type != root_type
+        if (presentation.is_none()
+            && argument.path.iter().any(|segment| match segment {
+                terminal_psi::StructuralPathSegment::Field(_)
+                | terminal_psi::StructuralPathSegment::FixedIndex(_) => false,
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
+                    argument.access == terminal_psi::StructuralAccess::Owned
+                }
+                _ => true,
+            }))
+            || argument.root_structural_type != root_type
             || argument.structural_type != projected_type
             || argument.source_byte_offset != source_byte_offset
             || argument.shape != storage_shape
-            || argument.fixed_array_length.is_some()
-            || argument.element_stride.is_some()
+            || argument.fixed_array_length != presentation.and_then(|(_, length, _)| length)
+            || argument.element_stride != presentation.and_then(|(_, _, stride)| stride)
             || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
                 indices, &elements,
             )

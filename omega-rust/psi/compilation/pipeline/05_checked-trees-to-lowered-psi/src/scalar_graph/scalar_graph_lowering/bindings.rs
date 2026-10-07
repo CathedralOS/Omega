@@ -249,8 +249,17 @@ pub(super) fn prepare(
     // the loan. The scalar slot namespace never receives a snapshot of it.
     let parameter_references =
         source_custody::primitive_references::bindings(checked, state.state, structural_namespace)?;
+    let parameter_homes = super::parameter_homes::establish(
+        checked,
+        state,
+        structural_types,
+        &parameter_types,
+        next_place,
+        &mut scalar_bindings,
+    )?;
     let storage_before = |statement: u32| {
         let mut storage = parameter_references.clone();
+        storage.extend_from_slice(&parameter_homes.storage);
         storage.extend(primitive_locals::storage_before(
             primitive_locals,
             statement,
@@ -258,7 +267,10 @@ pub(super) fn prepare(
         storage
     };
     let mut immutable_ordinal = 0u32;
-    let mut bindings = Vec::with_capacity(state.bindings.len());
+    let mut bindings = parameter_homes.establishments;
+    for binding in &bindings {
+        value_types.push(binding.value_type(&parameter_types)?);
+    }
     let mut units = state.unit_operations.iter().peekable();
     for binding in &state.bindings {
         while units.peek().is_some_and(|operation| {
@@ -405,12 +417,18 @@ pub(super) fn prepare(
                 "scalar local refinement has no complete predicate meaning",
             ))?;
         }
-        let store = primitive_locals::destination(primitive_locals, binding)?;
+        let store = primitive_locals::destination(
+            primitive_locals,
+            &storage_before(binding.statement_ordinal),
+            statements.get(binding.statement_ordinal as usize),
+            binding,
+        )?;
         if store.is_some() && !binding_type.qualifications.is_empty() {
             return unsupported("qualified primitive storage requires qualified storage custody");
         }
         let inline_call = if matches!(binding.value, CheckedScalarBindingValue::Computation)
             && binding.destination == CheckedScalarBindingDestination::Immutable
+            && store.is_none()
             && refinements.is_empty()
         {
             computations::lower_inline_call(
@@ -532,6 +550,21 @@ pub(super) fn prepare(
             binding_type.scalar_type,
             value_types.len(),
         )?;
+        if let Some(checked_trees::statement::StatementNode::LocalData(local)) =
+            statements.get(binding.statement_ordinal as usize)
+            && let Some(home) = primitive_locals
+                .iter()
+                .find(|home| home.symbol == local.symbol)
+            && !home.is_mutable
+        {
+            scalar_bindings.establish_structural_local(
+                home.symbol,
+                home.place,
+                Vec::new(),
+                home.structural_type,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            )?;
+        }
         if binding.destination == CheckedScalarBindingDestination::Immutable {
             immutable_ordinal =
                 immutable_ordinal
@@ -623,6 +656,7 @@ fn prepare_operation(
             prepared.place,
             Vec::new(),
             prepared.structural_type,
+            terminal_psi::StructuralAccess::Owned,
         )?;
         Ok(PreparedOperation::Structural(prepared))
     } else {

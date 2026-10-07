@@ -38,8 +38,8 @@ use terminal_psi::{StructuralAccess, StructuralPathSegment};
 /// A borrowed dynamic descriptor — a `ByteSequence(BorrowedView)` referent —
 /// instead projects either the caller's whole stored view (empty path) or a
 /// stored descriptor field (field-only path), and the evaluated plan places
-/// the two-word referent behind one indirect pointer carrying the
-/// descriptor's own size and alignment. An owned argument passes the caller's
+/// the two descriptor words by value under the selected aggregate ABI,
+/// carrying the descriptor's own size and alignment. An owned argument passes the caller's
 /// whole place by value — an empty path, the root type as the declared
 /// parameter type, and the evaluated plan carrying the aggregate's target ABI
 /// classification with the referent's exact size and alignment.
@@ -149,6 +149,138 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 };
             if usize::try_from(parameter.position).ok() != Some(index) {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+            }
+            let descriptor_formal = argument.access != StructuralAccess::Owned
+                && structural_types
+                    .get(&parameter.structural_type)
+                    .is_some_and(|row| {
+                        matches!(
+                            row.shape,
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            )
+                        )
+                    });
+            if descriptor_formal {
+                let root = if let Some(arrival) = function.arrival_parameter(argument.place) {
+                    arrival.clone()
+                } else {
+                    let home = local_homes
+                        .get(&argument.place)
+                        .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
+                    terminal_psi::StructuralParameterDeclaration {
+                        place: home.place(),
+                        position: parameter.position,
+                        structural_type: home.structural_type(),
+                        access: home.access(),
+                        multiplicity: home.multiplicity(),
+                        qualifications: home.qualifications().to_vec(),
+                        projected_qualifications: home.projected_qualifications().to_vec(),
+                    }
+                };
+                let destination = boundary_entry_plan
+                    .call
+                    .parameters
+                    .get(native_position)
+                    .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
+                let carrier = structural_shape(
+                    parameter.structural_type,
+                    structural_types,
+                    shape_cache,
+                    active,
+                )
+                .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+                let shape = structural_parameter_shape(carrier, parameter.access);
+                if argument.access != parameter.access
+                    || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                    || destination.shape.byte_size != carrier.byte_size
+                    || destination.shape.alignment != carrier.alignment
+                    || destination.shape.class == ValueClass::BorrowedReference
+                {
+                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                }
+                if let Some(presentation) =
+                    super::super::roster_arguments::fixed_array_view_argument(
+                        argument,
+                        parameter,
+                        shape,
+                        destination,
+                        function.machine,
+                        &root,
+                        source_shape.byte_size,
+                        argument_source.clone(),
+                        structural_types,
+                        shape_cache,
+                        active,
+                    )
+                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
+                {
+                    if local_homes
+                        .get(&argument.place)
+                        .is_some_and(|home| home.has_claims())
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                    return Ok(presentation);
+                }
+                if argument.access == StructuralAccess::SharedBorrow
+                    && root.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    && matches!(
+                        root.access,
+                        StructuralAccess::Owned
+                            | StructuralAccess::SharedBorrow
+                            | StructuralAccess::MutableBorrow
+                    )
+                    && root.projected_qualifications.is_empty()
+                    && let Some(capacity) = terminal_semantics::shared_boundary_buffer_capacity(
+                        structural_types.values().copied(),
+                        root.structural_type,
+                        argument,
+                        parameter,
+                    )
+                {
+                    let geometry = if argument.path.is_empty() {
+                        Some((0, capacity))
+                    } else {
+                        super::super::super::structural_layout::bounded_byte_field_geometry(
+                            root.structural_type,
+                            &argument.path,
+                            structural_types,
+                            shape_cache,
+                            active,
+                        )
+                        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
+                    };
+                    let (offset, actual_capacity) =
+                        geometry.ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
+                    if actual_capacity != capacity
+                        || u64::from(offset)
+                            .checked_add(8)
+                            .and_then(|end| end.checked_add(capacity))
+                            .is_none_or(|end| end > u64::from(source_shape.byte_size))
+                        || local_homes
+                            .get(&argument.place)
+                            .is_some_and(|home| home.has_claims())
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                    return Ok(TargetStructuralArgument {
+                        place: argument.place,
+                        access: argument.access,
+                        path: argument.path.clone(),
+                        root_structural_type: root.structural_type,
+                        structural_type: parameter.structural_type,
+                        shape,
+                        source_byte_offset: offset,
+                        fixed_array_length: None,
+                        element_stride: None,
+                        indices: Vec::new(),
+                        source: argument_source,
+                        destination: destination.clone(),
+                    });
+                }
             }
             let mut index_runs = Vec::new();
             let (projected_type, projected_shape, source_byte_offset) = if parameter.access

@@ -69,6 +69,12 @@ pub(crate) struct Evaluation {
     pub(crate) place_observations: std::sync::Arc<
         [crate::expression_preparation::bindings::place_observations::PlaceObservation],
     >,
+    /// Checked computation roots indexed once per authored state, then borrowed
+    /// by local statement coordinate when original backing is demanded.
+    pub(crate) computation_address_roots: Vec<(
+        symbols::SymbolHandle,
+        Vec<(u32, checked_trees::CheckedScalarComputationHandle)>,
+    )>,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// The body's scalar binding namespace: authored formals and locals on
     /// their dense values. Each route installs its entry namespace before it
@@ -208,6 +214,7 @@ impl Evaluation {
             cases: self.cases.clone(),
             record_fields: self.record_fields.clone(),
             place_observations: self.place_observations.clone(),
+            computation_address_roots: self.computation_address_roots.clone(),
             primitive_storage: self.primitive_storage.clone(),
             scalar_bindings: self.scalar_bindings.clone(),
             structural_parameters: self.structural_parameters.clone(),
@@ -783,6 +790,7 @@ impl Evaluation {
             cases: Vec::new(),
             record_fields: Vec::new(),
             place_observations: std::sync::Arc::from([]),
+            computation_address_roots: Vec::new(),
             primitive_storage: Vec::new(),
             scalar_bindings: crate::expression_preparation::bindings::ScalarBindings::new(
                 std::iter::empty(),

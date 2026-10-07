@@ -1213,7 +1213,7 @@ impl MachineEmission<'_> {
         self.scalar_calls.next_obligation_identity = self.next_call_obligation;
         let (operation_index, staged) = match step {
             argument_schedule::Step::CaptureBefore(statement) => {
-                self.evaluation.prepare_observations_before(
+                self.evaluation.prepare_storage_before(
                     self.checked,
                     self.plan.state,
                     statement,

@@ -45,7 +45,8 @@
 //! (`arch -x86_64`) on an Apple-silicon host. Other foreign targets are
 //! realized without executing. Their records gain `exit:<code>` (or `exit:timeout`,
 //! `exit:signal` plus `signal:<number>`) and, beside an `expected_stdout.txt`, `stdout:match` or
-//! `stdout:differs`.
+//! `stdout:differs`. An `expected_stderr.txt` likewise records `stderr:match`
+//! or `stderr:differs`; failed captures/oracle reads record `unavailable`.
 //!
 //! `OMEGA_CORPUS_INTERPRET=1` also executes each runnable fixture (the run
 //! tier, `*_exit` and explicit native-exit fixtures) through the admitted
@@ -54,7 +55,8 @@
 //! named pre-effect capability diagnostics; no checked-tree fallback supplies
 //! their results. The record gains
 //! `interpreter-exit:<code>` and, beside an `expected_stdout.txt`,
-//! `interpreter-stdout:match` or `interpreter-stdout:differs`; a run the
+//! `interpreter-stdout:match` or `interpreter-stdout:differs`, with corresponding
+//! `interpreter-stderr` facts for an authored stderr oracle; a run the
 //! interpreter declines records `interpreter:declined`, and a program that
 //! does not check for it records `interpreter:unchecked`. With the native leg
 //! as well, the record gains `interpreter:agrees` or `interpreter:disagrees`
@@ -134,6 +136,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "support/output_oracles.rs"]
+mod output_oracles;
 #[path = "support/terminal_execution.rs"]
 mod terminal_execution;
 use fixture_package_inputs::{
@@ -725,18 +729,11 @@ fn interpret_fixture(
             };
         }
     };
-    let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
     let input = match fixture_input(fixture_dir) {
         Ok(input) => input,
         Err(error) => return terminal_execution::Observation::failure(error),
     };
-    terminal_execution::interpret(
-        leg.artifact.artifact(),
-        None,
-        expected_stdout.as_deref(),
-        1_000_000,
-        input,
-    )
+    terminal_execution::interpret(leg.artifact.artifact(), None, fixture_dir, 1_000_000, input)
 }
 
 /// Run the source-shaped oracle only when the caller explicitly selects it.
@@ -847,7 +844,6 @@ fn interpret_native_report(
             "native report retained no Terminal artifact",
         );
     };
-    let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
     let input = match fixture_input(fixture_dir) {
         Ok(input) => input,
         Err(error) => return terminal_execution::Observation::failure(error),
@@ -855,7 +851,7 @@ fn interpret_native_report(
     terminal_execution::interpret(
         artifact,
         report.runtime_provisions(),
-        expected_stdout.as_deref(),
+        fixture_dir,
         1_000_000,
         input,
     )
@@ -937,8 +933,10 @@ fn build_native_fixture(
 }
 
 /// Run one built fixture in a fresh directory, stdin from `input.txt`, and
-/// report its exit and, beside an `expected_stdout.txt`, whether stdout
-/// matched it (line endings normalized). `launcher` prefixes the executable
+/// report its exit and authored stdout/stderr matches (line endings normalized).
+/// Drain both pipes concurrently: either stream can exceed pipe capacity, and
+/// neither capture failure can establish an empty-output match.
+/// `launcher` prefixes the executable
 /// when the host runs the target through a translator.
 fn execute_fixture(
     executable: &Path,
@@ -966,19 +964,14 @@ fn execute_fixture(
         .current_dir(&work)
         .stdin(stdin)
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
         .spawn();
     let Ok(mut child) = spawned else {
         let _ = fs::remove_dir_all(&work);
         return vec!["exit:unrunnable".to_owned()];
     };
-    let mut stdout = child.stdout.take().expect("piped stdout");
-    let (output_sender, output_receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = std::io::Read::read_to_end(&mut stdout, &mut bytes);
-        let _ = output_sender.send(bytes);
-    });
+    let stdout_receiver = capture_stream(child.stdout.take());
+    let stderr_receiver = capture_stream(child.stderr.take());
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let mut facts = Vec::new();
     let exit = loop {
@@ -1014,22 +1007,44 @@ fn execute_fixture(
             }
         }
     };
-    // An abandoned child may hold its stdout open forever; its output is lost
-    // with it rather than blocking this worker on the reader.
-    let output = output_receiver
-        .recv_timeout(std::time::Duration::from_secs(5))
-        .unwrap_or_default();
+    // An abandoned child may hold either pipe open forever. Missing capture
+    // stays unavailable rather than becoming an empty, success-shaped stream.
+    let drain_deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let stdout = receive_stream(stdout_receiver, drain_deadline);
+    let stderr = receive_stream(stderr_receiver, drain_deadline);
     let _ = fs::remove_dir_all(&work);
     facts.insert(0, exit);
-    if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
-        let actual = String::from_utf8_lossy(&output).replace("\r\n", "\n");
-        facts.push(if actual == expected.replace("\r\n", "\n") {
-            "stdout:match".to_owned()
-        } else {
-            "stdout:differs".to_owned()
+    facts.extend(output_oracles::observe(
+        fixture_dir,
+        "",
+        stdout.as_deref(),
+        stderr.as_deref(),
+    ));
+    facts
+}
+
+fn capture_stream(
+    stream: Option<impl std::io::Read + Send + 'static>,
+) -> std::sync::mpsc::Receiver<std::io::Result<Vec<u8>>> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    if let Some(mut stream) = stream {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let result = std::io::Read::read_to_end(&mut stream, &mut bytes).map(|_| bytes);
+            let _ = sender.send(result);
         });
     }
-    facts
+    receiver
+}
+
+fn receive_stream(
+    receiver: std::sync::mpsc::Receiver<std::io::Result<Vec<u8>>>,
+    deadline: std::time::Instant,
+) -> Option<Vec<u8>> {
+    receiver
+        .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+        .ok()
+        .and_then(Result::ok)
 }
 
 /// `check_canary`: reviewed repository package inputs plus `compile_to_checked`.
@@ -1434,6 +1449,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         || rel.ends_with("_exit")
         || fixture_dir.join("expected_native_exit.txt").is_file()
         || fixture_dir.join("expected_stdout.txt").is_file()
+        || fixture_dir.join("expected_stderr.txt").is_file()
         || target::TargetProfile::host_if_supported().is_some_and(|host| {
             fixture_dir
                 .join(format!("expected_native_exit.{}.txt", host.target_name()))

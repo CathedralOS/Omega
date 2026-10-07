@@ -2133,6 +2133,7 @@ pass/borrows/runtime_constructed_reference_array_restoration_exit checked 1487ms
 pass/borrows/runtime_copied_byte_distinct_epochs_exit checked 1404ms check-target:macos_arm64 @1a0d1c0cd491+wt
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 1403ms check-target:macos_arm64 @1a0d1c0cd491+wt
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms check-target:macos_arm64 @cfe60a3a242
+pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 14324ms check-target:macos_arm64 @c6603d3fbbc8+wt
 pass/borrows/runtime_discarded_reference_release_exit checked 3696ms check-target:macos_arm64 @3fa817733300+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit checked 3216ms check-target:macos_arm64 @6ba9c43af356+wt
@@ -3020,6 +3021,8 @@ pass/host/runtime_console_bounded_line_lf_exit checked 3373ms check-target:macos
 pass/host/runtime_console_bounded_line_middle_window_exit checked 3402ms check-target:macos_arm64 @b1114d1269ad
 pass/host/runtime_console_bounded_line_partial_eof_exit checked 3250ms check-target:macos_arm64 @b1114d1269ad
 pass/host/runtime_console_byte_echo_exit checked 3670ms check-target:macos_arm64 @dac9585f443
+pass/host/runtime_descriptor_direct_array_exit checked 14364ms check-target:macos_arm64 @c6603d3fbbc8+wt
+pass/host/runtime_descriptor_output_streams_exit checked 11212ms check-target:macos_arm64 @c6603d3fbbc8+wt
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 1521ms check-target:windows_x86_64 @eecd0b2d2baf+wt
 pass/host/runtime_gui_foreground_window_exit rejected 1982ms check-target:macos_arm64 @c47f8652484
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`

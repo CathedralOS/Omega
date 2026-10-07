@@ -1,4 +1,4 @@
-//! One invocation-owned output stream shared by its exact installed adapters.
+//! Invocation-owned stdout and stderr shared by exact installed adapters.
 //! Append at dispatch, so different builtin and foreign slots cannot reorder
 //! output by being collected separately. These bytes never reach OS stdout:
 //! the consumer compares this private observation after execution.
@@ -14,6 +14,36 @@ use super::{OutputKind, TerminalRuntimeError};
 
 #[derive(Clone)]
 pub(crate) struct BufferedBytes(Arc<Mutex<Vec<u8>>>);
+
+/// Separate private streams shared by every adapter in one invocation.
+#[derive(Clone)]
+pub(crate) struct BufferedStreams {
+    pub(crate) stdout: BufferedBytes,
+    pub(crate) stderr: BufferedBytes,
+}
+
+impl BufferedStreams {
+    pub(super) fn new() -> Self {
+        Self {
+            stdout: BufferedBytes::new(),
+            stderr: BufferedBytes::new(),
+        }
+    }
+
+    pub(super) fn append(
+        &self,
+        descriptor: i128,
+        bytes: &[u8],
+    ) -> Result<(), TerminalEffectRejection> {
+        match descriptor {
+            1 => self.stdout.append(bytes),
+            2 => self.stderr.append(bytes),
+            _ => Err(TerminalEffectRejection::new(
+                "output descriptor is not an admitted private stream",
+            )),
+        }
+    }
+}
 
 impl BufferedBytes {
     pub(super) fn new() -> Self {

@@ -282,6 +282,33 @@ pub(super) fn retain_shapes(
                 for argument in plans.structural_arguments.span(*structural_arguments)? {
                     if let Some(place) = argument.as_place() {
                         pending.extend(place.computation_operands());
+                        // A borrowed view does not define its scalar ingress's
+                        // storage carrier. Retain the actual authored formal
+                        // so lowering can establish that original home.
+                        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
+                            parameter_index,
+                        } = place.source
+                        {
+                            let authored = crate::semantic::calls::find_state(program, state)?;
+                            let parameter = program
+                                .state_parameters(authored)
+                                .iter()
+                                .filter(|parameter| {
+                                    !parameter.is_const
+                                        && !parameter.relevance.is_erased()
+                                        && program
+                                            .primitive_type_reference(parameter.type_reference)
+                                            .is_some()
+                                })
+                                .nth(parameter_index as usize)?;
+                            retain_declarations(
+                                shapes,
+                                super::super::terminal_unit::scalar_operand_shapes(
+                                    program,
+                                    parameter.type_reference,
+                                )?,
+                            )?;
+                        }
                     }
                     if let checked_trees::CheckedScalarComputationStructuralArgument::Place(
                         argument,

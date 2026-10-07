@@ -31,8 +31,8 @@ pub(super) fn bind<'host>(
     imports: &[BoundaryMachineId],
     input: Option<Box<dyn std::io::Read + Send + 'host>>,
     clock: Option<clock::TerminalClockSnapshot>,
-) -> Result<buffered_output::BufferedBytes, TerminalRuntimeError> {
-    let output = buffered_output::BufferedBytes::new();
+) -> Result<buffered_output::BufferedStreams, TerminalRuntimeError> {
+    let output = buffered_output::BufferedStreams::new();
     // Every selected stdin leaf in this instance consumes the same logical
     // stream. Independent adapter cursors would replay bytes after a slot switch.
     let input = input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader)));
@@ -162,7 +162,7 @@ pub(super) fn bind<'host>(
         instance
             .bind_import(
                 *slot,
-                buffered_output::BufferedOutput::new(signature, kind, output.clone()),
+                buffered_output::BufferedOutput::new(signature, kind, output.stdout.clone()),
             )
             .map_err(TerminalRuntimeError::Binding)?;
     }

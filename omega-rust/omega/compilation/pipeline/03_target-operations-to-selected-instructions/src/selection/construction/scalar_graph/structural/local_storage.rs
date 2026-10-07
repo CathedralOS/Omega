@@ -25,15 +25,29 @@ fn storage_origin_place(
     if operation != row.operation {
         return None;
     }
-    let legalized_operations::LegalizedScalarInstructionKind::Call(call) = &row.kind else {
-        return None;
-    };
-    let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
-        call.arguments.get(usize::try_from(argument_index).ok()?)?
-    else {
-        return None;
-    };
-    Some(semantic.place)
+    match &row.kind {
+        legalized_operations::LegalizedScalarInstructionKind::Call(call) => {
+            let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
+                call.arguments.get(usize::try_from(argument_index).ok()?)?
+            else {
+                return None;
+            };
+            Some(semantic.place)
+        }
+        legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+            let mut arguments = crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)
+                .zip(&call.structural_arguments)
+                .filter(|(position, _)| *position == argument_index as usize);
+            let (_, argument) = arguments.next()?;
+            arguments.next().is_none().then_some(argument.place)
+        }
+        _ => None,
+    }
+}
+
+pub(in crate::selection::construction::scalar_graph) struct PresentedDescriptor {
+    pub address: VirtualRegisterId,
+    pub words: Option<[VirtualRegisterId; 2]>,
 }
 
 /// Stage the two words of an internal descriptor without copying backing.
@@ -69,7 +83,7 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
     backing: VirtualRegisterId,
     length: u64,
     descriptor_byte_size: u32,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
+) -> Result<PresentedDescriptor, SelectedInstructionError> {
     if !matches!(descriptor_byte_size, 8 | 16) {
         return Err(SelectedInstructionError::custody());
     }
@@ -87,7 +101,10 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
             &[count],
             provenance(row),
         )?;
-        return descriptor(builder, row, slot, backing, count);
+        return Ok(PresentedDescriptor {
+            address: descriptor(builder, row, slot, backing, count)?,
+            words: Some([backing, count]),
+        });
     }
     builder
         .transport
@@ -98,7 +115,10 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
             alignment: 8,
         });
     store(builder, row, slot, 0, backing)?;
-    address(builder, row, slot, 0, descriptor_byte_size, false)
+    Ok(PresentedDescriptor {
+        address: address(builder, row, slot, 0, descriptor_byte_size, false)?,
+        words: None,
+    })
 }
 
 /// Stage only the descriptor; the field's live length word and bytes remain in
@@ -112,7 +132,7 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
     argument_index: u32,
     field: VirtualRegisterId,
     field_offset: u32,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
+) -> Result<PresentedDescriptor, SelectedInstructionError> {
     let slot = LocalStorageSlotId::StructuralCallArgument {
         operation: row.operation,
         argument_index,
@@ -147,7 +167,10 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
         &[field, data],
         provenance(row),
     )?;
-    descriptor(builder, row, slot, data, length)
+    Ok(PresentedDescriptor {
+        address: descriptor(builder, row, slot, data, length)?,
+        words: Some([data, length]),
+    })
 }
 
 pub(super) fn store(

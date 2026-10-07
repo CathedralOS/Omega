@@ -1710,8 +1710,9 @@ then independent claimed restoration slices -> final closure.
   binds typed buffered line/byte output and delegates ProcessExit to that
   isolated instance. Complete external demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
-  signatures. Remaining arrivals include scalar arguments, placed host loans,
-  non-hosted roots and required receiver qualifications. Hosted byte input uses
+  signatures. Remaining arrivals include scalar entry arguments, placed host
+  loans, writable host byte/record buffers, non-hosted roots and required
+  receiver qualifications. Hosted byte input uses
   an explicit finite replay stream shared by selected input slots; CLI and
   corpus give each engine the same authored bytes with independent positions.
   Preserve `calls/runtime_call_carrier_partition_exit`,
@@ -1734,7 +1735,13 @@ then independent claimed restoration slices -> final closure.
   Preserve `time/runtime_clock_shared_import_slots_exit` across those repairs:
   all selected read/wait slots share one invocation's explicitly supplied time
   model, with unchanged checked calibration; simulation is not native latency
-  evidence. Stderr support remains. The original
+  evidence. Preserve `host/runtime_descriptor_output_streams_exit` and
+  `host/runtime_descriptor_direct_array_exit` while extending host buffers:
+  views transport pointer/length, primitive loans retain their exact extent,
+  and stdout/stderr oracles remain independent. Preserve
+  `borrows/runtime_direct_immutable_scalar_loan_exit` too: computed loans,
+  captures, assignments and helper writes must share original scalar backing.
+  The original
   `runtime_float_integer_conversion_boundaries_exit` has no exact established
   root ProcessExit Binding occurrence and declines before effects; resolve its
   source authority contract under [Process-exit contract](#process-exit-contract),
@@ -3738,8 +3745,8 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   prove caller writeback. Fail fixtures reject copied borrowed homes, missing
   dereference, changed access and duplicate overloads.
 
-- **NORMALIZED-ABI-LOWERING.** Borrowed descriptor arguments and native
-  indirect results are not transported across foreign calls under the
+- **NORMALIZED-ABI-LOWERING.** Complete borrowed descriptor arguments and native
+  indirect results across foreign calls under the
   [calling-plan contract](wiki/spec/build/calling_plans.md). Owners: Omega
   stages 02 and 03, backend call-frame emission. Owned whole-place arguments
   and register-returned aggregate results execute:
@@ -3747,8 +3754,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   and `providers/foreign_multiregister_result_exit` exit 70 on macOS ARM64.
   Foreign imports share one mechanism template per target ABI, derived from
   the evaluated plans.
-  - Extend borrowed descriptor transport using evaluated descriptor words,
-    without substituting the descriptor's address.
+  - Qualify remaining descriptor carriers and register/stack placement on each
+    matching host. Preserve `host/runtime_descriptor_direct_array_exit` and
+    `host/runtime_descriptor_output_streams_exit`: readonly byte views transport
+    their evaluated pointer/length on macOS ARM64, never the descriptor's address.
   - Execute indirect (memory-returned) aggregate results natively.
 
   Acceptance: corpus fixtures pass a borrowed descriptor and receive an

@@ -97,6 +97,8 @@ pub(crate) struct ScalarBindings {
     parameter_count: usize,
     storage: Vec<(symbols::SymbolHandle, ScalarType, usize)>,
     primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
+    /// Actual original ingress homes, in the dense scalar formal namespace.
+    scalar_parameter_homes: Vec<(u32, PlaceId, ScalarType, StructuralAccess)>,
     /// Authored parameter positions stay separate from dense Terminal positions.
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
     structural_locals: Vec<StructuralLocalBinding>,
@@ -159,6 +161,7 @@ impl ScalarBindings {
         place: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         structural_type: StructuralTypeId,
+        access: StructuralAccess,
     ) -> Result<(), LoweringError> {
         if !symbol.is_valid()
             || self
@@ -175,7 +178,7 @@ impl ScalarBindings {
             argument: StructuralArgument {
                 place,
                 path,
-                access: StructuralAccess::Owned,
+                access,
             },
         });
         Ok(())
@@ -596,6 +599,7 @@ impl ScalarBindings {
             authored,
             storage: Vec::new(),
             primitive_storage: Vec::new(),
+            scalar_parameter_homes: Vec::new(),
             structural_parameters: Vec::new(),
             structural_locals: Vec::new(),
             structural_fields: Default::default(),
@@ -652,6 +656,44 @@ impl ScalarBindings {
     ) -> Self {
         self.primitive_storage = storage.to_vec();
         self
+    }
+
+    pub(crate) fn register_scalar_parameter_home(
+        &mut self,
+        parameter_index: u32,
+        place: PlaceId,
+        scalar_type: ScalarType,
+        access: StructuralAccess,
+    ) -> Result<(), LoweringError> {
+        if let Some((_, original, original_type, original_access)) = self
+            .scalar_parameter_homes
+            .iter()
+            .find(|row| row.0 == parameter_index)
+        {
+            if *original != place || *original_type != scalar_type || *original_access != access {
+                return unsupported("scalar ingress changes its original home");
+            }
+        } else {
+            self.scalar_parameter_homes
+                .push((parameter_index, place, scalar_type, access));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn scalar_parameter_home(
+        &self,
+        parameter_index: u32,
+        scalar_type: ScalarType,
+    ) -> Result<Option<PlaceId>, LoweringError> {
+        match self
+            .scalar_parameter_homes
+            .iter()
+            .find(|row| row.0 == parameter_index)
+        {
+            Some((_, place, actual, _)) if *actual == scalar_type => Ok(Some(*place)),
+            Some(_) => unsupported("scalar ingress home changes its carrier"),
+            None => Ok(None),
+        }
     }
 
     /// Retain the view locals the ordinary operation sequence established, so
@@ -897,6 +939,31 @@ impl ScalarBindings {
             return unsupported("computed primitive argument cannot transfer ownership");
         }
         let (source, root_type) = match argument.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
+                parameter_index,
+            } => {
+                if !argument.path.is_empty() {
+                    return unsupported(
+                        "scalar ingress borrow projects outside its primitive home",
+                    );
+                }
+                let place = self
+                    .scalar_parameter_home(parameter_index, scalar_type)?
+                    .ok_or(LoweringError::Unsupported(
+                        "computed primitive ingress has no established original home",
+                    ))?;
+                let (_, _, _, granted) = self
+                    .scalar_parameter_homes
+                    .iter()
+                    .find(|row| row.0 == parameter_index)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed ingress lost its access custody",
+                    ))?;
+                if !permits(*granted, access) {
+                    return unsupported("computed primitive ingress widens original access");
+                }
+                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument { place, path: Vec::new(), access });
+            }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
                 if !argument.path.is_empty() {
                     return unsupported(

@@ -14,7 +14,7 @@ impl Emission<'_, '_, '_> {
         source: &CheckedUnitStructuralArgumentPlan,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
-        let primitive_home = self.evaluation.immutable_local_borrow_home(
+        let has_primitive_home = self.evaluation.prepare_immutable_local_borrow(
             self.checked,
             self.state,
             source.structural_storage_root(),
@@ -25,12 +25,9 @@ impl Emission<'_, '_, '_> {
             self.temporary_places,
         )?;
         let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let has_primitive_home = primitive_home.is_some();
-        let mut locals = self.evaluation.structural_locals.clone();
-        locals.extend(primitive_home);
         let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_structural_parameters(&self.evaluation.structural_parameters)
-            .with_structural_locals(&locals)
+            .with_structural_locals(&self.evaluation.structural_locals)
             .with_structural_observations(self.structural_types)
             .with_primitive_storage(&self.evaluation.primitive_storage);
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;

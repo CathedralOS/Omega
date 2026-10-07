@@ -43,7 +43,11 @@ The current runtime establishes an isolated hosted root, buffered output and
 domain-bound ProcessExit. Selected byte input uses the captured finite replay
 stream. Exact Darwin clock imports share invocation-private modeled time seeded
 from a host epoch snapshot; checked library calibration and retry code still run.
-This model is not evidence of native timing correctness. Descriptor-backed or
+This time model is not evidence of native timing correctness.
+Exact Darwin descriptor writes capture stdout and stderr separately from integer
+loans or readonly byte views. Explicit counts stay within the original primitive
+extent; a pointer to one array element does not grant its allocation's tail.
+Descriptor-backed or
 indefinite waits, CPU clocks and other missing imports decline explicitly;
 there is no tree fallback. The CLI compares host-presented exit status only, not
 stdout/stderr or full semantic traces. Typed crashes and sponsor-fuel exhaustion

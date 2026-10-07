@@ -99,6 +99,7 @@ impl StateGraphEmission<'_, '_> {
             structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),
             selection_cleanups: Vec::new(),
+            computation_address_roots: Vec::new(),
             structural_locals: Vec::new(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
@@ -313,7 +314,7 @@ impl StateGraphEmission<'_, '_> {
                 .map_err(|_| LoweringError::Unsupported("record capture state extent overflow"))?
             }
         };
-        evaluation.prepare_observations_before(
+        evaluation.prepare_storage_before(
             self.checked,
             state.state,
             capture_boundary,

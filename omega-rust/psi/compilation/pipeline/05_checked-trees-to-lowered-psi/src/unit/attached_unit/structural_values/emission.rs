@@ -810,7 +810,7 @@ impl Emission<'_, '_, '_> {
         for step in schedule {
             let (index, staged) = match step {
                 Step::CaptureBefore(statement) => {
-                    self.evaluation.prepare_observations_before(
+                    self.evaluation.prepare_storage_before(
                         self.checked,
                         self.state,
                         statement,

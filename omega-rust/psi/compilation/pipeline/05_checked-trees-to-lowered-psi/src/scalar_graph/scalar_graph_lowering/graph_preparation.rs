@@ -118,7 +118,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .iter()
             .map(|state| state.primitive_locals.len())
             .sum::<usize>()
-            != primitive_locals.len()
+            != primitive_locals
+                .iter()
+                .filter(|local| local.is_mutable)
+                .count()
     {
         return unsupported(
             "scalar graph requires its exact structural namespaces and supported state custody",

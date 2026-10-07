@@ -53,6 +53,31 @@ class NativeExitExpectations(unittest.TestCase):
         self.assertEqual(self.failures("70\n", {"exit": "70"}), [])
         self.assertTrue(self.failures("70", {"exit": "7"}))
 
+    def test_streams_require_independent_completed_observations(self):
+        for stream in ("stdout", "stderr"):
+            (self.fixture / f"expected_{stream}.txt").write_text("")
+        for engine, prefix in (("native", ""), ("interpreter", "interpreter-")):
+            good = {prefix + "exit": "0", prefix + "stdout": "match",
+                    prefix + "stderr": "match"}
+            self.record.update(facts=good)
+            self.assertEqual(corpus_gate.execution_output_failures(
+                [self.record], self.root, engine), [])
+            for stream in ("stdout", "stderr"):
+                for observed in (None, "differs", "unavailable"):
+                    facts = dict(good)
+                    if observed is None:
+                        del facts[prefix + stream]
+                    else:
+                        facts[prefix + stream] = observed
+                    self.record.update(facts=facts)
+                    failures = corpus_gate.execution_output_failures(
+                        [self.record], self.root, engine)
+                    self.assertEqual(len(failures), 1)
+                    self.assertIn(stream, str(failures[0]))
+            self.record.update(facts=dict(good, **{prefix + "exit": "timeout"}))
+            self.assertEqual(len(corpus_gate.execution_output_failures(
+                [self.record], self.root, engine)), 2)
+
     def test_trap_requires_the_target_specific_termination(self):
         for target, facts in [
             ("macos_arm64", {"exit": "signal", "signal": "5"}),
@@ -382,6 +407,21 @@ class MainVerdicts(unittest.TestCase):
                             self.assertEqual(document["verdict"], "regressed")
                             self.assertEqual(document["exit_code"], expected_code)
                             self.assertIn("stdout", document["oracle_failures"][0])
+
+    def test_authored_stderr_cannot_be_repinned_as_success(self):
+        fixture = self.root / "tests" / "omega" / "run" / "a" / "x"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_stderr.txt").write_text("authored error stream\n")
+        rows = [record("run/a/x", status="built", facts={
+            "exit": "0", "stdout": "match", "stderr": "differs",
+            "interpreter-exit": "0", "interpreter-stderr": "match",
+            "interpreter": "agrees"})]
+        with patch.object(corpus_gate, "host_target", return_value="macos_arm64"):
+            self.assertEqual(self.run_gate(rows, "--both", "--record",
+                                          "--json", str(self.json_path)), 3)
+        document = json.loads(self.json_path.read_text())
+        self.assertIn("stderr", str(document["oracle_failures"]))
+        self.assertEqual(self.golden.read_text(), corpus_records.render(rows))
 
     def test_authored_stdout_requires_completed_native_execution(self):
         fixture = self.root / "tests" / "omega" / "run" / "a" / "x"

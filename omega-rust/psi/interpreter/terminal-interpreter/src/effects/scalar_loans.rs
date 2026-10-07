@@ -50,6 +50,12 @@ impl TerminalBoundaryScalarBuffer {
         self.value
     }
 
+    /// The captured physical scalar carrier, before the formal's logical
+    /// observation. Host byte counts must not expose a narrow codec's tail.
+    pub fn storage_scalar_type(&self) -> ScalarType {
+        self.stored_scalar.unwrap_or(self.value.scalar_type())
+    }
+
     /// Replace only writable, exactly typed payload satisfying its original
     /// field restriction. A rejected replacement leaves the snapshot intact.
     pub fn replace(&mut self, value: TerminalScalarValue) -> Result<(), TerminalEffectRejection> {

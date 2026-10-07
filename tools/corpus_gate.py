@@ -32,8 +32,9 @@ diffing against this host's golden `tests/omega/corpus_native_<target>.txt`:
 
     python3 tools/corpus_gate.py --native --filter providers/
 
-An authored `expected_stdout.txt` requires a completed native execution with
-`stdout:match`, independently of any exit oracle. These promises are checked
+An authored `expected_stdout.txt` or `expected_stderr.txt` requires a completed
+native execution with its own stream match, independently of any exit oracle.
+These promises are checked
 before golden comparison and recording, so `--record` cannot bless wrong or
 missing output. A declaration-only or foreign-target build supplies no runtime
 evidence and cannot satisfy that promise; use a matching bound host.
@@ -312,7 +313,7 @@ def interpreter_exit_failures(records: list[dict], corpus: Path, target: str) ->
     return failures
 
 
-def execution_stdout_failures(records: list[dict], corpus: Path,
+def execution_output_failures(records: list[dict], corpus: Path,
                              engine: str) -> list[dict]:
     """Enforce authored output for each requested execution engine.
 
@@ -327,8 +328,6 @@ def execution_stdout_failures(records: list[dict], corpus: Path,
     accepted_statuses = {"checked", "built"} if prefix else {"built"}
     failures = []
     for record in records:
-        if not (corpus / record["fixture"] / "expected_stdout.txt").exists():
-            continue
         if corpus_records.migration_gap_route(record) in ("compile", engine):
             continue
         facts = record.get("facts", {})
@@ -339,12 +338,15 @@ def execution_stdout_failures(records: list[dict], corpus: Path,
         accepted = (record["status"] in accepted_statuses or
                     engine == "interpreter" and
                     corpus_records.migration_gap_route(record) == "native")
-        if (not accepted or not completed
-                or facts.get(prefix + "stdout") != "match"):
-            failures.append(oracle_failure(
-                record,
-                f"{record['fixture']}: expected {engine} stdout match from completed "
-                f"execution, observed {record['status']} {facts}"))
+        for stream in ("stdout", "stderr"):
+            if not (corpus / record["fixture"] / f"expected_{stream}.txt").exists():
+                continue
+            if (not accepted or not completed
+                    or facts.get(prefix + stream) != "match"):
+                failures.append(oracle_failure(
+                    record,
+                    f"{record['fixture']}: expected {engine} {stream} match from completed "
+                    f"execution, observed {record['status']} {facts}"))
     return failures
 
 
@@ -1092,12 +1094,12 @@ def main() -> int:
     failures = []
     if options.native:
         failures.extend(native_exit_failures(records, ROOT / "tests" / "omega", target))
-        failures.extend(execution_stdout_failures(
+        failures.extend(execution_output_failures(
             records, ROOT / "tests" / "omega", "native"))
     if options.interpret:
         failures.extend(interpreter_exit_failures(
             records, ROOT / "tests" / "omega", target or host_target() or "unknown"))
-        failures.extend(execution_stdout_failures(
+        failures.extend(execution_output_failures(
             records, ROOT / "tests" / "omega", "interpreter"))
     # One read of the golden serves both the regression provenance below and
     # the diff further down; an unreadable golden must not stop --record from

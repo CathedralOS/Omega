@@ -14,9 +14,11 @@
 //! Selected hosted byte imports consume an explicit finite replay stream;
 //! absence is not fabricated EOF. Scalar sum completions retain actual case
 //! payloads, so checked line readers execute their own byte-by-byte loop.
-//! Explicit MSVCRT descriptor adapters join complete admitted locator/ABI rows
-//! and operate on captured primitive loans. They share the invocation's finite
-//! input and ordered private output; checked Console wrappers still run in Psi.
+//! Descriptor adapters join complete admitted locator/ABI rows: MSVCRT reads
+//! and writes use captured integer loans, while Darwin writes also accept the
+//! exact readonly byte-view descriptor. Counts cannot widen the loan's extent.
+//! Slots share finite input and independent ordered stdout/stderr captures;
+//! checked Console wrappers still run in Psi.
 //! Darwin clock imports likewise consume an explicitly supplied private time
 //! model shared across slots. Guest calibration/retry code remains executable;
 //! simulated waits neither sleep the host nor establish native latency evidence.
@@ -52,6 +54,7 @@ pub struct TerminalRuntimeRequest<'program> {
 pub struct TerminalRuntimeObservation {
     pub status: TerminalExecutionStatus,
     pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -189,6 +192,11 @@ pub fn execute(
     let status = instance
         .invoke(&mut fuel)
         .map_err(TerminalRuntimeError::Execution)?;
-    let stdout = output.snapshot()?;
-    Ok(TerminalRuntimeObservation { status, stdout })
+    let stdout = output.stdout.snapshot()?;
+    let stderr = output.stderr.snapshot()?;
+    Ok(TerminalRuntimeObservation {
+        status,
+        stdout,
+        stderr,
+    })
 }

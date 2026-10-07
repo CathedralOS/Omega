@@ -26,6 +26,8 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
                 LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument|
                     matches!(argument, LegalizedScalarArgument::Structural { semantic, .. }
                         if semantic.place == place)),
+                LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
+                    .structural_arguments.iter().any(|argument| argument.place == place),
                 // Scalar observations can use the retained view coordinates.
                 // Capturing or copying its value needs the address/length
                 // descriptor itself, independent of how the view was formed.

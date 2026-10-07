@@ -133,6 +133,7 @@ pass/borrows/runtime_constructed_reference_array_restoration_exit built 1599ms e
 pass/borrows/runtime_copied_byte_distinct_epochs_exit built 1606ms exit:0 @1a0d1c0cd491+wt
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 1530ms exit:0 @1a0d1c0cd491+wt
 pass/borrows/runtime_cyclic_field_loan_release_exit built 2372ms exit:70 @9beb2be72f2d+wt
+pass/borrows/runtime_direct_immutable_scalar_loan_exit built 14382ms exit:0 @c6603d3fbbc8+wt
 pass/borrows/runtime_discarded_reference_release_exit built 2650ms exit:70 @9beb2be72f2d+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit built 1428ms exit:70 @63377f7122bb+wt
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit built 2195ms exit:70 @6ba9c43af356+wt
@@ -1001,6 +1002,8 @@ pass/host/runtime_console_bounded_line_lf_exit built 3487ms exit:13 stdout:match
 pass/host/runtime_console_bounded_line_middle_window_exit built 3397ms exit:70 stdout:match @0136a22812ee+wt
 pass/host/runtime_console_bounded_line_partial_eof_exit built 3759ms exit:22 stdout:match @0136a22812ee+wt
 pass/host/runtime_console_byte_echo_exit built 643ms exit:70
+pass/host/runtime_descriptor_direct_array_exit built 14475ms exit:0 stdout:match stderr:match @c6603d3fbbc8+wt
+pass/host/runtime_descriptor_output_streams_exit built 11336ms exit:0 stdout:match stderr:match @c6603d3fbbc8+wt
 pass/host/runtime_gui_foreground_window_exit rejected 839ms @48008365d839
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_gui_window_lifecycle_exit rejected 1032ms @48008365d839

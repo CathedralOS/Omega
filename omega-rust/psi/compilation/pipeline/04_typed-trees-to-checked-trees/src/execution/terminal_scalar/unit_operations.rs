@@ -175,7 +175,6 @@ fn eligible(
     facts: &CheckFacts,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> bool {
-    use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
     use typed_trees::types::TypeReferenceNode;
     // Only an ordinary Unit call joins a scalar graph.
     let Some(call) = operation
@@ -185,7 +184,6 @@ fn eligible(
         return false;
     };
     let service_reach = call.target.service_reach;
-    let structural_arguments = &call.structural_arguments;
     let Some(state) = crate::semantic::calls::find_state(program, call.target.state) else {
         return false;
     };
@@ -223,12 +221,5 @@ fn eligible(
                         program.type_reference_table.type_reference(parameter.type_reference),
                         TypeReferenceNode::Reference { referee, .. } if plain_primitive(*referee)
                     ))
-        })
-        && structural_arguments.iter().all(|argument| {
-            argument.path.is_empty()
-                && matches!(
-                    argument.source,
-                    Source::Parameter { .. } | Source::PrimitiveLocal { .. }
-                )
         })
 }
