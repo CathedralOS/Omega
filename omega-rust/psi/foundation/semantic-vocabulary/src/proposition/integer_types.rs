@@ -181,6 +181,10 @@ impl IntegerType {
             _ => false,
         }
     }
+    /// Both operands admitted, or `None` for the caller's early-out.
+    fn admits_both(self, left: IntegerValue, right: IntegerValue) -> Option<()> {
+        (self.admits(left) && self.admits(right)).then_some(())
+    }
 
     /// Compare two values under this exact integer type's signedness.
     ///
@@ -280,9 +284,7 @@ impl IntegerType {
         signed: impl FnOnce(i128, i128) -> i128,
         unsigned: impl FnOnce(u128, u128) -> u128,
     ) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         self.dispatch_sign(
             left,
             right,
@@ -298,9 +300,7 @@ impl IntegerType {
         unsigned: impl FnOnce(u128, u128) -> Option<IntegerValue>,
         signed: impl FnOnce(i128, i128) -> Option<IntegerValue>,
     ) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         match (self.sign, left, right) {
             (
                 IntegerSign::Unsigned,
@@ -327,9 +327,7 @@ impl IntegerType {
     /// pattern. A sign/value mismatch or out-of-range input is rejected rather
     /// than silently reinterpreted.
     pub fn wrapping_add(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         let mask = if self.bits == 128 {
             u128::MAX
         } else {
@@ -353,9 +351,7 @@ impl IntegerType {
 
     /// Add two admitted values when their mathematical sum remains admitted.
     pub fn exact_add(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         let result = self.dispatch_sign(
             left,
             right,
@@ -367,9 +363,7 @@ impl IntegerType {
 
     /// Subtract two admitted values when their mathematical difference remains admitted.
     pub fn exact_sub(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         let result = self.dispatch_sign(
             left,
             right,
@@ -381,9 +375,7 @@ impl IntegerType {
 
     /// Multiply two admitted values when their mathematical product remains admitted.
     pub fn exact_mul(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         let result = self.dispatch_sign(
             left,
             right,
@@ -396,9 +388,7 @@ impl IntegerType {
     /// Divide two admitted values with truncation toward zero when the divisor
     /// is nonzero and the mathematical quotient remains admitted.
     pub fn exact_div(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         let result = self.dispatch_sign(
             left,
             right,
@@ -411,9 +401,7 @@ impl IntegerType {
     /// Compute a truncating remainder when the corresponding quotient is
     /// defined and the result remains admitted.
     pub fn exact_rem(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         let result = self.dispatch_sign(
             left,
             right,
@@ -434,9 +422,7 @@ impl IntegerType {
     /// Divide two admitted values with truncation toward zero and reduce the
     /// sole signed quotient overflow modulo this integer width.
     pub fn wrapping_div(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         self.dispatch_sign(
             left,
             right,
@@ -456,9 +442,7 @@ impl IntegerType {
     /// Compute a truncating remainder and reduce the sole signed quotient
     /// overflow to the wrapping-policy result of zero.
     pub fn wrapping_rem(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         self.dispatch_sign(
             left,
             right,
@@ -478,9 +462,7 @@ impl IntegerType {
     /// Divide two admitted values with truncation toward zero and clamp the
     /// sole signed quotient overflow to this integer width's maximum.
     pub fn saturating_div(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         self.dispatch_sign(
             left,
             right,
@@ -500,9 +482,7 @@ impl IntegerType {
     /// Compute a truncating remainder and reduce the sole signed quotient
     /// overflow to the saturating-policy result of zero.
     pub fn saturating_rem(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         self.dispatch_sign(
             left,
             right,
@@ -525,9 +505,7 @@ impl IntegerType {
     /// pattern. A sign/value mismatch or out-of-range input is rejected rather
     /// than silently reinterpreted.
     pub fn wrapping_sub(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         let mask = if self.bits == 128 {
             u128::MAX
         } else {
@@ -555,9 +533,7 @@ impl IntegerType {
     /// pattern. A sign/value mismatch or out-of-range input is rejected rather
     /// than silently reinterpreted.
     pub fn wrapping_mul(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         let mask = if self.bits == 128 {
             u128::MAX
         } else {
@@ -739,9 +715,7 @@ impl IntegerType {
     /// A sign/value mismatch or out-of-range input is rejected rather than
     /// silently reinterpreted.
     pub fn saturating_add(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         self.dispatch_sign(
             left,
             right,
@@ -773,9 +747,7 @@ impl IntegerType {
     /// A sign/value mismatch or out-of-range input is rejected rather than
     /// silently reinterpreted.
     pub fn saturating_sub(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         self.dispatch_sign(
             left,
             right,
@@ -798,9 +770,7 @@ impl IntegerType {
     /// A sign/value mismatch or out-of-range input is rejected rather than
     /// silently reinterpreted.
     pub fn saturating_mul(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        if !self.admits(left) || !self.admits(right) {
-            return None;
-        }
+        self.admits_both(left, right)?;
         self.dispatch_sign(
             left,
             right,
