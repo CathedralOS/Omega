@@ -145,6 +145,20 @@ impl CallFrameCaches {
     }
 }
 
+/// Both known-callee written-path lanes (boundary call and requirement call)
+/// take the same parts; a probe closure picks the lane.
+type KnownWrittenPathsForParts = for<'site> fn(
+    &'site TypedTrees,
+    &Machine,
+    &MachineSymbols<'_>,
+    &TopLevelSymbols<'_>,
+    &[String],
+    &str,
+    CallerWriteSite<'site>,
+    &[ExpressionHandle],
+    &mut FrameInference,
+) -> Option<Vec<String>>;
+
 fn compute_call_plans(
     program: &TypedTrees,
 ) -> (
@@ -687,17 +701,7 @@ impl<'program> CallFrameResolver<'program> {
                             inference,
                             Some(&argument_origins),
                         );
-                        let probe_paths = |paths: for<'site> fn(
-                            &'site TypedTrees,
-                            &Machine,
-                            &MachineSymbols<'_>,
-                            &TopLevelSymbols<'_>,
-                            &[String],
-                            &str,
-                            CallerWriteSite<'site>,
-                            &[ExpressionHandle],
-                            &mut FrameInference,
-                        ) -> Option<Vec<String>>,
+                        let probe_paths = |paths: KnownWrittenPathsForParts,
                                          inference: &mut FrameInference| {
                             paths(
                                 self.program,
@@ -1145,6 +1149,20 @@ pub(super) fn collect_expression_call_written_paths(
             let has_divergent_actual = arguments
                 .iter()
                 .any(|argument| origins.mentions_divergent(program, *argument));
+            let probe_paths = |paths: KnownWrittenPathsForParts,
+                               inference: &mut FrameInference| {
+                paths(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    symbols,
+                    &receiver_members,
+                    call.target.as_str(),
+                    CallerWriteSite::Expression(expression),
+                    arguments,
+                    inference,
+                )
+            };
             let paths = known_call_written_paths_for_parts_with_origins(
                 program,
                 call.target_symbol,
@@ -1163,30 +1181,13 @@ pub(super) fn collect_expression_call_written_paths(
                 if !exact_receiver {
                     return None;
                 }
-                known_boundary_call_written_paths_for_parts(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    &receiver_members,
-                    call.target.as_str(),
-                    CallerWriteSite::Expression(expression),
-                    arguments,
-                    inference,
-                )
+                probe_paths(known_boundary_call_written_paths_for_parts, inference)
             })
             .or_else(|| {
                 // Requirement receivers resolve by their single chain or
                 // origin; a divergent candidate set names neither.
-                super::boundary_calls::known_requirement_call_written_paths_for_parts(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    &receiver_members,
-                    call.target.as_str(),
-                    CallerWriteSite::Expression(expression),
-                    arguments,
+                probe_paths(
+                    super::boundary_calls::known_requirement_call_written_paths_for_parts,
                     inference,
                 )
             })
