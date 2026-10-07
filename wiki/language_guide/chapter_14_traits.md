@@ -564,7 +564,7 @@ finite supported family; arbitrary generic virtual methods are not supplied
 by runtime implementation selection. One named implementation supplies the
 whole family. The [dynamic surface contract](../spec/terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes)
 owns call shapes, envelopes and [finite families](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
-Boundary requirements retain their separate boundary calling plan.
+Boundary-trait requirements retain their separate boundary calling plan.
 
 These rules replace the former borrowed-instance/table model. Current compiler
 limitations belong to `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` and
@@ -664,7 +664,7 @@ It grants neither authority nor ordinary exported row polymorphism.
 A local dynamic descriptor never crosses a replaceable component boundary.
 Its table uses within-artifact calling semantics, and freely copied
 descriptors cannot be enumerated for unload or migration. A component exposes
-a boundary requirement whose calls use the selected `CallPlan` and
+a boundary-trait requirement whose calls use the selected `CallPlan` and
 `StatePlan`.
 
 Code that wants a local dynamic interface over a component owns a local proxy:

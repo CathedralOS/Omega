@@ -186,8 +186,8 @@ implicit search among visible satisfying machines.
 | Declaration context | Executable supply |
 | --- | --- |
 | Ordinary direct `machine + Name(...) { ... }` | Its own checked machine body. |
-| Bodyless token-bearing requirement inside a trait | The explicitly selected conformance, under existing requirement rules. |
-| Bodyless `boundary machine + Name(...);` requirement | The existing boundary realization/provider selection mechanism. |
+| Bodyless token-bearing requirement inside an ordinary trait | The explicitly selected implementation, under existing requirement rules. |
+| Bodyless machine requirement inside a boundary trait | The existing boundary realization/provider selection mechanism. |
 | Exact compiler-owned bodyless machine, with or without a token | Its authorized closed-catalog realization. |
 
 A nonboundary direct machine outside a required-body context or the compiler
@@ -198,10 +198,11 @@ not permission to select an implementation. Do not create a direct-operator
 registry, package-level canonical-body search, or build-provider override for
 ordinary checked machine bodies.
 
-For a top-level token-bearing boundary signature, the token binding identifies
+For a token-bearing requirement in a boundary trait, the token binding identifies
 the required operator slot; a realizing boundary machine uses the ordinary exact
 `satisfies` relationship without redeclaring the token. A named bodyless boundary
-requirement needing no token uses the existing `boundary requirement` form.
+operation is likewise a requirement in a boundary trait, using a one-member trait
+when it needs an independently selected provider.
 Removing operator punctuation must not silently turn required supply into an
 admitted theorem declaration or vice versa.
 
@@ -219,7 +220,7 @@ a recognized spelling or a package opting in. One declaration has one authorized
 supply; a catalog realization and a separate source body cannot compete. A
 compiler primitive such as the canonical `Float::meaning32` is automatic and
 requires no build selection. It keeps its proof/runtime eligibility restrictions.
-Canonical `f32 + f32`, in contrast, is a boundary requirement: target defaults
+Canonical `f32 + f32`, in contrast, is a boundary-trait requirement: target defaults
 choose its implementation, with an explicit admitted override available under
 the existing provider rules. Build selection cannot redefine its arithmetic
 contract. Merely naming a declaration `Float::meaning32` grants no primitive

@@ -35,7 +35,7 @@ plugin product still needs its selected ABI/container; a Psi artifact is not a D
 ## Imports, exports, and Binding
 
 `Binding<R>` is the compiler-known opaque affine core carrier for an established
-boundary requirement binding, as defined by
+boundary-trait requirement binding, as defined by
 [binding validity](component_publication.md#bindings-and-era-entry). It is a core
 type name, not a keyword, network-service marker, proof of provider correctness,
 or new domain modifier. The compile-time foreign locator is separately named

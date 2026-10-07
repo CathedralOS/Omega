@@ -71,7 +71,7 @@ Every selected implementation needs dependency authority. Ordinary type
 inference neither selects a conformance nor grants transitive-only access.
 
 An exact `satisfies` edge selects its trait and overload-resolved requirement,
-or its exact operator/top-level boundary requirement. It follows the realizing
+including an exact operator or boundary-trait requirement. It follows the realizing
 machine's interface exposure, including exported boundary/accepted supply.
 Selection settles before supply admission; rejection of the supply does not
 erase the declaration it selected. Nested machine-parameter contracts and

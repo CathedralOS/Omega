@@ -187,7 +187,7 @@ public promises and candidate admission, not a previous provider's private proof
 
 Runtime call authority uses compiler-known affine `Binding<R>`, not a bare trait
 value, provider object, or source-visible vtable. `R` identifies the exact closed
-boundary requirement. `Binding` is declared as opaque boundary data in
+boundary-trait requirement. `Binding` is declared as opaque boundary data in
 `omega::core`; binding establishment, custody, and realization are compiler
 semantics, not an implementation supplied by that source declaration. It is a
 service-binding carrier, not a general wrapper for trusted build-provided objects.

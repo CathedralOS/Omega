@@ -180,35 +180,50 @@ helper that passes does not close an item.
   unrelated declarations preserve it, and invalid selected plans reject for
   their actual contract rather than an accidental name collision.
 
-- **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
-  Finish realization of explicit completion calls under
-  [domain authority and separate implementation selection](wiki/spec/resources/authority.md#completion-authority-and-implementation-selection).
-  `pass/memory/interrupt_table_canary` and
-  `pass/memory/secondary_processor_canary` select providers for
-  `InterruptAcknowledgement::complete` and `StartupEnvelope::confirm`;
-  their recorded failure is now “no compiler-known intrinsic realization,”
-  not missing selection.
+- **CHECKED-ASM-LABEL-CONTRACTS.** (split-of:STATIC-MACHINE-MIGRATION)
+  Implement the ratified checked-assembly control-flow model in
+  [assembly](wiki/spec/language/assembly.md#blocks-and-assertions): explicit
+  labels are basic blocks, each label may carry ordinary `requires`/`ensures`,
+  and every forward edge and backedge is proved against exact modeled register,
+  flag, memory, place, authority and ownership state. The current parser
+  desugars a flat block into independent ordinary statements and rejects hidden
+  labels/loops; replace that bounded shape rather than adding a second opaque
+  asm parser or verifier.
 
-  Blocked on `bare-metal-requirement-realization` in
-  `OWNER_QUESTIONS.md`. In selected dispatch, `row_execution_identity`
-  routes boundary-trait rows through the hosted intrinsic catalog and
-  tolerates unknown rows as `Unsupported`; top-level requirements instead
-  reach the numeric catalog and reject unknown rows. Thus
-  `InterruptMaskControl::save_and_mask` being tolerated is not evidence of
-  executable support. Do not make both paths silently unsupported to turn a
-  missing realization into a successful build.
+  Own the source grammar and catalogs in
+  `01_tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs` and
+  `language-core/src/inline_assembly/`, checked CFG/state transfer and contracts
+  in stage 04, durable target-neutral operations and stage 05 lowering, and the
+  shared Terminal/native execution paths. Separate `asm` statements retain no
+  hidden scratch state; labels inside one body carry explicit register/flag
+  versions. A label memory proposition is a proof-only observation and grants
+  no runtime access. Ambiguous width, address space or modeled backing rejects.
+  Loops use ordinary invariant and ranked-decrease reasoning when termination
+  is required.
 
-  The owner decision determines whether the fixtures' CompilerIntrinsic
-  providers remain or completion comes through the installed entry route.
-  Preserve domain preconditions, exact installation/token identity and
-  linear consumption; forwarding established evidence does not confer minting
-  authority. This needs no implicit receiver or data-subject conformance.
+  A checked machine satisfying a consuming boundary-trait member may retire a
+  linear argument only when instruction semantics and label contracts prove the
+  required effect on every normal exit. `nop`, a wrong port/place/value,
+  missing ordering, an unmatched installation/token lineage or a bypass path
+  leaves the argument live and rejects. `asm where` and label `ensures` are
+  proof goals, never admissions. Do not add a hardware `ForeignBinding`, a
+  compiler intrinsic for Cathedral policy, or a trust annotation around asm.
 
-  `pass/memory/address_translation_canary` has no selected provider and is
-  separately blocked by **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED**.
-  Acceptance: the three memory canaries check their intended flows and
-  exercise the selected realization where executable, while forged, unrelated
-  and replayed completion evidence rejects.
+  Integration customers are `pass/memory/interrupt_table_canary` and
+  `pass/memory/secondary_processor_canary`. Under
+  **TOP-LEVEL-BOUNDARY-REQUIREMENTS**, migrate completion to one-member boundary
+  traits and checked implementations whose asm proves LAPIC/PIC completion and
+  the startup handshake. Preserve `Pending` domain preconditions, exact
+  installation/token identity, bounded reach and linear consumption.
+  `pass/memory/address_translation_canary` remains separately owned by
+  **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED**.
+
+  Acceptance: labeled straight-line, diamond and loop bodies execute identically
+  through Terminal and native paths; wrong-edge invariants, unmodeled memory,
+  wrong controller coordinates, missing effects/order and live linear exits
+  reject. The interrupt and secondary-processor canaries check with no fake
+  `CompilerIntrinsic` provider, while forged, unrelated, replayed and
+  double-completion controls reject.
 
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Lower a call that consumes a linear input and returns an affine result
@@ -387,7 +402,8 @@ helper that passes does not close an item.
   (`fail/machines/retired_self_receiver`); do not restore them to make an
   unmigrated program pass.
   - Source remainder: the two memory canaries
-    (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build receiver calls remain
+    (**TOP-LEVEL-BOUNDARY-REQUIREMENTS** and **CHECKED-ASM-LABEL-CONTRACTS**).
+    Build receiver calls remain
     for facets such as test groups. Move their producers and consumers to
     namespace-qualified calls with explicit arguments, following `Build::bind`,
     `Build::select_provider`, `Build::exclude_service`, and
@@ -2341,7 +2357,7 @@ crash and native exit behavior.
     provider: **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED** owns the open
     selection decision. `interrupt_table_canary` and
     `secondary_processor_canary` now select providers but lack an executable
-    intrinsic: **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** owns that dependency.
+    intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that dependency.
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded
@@ -4400,9 +4416,9 @@ wait for Cathedral's instruction coverage. The interpreter is
 
   The fixture now selects a `CompilerIntrinsic` provider for
   `InterruptAcknowledgement::complete`, but that operation has no native
-  realization. **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** owns the
-  `bare-metal-requirement-realization` decision in `OWNER_QUESTIONS.md`;
-  adding another selection row does not solve it.
+  realization. **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns migration to a
+  one-member boundary trait and **CHECKED-ASM-LABEL-CONTRACTS** owns its checked
+  target implementation; adding another selection row does not solve it.
   Retain the argument's checked domain evidence and exact installation
   relationships; provider selection remains a separate implementation duty.
   Resolve that compiler/source dependency before the backend joins below.
@@ -4434,8 +4450,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   for the shipped acknowledgement in `source/library/core/interrupt.omg`:
   `InterruptAcknowledgement::complete` still declares `reaches PortIo`; migrate
   it to `reaches <= MachineControl + PortIo` with a selected satisfier that
-  consumes the linear receiver. **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns
-  selected dispatch/discharge. Reuse
+  consumes the linear receiver. **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns the
+  boundary-trait migration and selected dispatch;
+  **CHECKED-ASM-LABEL-CONTRACTS** owns checked target discharge. Reuse
   `omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/installation_reach.rs`
   and carry the exact completion route through Terminal, selected-provider and
   installation evidence. Component deployment stays with **COMPONENT-SUBSTRATE**.
@@ -5253,35 +5270,49 @@ wait for Cathedral's instruction coverage. The interpreter is
   false-result and unselected-provider controls; build dependency cycles
   reject without guessing a satisfier.
 
-- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Complete execution and identity for
-  explicit `boundary requirement Owner::name(...);` under
-  [machine supply](wiki/spec/language/machines.md#supply),
-  [provider selection](wiki/spec/build/provider_selection.md) and
-  [requirement identity](wiki/spec/terminal-psi/boundary_calls.md#call-and-requirement-identity).
-  - Dispatch: `omega-rust/omega/compilation/realization/selected-dispatch/src/boundary_dispatch/adapter_rows.rs`
-    admits owned/shared/mutable receivers, erased lifetime telescopes and
-    closed generic rows. Extend the remaining generic/family and projected
-    receiver combinations through both engines; write-only and qualified
-    receivers still reject. Keep `pass/providers/checked_boundary_requirement_dispatch_exit`
-    (exit 70) and `lifetime_boundary_requirement_dispatch_exit` (exit 41).
-  - Interpreter providers: `pass/providers/external_boundary_requirement_via_exit`
-    (native exit 21) and `runtime_foreign_leaf_borrowed_byte_argument_exit`
-    (native exit 70, libSystem `_strlen`) fail in the checked interpreter,
-    which rejects bodyless external calls without a provider. Restore the
-    mixed borrowed-record customer (initialized fields, reused returned
-    value). Keep missing-import rejection; ordinary foreign exit is distinct
-    from canonical ProcessExit.
-  - Identity: the package-qualified operation, static telescope, signature,
-    visibility and selected provider/adapter need a canonical kind distinct
-    from trait requirements; reuse package review's top-level requirement kind.
-    Coordinate with **PROVIDER-SELECTION-AFTER-TERMINAL**.
-  Acceptance: value, statement, receiver and external-provider customers run
-  in the interpreter and natively under one selected plan; unselected,
-  ambiguous and substituted providers, unauthorized private/foreign
-  declarations and same-spelled cross-package declarations reject.
-  `Task::finish`/cancellation coordinates with **BOUNDED-INSTALLATION-REACH-ROWS**
-  and **COMPONENT-SUBSTRATE**; **OPERATOR-MACHINE-SUPPLY** owns retiring
-  `MachineSupplyMode::Boundary`.
+- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Retire the standalone `boundary
+  requirement Owner::name(...);` declaration kind under the settled
+  [machine-supply rule](wiki/spec/language/machines.md#supply). Data is not a
+  code owner. Every such operation becomes a requirement in a boundary trait;
+  use a one-member trait when it needs an independently selected provider.
+  Carrier, authority and token types remain ordinary explicit parameters.
+
+  Migrate `source/library/`, samples and corpus fixtures first, preserving
+  exact contracts, generic/lifetime telescopes, reach, domains, suspension,
+  blocking, provider selection, external `via` bindings and runtime results.
+  Raw platform families become boundary traits selected beneath portable
+  implementations. Interrupt acknowledgement, startup confirmation, task,
+  executor, device, extent and collection lifecycle operations use ordinary
+  named implementations; no hidden receiver or data-subject satisfaction
+  returns. Keep one-member traits where grouping would force unrelated rows to
+  share selection.
+
+  Then delete the special role through parsing, syntax/resolved/typed/checked
+  representations, checking, stages 04-07, Terminal codec, provider planning,
+  selected dispatch, component/native artifacts, package review, interpreter
+  and `source/psi`/`source/omega`. Converge identity and policy on the existing
+  trait requirement/application rows rather than translating old records or
+  retaining a second provider-slot kind. The old spelling rejects with a
+  migration diagnostic; no compatibility alias, carrier-owned code namespace
+  or package-name inference remains. Coordinate ordinary external imports with
+  **PROVIDER-SELECTION-AFTER-TERMINAL**.
+
+  Preserve the current valid/invalid distinctions while migrating coverage:
+  value, statement, generic/lifetime, borrowed/write-back, external-provider,
+  overload, package-review and same-spelled cross-package cases. The
+  bare-metal completion customers additionally depend on
+  **CHECKED-ASM-LABEL-CONTRACTS** for checked target bodies; task lifecycle
+  coordinates with **BOUNDED-INSTALLATION-REACH-ROWS** and
+  **COMPONENT-SUBSTRATE**. **OPERATOR-MACHINE-SUPPLY** continues to own the
+  separate retirement of `MachineSupplyMode::Boundary`.
+
+  Acceptance: no accepted source, product source, durable IR, package record or
+  artifact schema contains the standalone declaration kind. Migrated customers
+  run through Terminal and native paths under boundary-trait selection;
+  unselected, ambiguous, substituted, unauthorized and cross-package lookalike
+  implementations reject. A parser fail fixture pins the retired spelling, and
+  repository search finds it only in that rejection fixture and historical
+  records.
 
 - **BUILD-ADMISSION-CHECKPOINT.** Complete command-level
   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)

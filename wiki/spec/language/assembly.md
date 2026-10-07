@@ -1,5 +1,9 @@
 # Checked assembly
 
+The settled decision `checked-assembly-label-contracts` makes one assembly body
+a checked control-flow graph whose explicit labels carry ordinary propositions
+and ownership obligations. Assembly has no weaker, asm-only proof system.
+
 `asm { ... }` is parsed for the selected target, not an opaque text or byte
 escape. Every accepted instruction has a compiler-owned contract; unknown
 instructions and raw emitted bytes reject. A prebuilt blob is a foreign provider
@@ -15,10 +19,53 @@ catalogued instruction. See [interpreted execution](#interpreted-execution).
 
 ## Blocks and assertions
 
-Blocks contain at least one known instruction. Multiple instructions use `;`
-separators; newlines are not grammar. A control transfer must be the last
-instruction. The optional `where` surface permits `requires`, `ensures` and an
-exact register-clobber declaration:
+An assembly body is a checked control-flow graph of label blocks. The unlabeled
+form is one implicit entry block. A labeled body names every internal target;
+there are no hidden labels or assembler-private control-flow edges. Blocks
+contain at least one known instruction, multiple instructions use `;`
+separators, and a control transfer is the block's final instruction.
+
+Each label may carry ordinary `requires` and `ensures` propositions:
+
+```omega
+asm {
+entry requires input > 0:
+    mov eax, input;
+    jmp loop;
+
+loop requires eax > 0:
+    sub eax, 1;
+    jnz loop;
+
+done requires eax == 0 ensures eax == 0:
+    mov output, eax
+}
+```
+
+Every incoming edge proves the target label's `requires` against the exact
+modeled register, flag, memory, place, value, authority and ownership state on
+that edge. Every exit from a label proves its `ensures` after applying the
+catalog semantics of the instructions on that path. A backward edge is checked
+the same way as any other edge; when the enclosing machine owes termination,
+the loop also carries the ordinary ranked-decrease obligation. A failure to
+prove one edge rejects the body rather than weakening the label contract.
+The enclosing Omega control point proves the entry label's `requires`; it is the
+body's incoming edge and not an assumed initial state.
+The not-taken edge of a conditional terminator falls through to the next
+declared label, or to the body exit when no label follows; it is an explicit CFG
+edge and owes that destination's contract just like the taken edge.
+
+Label propositions observe the symbolic assembly state; they do not emit an
+instruction or grant runtime access. Thus a modeled memory proposition such as
+`[eax] == 1` is a proof query at that label, while an instruction that actually
+loads or stores through `eax` separately owes the catalog's access, provenance,
+alignment and authority requirements. A memory projection whose width, address
+space or modeled backing is ambiguous is not a proposition the checker can
+establish.
+
+The optional body-level `where` surface remains the concise single-block form
+and supplies entry `requires`, falling-through `ensures` and an exact
+register-clobber declaration:
 
 ```omega
 asm where
@@ -33,27 +80,29 @@ asm where
 Here `context` is an ordinary explicit parameter or local in scope; assembly
 does not introduce an implicit machine receiver.
 
-`requires` is proved at block entry. `ensures` is proved at a falling-through
-exit after instruction writes invalidate stale facts. These are checked
-assertions, not admissions or extra facts. Non-fallthrough `hlt` and `jmp`
-blocks cannot have local postconditions. Neither clause overrides the catalog.
+These are checked assertions, not admissions or extra facts. Body-level
+`ensures` requires a falling-through body exit; an explicit label's `ensures`
+is checked before each of that label's modeled exits, including a jump. Neither
+form overrides the instruction catalog.
 
 An authored clobber set must equal the union of the realized instruction
 contracts' changed registers. Omitted changes and invented changes both reject;
 order and duplicates have no meaning. An explicitly empty set is `clobbers none`.
 Omitting the clause never omits the catalog's effects.
 
-## Block-local state and explicit communication
+## Assembly state and explicit communication
 
-A block has no implicit general-register or scratch-flag inputs from surrounding
-compiled code or another block. Such inputs must come from its declared operands
-or a catalog-defined state observation; reads within the block must follow the
-catalog's defined dataflow. Register allocation and incidental preservation are
-not source contracts. Clobbers account for changes; they neither supply initial
-values nor make scratch state a persistent communication channel.
+A body has no implicit general-register or scratch-flag inputs from surrounding
+compiled code. Such inputs must come from its declared operands or a
+catalog-defined state observation. Within one body, register and flag versions
+flow through explicit label edges and are part of each label contract; separate
+`asm` statements share no hidden scratch state. Register allocation and
+incidental preservation are not source contracts. Clobbers account for changes;
+they do not supply initial values.
 
-Communication between blocks uses ordinary Omega values/places, authorized
-memory effects, or explicitly contracted environment state. For example:
+Communication between separate bodies uses ordinary Omega values/places,
+authorized memory effects, or explicitly contracted environment state. For
+example:
 
 ```omega
 asm { mov saved, input }
@@ -62,10 +111,11 @@ asm { mov output, saved }
 
 Here `saved` is an ordinary typed place, not a retained register. Conversely,
 interrupt-mask changes, device writes and memory updates do not reset when a
-block exits. System registers and architectural control flags explicitly read
-or changed by catalog operations belong to that persistent state, not scratch.
-Its lifetime and sharing follow the selected execution environment and held
-authority. Blocks are not transactions, isolation domains, or rollback points.
+label or body exits. System registers and architectural control flags explicitly
+read or changed by catalog operations belong to that persistent state. Its
+lifetime and sharing follow the selected execution environment and held
+authority. Labels and bodies are not transactions, isolation domains, or
+rollback points.
 
 ## Instruction obligations
 
@@ -84,6 +134,14 @@ Assembly does not automatically make its enclosing machine a provider.
 A checked block may separately establish a conformance for callers when its
 instruction model proves it. Permitted admitted evidence remains identified in
 receipts and reports. Admission never leaves an emitted obligation open.
+
+The same proof closes ordinary ownership obligations. A checked machine that
+implements a consuming boundary-trait requirement may terminally dispose of a
+linear argument only when the assembly CFG proves the requirement's effect and
+every normal exit carries the corresponding ownership disposition. A `nop`, a
+write to the wrong modeled place, missing ordering or a path bypassing the
+effect leaves the value live and rejects. No `via` binding or assembly-specific
+trust assertion substitutes for this proof.
 
 An [assumed binding contract](../build/assumed_binding_contracts.md) can supply
 explicitly admitted premises at an authorized runtime crossing. It cannot exempt
@@ -169,9 +227,10 @@ neither supply missing instruction semantics nor become build-admissible.
 ## Control flow and machine state
 
 Catalog availability distinguishes user-checked instructions from deriver-only
-entry/exit operations. Known jumps map to declared Omega states and checked
-transitions, retaining arguments, invariants and live obligations. Hidden labels,
-loops, returns, unwinds and unmodeled exits reject. Return-from-interrupt is not
+entry/exit operations. Jumps within a body target declared assembly labels;
+jumps leaving the body map to declared Omega states and checked transitions.
+Both retain arguments, invariants and live obligations. Undeclared targets,
+hidden returns, unwinds and unmodeled exits reject. Return-from-interrupt is not
 a way to bypass an entry contract. Direct targets remain final-artifact-validated;
 indirect calls/tail calls require sealed requirement-compatible entry references,
 not numeric addresses.

@@ -276,7 +276,7 @@ For a routed domain, neither the domain-owning package nor any other code
 may manufacture `Reservation::Issued` with `as`; establishment must pass
 through one of the exact routes named by the domain. Trait visibility
 controls who may conform, machine visibility controls who may invoke the
-selected machine, and a boundary requirement additionally requires provider selection
+selected machine, and a boundary-trait requirement additionally requires provider selection
 and admission. Public ordinary conformances are allowed when the domain author
 deliberately publishes an open checked route.
 

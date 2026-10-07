@@ -9,7 +9,7 @@ This chapter describes the accepted design, not a completed public SDK. The
 
 ## One interface, two implementations
 
-Suppose a game exposes a boundary requirement:
+Suppose a game exposes a boundary-trait requirement:
 
 ```omega
 pub boundary trait Game {
@@ -42,7 +42,7 @@ the example does not implicitly export `reward`. There is no special script
 receiver. The installed entry adapter supplies that parameter from the admitted
 instance; an ordinary in-language call supplies it explicitly.
 
-`Binding<T>` names an established implementation of a boundary requirement. It
+`Binding<T>` names an established implementation of a boundary trait. It
 is a core type name, not a keyword or network-service facility. Native execution
 may use a direct selected provider; interpretation uses a checked adapter to the
 host implementation. Both must meet the same contract. Wrapping a native function

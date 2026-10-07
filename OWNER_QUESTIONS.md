@@ -103,22 +103,18 @@ the spec requires that: "Raw handle types are per family (`PosixDescriptor`,
 
 **Decision needed:** three candidate answers, in the order I would pick them.
 
-1. **Keep one granted portable boundary and demote the families to requirement
-   namespaces.** `Filesystem.host` stays `Binding<FilesystemHost>`, where
-   `FilesystemHost` holds only the portable operations; each family's
-   OS-specific primitives become top-level boundary requirements under a
-   per-family provider data type, reached under the portable grant, exactly as
-   the macOS `TimeHost` provider reaches `TimeHostNativeProvider::poll`
-   (`source/library/std/targets/macos_arm64/time_host_impl.omg`).
-   [Provider selection](wiki/spec/build/provider_selection.md) already admits
-   that slot kind: "Slot resolves to one exact boundary trait,
-   package-qualified same-path boundary-operator family, or top-level boundary
-   requirement." Each requirement is then its own slot, so coverage is per
-   operation and a target selects only the family it has — no sentinel rows,
-   no per-family carrier, and no language change. It costs the ruling's exact
-   words: the portable wrapper would not be bound "over `PosixFilesystemHost`",
-   and a raw-seam program would name a family requirement rather than hold
-   `Binding<PosixFilesystemHost>`.
+1. **Keep one granted portable boundary and make each raw family a boundary
+   trait selected beneath its portable implementation.** `Filesystem.host`
+   stays `Binding<FilesystemHost>`, where `FilesystemHost` holds only the
+   portable operations. A target's selected portable implementation reaches
+   its exact `PosixFilesystemHost` or `WindowsFilesystemHost` boundary trait;
+   one named implementation supplies that family. Provider selection already
+   admits exact boundary traits, so a target selects only the family it has —
+   no sentinel rows, no per-family carrier and no new language surface. It
+   costs the ruling's exact words only in where the family is carried: the
+   portable value holds the portable binding while its implementation depends
+   on the selected raw-family binding. A raw-seam program may still hold
+   `Binding<PosixFilesystemHost>` directly.
 2. **Demand only reached `Binding` fields**, so `Filesystem` may carry one
    field per family and each target demands the one its selected bodies reach.
    This weakens a custody rule that currently holds unconditionally and makes
@@ -185,15 +181,15 @@ any program or test.
 Named decision: `unselected-requirement-carve-out`.
 
 **Customer:** `pass/core/interrupt_obligations_surface`, plus
-`pass/memory/address_translation_canary`. Both reject because
+`pass/memory/address_translation_canary`. During migration both still spell
+standalone boundary requirements; the settled replacement is a one-member
+boundary trait. The underlying question survives that spelling change:
 `reject_unselected_direct_requirement_calls` demands a selected provider for a
-public boundary requirement, and `63bca13481d` widened its gate by deleting the
-clause that required the requirement to be **receiver-free**. The field that
-clause read, `StateParameter::is_self`, no longer exists, so the carve-out
-cannot be restored -- only replaced.
+public requirement even when no executable root reaches its call. The former
+receiver-based carve-out cannot return because data and code are independent.
 
-**Decision needed:** must a compilation select a provider for a public boundary
-requirement that only an **unreachable** declaration calls?
+**Decision needed:** must a compilation select an implementation for a public
+boundary-trait requirement that only an **unreachable** declaration calls?
 
 **Why this is not an engineering call.** The mechanical translation of "has a
 receiver" is "the requirement's first parameter is its owner data type", which
@@ -260,54 +256,3 @@ whether the coordinate was claimed. And (2) and (3) each look like "recognize
 one more shape" from the other's side, which the hard rule forbids choosing
 arbitrarily. Once ruled, the repair is small and the two-line program pins it
 either way.
-
-### Q8 - Who supplies the realization of a bare-metal boundary requirement?
-
-Named decision: `bare-metal-requirement-realization`.
-
-**Customers:** `pass/memory/interrupt_table_canary`
-(`InterruptAcknowledgement::complete`, `source/library/core/interrupt.omg:57`,
-`reaches PortIo`, content = LAPIC end-of-interrupt write) and
-`pass/memory/secondary_processor_canary` (`StartupEnvelope::confirm`, the
-fixture's own `cathedral/processor_startup.omg`, `reaches MachineControl`,
-content = application-processor startup handshake). Both are top-level public
-`boundary requirement`s over **opaque linear boundary data**. Selection and
-admission both succeed; only realization is missing. These are **one** question,
-not two -- the earlier guess that they split by declaration site was wrong.
-
-**All four routes are closed, each measured rather than inferred:**
-
-1. **Compiler intrinsic** -- needs a new `CompilerIntrinsicExecutionIdentity`
-   variant plus a `MachineSemanticKind`, per-target realizations, catalog and
-   encoding opcodes, a legalized scalar graph and review-evidence capture. That
-   makes the interrupt controller and the AP bring-up protocol **compiler-owned
-   semantics**, against AGENTS.md's "Cathedral (the downstream OS) owns OS
-   structures".
-2. **External satisfier leaf** -- `via` admits only `Syscall(n)`,
-   `DllImport{..}`, `VtableField(f)`, `TableFunction(f)`
-   (`01_tokens-to-syntax-trees/src/contracts/conformance/external_binding.rs`).
-   None expresses an MMIO or port write, and
-   `pass/providers/external_boundary_requirement_via_exit` is `DllImport` over
-   libc, which bare metal does not have.
-3. **Authored body** -- refused by measurement: replacing the binding with a
-   body gives ``linear value `envelope` reaches scope exit without being
-   consumed or transferred``. A package cannot discharge a linear
-   `boundary data` whose only declared discharge route is the requirement it is
-   satisfying. Inline asm reaches `PortIo`/`MachineControl` but does not help
-   the discharge, and `MachineControl`/`PortIo` are machine-less reach labels
-   with no callable operation.
-4. **Installation-route propagation** (`InstalledInterruptCompletionRoute` in
-   `external-roots`) -- would make both provider declarations wrong and
-   removable. `wiki/spec/resources/authority.md#completion-authority-and-implementation-selection`
-   says only that "a public boundary requirement still needs a selected,
-   admitted implementation"; it is **silent on what realizes one**.
-
-**Decision needed:** (1) a fifth `ForeignBinding` case for a hardware-register
-write, (2) a language discharge for a linear boundary obligation inside its
-satisfying body, (3) installation-route propagation that removes these two
-provider declarations, or (4) retiring both fixtures as not-yet-authorable.
-
-**Do not resolve it by making the top-level-requirement lane answer
-`Unsupported` the way the trait lane does.** Measured: that moves both fixtures
-off this diagnostic and plausibly to `built` while neither program can run. It
-is an admission-policy change disguised as a cleanup.

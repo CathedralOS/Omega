@@ -42,8 +42,8 @@ Linear obligations remain subject to consumption and transfer rules. Being
 outside the issuing entry does not itself discard retained domain evidence or
 require a new kind of completion authority.
 
-Implementation selection remains separate. A public boundary requirement still
-needs a selected, admitted implementation under the existing provider rules.
+Implementation selection remains separate. A public boundary-trait requirement
+still needs a selected, admitted implementation under the existing provider rules.
 The qualified argument supplies the operation's required authority; it does not
 automatically select a machine body. A missing-provider diagnostic calls for
 repairing source selection or compiler propagation of an existing selection,
@@ -84,7 +84,7 @@ The route retains a closed target kind and exact declaration identity:
 | Concrete machine declaration | That exact machine's invocation, not other conformers of a requirement it happens to satisfy. |
 
 A public ordinary requirement deliberately permits valid downstream checked
-conformers. A public boundary requirement additionally requires provider
+conformers. A public boundary-trait requirement additionally requires provider
 selection and admission. An exact-machine route may name a free or attached
 machine; its visibility controls who can select it. Naming a machine is neither
 trait sealing nor an implicit grant to other machines in its package.
@@ -107,7 +107,7 @@ axiom proving arbitrary predicates. A result annotation alone remains insufficie
 Existing evidence may instead be forwarded; a public wrapper returning an issued
 value does not become a new issuer.
 
-The authorized issuance spellings on a boundary requirement are an `ensures`
+The authorized issuance spellings on a boundary-trait requirement are an `ensures`
 clause on the bare result, the requirement's own declared result type carrying
 `T in D` (the signature's declared constraint is itself the issuance witness),
 and a selected case payload of the owned result carrier whose declared type
@@ -162,7 +162,7 @@ provides ambient establishment authority. A checked implementation must justify
 its guarantee from proof, existing evidence, validation, transfer, or an exact
 authorized establishment occurrence as described above.
 
-For an admitted membership guarantee, the boundary requirement supplies the
+For an admitted membership guarantee, the boundary-trait requirement supplies the
 contract and the domain authorizes that requirement. An unrelated accepted
 boundary machine's assertion is insufficient. The subject is bare `result`,
 a selected case payload of the owned result carrier under the spelling above,
@@ -176,7 +176,7 @@ this is not an ordinary checked call or a new domain issuer. The receipt retains
 boundary trait, exact requirement/signature,
 subject position, selected provider, and installation/invocation evidence.
 
-A checked adapter realizing a boundary requirement does not acquire the same
+A checked adapter realizing a boundary-trait requirement does not acquire the same
 admitted authority on ordinary direct calls. Semantic checking consumes the
 requirement and receipt before execution dispatch selects the adapter. A
 look-alike requirement, ordinary invocation, or source-authored entry marker

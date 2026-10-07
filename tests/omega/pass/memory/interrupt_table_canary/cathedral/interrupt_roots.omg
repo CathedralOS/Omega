@@ -305,28 +305,15 @@ machine InterruptMaskProvider::save_and_mask() -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
     via ForeignBinding::CompilerIntrinsic;
 
-// The acknowledgement-completion provider the two entry realizations call.
-// `InterruptAcknowledgement::complete` is a public boundary requirement, so
-// it needs a selected admitted implementation of its own: the qualified
-// argument supplies the operation's authority but does not select a body.
-// The acknowledgement is opaque linear boundary data with no public
-// constructor, so no package-authored body can consume it; the completion
-// is the LAPIC end-of-interrupt write.
-//
-// This row is NOT the same shape as `save_and_mask` above.
-// `InterruptAcknowledgement::complete` is a top-level `boundary
-// requirement`, so its row takes the requirement lane, which consults the
-// numeric catalog (`provider-planning/src/intrinsic_requirements/`,
-// namespaces `F32`/`F64`/`I8`..`U64` plus fixed operator tokens) and raises
-// `selected overload ... has no compiler-known intrinsic realization`
-// instead of answering `Unsupported`. That diagnostic is this fixture's
-// current frontier; the realization does not exist for either row, and the
-// two lanes differ only in whether an unrecognized row is refused or
-// tolerated. `STATIC-BOUNDARY-REQUIREMENT-CALL-FORM` owns the open question
-// of who supplies a bare-metal realization: `via` admits only
-// `ForeignBinding::Syscall`, `DllImport`, `VtableField`, `TableFunction`
-// and `CompilerIntrinsic`, and none of the first four can express an
-// end-of-interrupt write.
+// Transitional acknowledgement-completion provider. The settled model moves
+// `complete` into a one-member boundary trait and implements it with a checked
+// assembly CFG. Label contracts and instruction semantics must prove the LAPIC
+// end-of-interrupt effect and terminal disposition of the exact Pending linear
+// acknowledgement on every normal path. `TOP-LEVEL-BOUNDARY-REQUIREMENTS` owns
+// the source/compiler migration; `CHECKED-ASM-LABEL-CONTRACTS` owns the checked
+// target body. Until both land, this obsolete CompilerIntrinsic spelling keeps
+// the current diagnostic pinned; it is not the destination or permission to
+// add a compiler-owned LAPIC intrinsic.
 pub data AcknowledgementCompletion {
 }
 

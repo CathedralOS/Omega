@@ -26,16 +26,17 @@ within root-delegated authority: a child cannot replace virtual filesystem
 backing with host access. Test discovery collects exact checked satisfiers as
 independent invocations; it is not provider selection among competing candidates.
 
-A token-bearing boundary requirement is authored `boundary machine + Name(...)`
-(or another fixed token), not a separate operator declaration species. Ordinary
-nonboundary token-bearing machines own checked bodies and do not participate in
-Build provider selection. Compiler-catalog semantic primitives are automatic.
-Target defaults still supply boundary float implementations; overrides must
-satisfy the canonical arithmetic contract, not choose a different meaning for `+`.
+A token-bearing boundary operation is a machine requirement in a boundary
+trait. Its token is an ordinary explicit parameter, not a declaration owner or
+separate operation species. Ordinary nonboundary token-bearing machines own
+checked bodies and do not participate in Build provider selection.
+Compiler-catalog semantic primitives are automatic. Target defaults still
+supply boundary float implementations; overrides must satisfy the canonical
+arithmetic contract, not choose a different meaning for `+`.
 
 `Build::select_provider<Slot, Provider>(builder)` is ordinary typed vocabulary. Slot
-resolves to one exact boundary trait, package-qualified same-path boundary-
-operator family, or top-level boundary requirement. Provider resolves to one
+resolves to one exact boundary trait or package-qualified same-path boundary-
+operator family. Provider resolves to one
 named provider implementation, not a data type or a provider instance. Both retain compiler-derived package ownership. Plans and
 checked adapters rejoin exact slot, realizing machine, provider, schema, and
 requirement owners. Leaf names, strings, normalized signatures, ordinals,

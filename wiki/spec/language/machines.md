@@ -100,11 +100,15 @@ substitutes for the other. See [citation and induction](../proofs/contracts.md#c
 
 ## Supply
 
+The settled decision `boundary-operations-are-trait-requirements` retires the
+standalone carrier-owned boundary-requirement declaration. Boundary operations
+are requirements in boundary traits; one-member traits provide independent
+selection without making data a code owner.
+
 | Supply | Source and obligation |
 | --- | --- |
 | Checked body | An ordinary machine with a checked `{ ... }` body, including generated/default bodies after generation. |
-| Required body | A bodyless trait/component machine requirement. |
-| Top-level required body | An explicit carrier-owned `boundary requirement Carrier::operation(...);`, or a bodyless token-bearing `boundary machine + Carrier::operation(...);` (with any valid fixed token). |
+| Required body | A bodyless trait/component machine requirement; a boundary operation belongs to a boundary trait, including a one-member trait when independent selection is required. |
 | External provider | A bodyless `boundary machine` satisfying an exact requirement under its pinned contract and admission policy. |
 | Admission-bearing declaration | A bodyless `boundary machine` publishing an unproved theorem or external-behavior guarantee for separate owner acceptance. |
 | Compiler-supplied primitive | A bodyless exact toolchain declaration with an authorized closed-catalog implementation and fixed semantic contract; not selectable by naming or user registration. |
@@ -121,17 +125,21 @@ virtue of its name. Accepted theorem claims use the existing boundary surface,
 not a separate fact declaration.
 
 Token-bearing machines follow these same supply distinctions. Ordinary direct
-declarations own checked bodies; trait requirements use explicit conformances;
-boundary requirements use the existing provider mechanism. `satisfies` does not
-attach an implementation to an otherwise bodyless ordinary direct declaration.
+declarations own checked bodies and trait requirements use named
+implementations. The standalone carrier-owned `boundary requirement
+Carrier::operation(...);` spelling is retired: data and code are independent,
+and a one-member boundary trait already provides an independently selectable
+operation slot. Carrier and authority values remain ordinary explicit
+parameters. `satisfies` does not attach an implementation to an otherwise
+bodyless ordinary direct declaration.
 
 `boundary` marks a crossing, not its direction. Imports and exports are
 artifact-relative; requirements and composition determine provision or demand.
-`satisfies` selects an exact requirement and inherits its contract. `via` only
-supplies a compile-time-evaluated binding payload not derivable from declaration
-and target; it is neither a supply keyword nor trust authority. Compiler
-intrinsics use the sealed declaration/signature/target catalog without a binding
-payload. See [foreign bindings](../build/foreign_bindings.md) and
+`satisfies` names an exact trait requirement and inherits its contract. `via`
+only supplies a compile-time-evaluated binding payload not derivable from
+declaration and target; it is neither a supply keyword nor trust authority.
+Compiler intrinsics use the sealed declaration/signature/target catalog without
+a binding payload. See [foreign bindings](../build/foreign_bindings.md) and
 [provider selection](../build/provider_selection.md).
 
 Composite providers remain ordinary checked bodies; only irreducible foreign

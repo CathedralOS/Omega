@@ -113,7 +113,7 @@ declaration owners, the exact carrier, and the imports exposing the conflict.
 
 ## Visibility
 
-Independently nameable data, domains, traits, machines, boundary requirements,
+Independently nameable data, domains, traits, machines,
 wire schemas, operators, constants, and complete named conformances are private
 unless marked `pub`. Carrier qualification does not inherit visibility.
 Fields, cases, states, and trait requirements instead inherit their exact

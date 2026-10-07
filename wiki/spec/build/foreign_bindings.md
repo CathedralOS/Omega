@@ -1,6 +1,6 @@
 # Foreign boundary bindings
 
-Application code calls abstract boundary requirements. Target/toolchain packages
+Application code calls abstract boundary-trait requirements. Target/toolchain packages
 provide explicit checked satisfiers or bodyless native leaves; a foreign library,
 syscall number, or firmware table is not an ordinary imported Omega module.
 [Provider selection](provider_selection.md) chooses the derived candidate.
@@ -15,7 +15,7 @@ native-locator carrier. It shares its spelling with the
 and that is the point of the warning: neither the equal spelling nor a
 validated locator establishes a runtime binding.
 
-A bodyless leaf declares `satisfies Requirement` and uses `via expression` only
+A bodyless leaf declares `satisfies Trait::Requirement` and uses `via expression` only
 for an irreducible payload not determined by declaration, signature, and target.
 The expression is compile-time evaluable to an ordinary closed
 `Binding<ObjectLength, SymbolLength, VersionLength>` value. Each const argument

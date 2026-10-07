@@ -28,7 +28,7 @@ machine supply mode; see [chapter 10](chapter_10_compile_time_proofs.md).
 The same machine can be called at runtime and evaluated by the compiler when
 its contract, reach, and totality make that evaluation legal. It can also be
 cited as proof, started through a task runtime, or used to satisfy a
-trait/boundary requirement.
+trait requirement, including a requirement in a boundary trait.
 
 An optional fixed token binds operator notation to a named machine:
 `machine + Vec2::add(...) { ... }`. Its body and contracts remain ordinary
@@ -219,20 +219,29 @@ The callable machine model has five explicit supply forms:
 |---|---|
 | Checked Omega implementation | `{ ... }` body |
 | Trait requirement | Bodyless declaration inside the trait |
-| Top-level provider requirement | `boundary requirement Package::operation(...);` |
 | External requirement realization | Bodyless `boundary machine ... satisfies Trait<...>::requirement;`, with `via <Binding>` only for an explicit payload |
 | Admission-bearing claim | Bodyless `boundary machine ... ensures ...;` |
 
-A top-level boundary requirement is a nominal operation slot whose natural
-source owner is a carrier rather than a trait. It is explicit: neither a
-bounded reach clause, absence of a body, catalog lookup, `via`, nor a later
-build selection can manufacture this declaration kind. Its exact package,
-path, static telescope, signature, and contract form requirement identity.
-Checked and external machines may target it with the ordinary `satisfies`
-clause. A carrier-qualified requirement is called by its qualified name with
-explicit arguments; the declaration contributes interface identity, not runtime
-authority. Any authority comes from the arguments—for example, a
-linear acknowledgement consumed by `complete`.
+A boundary operation is a requirement inside a boundary trait. When one
+operation needs independent provider selection, use a one-member boundary trait
+rather than a carrier-owned operation declaration. The standalone `boundary
+requirement Package::operation(...);` spelling is retired: a data path is not a
+code owner, and ordinary trait arguments already carry every data, authority and
+token type explicitly. The trait application, requirement name, static
+telescope, signature and contract form requirement identity.
+
+```omega
+pub boundary trait InterruptCompletion {
+    machine complete(acknowledgement: InterruptAcknowledgement)
+        reaches PortIo
+        requires
+            acknowledgement in InterruptAcknowledgement::Pending;
+}
+```
+
+A named implementation maps that row to a checked or external machine;
+`build.omg` selects the implementation. The qualified acknowledgement supplies
+the call's authority premise but neither chooses nor realizes the machine.
 
 An external realization binds an irreducible imported operation to a
 requirement without pretending the binding is executable Omega code:

@@ -1,6 +1,6 @@
 # Boundary calling plans
 
-A boundary requirement selects its calling policy. Omega's internal convention
+A boundary-trait requirement selects its calling policy. Omega's internal convention
 is compiler-owned and is not selected through this surface. Terminal Psi retains
 target-neutral demand; evaluated target plans travel as
 [realization inputs](../terminal-psi/boundary_calls.md), not target policy inside

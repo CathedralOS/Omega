@@ -45,10 +45,12 @@ route as source signatures, checked providers, and consumers migrate together.
 Independently specified whole-field stores retain their explicit destination
 and immutable source under [structural access](structural_access.md).
 
-Trait requirements and explicit top-level boundary requirements have distinct
-canonical kinds. A top-level requirement retains its package-qualified operation,
-static telescope, signature, contract, and visibility. A bodyless implementation,
-bounded effect row, or provider selection cannot synthesize that identity.
+Boundary calls name exact trait requirements. The retired standalone top-level
+boundary-requirement kind is not a second canonical operation identity; migrate
+its package-qualified operations to boundary traits and retain the trait
+application, requirement, static telescope, signature, contract and visibility.
+A bodyless implementation, bounded effect row or provider selection cannot
+synthesize requirement identity.
 
 ## Boundary crash contracts
 
@@ -118,8 +120,8 @@ the exact argument path, identity, and establishment lineage under
 
 ## Checked providers
 
-Checked satisfiers are ordinary Terminal machines with canonical conformance
-rows. A row binds the exact boundary requirement, nominal provider, canonical
+Checked satisfiers are ordinary Terminal machines with canonical implementation
+rows. A row binds the exact boundary-trait requirement, nominal provider, canonical
 adapter, artifact-local machine, signature, and checked service refinement.
 Resolve selected adapters by exact overload, provider implementation, and adapter identity
 against the verified catalog, then admit only those machine identities for the

@@ -1,6 +1,6 @@
 # Assumed binding contracts
 
-The consuming root may link one runtime boundary requirement to the selected
+The consuming root may link one runtime boundary-trait requirement to the selected
 implementation of another while explicitly assuming a semantic relationship
 that ordinary conformance checking has not proved:
 

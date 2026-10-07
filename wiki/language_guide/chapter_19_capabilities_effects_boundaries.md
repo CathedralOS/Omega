@@ -410,12 +410,12 @@ There is no subtraction or masking of services.
 Installation-bound requirements have one restricted symbolic form:
 
 ```omega
-pub boundary requirement InterruptAcknowledgement::complete(
-    acknowledgement: InterruptAcknowledgement
-)
-reaches <= MachineControl + PortIo
-requires
-    acknowledgement in InterruptAcknowledgement::Pending;
+pub boundary trait InterruptCompletion {
+    machine complete(acknowledgement: InterruptAcknowledgement)
+        reaches <= MachineControl + PortIo
+        requires
+            acknowledgement in InterruptAcknowledgement::Pending;
+}
 ```
 
 The selected provider's exact row must fit the bound and be resolved throughout
@@ -836,7 +836,7 @@ Typical layering is:
 ```text
 application
   -> optional checked library adapters
-    -> boundary requirement
+        -> boundary-trait requirement
       -> selected provider and calling plan
         -> imported symbol, syscall, or firmware operation
 ```

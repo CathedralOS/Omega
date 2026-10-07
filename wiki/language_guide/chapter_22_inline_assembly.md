@@ -58,6 +58,43 @@ to interrupt state persist. For example, interrupt masking can cover ordinary
 Omega code between assembly blocks; restoring the saved state remains an
 explicit obligation. A block is not an atomic transaction or rollback scope.
 
+## Label contracts and loops
+
+One assembly body may contain an explicit checked control-flow graph. Labels
+are basic blocks, and ordinary `requires`/`ensures` propositions describe their
+entry and exit states:
+
+```omega
+asm {
+entry requires input > 0:
+    mov eax, input;
+    jmp loop;
+
+loop requires eax > 0:
+    sub eax, 1;
+    jnz loop;
+
+done requires eax == 0 ensures eax == 0:
+    mov output, eax
+}
+```
+
+Every predecessor, including a loop backedge, proves the destination's
+`requires`. The checker applies each instruction's catalog semantics and proves
+the source label's `ensures` on every exit. Registers, flags, modeled memory,
+ordinary places and values, authority, domains and live ownership obligations
+are all part of that symbolic state. Separate `asm` statements still share no
+hidden scratch registers. A conditional terminator's not-taken edge goes to the
+next declared label, or to the body exit, and proves that destination exactly
+like its taken edge.
+
+A proposition over modeled memory performs no load and grants no access. For
+example, `[eax] == 1` at a label asks the proof system about the memory state
+identified by `eax`; an actual load or store separately owes its instruction
+contract. Ambiguous width, address space or backing makes the proposition
+unprovable. Loops use these label invariants and, when termination is required,
+the ordinary ranked-decrease rules rather than an asm-only termination system.
+
 ## No quiet spelling
 
 Direct assembly cannot hide a mechanism's service reach or authority by avoiding
@@ -77,15 +114,11 @@ ordinary foreign-provider path.
 
 ## Control flow remains Omega control flow
 
-```omega
-asm {
-    jmp next_state()
-}
-```
-
-This is a checked transition: its target, arguments, invariants and live
-obligations remain visible. Control transfer must be the final instruction.
-Hidden labels, loops, returns and unwinds are not another control-flow system.
+Internal jumps target declared assembly labels; a jump leaving the body targets
+an Omega state. Both are checked transitions whose target contracts, arguments,
+invariants and live obligations remain visible. Control transfer is the final
+instruction in its label block. Undeclared targets, hidden returns and unwinds
+remain rejected.
 
 Some catalog operations are user-checked; entry/exit operations such as
 return-from-interrupt are deriver-only. A handler cannot use them to bypass its
@@ -163,3 +196,9 @@ assembly is also legitimate; a wrapper is not required for interpretation.
 Preserve exact effects, authority, control exits and state restoration. If those
 obligations cannot be discharged, the assembly rejects; a helper or admission
 receipt cannot leave them open.
+
+A checked implementation of a consuming boundary-trait member may discharge a
+linear argument through assembly only when the instruction semantics and label
+contracts prove the required effect on every normal exit. Merely naming the
+member, reaching the right service or writing an `ensures` clause proves
+nothing by itself.

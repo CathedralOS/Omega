@@ -216,7 +216,7 @@ The Rust reference compiler does not implement this contract yet. Its common
 lowering route retains checked target bodies and opaque contracts in Terminal
 families; native work is scoped without changing that canonical storage. It
 retains concrete checked provider candidates for every family member, including
-conformances to uncalled boundary requirements. Native installation matches
+implementations of uncalled boundary-trait requirements. Native installation matches
 actual callable IDs remaining in the selected deployment's execution scope,
 not whichever candidate first shares a portable overload identity. Generic and
 named per-member conformance transport remains incomplete. The compiler

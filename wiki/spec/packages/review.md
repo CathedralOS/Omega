@@ -160,8 +160,8 @@ compiler-owned metadata on exact nominals, never package-controlled names.
 Each package-owned bodyless external realization, including an unused private
 leaf, has a separate executable-supply trust row. Its self-contained key binds
 the exact callable/signature and tagged requirement application; its value
-retains the exact mechanism. Trait conformance, operator overload, and top-level
-boundary requirement are different requirement roles. Disclosure neither
+retains the exact mechanism. Ordinary trait implementation, boundary-trait
+implementation and operator overload are different requirement roles. Disclosure neither
 selects that provider nor proves its implementation satisfies the contract.
 
 Provider selection, representation availability/selection/demand, and supplied

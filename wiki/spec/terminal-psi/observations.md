@@ -129,7 +129,7 @@ coordinate requires an explicit commitment/collision admission.
 ## Process exit observations
 
 The [process-exit contract](../language/process_exit.md) supplies the canonical
-core `ProcessExit` boundary requirement, domain-bound authority, ordinary reach
+core `ProcessExit` boundary-trait requirement, domain-bound authority, ordinary reach
 propagation, and non-crashing external terminal outcome. The exact canonical
 requirement owns its public effect identity; provider selection preserves it.
 No separate effect name, completion keyword, or public bottom type is required.
