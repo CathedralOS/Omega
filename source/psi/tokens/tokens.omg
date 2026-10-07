@@ -117,9 +117,6 @@ pub data Token [copy] {
     case StringLiteral;
     case Keyword(keyword: KeywordKind);
     case Punctuation(punctuation: PunctuationKind);
-    case Whitespace;
-    case LineComment;
-    case BlockComment;
 }
 
 pub data LexDiagnosticCode [copy] {
@@ -144,12 +141,12 @@ pub data LexDiagnostic [copy] {
 
 pub data TokenStream
 where
-    token_count <= 16384,
-    decoded_length <= 65536,
+    token_count <= 32768,
+    decoded_length <= 131072,
 {
-    tokens: [Token; 16384] in Trapping;
+    tokens: [Token; 32768] in Trapping;
     token_count: u64;
-    decoded: [u8; 65536] in Trapping;
+    decoded: [u8; 131072] in Trapping;
     decoded_length: u64;
     diagnostic: LexDiagnostic;
     accepted: bool;
@@ -186,7 +183,7 @@ machine TokenStream::push(
     token: Token
 ) {
     token_stream.last_retained = false;
-    transition token_stream.token_count < 16384 {
+    transition token_stream.token_count < 32768 {
         true -> retain(token_stream, token)
         _ -> full(token_stream)
     }
@@ -204,7 +201,7 @@ machine TokenStream::push(
 
 machine TokenStream::push_decoded(token_stream: &mut TokenStream, byte: u8) {
     token_stream.last_retained = false;
-    transition token_stream.decoded_length < 65536 {
+    transition token_stream.decoded_length < 131072 {
         true -> retain(token_stream, byte)
         _ -> full(token_stream)
     }

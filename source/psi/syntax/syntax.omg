@@ -459,31 +459,31 @@ pub data SyntaxTrees
 where
     root_count <= 256,
     use_count <= 256,
-    member_count <= 1024,
+    member_count <= 8192,
     data_count <= 256,
     generic_parameter_count <= 256,
     field_count <= 1024,
     data_member_count <= 1024,
     case_count <= 512,
     payload_field_count <= 1024,
-    type_reference_count <= 1024,
-    type_argument_count <= 512,
+    type_reference_count <= 4096,
+    type_argument_count <= 1024,
     machine_count <= 256,
-    parameter_count <= 1024,
-    state_count <= 1024,
-    expression_count <= 2048,
-    argument_count <= 1024,
-    construct_field_count <= 512,
-    statement_count <= 1024,
-    arm_count <= 1024,
-    pattern_field_count <= 512,
-    clause_count <= 512,
+    parameter_count <= 4096,
+    state_count <= 2048,
+    expression_count <= 8192,
+    argument_count <= 4096,
+    construct_field_count <= 2048,
+    statement_count <= 4096,
+    arm_count <= 4096,
+    pattern_field_count <= 2048,
+    clause_count <= 1024,
 {
     roots: [RootItem; 256] in Trapping;
     root_count: u64;
     uses: [UseItem; 256] in Trapping;
     use_count: u64;
-    members: [IdentifierSpan; 1024] in Trapping;
+    members: [IdentifierSpan; 8192] in Trapping;
     member_count: u64;
     data_items: [DataItem; 256] in Trapping;
     data_count: u64;
@@ -497,29 +497,29 @@ where
     case_count: u64;
     payload_fields: [DataField; 1024] in Trapping;
     payload_field_count: u64;
-    type_references: [TypeReference; 1024] in Trapping;
+    type_references: [TypeReference; 4096] in Trapping;
     type_reference_count: u64;
-    type_arguments: [u64; 512] in Trapping;
+    type_arguments: [u64; 1024] in Trapping;
     type_argument_count: u64;
     machines: [MachineItem; 256] in Trapping;
     machine_count: u64;
-    parameters: [Parameter; 1024] in Trapping;
+    parameters: [Parameter; 4096] in Trapping;
     parameter_count: u64;
-    states: [StateItem; 1024] in Trapping;
+    states: [StateItem; 2048] in Trapping;
     state_count: u64;
-    expressions: [Expression; 2048] in Trapping;
+    expressions: [Expression; 8192] in Trapping;
     expression_count: u64;
-    arguments: [u64; 1024] in Trapping;
+    arguments: [u64; 4096] in Trapping;
     argument_count: u64;
-    construct_fields: [ConstructField; 512] in Trapping;
+    construct_fields: [ConstructField; 2048] in Trapping;
     construct_field_count: u64;
-    statements: [Statement; 1024] in Trapping;
+    statements: [Statement; 4096] in Trapping;
     statement_count: u64;
-    arms: [TransitionArm; 1024] in Trapping;
+    arms: [TransitionArm; 4096] in Trapping;
     arm_count: u64;
-    pattern_fields: [PatternField; 512] in Trapping;
+    pattern_fields: [PatternField; 2048] in Trapping;
     pattern_field_count: u64;
-    clauses: [Clause; 512] in Trapping;
+    clauses: [Clause; 1024] in Trapping;
     clause_count: u64;
     diagnostic: ParseDiagnostic;
     accepted: bool;

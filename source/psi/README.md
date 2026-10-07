@@ -3,8 +3,9 @@
 This sibling package owns the Omega-written, target-neutral Psi half of the
 production compiler. `source/omega/` consumes it through the `psi` package
 identity; Omega does not own this source tree. The current live slice contains
-source/span and token representations, a UTF-8-framed lexer, and a fail-closed
-whole-file parser for ordinary `use path::member;` roots,
+source/span and token representations, a UTF-8-framed lexer that stores only
+semantic tokens, and a fail-closed whole-file parser for ordinary
+`use path::member;` roots,
 `[pub] data Name [<generic parameters>] [properties] [where facts] { ... }`
 declarations whose generic parameters, `[copy]`/`[linear]` property lists and
 members share their grammars with the other declarations, with fields
@@ -96,26 +97,26 @@ does the same for name resolution. Its harness lexes, parses and resolves, and
 observes the diagnostic and every type and domain binding. Lexical or parse
 rejection exits without an observation.
 
-On macOS ARM64 both gates build their harnesses natively from a fresh CLI:
-all 209 parser cases and all 66 resolver cases pass. Each gate counts each
+On macOS ARM64 both gates build their harnesses natively from a fresh CLI: all
+236 parser cases and all 79 resolver cases pass. Each gate counts each
 distinct source it runs as one case. No cached executable may stand in for
 that run. Linux and Windows hosts have run neither gate.
 
-The lexer keeps its one canonical mixed `Token` stream; the parser observes it
-through a shared borrow forwarded along its state edges.
-There is no `TokenObservation`, numeric token array, per-token handoff, raw
-parser ordinal, or scalar tag/span cache. Structural parser serialization lives
-only in the gate-owned Omega harness; the exact
-product entrypoint retains phase driving and exit diagnostics. The same parser
-cases and structural observations remain mandatory, and the Python
-decoder stays semantic-free. The former 32-case lexical parity matrix and its
-numeric token protocol are removed; these parser cases do not replace that
-lexical coverage.
-Chapter 1 now fixes **LEXICAL-PROFILE-V1**: ASCII
-identifiers, space/tab/CR/LF whitespace, byte-preserving literal bodies, and no
-codepoint escapes or raw strings. Both maintained lexers reject all retired
-XID, `\u{...}`, raw-string, Unicode-whitespace, and raw quoted-newline spellings
-through the same profile diagnostic; no compiler source may depend on them.
+The lexer keeps its one canonical `Token` stream of semantic tokens
+(whitespace and comments separate tokens but are not stored); the parser
+observes it through a shared borrow forwarded along its state edges. There is
+no `TokenObservation`, numeric token array, per-token handoff, raw parser
+ordinal, or scalar tag/span cache. Structural parser serialization lives only
+in the gate-owned Omega harness; the exact product entrypoint retains phase
+driving and exit diagnostics. The same parser cases and structural
+observations remain mandatory, and the Python decoder stays semantic-free. The
+former 32-case lexical parity matrix and its numeric token protocol are
+removed; these parser cases do not replace that lexical coverage. Chapter 1
+now fixes **LEXICAL-PROFILE-V1**: ASCII identifiers, space/tab/CR/LF
+whitespace, byte-preserving literal bodies, and no codepoint escapes or raw
+strings. Both maintained lexers reject all retired XID, `\u{...}`, raw-string,
+Unicode-whitespace, and raw quoted-newline spellings through the same profile
+diagnostic; no compiler source may depend on them.
 
 The parser entrance is [`parse/parser.omg`](parse/parser.omg): it owns `Parser`,
 initialization, and whole-file root dispatch. [`parse/input.omg`](parse/input.omg)
@@ -130,7 +131,7 @@ owns bounded token selection and trivia traversal;
 | `source/` | Owns bounded source bytes and coordinates shared by the lexer and parser. | Absorb when a replacement representation preserves every live source/coordinate discriminator. |
 | `tokens/` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
-| `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving comment/literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
+| `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
 | `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter and clause grammars (`types.omg`, `generics.omg`, `clause.omg`), data and machine declarations (`data.omg`, `machine.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
 | `resolution/` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
 | `resolve/` | Owns name resolution from syntax and source bytes to the bindings. | Absorb only into the canonical multi-source resolver. |

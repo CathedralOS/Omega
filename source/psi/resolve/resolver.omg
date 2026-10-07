@@ -485,7 +485,7 @@ crashes Trap
         type_reference: TypeReference,
         binding: TypeBinding
     ) {
-        transition row < 1024 {
+        transition row < 4096 {
             true -> store(resolver, source_unit, row, type_reference, binding)
             _ -> invalid()
         }
@@ -506,7 +506,7 @@ crashes Trap
     }
 
     state unqualified(resolver: &mut Resolver, row: u64 in Trapping) {
-        transition row < 1024 {
+        transition row < 4096 {
             true -> unqualified_store(resolver, row)
             _ -> invalid()
         }
@@ -638,7 +638,7 @@ machine Resolver::bind_domain(
     domain: IdentifierSpan
 )
 // The caller binds only references it has bounded by the syntax table.
-requires reference < 1024
+requires reference < 4096
 crashes Trap
 {
     let matched: bool = SourceUnit::span_spells(source_unit, domain.source_span.span, "Wrapping");
@@ -1328,7 +1328,7 @@ crashes Trap
     }
 
     state bounded(resolver: &Resolver, left: u64 in Trapping, right: u64 in Trapping) {
-        transition left < 1024 && right < 1024 {
+        transition left < 4096 && right < 4096 {
             true -> compare(resolver, left, right)
             _ -> different()
         }

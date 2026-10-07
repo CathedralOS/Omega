@@ -1060,10 +1060,10 @@ def main() -> None:
         member_count=256,
     )
 
-    exact_members = b"use " + b"::".join(f"n{i}".encode() for i in range(1024)) + b";"
+    exact_members = b"use " + b"::".join(f"n{i}".encode() for i in range(8192)) + b";"
     exact_member_status, exact_member_payload = run(program, exact_members)
     assert exact_member_status == 0
-    assert len(decode(exact_member_payload).members) == 1024
+    assert len(decode(exact_member_payload).members) == 8192
     overflowing_member_start = len(exact_members) - 1 + 2
     rejected(
         program,
@@ -1071,7 +1071,7 @@ def main() -> None:
         exact_members[:-1] + b"::overflow;",
         7,
         (overflowing_member_start, overflowing_member_start + 8),
-        member_count=1024,
+        member_count=8192,
     )
 
     exact_fields = b"data Huge { " + b"".join(
@@ -1379,11 +1379,11 @@ def main() -> None:
         machine_count=256,
     )
     exact_parameters = b"machine f(" + b", ".join(
-        f"p{index}: T".encode() for index in range(1024)
+        f"p{index}: T".encode() for index in range(4096)
     ) + b") {}"
     exact_parameter_status, exact_parameter_payload = run(program, exact_parameters)
     assert exact_parameter_status == 0
-    assert len(decode(exact_parameter_payload).parameters) == 1024
+    assert len(decode(exact_parameter_payload).parameters) == 4096
     overflow_parameter = exact_parameters[:-4] + b", overflow: T) {}"
     overflow_parameter_start = len(exact_parameters) - 4 + 2
     rejected(
@@ -1392,15 +1392,15 @@ def main() -> None:
         overflow_parameter,
         53,
         (overflow_parameter_start, overflow_parameter_start + 8),
-        parameter_count=1024,
-        type_reference_count=1024,
+        parameter_count=4096,
+        type_reference_count=4096,
     )
     exact_states = b"machine f() { " + b"".join(
-        f"state s{index} {{}} ".encode() for index in range(1024)
+        f"state s{index} {{}} ".encode() for index in range(2048)
     ) + b"}"
     exact_state_status, exact_state_payload = run(program, exact_states)
     assert exact_state_status == 0
-    assert len(decode(exact_state_payload).states) == 1024
+    assert len(decode(exact_state_payload).states) == 2048
     overflow_state_start = len(exact_states) - 1
     rejected(
         program,
@@ -1408,7 +1408,7 @@ def main() -> None:
         exact_states[:-1] + b"state overflow {} }",
         54,
         (overflow_state_start, overflow_state_start + 5),
-        state_count=1024,
+        state_count=2048,
     )
 
     # Machine bodies. Each accepted case pins the four body tables exactly:

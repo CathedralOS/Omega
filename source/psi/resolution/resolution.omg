@@ -90,10 +90,10 @@ pub data ResolveDiagnostic [copy] {
 
 pub data NameResolution
 where
-    binding_count <= 1024,
+    binding_count <= 4096,
 {
-    type_bindings: [TypeBinding; 1024];
-    domain_bindings: [DomainBinding; 1024];
+    type_bindings: [TypeBinding; 4096];
+    domain_bindings: [DomainBinding; 4096];
     binding_count: u64;
     diagnostic: ResolveDiagnostic;
     accepted: bool;

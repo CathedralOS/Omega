@@ -324,7 +324,7 @@ crashes Trap
     }
 
     state store(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, statement: Statement) {
-        transition parser.output.statement_count < 1024 {
+        transition parser.output.statement_count < 4096 {
             true -> store_bounded(parser, input, unsupported, statement)
             _ -> reject(parser, input, ParseDiagnosticCode::StatementCapacityExceeded)
         }
@@ -586,7 +586,7 @@ crashes Trap
         value: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        transition parser.output.pattern_field_count < 512 {
+        transition parser.output.pattern_field_count < 2048 {
             true -> pattern_field_stored(parser, input, unsupported, subject, pattern, has_value, value, end)
             _ -> reject(parser, input, ParseDiagnosticCode::PatternFieldCapacityExceeded)
         }
@@ -796,7 +796,7 @@ crashes Trap
         subject: u64 in Trapping,
         arm: TransitionArm
     ) {
-        transition parser.output.arm_count < 1024 {
+        transition parser.output.arm_count < 4096 {
             true -> arm_stored(parser, input, unsupported, has_subject, subject, arm)
             _ -> reject(parser, input, ParseDiagnosticCode::ArmCapacityExceeded)
         }

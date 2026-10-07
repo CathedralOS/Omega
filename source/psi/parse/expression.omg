@@ -188,7 +188,7 @@ crashes Trap
     }
 
     state path_member(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.member_count < 1024 {
+        transition parser.output.member_count < 8192 {
             true -> path_member_bounded(parser, input)
             _ -> member_full(parser, input)
         }
@@ -690,7 +690,7 @@ crashes Trap
 machine Parser::emit_expression(parser: &mut Parser, input: &TokenStream, node: Expression)
 crashes Trap
 {
-    transition parser.output.expression_count < 2048 {
+    transition parser.output.expression_count < 8192 {
         true -> store(parser, input, node)
         _ -> full(parser, input)
     }
@@ -1107,7 +1107,7 @@ crashes Trap
     }
 
     state capacity(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
-        transition parser.output.argument_count < 1024 {
+        transition parser.output.argument_count < 4096 {
             true -> copy(parser, input, base, cursor)
             _ -> full(parser, input)
         }
@@ -1157,7 +1157,7 @@ crashes Trap
     }
 
     state capacity(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
-        transition parser.output.construct_field_count < 512 {
+        transition parser.output.construct_field_count < 2048 {
             true -> copy(parser, input, base, cursor)
             _ -> full(parser, input)
         }

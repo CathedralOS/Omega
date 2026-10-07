@@ -18,14 +18,14 @@ machine Parser::load_current(parser: &mut Parser, input: &TokenStream) {
     }
 
     state array_bound(parser: &mut Parser, candidate: u64) {
-        transition candidate < 16384 {
+        transition candidate < 32768 {
             true -> present(parser, candidate)
             _ -> absent(parser)
         }
     }
 
     state present(parser: &mut Parser, retained: u64)
-    requires retained <= 16383
+    requires retained <= 32767
     {
         parser.current_index = retained;
         parser.current_present = true;
@@ -38,51 +38,11 @@ machine Parser::load_current(parser: &mut Parser, input: &TokenStream) {
 
 machine Parser::advance(parser: &mut Parser, input: &TokenStream) {
     parser.cursor = parser.cursor + 1;
-    Parser::skip_trivia(parser, input);
-}
-
-machine Parser::skip_trivia(parser: &mut Parser, input: &TokenStream) {
-    transition parser.cursor < input.token_count {
-        true -> classify(parser, input)
-        _ -> done()
-    }
-
-    state classify(parser: &mut Parser, input: &TokenStream) {
-        Parser::load_current(parser, input);
-        transition { _ -> classify_loaded(parser, input) }
-    }
-
-    state classify_loaded(parser: &mut Parser, input: &TokenStream) {
-        transition parser.current_present {
-            true -> classify_present(parser, input)
-            _ -> done()
-        }
-    }
-
-    state classify_present(parser: &mut Parser, input: &TokenStream) {
-        let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Whitespace -> advance(parser, input)
-            Token::LineComment -> advance(parser, input)
-            Token::BlockComment -> advance(parser, input)
-            _ -> done()
-        }
-    }
-
-    state advance(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        transition parser.cursor < input.token_count {
-            true -> classify(parser, input)
-            _ -> done()
-        }
-    }
-
-    state done() { }
 }
 
 // Grammar-step helpers. Each consumes at most the current token: on a match
 // it records the token's span in `token_start`/`token_end` and advances past
-// trailing trivia; otherwise it rejects with `code` at the token, or at the
+// to the next token; otherwise it rejects with `code` at the token, or at the
 // source end when input is exhausted. Callers continue only while
 // `output.accepted` holds.
 machine Parser::expect_punctuation(
@@ -210,7 +170,7 @@ crashes Trap
     }
 }
 
-// Record the current token's span and advance past it and trailing trivia.
+// Record the current token's span and advance past it.
 // Callers have already established that a token is present.
 machine Parser::take_current(parser: &mut Parser, input: &TokenStream)
 crashes Trap
@@ -275,7 +235,7 @@ crashes Trap
     }
 
     state byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
-        transition cursor < 65536 {
+        transition cursor < 131072 {
             true -> compare_byte(input, cursor, spelling, index)
             _ -> absent()
         }

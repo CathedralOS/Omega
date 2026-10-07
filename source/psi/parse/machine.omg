@@ -206,7 +206,7 @@ crashes Trap
 machine Parser::parse_state_member(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
-    transition parser.output.state_count < 1024 {
+    transition parser.output.state_count < 2048 {
         true -> keyword(parser, input)
         _ -> state_full(parser, input)
     }
@@ -274,7 +274,7 @@ crashes Trap
     }
 
     state retain_capacity(parser: &mut Parser) {
-        transition parser.output.state_count < 1024 {
+        transition parser.output.state_count < 2048 {
             true -> retain(parser)
             _ -> done()
         }
@@ -324,7 +324,7 @@ crashes Trap
     }
 
     state parameter(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        transition parser.output.parameter_count < 1024 {
+        transition parser.output.parameter_count < 4096 {
             true -> parameter_name(parser, input, code)
             _ -> parameter_full(parser, input)
         }
@@ -363,7 +363,7 @@ crashes Trap
     }
 
     state retain_capacity(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.parameter_count < 1024 {
+        transition parser.output.parameter_count < 4096 {
             true -> retain(parser, input)
             _ -> parameter_full(parser, input)
         }

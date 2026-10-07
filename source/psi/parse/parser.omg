@@ -16,7 +16,7 @@ use psi::tokens::tokens;
 // and nothing is moved out of the owning lexer.
 pub data Parser
 where
-    current_index <= 16383,
+    current_index <= 32767,
     expression_operand_depth <= 64,
     expression_operator_depth <= 64,
     expression_frame_depth <= 32,
@@ -177,7 +177,6 @@ crashes Trap
     transition { _ -> next_root(parser, input) }
 
     state next_root(parser: &mut Parser, input: &TokenStream) {
-        Parser::skip_trivia(parser, input);
         transition parser.cursor < input.token_count {
             true -> classify_root(parser, input)
             _ -> done()
@@ -338,7 +337,7 @@ crashes Trap
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        transition parser.output.member_count < 1024 {
+        transition parser.output.member_count < 8192 {
             true -> retain_member_bounded(parser, input, start, end)
             _ -> member_full(parser, start, end)
         }

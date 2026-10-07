@@ -5891,8 +5891,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64,
   `OMEGA_CLI=<fresh optimized CLI> OMEGA_TARGET=macos_arm64` with
-  `tests/psi/parser/test-parser.sh` passes all 219 parser cases, and
-  `tests/psi/resolver/test-resolver.sh` passes all 68 resolver cases; each
+  `tests/psi/parser/test-parser.sh` passes all 236 parser cases, and
+  `tests/psi/resolver/test-resolver.sh` passes all 79 resolver cases; each
   gate builds its harness natively in about 2.5 minutes. Machines parse with
   signatures, entry and state statements (`let`, assignment, call and tail
   expressions, `crash`, `transition` blocks with guard, wildcard, literal and

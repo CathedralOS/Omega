@@ -20,10 +20,10 @@ pub data SourceSpan [copy] {
 
 pub data SourceUnit
 where
-    length <= 65536,
+    length <= 131072,
 {
     id: SourceId;
-    bytes: [u8; 65536] in Trapping;
+    bytes: [u8; 131072] in Trapping;
     length: u64;
     last_retained: bool;
 }
@@ -36,7 +36,7 @@ machine SourceUnit::clear(source_unit: &mut SourceUnit, id: SourceId) {
 
 machine SourceUnit::append(source_unit: &mut SourceUnit, byte: u8) {
     source_unit.last_retained = false;
-    transition source_unit.length < 65536 {
+    transition source_unit.length < 131072 {
         true -> retain(source_unit, byte)
         _ -> full(source_unit)
     }
@@ -64,14 +64,14 @@ machine SourceUnit::byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping
     }
 
     state retain(source_unit: &SourceUnit, index: u64 in Trapping) {
-        transition index < 65536 {
+        transition index < 131072 {
             true -> read(source_unit, index)
             _ -> absent()
         }
     }
 
     state read(source_unit: &SourceUnit, index: u64 in Trapping) {
-        // `bytes` is `[u8; 65536] in Trapping`, so the element read carries
+        // `bytes` is `[u8; 131072] in Trapping`, so the element read carries
         // the array's policy while this machine results in a plain `u8`.
         source_unit.bytes[index] as u8
     }

@@ -237,7 +237,7 @@ crashes Trap
     }
 
     state store(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
-        transition parser.output.clause_count < 512 {
+        transition parser.output.clause_count < 1024 {
             true -> stored(parser, input, owner, clause)
             _ -> reject(parser, input, ParseDiagnosticCode::ClauseCapacityExceeded)
         }
@@ -328,7 +328,7 @@ machine Parser::clause_admitted(owner: ClauseOwner, kind: ClauseKind) -> bool {
 machine Parser::append_member(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, end: u64 in Trapping)
 crashes Trap
 {
-    transition parser.output.member_count < 1024 {
+    transition parser.output.member_count < 8192 {
         true -> append(parser, start, end)
         _ -> full(parser, input)
     }

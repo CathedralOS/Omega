@@ -4,7 +4,9 @@ use psi::tokens::tokens;
 // Source-to-token spelling phase for the first product-source live slice.
 // Chapter 1's LEXICAL-PROFILE-V1 is authoritative: ASCII identifiers,
 // space/tab/CR/LF whitespace, byte-preserving cooked literals, and no raw
-// strings or codepoint escapes.
+// strings or codepoint escapes. Whitespace and comments separate tokens and
+// are checked (an unterminated block comment rejects) but are not stored:
+// no consumer reads them, and the stream holds only what the parser reads.
 
 pub data Lexer {
     source: SourceUnit;
@@ -538,15 +540,10 @@ machine Lexer::lex_whitespace(lexer: &mut Lexer) {
         transition { _ -> scan(lexer) }
     }
 
-    state finish(lexer: &mut Lexer) {
-        lexer.token_end = lexer.cursor;
-        Lexer::push_token(lexer, Token::Whitespace);
-    }
+    state finish(lexer: &mut Lexer) {}
 }
 
 machine Lexer::lex_line_comment(lexer: &mut Lexer) {
-    lexer.token_start = lexer.cursor;
-    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
     lexer.cursor = lexer.cursor + 2;
     transition { _ -> scan(lexer) }
 
@@ -571,20 +568,14 @@ machine Lexer::lex_line_comment(lexer: &mut Lexer) {
     }
 
     state consume_newline(lexer: &mut Lexer) {
-        lexer.token_end = lexer.cursor;
         lexer.cursor = lexer.cursor + 1;
-        Lexer::push_token(lexer, Token::LineComment);
     }
 
-    state finish(lexer: &mut Lexer) {
-        lexer.token_end = lexer.cursor;
-        Lexer::push_token(lexer, Token::LineComment);
-    }
+    state finish(lexer: &mut Lexer) {}
 }
 
 machine Lexer::lex_block_comment(lexer: &mut Lexer) {
     lexer.token_start = lexer.cursor;
-    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
     lexer.cursor = lexer.cursor + 2;
     lexer.comment_depth = 1;
     transition { _ -> scan(lexer) }
@@ -642,10 +633,7 @@ machine Lexer::lex_block_comment(lexer: &mut Lexer) {
         transition { _ -> scan(lexer) }
     }
 
-    state finish(lexer: &mut Lexer) {
-        lexer.token_end = lexer.cursor;
-        Lexer::push_token(lexer, Token::BlockComment);
-    }
+    state finish(lexer: &mut Lexer) {}
 
     state unterminated(lexer: &mut Lexer) {
         let start: u64 in Trapping = lexer.token_start;
