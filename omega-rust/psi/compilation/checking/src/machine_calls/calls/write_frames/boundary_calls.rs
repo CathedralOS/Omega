@@ -1052,6 +1052,26 @@ fn boundary_argument_origins(
 /// `single_boundary_result_origin` reads the distinction; write-path
 /// consumers read `path` alone, where a storage root already covers every
 /// interior subpath.
+/// The signature's exclusive-result referent — `None` when the result is
+/// not an exclusive reference at all.
+fn exclusive_result_referent(
+    program: &TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+    bindings: &super::type_instantiation::TypeBindings,
+) -> Option<TypeReferenceHandle> {
+    let result_type = live_unconstrained_type(program, signature.return_type)?;
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program.type_reference_table.type_reference(result_type)
+    else {
+        return None;
+    };
+    if !access.is_exclusive() {
+        return None;
+    }
+    live_unconstrained_type(program, substituted_head(program, *referee, bindings))
+}
+
 fn boundary_result_origins(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -1083,18 +1103,7 @@ fn boundary_result_origins(
         arguments,
         bindings,
     )?;
-    let result_type = live_unconstrained_type(program, signature.return_type)?;
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program.type_reference_table.type_reference(result_type)
-    else {
-        return None;
-    };
-    if !access.is_exclusive() {
-        return None;
-    }
-    let referent =
-        live_unconstrained_type(program, substituted_head(program, *referee, &bindings))?;
+    let referent = exclusive_result_referent(program, signature, &bindings)?;
 
     let mut origins = Vec::new();
     if has_runtime_receiver {
@@ -1321,18 +1330,7 @@ fn requirement_result_origins(
         arguments,
         Vec::new(),
     )?;
-    let result_type = live_unconstrained_type(program, signature.return_type)?;
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program.type_reference_table.type_reference(result_type)
-    else {
-        return None;
-    };
-    if !access.is_exclusive() {
-        return None;
-    }
-    let referent =
-        live_unconstrained_type(program, substituted_head(program, *referee, &bindings))?;
+    let referent = exclusive_result_referent(program, signature, &bindings)?;
 
     exclusive_boundary_result_origins(
         program,
