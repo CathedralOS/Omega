@@ -29,7 +29,6 @@ pub(crate) fn plain_record_call(
         result:
             AbstractStructuralCallResult::Structural {
                 result,
-                returned_claim_transfers,
                 selected_evidence,
             },
         claim_transfers,
@@ -55,7 +54,6 @@ pub(crate) fn plain_record_call(
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && claim_transfers.is_empty()
-        && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
         && *crash_continuations == contract.crash_routes
         && selected_evidence.is_empty()

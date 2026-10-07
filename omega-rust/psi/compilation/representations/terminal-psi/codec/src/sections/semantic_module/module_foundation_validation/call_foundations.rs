@@ -8,7 +8,7 @@ use super::{
 };
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, Operation, OperationKind,
     OperationResult, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
@@ -185,7 +185,6 @@ pub(super) fn validate_call_structural(
         callee,
         structural_arguments,
         claim_transfers,
-        returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
         ..
@@ -194,7 +193,6 @@ pub(super) fn validate_call_structural(
         callee,
         structural_arguments,
         claim_transfers,
-        returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
         ..
@@ -238,7 +236,6 @@ pub(super) fn validate_call_structural(
             .all(|lane| lane.machine != callee.id)
         && structural_arguments.is_empty()
         && claim_transfers.is_empty()
-        && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
         && crash_continuations.is_empty()
         && actual_result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -250,14 +247,10 @@ pub(super) fn validate_call_structural(
     let claim_free_result = is_claim_free_structural_call(actual_result, callee)
         && selected_evidence.is_empty()
         && claim_transfers.is_empty()
-        && returned_claim_transfers.is_empty()
         && requirement_obligations.len() == callee.contract.requires.len();
     if arguments.len() != callee.parameters.len()
         || structural_arguments.len() != callee.structural_parameters.len()
         || (!selected_evidence.is_empty() && !exact_payloadless)
-        || (!exact_payloadless
-            && !claim_free_result
-            && (structural_arguments.len() != 1 || callee.structural_parameters.len() != 1))
         || actual_result.structural_type != expected_result.structural_type
         || actual_result.multiplicity != expected_result.multiplicity
         || actual_result.qualifications != expected_result.qualifications
@@ -305,14 +298,13 @@ pub(super) fn validate_call_structural(
             StructuralArgumentPresentation::Ordinary,
         );
     }
-    if actual_result.claims.is_empty()
-        || claim_transfers.is_empty()
-        || claim_transfers
-            .iter()
-            .any(|transfer| transfer.argument_index != 0)
-        || returned_claim_transfers.is_empty()
-    {
-        return malformed("structural call requires a nonempty whole-root claim map");
+    // Input claims cross at their owned arguments; the result binds the
+    // claims the callee's returning edge holds, one per result path. The
+    // correspondence is by path, so a callee may return different inputs or
+    // fresh establishments at one path on different exits, and the caller
+    // never names a callee-local claim identity.
+    if requirement_obligations.len() != callee.contract.requires.len() {
+        return malformed("structural call obligations disagree with its callee contract");
     }
     let mut result_paths = Vec::with_capacity(actual_result.claims.len());
     for binding in &actual_result.claims {
@@ -330,56 +322,32 @@ pub(super) fn validate_call_structural(
     let caller_result_claims = actual_result
         .claims
         .iter()
-        .map(|binding| (binding.claim, binding.path.as_slice()))
-        .collect::<BTreeMap<_, _>>();
-    let callee_claims = callee
-        .entry_claims
-        .iter()
-        .map(|claim| (claim.claim, claim.path.as_slice()))
-        .collect::<BTreeMap<_, _>>();
-    let transferred_caller_claims = claim_transfers
-        .iter()
-        .map(|transfer| transfer.claim)
+        .map(|binding| binding.claim)
         .collect::<BTreeSet<_>>();
-    let returned_callee_claims = returned_claim_transfers
-        .iter()
-        .map(|transfer| transfer.callee_claim)
-        .collect::<BTreeSet<_>>();
-    let returned_caller_claims = returned_claim_transfers
-        .iter()
-        .map(|transfer| transfer.caller_claim)
-        .collect::<BTreeSet<_>>();
-    if callee_claims.is_empty()
-        || callee_claims.len() != callee.entry_claims.len()
-        || caller_result_claims.len() != actual_result.claims.len()
-        || transferred_caller_claims.len() != claim_transfers.len()
-        || returned_callee_claims.len() != returned_claim_transfers.len()
-        || returned_caller_claims.len() != returned_claim_transfers.len()
-        || returned_callee_claims != callee_claims.keys().copied().collect()
-        || returned_caller_claims != caller_result_claims.keys().copied().collect()
-        || transferred_caller_claims != caller_result_claims.keys().copied().collect()
-        || returned_claim_transfers.iter().any(|transfer| {
-            callee_claims.get(&transfer.callee_claim)
-                != caller_result_claims.get(&transfer.caller_claim)
-        })
+    let whole_root_claim =
+        matches!(actual_result.claims.as_slice(), [binding] if binding.path.is_empty());
+    if caller_result_claims.len() != actual_result.claims.len()
+        || match actual_result.multiplicity {
+            StructuralMultiplicity::Linear => !whole_root_claim,
+            StructuralMultiplicity::Affine => actual_result
+                .claims
+                .iter()
+                .any(|binding| binding.path.is_empty()),
+            StructuralMultiplicity::Unrestricted => !actual_result.claims.is_empty(),
+        }
     {
-        return malformed("structural call returned claims disagree with its result bindings");
+        return malformed("structural call result claims disagree with its multiplicity");
     }
-    let expected_callee_returns = callee
-        .entry_claims
-        .iter()
-        .map(|claim| claim.claim)
-        .collect::<Vec<_>>();
     if callee.blocks.iter().any(|block| {
         matches!(
             &block.terminator,
             Terminator::ReturnStructural {
                 returned_claims,
                 ..
-            } if returned_claims != &expected_callee_returns
+            } if returned_claims.len() != actual_result.claims.len()
         )
     }) {
-        return malformed("structural callee return does not preserve its exact entry claim map");
+        return malformed("structural callee return disagrees with the caller's result claims");
     }
     validate_structural_arguments(
         module,

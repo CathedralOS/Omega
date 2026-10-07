@@ -13,7 +13,7 @@ use semantic_vocabulary::{
 use target_operations::CallSiteOwner;
 use terminal_psi::{
     ClaimTransfer, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
-    StructuralResultClaimBinding, StructuralResultClaimTransfer, StructuralResultDeclaration,
+    StructuralResultClaimBinding, StructuralResultDeclaration,
 };
 
 use crate::installation_record::codec::{
@@ -305,7 +305,6 @@ fn encode_structural_result(
         && result.function_result.projected_qualifications.is_empty()
         && result.operation_result.claims.len() == 1
         && result.operation_result.claims[0].path.is_empty()
-        && result.returned_claim_transfers.len() == 1
         && result.returned_claims.len() == 1
         && result.caller_result_placement == result.callee_result_placement;
     let claim_free_affine = result.operation_result.multiplicity == StructuralMultiplicity::Affine
@@ -316,7 +315,6 @@ fn encode_structural_result(
         && result.operation_result.claims.is_empty()
         && result.function_result.qualifications.is_empty()
         && result.function_result.projected_qualifications.is_empty()
-        && result.returned_claim_transfers.is_empty()
         && result.returned_claims.is_empty()
         && result.caller_result_placement == result.callee_result_placement;
     if (!claim_bearing_linear && !claim_free_affine)
@@ -395,7 +393,6 @@ fn encode_structural_result(
         || result.operation_result.qualifications != result.function_result.qualifications
         || result.operation_result.claims.len() != 1
         || !result.operation_result.claims[0].path.is_empty()
-        || result.returned_claim_transfers.len() != 1
         || result.returned_claims.len() != 1
         || result.caller_result_placement != result.callee_result_placement
     {
@@ -423,8 +420,6 @@ fn encode_structural_result(
     for qualification in &result.function_result.qualifications {
         push_u64(bytes, qualification.get());
     }
-    push_u64(bytes, result.returned_claim_transfers[0].callee_claim.get());
-    push_u64(bytes, result.returned_claim_transfers[0].caller_claim.get());
     push_u64(bytes, result.returned_claims[0].get());
     encode_direct_placement(bytes, &result.caller_result_placement)?;
     encode_direct_placement(bytes, &result.callee_result_placement)?;
@@ -746,7 +741,6 @@ fn decode_structural_result(
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 },
-                returned_claim_transfers: Vec::new(),
                 returned_claims: Vec::new(),
                 caller_result_placement,
                 callee_result_placement,
@@ -789,10 +783,6 @@ fn decode_structural_result(
                 .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
         );
     }
-    let callee_claim =
-        ClaimId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
-    let caller_claim =
-        ClaimId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
     let returned_claim =
         ClaimId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
     let caller_result_placement = decode_direct_placement(reader)?;
@@ -818,10 +808,6 @@ fn decode_structural_result(
             qualifications: function_qualifications,
             projected_qualifications: Vec::new(),
         },
-        returned_claim_transfers: vec![StructuralResultClaimTransfer {
-            callee_claim,
-            caller_claim,
-        }],
         returned_claims: vec![returned_claim],
         caller_result_placement,
         callee_result_placement,
@@ -829,9 +815,7 @@ fn decode_structural_result(
     };
     if result.operation_result.structural_type != result.function_result.structural_type
         || result.operation_result.qualifications != result.function_result.qualifications
-        || result.operation_result.claims[0].claim
-            != result.returned_claim_transfers[0].caller_claim
-        || result.returned_claims[0] != result.returned_claim_transfers[0].caller_claim
+        || result.returned_claims[0] != result.operation_result.claims[0].claim
         || result.caller_result_placement != result.callee_result_placement
     {
         return Err(InstallationError::InvalidInternalUnitCall(machine));
@@ -947,7 +931,6 @@ mod tests {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             },
-            returned_claim_transfers: Vec::new(),
             returned_claims: Vec::new(),
             caller_result_placement: placement.clone(),
             callee_result_placement: placement,

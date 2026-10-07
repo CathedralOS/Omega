@@ -39,7 +39,7 @@ pub use affine_cleanup_plans::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
     CheckedNormalCleanupAction, CheckedNormalExitCleanupPlan,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedStructuralCallCustodyPlan, CheckedStructuralReturnedClaimTransferPlan,
+    CheckedStructuralCallCustodyPlan, CheckedStructuralResultClaimPlan,
     CheckedUnitClaimTransferPlan, CheckedUnitNominalAffineCallerRequirementPlan,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
     CheckedUnitPartialAffineDiscardPlan,

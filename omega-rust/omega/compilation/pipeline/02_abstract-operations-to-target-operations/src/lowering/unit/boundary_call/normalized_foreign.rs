@@ -111,9 +111,10 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     // The control graph already retains exact dominating
                     // establishments and block arrivals. Calls consume that
                     // inventory, not a second search for a favored producer.
+                    // Claims the home holds are custody the call's completion
+                    // receipts end, not bytes the foreign leaf transports.
                     if home.place() != argument.place
                         || home.access() != StructuralAccess::Owned
-                        || home.has_claims()
                         || !home.qualifications().is_empty()
                         || !home.projected_qualifications().is_empty()
                     {
@@ -300,17 +301,17 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             };
             // Borrowing does not transfer the owner's multiplicity. Owned
             // whole-place transport retains the exact source contract; a
-            // projected member move surrenders the leaf as affine custody —
-            // the moved occurrence is used at most once while the ownership
-            // frontier tracks the hole it leaves. Leaf-type agreement below
-            // binds the subtree to the parameter's type, which stores no
-            // multiplicity of its own.
-            let expected_multiplicity = if argument.access != StructuralAccess::Owned {
-                terminal_psi::StructuralMultiplicity::Unrestricted
+            // projected member move surrenders the leaf's own custody —
+            // affine, or linear when the member carries its own claim. The
+            // ownership replay already placed every completed claim at this
+            // owned argument; leaf-type agreement below binds the subtree to
+            // the parameter's type, which stores no multiplicity of its own.
+            let multiplicity_matches = if argument.access != StructuralAccess::Owned {
+                parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             } else if argument.path.is_empty() {
-                source_multiplicity
+                parameter.multiplicity == source_multiplicity
             } else {
-                terminal_psi::StructuralMultiplicity::Affine
+                parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             };
             let projects_view_backing = argument.access != StructuralAccess::Owned
                 && !argument.path.is_empty()
@@ -322,7 +323,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     });
             if projected_type != parameter.structural_type
                 || argument.access != parameter.access
-                || parameter.multiplicity != expected_multiplicity
+                || !multiplicity_matches
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || (!projects_view_backing

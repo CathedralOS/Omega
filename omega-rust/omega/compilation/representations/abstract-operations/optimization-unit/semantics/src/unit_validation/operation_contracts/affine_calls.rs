@@ -17,7 +17,6 @@ pub(crate) fn exact_plain_affine_structural_call(
         result:
             AbstractStructuralCallResult::Structural {
                 result,
-                returned_claim_transfers,
                 selected_evidence,
             },
         arguments,
@@ -84,7 +83,6 @@ pub(crate) fn exact_plain_affine_structural_call(
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && claim_transfers.is_empty()
-        && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
         && *crash_continuations == contract.crash_routes
         && selected_evidence.is_empty()

@@ -92,8 +92,18 @@ pub(in crate::execution::terminal_unit) fn signature(
             reference,
             validation::ContentsRequirement::RepresentedOwned,
         );
+    // An affine owner of linear members returns their claims with it; the
+    // caller binds them by path, so their custody needs no storage judgment
+    // beyond finite owned contents.
+    let claim_bearing = !validation::linear_claim_frontier(program, reference).is_empty()
+        && validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::LinearOwned,
+        );
     if (is_reference(program, reference) && !view_result)
         || (multiplicity != Multiplicity::Linear
+            && !claim_bearing
             && !owned_bytes
             && ((!view_result && !qualifications.is_empty())
                 || (!view_result

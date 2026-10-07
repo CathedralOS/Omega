@@ -323,9 +323,10 @@ pub(in crate::legalization) fn structural_argument_at(
         // Reconstruct local storage from the optimized source's exact owner,
         // shared with ordinary aggregate calls. A retained target row cannot
         // grant backing or move an establishment across its consuming call.
+        // Claims are custody the call's completion receipts end, not bytes
+        // the foreign leaf transports.
         let home = super::aggregate_results::result_home(optimized, semantic.place, plan)?;
         if home.access() != terminal_psi::StructuralAccess::Owned
-            || home.has_claims()
             || !home.qualifications().is_empty()
             || !home.projected_qualifications().is_empty()
         {
@@ -398,8 +399,8 @@ pub(in crate::legalization) fn structural_argument_at(
             // an owned source; a projected member moves its subtree by value
             // out of any root that can surrender it — an owned root's
             // partial custody or an exclusive borrow's referent hole — and
-            // presents the moved occurrence's affine custody: used at most
-            // once while the ownership frontier tracks the hole it leaves.
+            // presents the moved occurrence's own custody: used at most once
+            // while the ownership frontier tracks the hole it leaves.
             let admitted_root = if semantic.path.is_empty() {
                 root_access == StructuralAccess::Owned
             } else {
@@ -417,8 +418,15 @@ pub(in crate::legalization) fn structural_argument_at(
                 policy,
             )
             .map_err(|_| LegalizationError::custody())?;
+            // A projected member surrenders its own custody: affine, or
+            // linear when the member carries its own claim. Ownership replay
+            // already placed every completed claim at this owned argument.
             let multiplicity = if semantic.path.is_empty() {
                 root_multiplicity
+            } else if declaration_parameter.multiplicity
+                == terminal_psi::StructuralMultiplicity::Linear
+            {
+                terminal_psi::StructuralMultiplicity::Linear
             } else {
                 terminal_psi::StructuralMultiplicity::Affine
             };

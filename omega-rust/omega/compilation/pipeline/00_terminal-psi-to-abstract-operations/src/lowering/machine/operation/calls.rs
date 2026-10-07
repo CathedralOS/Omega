@@ -58,7 +58,6 @@ pub(super) fn lower(
                 terminal_psi::OperationResult::Structural(result) => {
                     AbstractStructuralCallResult::Structural {
                         result: result.clone(),
-                        returned_claim_transfers: Vec::new(),
                         selected_evidence: Vec::new(),
                     }
                 }
@@ -112,7 +111,6 @@ pub(super) fn lower(
             callee,
             structural_arguments,
             claim_transfers,
-            returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
             selected_evidence,
@@ -124,7 +122,6 @@ pub(super) fn lower(
                 psi_operation: operation.id,
                 result: AbstractStructuralCallResult::Structural {
                     result,
-                    returned_claim_transfers,
                     selected_evidence,
                 },
                 callee: callee.into(),
@@ -142,7 +139,6 @@ pub(super) fn lower(
             erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
-            returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
         } => {
@@ -153,7 +149,6 @@ pub(super) fn lower(
                 psi_operation: operation.id,
                 result: AbstractStructuralCallResult::Structural {
                     result,
-                    returned_claim_transfers,
                     selected_evidence: Vec::new(),
                 },
                 callee: callee.into(),

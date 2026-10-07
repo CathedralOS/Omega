@@ -25,10 +25,14 @@ only at the validated return edge. Scalar and Unit machines cannot declare
 structural result places.
 
 A structural call has a distinct operation-result place. Argument transfer and
-returned-claim transfer are separate records: returned callee claims continue
-caller custody, rather than establish new claims. The result and its claims
-enter the caller frontier only after successful completion. A callee crash
-creates no result.
+result claim binding are separate records. Each result claim names its path
+beneath the result place and continues the claim the callee's returning edge
+holds at that same path, rather than establishing a new one; the caller names
+no callee claim identity. Different returning edges may hold different claims
+at one path (two inputs exchanged on two arms, or a fresh establishment on
+one), so a result's lineage can depend on the exit taken while its claim
+frontier does not. The result and its claims enter the caller frontier only
+after successful completion. A callee crash creates no result.
 
 Whole-value identity is not determined by ABI fragment width. Source and result
 places remain distinct through lowering, assignment, emission, and installation.
@@ -102,9 +106,12 @@ an independently checked range obligation; nested fields transfer already
 completed whole owned records. See [structural access](structural_access.md#complete-record-construction)
 for exact child custody and the projected-owned construction limit.
 
-Results are unqualified, claim-free, and affine or unrestricted. Erased fields
-and linear custody remain outside this operation. Affine results retain cleanup
-and transfer obligations; unrestricted payload availability is checked separately.
+Results are unqualified and affine or unrestricted. A record contributes no
+claim of its own: an affine result carries each owned member's claims, rebased
+under that member's field, and a linear member keeps its identity through the
+construction. Erased fields remain outside this operation. Affine results
+retain cleanup and transfer obligations; unrestricted payload availability is
+checked separately.
 Establishment and every subsequent read require their actual dominating producer.
 Each execution creates independent storage. Owned unrestricted call arguments
 copy their complete nested payload; borrowed arguments preserve the referent.

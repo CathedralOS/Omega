@@ -28,8 +28,7 @@ use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralResultClaimTransfer, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
 };
 
 /// Checked cleanup is recursive: a parent hook precedes its contiguous
@@ -1016,61 +1015,49 @@ pub(crate) fn transfer_claims(
     Ok((remaining, callee_claims))
 }
 
+/// Bind the claims a structural return hands its caller. Each caller result
+/// binding continues the callee claim the returning edge holds at the same
+/// path beneath the returned value. Claim identities are machine-local, so
+/// only the path joins them; a callee may hold different claims at one path
+/// on different returning edges. Every returned claim lands on exactly one
+/// binding.
 pub(crate) fn rebind_structural_result_claims(
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
     callee_claims: &BTreeMap<ClaimId, LiveClaim>,
     source: PlaceId,
     result: &StructuralOperationResult,
-    transfers: &[StructuralResultClaimTransfer],
     returned_claims: &[ClaimId],
 ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
-    let mut bindings = BTreeMap::new();
-    for binding in &result.claims {
-        if bindings
-            .insert(binding.claim, binding.path.as_slice())
-            .is_some()
-        {
-            return Err(TerminalInterpretError::ClaimTransferMismatch);
-        }
-    }
-    if bindings.len() != transfers.len() || returned_claims.len() != transfers.len() {
+    let mut unmatched = returned_claims.iter().copied().collect::<BTreeSet<_>>();
+    if unmatched.len() != returned_claims.len() || returned_claims.len() != result.claims.len() {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
     }
-
-    let expected_callee = returned_claims.iter().copied().collect::<BTreeSet<_>>();
-    if expected_callee.len() != returned_claims.len() {
-        return Err(TerminalInterpretError::ClaimTransferMismatch);
-    }
-    let mut mapped_callee = BTreeSet::new();
-    let mut mapped_caller = BTreeSet::new();
     let mut rebound = caller_claims.clone();
-    for transfer in transfers {
-        if !mapped_callee.insert(transfer.callee_claim)
-            || !mapped_caller.insert(transfer.caller_claim)
-            || !expected_callee.contains(&transfer.callee_claim)
-        {
-            return Err(TerminalInterpretError::ClaimTransferMismatch);
-        }
-        let Some(returned) = callee_claims.get(&transfer.callee_claim) else {
-            return Err(TerminalInterpretError::ClaimTransferMismatch);
-        };
-        let Some(path) = bindings.get(&transfer.caller_claim) else {
-            return Err(TerminalInterpretError::ClaimTransferMismatch);
-        };
-        let expected_multiplicity = if path.is_empty() {
+    for binding in &result.claims {
+        let expected_multiplicity = if binding.path.is_empty() {
             result.multiplicity
         } else {
             StructuralMultiplicity::Linear
         };
-        if returned.place != Some(source)
-            || returned.path != *path
-            || returned.multiplicity != Some(expected_multiplicity)
+        let mut held = returned_claims.iter().filter(|claim| {
+            callee_claims
+                .get(claim)
+                .is_some_and(|live| live.place == Some(source) && live.path == binding.path)
+        });
+        let Some(callee_claim) = held.next() else {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        };
+        if held.next().is_some()
+            || !unmatched.remove(callee_claim)
+            || callee_claims
+                .get(callee_claim)
+                .is_none_or(|live| live.multiplicity != Some(expected_multiplicity))
             || rebound
                 .insert(
-                    transfer.caller_claim,
+                    binding.claim,
                     LiveClaim {
                         place: Some(result.place),
-                        path: path.to_vec(),
+                        path: binding.path.clone(),
                         multiplicity: Some(expected_multiplicity),
                     },
                 )
@@ -1079,9 +1066,7 @@ pub(crate) fn rebind_structural_result_claims(
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
     }
-    if mapped_callee != expected_callee
-        || mapped_caller != bindings.keys().copied().collect::<BTreeSet<_>>()
-    {
+    if !unmatched.is_empty() {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
     }
     Ok(rebound)

@@ -38,8 +38,7 @@ use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     Block, EntryClaim, NominalAffineCleanup, OperationKind, StructuralAffineDiscard,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralResultClaimTransfer, TerminalMachineResult,
-    TerminalPlacedViewInput, Terminator,
+    StructuralPathSegment, TerminalMachineResult, TerminalPlacedViewInput, Terminator,
 };
 
 /// What one settled terminator tells the interpreter loop to do next.
@@ -188,12 +187,21 @@ pub(crate) struct LiveClaim {
     pub(crate) multiplicity: Option<StructuralMultiplicity>,
 }
 
+/// Where the claims a structural call result binds come from on return.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResultClaimOrigin {
+    /// An in-module callee's returning edge holds them at the result paths.
+    CalleeReturn,
+    /// A selected boundary provider issues them at the declared result paths.
+    BoundaryIssuance,
+}
+
 pub(crate) enum SuspendedCallResult {
     Scalar(ValueId),
     Unit,
     Structural {
         result: StructuralOperationResult,
-        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        claim_origin: ResultClaimOrigin,
         expected_reference_backings: Vec<TerminalStructuralValue>,
     },
     NominalCleanups {

@@ -8,9 +8,7 @@
 use crate::{
     TargetReferenceResult, TargetStructuralHomeRequirement, TargetUnitScalarHomeRequirement,
 };
-use terminal_psi::{
-    StructuralOperationResult, StructuralResultClaimTransfer, StructuralResultDeclaration,
-};
+use terminal_psi::{StructuralOperationResult, StructuralResultDeclaration};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetCallResult {
@@ -21,7 +19,6 @@ pub enum TargetCallResult {
         callee_result: StructuralResultDeclaration,
         result_home: Option<TargetStructuralHomeRequirement>,
         reference_results: Vec<TargetReferenceResult>,
-        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
     },
 }
 

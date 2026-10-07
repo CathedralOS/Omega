@@ -180,7 +180,6 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | proof term list | counted proof terms |
 | obligation id list | counted obligation ids |
 | claim transfer | claim id + `u32` argument index |
-| returned claim transfer | callee claim id + caller claim id |
 | completion receipt | claim id + `u32` argument index |
 | crash routes | counted buckets, each `u8` cause (1 Trap, 2 Abort) + counted guards; each guard `u8`: 0 truth, 1 + proposition |
 | successor edge | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
@@ -447,14 +446,14 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 38 | BooleanStructuralField | source place id + scalar field carrier path + field id |
 | 39 | CallStructuralScalar | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 | 40 | EstablishByteSequenceLiteral | destination place id + counted bytes |
-| 41 | CallStructural | callee machine id + counted structural arguments + counted claim transfers + counted returned claim transfers + obligation id list + crash routes + counted selected evidence bindings |
+| 41 | CallStructural | callee machine id + counted structural arguments + counted claim transfers + obligation id list + crash routes + counted selected evidence bindings |
 | 42 | EstablishScalarCase | case id + counted fields (field id + value id + optional obligation id) |
 | 43 | WriteOnlyPrimitiveStore | destination place id + value id; root-only form |
 | 44 | IeeeFloatConstant | IEEE float value |
 | 45 | NearestIeeeFloatFusedMultiplyAdd | left value id + right value id + addend value id |
 | 46 | StructuralScalarFieldStore | destination place id + structural path + field id + value id; unchecked form |
 | 47 | IntegerStructuralField | source place id + scalar field carrier path + field id |
-| 50 | CallStructuralWithScalarArguments | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + counted returned claim transfers + obligation id list + crash routes |
+| 50 | CallStructuralWithScalarArguments | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 | 55 | ByteSequenceLength | source place id |
 | 56 | ByteSequenceRead | source place id + index value id + length value id + obligation id |
 | 57 | ByteSequenceSubslice | source place id + start value id + end value id + length value id + obligation id |

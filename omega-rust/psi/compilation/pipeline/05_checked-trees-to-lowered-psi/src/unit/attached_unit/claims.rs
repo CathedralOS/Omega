@@ -12,6 +12,16 @@ use super::{
 pub(super) struct LoweredUnitClaims {
     pub(super) entry_claims: Vec<EntryClaim>,
     pub(super) source_claims: Vec<(PermissionClaimIdentity, ClaimId)>,
+    pub(super) unreceived_results: Vec<crate::emission::claim_bindings::UnreceivedResultClaim>,
+}
+
+impl LoweredUnitClaims {
+    pub(super) fn published(&self) -> crate::emission::claim_bindings::PublishedClaims<'_> {
+        crate::emission::claim_bindings::PublishedClaims {
+            bindings: &self.source_claims,
+            unreceived_results: &self.unreceived_results,
+        }
+    }
 }
 
 pub(super) fn validate_entry_claims(
@@ -108,6 +118,7 @@ pub(super) fn lower_unit_entry_claims(
     Ok(LoweredUnitClaims {
         entry_claims,
         source_claims,
+        unreceived_results: Vec::new(),
     })
 }
 

@@ -101,6 +101,7 @@ pub(super) fn validate(
                 state.return_type,
             )
             || crate::content_classes::owned_or_shared_view_fields(checked, state.return_type)
+            || crate::content_classes::linear_owned_contents(checked, state.return_type)
             || shared_borrowed_slice_view(checked, state.return_type))
         || !(checked
             .typed

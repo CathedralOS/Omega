@@ -225,8 +225,9 @@ helper that passes does not close an item.
     affine result`. Stage 04's
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/structural_result_call.rs`
     and `omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs`
-    conflate input transfers with returned claims. The former Terminal-verifier
-    copy is gone; do not recreate it.
+    now plan input transfers (`claim_transfers`) separately from path-bound
+    result claims (`result_claims`). The former Terminal-verifier copy is
+    gone; do not recreate it.
   Acceptance: the unchanged customer checks and produces a terminal artifact
   through `omega run`. Native execution additionally needs a selected
   `Task::finish` provider; source declarations alone do not supply one.
@@ -542,18 +543,21 @@ defines the complete product bar.
     `pass/collections/runtime_whole_array_value_copy_exit` (70),
     `pass/collections/{empty_record_array_borrow_exit,nested_empty_record_array_borrow_exit}` (0),
     and rejections `fail/borrows/{stored_reference_live_source_write,nested_reference_live_source_write}`.
-  - **Claim-bearing results and native receiving.** The checked state planner
-    refuses nonempty call claim transfers ("state graph: operation custody:
-    call claim transfers" in `.../execution/terminal_unit/state_graph/mod.rs`).
-    Carry claim transfers on calls before a composed structural return;
-    extend returned custody to extracted projections, fresh claims and claims
-    from distinct owned inputs. Omega stage 02 still rejects entry claims and
-    observed owned-linear parameters, and wider/nested structural results
-    (indirect/stack ABI slots such as Windows x64's 12-byte Msg) do not reach
-    target lowering. Add corpus fixtures for a qualified linear structural
-    result with entry claims and for two distinct result owners with ordered
-    residual cleanup; `pass/effects/structural_callback_reach/projected.omg`
-    is only a control.
+  - **Claim-bearing results and native receiving.** A structural call result
+    binds the claim the callee's returning edge holds at each result path;
+    `pass/ownership/{linear_call_result_claims_exit,linear_ambiguous_state_result_mapping,linear_transparent_record_frontier}`
+    run natively. Still refused: a claim-bearing argument constructed inline
+    at the call (stage 04: "has no unique conserved claim mapping"), a
+    claim-bearing call result assigned to an existing place rather than bound
+    by `let`, and shared borrows of a claim-bearing call result or its
+    projected member. A free `main` that projects the members of two claim-bearing call
+    results and retires them through a drop-hooked consumer stops at "state
+    graph: structural result has no selected disposition".
+    Wider/nested structural results (indirect/stack ABI slots such as
+    Windows x64's 12-byte Msg) do not reach target lowering. Add corpus
+    fixtures for a qualified linear structural result and for two distinct
+    result owners with ordered residual cleanup;
+    `pass/effects/structural_callback_reach/projected.omg` is only a control.
   - **Saved observations and arithmetic.** Stable unwritten mutable carriers
     contribute saved facts in
     `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`;
@@ -2475,36 +2479,6 @@ code and preserve check/native behavior for the named customer slices.
   corpus and the native corpus are unchanged.
 
 
-
-- **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS.** (split-of:PROJECTED-OWNED-LET-CONTINUATION)
-  Preserve the path-indexed linear claim frontier of an affine record in
-  `pass/ownership/linear_transparent_record_frontier`. Its recorded refusal is
-  `RecordResultMismatch(OperationId(5))` at the `Pair` construction:
-  `complete_root_custody` demands a claim-free affine result, although its
-  two linear members retain independent claims.
-
-  Owned projection already uses `StructuralBinding::ProjectedAlias` over
-  the established root. Keep that representation; do not introduce a
-  continuation or discard the still-live linear sibling. Stage 04's ordinary
-  linear transfer path already handles this customer. Its disjoint
-  projected-affine fallback is not the missing operation.
-
-  Reconcile record-result transport with the ownership contract in
-  `wiki/spec/terminal-psi/ownership.md` and the claim-free wording in
-  `wiki/spec/terminal-psi/calls_and_outcomes.md`. Preserve exact member paths
-  and whole-root versus member claims in the producing representation.
-  The recorded rejection lives in the retiring Terminal verifier: coordinate
-  its removal through the PCC tasks, not an extension of that verifier.
-  Check affine arrivals containing linear children at joins as part of the
-  same custody contract; the root's multiplicity alone cannot describe them.
-
-  Acceptance: the fixture checks and executes with the external `abs` sink
-  that `pass/ownership/linear_transfer_and_consume` declares. With that sink
-  added it now stops at Terminal production's optimization validation:
-  `MalformedStructuralFoundation("record result custody is noncanonical")`.
-  `fail/ownership/linear_transparent_record_member_scope_loss` must still
-  reject the unconsumed `pair.right`. Preserve check/native corpus behavior
-  for the affected ownership slice.
 
 - **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
   parameter transfer are lowered by two stage 05 routes:

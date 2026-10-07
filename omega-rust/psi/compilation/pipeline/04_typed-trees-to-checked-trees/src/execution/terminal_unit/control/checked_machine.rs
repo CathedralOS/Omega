@@ -92,6 +92,11 @@ pub(crate) fn build_checked_machine_residual_parts(
         // represented-constraint snapshot — which left every ordinary affine
         // record with a declared member domain unreturnable.
         && !validation::has_contents(program, state.return_type, validation::ContentsRequirement::StructuralConstruction)
+        // A result carrying linear claims, whole or beneath an affine owner,
+        // returns them through its returning edge's claim set; the caller's
+        // custody binds them by path.
+        && !(!validation::linear_claim_frontier(program, state.return_type).is_empty()
+            && validation::has_contents(program, state.return_type, validation::ContentsRequirement::LinearOwned))
         && program
             .primitive_type_reference(state.return_type)
             .is_none()

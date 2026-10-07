@@ -28,7 +28,6 @@ fn structural_call_result(
 ) -> AbstractStructuralCallResult {
     AbstractStructuralCallResult::Structural {
         result,
-        returned_claim_transfers: Vec::new(),
         selected_evidence: Vec::new(),
     }
 }
@@ -785,7 +784,6 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
                     layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(2, 1)),
                 }),
                 reference_results: Vec::new(),
-                returned_claim_transfers: Vec::new(),
             },
             scalar_arguments: Vec::new(),
             arguments: Vec::new(),
@@ -1427,7 +1425,6 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                     root,
                     root_paths: vec![holder_path.clone()],
                 }],
-                returned_claim_transfers: Vec::new(),
             },
             scalar_arguments: Vec::new(),
             arguments: Vec::new(),

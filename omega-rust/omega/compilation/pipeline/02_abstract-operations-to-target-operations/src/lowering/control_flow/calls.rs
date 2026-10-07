@@ -286,11 +286,7 @@ fn land_result(
                 live,
             )?)
         }
-        AbstractStructuralCallResult::Structural {
-            result,
-            returned_claim_transfers,
-            ..
-        } => {
+        AbstractStructuralCallResult::Structural { result, .. } => {
             let callee_function =
                 callee_function.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let result_home =
@@ -338,7 +334,6 @@ fn land_result(
                 callee_result: callee_result.clone(),
                 result_home: Some(result_home),
                 reference_results,
-                returned_claim_transfers: returned_claim_transfers.clone(),
             }
         }
     })
@@ -521,7 +516,8 @@ fn ordinary_contract(
 }
 
 /// The structural result retains its exact declared type and home layout.
-/// Returned claims and outcome-specific evidence still need separate transport.
+/// Its path-bound claims are custody, not storage; outcome-specific evidence
+/// still needs separate transport.
 /// Byte carriers — bounded owners and shared views alike — may carry
 /// qualifications; the caller may add only domains this call's own
 /// establishment rows mint.
@@ -533,7 +529,6 @@ fn structural_result_home(
 ) -> Result<TargetStructuralHomeRequirement, LoweringError> {
     let AbstractStructuralCallResult::Structural {
         result,
-        returned_claim_transfers,
         selected_evidence,
     } = call.result
     else {
@@ -552,7 +547,6 @@ fn structural_result_home(
             && !types
                 .get(&result.structural_type)
                 .is_some_and(|declaration| declaration.shape.supports_result_qualifications()))
-        || !returned_claim_transfers.is_empty()
         || !selected_evidence.is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

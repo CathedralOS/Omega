@@ -36,9 +36,8 @@ use target_operations::{
 use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, CrashRouteBucket, StructuralAccess,
     StructuralArgument, StructuralFieldType, StructuralOperationResult,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalDynamicDispatchCatalog,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalDynamicDispatchCatalog,
 };
 
 mod canonical_roots;
@@ -82,7 +81,6 @@ enum EmbeddedCall<'a> {
         arguments: &'a [TargetStructuralArgument],
         result: EmbeddedResult<'a>,
         claim_transfers: &'a [ClaimTransfer],
-        returned_claim_transfers: &'a [StructuralResultClaimTransfer],
         requirement_obligations: &'a [ObligationId],
         crash_continuations: &'a [CrashRouteBucket],
     },
@@ -131,7 +129,6 @@ struct SourceDirectCall<'a> {
     scalar_arguments: &'a [ValueId],
     structural_arguments: &'a [StructuralArgument],
     claim_transfers: &'a [ClaimTransfer],
-    returned_claim_transfers: &'a [StructuralResultClaimTransfer],
     requirement_obligations: &'a [ObligationId],
     crash_continuations: &'a [CrashRouteBucket],
     result: BoundResult<'a>,
@@ -194,28 +191,22 @@ pub(super) fn validate(
                     requirement_obligations,
                     crash_continuations,
                 } => {
-                    let (result, returned_claim_transfers) = match result {
-                        target_operations::TargetCallResult::Unit => {
-                            (EmbeddedResult::Unit, &[][..])
-                        }
+                    let result = match result {
+                        target_operations::TargetCallResult::Unit => EmbeddedResult::Unit,
                         target_operations::TargetCallResult::Scalar(home) => {
-                            (EmbeddedResult::Scalar(home), &[][..])
+                            EmbeddedResult::Scalar(home)
                         }
                         target_operations::TargetCallResult::Structural {
                             result,
                             callee_result,
                             result_home,
                             reference_results,
-                            returned_claim_transfers,
-                        } => (
-                            EmbeddedResult::Structural {
-                                result,
-                                callee_result,
-                                result_home: result_home.as_ref(),
-                                reference_results,
-                            },
-                            returned_claim_transfers.as_slice(),
-                        ),
+                        } => EmbeddedResult::Structural {
+                            result,
+                            callee_result,
+                            result_home: result_home.as_ref(),
+                            reference_results,
+                        },
                     };
                     (
                         *psi_operation,
@@ -227,7 +218,6 @@ pub(super) fn validate(
                             arguments,
                             result,
                             claim_transfers,
-                            returned_claim_transfers,
                             requirement_obligations,
                             crash_continuations,
                         },
@@ -359,23 +349,17 @@ pub(super) fn validate(
                 crash_continuations,
                 result,
             } => {
-                let (result, returned_claim_transfers) = match result {
-                    AbstractStructuralCallResult::Unit => (BoundResult::Unit, &[][..]),
-                    AbstractStructuralCallResult::Scalar(result) => {
-                        (BoundResult::Scalar(result), &[][..])
-                    }
+                let result = match result {
+                    AbstractStructuralCallResult::Unit => BoundResult::Unit,
+                    AbstractStructuralCallResult::Scalar(result) => BoundResult::Scalar(result),
                     AbstractStructuralCallResult::Structural {
                         result,
-                        returned_claim_transfers,
                         selected_evidence,
                     } => {
                         if !selected_evidence.is_empty() {
                             return Err(*psi_operation);
                         }
-                        (
-                            BoundResult::Structural(result),
-                            returned_claim_transfers.as_slice(),
-                        )
+                        BoundResult::Structural(result)
                     }
                 };
                 replay.direct_call(
@@ -385,7 +369,6 @@ pub(super) fn validate(
                         scalar_arguments: arguments,
                         structural_arguments,
                         claim_transfers,
-                        returned_claim_transfers,
                         requirement_obligations,
                         crash_continuations,
                         result,
@@ -426,7 +409,6 @@ pub(super) fn validate(
                     scalar_arguments: arguments,
                     structural_arguments: &[],
                     claim_transfers: &[],
-                    returned_claim_transfers: &[],
                     requirement_obligations,
                     crash_continuations,
                     result: BoundResult::PublishedScalar(AbstractResult {
@@ -497,7 +479,6 @@ impl Replay<'_> {
             arguments: actual_structural,
             result: actual_result,
             claim_transfers: actual_claims,
-            returned_claim_transfers: actual_returned,
             requirement_obligations: actual_obligations,
             crash_continuations: actual_crashes,
         } = call
@@ -514,7 +495,6 @@ impl Replay<'_> {
         // origin is forged even when plausible.
         if *origin != &NativeCallOrigin::Authored
             || source.claim_transfers != *actual_claims
-            || source.returned_claim_transfers != *actual_returned
             || *actual_crashes != source.crash_continuations
             || source.requirement_obligations != *actual_obligations
             || !call_target_matches(source.target, *target)
@@ -706,7 +686,6 @@ impl Replay<'_> {
             arguments: actual_structural,
             result: actual_result,
             claim_transfers,
-            returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
         } = call
@@ -723,7 +702,6 @@ impl Replay<'_> {
             || *actual_receipts != *completion_receipts
             || !completion_receipts.is_empty()
             || !claim_transfers.is_empty()
-            || !returned_claim_transfers.is_empty()
             || !requirement_obligations.is_empty()
             || !crash_continuations.is_empty()
         {

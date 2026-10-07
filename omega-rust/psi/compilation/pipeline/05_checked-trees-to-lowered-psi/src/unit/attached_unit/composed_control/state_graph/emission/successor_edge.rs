@@ -204,7 +204,7 @@ impl StateGraphEmission<'_, '_> {
                                 &selected_operations,
                                 self.catalogs,
                                 state_parameters,
-                                &self.claims.source_claims,
+                                self.claims.published(),
                                 &mut edge_evaluation,
                                 &mut edge_values,
                                 &self.state_erased[position],

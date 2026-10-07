@@ -332,7 +332,6 @@ pub(super) fn emit(
             crash_continuations,
             result: DirectCallResult::Structural {
                 multiplicity: StructuralMultiplicity::Affine,
-                returned_claim_transfers: Vec::new(),
             },
         }
         .into_operation_kind(),

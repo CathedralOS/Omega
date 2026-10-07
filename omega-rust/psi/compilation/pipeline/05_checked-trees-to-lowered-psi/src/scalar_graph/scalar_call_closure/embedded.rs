@@ -69,7 +69,12 @@ impl EmbeddedScalarCalls {
     pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
         CallEmissionContext {
             domain_ids: &self.domain_ids,
-            claims: crate::emission::claim_bindings::ClaimBindings::Fixed(&self.claim_bindings),
+            claims: crate::emission::claim_bindings::ClaimBindings::Fixed(
+                crate::emission::claim_bindings::PublishedClaims {
+                    bindings: &self.claim_bindings,
+                    unreceived_results: &[],
+                },
+            ),
             cleanup_receivers: &self.cleanup_receivers,
             machine_ids: &self.machine_ids,
             requirement_counts: &self.requirement_counts,

@@ -1,0 +1,32 @@
+// Linear call results carry their claims back to the caller. `make` returns a
+// receipt it established itself, so the caller's result claim is fresh in its
+// namespace; `pass` returns its input unchanged, so the result claim continues
+// the identity the call transferred in. Each result binds the claim the
+// callee's returning edge holds at the result's root, and `consume` retires
+// the receipt through its owner's cleanup plan. Both engines run it.
+use omega::language::core::drop;
+
+data Receipt [linear] { code: i32; }
+
+machine Receipt::drop(receipt: &mut Receipt) {}
+
+machine make(code: i32) -> Receipt {
+    let issued: Receipt = Receipt { code: code };
+    issued
+}
+
+machine pass(receipt: Receipt) -> Receipt {
+    receipt
+}
+
+machine consume(receipt: Receipt) -> i32 {
+    let observed: i32 = receipt.code;
+    drop(receipt);
+    observed
+}
+
+machine main() {
+    let made: Receipt = make(7);
+    let passed: Receipt = pass(made);
+    _ = consume(passed);
+}

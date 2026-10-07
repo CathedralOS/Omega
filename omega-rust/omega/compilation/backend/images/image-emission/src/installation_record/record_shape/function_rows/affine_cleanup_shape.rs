@@ -158,7 +158,6 @@ fn cleanup_shape_facts<'a>(
                     && !continuation_discards.contains(&result.operation_result.place)
                     && result.operation_result.multiplicity == StructuralMultiplicity::Affine
                     && result.operation_result.claims.is_empty()
-                    && result.returned_claim_transfers.is_empty()
                     && result.returned_claims.is_empty() =>
             {
                 Some(result.operation_result.place)

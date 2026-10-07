@@ -1,8 +1,8 @@
 //! Shared ordinary call operands, requirements and crash substitution.
 use super::super::{
-    BTreeMap, ClaimId, MachineId, ObligationId, PermissionClaimIdentity, Proposition,
-    StructuralArgument, StructuralParameterDeclaration, StructuralTypeDeclaration, ValueId,
-    claim_id, structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
+    BTreeMap, MachineId, ObligationId, Proposition, StructuralArgument,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, ValueId,
+    structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
 };
 use super::bodies::UnitPlans;
 use super::parameters::{emitted_claim_transfers, mint_runtime_index_selectors};
@@ -10,7 +10,7 @@ use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Operation,
     OperationResult, PlaceId, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration, allocate_dense,
-    argument_evaluation, lookup_claim_id, lookup_type_id, lower_checked_crash_route_buckets,
+    argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
     lower_structural_arguments, lower_structural_crash_route_buckets, lower_structural_path,
     place_id, primitive_locals, unsupported,
 };
@@ -298,7 +298,7 @@ pub(super) fn emit_structural(
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
-    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+    claim_bindings: &mut crate::emission::claim_bindings::ClaimBindings<'_>,
     // Graph evaluation attaches the source local and registers this value as
     // one operation; ordinary and nested operands register it here instead.
     register_binding: bool,
@@ -366,44 +366,20 @@ pub(super) fn emit_structural(
             structural_types,
         )?,
         claims: custody
-            .returned_claim_transfers
+            .result_claims
             .iter()
-            .map(|transfer| {
+            .map(|received| {
                 Ok(terminal_psi::StructuralResultClaimBinding {
-                    claim: lookup_claim_id(claim_bindings, transfer.caller_claim)?,
-                    path: lower_structural_path(&transfer.path)?,
+                    claim: claim_bindings.receive_call_result_claim(
+                        state,
+                        *coordinate,
+                        received,
+                    )?,
+                    path: lower_structural_path(&received.path)?,
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?,
     };
-    let target = UnitBody::find(
-        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-        *target_machine,
-    )?
-    .entry()?;
-    // Callee claims use the same dense entry ordering as lower_unit_entry_claims;
-    // caller identities stay in the caller's namespace across normal completion.
-    let returned_claim_transfers = custody
-        .returned_claim_transfers
-        .iter()
-        .map(|transfer| {
-            let position = target
-                .entry_claims
-                .iter()
-                .position(|claim| claim.claim_identity == transfer.callee_claim)
-                .ok_or(LoweringError::Unsupported(
-                    "structural returned claim is not a callee entry claim",
-                ))?;
-            Ok(terminal_psi::StructuralResultClaimTransfer {
-                callee_claim: claim_id(
-                    u64::try_from(position)
-                        .map_err(|_| LoweringError::Unsupported("callee claim ordinal overflow"))?
-                        + 1,
-                ),
-                caller_claim: lookup_claim_id(claim_bindings, transfer.caller_claim)?,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
     // Scalar values and structural custody are separate operand namespaces,
     // not different ownership rules: a mixed call retains the same checked
     // claim and content correspondence as the scalar-free encoding.
@@ -412,7 +388,6 @@ pub(super) fn emit_structural(
             callee,
             DirectCallResult::Structural {
                 multiplicity: returned.multiplicity,
-                returned_claim_transfers,
             },
         )
         .into_operation_kind();

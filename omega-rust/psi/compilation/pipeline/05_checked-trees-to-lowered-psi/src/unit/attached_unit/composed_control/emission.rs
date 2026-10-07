@@ -9,7 +9,7 @@
 //! and consumption of the same authored-position operand schedule as ordinary
 //! machines. Structural snapshots must stay between earlier and later scalar
 //! side effects even when the surrounding body has state transitions.
-use super::super::super::{ClaimId, PermissionClaimIdentity, StructuralParameterDeclaration};
+use super::super::super::StructuralParameterDeclaration;
 use super::super::argument_schedule::{self, Step};
 use super::super::bodies::UnitPlans;
 use super::super::operation_frame::{
@@ -29,7 +29,7 @@ pub(super) fn emit_call_operations(
     planned_operations: &[CheckedUnitEffectOperationPlan],
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
-    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+    claim_bindings: crate::emission::claim_bindings::PublishedClaims<'_>,
     evaluation: &mut super::super::argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
     // The emitting machine's erased roster, for `ErasedParameter` actuals

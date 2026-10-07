@@ -557,13 +557,12 @@ fn validate_operation_foundation(
             erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
-            returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } if operation
-            .result
-            .structural()
-            .is_none_or(|result| result.multiplicity != StructuralMultiplicity::Linear) =>
+        } if claim_transfers.is_empty()
+            && operation.result.structural().is_none_or(|result| {
+                result.multiplicity != StructuralMultiplicity::Linear && result.claims.is_empty()
+            }) =>
         {
             let Some(callee) = module
                 .machines
@@ -589,7 +588,6 @@ fn validate_operation_foundation(
                     != expected_result.projected_qualifications
                 || !actual_result.claims.is_empty()
                 || !claim_transfers.is_empty()
-                || !returned_claim_transfers.is_empty()
                 || if is_claim_free_structural_call(actual_result, callee) {
                     requirement_obligations.len() != callee.contract.requires.len()
                 } else {
@@ -1200,23 +1198,30 @@ fn validate_claim_indices(
         // this foundation check, authenticates the live home at this call.
         let matches_path =
             |path: &[StructuralPathSegment]| argument.path.is_empty() || path == argument.path;
-        let declared = machine.entry_claims.iter().any(|entry| {
-            entry.claim == claim && matches_path(&entry.path)
-        }) || machine.blocks.iter().flat_map(|block| &block.operations).any(|operation| {
-            let Some(result) = operation.result.structural() else {
-                return false;
-            };
-            result.multiplicity == StructuralMultiplicity::Linear
-                && machine.structural_places.iter().any(|declaration| {
-                    declaration.id == result.place
-                        && matches!(declaration.kind,
-                            StructuralPlaceKind::OperationResult { producer, structural_type }
-                            if producer == operation.id && structural_type == result.structural_type)
-                })
-                && result.claims.iter().any(|binding| {
-                    binding.claim == claim && matches_path(&binding.path)
-                })
-        });
+        let declared = machine
+            .entry_claims
+            .iter()
+            .any(|entry| entry.claim == claim && matches_path(&entry.path))
+            || machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    let Some(result) = operation.result.structural() else {
+                        return false;
+                    };
+                    // Multiplicity does not describe a result's claim set: an affine
+                    // owner carries its linear members' claims at their paths.
+                    machine.structural_places.iter().any(|declaration| {
+                        declaration.id == result.place
+                            && matches!(declaration.kind,
+                        StructuralPlaceKind::OperationResult { producer, structural_type }
+                        if producer == operation.id && structural_type == result.structural_type)
+                    }) && result
+                        .claims
+                        .iter()
+                        .any(|binding| binding.claim == claim && matches_path(&binding.path))
+                });
         if !declared {
             return malformed("claim action does not match a declared structural claim path");
         }

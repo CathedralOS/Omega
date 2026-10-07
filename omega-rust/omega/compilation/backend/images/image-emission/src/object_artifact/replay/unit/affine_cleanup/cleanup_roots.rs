@@ -74,7 +74,6 @@ pub(super) fn cleanup_roots(inputs: &CleanupInputs<'_>) -> CleanupRoots {
                 if result.operation_result.multiplicity
                     == terminal_psi::StructuralMultiplicity::Affine
                     && result.operation_result.claims.is_empty()
-                    && result.returned_claim_transfers.is_empty()
                     && result.returned_claims.is_empty() =>
             {
                 Some((call.operation_ordinal, result.operation_result.place))

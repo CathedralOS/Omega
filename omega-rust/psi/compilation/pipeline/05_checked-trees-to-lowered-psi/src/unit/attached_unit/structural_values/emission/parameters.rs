@@ -25,8 +25,10 @@ impl Emission<'_, '_, '_> {
         let Some(declaration) = self.parameter_declaration(argument)? else {
             return Ok(None);
         };
-        if declaration.multiplicity != StructuralMultiplicity::Affine {
-            return unsupported("owned selection parameter lacks whole plain-affine custody");
+        // A whole linear parameter moves its entry claim with it: the
+        // establishment that receives it resolves that same identity.
+        if declaration.multiplicity == StructuralMultiplicity::Unrestricted {
+            return unsupported("owned selection parameter lacks whole owned custody");
         }
         Ok(Some(declaration.place))
     }

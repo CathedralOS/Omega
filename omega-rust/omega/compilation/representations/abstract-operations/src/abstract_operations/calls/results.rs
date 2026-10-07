@@ -1,9 +1,7 @@
 //! Closed result categories for boundary and structural calls.
 
 use crate::AbstractResult;
-use terminal_psi::{
-    OutcomeSpecificCallEvidence, StructuralOperationResult, StructuralResultClaimTransfer,
-};
+use terminal_psi::{OutcomeSpecificCallEvidence, StructuralOperationResult};
 
 /// Closed target-neutral result role of one bodyless boundary invocation.
 ///
@@ -50,13 +48,11 @@ impl AbstractBoundaryResult {
 pub enum AbstractStructuralCallResult {
     Unit,
     Scalar(AbstractResult),
-    /// The result place and returned-claim correspondence remain semantic
-    /// custody; target lowering may realize only a deliberately bounded ABI
-    /// subset. `returned_claim_transfers` and `selected_evidence` exist only
-    /// beside a structural result.
+    /// The result place and its path-bound claims remain semantic custody;
+    /// target lowering may realize only a deliberately bounded ABI subset.
+    /// `selected_evidence` exists only beside a structural result.
     Structural {
         result: StructuralOperationResult,
-        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         selected_evidence: Vec<OutcomeSpecificCallEvidence>,
     },
 }

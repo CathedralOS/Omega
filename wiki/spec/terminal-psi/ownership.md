@@ -19,10 +19,12 @@ A projected claim is linear even in an affine aggregate. Several disjoint
 linear sibling claims may coexist in one affine root.
 
 Direct calls agree on the complete ordered claim-path set for each structural
-argument. Content bindings name the same root/path. Structural returns preserve
-a bijection between caller transfers, callee entry claims, returned transfers,
-and caller result bindings. Result custody is established only on successful
-completion; it cannot also remain on the input owner.
+argument. Content bindings name the same root/path. A structural result binds
+its claims by path: each caller result binding continues the claim the callee's
+returning edge holds at the same path beneath the returned value, so every
+return is a bijection between the claims it hands back and the caller's result
+bindings. Claim identities stay machine-local. Result custody is established
+only on successful completion; it cannot also remain on the input owner.
 
 Normal boundary completion carries the verifier-derived receipt set for every live
 claim at each exact argument position, not one receipt per parameter. Missing,
@@ -161,6 +163,10 @@ all alternatives use the same realization or an existing runtime discriminator
 preserves the distinction, such as a sum tag, provider key, or explicit state.
 Otherwise the author must represent the alternative or normalize custody.
 The checker cannot duplicate a semantic state to repair an invalid join.
+A call result whose claim lineage depends on the callee's exit is such a join:
+each alternative holds a claim of the same realization at every result path,
+so Terminal binds the result by path and the checked join receipts keep the
+per-exit origin.
 
 On an ordinary continuing or returning edge, every incoming owned obligation
 occurs exactly once in the edge's transfer map,

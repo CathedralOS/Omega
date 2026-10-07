@@ -171,14 +171,13 @@ pub(super) fn validate(
                 AbstractOperation::ReturnStructural {
                     psi_edge: expected_edge,
                     source: expected_source,
-                    returned_claims,
                     trivial_affine_locals,
                     cleanup_actions: expected_cleanup,
+                    ..
                 },
             ) => {
                 psi_edge == expected_edge
                     && cleanup_actions == expected_cleanup
-                    && returned_claims.is_empty()
                     && trivial_affine_locals.is_empty()
                     // A reference-bearing result must still sit at its declared
                     // carrier paths with each leaf rooted at a formal origin.
@@ -223,8 +222,6 @@ pub(super) fn validate(
                             optimized.structural_parameters.iter().any(|semantic| {
                                 semantic.place == *expected_source
                             && semantic.access == terminal_psi::StructuralAccess::Owned
-                            && semantic.multiplicity
-                                != terminal_psi::StructuralMultiplicity::Linear
                             && semantic.qualifications.is_empty()
                             && semantic.projected_qualifications.is_empty()
                             && optimized.result.structural().is_some_and(|result| {

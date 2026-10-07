@@ -17,7 +17,27 @@ pub(crate) enum ClaimBindings<'f> {
     },
     /// A composed state's machine-wide table. The graph publishes its claim
     /// roster before any state emits, so a state cannot mint a binding.
-    Fixed(&'f [(PermissionClaimIdentity, ClaimId)]),
+    Fixed(PublishedClaims<'f>),
+}
+
+/// A composed graph's claim roster, published before any state emits.
+#[derive(Clone, Copy)]
+pub(crate) struct PublishedClaims<'f> {
+    pub(crate) bindings: &'f [(PermissionClaimIdentity, ClaimId)],
+    /// Claims of call results no source place receives (a terminal call
+    /// returned at once). They have no checked identity, so the call's exact
+    /// coordinate and result path name them.
+    pub(crate) unreceived_results: &'f [UnreceivedResultClaim],
+}
+
+/// One claim a call result carries at `path` when no source place receives
+/// the result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UnreceivedResultClaim {
+    pub(crate) state: symbols::SymbolHandle,
+    pub(crate) coordinate: checked_trees::CheckedUnitCallCoordinate,
+    pub(crate) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    pub(crate) claim: ClaimId,
 }
 
 impl ClaimBindings<'_> {
@@ -31,7 +51,46 @@ impl ClaimBindings<'_> {
     pub(crate) fn bindings(&self) -> &[(PermissionClaimIdentity, ClaimId)] {
         match self {
             Self::Growable { bindings, .. } => bindings,
-            Self::Fixed(bindings) => bindings,
+            Self::Fixed(published) => published.bindings,
+        }
+    }
+
+    /// Bind one claim a structural call result carries. An identity this
+    /// body already holds continues (an input returned on every exit keeps
+    /// its transferred identity); any other identity is established in this
+    /// body by the call's completion. A result no source place receives has
+    /// no identity: its claim is named only by the result and the edge that
+    /// returns it, so it enters no lookup table.
+    pub(crate) fn receive_call_result_claim(
+        &mut self,
+        state: symbols::SymbolHandle,
+        coordinate: checked_trees::CheckedUnitCallCoordinate,
+        received: &checked_trees::CheckedStructuralResultClaimPlan,
+    ) -> Result<ClaimId, LoweringError> {
+        if received.claim == PermissionClaimIdentity::Unknown {
+            return match self {
+                Self::Growable { next_claim, .. } => Ok(claim_id(allocate_dense(next_claim)?)),
+                Self::Fixed(published) => {
+                    let mut matching = published.unreceived_results.iter().filter(|claim| {
+                        claim.state == state
+                            && claim.coordinate == coordinate
+                            && claim.path == received.path
+                    });
+                    let claim = matching.next().ok_or(LoweringError::Unsupported(
+                        "published graph omits an unreceived call result claim",
+                    ))?;
+                    if matching.next().is_some() {
+                        return unsupported(
+                            "published graph repeats an unreceived call result claim",
+                        );
+                    }
+                    Ok(claim.claim)
+                }
+            };
+        }
+        match lookup_claim_id(self.bindings(), received.claim) {
+            Ok(bound) => Ok(bound),
+            Err(_) => self.mint(received.claim),
         }
     }
 

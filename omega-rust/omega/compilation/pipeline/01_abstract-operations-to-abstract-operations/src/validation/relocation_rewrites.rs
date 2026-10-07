@@ -259,10 +259,8 @@ pub(crate) fn scalar_case_result_contained(
                     let claims_quiet = claim_transfers.is_empty()
                         && !matches!(
                             result,
-                            AbstractStructuralCallResult::Structural {
-                                returned_claim_transfers,
-                                ..
-                            } if !returned_claim_transfers.is_empty()
+                            AbstractStructuralCallResult::Structural { result, .. }
+                                if !result.claims.is_empty()
                         );
                     member
                         && claims_quiet

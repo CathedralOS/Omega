@@ -349,14 +349,9 @@ pub(super) fn call_result<'a>(
     &'a calling_conventions::ValuePlacement,
 )> {
     let result = call.structural_result.as_ref()?;
-    // The qualification roster is custody evidence carried on the result,
-    // not part of the result home's physical shape; only linearity and
-    // claims still reject.
-    if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.claims.is_empty()
-    {
-        return None;
-    }
+    // Qualifications, multiplicity and claims are custody evidence carried
+    // on the result, not part of the result home's physical shape; the
+    // optimization unit's ownership replay already authenticated them.
     let declaration = source
         .structural
         .as_ref()?
@@ -517,7 +512,6 @@ pub(super) fn returned_parameter<'a>(
         .find(|parameter| parameter.semantic.place == *place)?;
     let semantic = &parameter.semantic;
     if semantic.access != terminal_psi::StructuralAccess::Owned
-        || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || semantic.structural_type != declared.structural_type
         || semantic.multiplicity != declared.multiplicity
         || !semantic.qualifications.is_empty()
@@ -761,10 +755,10 @@ pub(super) fn returned<'a>(
                 result.structural_type,
                 &source.structural.as_ref()?.structural_types,
             )?;
-            // Minted qualification rosters are custody evidence carried on
-            // the result row; the verbatim `result != returned` check is the
-            // honest comparison — ensurances are not part of home shape.
-            if result != returned || !result.claims.is_empty() {
+            // Minted qualification rosters and claims are custody evidence
+            // carried on the result row; the verbatim `result != returned`
+            // check is the honest comparison — neither is part of home shape.
+            if result != returned {
                 return None;
             }
             (
@@ -828,7 +822,6 @@ pub(super) fn returned<'a>(
         || multiplicity != declared.multiplicity
         || ((bounded_owned_bytes || !declared.qualifications.is_empty())
             && !exact_qualified_owned_bytes)
-        || declared.multiplicity == terminal_psi::StructuralMultiplicity::Linear
     {
         return None;
     }

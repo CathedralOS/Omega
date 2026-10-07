@@ -1,7 +1,10 @@
-//! Decide ordinary whole-result claim custody from the semantic call and
-//! ownership facts. A result binding records a value, not authority. The call's
-//! returned frontier must continue the exact claims transferred into its callee;
-//! a matching type or an empty producer record cannot establish that relation.
+//! Decide ordinary structural call custody from the semantic call and
+//! ownership facts. A result binding records a value, not authority. Every
+//! consumed input claim crosses at its owned argument; every linear claim path
+//! of the declared result type binds the caller's claim for the claim the
+//! callee returns there. The binding is by path because the callee may return
+//! different claims at one path on different exits; a matching type or an
+//! empty producer record cannot establish custody either way.
 //!
 //! Stage 04 decides each ordinary structural call's custody here once and
 //! records it in the call plan; lowering reads that record and never decides
@@ -9,7 +12,7 @@
 
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
-    CheckedStructuralPathQualification, CheckedStructuralReturnedClaimTransferPlan,
+    CheckedStructuralPathQualification, CheckedStructuralResultClaimPlan,
     CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralPathSegment, FlowCallFact, FlowClaimOutcomeEntryFact,
     FlowClaimOutcomeSource,
@@ -929,19 +932,55 @@ fn structural_authored_arguments<'program>(
             .expression_table
             .expression_handles(authored.arguments)
     } else {
-        let Some(StatementNode::Call(authored)) = program
+        match program
             .statement_table
             .statements(source_state.statement_nodes)
             .get(coordinate.statement_index as usize)
-        else {
-            return Err("structural call occurrence has no authored statement");
-        };
-        if authored.target_symbol != target_state {
-            return Err("structural call statement target changed");
+        {
+            Some(StatementNode::Call(authored)) => {
+                if authored.target_symbol != target_state {
+                    return Err("structural call statement target changed");
+                }
+                program
+                    .statement_table
+                    .expression_handles(authored.arguments)
+            }
+            // A terminal call in a transition arm names the machine (or its
+            // entry state) as the arm's target; its result completes the
+            // caller.
+            Some(StatementNode::Transition(transition)) => {
+                let names_target = |symbol: SymbolHandle| {
+                    symbol == target_state
+                        || program.machine_by_symbol(symbol).is_some_and(|machine| {
+                            program
+                                .machine_states(machine)
+                                .first()
+                                .is_some_and(|entry| entry.symbol == target_state)
+                        })
+                };
+                let mut named = [transition.target, transition.continuation]
+                    .into_iter()
+                    .filter(|target| target.is_valid())
+                    .filter_map(
+                        |target| match program.statement_table.transition_target(target) {
+                            typed_trees::statement::TransitionTargetNode::Named {
+                                path,
+                                arguments,
+                                ..
+                            } if names_target(path.symbol) => Some(*arguments),
+                            _ => None,
+                        },
+                    );
+                let arguments = named
+                    .next()
+                    .ok_or("structural call occurrence has no authored statement")?;
+                if named.next().is_some() {
+                    return Err("structural transition call names its target twice");
+                }
+                program.statement_table.expression_handles(arguments)
+            }
+            _ => return Err("structural call occurrence has no authored statement"),
         }
-        program
-            .statement_table
-            .expression_handles(authored.arguments)
     };
     if authored_arguments.len() != parameter_count {
         return Err("structural call has no exact explicit argument roster");
@@ -1082,7 +1121,8 @@ pub fn structural_call_custody(
                 && event.obligation_live
         })
         .collect::<Vec<_>>();
-    if result.multiplicity != Multiplicity::Linear {
+    let result_frontier = crate::linear_claim_frontier(program, destination.return_type);
+    if result_frontier.is_empty() {
         // Primitive byte predicates describe an independently established
         // byte value, not resource claims — the carrier owns or views the
         // bytes either way. Preserve the exact signature roster when every
@@ -1110,68 +1150,16 @@ pub fn structural_call_custody(
         // Input claims consumed at this occurrence terminate inside the
         // callee: its checked body already accounted for every claim it was
         // admitted with, so a claim-free result owes no returned frontier.
-        // Re-derive the roster as the ordinary call does: each caller
-        // transfer event names the owned whole-name argument whose place it
-        // consumed, and every event must land on exactly one argument.
-        let mut claim_transfers = Vec::with_capacity(transfers.len());
-        if !transfers.is_empty() {
-            let parameters = program.state_parameters(destination);
-            let authored_arguments = structural_authored_arguments(
-                program,
-                call,
-                source_state,
-                coordinate,
-                *target_state,
-                parameters.len(),
-            )?;
-            let mut accounted = vec![false; transfers.len()];
-            for (parameter_position, authored_argument) in authored_arguments.iter().enumerate() {
-                let ExpressionNode::Name(path) =
-                    program.expression_table.expression(*authored_argument)
-                else {
-                    continue;
-                };
-                if crate::expression_traversal::single_segment_name_symbol(
-                    program,
-                    *authored_argument,
-                )
-                .is_none()
-                {
-                    continue;
-                }
-                let argument_position = parameters[..parameter_position]
-                    .iter()
-                    .filter(|parameter| {
-                        program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                    })
-                    .count();
-                let Some(argument) = structural_arguments.get(argument_position) else {
-                    return Err("structural claim transfer names an absent argument");
-                };
-                if argument.access != CheckedStructuralAccess::Owned || !argument.path.is_empty() {
-                    continue;
-                }
-                for (event_index, event) in transfers.iter().enumerate() {
-                    if event.root != facts::PlaceRoot::Symbol(path.symbol)
-                        || event.claim_identity == PermissionClaimIdentity::Unknown
-                        || accounted[event_index]
-                    {
-                        continue;
-                    }
-                    accounted[event_index] = true;
-                    claim_transfers.push(CheckedUnitClaimTransferPlan {
-                        claim_identity: event.claim_identity,
-                        argument_index: u32::try_from(argument_position)
-                            .map_err(|_| "structural argument position exceeds u32")?,
-                    });
-                }
-            }
-            if accounted.iter().any(|accounted| !accounted) {
-                return Err("consumed claim does not cross at an owned whole argument");
-            }
-        }
+        let claim_transfers = owned_argument_claim_transfers(
+            program,
+            call,
+            source_state,
+            coordinate,
+            destination,
+            *target_state,
+            structural_arguments,
+            &transfers,
+        )?;
         // A bare `&'a V` shared-view result is itself counted a reference
         // record for custody, but it is no construction — its loan is the
         // shared-borrow join, not captured leaf loans. Only results that
@@ -1260,117 +1248,217 @@ pub fn structural_call_custody(
             forwarded_reference_sources,
             result_qualifications,
             claim_transfers,
-            returned_claim_transfers: Vec::new(),
+            result_claims: Vec::new(),
         });
     }
 
-    // A whole owner may contain several disjoint claims. The outcome map and
-    // entry frontier must agree on their complete identity-preserving path set;
-    // source transfers then instantiate that set at this exact call occurrence.
-    let outcomes = returned_claim_outcomes(facts, *target_machine, *target_state)?;
-    let returned = outcomes
-        .first()
-        .ok_or("structural callee has no returned claims")?;
-    let FlowClaimOutcomeSource::Input {
-        parameter_symbol, ..
-    } = returned.source
-    else {
-        return Err("structural returned claim does not continue an input");
-    };
-    let returned_claims = reconstruct_structural_parameter_return_claims(
+    // The result carries linear claims. Every consumed input crosses at its
+    // owned argument; the callee's checked body decides which of them, or
+    // which claims it established itself, its returning edge leaves at each
+    // claim path of the declared result type. Different exits may place
+    // different claims there (checking publishes those alternatives as
+    // conditional claim joins), so the result binds by path rather than by
+    // one callee lineage: the callee's claim at a path continues as the
+    // caller's claim at the same path.
+    if crate::machine_calls::reference_result_custody::local_owes_record_loans(
+        program,
+        destination.return_type,
+    ) || crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
+        program,
+        destination.return_type,
+    )
+    .is_some()
+        || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
+            program,
+            destination.return_type,
+        )
+        .is_some()
+    {
+        return Err("claim-bearing structural result also carries a loan");
+    }
+    let claim_transfers = owned_argument_claim_transfers(
+        program,
+        call,
+        source_state,
+        coordinate,
+        destination,
+        *target_state,
+        structural_arguments,
+        &transfers,
+    )?;
+    let received = received_result_claims(
         program,
         facts,
-        *target_machine,
-        *target_state,
-        parameter_symbol,
+        caller_machine,
+        caller_state,
+        source_state,
+        call,
     )?;
-    let parameters = program.state_parameters(destination);
-    let parameter_position = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == parameter_symbol)
-        .ok_or("structural claim outcome names an absent parameter")?;
-    let parameter = &parameters[parameter_position];
-    let argument_position = parameters[..parameter_position]
-        .iter()
-        .filter(|parameter| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .is_none()
-        })
-        .count();
-    let argument = structural_arguments
-        .get(argument_position)
-        .ok_or("structural returned claim has no input argument")?;
-    if argument.access != CheckedStructuralAccess::Owned || !argument.path.is_empty() {
-        return Err("structural returned claim requires an owned whole argument");
+    let mut result_claims = Vec::with_capacity(result_frontier.len());
+    for claim in &result_frontier {
+        if claim.conditional {
+            return Err("structural result claim depends on an active case");
+        }
+        let identity = if received.is_empty() {
+            PermissionClaimIdentity::Unknown
+        } else {
+            let mut matching = received
+                .iter()
+                .filter(|(segments, _)| *segments == claim.path.as_slice());
+            let (_, identity) = matching
+                .next()
+                .ok_or("structural result claim has no receiving establishment")?;
+            if matching.next().is_some() {
+                return Err("structural result claim is received twice");
+            }
+            *identity
+        };
+        result_claims.push(CheckedStructuralResultClaimPlan {
+            claim: identity,
+            path: structural_claim_path(program, destination.return_type, &claim.path)?,
+        });
     }
+    if !received.is_empty() && received.len() != result_frontier.len() {
+        return Err("structural result receives claims outside its result frontier");
+    }
+    result_claims.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(CheckedStructuralCallCustodyPlan {
+        reference_loan: arena::Handle::invalid(),
+        forwarded_reference_sources: Vec::new(),
+        result_qualifications,
+        claim_transfers,
+        result_claims,
+    })
+}
+
+/// Join each linear claim this call consumes to the owned whole argument
+/// whose place holds it. The roster follows the caller's transfer events, so
+/// every event lands on exactly one argument; projected and borrowed
+/// arguments transfer nothing.
+#[allow(clippy::too_many_arguments)]
+fn owned_argument_claim_transfers(
+    program: &dyn crate::CheckingInput,
+    call: &FlowCallFact,
+    source_state: &typed_trees::state::State,
+    coordinate: &CheckedUnitCallCoordinate,
+    destination: &typed_trees::state::State,
+    target_state: SymbolHandle,
+    structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    transfers: &[&checked_trees::FlowPermissionEventFact],
+) -> Result<Vec<CheckedUnitClaimTransferPlan>, &'static str> {
+    let mut claim_transfers = Vec::with_capacity(transfers.len());
+    if transfers.is_empty() {
+        return Ok(claim_transfers);
+    }
+    let parameters = program.state_parameters(destination);
     let authored_arguments = structural_authored_arguments(
         program,
         call,
         source_state,
         coordinate,
-        *target_state,
+        target_state,
         parameters.len(),
     )?;
-    let ExpressionNode::Name(path) = program
-        .expression_table
-        .expression(authored_arguments[parameter_position])
-    else {
-        return Err("structural returned claim requires an exact whole source root");
-    };
-    if path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return Err("structural returned claim source is projected");
-    }
-    if transfers.len() != returned_claims.len() {
-        return Err("structural returned claims differ from the complete input transfer set");
-    }
-    let mut transferred_claims = Vec::with_capacity(transfers.len());
-    for transfer in transfers {
-        if transfer.root != facts::PlaceRoot::Symbol(path.symbol)
-            || transfer.claim_identity == PermissionClaimIdentity::Unknown
-            || transferred_claims
-                .iter()
-                .any(|(identity, _)| *identity == transfer.claim_identity)
+    let mut accounted = vec![false; transfers.len()];
+    for (parameter_position, authored_argument) in authored_arguments.iter().enumerate() {
+        let ExpressionNode::Name(path) = program.expression_table.expression(*authored_argument)
+        else {
+            continue;
+        };
+        if crate::expression_traversal::single_segment_name_symbol(program, *authored_argument)
+            .is_none()
         {
-            return Err("structural returned claim source differs from its transferred lineage");
+            continue;
         }
-        let segments = retained_claim_segments(facts, transfer.segments)?;
-        let transfer_path = structural_claim_path(program, parameter.type_reference, segments)?;
-        transferred_claims.push((transfer.claim_identity, transfer_path));
-    }
-    transferred_claims.sort_by(|left, right| left.1.cmp(&right.1));
-    let argument_index =
-        u32::try_from(argument_position).map_err(|_| "structural argument position exceeds u32")?;
-    let mut custody = CheckedStructuralCallCustodyPlan {
-        reference_loan: arena::Handle::invalid(),
-        forwarded_reference_sources: Vec::new(),
-        result_qualifications,
-        claim_transfers: Vec::with_capacity(returned_claims.len()),
-        returned_claim_transfers: Vec::with_capacity(returned_claims.len()),
-    };
-    for ((callee_claim, returned_path), (caller_claim, transfer_path)) in
-        returned_claims.into_iter().zip(transferred_claims)
-    {
-        if returned_path != transfer_path {
-            return Err("structural returned claim path differs from its source transfer");
+        let argument_position = parameters[..parameter_position]
+            .iter()
+            .filter(|parameter| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+            })
+            .count();
+        let Some(argument) = structural_arguments.get(argument_position) else {
+            return Err("structural claim transfer names an absent argument");
+        };
+        if argument.access != CheckedStructuralAccess::Owned || !argument.path.is_empty() {
+            continue;
         }
-        custody.claim_transfers.push(CheckedUnitClaimTransferPlan {
-            claim_identity: caller_claim,
-            argument_index,
-        });
-        custody
-            .returned_claim_transfers
-            .push(CheckedStructuralReturnedClaimTransferPlan {
-                callee_claim,
-                caller_claim,
-                path: returned_path,
+        for (event_index, event) in transfers.iter().enumerate() {
+            if event.root != facts::PlaceRoot::Symbol(path.symbol)
+                || event.claim_identity == PermissionClaimIdentity::Unknown
+                || accounted[event_index]
+            {
+                continue;
+            }
+            accounted[event_index] = true;
+            claim_transfers.push(CheckedUnitClaimTransferPlan {
+                claim_identity: event.claim_identity,
+                argument_index: u32::try_from(argument_position)
+                    .map_err(|_| "structural argument position exceeds u32")?,
             });
+        }
     }
-    Ok(custody)
+    if accounted.iter().any(|accounted| !accounted) {
+        return Err("consumed claim does not cross at an owned whole argument");
+    }
+    Ok(claim_transfers)
+}
+
+/// The caller's establishments that receive this call's result: a local
+/// initialized by the call, or the call expression itself when it is an
+/// anonymous operand. An empty roster means no caller place receives the
+/// value (a terminal call returned at once); an assignment destination would
+/// need its own projected prefix and is not admitted here.
+fn received_result_claims<'facts>(
+    program: &dyn crate::CheckingInput,
+    facts: &'facts CheckFacts,
+    caller_machine: SymbolHandle,
+    caller_state: SymbolHandle,
+    source_state: &typed_trees::state::State,
+    call: &FlowCallFact,
+) -> Result<Vec<(&'facts [facts::PlaceSegment], PermissionClaimIdentity)>, &'static str> {
+    let receiving_root = match program
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .get(call.statement_index)
+    {
+        Some(StatementNode::LocalData(local))
+            if local.initial_value == call.authored_expression =>
+        {
+            Some(facts::PlaceRoot::Symbol(local.symbol))
+        }
+        Some(StatementNode::Assignment(assignment))
+            if assignment.value == call.authored_expression =>
+        {
+            return Err("assigned claim-bearing call result needs its destination prefix");
+        }
+        _ => None,
+    };
+    let mut received = Vec::new();
+    for (_, event) in facts.flow.ownership.permissions.iter() {
+        if event.machine_symbol != caller_machine
+            || event.state_symbol != caller_state
+            || event.kind != PermissionEventKind::Establish
+            || event.access != PermissionAccess::Owned
+            || event.multiplicity != Multiplicity::Linear
+            || !event.obligation_live
+            || !matches!(event.source,
+                PermissionEventSource::Statement { statement_index }
+                | PermissionEventSource::Call { statement_index, .. }
+                if statement_index == call.statement_index)
+            || (Some(event.root) != receiving_root
+                && event.root != facts::PlaceRoot::Expression(call.authored_expression))
+        {
+            continue;
+        }
+        if event.claim_identity == PermissionClaimIdentity::Unknown {
+            return Err("structural result establishment has no claim identity");
+        }
+        received.push((
+            retained_claim_segments(facts, event.segments)?,
+            event.claim_identity,
+        ));
+    }
+    Ok(received)
 }

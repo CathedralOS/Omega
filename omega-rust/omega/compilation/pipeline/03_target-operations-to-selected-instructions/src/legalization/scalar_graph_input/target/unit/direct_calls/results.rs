@@ -64,17 +64,14 @@ pub(super) fn validate(
                 callee_result,
                 result_home,
                 reference_results,
-                returned_claim_transfers,
             },
             AbstractOperation::CallStructural {
                 result:
                     AbstractStructuralCallResult::Structural {
                         result: expected_result,
-                        returned_claim_transfers: expected_returns,
                         selected_evidence,
                     },
                 structural_arguments,
-                claim_transfers,
                 requirement_obligations: _,
                 ..
             },
@@ -99,12 +96,9 @@ pub(super) fn validate(
                 || result.multiplicity != callee_result.multiplicity
                 || *result_home != expected_home
                 || *reference_results != expected_references
-                // Claim rosters remain explicit implementation limits; the
-                // requirement roster is already replayed exactly by the
-                // enclosing call check and rides the legalized instruction.
-                || !claim_transfers.is_empty()
-                || !returned_claim_transfers.is_empty()
-                || !expected_returns.is_empty()
+                // Claims cross as custody, not bytes: the enclosing call check
+                // replays the claim and requirement rosters exactly and both
+                // ride the legalized instruction.
                 || !selected_evidence.is_empty()
             {
                 return Err(LegalizationError::custody());

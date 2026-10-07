@@ -22,7 +22,6 @@
 use semantic_vocabulary::{MachineId, ObligationId, ProofTerm, ScalarTerm, ValueId};
 use terminal_psi::{
     ClaimTransfer, CrashRouteBucket, OperationKind, StructuralArgument, StructuralMultiplicity,
-    StructuralResultClaimTransfer,
 };
 
 /// One direct in-module call, before its Terminal spelling is chosen.
@@ -53,7 +52,6 @@ pub(crate) enum DirectCallResult {
     /// `CallStructuralWithScalarArguments`.
     Structural {
         multiplicity: StructuralMultiplicity,
-        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
     },
     /// Terminal's bounded payloadless `CallStructural` form: no operand,
     /// claim or contract lane crosses, and return establishes one unrestricted
@@ -141,38 +139,33 @@ impl DirectCall {
                     crash_continuations,
                 }
             }
-            DirectCallResult::Structural {
-                multiplicity,
-                returned_claim_transfers,
-            } if multiplicity == StructuralMultiplicity::Linear
-                && arguments.is_empty()
-                && erased_arguments.is_empty()
-                && erased_proof_arguments.is_empty() =>
+            DirectCallResult::Structural { multiplicity }
+                if multiplicity == StructuralMultiplicity::Linear
+                    && arguments.is_empty()
+                    && erased_arguments.is_empty()
+                    && erased_proof_arguments.is_empty() =>
             {
                 OperationKind::CallStructural {
                     callee,
                     structural_arguments,
                     claim_transfers,
-                    returned_claim_transfers,
                     requirement_obligations,
                     crash_continuations,
                     selected_evidence: Vec::new(),
                 }
             }
-            DirectCallResult::Structural {
-                returned_claim_transfers,
-                ..
-            } => OperationKind::CallStructuralWithScalarArguments {
-                callee,
-                arguments,
-                erased_arguments,
-                erased_proof_arguments,
-                structural_arguments,
-                claim_transfers,
-                returned_claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            },
+            DirectCallResult::Structural { .. } => {
+                OperationKind::CallStructuralWithScalarArguments {
+                    callee,
+                    arguments,
+                    erased_arguments,
+                    erased_proof_arguments,
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                }
+            }
             DirectCallResult::PayloadlessCase => {
                 debug_assert!(
                     arguments.is_empty()
@@ -188,7 +181,6 @@ impl DirectCall {
                     callee,
                     structural_arguments,
                     claim_transfers,
-                    returned_claim_transfers: Vec::new(),
                     requirement_obligations,
                     crash_continuations,
                     selected_evidence: Vec::new(),

@@ -749,7 +749,7 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     published_places: Vec<StructuralPlaceDeclaration>,
     /// Claim identities arriving through whole-owned edges. These are copied
     /// from the source custody, never attached to a fictitious producer.
-    arrival_claims: Vec<(PlaceId, Vec<terminal_psi::StructuralResultClaimBinding>)>,
+    pub(super) arrival_claims: Vec<(PlaceId, Vec<terminal_psi::StructuralResultClaimBinding>)>,
 }
 
 pub(super) struct ValueContinuation {

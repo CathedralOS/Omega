@@ -250,21 +250,17 @@ pub(crate) fn structural_result_matches_return(
         return false;
     }
     match returned.result.multiplicity {
+        // The caller's whole-root claim continues whichever claim the
+        // callee's return holds at the root.
         terminal_psi::StructuralMultiplicity::Linear => {
-            result.returned_claim_transfers.len() == 1
-                && returned.returned_claims.as_slice()
-                    == [result.returned_claim_transfers[0].callee_claim]
+            returned.returned_claims.len() == 1
                 && result.operation_result.claims.len() == 1
                 && result.operation_result.claims[0].path.is_empty()
-                && result.operation_result.claims[0].claim
-                    == result.returned_claim_transfers[0].caller_claim
-                && result.returned_claims.as_slice()
-                    == [result.returned_claim_transfers[0].caller_claim]
+                && result.returned_claims.as_slice() == [result.operation_result.claims[0].claim]
         }
         terminal_psi::StructuralMultiplicity::Affine => {
             crate::object_artifact::replay::structural::return_record::has_claim_free_affine_identity_custody(returned)
                 && result.operation_result.claims.is_empty()
-                && result.returned_claim_transfers.is_empty()
                 && result.returned_claims.is_empty()
         }
         terminal_psi::StructuralMultiplicity::Unrestricted => false,

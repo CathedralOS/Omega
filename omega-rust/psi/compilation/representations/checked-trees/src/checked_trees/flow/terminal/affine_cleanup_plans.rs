@@ -139,9 +139,13 @@ pub struct CheckedUnitClaimTransferPlan {
 }
 
 /// Ordinary structural result custody is separate from its value binding.
-/// These rows preserve existing claims through successful call completion;
-/// they never establish fresh authority. An empty record is valid only for
-/// an independently checked unqualified, claim-free result. Checking decides
+/// The input rows move caller claims into the callee; the result rows bind
+/// the claims the callee returns, one per linear claim path of its declared
+/// result type. A result claim continues whichever claim the callee's
+/// returning edge holds at that path, so different exits may return
+/// different inputs or fresh establishments there; the checked join receipts
+/// keep that per-exit lineage. An empty record is valid only for an
+/// independently checked unqualified, claim-free result. Checking decides
 /// the record once (`validation::structural_call_custody`) and lowering reads
 /// it as recorded.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -154,15 +158,21 @@ pub struct CheckedStructuralCallCustodyPlan {
     pub forwarded_reference_sources: Vec<crate::CheckedReferenceResultSourcePlan>,
     pub result_qualifications: Vec<SemanticDomainId>,
     pub claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
-    pub returned_claim_transfers: Vec<CheckedStructuralReturnedClaimTransferPlan>,
+    /// Canonical path order; empty exactly when the result type carries no
+    /// linear claim.
+    pub result_claims: Vec<CheckedStructuralResultClaimPlan>,
 }
 
+/// One claim the caller holds beneath a structural call result after normal
+/// completion.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralReturnedClaimTransferPlan {
-    pub callee_claim: language_semantics::PermissionClaimIdentity,
-    pub caller_claim: language_semantics::PermissionClaimIdentity,
-    /// Equal canonical input-relative and result-relative claim path. The
-    /// containing call transfers the whole owner, not a projected argument.
+pub struct CheckedStructuralResultClaimPlan {
+    /// The caller's identity for the received claim. An input returned on
+    /// every exit keeps its transferred identity; a result received by a
+    /// local carries the local's establishment. `Unknown` marks a result no
+    /// caller place receives (a terminal call's value returned at once), so
+    /// lowering gives it a claim only the returning edge names.
+    pub claim: language_semantics::PermissionClaimIdentity,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
 }
 

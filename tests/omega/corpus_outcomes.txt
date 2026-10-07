@@ -2639,8 +2639,8 @@ pass/control_flow/termination_index_distance_compile checked 978ms check-target:
 pass/control_flow/transition_operand_schedule checked 314ms @2d8ed253669f
 pass/control_flow/transition_tail_self_call checked 295ms @2d8ed253669f
 pass/core/carry_permission_provider_adapter checked 663ms check-target:macos_arm64 @2d8ed253669f
-pass/core/content_conservation_contract incomplete 1541ms check-target:macos_arm64 @47d3b5bbd8c+wt
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: linear structural result)
+pass/core/content_conservation_contract incomplete 1854ms check-target:macos_arm64 @e007e1d70f35+wt
+	`Main::main` calls `Main::partition_and_retain`; `Main::partition_and_retain` has no executable body: this compiler does not lower a statement of it yet (call operation: boundary contracts)
 pass/core/content_retained_custody_round_trip checked 387ms check-target:macos_arm64 @2d8ed253669f
 pass/core/extent_core_surface checked 283ms @2d8ed253669f
 pass/core/extent_root_provider_adapter checked 679ms check-target:macos_arm64 @2d8ed253669f
@@ -3150,15 +3150,14 @@ pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked
 pass/optimizer/rollback_to_no_selection_empty_entry checked 7147ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:0786f0aa6f452e31 rolled-back-semantic:0786f0aa6f452e31 module:same check-target:macos_arm64 @d83ae44b78cd
 pass/optimizer/stored_load_forwarding_selection_exit checked 1159ms check-target:macos_arm64 @7be03351b68c+wt
 pass/ownership/conditional_linear_sum checked 285ms @2d8ed253669f
-pass/ownership/linear_ambiguous_state_result_mapping rejected 602ms check-target:linux_x86_64 @82ec69a91ce
-	terminal-artifact production failed: Lowering(Unsupported("conditional result custody requires Terminal exit-alternative correspondence"))
+pass/ownership/linear_ambiguous_state_result_mapping checked 3301ms check-target:macos_arm64 @e007e1d70f35+wt
 pass/ownership/linear_assignment_establishes checked 289ms @2d8ed253669f
 pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
+pass/ownership/linear_call_result_claims_exit checked 3292ms check-target:macos_arm64 @e007e1d70f35+wt
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
 pass/ownership/linear_transfer_and_consume checked 5959ms check-target:macos_arm64 @e4c5f1527652+wt
-pass/ownership/linear_transparent_record_frontier rejected 2167ms check-target:macos_arm64 @d83ae44b78cd
-	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("claim action does not match a declared structural claim path")))
+pass/ownership/linear_transparent_record_frontier checked 3103ms check-target:macos_arm64 @e007e1d70f35+wt
 pass/ownership/move_keyword_field_assignment checked 1226ms check-target:macos_arm64 @2d8ed253669f
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms check-target:macos_arm64 @2d8ed253669f

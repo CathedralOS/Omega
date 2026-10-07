@@ -200,7 +200,6 @@ impl TerminalExecution {
             callee,
             ref structural_arguments,
             ref claim_transfers,
-            ref returned_claim_transfers,
             ..
         } = operation.kind
         else {
@@ -216,7 +215,7 @@ impl TerminalExecution {
             structural_arguments,
             prepared_arguments,
             claim_transfers,
-            returned_claim_transfers.clone(),
+            crate::execution::ResultClaimOrigin::CalleeReturn,
         )?;
         Ok(OperationFlow::Redispatch)
     }
@@ -230,7 +229,6 @@ impl TerminalExecution {
             ref arguments,
             ref structural_arguments,
             ref claim_transfers,
-            ref returned_claim_transfers,
             ..
         } = operation.kind
         else {
@@ -255,7 +253,7 @@ impl TerminalExecution {
             structural_arguments,
             prepared_arguments,
             claim_transfers,
-            returned_claim_transfers.clone(),
+            crate::execution::ResultClaimOrigin::CalleeReturn,
         )?;
         Ok(OperationFlow::Redispatch)
     }
@@ -376,7 +374,7 @@ impl TerminalExecution {
                         structural_arguments,
                         prepared_arguments,
                         &claim_transfers,
-                        Vec::new(),
+                        crate::execution::ResultClaimOrigin::BoundaryIssuance,
                     )?;
                 }
                 terminal_psi::OperationResult::Scalar(result) => {

@@ -2,8 +2,8 @@
 //! Their values are ordinary structural producers, evaluated only after selecting
 //! an exit. Dependency discovery visits every arm; execution never does so.
 use super::super::super::super::{
-    CheckedComposedUnitControlTerminatorPlan, ClaimId, PermissionClaimIdentity,
-    StructuralParameterDeclaration, SuccessorEdge, block_id,
+    CheckedComposedUnitControlTerminatorPlan, StructuralParameterDeclaration, SuccessorEdge,
+    block_id,
 };
 use super::super::super::{
     Block, CheckedUnitEffectOperationPlan, ScalarType, Terminator, ValueDeclaration,
@@ -118,7 +118,7 @@ pub(super) fn emit(
     state: &CheckedComposedUnitControlStatePlan,
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
-    claims: &[(PermissionClaimIdentity, ClaimId)],
+    claims: crate::emission::claim_bindings::PublishedClaims<'_>,
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
     erased_parameters: &[ValueDeclaration],
@@ -284,7 +284,7 @@ pub(super) fn emit_return(
     operation: &CheckedUnitEffectOperationPlan,
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
-    claims: &[(PermissionClaimIdentity, ClaimId)],
+    claims: crate::emission::claim_bindings::PublishedClaims<'_>,
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
     erased_parameters: &[ValueDeclaration],
@@ -333,21 +333,33 @@ pub(super) fn complete_structural_return(
         .ok_or(LoweringError::Unsupported(
             "ordered return has no structural producer",
         ))?;
-    let source = operations
+    let (source, mut returned_claims) = operations
         .structural_values
         .iter()
         .find(|(ordinal, _)| *ordinal == result.binding_ordinal)
-        .map(|(_, value)| evaluation.current_structural_place(value.place()))
+        .map(|(_, value)| {
+            (
+                evaluation.current_structural_place(value.place()),
+                value
+                    .claims()
+                    .iter()
+                    .map(|binding| binding.claim)
+                    .collect::<Vec<_>>(),
+            )
+        })
         .ok_or(LoweringError::Unsupported(
             "ordered return value was not established",
         ))?;
+    // The returned value carries every claim it holds; the caller binds them
+    // by path.
+    returned_claims.sort();
     let cleanup_actions = super::cleanup::for_exit(
         checked, state, exit, catalogs, parameters, evaluation, operations,
     )?;
     Ok(Terminator::ReturnStructural {
         edge: edge_id(allocate_dense(next_edge)?),
         source,
-        returned_claims: Vec::new(),
+        returned_claims,
         cleanup_actions,
     })
 }

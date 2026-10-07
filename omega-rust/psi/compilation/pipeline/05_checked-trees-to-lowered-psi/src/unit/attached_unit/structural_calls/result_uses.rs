@@ -91,7 +91,7 @@ fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperation
         return false;
     }
     call.structural_custody().is_some_and(|custody| {
-        !custody.reference_loan.is_valid() && custody.returned_claim_transfers.is_empty()
+        !custody.reference_loan.is_valid() && custody.result_claims.is_empty()
     }) && crate::declarations::state_declaration(checked, call.target.state).is_ok_and(
         |(_, callee_state)| {
             let returned = callee_state.return_type;
@@ -114,173 +114,6 @@ fn call_structural_result(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<&CheckedUnitStructuralResultBindingPlan> {
     operation.call()?.structural_result()
-}
-
-/// Rejoin a whole named linear operand to its earlier successful call, not
-/// merely another result with the same carrier type. Source claims retain the
-/// input lineage across both calls; operation emission checks the same join in
-/// the Terminal place/claim namespace.
-fn validate_linear_result_consumer(
-    checked: &CheckedTrees,
-    caller: &CallerView<'_>,
-    operation: &CheckedUnitEffectOperationPlan,
-    argument_index: usize,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
-) -> Result<(), LoweringError> {
-    let (state, operations) = (caller.state, caller.operations);
-    let Some((consumer, consumer_result, custody)) = operation
-        .call()
-        .filter(|call| call.is_module())
-        .and_then(|call| Some((call, call.structural_result()?, call.structural_custody()?)))
-    else {
-        return unsupported("linear result operand requires an ordinary structural call");
-    };
-    let coordinate = &consumer.coordinate;
-    let argument =
-        consumer
-            .structural_arguments
-            .get(argument_index)
-            .ok_or(LoweringError::Unsupported(
-                "linear result operand has no argument slot",
-            ))?;
-    let binding_ordinal =
-        argument
-            .source_structural_result_binding_ordinal()
-            .ok_or(LoweringError::Unsupported(
-                "linear result operand has no binding ordinal",
-            ))?;
-    let mut consumers = operations
-        .iter()
-        .enumerate()
-        .filter(|(_, candidate)| *candidate == operation);
-    let (consumer_index, _) = consumers.next().ok_or(LoweringError::Unsupported(
-        "linear result consumer is absent",
-    ))?;
-    if consumers.next().is_some() {
-        return unsupported("linear result consumer is ambiguous");
-    }
-    let source = producer(operations, binding_ordinal)?;
-    let producer_index = source.operation_index;
-    let producer = &operations[producer_index];
-    let Some((producer_call, result, produced)) = producer
-        .call()
-        .and_then(|call| Some((call, call.structural_result()?, call.structural_custody()?)))
-    else {
-        return unsupported("linear result operand has no ordinary producer");
-    };
-    let producer_coordinate = &producer_call.coordinate;
-    let producer_target_state = &producer_call.target.state;
-    if producer_index >= consumer_index
-        || producer_coordinate.call_ordinal != 0
-        || producer_coordinate.statement_index >= coordinate.statement_index
-        || result.binding_ordinal >= consumer_result.binding_ordinal
-        || source.discard
-        || result.multiplicity != Multiplicity::Linear
-        || parameter.multiplicity != Multiplicity::Linear
-        || !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::Owned
-        || parameter.access != argument.access
-        || parameter.fused_service_erasure.is_some()
-        || result.type_identity != argument.type_identity
-        || parameter.type_identity != result.type_identity
-        || parameter.qualifications != produced.result_qualifications
-    {
-        return unsupported("linear result operand has stale or incompatible producer custody");
-    }
-    let (_, producer_state) =
-        crate::declarations::state_declaration(checked, *producer_target_state)?;
-    let projected_qualifications = validation::structural_result_projected_qualifications(
-        &checked.typed,
-        producer_state.return_type,
-    )
-    .map_err(LoweringError::Unsupported)?;
-    if parameter.projected_qualifications != projected_qualifications {
-        return unsupported("linear result operand changes its projected qualification row");
-    }
-    let (_, source_state) = crate::declarations::state_declaration(checked, state)?;
-    let Some(StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(source_state.statement_nodes)
-        .get(result.statement_index as usize)
-    else {
-        return unsupported("linear result operand has no authored local");
-    };
-    // A `&mut` view local's qualifications are the referee's: the reference
-    // presentation is custody, not a domain shell.
-    let qualification_type =
-        crate::reference_custody::mutable_borrow_parts(checked, local.type_reference)
-            .map(|(referee, _)| referee)
-            .unwrap_or(local.type_reference);
-    if local.is_mutable
-        || validation::structural_result_qualifications(&checked.typed, qualification_type)
-            .map_err(LoweringError::Unsupported)?
-            != produced.result_qualifications
-        || validation::structural_result_projected_qualifications(
-            &checked.typed,
-            qualification_type,
-        )
-        .map_err(LoweringError::Unsupported)?
-            != projected_qualifications
-    {
-        return unsupported("linear result local changes its producing qualification row");
-    }
-    let authored = crate::call_sites::locate(checked, state, *coordinate)?;
-    let mut arguments = authored
-        .structural_arguments
-        .iter()
-        .filter(|(position, _)| *position == parameter.position);
-    let (_, expression) = arguments.next().ok_or(LoweringError::Unsupported(
-        "linear result operand has no authored argument",
-    ))?;
-    if arguments.next().is_some()
-        || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(name)
-        if name.symbol == local.symbol && name.head_symbol == local.symbol
-            && checked.expression_table.name_path_members(name.members).len() == 1)
-    {
-        return unsupported("linear result operand does not name its exact producing local");
-    }
-    let transfers = custody
-        .claim_transfers
-        .iter()
-        .filter(|transfer| transfer.argument_index as usize == argument_index)
-        .collect::<Vec<_>>();
-    // Claim identities survive the move, and each identity keeps its relative
-    // path below the whole owner. Equal counts or equal aggregate types cannot
-    // authorize exchanging two sibling claims between successive calls. Shared
-    // custody replay above independently establishes canonical path order.
-    if transfers.is_empty()
-        || transfers.len() != produced.returned_claim_transfers.len()
-        || transfers.len() != custody.returned_claim_transfers.len()
-        || transfers
-            .iter()
-            .zip(&produced.returned_claim_transfers)
-            .zip(&custody.returned_claim_transfers)
-            .any(|((transfer, returned), continued)| {
-                transfer.claim_identity != returned.caller_claim
-                    || transfer.claim_identity != continued.caller_claim
-                    || returned.path != continued.path
-            })
-    {
-        return unsupported("linear result operand changes the returned input claim lineage");
-    }
-    for earlier in &operations[producer_index + 1..=consumer_index] {
-        let Some(call) = earlier.call() else {
-            continue;
-        };
-        if call
-            .structural_arguments
-            .iter()
-            .enumerate()
-            .any(|(argument_position, candidate)| {
-                candidate.source_structural_result_binding_ordinal() == Some(binding_ordinal)
-                    && candidate.access == checked_trees::CheckedStructuralAccess::Owned
-                    && (earlier != operation || argument_position != argument_index)
-            })
-        {
-            return unsupported("linear result operand has already been consumed");
-        }
-    }
-    Ok(())
 }
 
 /// Rejoin a construction authored as a call argument to the call that reads
@@ -1125,15 +958,6 @@ pub(crate) fn validate_consumer(
                 parameter,
                 source_position,
             )?;
-        }
-        // A linear result chained into the next structural call keeps its
-        // exact returned claim lineage across both calls.
-        if linear_result_move
-            && operation
-                .call()
-                .is_some_and(|call| call.is_module() && call.structural_result().is_some())
-        {
-            validate_linear_result_consumer(checked, caller, operation, index, parameter)?;
         }
         if (producer.discard
             && argument.access == checked_trees::CheckedStructuralAccess::Owned

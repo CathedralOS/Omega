@@ -303,9 +303,9 @@ pub(crate) fn admissible_invariant_crash_continuation_structural_scalar_call(
 /// scalar, uses exactly its scalar `arguments` in operand order, carries no
 /// successors, and returns a claim-free result whose multiplicity is `Affine`
 /// or `Unrestricted` — the multiplicities the cyclic eligibility fence already
-/// confines. Both `claim_transfers` and `returned_claim_transfers` must be
-/// empty, so the node carries exactly one vacuous `ClaimTransfer` ownership
-/// row, which relocates byte-exact inside the moved operation.
+/// confines. `claim_transfers` and the result's claims must be empty, so the
+/// node carries exactly one vacuous `ClaimTransfer` ownership row, which
+/// relocates byte-exact inside the moved operation.
 /// `requirement_obligations` move byte-exact inside the moved operation,
 /// exactly like every other call variant's: they were discharged against the
 /// argument values and structural actuals, and substitution only rebinds a
@@ -329,7 +329,6 @@ fn structural_call_shape(
         result:
             AbstractStructuralCallResult::Structural {
                 result,
-                returned_claim_transfers,
                 selected_evidence,
             },
         callee: abstract_operations::AbstractCallTarget::Machine(callee),
@@ -359,7 +358,6 @@ fn structural_call_shape(
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && claim_transfers.is_empty()
-        && returned_claim_transfers.is_empty()
         && selected_evidence.is_empty()
         && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())])
     .then(|| (*callee, result.clone(), crash_continuations.as_slice()))

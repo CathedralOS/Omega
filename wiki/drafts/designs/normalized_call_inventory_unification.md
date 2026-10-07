@@ -20,7 +20,7 @@ semantics:
 
 | Variant | Callee source | Argument classes | Result custody |
 |---|---|---|---|
-| `Call` | direct `MachineId` + `NativeCallOrigin` | `TargetUnitScalarCallArgument` prefix + `Vec<TargetStructuralArgument>` | `TargetCallResult` (Unit/Scalar/Structural + reference results + returned claim transfers) |
+| `Call` | direct `MachineId` + `NativeCallOrigin` | `TargetUnitScalarCallArgument` prefix + `Vec<TargetStructuralArgument>` | `TargetCallResult` (Unit/Scalar/Structural + reference results) |
 | `StructuralScalarCallWithDynamicArguments` | direct `MachineId` | structural + `TargetDynamicDescriptorArgument` (each expands to `{data, table}` pair) | `AbstractResult` + `TargetUnitScalarHomeRequirement` |
 | `StructuralUnitCallWithDynamicArguments` | direct `MachineId` | structural + dynamic descriptor | none |
 | `StoredDynamicScalarCall` | `AbstractStoredDynamicDispatch` (stored descriptor reload) | one `TargetStructuralArgument` (the descriptor projection) | `AbstractResult` + scalar home |
@@ -154,9 +154,9 @@ admitted, and the foreign formal-order mapping is preserved by
 construction rather than reconstructed by convention.
 
 `result: TargetCallResult` already carries Unit/Scalar(home)/
-Structural(result, callee_result, result_home, reference_results,
-returned_claim_transfers) — every `result: AbstractResult` +
-`result_home` pair in the dynamic variants folds into `Scalar(home)`
+Structural(result, callee_result, result_home, reference_results) —
+every `result: AbstractResult` + `result_home` pair in the dynamic
+variants folds into `Scalar(home)`
 with the semantic result identified through the home's
 `defining_operation`/`source_value`, and `Unit` absorbs both `*UnitCall`
 variants.

@@ -387,7 +387,7 @@ impl OperationFrame<'_, '_> {
                 self.type_ids,
                 self.structural_types.declarations(),
                 self.callees.domain_ids,
-                self.calls.claims.bindings(),
+                &mut self.calls.claims,
                 register,
                 self.next_place,
                 self.operations,

@@ -4,7 +4,7 @@ use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use terminal_semantics::structural_paths_may_overlap;
 
 pub(crate) fn plain_scalar_sum_call(
@@ -16,7 +16,6 @@ pub(crate) fn plain_scalar_sum_call(
         result:
             AbstractStructuralCallResult::Structural {
                 result,
-                returned_claim_transfers,
                 selected_evidence,
             },
         claim_transfers,
@@ -43,7 +42,6 @@ pub(crate) fn plain_scalar_sum_call(
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && claim_transfers.is_empty()
-        && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
         && *crash_continuations == contract.crash_routes
         && selected_evidence.is_empty()
@@ -245,12 +243,7 @@ pub(crate) fn exact_payloadless_structural_call(
     >,
 ) -> bool {
     let O::CallStructural {
-        result:
-            AbstractStructuralCallResult::Structural {
-                result,
-                returned_claim_transfers,
-                ..
-            },
+        result: AbstractStructuralCallResult::Structural { result, .. },
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -275,7 +268,6 @@ pub(crate) fn exact_payloadless_structural_call(
         && callee.evidence_contract_lanes.is_empty()
         && structural_arguments.is_empty()
         && claim_transfers.is_empty()
-        && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
         && *crash_continuations == contract.crash_routes
         && result.structural_type == callee_result.structural_type
@@ -321,12 +313,16 @@ pub(crate) fn payloadless_selected_evidence_surface_matches(
                 .is_some_and(|contract| !contract.outcome_specific_ensures.is_empty()))
 }
 
+/// Result claims bind by path: each continues the claim the callee's
+/// returning edge holds at that path beneath its returned value, so the
+/// caller names no callee-local identity. The callee's own ownership replay
+/// proves that every return transfers exactly the claims its value holds;
+/// this join checks the shape both sides share.
 pub(crate) fn validate_structural_call_result(
     result: &terminal_psi::StructuralOperationResult,
     callee: &PsiOptimizationFunction,
     exact_claim_free: bool,
     claim_transfers: &[terminal_psi::ClaimTransfer],
-    returned: &[terminal_psi::StructuralResultClaimTransfer],
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     let Some(signature) = callee.result.structural() else {
@@ -355,49 +351,30 @@ pub(crate) fn validate_structural_call_result(
     if exact_claim_free {
         return true;
     }
-    // A callee with no claim declarations carries no claim traffic: the
-    // result is claim-exact exactly when the call's claim surfaces are
-    // empty. Requirement obligations and crash routes are their own
-    // contract rows, checked by the call's contract owner.
-    if callee.entry_claim_declarations.is_empty() && callee.content_entry_claims.is_empty() {
-        return result.claims.is_empty() && returned.is_empty() && claim_transfers.is_empty();
-    }
-    if result.claims.is_empty()
-        || returned.is_empty()
-        || returned.windows(2).any(|pair| pair[0] >= pair[1])
+    // A callee with no claim declarations receives no claim.
+    if !claim_transfers.is_empty()
+        && callee.entry_claim_declarations.is_empty()
+        && callee.content_entry_claims.is_empty()
     {
         return false;
     }
-    let callee_claims = callee
-        .entry_claim_declarations
-        .iter()
-        .map(|claim| (claim.claim, claim.path.as_slice()))
-        .collect::<BTreeMap<_, _>>();
-    let result_claims = result
-        .claims
-        .iter()
-        .map(|claim| (claim.claim, claim.path.as_slice()))
-        .collect::<BTreeMap<_, _>>();
-    let transferred = claim_transfers
-        .iter()
-        .map(|transfer| transfer.claim)
-        .collect::<BTreeSet<_>>();
-    let returned_callee = returned
-        .iter()
-        .map(|transfer| transfer.callee_claim)
-        .collect::<BTreeSet<_>>();
-    let returned_caller = returned
-        .iter()
-        .map(|transfer| transfer.caller_claim)
-        .collect::<BTreeSet<_>>();
-    callee_claims.len() == callee.entry_claim_declarations.len()
-        && result_claims.len() == result.claims.len()
-        && returned_callee.len() == returned.len()
-        && returned_caller.len() == returned.len()
-        && returned_callee == callee_claims.keys().copied().collect()
-        && returned_caller == result_claims.keys().copied().collect()
-        && transferred == result_claims.keys().copied().collect()
-        && returned.iter().all(|transfer| {
-            callee_claims.get(&transfer.callee_claim) == result_claims.get(&transfer.caller_claim)
+    let claim_shape = match result.multiplicity {
+        terminal_psi::StructuralMultiplicity::Linear => {
+            matches!(result.claims.as_slice(), [claim] if claim.path.is_empty())
+        }
+        terminal_psi::StructuralMultiplicity::Affine => {
+            result.claims.iter().all(|claim| !claim.path.is_empty())
+        }
+        terminal_psi::StructuralMultiplicity::Unrestricted => result.claims.is_empty(),
+    };
+    claim_shape
+        && callee.blocks.iter().all(|block| {
+            block.nodes.iter().all(|node| match &node.operation {
+                abstract_operations::AbstractOperation::ReturnStructural {
+                    returned_claims,
+                    ..
+                } => returned_claims.len() == result.claims.len(),
+                _ => true,
+            })
         })
 }

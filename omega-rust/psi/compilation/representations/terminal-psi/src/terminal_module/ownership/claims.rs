@@ -20,17 +20,6 @@ pub struct ClaimTransfer {
     pub argument_index: u32,
 }
 
-/// Transfer one claim returned by an in-module structural callee back into the
-/// caller's claim namespace. Claim identities are machine-local, so neither
-/// side may infer that equal numeric ids denote the same occurrence. The
-/// returned claim's structural path is reconstructed from the callee's
-/// verified result frontier and preserved beneath the operation result place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StructuralResultClaimTransfer {
-    pub callee_claim: ClaimId,
-    pub caller_claim: ClaimId,
-}
-
 /// Correlate successful completion of one exact bodyless boundary invocation
 /// with one caller-local live claim and structural argument position.
 ///

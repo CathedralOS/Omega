@@ -513,15 +513,15 @@ pub(super) fn lower_terminator(
                     .result
                     .as_ref()
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                // Returned claims leave with the value; the verified
+                // ownership replay already matched them to the source.
                 if parameter.access != StructuralAccess::Owned
-                    || parameter.multiplicity == StructuralMultiplicity::Linear
                     || parameter.structural_type != result.structural_type
                     || parameter.multiplicity != result.multiplicity
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty()
-                    || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()
                     || actual.shape != placement.shape
                 {
@@ -566,7 +566,6 @@ pub(super) fn lower_terminator(
                     .projected_qualifications
                     .iter()
                     .any(|row| !home.projected_qualifications().contains(row))
-                || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));

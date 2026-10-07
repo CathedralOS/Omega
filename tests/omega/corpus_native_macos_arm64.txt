@@ -636,8 +636,8 @@ pass/control_flow/termination_index_distance_compile built 525ms exit:0 @d62a4e2
 pass/control_flow/transition_operand_schedule checked 189ms
 pass/control_flow/transition_tail_self_call checked 199ms
 pass/core/carry_permission_provider_adapter built 274ms
-pass/core/content_conservation_contract incomplete 1953ms @47d3b5bbd8c+wt
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: linear structural result)
+pass/core/content_conservation_contract incomplete 1258ms @e007e1d70f35+wt
+	`Main::main` calls `Main::partition_and_retain`; `Main::partition_and_retain` has no executable body: this compiler does not lower a statement of it yet (call operation: boundary contracts)
 pass/core/content_retained_custody_round_trip built 311ms
 pass/core/extent_core_surface checked 196ms
 pass/core/extent_root_provider_adapter built 3863ms exit:0 @693920652f41
@@ -1132,15 +1132,14 @@ pass/optimizer/rollback_sparse_conditional_constant_propagation_selected built 3
 pass/optimizer/rollback_to_no_selection_empty_entry built 3404ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] @693920652f41
 pass/optimizer/stored_load_forwarding_selection_exit built 3222ms exit:0 @9beb2be72f2d+wt
 pass/ownership/conditional_linear_sum checked 210ms
-pass/ownership/linear_ambiguous_state_result_mapping rejected 3464ms @693920652f41
-	terminal-artifact production failed: Lowering(Unsupported("conditional result custody requires Terminal exit-alternative correspondence"))
+pass/ownership/linear_ambiguous_state_result_mapping built 2546ms exit:0 @e007e1d70f35+wt
 pass/ownership/linear_assignment_establishes checked 161ms
 pass/ownership/linear_boundary_entry_handoff checked 206ms
 pass/ownership/linear_branch_reconciliation checked 213ms
+pass/ownership/linear_call_result_claims_exit built 2458ms exit:0 @e007e1d70f35+wt
 pass/ownership/linear_self_receiver_disposition checked 208ms
 pass/ownership/linear_transfer_and_consume built 3491ms exit:0 @e4c5f1527652+wt
-pass/ownership/linear_transparent_record_frontier rejected 2310ms @693920652f41
-	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("record result custody is noncanonical")))
+pass/ownership/linear_transparent_record_frontier built 2369ms exit:0 @e007e1d70f35+wt
 pass/ownership/move_keyword_field_assignment built 606ms exit:41 @ed1fb1257faf+wt
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 252ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_record_transform_exit built 625ms exit:42 @ed1fb1257faf+wt

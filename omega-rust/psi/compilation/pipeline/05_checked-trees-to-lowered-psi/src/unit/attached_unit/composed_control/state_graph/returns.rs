@@ -159,7 +159,10 @@ pub(super) fn signature_matches(
                     == Some(&result.projected_qualifications)
                 // Plain storage classification excludes linear roots by design.
                 // Their admission instead requires exact entry/call/return claims.
+                // An affine owner of linear members carries their claims the
+                // same way: its returning edges transfer them by path.
                 && (result.multiplicity == Multiplicity::Linear
+                    || crate::content_classes::linear_owned_contents(checked, source.return_type)
                     || crate::reference_custody::is_reference_record(checked, source.return_type)
                     || (result.multiplicity == Multiplicity::Unrestricted
                         && crate::content_classes::plain_owned_with_represented_constraints(checked, source.return_type))

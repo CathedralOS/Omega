@@ -143,24 +143,24 @@ impl TerminalExecution {
                     result:
                         SuspendedCallResult::Structural {
                             result,
-                            returned_claim_transfers,
+                            claim_origin,
                             ..
                         },
                     ..
-                }) => Some(
-                    if !result.claims.is_empty() && returned_claim_transfers.is_empty() {
+                }) => Some(match claim_origin {
+                    crate::execution::ResultClaimOrigin::BoundaryIssuance => {
                         self.mint_boundary_result_claims(live_claims, *source, result)?
-                    } else {
+                    }
+                    crate::execution::ResultClaimOrigin::CalleeReturn => {
                         rebind_structural_result_claims(
                             live_claims,
                             &self.live_claims,
                             *source,
                             result,
-                            returned_claim_transfers,
                             returned_claims,
                         )?
-                    },
-                ),
+                    }
+                }),
                 Some(_) => return Err(malformed()),
                 None => None,
             };
@@ -207,18 +207,12 @@ impl TerminalExecution {
     fn claim_free_structural_destination(&self) -> bool {
         match self.call_stack.last() {
             Some(SuspendedCall {
-                result:
-                    SuspendedCallResult::Structural {
-                        result,
-                        returned_claim_transfers,
-                        ..
-                    },
+                result: SuspendedCallResult::Structural { result, .. },
                 ..
             }) => {
                 result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
-                    && returned_claim_transfers.is_empty()
             }
             Some(_) => false,
             None => true,

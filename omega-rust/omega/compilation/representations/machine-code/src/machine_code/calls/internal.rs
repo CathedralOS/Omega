@@ -77,7 +77,6 @@ pub struct InternalStructuralCallResult {
     pub operation_result: terminal_psi::StructuralOperationResult,
     pub result_home: Option<InternalStructuralResultHomeRecord>,
     pub function_result: StructuralResultDeclaration,
-    pub returned_claim_transfers: Vec<terminal_psi::StructuralResultClaimTransfer>,
     pub returned_claims: Vec<ClaimId>,
     pub caller_result_placement: ValuePlacement,
     pub callee_result_placement: ValuePlacement,

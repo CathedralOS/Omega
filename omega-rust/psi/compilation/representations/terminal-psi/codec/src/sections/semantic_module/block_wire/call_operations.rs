@@ -21,7 +21,7 @@ use semantic_vocabulary::{ProofTerm, ScalarTerm};
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, OperationKind, OutcomeSpecificCallEvidence,
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificGuard, StructuralResultClaimTransfer,
+    OutcomeSpecificGuard,
 };
 use terminal_psi::{CrashRouteBucket, StructuralArgument};
 
@@ -254,7 +254,6 @@ pub(super) fn encode_call_structural(
     callee: MachineId,
     structural_arguments: Vec<StructuralArgument>,
     claim_transfers: Vec<ClaimTransfer>,
-    returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
     requirement_obligations: Vec<ObligationId>,
     crash_continuations: Vec<CrashRouteBucket>,
     selected_evidence: Vec<OutcomeSpecificCallEvidence>,
@@ -266,14 +265,6 @@ pub(super) fn encode_call_structural(
     for transfer in claim_transfers {
         writer.id(transfer.claim);
         writer.u32(transfer.argument_index);
-    }
-    writer.len(
-        "structural-call returned claim transfers",
-        returned_claim_transfers.len(),
-    )?;
-    for transfer in returned_claim_transfers {
-        writer.id(transfer.callee_claim);
-        writer.id(transfer.caller_claim);
     }
     encode_obligation_ids(writer, &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;
@@ -339,12 +330,6 @@ pub(super) fn decode_call_structural(reader: &mut Reader<'_>) -> Result<Operatio
                 argument_index: reader.u32()?,
             })
         })?,
-        returned_claim_transfers: decode_counted(reader, |reader| {
-            Ok(StructuralResultClaimTransfer {
-                callee_claim: reader.id("ClaimId")?,
-                caller_claim: reader.id("ClaimId")?,
-            })
-        })?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,
         crash_continuations: decode_crash_routes(reader)?,
         selected_evidence: decode_counted(reader, |reader| {
@@ -406,7 +391,6 @@ pub(super) fn encode_call_structural_with_scalar_arguments(
     erased_proof_arguments: Vec<ProofTerm>,
     structural_arguments: Vec<StructuralArgument>,
     claim_transfers: Vec<ClaimTransfer>,
-    returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
     requirement_obligations: Vec<ObligationId>,
     crash_continuations: Vec<CrashRouteBucket>,
 ) -> Result<(), CodecError> {
@@ -427,14 +411,6 @@ pub(super) fn encode_call_structural_with_scalar_arguments(
         writer.id(transfer.claim);
         writer.u32(transfer.argument_index);
     }
-    writer.len(
-        "mixed structural-call returned claim transfers",
-        returned_claim_transfers.len(),
-    )?;
-    for transfer in returned_claim_transfers {
-        writer.id(transfer.callee_claim);
-        writer.id(transfer.caller_claim);
-    }
     encode_obligation_ids(writer, &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;
     Ok(())
@@ -453,12 +429,6 @@ pub(super) fn decode_call_structural_with_scalar_arguments(
             Ok(ClaimTransfer {
                 claim: reader.id("ClaimId")?,
                 argument_index: reader.u32()?,
-            })
-        })?,
-        returned_claim_transfers: decode_counted(reader, |reader| {
-            Ok(StructuralResultClaimTransfer {
-                callee_claim: reader.id("ClaimId")?,
-                caller_claim: reader.id("ClaimId")?,
             })
         })?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,

@@ -147,47 +147,10 @@ fn retain_nominal_cleanup_roles(
     Ok(())
 }
 
-/// Source custody may select different claim lineages at different normal
-/// exits. Terminal's current structural return transfers carry one lineage,
-/// not that checked choice. Refuse only demanded owners: an unused source
-/// allocator must not prevent publishing an unrelated machine.
-pub(crate) fn reject_conditional_claim_joins(
-    checked: &CheckedTrees,
-    source_machines: &[symbols::SymbolHandle],
-) -> Result<(), LoweringError> {
-    if checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .any(|(_, event)| {
-            source_machines.contains(&event.machine_symbol)
-                && matches!(
-                    event.provenance,
-                    language_semantics::PermissionProvenance::Joined { .. }
-                )
-        })
-        || checked
-            .facts
-            .flow
-            .ownership
-            .claim_join_receipts
-            .iter()
-            .any(|(_, receipt)| source_machines.contains(&receipt.machine_symbol))
-    {
-        return unsupported(
-            "conditional result custody requires Terminal exit-alternative correspondence",
-        );
-    }
-    Ok(())
-}
-
 fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
 ) -> Result<LoweredPsi, LoweringError> {
-    reject_conditional_claim_joins(checked, &[selection.machine])?;
     // Custody gates order deliberately: this program-level check runs before
     // per-machine lowering, so a custody-carrying unit-effects plan whose
     // typed machine/state rows are missing reports "direct Unit parameter
@@ -213,7 +176,6 @@ fn lower_terminal_selection(
     {
         return unsupported("entry lowering did not retain the complete target-family catalog");
     }
-    reject_conditional_claim_joins(checked, &source_machines)?;
     let entry_source = [(selection.machine, lowered.semantic_module.entry)];
     retain_nominal_cleanup_roles(
         checked,

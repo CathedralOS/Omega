@@ -467,11 +467,15 @@ pub(in crate::execution) fn build_call_operation(
             return None;
         }
     }
+    // A result carrying linear claims, whole or beneath an affine owner,
+    // binds them through its checked custody rather than an ownership-free
+    // storage judgment: the callee's returning edge decides which claim
+    // continues at each path.
     if !boundary
         && let Some(ExpectedCallValueResult::Structural(result)) = &expected_call_result
-        && result.multiplicity == Multiplicity::Linear
+        && !validation::linear_claim_frontier(program, target_state.return_type).is_empty()
     {
-        phase("call operation: linear structural result");
+        phase("call operation: claim-bearing structural result");
         if !machine_binders(program, target_machine).is_empty()
             || !program
                 .machine_states(target_machine)
@@ -495,7 +499,10 @@ pub(in crate::execution) fn build_call_operation(
                 scalar_arguments,
                 structural_arguments,
                 (*result).clone(),
-                false,
+                // An affine owner's remaining storage is discarded at return
+                // once its linear members have moved out; a linear root has
+                // no such remainder.
+                result.multiplicity == Multiplicity::Affine,
             ),
         );
     }

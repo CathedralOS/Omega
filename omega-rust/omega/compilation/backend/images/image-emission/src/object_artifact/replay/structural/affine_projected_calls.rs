@@ -237,7 +237,6 @@ pub(crate) fn exact_projected_affine_result<'a>(
         || !result.operation_result.qualifications.is_empty()
         || !result.operation_result.projected_qualifications.is_empty()
         || !result.operation_result.claims.is_empty()
-        || !result.returned_claim_transfers.is_empty()
         || !result.returned_claims.is_empty()
         || result.operation_result.place == parameter.place
         || result.operation_result.structural_type != parameter.structural_type

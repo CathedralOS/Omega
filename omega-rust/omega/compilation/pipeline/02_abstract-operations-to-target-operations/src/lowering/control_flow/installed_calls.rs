@@ -86,7 +86,6 @@ pub(super) fn resolve(
                 psi_operation: *psi_operation,
                 result: AbstractStructuralCallResult::Structural {
                     result: result.clone(),
-                    returned_claim_transfers: Vec::new(),
                     selected_evidence: Vec::new(),
                 },
                 callee: callee.into(),

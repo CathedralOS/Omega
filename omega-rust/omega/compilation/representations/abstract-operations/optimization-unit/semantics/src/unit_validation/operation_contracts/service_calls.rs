@@ -174,12 +174,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 )
             }),
         O::CallStructural {
-            result:
-                AbstractStructuralCallResult::Structural {
-                    result,
-                    returned_claim_transfers,
-                    ..
-                },
+            result: AbstractStructuralCallResult::Structural { result, .. },
             callee,
             structural_arguments,
             claim_transfers,
@@ -224,7 +219,6 @@ pub(crate) fn operation_structural_call_contract_matches(
                         || plain_record_call(operation, callee, types)
                         || exact_plain_affine_structural_call(operation, callee, types),
                     claim_transfers,
-                    returned_claim_transfers,
                     types,
                 ) && structural_call_contract_surface_matches(operation, callee)
                     && payloadless_selected_evidence_surface_matches(
@@ -309,12 +303,7 @@ fn reference_call_matches(
 ) -> bool {
     let O::CallStructural {
         psi_operation,
-        result:
-            AbstractStructuralCallResult::Structural {
-                result,
-                returned_claim_transfers,
-                ..
-            },
+        result: AbstractStructuralCallResult::Structural { result, .. },
         arguments,
         structural_arguments,
         claim_transfers,
@@ -390,7 +379,6 @@ fn reference_call_matches(
             }),
         ),
         ("ct_empty", claim_transfers.is_empty()),
-        ("rct_empty", returned_claim_transfers.is_empty()),
         ("ec_empty", callee.entry_claims.is_empty()),
         ("cec_empty", callee.content_entry_claims.is_empty()),
         ("args_len", arguments.len() == callee.parameters.len()),

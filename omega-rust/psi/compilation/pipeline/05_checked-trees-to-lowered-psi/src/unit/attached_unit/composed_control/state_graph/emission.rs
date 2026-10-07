@@ -164,6 +164,51 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         let claim = claim_id(allocate_dense(&mut next_claim)?);
         claims.source_claims.push((event.claim_identity, claim));
     }
+    // A structural call result establishes the claims it carries when the
+    // call completes. A received result keeps the receiving local's identity
+    // (or an input's, returned on every exit); a result no place receives is
+    // named by its call and path alone.
+    for state in &plan.states {
+        for operation in state
+            .operation_dependencies()
+            .flat_map(checked_trees::CheckedUnitEffectOperationPlan::with_value_calls)
+        {
+            let Some((call, custody)) = operation
+                .call()
+                .filter(|call| call.is_module())
+                .and_then(|call| Some((call, call.structural_custody()?)))
+            else {
+                continue;
+            };
+            for received in &custody.result_claims {
+                if received.claim == language_semantics::PermissionClaimIdentity::Unknown {
+                    if claims.unreceived_results.iter().any(|claim| {
+                        claim.state == state.state
+                            && claim.coordinate == call.coordinate
+                            && claim.path == received.path
+                    }) {
+                        continue;
+                    }
+                    let claim = claim_id(allocate_dense(&mut next_claim)?);
+                    claims.unreceived_results.push(
+                        crate::emission::claim_bindings::UnreceivedResultClaim {
+                            state: state.state,
+                            coordinate: call.coordinate,
+                            path: received.path.clone(),
+                            claim,
+                        },
+                    );
+                } else if !claims
+                    .source_claims
+                    .iter()
+                    .any(|(identity, _)| *identity == received.claim)
+                {
+                    let claim = claim_id(allocate_dense(&mut next_claim)?);
+                    claims.source_claims.push((received.claim, claim));
+                }
+            }
+        }
+    }
     catalogs
         .scalar_calls
         .bind_claim_namespace(&claims.source_claims);

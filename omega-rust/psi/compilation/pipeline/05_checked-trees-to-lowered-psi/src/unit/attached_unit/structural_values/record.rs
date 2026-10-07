@@ -4,9 +4,10 @@
 //! the result rebases memberships from its completed operands, not field types.
 use super::super::super::StructuralFieldType;
 use super::super::{
-    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId, ScalarType,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    StructuralTypeShape, ValueDeclaration, allocate_dense, obligation_id, place_id, unsupported,
+    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult, PlaceId,
+    ScalarType, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense, obligation_id,
+    place_id, unsupported,
 };
 use super::emission;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
@@ -85,6 +86,8 @@ impl emission::Emission<'_, '_, '_> {
         let source_count = self.values.len();
         let mut initialized = Vec::new();
         let mut scalar_positions = Vec::new();
+        // Members whose type carries linear claims; only they bring custody.
+        let mut claim_bearing_fields = Vec::new();
         for (ordinal, field) in fields.iter().enumerate() {
             let declaration = declarations
                 .iter()
@@ -217,6 +220,14 @@ impl emission::Emission<'_, '_, '_> {
                         let argument = self.constructor_operand(value, field.type_reference)?;
                         self.structural_type = parent_type;
                         self.multiplicity = parent_multiplicity;
+                        if !validation::linear_claim_frontier(
+                            &self.checked.typed,
+                            field.type_reference,
+                        )
+                        .is_empty()
+                        {
+                            claim_bearing_fields.push(target.id);
+                        }
                         terminal_psi::RecordFieldValue::Structural(argument)
                     }
                 }
@@ -241,16 +252,168 @@ impl emission::Emission<'_, '_, '_> {
         }
         self.values.truncate(source_count);
         initialized.sort_by_key(|(position, _)| *position);
+        // An affine record contributes no claim of its own; each owned member
+        // brings the claims it already holds, rebased under its field. A
+        // linear record's whole-root claim is minted at its binding instead.
+        let mut claims = Vec::new();
+        if self.multiplicity == StructuralMultiplicity::Affine {
+            for (_, initializer) in &initialized {
+                let terminal_psi::RecordFieldValue::Structural(argument) = &initializer.value
+                else {
+                    continue;
+                };
+                if argument.access != terminal_psi::StructuralAccess::Owned
+                    || !claim_bearing_fields.contains(&initializer.field)
+                {
+                    continue;
+                }
+                let field = shape_fields
+                    .iter()
+                    .find(|field| field.id == initializer.field)
+                    .ok_or(LoweringError::Unsupported("record field identity missing"))?;
+                for claim in self.claims_held_by(argument)? {
+                    let mut path = vec![terminal_psi::StructuralPathSegment::Field(
+                        field.identity.clone(),
+                    )];
+                    path.extend(claim.path);
+                    claims.push(terminal_psi::StructuralResultClaimBinding {
+                        claim: claim.claim,
+                        path,
+                    });
+                }
+            }
+            claims.sort();
+        }
         let place = place_id(allocate_dense(self.next_place)?);
-        self.temporary_places.push(emit_completed(
+        let declaration = emit_completed(
             place,
             self.structural_type,
             self.multiplicity,
             initialized.into_iter().map(|(_, field)| field).collect(),
             &shape_fields,
             self.operations,
-        )?);
+        )?;
+        if !claims.is_empty() {
+            let produced = self
+                .operations
+                .operations
+                .iter_mut()
+                .rev()
+                .find_map(|operation| match &mut operation.result {
+                    OperationResult::Structural(result) if result.place == place => Some(result),
+                    _ => None,
+                })
+                .ok_or(LoweringError::Unsupported("record producer is missing"))?;
+            produced.claims = claims;
+        }
+        self.temporary_places.push(declaration);
         Ok(place)
+    }
+
+    /// The claims a whole owned operand holds beneath its argument path,
+    /// relative to that path. A produced value publishes them on its
+    /// operation result, completed binding or owned-move arrival; an entry
+    /// parameter's claims are the identities the checker transfers out of it
+    /// at this statement.
+    fn claims_held_by(
+        &self,
+        argument: &terminal_psi::StructuralArgument,
+    ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
+        let rebase = |claims: &[terminal_psi::StructuralResultClaimBinding]| {
+            claims
+                .iter()
+                .filter_map(|claim| {
+                    claim
+                        .path
+                        .strip_prefix(argument.path.as_slice())
+                        .map(|suffix| terminal_psi::StructuralResultClaimBinding {
+                            claim: claim.claim,
+                            path: suffix.to_vec(),
+                        })
+                })
+                .collect::<Vec<_>>()
+        };
+        if let Some((_, binding)) = self
+            .operations
+            .structural_values
+            .iter()
+            .find(|(_, binding)| binding.place() == argument.place)
+        {
+            return Ok(rebase(binding.claims()));
+        }
+        if let Some(result) = self
+            .operations
+            .operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == argument.place)
+        {
+            return Ok(rebase(&result.claims));
+        }
+        if let Some((_, claims)) = self
+            .arrival_claims
+            .iter()
+            .find(|(place, _)| *place == argument.place)
+        {
+            return Ok(rebase(claims));
+        }
+        let Some((position, parameter)) = self
+            .evaluation
+            .structural_parameters
+            .iter()
+            .find(|(_, parameter)| parameter.place == argument.place)
+        else {
+            return unsupported("record operand has no published claim custody");
+        };
+        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let source = self
+            .checked
+            .state_parameters(authored)
+            .get(*position as usize)
+            .ok_or(LoweringError::Unsupported(
+                "record operand parameter has no authored source",
+            ))?;
+        if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+            return Ok(Vec::new());
+        }
+        let mut claims = Vec::new();
+        for (_, event) in self.checked.facts.flow.ownership.permissions.iter() {
+            if event.machine_symbol != self.machine
+                || event.state_symbol != self.state
+                || event.root != facts::PlaceRoot::Symbol(source.symbol)
+                || event.kind != language_semantics::PermissionEventKind::Transfer
+                || event.access != language_semantics::PermissionAccess::Owned
+                || event.multiplicity != language_semantics::Multiplicity::Linear
+                || !event.obligation_live
+                || event.source
+                    != (language_semantics::PermissionEventSource::Statement {
+                        statement_index: self.statement as usize,
+                    })
+            {
+                continue;
+            }
+            let path = validation::structural_claim_path(
+                &self.checked.typed,
+                source.type_reference,
+                self.checked
+                    .facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(event.segments),
+            )
+            .map_err(LoweringError::Unsupported)?;
+            claims.push(terminal_psi::StructuralResultClaimBinding {
+                claim: crate::terminal_identities::lookup_claim_id(
+                    self.calls.claims.bindings(),
+                    event.claim_identity,
+                )?,
+                path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+                    &path,
+                )?,
+            });
+        }
+        Ok(rebase(&claims))
     }
 }
 

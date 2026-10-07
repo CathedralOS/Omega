@@ -301,7 +301,6 @@ pub(crate) fn emit(
                             .map_or(DirectCallResult::Unit, |result| {
                                 DirectCallResult::Structural {
                                     multiplicity: result.multiplicity,
-                                    returned_claim_transfers: Vec::new(),
                                 }
                             }),
                     }

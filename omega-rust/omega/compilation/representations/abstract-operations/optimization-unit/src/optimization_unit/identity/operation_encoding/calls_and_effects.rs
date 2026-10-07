@@ -45,7 +45,6 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 }
                 R::Structural {
                     result,
-                    returned_claim_transfers,
                     selected_evidence,
                 } => {
                     // A structural result keeps tag 5 and its legacy field
@@ -59,10 +58,6 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     bytes.slice(claim_transfers, |bytes, transfer| {
                         bytes.id(transfer.claim);
                         bytes.u32(transfer.argument_index);
-                    });
-                    bytes.slice(returned_claim_transfers, |bytes, transfer| {
-                        bytes.id(transfer.callee_claim);
-                        bytes.id(transfer.caller_claim);
                     });
                     encode_ids(bytes, requirement_obligations);
                     bytes.slice(crash_continuations, encode_crash_route_bucket);

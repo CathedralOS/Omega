@@ -291,12 +291,13 @@ pub(super) fn header(
                 )?
                 .shape()
             } else {
-                if result.multiplicity == StructuralMultiplicity::Linear
-                    || (!result.qualifications.is_empty()
-                        && !plan.structural_types.iter().any(|declaration| {
-                            declaration.id == result.structural_type
-                                && declaration.shape.supports_result_qualifications()
-                        }))
+                // A linear result's claim is custody, not storage: it
+                // returns the same bytes an affine one does.
+                if !result.qualifications.is_empty()
+                    && !plan.structural_types.iter().any(|declaration| {
+                        declaration.id == result.structural_type
+                            && declaration.shape.supports_result_qualifications()
+                    })
                 {
                     return Err(LegalizationError::custody());
                 }

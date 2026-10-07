@@ -13,8 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralResultClaimTransfer, StructuralTypeShape,
-    TerminalMachineResult,
+    StructuralPathSegment, StructuralTypeShape, TerminalMachineResult,
 };
 
 /// The caller retains an owner only while some subtree remains in its custody.
@@ -407,7 +406,7 @@ impl TerminalExecution {
         structural_arguments: &[StructuralArgument],
         prepared_arguments: StructuralCallArguments,
         claim_transfers: &[ClaimTransfer],
-        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        claim_origin: crate::execution::ResultClaimOrigin,
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
         let callee = program
@@ -420,7 +419,6 @@ impl TerminalExecution {
         let exact_primitive_structural_call = callee.entry_claims.is_empty()
             && callee.content_entry_claims.is_empty()
             && claim_transfers.is_empty()
-            && returned_claim_transfers.is_empty()
             && matches!(
                 result.multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -570,7 +568,7 @@ impl TerminalExecution {
             next_operation: self.next_operation,
             result: SuspendedCallResult::Structural {
                 result,
-                returned_claim_transfers,
+                claim_origin,
                 expected_reference_backings,
             },
         });

@@ -224,22 +224,18 @@ fn node_preserves_place_observations(operation: &O) -> bool {
                     .iter()
                     .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow)
         }
-        // A structural-result call carries `returned_claim_transfers` beside
-        // the outgoing roster: a pure callee returning claims would spell a
+        // A structural-result call binds its result's claims beside the
+        // outgoing roster: a pure callee returning claims would spell a
         // second ownership row, which `custody_quiet` already refuses — the
-        // field check keeps the same refusal local to the operation.
+        // result check keeps the same refusal local to the operation.
         O::CallStructural {
             structural_arguments,
             claim_transfers,
-            result:
-                AbstractStructuralCallResult::Structural {
-                    returned_claim_transfers,
-                    ..
-                },
+            result: AbstractStructuralCallResult::Structural { result, .. },
             ..
         } => {
             claim_transfers.is_empty()
-                && returned_claim_transfers.is_empty()
+                && result.claims.is_empty()
                 && structural_arguments
                     .iter()
                     .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow)
@@ -287,20 +283,16 @@ fn exclusive_borrow_call_preserves_place_observations(
             result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } => (structural_arguments, claim_transfers),
-        // A structural-result call must also move no claims back: a
-        // non-empty `returned_claim_transfers` would spell a second
-        // ownership row the caller-side `custody_quiet` check refuses
-        // anyway, so refusing here keeps the roster reasoning local.
+        // A structural-result call must also move no claims back: result
+        // claims would spell a second ownership row the caller-side
+        // `custody_quiet` check refuses anyway, so refusing here keeps the
+        // roster reasoning local.
         O::CallStructural {
             structural_arguments,
             claim_transfers,
-            result:
-                AbstractStructuralCallResult::Structural {
-                    returned_claim_transfers,
-                    ..
-                },
+            result: AbstractStructuralCallResult::Structural { result, .. },
             ..
-        } if returned_claim_transfers.is_empty() => (structural_arguments, claim_transfers),
+        } if result.claims.is_empty() => (structural_arguments, claim_transfers),
         _ => return false,
     };
     if !claim_transfers.is_empty() {

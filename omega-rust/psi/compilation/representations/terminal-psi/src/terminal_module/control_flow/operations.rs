@@ -1,7 +1,7 @@
 use crate::{
     ClaimTransfer, CompletionReceipt, CrashRouteBucket, OutcomeSpecificCallEvidence,
     StructuralArgument, StructuralMultiplicity, StructuralPathQualification, StructuralPathSegment,
-    StructuralResultClaimTransfer, ValueDeclaration,
+    ValueDeclaration,
 };
 use semantic_vocabulary::{
     BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, IeeeFloatValue, IntegerValue,
@@ -667,16 +667,18 @@ pub enum OperationKind {
         crash_continuations: Vec<CrashRouteBucket>,
     },
     /// Invoke one in-module structural-result machine. The general form
-    /// transfers input claims and applies the exact returned-claim namespace
-    /// mapping on normal return. The bounded payloadless form instead has no
-    /// arguments, claims, or ordinary contract lanes and returns one
-    /// unrestricted exact structural case. Crash and suspension paths
-    /// establish neither result twice.
+    /// transfers input claims at their arguments; on normal return each
+    /// result claim binding continues the claim the callee's returning edge
+    /// holds at the same path beneath its returned value. Claim identities
+    /// are machine-local, so the caller never names a callee claim, and
+    /// different returning edges may hold different claims at one path. The
+    /// bounded payloadless form instead has no arguments, claims, or ordinary
+    /// contract lanes and returns one unrestricted exact structural case.
+    /// Crash and suspension paths establish neither result twice.
     CallStructural {
         callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
-        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
         /// Canonical proof-only selections from exact outcome-specific callee
@@ -685,10 +687,8 @@ pub enum OperationKind {
         selected_evidence: Vec<OutcomeSpecificCallEvidence>,
     },
     /// Invoke one in-module structural-result machine with independently
-    /// retained positional scalar and structural arguments. The first
-    /// admitted producer is claim-free and owned-affine; keeping this role
-    /// distinct avoids changing the established claim-bearing
-    /// `CallStructural` contract or wire identity.
+    /// retained positional scalar and structural arguments. Its claims
+    /// cross exactly as `CallStructural`'s do.
     CallStructuralWithScalarArguments {
         callee: MachineId,
         arguments: Vec<ValueId>,
@@ -700,7 +700,6 @@ pub enum OperationKind {
         erased_proof_arguments: Vec<ProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
-        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

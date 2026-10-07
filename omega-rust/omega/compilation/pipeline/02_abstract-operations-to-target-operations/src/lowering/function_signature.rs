@@ -11,7 +11,6 @@ use semantic_vocabulary::{IeeeFloatFormat, MachineId, PlaceId, ScalarType, Value
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{ScalarAbiValue, TargetStructuralParameter};
-use terminal_psi::StructuralMultiplicity;
 
 pub(super) fn integer_parameters(
     machine: MachineId,
@@ -82,11 +81,14 @@ pub(super) fn prepare_function_signature(
             AbstractFunctionResult::Structural(result) => {
                 // Root and child memberships retain semantic identity but do
                 // not change the carrier's return registers or home layout.
-                if result.multiplicity == StructuralMultiplicity::Linear
-                    || (!result.qualifications.is_empty()
-                        && !structural_types.get(&result.structural_type).is_some_and(
-                            |declaration| declaration.shape.supports_result_qualifications(),
-                        ))
+                // Claims are custody, not storage either: a linear result or
+                // an affine owner of linear members returns the same bytes.
+                if !result.qualifications.is_empty()
+                    && !structural_types
+                        .get(&result.structural_type)
+                        .is_some_and(|declaration| {
+                            declaration.shape.supports_result_qualifications()
+                        })
                 {
                     return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
                 }

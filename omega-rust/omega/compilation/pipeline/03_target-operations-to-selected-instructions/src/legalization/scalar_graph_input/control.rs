@@ -51,7 +51,6 @@ pub(super) fn validate(
                     .find(|parameter| parameter.place == *source)
             {
                 if parameter.access != terminal_psi::StructuralAccess::Owned
-                    || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {
@@ -65,17 +64,16 @@ pub(super) fn validate(
                 )
             } else {
                 match super::structural_case::source_owner(function, *source)? {
+                    // The returned claims leave with the value; ownership
+                    // replay already matched them to the source's claims.
                     legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                         result,
                         ..
-                    } if result.claims.is_empty() => (
+                    } => (
                         result.structural_type,
                         result.multiplicity,
                         returned_roster_matches(&result, declared),
                     ),
-                    legalized_operations::LegalizedStructuralCaseSource::OperationResult {
-                        ..
-                    } => return Err(LegalizationError::custody()),
                     legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                         declaration,
                         ..
@@ -103,7 +101,6 @@ pub(super) fn validate(
                         declaration.id == declared.structural_type
                             && declaration.shape.supports_result_qualifications()
                     }))
-                || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
                 || !super::aggregate_results::cleanup(function, &cleanup_actions, structural_types)
             {

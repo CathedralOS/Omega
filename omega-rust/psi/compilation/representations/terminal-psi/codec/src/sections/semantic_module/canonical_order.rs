@@ -539,14 +539,6 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     ));
                 }
                 OperationKind::CallStructural {
-                    returned_claim_transfers,
-                    ..
-                } if !strictly_increasing(returned_claim_transfers.iter().copied()) => {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "structural-call returned claim transfers",
-                    ));
-                }
-                OperationKind::CallStructural {
                     selected_evidence, ..
                 } if !strictly_increasing(selected_evidence.iter().map(|binding| {
                     (

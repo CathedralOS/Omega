@@ -171,7 +171,6 @@ pub(crate) fn completed_roots(
                 || !result.operation_result.qualifications.is_empty()
                 || !result.operation_result.projected_qualifications.is_empty()
                 || !result.operation_result.claims.is_empty()
-                || !result.returned_claim_transfers.is_empty()
                 || !result.returned_claims.is_empty()
                 || identities.contains(&result.operation_result.place)
                 || retained_result != &result.operation_result

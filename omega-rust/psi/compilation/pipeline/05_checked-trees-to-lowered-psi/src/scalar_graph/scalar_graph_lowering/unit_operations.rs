@@ -138,7 +138,7 @@ pub(super) fn prepare(
     if call.structural_custody().is_some_and(|custody| {
         custody.reference_loan.is_valid()
             || !custody.result_qualifications.is_empty()
-            || !custody.returned_claim_transfers.is_empty()
+            || !custody.result_claims.is_empty()
     }) {
         return unsupported("scalar effect call requires its returned loan or claim transport");
     }
