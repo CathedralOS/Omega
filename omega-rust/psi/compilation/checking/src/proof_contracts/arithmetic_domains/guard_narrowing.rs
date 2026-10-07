@@ -170,21 +170,23 @@ pub(crate) fn requires_value_environment(
             {
                 environment.mark_joint_subtract_bound(left, right);
             }
-            if let Some((left, right)) = signed_joint_subtract_lower_guard(
+            if let Some((left, right)) = signed_joint_subtract_guard(
                 program,
                 machine,
                 Some(entry_state),
                 &environment,
                 comparison,
+                true,
             ) {
                 environment.mark_signed_joint_subtract_lower_bound(left, right);
             }
-            if let Some((left, right)) = signed_joint_subtract_upper_guard(
+            if let Some((left, right)) = signed_joint_subtract_guard(
                 program,
                 machine,
                 Some(entry_state),
                 &environment,
                 comparison,
+                false,
             ) {
                 environment.mark_signed_joint_subtract_upper_bound(left, right);
             }
@@ -606,12 +608,12 @@ pub(super) fn narrow_environment_by_comparison(
             environment.mark_joint_subtract_bound(left, right);
         }
         if let Some((left, right)) =
-            signed_joint_subtract_lower_guard(program, machine, state, environment, &comparison)
+            signed_joint_subtract_guard(program, machine, state, environment, &comparison, true)
         {
             environment.mark_signed_joint_subtract_lower_bound(left, right);
         }
         if let Some((left, right)) =
-            signed_joint_subtract_upper_guard(program, machine, state, environment, &comparison)
+            signed_joint_subtract_guard(program, machine, state, environment, &comparison, false)
         {
             environment.mark_signed_joint_subtract_upper_bound(left, right);
         }
@@ -971,17 +973,24 @@ fn joint_subtract_guard(
 /// Recognize the signed guard `MIN + right <= left` (including its `>=`
 /// spelling) once the current path proves `right >= 0`. The sign fact makes
 /// the bound addition total, and the comparison is exactly the lower
-/// representability condition for `left - right`.
-fn signed_joint_subtract_lower_guard(
+/// Recognize the signed guards `MIN + right <= left` and
+/// `left <= MAX + right` (including their `>=` spellings): the lower form
+/// needs the current path to prove `right >= 0`, the upper `right <= 0`.
+/// The sign fact makes the bound addition total, and the comparison is
+/// exactly that side's representability condition for the subtraction.
+fn signed_joint_subtract_guard(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
+    lower: bool,
 ) -> Option<(String, String)> {
-    let (bound, left) = match comparison.operator {
-        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
-        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
+    let (bound, left) = match (comparison.operator, lower) {
+        (BinaryOperator::LessOrEqual, true) => (comparison.left, comparison.right),
+        (BinaryOperator::GreaterOrEqual, true) => (comparison.right, comparison.left),
+        (BinaryOperator::LessOrEqual, false) => (comparison.right, comparison.left),
+        (BinaryOperator::GreaterOrEqual, false) => (comparison.left, comparison.right),
         _ => return None,
     };
     let ExpressionNode::Binary(add) = program.expression_table.expression(bound) else {
@@ -992,7 +1001,7 @@ fn signed_joint_subtract_lower_guard(
     {
         return None;
     }
-    let (minimum, right) = if literal_i64(program, add.left).is_some() {
+    let (extreme_literal, right) = if literal_i64(program, add.left).is_some() {
         (add.left, add.right)
     } else {
         (add.right, add.left)
@@ -1007,66 +1016,26 @@ fn signed_joint_subtract_lower_guard(
         return None;
     }
     let right_path = place_path(program, right)?;
-    let minimum_value = match left_primitive {
-        PrimitiveType::I8 if environment.get(&right_path)?.low? >= 0 => i8::MIN as i64,
-        PrimitiveType::I16 if environment.get(&right_path)?.low? >= 0 => i16::MIN as i64,
-        PrimitiveType::I32 if environment.get(&right_path)?.low? >= 0 => i32::MIN as i64,
-        PrimitiveType::I64 if environment.get(&right_path)?.low? >= 0 => i64::MIN,
-        _ => return None,
-    };
-    if literal_i64(program, minimum) != Some(minimum_value) {
-        return None;
-    }
-    Some((place_path(program, left)?, right_path))
-}
-
-/// Recognize the signed guard `left <= MAX + right` (including its `>=`
-/// spelling) once the current path proves `right <= 0`. The sign fact makes
-/// the bound addition total, and the comparison is exactly the upper
-/// representability condition for `left - right`.
-fn signed_joint_subtract_upper_guard(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: Option<&State>,
-    environment: &ValueEnvironment,
-    comparison: &typed_trees::expression::TableBinaryExpression,
-) -> Option<(String, String)> {
-    let (left, bound) = match comparison.operator {
-        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
-        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
-        _ => return None,
-    };
-    let ExpressionNode::Binary(add) = program.expression_table.expression(bound) else {
-        return None;
-    };
-    if add.operator != BinaryOperator::Add
-        || !meaning::builtin_arithmetic(program, machine, state, bound)
-    {
-        return None;
-    }
-    let (maximum, right) = if literal_i64(program, add.left).is_some() {
-        (add.left, add.right)
+    let interval = environment.get(&right_path)?;
+    if if lower {
+        !(interval.low? >= 0)
     } else {
-        (add.right, add.left)
-    };
-    let left_type = declared_place_type_raw(program, machine, state, left)?;
-    let right_type = declared_place_type_raw(program, machine, state, right)?;
-    let left_primitive = program.primitive_type_reference(left_type)?;
-    if program.primitive_type_reference(right_type) != Some(left_primitive)
-        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
-        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
-    {
+        !(interval.high? <= 0)
+    } {
         return None;
     }
-    let right_path = place_path(program, right)?;
-    let maximum_value = match left_primitive {
-        PrimitiveType::I8 if environment.get(&right_path)?.high? <= 0 => i8::MAX as i64,
-        PrimitiveType::I16 if environment.get(&right_path)?.high? <= 0 => i16::MAX as i64,
-        PrimitiveType::I32 if environment.get(&right_path)?.high? <= 0 => i32::MAX as i64,
-        PrimitiveType::I64 if environment.get(&right_path)?.high? <= 0 => i64::MAX,
+    let extreme = match (left_primitive, lower) {
+        (PrimitiveType::I8, true) => i8::MIN as i64,
+        (PrimitiveType::I16, true) => i16::MIN as i64,
+        (PrimitiveType::I32, true) => i32::MIN as i64,
+        (PrimitiveType::I64, true) => i64::MIN,
+        (PrimitiveType::I8, false) => i8::MAX as i64,
+        (PrimitiveType::I16, false) => i16::MAX as i64,
+        (PrimitiveType::I32, false) => i32::MAX as i64,
+        (PrimitiveType::I64, false) => i64::MAX,
         _ => return None,
     };
-    if literal_i64(program, maximum) != Some(maximum_value) {
+    if literal_i64(program, extreme_literal) != Some(extreme) {
         return None;
     }
     Some((place_path(program, left)?, right_path))
