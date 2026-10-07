@@ -426,27 +426,7 @@ impl FactPlan {
         symbol: SymbolHandle,
     ) -> impl Iterator<Item = DomainMembershipFact> + '_ {
         self.facts_for_symbol(symbol)
-            .filter_map(|fact| match fact.payload {
-                FactPayload::DomainMembership {
-                    value,
-                    domain,
-                    domain_symbol,
-                    semantic_domain,
-                }
-                | FactPayload::ContractDomainMembership {
-                    value,
-                    domain,
-                    domain_symbol,
-                    semantic_domain,
-                    ..
-                } => Some(DomainMembershipFact {
-                    value,
-                    domain,
-                    domain_symbol,
-                    semantic_domain,
-                }),
-                _ => None,
-            })
+            .filter_map(|fact| as_domain_membership(fact.payload))
     }
 
     pub fn fact_place_equals(&self, fact_place: FactPlace, place: PlaceHandle) -> bool {
@@ -509,5 +489,30 @@ impl FactPlan {
             place.root,
             self.place_segments.span_or_empty(place.segments),
         )
+    }
+}
+
+/// Adapt the two domain-membership payloads to a [`DomainMembershipFact`].
+pub(crate) fn as_domain_membership(payload: FactPayload) -> Option<DomainMembershipFact> {
+    match payload {
+        FactPayload::DomainMembership {
+            value,
+            domain,
+            domain_symbol,
+            semantic_domain,
+        }
+        | FactPayload::ContractDomainMembership {
+            value,
+            domain,
+            domain_symbol,
+            semantic_domain,
+            ..
+        } => Some(DomainMembershipFact {
+            value,
+            domain,
+            domain_symbol,
+            semantic_domain,
+        }),
+        _ => None,
     }
 }
