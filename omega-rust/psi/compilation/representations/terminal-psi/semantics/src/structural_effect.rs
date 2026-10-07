@@ -304,359 +304,6 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 35] = [
-        Self {
-            tag: OperationSemanticTag::EstablishReference,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactReferenceSource,
-                StructuralEffectAction::EstablishReference,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ReleaseReference,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactReferenceCarrier,
-                StructuralEffectAction::ReleaseReference,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::ReleasesReferenceCarrier,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishScalarArray,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactScalarArray,
-                StructuralEffectAction::EstablishScalarArray,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::AddsUnrestrictedPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishPrimitiveLocal,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactPrimitiveLocal,
-                StructuralEffectAction::EstablishPrimitiveLocal,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::AddsUnrestrictedPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::PrimitiveScalarRead,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Scalar,
-                StructuralEffectCustody::ExactReadablePrimitiveRoot,
-                StructuralEffectAction::ReadPrimitive,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::StructuralCaseMembership,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Boolean,
-                StructuralEffectCustody::ExactReadableSumProjection,
-                StructuralEffectAction::ObserveCaseMembership,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::StructuralByteSequenceFieldLength,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::ByteCount,
-                StructuralEffectCustody::ExactStructuralByteSequenceField,
-                StructuralEffectAction::ReadByteSequenceFieldLength,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::StructuralByteSequenceFieldByteStore,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactStructuralByteSequenceField,
-                StructuralEffectAction::StoreByteSequenceFieldByte,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ByteSequenceStore,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactBoundedByteOwner,
-                StructuralEffectAction::StoreByteSequence,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::StructuralByteSequenceFieldStore,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactStructuralByteSequenceField,
-                StructuralEffectAction::StoreByteSequenceField,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::StructuralByteViewFieldStore,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactStructuralByteSequenceField,
-                StructuralEffectAction::StoreByteViewField,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::StructuralByteSequenceFieldRead,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Byte,
-                StructuralEffectCustody::ExactStructuralByteSequenceField,
-                StructuralEffectAction::ReadByteSequenceFieldByte,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ByteSequenceSubslice,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactImmutableByteView,
-                StructuralEffectAction::EstablishByteSequenceSubslice,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ByteSequencePredicate,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Boolean,
-                StructuralEffectCustody::ExactImmutableByteView,
-                StructuralEffectAction::EvaluateByteSequencePredicate,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ByteSequenceEqual,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Boolean,
-                StructuralEffectCustody::ExactImmutableByteView,
-                StructuralEffectAction::EvaluateByteSequenceEqual,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishElementView,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactElementViewSource,
-                StructuralEffectAction::EstablishElementView,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishMutableElementView,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactElementViewSource,
-                StructuralEffectAction::EstablishMutableElementView,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ElementViewLength,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::ElementCount,
-                StructuralEffectCustody::ExactElementViewMetadata,
-                StructuralEffectAction::ReadElementViewLength,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ElementViewRead,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Scalar,
-                StructuralEffectCustody::ExactImmutableElementView,
-                StructuralEffectAction::ReadElementView,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ElementViewWrite,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactMutableElementView,
-                StructuralEffectAction::WriteElementView,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ElementViewSubslice,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactImmutableElementView,
-                StructuralEffectAction::EstablishElementViewSubslice,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ByteSequenceRead,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Byte,
-                StructuralEffectCustody::ExactImmutableByteView,
-                StructuralEffectAction::ReadByteSequence,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ByteSequenceWrite,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactMutableByteView,
-                StructuralEffectAction::WriteByteSequence,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ByteSequenceLength,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::ByteCount,
-                StructuralEffectCustody::ExactByteViewMetadata,
-                StructuralEffectAction::ReadByteSequenceLength,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::WriteOnlyPrimitiveStore,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactWriteOnlyPrimitiveRoot,
-                StructuralEffectAction::StorePrimitive,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsWriteOnlyPrimitivePlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::StructuralScalarFieldStore,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactStructuralScalarField,
-                StructuralEffectAction::StoreScalarField,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishScalarCase,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactScalarCase,
-                StructuralEffectAction::EstablishScalarCase,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::AddsOwnedPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishStructuralCase,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactStructuralCase,
-                StructuralEffectAction::EstablishStructuralCase,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishByteSequenceLiteral,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactByteSequenceLiteral,
-                StructuralEffectAction::EstablishByteSequencePlace,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::AddsUnrestrictedPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::BooleanStructuralField,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Boolean,
-                StructuralEffectCustody::ExactLiveBooleanField,
-                StructuralEffectAction::ReadBooleanField,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsAffinePlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::IntegerStructuralField,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Integer,
-                StructuralEffectCustody::ExactLiveIntegerField,
-                StructuralEffectAction::ReadIntegerField,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::PortWrite,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactPublishedService,
-                StructuralEffectAction::EmitPortWrite,
-                StructuralEffectExternalEffect::PortWrite,
-                StructuralEffectFrontierPolicy::KeepsPlaceFrontier,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishTrivialAffineLocal,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Unit,
-                StructuralEffectCustody::ExactEmptyAffineLocal,
-                StructuralEffectAction::EstablishAffinePlace,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::AddsAffinePlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishStructuralArray,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactStructuralArray,
-                StructuralEffectAction::EstablishStructuralArray,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::EstablishRecord,
-            schema: structural_effect_leaf(
-                StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactRecord,
-                StructuralEffectAction::EstablishRecord,
-                StructuralEffectExternalEffect::None,
-                StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
-            ),
-        },
-    ];
-
     pub const fn tag(self) -> OperationSemanticTag {
         self.tag
     }
@@ -666,45 +313,73 @@ impl StructuralEffectSemanticRow {
     }
 }
 
-const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
-    matches!(
-        tag,
-        OperationSemanticTag::EstablishPrimitiveLocal
-            | OperationSemanticTag::EstablishReference
-            | OperationSemanticTag::ReleaseReference
-            | OperationSemanticTag::PrimitiveScalarRead
-            | OperationSemanticTag::StructuralCaseMembership
-            | OperationSemanticTag::WriteOnlyPrimitiveStore
-            | OperationSemanticTag::StructuralScalarFieldStore
-            | OperationSemanticTag::StructuralByteSequenceFieldStore
-            | OperationSemanticTag::StructuralByteViewFieldStore
-            | OperationSemanticTag::ByteSequenceStore
-            | OperationSemanticTag::StructuralByteSequenceFieldLength
-            | OperationSemanticTag::StructuralByteSequenceFieldByteStore
-            | OperationSemanticTag::StructuralByteSequenceFieldRead
-            | OperationSemanticTag::EstablishScalarCase
-            | OperationSemanticTag::EstablishStructuralCase
-            | OperationSemanticTag::EstablishScalarArray
-            | OperationSemanticTag::EstablishByteSequenceLiteral
-            | OperationSemanticTag::ByteSequenceLength
-            | OperationSemanticTag::ByteSequenceWrite
-            | OperationSemanticTag::ByteSequenceRead
-            | OperationSemanticTag::ByteSequenceSubslice
-            | OperationSemanticTag::ByteSequencePredicate
-            | OperationSemanticTag::ByteSequenceEqual
-            | OperationSemanticTag::EstablishElementView
-            | OperationSemanticTag::EstablishMutableElementView
-            | OperationSemanticTag::ElementViewLength
-            | OperationSemanticTag::ElementViewRead
-            | OperationSemanticTag::ElementViewSubslice
-            | OperationSemanticTag::ElementViewWrite
-            | OperationSemanticTag::BooleanStructuralField
-            | OperationSemanticTag::IntegerStructuralField
-            | OperationSemanticTag::PortWrite
-            | OperationSemanticTag::EstablishTrivialAffineLocal
-            | OperationSemanticTag::EstablishStructuralArray
-            | OperationSemanticTag::EstablishRecord
-    )
+/// `{ tag => (result, custody, action, external, frontier) }` — the
+/// structural/effect cohort rows and their operation-tag membership in one
+/// declarative table. `action` stays explicit: five tags name a different
+/// action than their own spelling.
+macro_rules! structural_effect_rows {
+    ($( $tag:ident => ($result:ident, $custody:ident, $action:ident, $external:ident, $frontier:ident) ),+ $(,)?) => {
+        impl StructuralEffectSemanticRow {
+            pub const ALL: [Self; structural_effect_rows!(@count $( $tag )+)] = [
+                $( Self {
+                    tag: OperationSemanticTag::$tag,
+                    schema: structural_effect_leaf(
+                        StructuralEffectResultShape::$result,
+                        StructuralEffectCustody::$custody,
+                        StructuralEffectAction::$action,
+                        StructuralEffectExternalEffect::$external,
+                        StructuralEffectFrontierPolicy::$frontier,
+                    ),
+                } ),+
+            ];
+        }
+
+        const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
+            matches!(tag, $( OperationSemanticTag::$tag )|+)
+        }
+    };
+    (@count $( $variant:ident )+) => {
+        <[()]>::len(&[$(structural_effect_rows!(@unit $variant)),+])
+    };
+    (@unit $variant:ident) => { () };
+}
+
+structural_effect_rows! {
+    EstablishReference => (Structural, ExactReferenceSource, EstablishReference, None, CapturesLoanAndAddsReferenceCarrier),
+    ReleaseReference => (Unit, ExactReferenceCarrier, ReleaseReference, None, ReleasesReferenceCarrier),
+    EstablishScalarArray => (Structural, ExactScalarArray, EstablishScalarArray, None, AddsUnrestrictedPlace),
+    EstablishPrimitiveLocal => (Structural, ExactPrimitiveLocal, EstablishPrimitiveLocal, None, AddsUnrestrictedPlace),
+    PrimitiveScalarRead => (Scalar, ExactReadablePrimitiveRoot, ReadPrimitive, None, RequiresAndKeepsStructuralPlace),
+    StructuralCaseMembership => (Boolean, ExactReadableSumProjection, ObserveCaseMembership, None, RequiresAndKeepsStructuralPlace),
+    StructuralByteSequenceFieldLength => (ByteCount, ExactStructuralByteSequenceField, ReadByteSequenceFieldLength, None, RequiresAndKeepsStructuralPlace),
+    StructuralByteSequenceFieldByteStore => (Unit, ExactStructuralByteSequenceField, StoreByteSequenceFieldByte, None, RequiresAndKeepsStructuralPlace),
+    ByteSequenceStore => (Unit, ExactBoundedByteOwner, StoreByteSequence, None, RequiresAndKeepsStructuralPlace),
+    StructuralByteSequenceFieldStore => (Unit, ExactStructuralByteSequenceField, StoreByteSequenceField, None, RequiresAndKeepsStructuralPlace),
+    StructuralByteViewFieldStore => (Unit, ExactStructuralByteSequenceField, StoreByteViewField, None, RequiresAndKeepsStructuralPlace),
+    StructuralByteSequenceFieldRead => (Byte, ExactStructuralByteSequenceField, ReadByteSequenceFieldByte, None, RequiresAndKeepsStructuralPlace),
+    ByteSequenceSubslice => (Structural, ExactImmutableByteView, EstablishByteSequenceSubslice, None, RequiresViewAndEstablishesBorrowedView),
+    ByteSequencePredicate => (Boolean, ExactImmutableByteView, EvaluateByteSequencePredicate, None, RequiresAndKeepsStructuralPlace),
+    ByteSequenceEqual => (Boolean, ExactImmutableByteView, EvaluateByteSequenceEqual, None, RequiresAndKeepsStructuralPlace),
+    EstablishElementView => (Structural, ExactElementViewSource, EstablishElementView, None, RequiresViewAndEstablishesBorrowedView),
+    EstablishMutableElementView => (Structural, ExactElementViewSource, EstablishMutableElementView, None, RequiresViewAndEstablishesBorrowedView),
+    ElementViewLength => (ElementCount, ExactElementViewMetadata, ReadElementViewLength, None, RequiresAndKeepsStructuralPlace),
+    ElementViewRead => (Scalar, ExactImmutableElementView, ReadElementView, None, RequiresAndKeepsStructuralPlace),
+    ElementViewWrite => (Unit, ExactMutableElementView, WriteElementView, None, RequiresAndKeepsStructuralPlace),
+    ElementViewSubslice => (Structural, ExactImmutableElementView, EstablishElementViewSubslice, None, RequiresViewAndEstablishesBorrowedView),
+    ByteSequenceRead => (Byte, ExactImmutableByteView, ReadByteSequence, None, RequiresAndKeepsStructuralPlace),
+    ByteSequenceWrite => (Unit, ExactMutableByteView, WriteByteSequence, None, RequiresAndKeepsStructuralPlace),
+    ByteSequenceLength => (ByteCount, ExactByteViewMetadata, ReadByteSequenceLength, None, RequiresAndKeepsStructuralPlace),
+    WriteOnlyPrimitiveStore => (Unit, ExactWriteOnlyPrimitiveRoot, StorePrimitive, None, RequiresAndKeepsWriteOnlyPrimitivePlace),
+    StructuralScalarFieldStore => (Unit, ExactStructuralScalarField, StoreScalarField, None, RequiresAndKeepsStructuralPlace),
+    EstablishScalarCase => (Structural, ExactScalarCase, EstablishScalarCase, None, AddsOwnedPlace),
+    EstablishStructuralCase => (Structural, ExactStructuralCase, EstablishStructuralCase, None, TransfersOwnedChildrenAndAddsOwnedPlace),
+    EstablishByteSequenceLiteral => (Unit, ExactByteSequenceLiteral, EstablishByteSequencePlace, None, AddsUnrestrictedPlace),
+    BooleanStructuralField => (Boolean, ExactLiveBooleanField, ReadBooleanField, None, RequiresAndKeepsAffinePlace),
+    IntegerStructuralField => (Integer, ExactLiveIntegerField, ReadIntegerField, None, RequiresAndKeepsStructuralPlace),
+    PortWrite => (Unit, ExactPublishedService, EmitPortWrite, PortWrite, KeepsPlaceFrontier),
+    EstablishTrivialAffineLocal => (Unit, ExactEmptyAffineLocal, EstablishAffinePlace, None, AddsAffinePlace),
+    EstablishStructuralArray => (Structural, ExactStructuralArray, EstablishStructuralArray, None, TransfersOwnedChildrenAndAddsOwnedPlace),
+    EstablishRecord => (Structural, ExactRecord, EstablishRecord, None, TransfersOwnedChildrenAndAddsOwnedPlace),
 }
 
 pub fn exact_structural_effect_semantic_row_in(
