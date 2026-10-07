@@ -2901,38 +2901,6 @@ of a check the same flow already performed, not the check itself.
   owed: the `linux_x86_64` native corpus leg on a Linux host, with execution,
   is unchanged.
 
-- **BUILD-SESSION-RECEIPTS-DELETED.** (new-scope) The production-subject and
-  batch-manifest chain, the report custody replays, retained Pure Build
-  charges and completed-output re-reads are deleted. What remains:
-  - `FilesystemSponsor`
-    (`omega-rust/psi/interpreter/checked-interpreter/src/filesystem_sponsor.rs`)
-    mirrors the build write root as a namespace of objects and descriptors so
-    `interpreter/evaluator/filesystem/real.rs` can prepare and commit every
-    mutation against it, and staged-output capture
-    (`omega-rust/omega/packages/build-output/src/capture/mod.rs`) cross-checks
-    the host tree against its namespace snapshot. The mirror is also how the
-    entry, total-byte and object-extent limits are counted exactly across hard
-    links, renames and unlinks. Replace it with limit counters over the host
-    write root (the spec's staging protocol has no hard links, renames or
-    overwrites, which removes the exact-ownership case), drop the
-    divergence halt and quiescence snapshot, and have capture read the host
-    tree alone. Alias and dangling-link refusal already live in `real.rs`
-    resolution.
-  - `PackageBuildSession`
-    (`omega-rust/omega/packages/package-manager/src/build_session.rs`)
-    creates a write root and sponsors per review pass; sharing one per
-    invocation needs each pass's package builds to stage into fresh
-    subdirectories, because a second pass re-runs the same builds.
-  - Pure builds still capture source, and the captured inventory is copied
-    into a temporary directory instead of served from memory
-    (`wiki/spec/build/scoped_execution.md` allows memory).
-
-  Acceptance: no namespace mirror or snapshot remains in the sponsor; the
-  `filesystem/real/confinement_tests.rs` tests pass; grant refusal, fuel
-  exhaustion, and alias and size rejection still reject (add a corpus fixture
-  for each case the build corpus does not already cover); the build and
-  filesystem corpus slices are unchanged.
-
 - **CONTRACT-IDENTITY-STRUCTURAL.** (split-of:REVIEW-SINGLE-PROJECTION)
   Checked contract identities are still built from hand-rolled byte strings:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/canonical_encoding.rs`
