@@ -372,12 +372,15 @@ impl<'program> Engine<'program> {
     /// range instead of growing the result past any legal evaluation. The
     /// F8 count obligation is judged separately; this interval only covers
     /// evaluations that produce one.
-    pub(super) fn shift_left_interval(
+    /// The value interval and the count's `u64`-readable `[0, count_bits)`
+    /// bounds a shift interval is computed from; `None` when the count's
+    /// range leaves the defined domain or cannot be read.
+    fn shift_count_bits(
         &self,
         value: &Polynomial,
         count: &Polynomial,
         count_bits: u32,
-    ) -> Interval {
+    ) -> Option<(Interval, u64, u64)> {
         let value_interval = self.polynomial_interval(&self.substituted(value));
         let count_interval = self.polynomial_interval(&self.substituted(count));
         let maximum_count = BigInt::from_u64(u64::from(count_bits - 1));
@@ -390,10 +393,24 @@ impl<'program> Engine<'program> {
             .unwrap_or_else(|| maximum_count.clone())
             .min(maximum_count);
         if low_count > high_count {
-            return Interval::unbounded();
+            return None;
         }
         // Both ends sit in [0, count_bits): the `u64` reads cannot fail.
         let (Some(low_bits), Some(high_bits)) = (low_count.to_u64(), high_count.to_u64()) else {
+            return None;
+        };
+        Some((value_interval, low_bits, high_bits))
+    }
+
+    pub(super) fn shift_left_interval(
+        &self,
+        value: &Polynomial,
+        count: &Polynomial,
+        count_bits: u32,
+    ) -> Interval {
+        let Some((value_interval, low_bits, high_bits)) =
+            self.shift_count_bits(value, count, count_bits)
+        else {
             return Interval::unbounded();
         };
         value_interval.multiply(&Interval {
@@ -417,22 +434,9 @@ impl<'program> Engine<'program> {
         count: &Polynomial,
         count_bits: u32,
     ) -> Interval {
-        let value_interval = self.polynomial_interval(&self.substituted(value));
-        let count_interval = self.polynomial_interval(&self.substituted(count));
-        let maximum_count = BigInt::from_u64(u64::from(count_bits - 1));
-        let low_count = count_interval
-            .low
-            .unwrap_or_else(BigInt::zero)
-            .max(BigInt::zero());
-        let high_count = count_interval
-            .high
-            .unwrap_or_else(|| maximum_count.clone())
-            .min(maximum_count);
-        if low_count > high_count {
-            return Interval::unbounded();
-        }
-        // Both ends sit in [0, count_bits): the `u64` reads cannot fail.
-        let (Some(low_bits), Some(high_bits)) = (low_count.to_u64(), high_count.to_u64()) else {
+        let Some((value_interval, low_bits, high_bits)) =
+            self.shift_count_bits(value, count, count_bits)
+        else {
             return Interval::unbounded();
         };
         // An unbounded value end keeps its side unbounded: for any fixed
