@@ -1,4 +1,4 @@
-use super::{candidate_position, member_relief, split_domain_pressure};
+use super::{FailedDomain, candidate_position};
 use crate::RegisterHomeError;
 use register_model::RegisterClassId;
 use selected_instructions::{
@@ -117,16 +117,11 @@ fn pressure_coalesces_across_tied_split_points() {
     // are disjoint, so a victim overlapping only the sibling fragment still
     // blocks the shared home even though it never touches the leader.
     let ranges = split_ranges(&[(0, 1)], &[], &[(1, 7)]);
-    assert!(split_domain_pressure(
-        &ranges,
-        VirtualRegisterId(0),
-        VirtualRegisterId(7)
-    ));
-    assert!(!split_domain_pressure(
-        &ranges,
-        VirtualRegisterId(0),
-        VirtualRegisterId(5)
-    ));
+    let domain = FailedDomain::in_function(0, &ranges, VirtualRegisterId(0));
+    assert!(domain.relief(0, VirtualRegisterId(7)) > 0);
+    assert_eq!(domain.relief(0, VirtualRegisterId(5)), 0);
+    // A register of another function never relieves this domain.
+    assert_eq!(domain.relief(1, VirtualRegisterId(7)), 0);
 }
 
 #[test]
@@ -134,16 +129,8 @@ fn relief_counts_membership_alongside_covered_siblings() {
     // A member covers itself; an outsider covering the whole transitive chain
     // {0, 1, 2} scores higher than any single member's own split.
     let ranges = split_ranges(&[(0, 1)], &[(1, 2)], &[(0, 9), (1, 9), (2, 9)]);
-    assert_eq!(
-        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(9)),
-        3
-    );
-    assert_eq!(
-        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(1)),
-        1
-    );
-    assert_eq!(
-        member_relief(&ranges, VirtualRegisterId(0), VirtualRegisterId(2)),
-        1
-    );
+    let domain = FailedDomain::in_function(0, &ranges, VirtualRegisterId(0));
+    assert_eq!(domain.relief(0, VirtualRegisterId(9)), 3);
+    assert_eq!(domain.relief(0, VirtualRegisterId(1)), 1);
+    assert_eq!(domain.relief(0, VirtualRegisterId(2)), 1);
 }

@@ -3,7 +3,7 @@
 
 use crate::LiveRangeError;
 use selected_instructions::{EdgeRegisterTransfer, FunctionLiveness};
-use selected_instructions::{SelectedFunction, SelectedTerminator, VirtualRegisterOrigin};
+use selected_instructions::{SelectedFunction, SelectedTerminator};
 
 pub(super) fn derive(
     function_index: usize,
@@ -11,6 +11,7 @@ pub(super) fn derive(
     live: &FunctionLiveness,
 ) -> Result<Vec<EdgeRegisterTransfer>, LiveRangeError> {
     let mut rows = Vec::new();
+    let index = crate::analyses::liveness::edge_values::FunctionIndex::new(selected);
     for block in &selected.blocks {
         let successors = match &block.terminator {
             SelectedTerminator::ConditionalBranch {
@@ -41,14 +42,25 @@ pub(super) fn derive(
                 .ok_or(LiveRangeError::FunctionMismatch {
                     function: function_index,
                 })?;
-            for parameter in selected.virtual_registers.iter().filter(|register| {
-                matches!(register.origin, VirtualRegisterOrigin::BlockParameter { block, .. } if block == edge.block)
-                    && target.virtual_live_in.contains(&register.id)
-            }) {
-                let argument = crate::analyses::liveness::edge_values::incoming_argument(function_index, selected, edge, parameter.id)
-                    .map_err(LiveRangeError::LivenessRevalidation)?;
-                rows.push(EdgeRegisterTransfer { source: block.id, target: edge.block, psi_edge: edge.psi_edge,
-                    argument, parameter: parameter.id, class: parameter.class });
+            for parameter in index
+                .parameters_of(edge.block)
+                .filter(|register| target.virtual_live_in.contains(&register.id))
+            {
+                let argument = crate::analyses::liveness::edge_values::incoming_argument(
+                    function_index,
+                    &index,
+                    edge,
+                    parameter.id,
+                )
+                .map_err(LiveRangeError::LivenessRevalidation)?;
+                rows.push(EdgeRegisterTransfer {
+                    source: block.id,
+                    target: edge.block,
+                    psi_edge: edge.psi_edge,
+                    argument,
+                    parameter: parameter.id,
+                    class: parameter.class,
+                });
             }
         }
     }

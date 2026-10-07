@@ -217,53 +217,75 @@ pub(super) fn transformations(
         .collect()
 }
 
-pub(super) fn overlaps_pressure(
-    failure: &crate::RegisterHomeError,
-    ranges: &ValidatedLiveRanges,
+/// The pressure domain one recovery step must relieve: the function and
+/// leader a `NoCompatibleHome` names, with the leader's member fragments
+/// collected once. Every roster candidate is scored against this one
+/// reconstruction; rebuilding the members per candidate made each step
+/// quadratic in the failed function's ties and transfers.
+pub(super) struct FailedDomain<'ranges> {
     function: usize,
-    register: VirtualRegisterId,
-) -> bool {
-    let crate::RegisterHomeError::NoCompatibleHome {
-        function: failed_function,
-        register: failed_register,
-    } = failure
-    else {
-        return false;
-    };
-    let Some(function_ranges) = ranges.plan().functions.get(*failed_function) else {
-        return false;
-    };
-    function == *failed_function
-        && split_domain_pressure(
+    ranges: &'ranges FunctionLiveRanges,
+    members: std::collections::BTreeSet<VirtualRegisterId>,
+}
+
+impl<'ranges> FailedDomain<'ranges> {
+    /// The failure's domain, or `None` for any failure other than a pressure
+    /// failure in a function the ranges describe.
+    pub(super) fn of(
+        failure: &crate::RegisterHomeError,
+        ranges: &'ranges ValidatedLiveRanges,
+    ) -> Option<Self> {
+        let crate::RegisterHomeError::NoCompatibleHome { function, register } = failure else {
+            return None;
+        };
+        let function_ranges = ranges.plan().functions.get(*function)?;
+        Some(Self::in_function(
+            *function,
             function_ranges,
-            VirtualRegisterId(*failed_register),
-            register,
-        )
+            VirtualRegisterId(*register),
+        ))
+    }
+
+    pub(super) fn in_function(
+        function: usize,
+        ranges: &'ranges FunctionLiveRanges,
+        leader: VirtualRegisterId,
+    ) -> Self {
+        Self {
+            function,
+            ranges,
+            members: split_domain_members(ranges, leader),
+        }
+    }
+
+    /// One candidate's relief: the member fragments it covers across the
+    /// split points, counting membership itself (a member's own split
+    /// dissolves its share of the shared-home requirement), plus every other
+    /// member it interferes with. Member fragments never interfere with each
+    /// other, so the domain's pressure is the union of every member's
+    /// interference. Zero means the candidate is not a pressure victim at all.
+    pub(super) fn relief(&self, function: usize, register: VirtualRegisterId) -> usize {
+        if function != self.function {
+            return 0;
+        }
+        self.members
+            .iter()
+            .filter(|member| **member == register || interferes(self.ranges, register, **member))
+            .count()
+    }
+
+    pub(super) fn function(&self) -> usize {
+        self.function
+    }
 }
 
 // A pressure failure names the leader of one tied/edge-transferred domain: a
 // single live range split into disjoint member fragments at the tie and
-// transfer points, all sharing one home. Member fragments never interfere
-// with each other, so the domain's pressure is the union of every member's
-// interference. Coalescing that evidence across the split points admits a
-// victim overlapping any member fragment — or a member fragment itself, whose
-// own split breaks the shared-home requirement.
-fn split_domain_pressure(
-    ranges: &FunctionLiveRanges,
-    leader: VirtualRegisterId,
-    register: VirtualRegisterId,
-) -> bool {
-    let members = split_domain_members(ranges, leader);
-    members.contains(&register)
-        || members
-            .iter()
-            .any(|member| interferes(ranges, register, *member))
-}
-
-// Collect the failed domain's member fragments: the connected component of
-// use/def ties and edge transfers rooted at the named leader. Those are the
-// same relations domain construction unions, so this reproduces the split
-// range's membership without rebuilding allocation domains.
+// transfer points, all sharing one home. Collect those fragments: the
+// connected component of use/def ties and edge transfers rooted at the named
+// leader. Those are the same relations domain construction unions, so this
+// reproduces the split range's membership without rebuilding allocation
+// domains.
 fn split_domain_members(
     ranges: &FunctionLiveRanges,
     leader: VirtualRegisterId,
@@ -346,49 +368,6 @@ fn candidate_position(
         })
 }
 
-// One candidate's relief against the failed domain: the member fragments it
-// covers across the split points, counting membership itself — a member's own
-// split dissolves its share of the shared-home requirement — plus every other
-// member it interferes with. Zero means the candidate is not a pressure victim
-// at all, so callers keep the predicate and the score from one reconstruction.
-fn split_domain_relief(
-    failure: &crate::RegisterHomeError,
-    ranges: &ValidatedLiveRanges,
-    function: usize,
-    register: VirtualRegisterId,
-) -> usize {
-    let crate::RegisterHomeError::NoCompatibleHome {
-        function: failed_function,
-        register: failed_register,
-    } = failure
-    else {
-        return 0;
-    };
-    let Some(function_ranges) = ranges.plan().functions.get(*failed_function) else {
-        return 0;
-    };
-    if function != *failed_function {
-        return 0;
-    }
-    member_relief(
-        function_ranges,
-        VirtualRegisterId(*failed_register),
-        register,
-    )
-}
-
-fn member_relief(
-    ranges: &FunctionLiveRanges,
-    failed: VirtualRegisterId,
-    register: VirtualRegisterId,
-) -> usize {
-    split_domain_members(ranges, failed)
-        .iter()
-        .copied()
-        .filter(|member| *member == register || interferes(ranges, register, *member))
-        .count()
-}
-
 /// The split decision at one step: among the still-available roster
 /// candidates overlapping the failed domain, in the same most-relief-then-
 /// roster order the spill choice uses, the first whose fixed-view definition
@@ -396,22 +375,21 @@ fn member_relief(
 /// falls through to rematerialization or storage.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn admissible_split<'roster>(
-    failure: &crate::RegisterHomeError,
+    domain: Option<&FailedDomain<'_>>,
     available: impl Iterator<Item = &'roster (usize, VirtualRegisterId)>,
-    ranges: &ValidatedLiveRanges,
     selected: &impl ValidatedSelectedAnalysis,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Option<((usize, VirtualRegisterId), ValidatedRuntimeSplit)>, RuntimeSpillAllocationError>
 {
+    let Some(domain) = domain else {
+        return Ok(None);
+    };
     let mut ordered: Vec<(usize, (usize, VirtualRegisterId))> = available
         .copied()
-        .filter(|(function, register)| overlaps_pressure(failure, ranges, *function, *register))
-        .map(|candidate| {
-            (
-                split_domain_relief(failure, ranges, candidate.0, candidate.1),
-                candidate,
-            )
+        .filter_map(|candidate| {
+            let relief = domain.relief(candidate.0, candidate.1);
+            (relief > 0).then_some((relief, candidate))
         })
         .collect();
     // A stable sort keeps roster order among equal relief.
@@ -542,9 +520,17 @@ fn recover_over(
         // same failure rotates through the remaining members forever.
         // Reloads minted by spill and rematerialization retire as they are
         // minted and never join.
+        // Only the failed function's registers can relieve its pressure, so
+        // the roster and every score below stay within that function.
+        let domain = FailedDomain::of(&failure, &current_ranges);
         let mut roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan())
             .into_iter()
-            .filter(|entry| !tried.contains(entry))
+            .filter(|entry| {
+                !tried.contains(entry)
+                    && domain
+                        .as_ref()
+                        .is_some_and(|domain| entry.0 == domain.function())
+            })
             .collect();
         // The split decision comes first: one copy after a pinned definition
         // is cheaper than any regeneration or storage, and it is committed
@@ -552,9 +538,8 @@ fn recover_over(
         // joined at the copy, so no point gains a live value; the pinned
         // segment the failed domain overlapped now ends at the copy.
         let split = admissible_split(
-            &failure,
+            domain.as_ref(),
             roster.iter(),
-            &current_ranges,
             &selected,
             environment,
             budget,
@@ -568,10 +553,14 @@ fn recover_over(
                 &failure,
                 &roster,
                 |(function, register)| {
-                    overlaps_pressure(&failure, &current_ranges, *function, *register)
+                    domain
+                        .as_ref()
+                        .is_some_and(|domain| domain.relief(*function, *register) > 0)
                 },
                 |(function, register)| {
-                    split_domain_relief(&failure, &current_ranges, *function, *register)
+                    domain
+                        .as_ref()
+                        .map_or(0, |domain| domain.relief(*function, *register))
                 },
             ) else {
                 break;

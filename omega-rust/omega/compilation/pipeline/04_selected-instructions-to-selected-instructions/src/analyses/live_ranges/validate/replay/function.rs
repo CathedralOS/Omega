@@ -209,6 +209,7 @@ fn replay_edge_transfers(
 ) -> Result<Vec<selected_instructions::EdgeRegisterTransfer>, LiveRangeError> {
     use selected_instructions::{SelectedTerminator, VirtualRegisterOrigin};
     let mut transfers = BTreeSet::new();
+    let index = crate::analyses::liveness::edge_values::FunctionIndex::new(selected);
     for predecessor in &selected.blocks {
         let edges = match &predecessor.terminator {
             SelectedTerminator::Return { .. }
@@ -249,7 +250,7 @@ fn replay_edge_transfers(
                 }
                 let argument = crate::analyses::liveness::edge_values::incoming_argument(
                     function,
-                    selected,
+                    &index,
                     edge,
                     *destination,
                 )

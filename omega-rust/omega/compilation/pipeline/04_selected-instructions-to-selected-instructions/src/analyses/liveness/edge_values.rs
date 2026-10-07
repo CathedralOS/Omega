@@ -1,9 +1,101 @@
 //! Explicit register transport across authored successor bindings.
 use super::LivenessError;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedSuccessor, SelectedSuccessorRole,
-    SelectedTerminator, SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedSuccessor,
+    SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
+
+/// One function's registers and blocks, indexed once per analysis. Transport
+/// checks run per edge and per destination; scanning the whole function for
+/// each made every liveness and live-range analysis quadratic in function
+/// size, and runtime spill recovery repeats those analyses once per step.
+pub(crate) struct FunctionIndex<'function> {
+    function: &'function SelectedFunction,
+    /// `(id, position)` for every register, sorted by id.
+    registers: Vec<(VirtualRegisterId, usize)>,
+    /// `(block, position)` for every block-parameter register, sorted by block
+    /// and then by function order.
+    parameters: Vec<(SelectedBlockId, usize)>,
+    /// `(id, position)` for every block, sorted by id and then by order.
+    blocks: Vec<(SelectedBlockId, usize)>,
+}
+
+impl<'function> FunctionIndex<'function> {
+    pub(crate) fn new(function: &'function SelectedFunction) -> Self {
+        let mut registers = function
+            .virtual_registers
+            .iter()
+            .enumerate()
+            .map(|(position, register)| (register.id, position))
+            .collect::<Vec<_>>();
+        registers.sort_unstable();
+        let mut parameters = function
+            .virtual_registers
+            .iter()
+            .enumerate()
+            .filter_map(|(position, register)| match register.origin {
+                VirtualRegisterOrigin::BlockParameter { block, .. } => Some((block, position)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        parameters.sort_unstable();
+        let mut blocks = function
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(position, block)| (block.id, position))
+            .collect::<Vec<_>>();
+        blocks.sort_unstable();
+        Self {
+            function,
+            registers,
+            parameters,
+            blocks,
+        }
+    }
+
+    /// The one register carrying `id`, or `None` when no register or more
+    /// than one carries it.
+    pub(crate) fn unique_register(
+        &self,
+        id: VirtualRegisterId,
+    ) -> Option<&'function VirtualRegister> {
+        let start = self.registers.partition_point(|(other, _)| *other < id);
+        match self.registers.get(start..)? {
+            [(first, position), rest @ ..]
+                if *first == id && rest.first().is_none_or(|(next, _)| *next != id) =>
+            {
+                self.function.virtual_registers.get(*position)
+            }
+            _ => None,
+        }
+    }
+
+    /// The block-parameter registers of `block`, in function order.
+    pub(crate) fn parameters_of(
+        &self,
+        block: SelectedBlockId,
+    ) -> impl Iterator<Item = &'function VirtualRegister> + '_ {
+        let start = self.parameters.partition_point(|(other, _)| *other < block);
+        self.parameters[start..]
+            .iter()
+            .take_while(move |(other, _)| *other == block)
+            .filter_map(|(_, position)| self.function.virtual_registers.get(*position))
+    }
+
+    /// Every block carrying `id`, in function order.
+    pub(crate) fn blocks_with_id(
+        &self,
+        id: SelectedBlockId,
+    ) -> impl Iterator<Item = &'function SelectedBlock> + '_ {
+        let start = self.blocks.partition_point(|(other, _)| *other < id);
+        self.blocks[start..]
+            .iter()
+            .take_while(move |(other, _)| *other == id)
+            .filter_map(|(_, position)| self.function.blocks.get(*position))
+    }
+}
 
 pub(crate) fn has_edge_use(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
     function.blocks.iter().any(|block| {
@@ -46,6 +138,7 @@ pub(crate) fn validate_transports(
     let mismatch = || LivenessError::FunctionMismatch {
         function: function_index,
     };
+    let index = FunctionIndex::new(function);
     for block in &function.blocks {
         let edges = match &block.terminator {
             SelectedTerminator::Jump { successor, .. } => vec![successor],
@@ -97,21 +190,17 @@ pub(crate) fn validate_transports(
                     && matches!(block.terminator, SelectedTerminator::Jump { .. }) => {}
                 _ => return Err(mismatch()),
             }
-            if function
-                .blocks
-                .iter()
-                .filter(|target| {
-                    target.id == edge.block && target.source_block() == edge.source_target
-                })
+            if index
+                .blocks_with_id(edge.block)
+                .filter(|target| target.source_block() == edge.source_target)
                 .count()
                 != 1
             {
                 return Err(mismatch());
             }
-            let destination = function
-                .blocks
-                .iter()
-                .find(|target| target.id == edge.block)
+            let destination = index
+                .blocks_with_id(edge.block)
+                .next()
                 .ok_or_else(mismatch)?;
             match destination.origin {
                 SelectedBlockOrigin::Source(_) => {}
@@ -130,7 +219,7 @@ pub(crate) fn validate_transports(
                         .all(|binding| binding.transport == SelectedValueTransport::Unused) => {}
                 _ => return Err(mismatch()),
             }
-            validate_case_transport(function_index, function, edge, destination)?;
+            validate_case_transport(function_index, &index, edge, destination)?;
             for binding in &edge.bindings {
                 if edge
                     .bindings
@@ -141,13 +230,12 @@ pub(crate) fn validate_transports(
                 {
                     return Err(mismatch());
                 }
-                let destinations = function
-                    .virtual_registers
-                    .iter()
+                let destinations = index
+                    .parameters_of(edge.block)
                     .filter(|register| {
                         matches!(register.origin,
-                    VirtualRegisterOrigin::BlockParameter {source_value,block,..}
-                        if source_value == binding.semantic.parameter && block == edge.block)
+                    VirtualRegisterOrigin::BlockParameter {source_value,..}
+                        if source_value == binding.semantic.parameter)
                     })
                     .collect::<Vec<_>>();
                 match binding.transport {
@@ -155,16 +243,13 @@ pub(crate) fn validate_transports(
                     SelectedValueTransport::Registers { parameter, .. }
                         if destinations.len() == 1 && destinations[0].id == parameter =>
                     {
-                        incoming_argument(function_index, function, edge, parameter)?;
+                        incoming_argument(function_index, &index, edge, parameter)?;
                     }
                     _ => return Err(mismatch()),
                 }
             }
-            for destination in function.virtual_registers.iter().filter(|register| {
-                matches!(register.origin,
-                VirtualRegisterOrigin::BlockParameter {block,..} if block == edge.block)
-            }) {
-                incoming_argument(function_index, function, edge, destination.id)?;
+            for destination in index.parameters_of(edge.block) {
+                incoming_argument(function_index, &index, edge, destination.id)?;
             }
         }
     }
@@ -175,21 +260,14 @@ pub(crate) fn validate_transports(
 /// selected transport, never the first or latest register sharing a ValueId.
 pub(crate) fn incoming_argument(
     function_index: usize,
-    function: &SelectedFunction,
+    index: &FunctionIndex<'_>,
     successor: &SelectedSuccessor,
     destination: VirtualRegisterId,
 ) -> Result<VirtualRegisterId, LivenessError> {
     let mismatch = || LivenessError::FunctionMismatch {
         function: function_index,
     };
-    let mut destinations = function
-        .virtual_registers
-        .iter()
-        .filter(|register| register.id == destination);
-    let destination_register = destinations.next().ok_or_else(mismatch)?;
-    if destinations.next().is_some() {
-        return Err(mismatch());
-    }
+    let destination_register = index.unique_register(destination).ok_or_else(mismatch)?;
     let VirtualRegisterOrigin::BlockParameter {
         source_value,
         block,
@@ -238,13 +316,8 @@ pub(crate) fn incoming_argument(
             {
                 return Err(mismatch());
             }
-            let mut sources = function
-                .virtual_registers
-                .iter()
-                .filter(|register| register.id == argument);
-            let source = sources.next().ok_or_else(mismatch)?;
-            if sources.next().is_some()
-                || source.scalar_type != destination_register.scalar_type
+            let source = index.unique_register(argument).ok_or_else(mismatch)?;
+            if source.scalar_type != destination_register.scalar_type
                 || source.class != destination_register.class
                 || source.definition_site.is_some()
                 || !matches!(source.origin, VirtualRegisterOrigin::StructuralObservation { place, byte_offset, .. }
@@ -277,14 +350,7 @@ pub(crate) fn incoming_argument(
     if parameter != destination {
         return Err(mismatch());
     }
-    let mut sources = function
-        .virtual_registers
-        .iter()
-        .filter(|register| register.id == argument);
-    let source = sources.next().ok_or_else(mismatch)?;
-    if sources.next().is_some() {
-        return Err(mismatch());
-    }
+    let source = index.unique_register(argument).ok_or_else(mismatch)?;
     let value = match source.origin {
         VirtualRegisterOrigin::StructuralParameter { .. }
         | VirtualRegisterOrigin::SpillAddress { .. }
@@ -307,9 +373,9 @@ pub(crate) fn incoming_argument(
 
 fn validate_case_transport(
     function_index: usize,
-    function: &SelectedFunction,
+    index: &FunctionIndex<'_>,
     edge: &SelectedSuccessor,
-    destination: &selected_instructions::SelectedBlock,
+    destination: &SelectedBlock,
 ) -> Result<(), LivenessError> {
     use selected_instructions::SelectedCasePayloadTransport;
     let mismatch = || LivenessError::FunctionMismatch {
@@ -370,10 +436,13 @@ fn validate_case_transport(
         {
             return Err(mismatch());
         }
-        let destinations = function.virtual_registers.iter().filter(|register| {
-            matches!(register.origin, VirtualRegisterOrigin::BlockParameter { source_value, block, .. }
-                if source_value == payload.semantic.parameter.value && block == edge.block)
-        }).collect::<Vec<_>>();
+        let destinations = index
+            .parameters_of(edge.block)
+            .filter(|register| {
+                matches!(register.origin, VirtualRegisterOrigin::BlockParameter { source_value, .. }
+                if source_value == payload.semantic.parameter.value)
+            })
+            .collect::<Vec<_>>();
         match payload.transport {
             SelectedCasePayloadTransport::Unused if destinations.is_empty() => {}
             SelectedCasePayloadTransport::Registers { parameter, .. }
@@ -381,7 +450,7 @@ fn validate_case_transport(
                     && destinations.len() == 1
                     && destinations[0].id == parameter =>
             {
-                incoming_argument(function_index, function, edge, parameter)?;
+                incoming_argument(function_index, index, edge, parameter)?;
             }
             _ => return Err(mismatch()),
         }
