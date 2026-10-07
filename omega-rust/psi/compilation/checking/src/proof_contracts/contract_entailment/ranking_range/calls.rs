@@ -6,7 +6,7 @@ use super::super::{
 };
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
-    MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, RankingRangeState, State,
+    MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, State,
     TypedTrees, collect_guard, entry_comparisons, exact_integer_parameter, field_coordinates,
     fields, find_declared_measure, integer_bindings, lengths, meanings, measure_body_shape,
     hypothesis_landed_endpoints, parameter_comparisons, projections, saved_arguments, validate_mapping,
@@ -395,18 +395,12 @@ pub(crate) fn prove_ranking_range_call(
     // the same atom.
     let field_ranks = if let RankingRangeMeasure::Field { subject, measure } = source_measure {
         let coordinate = fields::FieldCoordinate::resolve(program, entry, subject, measure)?;
-        let coordinate = if at_entry {
-            coordinate
-        } else {
-            coordinate.at_arrival(
-                program,
-                RankingRangeState {
-                    state: source,
-                    entry_parameters: caller_site.entry_parameters,
-                },
-                coordinate.parameter.symbol,
-            )?
-        };
+        let coordinate = coordinate.arrive_unless_at_entry(
+            program,
+            source,
+            caller_site.entry_parameters,
+            at_entry,
+        )?;
         let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
         install_call_field_coordinates(
             program,
@@ -458,18 +452,12 @@ pub(crate) fn prove_ranking_range_call(
     let slice_ranks = if let RankingRangeMeasure::SliceLength(subject) = source_measure {
         let resolved = match lengths::SliceCoordinate::resolve(program, entry, subject) {
             Some(coordinate) => {
-                let coordinate = if at_entry {
-                    coordinate
-                } else {
-                    coordinate.at_arrival(
-                        program,
-                        RankingRangeState {
-                            state: source,
-                            entry_parameters: caller_site.entry_parameters,
-                        },
-                        coordinate.parameter.symbol,
-                    )?
-                };
+                let coordinate = coordinate.arrive_unless_at_entry(
+                    program,
+                    source,
+                    caller_site.entry_parameters,
+                    at_entry,
+                )?;
                 Some(coordinate)
             }
             // A bare slice subject can still name a coordinate at this site:

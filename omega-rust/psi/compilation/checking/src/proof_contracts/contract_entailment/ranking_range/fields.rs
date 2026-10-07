@@ -415,6 +415,28 @@ impl<'program> FieldCoordinate<'program> {
     /// A telescope names a role, not record compatibility or equality between
     /// copies. Only a unique formal with the exact declaration can carry this
     /// coordinate; duplicated record roles need independent field facts.
+    /// The coordinate rebound to its arrival at `state`, or itself when the
+    /// judgment already reads at the entry edge.
+    pub(super) fn arrive_unless_at_entry(
+        self,
+        program: &'program TypedTrees,
+        state: &State,
+        entry_parameters: &[SymbolHandle],
+        at_entry: bool,
+    ) -> Option<Self> {
+        if at_entry {
+            return Some(self);
+        }
+        self.at_arrival(
+            program,
+            RankingRangeState {
+                state,
+                entry_parameters,
+            },
+            self.parameter.symbol,
+        )
+    }
+
     /// The coordinate rebound to its arrival when the judgment carries an
     /// entry-edge parameter roster, or itself without one.
     pub(super) fn at_entry_arrival(
