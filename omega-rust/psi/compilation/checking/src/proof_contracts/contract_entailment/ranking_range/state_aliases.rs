@@ -55,17 +55,7 @@ pub(super) fn premise_symbols(
     let root = program.machine_states(machine).first()?;
     let mut symbols = Vec::new();
     let mut expressions = range.map_or_else(Vec::new, |range| vec![range.start, range.end]);
-    match measure {
-        RankingRangeMeasure::Single(subject)
-        | RankingRangeMeasure::Computed { subject, .. }
-        | RankingRangeMeasure::SliceLength(subject)
-        | RankingRangeMeasure::Field { subject, .. } => expressions.push(subject),
-        RankingRangeMeasure::Distance { lower, upper }
-        | RankingRangeMeasure::IncreasingTo {
-            subject: lower,
-            limit: upper,
-        } => expressions.extend([lower, upper]),
-    }
+    super::push_measure_subjects(measure, &mut expressions);
     if entry_facts {
         expressions.extend(super::required_contract_expressions(program, machine));
         super::constrained_parameter_bound_expressions(

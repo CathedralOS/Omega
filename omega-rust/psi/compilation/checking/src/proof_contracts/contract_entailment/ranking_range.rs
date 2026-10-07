@@ -132,6 +132,25 @@ pub struct RankingRangeState<'program> {
     pub entry_parameters: &'program [symbols::SymbolHandle],
 }
 
+/// Push a measure's subject expressions into `expressions` — every measure
+/// shape's operand roster in one match.
+pub(super) fn push_measure_subjects(
+    measure: RankingRangeMeasure,
+    expressions: &mut Vec<ExpressionHandle>,
+) {
+    match measure {
+        RankingRangeMeasure::Single(subject)
+        | RankingRangeMeasure::Computed { subject, .. }
+        | RankingRangeMeasure::SliceLength(subject)
+        | RankingRangeMeasure::Field { subject, .. } => expressions.push(subject),
+        RankingRangeMeasure::Distance { lower, upper }
+        | RankingRangeMeasure::IncreasingTo {
+            subject: lower,
+            limit: upper,
+        } => expressions.extend([lower, upper]),
+    }
+}
+
 /// Check one state transition under independently established source and target
 /// telescopes. Each source uses the selected graph-wide invariant, including
 /// reentered roots. Every destination formal receives its exact actual in

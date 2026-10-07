@@ -16,17 +16,7 @@ pub(super) fn expressions(
     evaluated_prefix: &[ExpressionHandle],
 ) -> Vec<ExpressionHandle> {
     let mut expressions = vec![range.start, range.end];
-    match measure {
-        RankingRangeMeasure::Single(subject)
-        | RankingRangeMeasure::Computed { subject, .. }
-        | RankingRangeMeasure::SliceLength(subject)
-        | RankingRangeMeasure::Field { subject, .. } => expressions.push(subject),
-        RankingRangeMeasure::Distance { lower, upper }
-        | RankingRangeMeasure::IncreasingTo {
-            subject: lower,
-            limit: upper,
-        } => expressions.extend([lower, upper]),
-    }
+    super::push_measure_subjects(measure, &mut expressions);
     expressions.extend(arguments.unwrap_or_default());
     expressions.extend(guards.iter().map(|(expression, _)| *expression));
     expressions.extend(evaluated_prefix);
