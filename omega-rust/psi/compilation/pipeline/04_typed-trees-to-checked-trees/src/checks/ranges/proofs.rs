@@ -69,6 +69,25 @@ pub(super) fn unknown_length_index_is_proven(
     )
 }
 
+/// The ordering obligation `start <= end` holds when the start is the
+/// trivial zero, when both bounds fold to constants that compare, or when
+/// the ordering was established as a carried fact.
+fn start_at_most_end_proven(
+    program: &typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    range: &TableRangeExpression,
+) -> bool {
+    let start_label = program.expression_table.display_name(range.start);
+    let end_label = program.expression_table.display_name(range.end);
+    let folded_start = expression_integer_value(program, facts, range.start);
+    let folded_end = expression_integer_value(program, facts, range.end);
+    folded_start.is_some_and(|start| start == 0)
+        || folded_start
+            .zip(folded_end)
+            .is_some_and(|(start, end)| start <= end)
+        || facts.at_most_is_proven(&start_label, &end_label)
+}
+
 pub(super) fn unknown_length_range_is_proven(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -112,19 +131,7 @@ pub(super) fn unknown_length_range_is_proven(
                 )
         }
         (true, true) => {
-            let start_label = program.expression_table.display_name(range.start);
-            let end_label = program.expression_table.display_name(range.end);
-            // The ordering obligation `start <= end` holds when the start is
-            // the trivial zero, when both bounds fold to constants that
-            // compare, or when the ordering was established as a carried fact.
-            let folded_start = expression_integer_value(program, facts, range.start);
-            let folded_end = expression_integer_value(program, facts, range.end);
-            let start_is_at_most_end = folded_start.is_some_and(|start| start == 0)
-                || folded_start
-                    .zip(folded_end)
-                    .is_some_and(|(start, end)| start <= end)
-                || facts.at_most_is_proven(&start_label, &end_label);
-
+            let start_is_at_most_end = start_at_most_end_proven(program, facts, range);
             start_is_at_most_end
                 && (bounded_difference
                     || range_end_within_unknown_length_is_proven(
@@ -337,15 +344,7 @@ pub(super) fn symbolic_extent_range_is_proven(
                 )
         }
         (true, true) => {
-            let start_label = program.expression_table.display_name(range.start);
-            let end_label = program.expression_table.display_name(range.end);
-            let folded_start = expression_integer_value(program, facts, range.start);
-            let folded_end = expression_integer_value(program, facts, range.end);
-            let start_is_at_most_end = folded_start.is_some_and(|start| start == 0)
-                || folded_start
-                    .zip(folded_end)
-                    .is_some_and(|(start, end)| start <= end)
-                || facts.at_most_is_proven(&start_label, &end_label);
+            let start_is_at_most_end = start_at_most_end_proven(program, facts, range);
             start_is_at_most_end
                 && (bounded_difference
                     || symbolic_extent_range_end_is_proven(
