@@ -13,7 +13,7 @@ use super::super::{
     unsupported, value_id,
 };
 use super::qualifications;
-use super::{GraphEmission, StateFrame};
+use super::{GraphEmission, StateFrame, scalar_jump_terminator};
 use crate::emission::boolean_control::{LoweredBooleanDecision, LoweredBooleanDecisionExit};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -21,6 +21,14 @@ use crate::proofs::crash_routes::lowered_direct_scalar_term;
 use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
 use crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBranchTerminator;
+
+fn fresh_edge(identity: &mut u64) -> semantic_vocabulary::EdgeId {
+    let edge = edge_id(*identity);
+    *identity = identity
+        .checked_add(1)
+        .expect("case dispatch edge identities advance");
+    edge
+}
 
 impl GraphEmission<'_> {
     /// Emit the state at `index` in the graph's emission order.
@@ -216,15 +224,13 @@ impl GraphEmission<'_> {
                         .next_edge_identity
                         .checked_add(1)
                         .expect("mixed tuple entry edge identity advances");
-                    Terminator::Jump {
-                        structural_arguments: Vec::new(),
+                    scalar_jump_terminator(
                         edge,
-                        target: target.block,
-                        arguments: target.arguments,
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        cleanup_actions: Vec::new(),
-                    }
+                        target.block,
+                        target.arguments,
+                        Vec::new(),
+                        Vec::new(),
+                    )
                 } else {
                     let arguments = arguments
                         .iter()
@@ -580,13 +586,6 @@ impl GraphEmission<'_> {
                 } else {
                     None
                 };
-                let fresh_edge = |identity: &mut u64| {
-                    let edge = edge_id(*identity);
-                    *identity = identity
-                        .checked_add(1)
-                        .expect("case dispatch edge identities advance");
-                    edge
-                };
                 let when_true_erased = when_true_erased_arguments
                     .iter()
                     .map(|argument| {
@@ -640,15 +639,13 @@ impl GraphEmission<'_> {
                     erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     operations: Vec::new(),
-                    terminator: Terminator::Jump {
-                        structural_arguments: Vec::new(),
-                        edge: fresh_edge(&mut self.next_edge_identity),
-                        target: when_true.block,
-                        arguments: when_true.arguments,
-                        erased_arguments: when_true_erased,
-                        erased_proof_arguments: when_true_proof,
-                        cleanup_actions: Vec::new(),
-                    },
+                    terminator: scalar_jump_terminator(
+                        fresh_edge(&mut self.next_edge_identity),
+                        when_true.block,
+                        when_true.arguments,
+                        when_true_erased,
+                        when_true_proof,
+                    ),
                 });
                 if let Some((fallback_block, when_false)) = fallback_block.zip(when_false) {
                     self.blocks.push(Block {
@@ -658,15 +655,13 @@ impl GraphEmission<'_> {
                         erased_proof_formals: Vec::new(),
                         structural_parameters: Vec::new(),
                         operations: Vec::new(),
-                        terminator: Terminator::Jump {
-                            structural_arguments: Vec::new(),
-                            edge: fresh_edge(&mut self.next_edge_identity),
-                            target: when_false.block,
-                            arguments: when_false.arguments,
-                            erased_arguments: when_false_erased,
-                            erased_proof_arguments: when_false_proof,
-                            cleanup_actions: Vec::new(),
-                        },
+                        terminator: scalar_jump_terminator(
+                            fresh_edge(&mut self.next_edge_identity),
+                            when_false.block,
+                            when_false.arguments,
+                            when_false_erased,
+                            when_false_proof,
+                        ),
                     });
                 }
                 Terminator::StructuralCase {
@@ -774,13 +769,6 @@ impl GraphEmission<'_> {
                 // payloads as its block parameters, matching the edge's
                 // `payload_fields` roster; unarmed cases share one
                 // payload-less fallback continuation.
-                let fresh_edge = |identity: &mut u64| {
-                    let edge = edge_id(*identity);
-                    *identity = identity
-                        .checked_add(1)
-                        .expect("case dispatch edge identities advance");
-                    edge
-                };
                 let mut case_edges = Vec::with_capacity(cases.len());
                 let mut fallback_block = None;
                 for case in cases {
@@ -828,15 +816,13 @@ impl GraphEmission<'_> {
                                 erased_proof_formals: Vec::new(),
                                 structural_parameters: Vec::new(),
                                 operations: Vec::new(),
-                                terminator: Terminator::Jump {
-                                    structural_arguments: Vec::new(),
-                                    edge: fresh_edge(&mut self.next_edge_identity),
-                                    target: fallback_staged.block,
-                                    arguments: fallback_staged.arguments,
-                                    erased_arguments: fallback_erased,
-                                    erased_proof_arguments: fallback_proof,
-                                    cleanup_actions: Vec::new(),
-                                },
+                                terminator: scalar_jump_terminator(
+                                    fresh_edge(&mut self.next_edge_identity),
+                                    fallback_staged.block,
+                                    fallback_staged.arguments,
+                                    fallback_erased,
+                                    fallback_proof,
+                                ),
                             });
                             fallback_block = Some(block);
                         }
@@ -913,15 +899,13 @@ impl GraphEmission<'_> {
                         erased_proof_formals: Vec::new(),
                         structural_parameters: Vec::new(),
                         operations: Vec::new(),
-                        terminator: Terminator::Jump {
-                            structural_arguments: Vec::new(),
-                            edge: fresh_edge(&mut self.next_edge_identity),
-                            target: staged.block,
-                            arguments: staged.arguments,
+                        terminator: scalar_jump_terminator(
+                            fresh_edge(&mut self.next_edge_identity),
+                            staged.block,
+                            staged.arguments,
                             erased_arguments,
                             erased_proof_arguments,
-                            cleanup_actions: Vec::new(),
-                        },
+                        ),
                     });
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
                         edge: fresh_edge(&mut self.next_edge_identity),

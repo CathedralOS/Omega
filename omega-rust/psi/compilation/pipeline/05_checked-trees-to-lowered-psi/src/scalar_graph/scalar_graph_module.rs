@@ -35,7 +35,7 @@ mod state_borrows;
 mod state_contracts;
 mod state_emission;
 use crate::scalar_graph::scalar_contracts;
-use semantic_vocabulary::BlockId;
+use semantic_vocabulary::{BlockId, EdgeId, ProofTerm, ValueId};
 
 /// One scalar-graph machine's emission in flight: the prepared states and
 /// their parameter namespaces, the identity counters, the shared operation
@@ -64,6 +64,26 @@ pub(super) struct GraphEmission<'a> {
     pub(super) pending_blocks: Vec<PendingNestedBlockGroup>,
     pub(super) inlined_blocks: Vec<Block>,
     pub(super) blocks: Vec<Block>,
+}
+
+/// A jump terminator whose structural and cleanup rosters stay empty:
+/// scalar-graph edges bind only scalar, erased and proof actuals.
+pub(super) fn scalar_jump_terminator(
+    edge: EdgeId,
+    target: BlockId,
+    arguments: Vec<ValueId>,
+    erased_arguments: Vec<ScalarTerm>,
+    erased_proof_arguments: Vec<ProofTerm>,
+) -> Terminator {
+    Terminator::Jump {
+        structural_arguments: Vec::new(),
+        edge,
+        target,
+        arguments,
+        erased_arguments,
+        erased_proof_arguments,
+        cleanup_actions: Vec::new(),
+    }
 }
 
 /// One graph state as its emitter sees it before the body is emitted.

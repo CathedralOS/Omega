@@ -13,7 +13,7 @@ use super::super::{
     scalar_source_block, unsupported, value_id,
 };
 use super::qualifications;
-use super::{GraphEmission, StateFrame};
+use super::{GraphEmission, StateFrame, scalar_jump_terminator};
 use crate::emission::boolean_control::{LoweredBooleanDecision, LoweredBooleanDecisionExit};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -185,15 +185,13 @@ impl GraphEmission<'_> {
                         erased_scalar_formals: Vec::new(),
                         erased_proof_formals: Vec::new(),
                         operations: self.all_operations[stage_operation_start..].to_vec(),
-                        terminator: Terminator::Jump {
-                            structural_arguments: Vec::new(),
+                        terminator: scalar_jump_terminator(
                             edge,
-                            target: next_stage,
+                            next_stage,
                             arguments,
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            cleanup_actions: Vec::new(),
-                        },
+                            Vec::new(),
+                            Vec::new(),
+                        ),
                     };
                     if binding_index == 0 {
                         self.blocks.push(block);
