@@ -6,11 +6,11 @@ use abstract_operations::{
 };
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
 use crate::rules::global_value_numbering::total_scalar_identities::{
     TotalScalarIdentityShape, exact_total_scalar_identity, propose_total_scalar_identities,
 };
+use crate::rules::proof_check_elision::integer_zero;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -80,11 +80,4 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
             expected_law_value: integer_zero(*scalar_type),
         },
     ]
-}
-
-const fn integer_zero(scalar_type: IntegerType) -> IntegerValue {
-    match scalar_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(0),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-    }
 }
