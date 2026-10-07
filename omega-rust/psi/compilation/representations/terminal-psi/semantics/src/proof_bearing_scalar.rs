@@ -166,105 +166,6 @@ pub struct ProofBearingScalarSemanticRow {
 }
 
 impl ProofBearingScalarSemanticRow {
-    pub const ALL: [Self; 12] = [
-        Self {
-            tag: OperationSemanticTag::IntegerExactCast,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::ExactCastInteger,
-                ScalarLeafDenotation::IntegerExactCast,
-                ScalarLeafGoalShape::ExactCastRepresentable,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ExactIntegerShiftLeft,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::IntegerShift,
-                ScalarLeafDenotation::ExactIntegerShiftLeft,
-                ScalarLeafGoalShape::ExactShiftLeftRepresentable,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ExactIntegerShiftRight,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::IntegerShift,
-                ScalarLeafDenotation::ExactIntegerShiftRight,
-                ScalarLeafGoalShape::ExactShiftCount,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ExactIntegerAdd,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::BinaryInteger,
-                ScalarLeafDenotation::ExactIntegerAdd,
-                ScalarLeafGoalShape::ExactArithmeticRepresentable,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ExactIntegerSubtract,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::BinaryInteger,
-                ScalarLeafDenotation::ExactIntegerSubtract,
-                ScalarLeafGoalShape::ExactArithmeticRepresentable,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ExactIntegerMultiply,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::BinaryInteger,
-                ScalarLeafDenotation::ExactIntegerMultiply,
-                ScalarLeafGoalShape::ExactArithmeticRepresentable,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ExactIntegerDivide,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::BinaryInteger,
-                ScalarLeafDenotation::ExactIntegerDivide,
-                ScalarLeafGoalShape::ExactDivisionDefined,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::ExactIntegerRemainder,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::BinaryInteger,
-                ScalarLeafDenotation::ExactIntegerRemainder,
-                ScalarLeafGoalShape::ExactDivisionDefined,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::WrappingIntegerDivide,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::BinaryInteger,
-                ScalarLeafDenotation::WrappingIntegerDivide,
-                ScalarLeafGoalShape::NonzeroDivisor,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::WrappingIntegerRemainder,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::BinaryInteger,
-                ScalarLeafDenotation::WrappingIntegerRemainder,
-                ScalarLeafGoalShape::NonzeroDivisor,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::SaturatingIntegerDivide,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::BinaryInteger,
-                ScalarLeafDenotation::SaturatingIntegerDivide,
-                ScalarLeafGoalShape::NonzeroDivisor,
-            ),
-        },
-        Self {
-            tag: OperationSemanticTag::SaturatingIntegerRemainder,
-            schema: proof_bearing_scalar_leaf(
-                ScalarLeafOperandShape::BinaryInteger,
-                ScalarLeafDenotation::SaturatingIntegerRemainder,
-                ScalarLeafGoalShape::NonzeroDivisor,
-            ),
-        },
-    ];
-
     pub const fn tag(self) -> OperationSemanticTag {
         self.tag
     }
@@ -274,51 +175,52 @@ impl ProofBearingScalarSemanticRow {
     }
 }
 
-const PROOF_BEARING_SCALAR_TAGS: [OperationSemanticTag; 12] = [
-    OperationSemanticTag::IntegerExactCast,
-    OperationSemanticTag::ExactIntegerShiftLeft,
-    OperationSemanticTag::ExactIntegerShiftRight,
-    OperationSemanticTag::ExactIntegerAdd,
-    OperationSemanticTag::ExactIntegerSubtract,
-    OperationSemanticTag::ExactIntegerMultiply,
-    OperationSemanticTag::ExactIntegerDivide,
-    OperationSemanticTag::ExactIntegerRemainder,
-    OperationSemanticTag::WrappingIntegerDivide,
-    OperationSemanticTag::WrappingIntegerRemainder,
-    OperationSemanticTag::SaturatingIntegerDivide,
-    OperationSemanticTag::SaturatingIntegerRemainder,
-];
+/// `{ tag => (operands, denotation, goal) }` — the proof-bearing scalar
+/// cohort rows, their operation-tag set, and the membership predicate in
+/// one declarative table.
+macro_rules! proof_bearing_scalar_rows {
+    ($( $tag:ident => ($operands:ident, $denotation:ident, $goal:ident) ),+ $(,)?) => {
+        impl ProofBearingScalarSemanticRow {
+            pub const ALL: [Self; proof_bearing_scalar_rows!(@count $( $tag )+)] = [
+                $( Self {
+                    tag: OperationSemanticTag::$tag,
+                    schema: proof_bearing_scalar_leaf(
+                        ScalarLeafOperandShape::$operands,
+                        ScalarLeafDenotation::$denotation,
+                        ScalarLeafGoalShape::$goal,
+                    ),
+                } ),+
+            ];
+        }
 
-const INTEGER_POLICY_BOUND_TAGS: [OperationSemanticTag; 11] = [
-    OperationSemanticTag::ExactIntegerShiftLeft,
-    OperationSemanticTag::ExactIntegerShiftRight,
-    OperationSemanticTag::ExactIntegerAdd,
-    OperationSemanticTag::ExactIntegerSubtract,
-    OperationSemanticTag::ExactIntegerMultiply,
-    OperationSemanticTag::ExactIntegerDivide,
-    OperationSemanticTag::ExactIntegerRemainder,
-    OperationSemanticTag::WrappingIntegerDivide,
-    OperationSemanticTag::WrappingIntegerRemainder,
-    OperationSemanticTag::SaturatingIntegerDivide,
-    OperationSemanticTag::SaturatingIntegerRemainder,
-];
+        const PROOF_BEARING_SCALAR_TAGS: [OperationSemanticTag;
+            proof_bearing_scalar_rows!(@count $( $tag )+)] = [
+            $( OperationSemanticTag::$tag ),+
+        ];
 
-const fn is_proof_bearing_scalar_tag(tag: OperationSemanticTag) -> bool {
-    matches!(
-        tag,
-        OperationSemanticTag::IntegerExactCast
-            | OperationSemanticTag::ExactIntegerShiftLeft
-            | OperationSemanticTag::ExactIntegerShiftRight
-            | OperationSemanticTag::ExactIntegerAdd
-            | OperationSemanticTag::ExactIntegerSubtract
-            | OperationSemanticTag::ExactIntegerMultiply
-            | OperationSemanticTag::ExactIntegerDivide
-            | OperationSemanticTag::ExactIntegerRemainder
-            | OperationSemanticTag::WrappingIntegerDivide
-            | OperationSemanticTag::WrappingIntegerRemainder
-            | OperationSemanticTag::SaturatingIntegerDivide
-            | OperationSemanticTag::SaturatingIntegerRemainder
-    )
+        const fn is_proof_bearing_scalar_tag(tag: OperationSemanticTag) -> bool {
+            matches!(tag, $( OperationSemanticTag::$tag )|+)
+        }
+    };
+    (@count $( $variant:ident )+) => {
+        <[()]>::len(&[$(proof_bearing_scalar_rows!(@unit $variant)),+])
+    };
+    (@unit $variant:ident) => { () };
+}
+
+proof_bearing_scalar_rows! {
+    IntegerExactCast => (ExactCastInteger, IntegerExactCast, ExactCastRepresentable),
+    ExactIntegerShiftLeft => (IntegerShift, ExactIntegerShiftLeft, ExactShiftLeftRepresentable),
+    ExactIntegerShiftRight => (IntegerShift, ExactIntegerShiftRight, ExactShiftCount),
+    ExactIntegerAdd => (BinaryInteger, ExactIntegerAdd, ExactArithmeticRepresentable),
+    ExactIntegerSubtract => (BinaryInteger, ExactIntegerSubtract, ExactArithmeticRepresentable),
+    ExactIntegerMultiply => (BinaryInteger, ExactIntegerMultiply, ExactArithmeticRepresentable),
+    ExactIntegerDivide => (BinaryInteger, ExactIntegerDivide, ExactDivisionDefined),
+    ExactIntegerRemainder => (BinaryInteger, ExactIntegerRemainder, ExactDivisionDefined),
+    WrappingIntegerDivide => (BinaryInteger, WrappingIntegerDivide, NonzeroDivisor),
+    WrappingIntegerRemainder => (BinaryInteger, WrappingIntegerRemainder, NonzeroDivisor),
+    SaturatingIntegerDivide => (BinaryInteger, SaturatingIntegerDivide, NonzeroDivisor),
+    SaturatingIntegerRemainder => (BinaryInteger, SaturatingIntegerRemainder, NonzeroDivisor),
 }
 
 fn canonical_schema(tag: OperationSemanticTag) -> Option<ProofBearingScalarLeafSchema> {
@@ -364,12 +266,12 @@ pub fn validate_proof_bearing_scalar_semantic_rows(
             ));
         }
     }
-    for tag in INTEGER_POLICY_BOUND_TAGS {
+    for tag in PROOF_BEARING_SCALAR_TAGS {
+        let Some(binding) = proof_bearing_integer_policy_binding(tag) else {
+            continue;
+        };
         let row = exact_proof_bearing_scalar_semantic_row_in(tag, rows)?
             .expect("the catalog-bound tag belongs to the proof-bearing scalar cohort");
-        let binding = proof_bearing_integer_policy_binding(tag).ok_or(
-            OperationSemanticError::ProofBearingScalarSchemaMismatch(tag),
-        )?;
         if catalog_goal_shape(binding) != Some(row.schema.goal) {
             return Err(OperationSemanticError::ProofBearingScalarSchemaMismatch(
                 tag,
