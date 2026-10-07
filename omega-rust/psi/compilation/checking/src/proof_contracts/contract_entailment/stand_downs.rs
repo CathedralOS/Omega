@@ -64,7 +64,8 @@ pub(crate) fn fact_mentions_proof_only_data(
             .filter(|definition| classification.is_proof_only(definition.symbol))
             .map(|definition| definition.name.clone())
     };
-    match program.expression_table.expression(expression) {
+    let node = program.expression_table.expression(expression);
+    match node {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch).find_map(recurse)
         }
@@ -134,6 +135,28 @@ pub(crate) fn fact_mentions_proof_only_data(
                         .find_map(|argument| recurse(*argument))
                 })
         }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => None,
+        ExpressionNode::ZeroValue(type_reference) => {
+            classification.proof_only_mention(program, *type_reference)
+        }
+        _ => find_in_composite_children(program, node, recurse),
+    }
+}
+
+/// `find_map` over the standard composite children — atomic, binary, unary,
+/// cast, member, borrow, indexed, range, array literal — shared by the
+/// contract-mention searches; non-composite nodes return `None`.
+fn find_in_composite_children<T>(
+    program: &TypedTrees,
+    node: &ExpressionNode,
+    recurse: impl Fn(ExpressionHandle) -> Option<T>,
+) -> Option<T> {
+    match node {
+        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Binary(binary) => recurse(binary.left).or_else(|| recurse(binary.right)),
         ExpressionNode::Unary(unary) => recurse(unary.operand),
         ExpressionNode::Cast(cast) => recurse(cast.value),
@@ -148,14 +171,7 @@ pub(crate) fn fact_mentions_proof_only_data(
             .expression_handles(*items)
             .iter()
             .find_map(|item| recurse(*item)),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => None,
-        ExpressionNode::ZeroValue(type_reference) => {
-            classification.proof_only_mention(program, *type_reference)
-        }
+        _ => None,
     }
 }
 
@@ -174,25 +190,11 @@ pub(crate) fn fact_mentions_zero_value(
         return None;
     }
     let recurse = |handle: ExpressionHandle| fact_mentions_zero_value(program, handle);
-    match program.expression_table.expression(expression) {
+    let node = program.expression_table.expression(expression);
+    match node {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch).find_map(recurse)
         }
-        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
-        ExpressionNode::Binary(binary) => recurse(binary.left).or_else(|| recurse(binary.right)),
-        ExpressionNode::Unary(unary) => recurse(unary.operand),
-        ExpressionNode::Cast(cast) => recurse(cast.value),
-        ExpressionNode::Member(member) => recurse(member.receiver),
-        ExpressionNode::Borrow(inner) => recurse(inner.target),
-        ExpressionNode::Indexed(indexed) => {
-            recurse(indexed.collection).or_else(|| recurse(indexed.index))
-        }
-        ExpressionNode::Range(range) => recurse(range.start).or_else(|| recurse(range.end)),
-        ExpressionNode::ArrayLiteral(items) => program
-            .expression_table
-            .expression_handles(*items)
-            .iter()
-            .find_map(|item| recurse(*item)),
         ExpressionNode::StructLiteral(literal) => program
             .expression_table
             .struct_fields(literal.fields)
@@ -234,5 +236,6 @@ pub(crate) fn fact_mentions_zero_value(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_) => None,
+        _ => find_in_composite_children(program, node, recurse),
     }
 }
