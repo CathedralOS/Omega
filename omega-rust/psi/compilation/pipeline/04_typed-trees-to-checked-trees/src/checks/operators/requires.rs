@@ -54,9 +54,8 @@ use typed_trees::proposition::PropositionLabels;
 use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::PrimitiveType;
 
-use super::super::contracts::labels::domain_proves_expression_label;
 use crate::labels::{
-    instantiate_operator_contract_expression_label_with_labels, semantic_boolean_fact_label,
+    context_proves_boolean_label, instantiate_operator_contract_expression_label_with_labels,
     symbol_name,
 };
 
@@ -723,91 +722,6 @@ fn contexts_prove_boolean_leaf(
     contexts
         .iter()
         .any(|context| context_proves_boolean_label(program, semantic, *context, &required_label))
-}
-
-/// A leaf clause is proven by a boolean fact whose rendered form matches the
-/// instantiated clause, or by a domain membership whose `requires` states it
-/// over the member value (mirroring the call-`requires` leaf prover in
-/// checks/contracts/direct.rs and domains.rs).
-fn context_proves_boolean_label(
-    program: &TypedTrees,
-    semantic: &FactPlan,
-    context: FactContextHandle,
-    required_label: &str,
-) -> bool {
-    let context = semantic.contexts.get(context);
-    semantic
-        .context_view(context)
-        .facts()
-        .any(|fact| match fact.payload {
-            // A reached true branch establishes this evaluated predicate, not
-            // a mathematical interpretation of its selected operator spelling.
-            FactPayload::BooleanValue {
-                expression,
-                value: true,
-            }
-            | FactPayload::BooleanExpression(expression) => {
-                true_expression_proves_label(program, expression, required_label)
-            }
-            FactPayload::ContractBooleanExpression {
-                expression,
-                instantiated,
-                ..
-            } => {
-                // Declaration-shaped facts retain their actual expression.
-                // An instantiated fact instead names caller operands: never
-                // reuse its unsubstituted formal expression as caller evidence.
-                (!instantiated.is_valid()
-                    && true_expression_proves_label(program, expression, required_label))
-                    || semantic_boolean_fact_label(program, semantic, fact)
-                        .is_some_and(|candidate| candidate == required_label)
-            }
-            FactPayload::DomainMembership {
-                domain_symbol,
-                value,
-                ..
-            }
-            | FactPayload::ContractDomainMembership {
-                domain_symbol,
-                value,
-                ..
-            } => {
-                let FactPlace::Place(place) = fact.place else {
-                    return false;
-                };
-                let canonical_base = semantic.place_label(program, place);
-                let display_base = program.expression_table.display_name(value);
-                domain_proves_expression_label(
-                    program,
-                    domain_symbol,
-                    &canonical_base,
-                    required_label,
-                ) || domain_proves_expression_label(
-                    program,
-                    domain_symbol,
-                    &display_base,
-                    required_label,
-                )
-            }
-            _ => false,
-        })
-}
-
-fn true_expression_proves_label(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    required_label: &str,
-) -> bool {
-    if program.expression_table.display_name(expression) == required_label {
-        return true;
-    }
-    // A retained true conjunction supplies each conjunct. Do not derive an
-    // opposite comparison from a false observation: selected comparisons need
-    // not share builtin arithmetic or equality laws.
-    matches!(program.expression_table.expression(expression),
-        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And
-            && (true_expression_proves_label(program, binary.left, required_label)
-                || true_expression_proves_label(program, binary.right, required_label)))
 }
 
 /// An instantiated membership obligation (`<operand> in Domain`) is proven by

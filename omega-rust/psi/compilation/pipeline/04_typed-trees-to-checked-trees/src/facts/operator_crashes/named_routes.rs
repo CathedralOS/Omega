@@ -32,14 +32,14 @@
 //! as a predicate value reads its referent.
 
 use checked_trees::FlowFacts;
-use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
+use facts::{FactContextHandle, FactPayload, FactPlan};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
 use crate::labels::{
-    instantiate_operator_contract_expression_label_with_labels, semantic_boolean_fact_label,
+    context_proves_boolean_label, instantiate_operator_contract_expression_label_with_labels,
 };
 
 /// Whether the selected operator's published route guard is provably false at
@@ -340,84 +340,4 @@ fn occurrence_root_symbol(program: &TypedTrees, mut expression: ExpressionHandle
             _ => return SymbolHandle::invalid(),
         }
     }
-}
-
-/// One entry context proves the instantiated leaf, mirroring the spelled
-/// use's leaf prover: an evaluated Boolean fact with a matching rendered
-/// form, a declaration-shaped contract clause, or a domain membership whose
-/// `requires` states the clause over the member value.
-fn context_proves_boolean_label(
-    program: &TypedTrees,
-    semantic: &FactPlan,
-    context: FactContextHandle,
-    required_label: &str,
-) -> bool {
-    let context = semantic.contexts.get(context);
-    semantic
-        .context_view(context)
-        .facts()
-        .any(|fact| match fact.payload {
-            FactPayload::BooleanValue {
-                expression,
-                value: true,
-            }
-            | FactPayload::BooleanExpression(expression) => {
-                true_expression_proves_label(program, expression, required_label)
-            }
-            FactPayload::ContractBooleanExpression {
-                expression,
-                instantiated,
-                ..
-            } => {
-                (!instantiated.is_valid()
-                    && true_expression_proves_label(program, expression, required_label))
-                    || semantic_boolean_fact_label(program, semantic, fact)
-                        .is_some_and(|candidate| candidate == required_label)
-            }
-            FactPayload::DomainMembership {
-                domain_symbol,
-                value,
-                ..
-            }
-            | FactPayload::ContractDomainMembership {
-                domain_symbol,
-                value,
-                ..
-            } => {
-                let FactPlace::Place(place) = fact.place else {
-                    return false;
-                };
-                let canonical_base = semantic.place_label(program, place);
-                let display_base = program.expression_table.display_name(value);
-                crate::checks::contracts::labels::domain_proves_expression_label(
-                    program,
-                    domain_symbol,
-                    &canonical_base,
-                    required_label,
-                ) || crate::checks::contracts::labels::domain_proves_expression_label(
-                    program,
-                    domain_symbol,
-                    &display_base,
-                    required_label,
-                )
-            }
-            _ => false,
-        })
-}
-
-/// A retained true conjunction supplies each conjunct; a matching rendered
-/// form proves the leaf directly. Selected comparisons receive no inferred
-/// arithmetic or complement laws here.
-fn true_expression_proves_label(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    required_label: &str,
-) -> bool {
-    if program.expression_table.display_name(expression) == required_label {
-        return true;
-    }
-    matches!(program.expression_table.expression(expression),
-        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And
-            && (true_expression_proves_label(program, binary.left, required_label)
-                || true_expression_proves_label(program, binary.right, required_label)))
 }

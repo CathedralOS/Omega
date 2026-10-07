@@ -5,6 +5,8 @@
 //! There is no entry function. Each child is a set of queries that the
 //! checks, fact construction and flow facts call directly:
 //!
+//! - `boolean_facts` matches a retained true fact or domain clause to an
+//!   exact leaf label within one caller-selected context;
 //! - `names` names a machine, a call target (a free machine's implicit
 //!   `entry` state takes the machine's name) and any symbol;
 //! - `places` labels a borrow access, a place with extra segments, and the
@@ -20,11 +22,13 @@
 //! crash routes compare a rendered requirement with the text of Boolean
 //! facts, and `semantic::places` matches parameters by `symbol_name`.
 
+mod boolean_facts;
 mod kinds;
 mod names;
 mod operators;
 mod places;
 
+pub(crate) use boolean_facts::context_proves_boolean_label;
 pub(crate) use kinds::{semantic_contract_fact_kind, semantic_proof_obligation_kind};
 pub(crate) use names::{call_target_label, machine_name, symbol_name};
 pub(crate) use operators::{
