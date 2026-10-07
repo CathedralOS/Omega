@@ -365,7 +365,7 @@ pub(super) fn backing_origins(
 
 /// Alias rows are captured reference values. Resolve fresh field loads only
 /// beyond the reference boundary already crossed by the original alias.
-fn captured_value_origins(
+pub(super) fn captured_value_origins(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: &FramePlaceOrigin,

@@ -537,6 +537,33 @@ impl CallOriginContext<'_> {
                     true,
                     self.stored,
                 );
+                // A reference operand transports its captured referent, not
+                // the carrier slot selected by the expression. Resolve that
+                // boundary against this prefix before another invocation
+                // substitutes its writes; unknown leaves remain unknown.
+                // Owned operands retain their storage coordinate and separate
+                // per-leaf inventory, not an unlabelled union of referents.
+                let origins = if argument_types.get(index).is_some_and(|reference| {
+                    super::type_reference_is_reference(program, *reference)
+                }) {
+                    origins.and_then(|origins| {
+                        let mut captured = Vec::new();
+                        for origin in origins {
+                            for origin in super::reference_subjects::captured_value_origins(
+                                program,
+                                *argument,
+                                &origin,
+                                self.aliases,
+                                self.stored,
+                            ) {
+                                super::place_paths::push_unique_origin(&mut captured, origin?);
+                            }
+                        }
+                        (!captured.is_empty()).then_some(captured)
+                    })
+                } else {
+                    origins
+                };
                 if origins.is_none()
                     && self.mentions_divergent(program, *argument)
                     && !argument_types.get(index).is_some_and(|reference| {

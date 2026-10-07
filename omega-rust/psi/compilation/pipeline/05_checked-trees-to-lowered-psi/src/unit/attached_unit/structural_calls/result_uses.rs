@@ -697,25 +697,29 @@ pub(crate) fn validate_usage(
             Ok(())
         };
     }
-    // A reference result either transfers its live carrier through completion
-    // or retires the producing call's exact loan. Retirement is an explicit
-    // ReleaseReference, or state exit when the last use is the final statement.
+    // A reference result transfers its live carrier through any owned move,
+    // including completion, or retires the producing call's exact loan.
+    // The receiving carrier owns the transferred loan; checking follows the
+    // retained value graph to prevent release by its former holder. Treating
+    // only completion as transfer would dispose a moved constructor child.
+    // Retirement is an explicit ReleaseReference, or state exit when the last
+    // use is the final statement.
     // Edge retirement still owns the carrier place and requires its discard;
-    // an explicit release or a return transfer must not also discard it.
+    // an explicit release or whole transfer must not also discard it.
     if let Some(custody) = operations[producer.operation_index]
         .call()
         .and_then(|call| call.structural_custody())
         && custody.reference_loan.is_valid()
     {
-        if returned_carrier {
-            // Completion forwards the exact carrier and its outstanding loan;
-            // it does not retire either as an owned consume or disposal.
+        if returned_carrier || consumed {
+            // A whole move forwards the exact carrier and its outstanding loan;
+            // it does not dispose the referent or retire the source loan.
             if producer.discard || disposed || !projected_paths.is_empty() {
-                return unsupported("returned reference also acquired disposal custody");
+                return unsupported("transferred reference also acquired disposal custody");
             }
             return Ok(());
         }
-        if consumed || !projected_paths.is_empty() || (disposed && producer.discard) {
+        if !projected_paths.is_empty() || (disposed && producer.discard) {
             return unsupported("reference result acquired owned cleanup custody");
         }
         if !disposed {
