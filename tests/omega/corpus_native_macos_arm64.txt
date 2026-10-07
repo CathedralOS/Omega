@@ -245,6 +245,7 @@ pass/calls/cyclic_copy_arguments_exit built 1282ms exit:70 @b3f2ae787684+wt
 pass/calls/cyclic_mutable_borrow_block_parameter_call built 2512ms exit:0 @bed5f45e9185+wt
 pass/calls/cyclic_projected_borrow_call_exit built 1360ms exit:70 @1da616075c39+wt
 pass/calls/cyclic_scalar_query_reborrow_exit built 4289ms exit:70 @48d34a64a938+wt
+pass/calls/declared_range_delivery_proven checked 1974ms @9ef088fc5f88+wt
 pass/calls/field_path_byte_subslice_exit built 4019ms exit:70 @48d34a64a938+wt
 pass/calls/generic_reference_forwarding_exit built 1697ms exit:2 @9782e38b64ab+wt
 pass/calls/guard_call_scalar_argument_exit built 1262ms exit:70 @3a0c3ba44cd8+wt

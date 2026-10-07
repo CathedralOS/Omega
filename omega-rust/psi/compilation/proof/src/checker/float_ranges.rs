@@ -86,7 +86,14 @@ pub(crate) fn float_range_for_call_argument(
             let value = finite_float_literal(value)?;
             Some(FloatRange::closed(value))
         }
-        _ => float_range_for_call_place(proof_plan, obligation).or_else(|| {
+        _ => float_range_at(
+            proof_plan,
+            obligation.machine_symbol,
+            obligation.state_symbol,
+            obligation.statement_index,
+            obligation.argument,
+        )
+        .or_else(|| {
             float_range_from_constraints(type_constraints(
                 proof_plan,
                 obligation.argument_constraints,
@@ -119,50 +126,6 @@ pub(crate) fn float_range_for_return_value(
             float_range_from_constraints(type_constraints(proof_plan, obligation.value_constraints))
         }),
     }
-}
-
-fn float_range_for_call_place(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedCallArgumentObligation,
-) -> Option<FloatRange> {
-    let program = proof_plan.program;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == obligation.machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == obligation.state_symbol)?;
-    // Statement calls retain their exact argument handles. An expression call
-    // without a retained statement position cannot borrow a later store's fact.
-    let mut occurrences = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .filter_map(|(statement_index, statement)| {
-            let StatementNode::Call(call) = statement else {
-                return None;
-            };
-            (call.target_symbol == obligation.target_symbol
-                && program
-                    .statement_table
-                    .expression_handles(call.arguments)
-                    .contains(&obligation.argument))
-            .then_some(statement_index)
-        });
-    let statement_index = occurrences.next()?;
-    if occurrences.next().is_some() {
-        return None;
-    }
-    float_range_at(
-        proof_plan,
-        machine.symbol,
-        state.symbol,
-        statement_index,
-        obligation.argument,
-    )
 }
 
 /// A reaching literal describes current storage, not its declared invariant.
@@ -238,6 +201,23 @@ fn float_range_at(
         return None;
     }
     for statement in statements[..statement_index].iter().rev() {
+        // A local's initializer is its first store; nothing reaches past it.
+        if let StatementNode::LocalData(local) = statement
+            && identity.as_slice() == [local.symbol]
+        {
+            if program.primitive_type_reference(local.type_reference) != Some(primitive) {
+                return None;
+            }
+            let ExpressionNode::Float(literal) =
+                program.expression_table.expression(local.initial_value)
+            else {
+                return None;
+            };
+            return (literal.landing() == Some(format))
+                .then(|| finite_float_literal(literal))
+                .flatten()
+                .map(FloatRange::closed);
+        }
         if let StatementNode::Assignment(assignment) = statement
             && resolved_place_identity(program, assignment.target).as_ref() == Some(&identity)
         {
@@ -332,7 +312,24 @@ pub(crate) fn float_range_for_initializer(
             let value = finite_float_literal(value)?;
             Some(FloatRange::closed(value))
         }
-        _ => None,
+        _ => obligation
+            .owner
+            .state_statement()
+            .and_then(|(machine_symbol, state_symbol, statement_index)| {
+                float_range_at(
+                    proof_plan,
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    obligation.value,
+                )
+            })
+            .or_else(|| {
+                float_range_from_constraints(type_constraints(
+                    proof_plan,
+                    obligation.value_constraints,
+                ))
+            }),
     }
 }
 

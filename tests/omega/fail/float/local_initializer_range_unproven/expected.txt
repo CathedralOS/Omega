@@ -1,0 +1,2 @@
+cannot prove initializer `20.0` satisfies the bounded value of machine `literal` state `entry` local `bounded`
+cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`

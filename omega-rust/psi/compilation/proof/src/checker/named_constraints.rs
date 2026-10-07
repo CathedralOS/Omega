@@ -7,7 +7,7 @@ use crate::checker::diagnostics::{
 };
 use crate::checker::float_ranges::{
     finite_float_literal, float_range_for_assignment, float_range_for_call_argument,
-    float_range_for_return_value, float_range_for_transition_argument,
+    float_range_for_initializer, float_range_for_return_value, float_range_for_transition_argument,
     float_range_from_constraints,
 };
 use crate::checker::integer_ranges::{
@@ -241,24 +241,18 @@ fn initializer_satisfies_named_constraint(
     obligation: &BoundedInitializerObligation,
     constraint: &str,
 ) -> bool {
-    match (
-        constraint,
-        proof_plan
-            .program
-            .expression_table
-            .expression(obligation.value),
-    ) {
-        ("finite", ExpressionNode::Float(value)) => finite_float_literal(value).is_some(),
-        ("exact", ExpressionNode::Integer(_)) => true,
-        ("non_negative", ExpressionNode::Integer(value)) => {
-            value.value_i64().is_some_and(|value| value >= 0)
-        }
-        ("positive", ExpressionNode::Integer(value)) => {
-            value.value_i64().is_some_and(|value| value > 0)
-        }
-        ("wrapping", ExpressionNode::Integer(_)) => true,
-        _ => false,
+    if constraint == "finite"
+        && float_range_for_initializer(proof_plan, obligation)
+            .is_some_and(|range| range.proves_finite())
+    {
+        return true;
     }
+    argument_handle_satisfies_named_constraint(
+        proof_plan,
+        obligation.value,
+        obligation.value_constraints,
+        constraint,
+    )
 }
 
 fn constraints_satisfy_named_constraint(constraints: &[ProofConstraint], constraint: &str) -> bool {

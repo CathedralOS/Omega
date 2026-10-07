@@ -25,10 +25,21 @@ pub(crate) fn lower_proof_obligation(
             }
         }
         proof::obligations::ProofObligation::BoundedInitializer(obligation) => {
+            let (machine_symbol, state_symbol) = match &obligation.owner {
+                proof::obligations::ProofObligationOwner::StateLocal {
+                    machine_symbol,
+                    state_symbol,
+                    ..
+                } => (*machine_symbol, *state_symbol),
+                _ => (
+                    symbols::SymbolHandle::invalid(),
+                    symbols::SymbolHandle::invalid(),
+                ),
+            };
             ProofObligationFact {
                 kind: ProofFactKind::BoundedInitializer,
-                machine_symbol: symbols::SymbolHandle::invalid(),
-                state_symbol: symbols::SymbolHandle::invalid(),
+                machine_symbol,
+                state_symbol,
                 owner: proof_obligation_owner(&obligation.owner),
             }
         }
@@ -115,5 +126,11 @@ pub(crate) fn proof_obligation_owner(
             machine_symbol: *machine_symbol,
             state_symbol: *state_symbol,
         },
+        // A local is part of its state's body, as an assignment's place is.
+        proof::obligations::ProofObligationOwner::StateLocal {
+            machine_symbol,
+            state_symbol,
+            ..
+        } => state_owner(*machine_symbol, *state_symbol),
     }
 }

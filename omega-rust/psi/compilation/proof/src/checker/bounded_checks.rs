@@ -274,12 +274,12 @@ pub(crate) fn check_bounded_initializer(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        // The certificate route covers the literal leg; initializers carry no
-        // value constraints, so every other shape stays uncovered.
+        // The certificate route covers the literal and declared legs; every
+        // other shape stays uncovered.
         match bounded_integer_value_verdict(
             proof_plan,
             obligation.value,
-            arena::HandleSpan::empty(),
+            obligation.value_constraints,
             obligation.base_type,
             &target_range,
             seed,
@@ -296,24 +296,36 @@ pub(crate) fn check_bounded_initializer(
                 ));
             }
             CertificateVerdict::Uncovered => {
-                let Some(value_range) = integer_range_for_initializer(proof_plan, obligation)
-                else {
+                let value_range = integer_range_for_initializer(proof_plan, obligation);
+                let interval_fits = value_range.as_ref().is_some_and(|range| {
+                    range.minimum >= target_range.minimum && range.maximum <= target_range.maximum
+                });
+                // A state local's initializer is evaluated at its declaring
+                // statement: ask the arithmetic owner about that occurrence,
+                // as an assignment does.
+                let occurrence_fits = !interval_fits
+                    && obligation.owner.state_statement().is_some_and(
+                        |(machine_symbol, state_symbol, statement_index)| {
+                            validation::occurrence_integer_expression_fits_range(
+                                proof_plan.program,
+                                machine_symbol,
+                                state_symbol,
+                                statement_index,
+                                obligation.value,
+                                &target_range.minimum,
+                                &target_range.maximum,
+                            )
+                        },
+                    );
+                if !interval_fits && !occurrence_fits {
                     diagnostics.push(cannot_prove_bounded_initializer_integer(
                         proof_plan,
                         obligation,
                         target_range,
                     ));
-                    return;
-                };
-
-                if value_range.minimum < target_range.minimum
-                    || value_range.maximum > target_range.maximum
-                {
-                    diagnostics.push(cannot_prove_bounded_initializer_integer(
-                        proof_plan,
-                        obligation,
-                        target_range,
-                    ));
+                    if value_range.is_none() {
+                        return;
+                    }
                 }
             }
         }
@@ -458,24 +470,32 @@ pub(crate) fn check_bounded_call_argument(
                 ));
             }
             CertificateVerdict::Uncovered => {
-                let Some(argument_range) = integer_range_for_call_argument(proof_plan, obligation)
-                else {
-                    diagnostics.push(cannot_prove_bounded_call_integer(
-                        proof_plan,
-                        obligation,
-                        target_range,
-                    ));
-                    return;
-                };
-
-                if argument_range.minimum < target_range.minimum
-                    || argument_range.maximum > target_range.maximum
+                let argument_range = integer_range_for_call_argument(proof_plan, obligation);
+                let interval_fits = argument_range.as_ref().is_some_and(|range| {
+                    range.minimum >= target_range.minimum && range.maximum <= target_range.maximum
+                });
+                // The argument's own interval loses the facts of its
+                // evaluation point (guards, earlier stores). Ask the arithmetic
+                // owner about this exact occurrence, as an assignment does.
+                if !interval_fits
+                    && !validation::occurrence_integer_expression_fits_range(
+                        proof_plan.program,
+                        obligation.machine_symbol,
+                        obligation.state_symbol,
+                        obligation.statement_index,
+                        obligation.argument,
+                        &target_range.minimum,
+                        &target_range.maximum,
+                    )
                 {
                     diagnostics.push(cannot_prove_bounded_call_integer(
                         proof_plan,
                         obligation,
                         target_range,
                     ));
+                    if argument_range.is_none() {
+                        return;
+                    }
                 }
             }
         }

@@ -705,7 +705,10 @@ pub(crate) fn integer_range_for_initializer(
         .expression(obligation.value)
     {
         ExpressionNode::Integer(value) => integer_range_for_literal(value),
-        _ => None,
+        _ => integer_range_from_constraints(type_constraints(
+            proof_plan,
+            obligation.value_constraints,
+        )),
     }
 }
 

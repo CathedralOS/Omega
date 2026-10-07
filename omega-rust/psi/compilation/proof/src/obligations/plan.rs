@@ -411,6 +411,38 @@ pub enum ProofObligationOwner {
         state_symbol: SymbolHandle,
         state: Identifier,
     },
+    /// The local that statement `statement_index` of the state declares. Its
+    /// initializer is the local's first store, so its position is the
+    /// occurrence the store's facts are read at.
+    StateLocal {
+        machine_symbol: SymbolHandle,
+        machine: Identifier,
+        state_symbol: SymbolHandle,
+        state: Identifier,
+        local_symbol: SymbolHandle,
+        local: Identifier,
+        statement_index: usize,
+    },
+}
+
+impl ProofObligationOwner {
+    /// `(machine, state, statement index)` of the statement that evaluates
+    /// the owned value. Only a state local's initializer has one; owned data,
+    /// parameters and returns are not evaluated at a single statement.
+    pub(crate) fn state_statement(&self) -> Option<(SymbolHandle, SymbolHandle, usize)> {
+        match self {
+            Self::StateLocal {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                ..
+            } => Some((*machine_symbol, *state_symbol, *statement_index)),
+            Self::Unknown
+            | Self::MachineOwnedData { .. }
+            | Self::StateParameter { .. }
+            | Self::StateReturn { .. } => None,
+        }
+    }
 }
 
 impl fmt::Display for ProofObligationOwner {
@@ -435,6 +467,15 @@ impl fmt::Display for ProofObligationOwner {
                     "machine `{machine}` state `{state}` return value"
                 )
             }
+            Self::StateLocal {
+                machine,
+                state,
+                local,
+                ..
+            } => write!(
+                formatter,
+                "machine `{machine}` state `{state}` local `{local}`"
+            ),
         }
     }
 }
@@ -487,6 +528,10 @@ pub struct BoundedCallArgumentObligation {
     pub machine: Identifier,
     pub state_symbol: SymbolHandle,
     pub state: Identifier,
+    /// The statement that evaluates the call: a statement call, or any
+    /// statement whose expressions contain the call. Occurrence facts for the
+    /// argument are read at this statement.
+    pub statement_index: usize,
     pub receiver: Option<Identifier>,
     pub target_symbol: SymbolHandle,
     pub target: Identifier,
@@ -504,6 +549,10 @@ pub struct BoundedCallArgumentObligation {
 pub struct BoundedInitializerObligation {
     pub owner: ProofObligationOwner,
     pub value: ExpressionHandle,
+    /// Constraints the value carries where it is evaluated. A state local's
+    /// initializer reads them in its state; owned data has no state, so its
+    /// initializer carries none.
+    pub value_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
 }

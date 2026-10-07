@@ -137,7 +137,7 @@ pub(crate) fn cannot_prove_bounded_initializer_integer(
     target_range: IntegerRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove initializer `{}` satisfies bounded value `{}`; expected {}..={}",
+        "cannot prove initializer `{}` satisfies the bounded value of {}; expected {}..={}",
         expression_display_name(proof_plan, obligation.value),
         obligation.owner,
         target_range.minimum,
@@ -195,7 +195,7 @@ pub(crate) fn cannot_prove_bounded_initializer_float(
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove initializer `{}` satisfies bounded value `{}`; {}",
+        "cannot prove initializer `{}` satisfies the bounded value of {}; {}",
         expression_display_name(proof_plan, obligation.value),
         obligation.owner,
         float_range_display(target_range)
@@ -252,7 +252,7 @@ pub(crate) fn cannot_prove_initializer_named_constraint(
     constraint: &str,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove initializer `{}` satisfies `{}` for bounded value `{}`",
+        "cannot prove initializer `{}` satisfies `{}` for the bounded value of {}",
         expression_display_name(proof_plan, obligation.value),
         constraint,
         obligation.owner

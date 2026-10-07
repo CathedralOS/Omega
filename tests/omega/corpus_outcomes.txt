@@ -573,6 +573,11 @@ fail/calls/member_literal_requires_argument_rejected rejected 333ms expected @2d
 	machine `Main::main` state `main` value call to `Main::take` violates required fact `d != 0`: the instantiated fact is structurally false
 fail/calls/mutual_cycle_decrease_unproven rejected 131ms expected @c08960bee2b1+wt
 	machine call cycle: `Main::ping`, `Main::pong` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/calls/nested_call_argument_constraints_unproven rejected 531ms expected @9ef088fc5f88+wt
+	cannot prove call argument `20.0` satisfies bounded parameter `value` for `admit` in `initialized.entry`; expected 0..=0.5
+	cannot prove call argument `30.0` satisfies bounded parameter `value` for `admit` in `terminal.entry`; expected 0..=0.5
+	cannot prove call argument `40.0` satisfies bounded parameter `value` for `admit` in `nested.entry`; expected 0..=0.5
+	cannot prove call argument `left / right` satisfies `finite` for bounded parameter `value` for `finite` in `divided.entry`
 fail/calls/nontail_value_self_call_rejected rejected 70ms expected @5181ccde6df7+wt
 	`Main::triple(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> triple(..)` on a measured machine, or iterate with an explicit stack.
 	exact arithmetic in machine `Main::triple` state `triple` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `triple(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
@@ -1062,6 +1067,9 @@ fail/float/finite_store_invalidated rejected 491ms expected @ca8c127c90c5
 	cannot prove transition argument `sample.value` satisfies `finite` for bounded parameter `value` in `inspect.entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 57ms expected @2d8ed253669f
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
+fail/float/local_initializer_range_unproven rejected 666ms expected @9ef088fc5f88+wt
+	cannot prove initializer `20.0` satisfies the bounded value of machine `literal` state `entry` local `bounded`; expected 0..=0.5
+	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
 fail/float/named_argument_format_rejected rejected 244ms expected @2d8ed253669f
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/named_call_computed_policy_erasure rejected 625ms expected @fa2336e35cbc
@@ -2038,6 +2046,7 @@ pass/calls/cyclic_copy_arguments_exit checked 852ms check-target:macos_arm64 @4c
 pass/calls/cyclic_mutable_borrow_block_parameter_call checked 1108ms check-target:macos_arm64 @ca8c127c90c5
 pass/calls/cyclic_projected_borrow_call_exit checked 1337ms check-target:macos_arm64 @1da616075c39+wt
 pass/calls/cyclic_scalar_query_reborrow_exit checked 3489ms check-target:macos_arm64 @48d34a64a938+wt
+pass/calls/declared_range_delivery_proven checked 1338ms @9ef088fc5f88+wt
 pass/calls/field_path_byte_subslice_exit checked 3105ms check-target:macos_arm64 @48d34a64a938+wt
 pass/calls/generic_reference_forwarding_exit checked 1035ms check-target:macos_arm64 @9782e38b64ab+wt
 pass/calls/guard_call_scalar_argument_exit checked 1210ms check-target:macos_arm64 @3a0c3ba44cd8+wt

@@ -25,7 +25,7 @@ use typed_trees::name::Identifier;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{
-    StatementNode, TableAssignment, TableCall, TransitionGuardNode, TransitionTargetHandle,
+    StatementNode, TableAssignment, TableLocalData, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -125,7 +125,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
             // it is found on the first assignment that needs it.
             let mut incoming_guard = None;
             for (statement_index, statement) in table_statements.iter().enumerate() {
-                let transition = match statement {
+                match statement {
                     StatementNode::Assignment(assignment) => {
                         collect_bounded_assignment_obligation(
                             program,
@@ -138,41 +138,73 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                             &mut incoming_guard,
                             &mut proof_plan,
                         );
-                        continue;
                     }
                     StatementNode::Call(table_call) => {
+                        let receiver = program
+                            .statement_table
+                            .name_path_members(table_call.receiver);
                         collect_bounded_call_argument_obligations(
                             program,
                             machine,
                             state,
-                            table_call,
+                            statement_index,
+                            CallOccurrence {
+                                target_symbol: table_call.target_symbol,
+                                target: table_call.target.clone(),
+                                receiver: (!receiver.is_empty())
+                                    .then(|| display_name_path(receiver)),
+                                arguments: program
+                                    .statement_table
+                                    .expression_handles(table_call.arguments),
+                            },
                             &mut proof_plan,
                         );
-                        continue;
                     }
-                    StatementNode::Transition(transition) => transition,
-                    _ => continue,
-                };
+                    StatementNode::LocalData(local) => {
+                        collect_bounded_local_initializer_obligation(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            local,
+                            &mut proof_plan,
+                        );
+                    }
+                    StatementNode::Transition(transition) => {
+                        let transition_guard = transition.guard;
+                        if let TransitionGuardNode::When(_) = &transition_guard {
+                            proof_plan.push_obligation(ProofObligation::GuardedTransition(
+                                GuardedTransitionObligation {
+                                    machine_symbol: machine.symbol,
+                                    machine: machine.name.clone(),
+                                    state_symbol: state.symbol,
+                                    state: state.name.clone(),
+                                    guard: transition_guard,
+                                },
+                            ));
+                        }
 
-                let transition_guard = transition.guard;
-                if let TransitionGuardNode::When(_) = &transition_guard {
-                    proof_plan.push_obligation(ProofObligation::GuardedTransition(
-                        GuardedTransitionObligation {
-                            machine_symbol: machine.symbol,
-                            machine: machine.name.clone(),
-                            state_symbol: state.symbol,
-                            state: state.name.clone(),
-                            guard: transition_guard,
-                        },
-                    ));
+                        collect_bounded_transition_argument_obligations(
+                            program,
+                            machine,
+                            state,
+                            transition_guard,
+                            table_statements.get(statement_index),
+                            &mut proof_plan,
+                        );
+                    }
+                    StatementNode::RootBinding(_)
+                    | StatementNode::AssemblyFact(_)
+                    | StatementNode::Expression(_) => {}
                 }
-
-                collect_bounded_transition_argument_obligations(
+                // A call nested in any of the statement's expressions delivers
+                // its arguments exactly as a statement call does.
+                collect_nested_call_argument_obligations(
                     program,
                     machine,
                     state,
-                    transition_guard,
-                    table_statements.get(statement_index),
+                    statement_index,
+                    statement,
                     &mut proof_plan,
                 );
             }
@@ -290,6 +322,7 @@ fn collect_bounded_initializer_obligation(
                 BoundedInitializerObligation {
                     owner,
                     value,
+                    value_constraints: HandleSpan::empty(),
                     base_type: *base_type,
                     constraints,
                 },
@@ -845,23 +878,64 @@ fn variant_payload_field_type_reference(
     })
 }
 
+/// One call a statement evaluates: the statement call itself, or a call
+/// expression anywhere in the statement's expressions.
+struct CallOccurrence<'program> {
+    target_symbol: SymbolHandle,
+    target: Identifier,
+    receiver: Option<Identifier>,
+    arguments: &'program [ExpressionHandle],
+}
+
+fn collect_nested_call_argument_obligations(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    statement: &StatementNode,
+    proof_plan: &mut ProofPlan<'_>,
+) {
+    let mut calls = Vec::new();
+    let mut visited = Vec::new();
+    for (_, root) in program.statement_table.expression_roots(statement) {
+        validation::expression_traversal::visit_post_order(program, root, &mut visited, |node| {
+            if let ExpressionNode::Call(call) = node {
+                calls.push(CallOccurrence {
+                    target_symbol: call.target_symbol,
+                    target: call.target.clone(),
+                    receiver: call.receiver.is_valid().then(|| {
+                        Identifier::generated(program.expression_table.display_name(call.receiver))
+                    }),
+                    arguments: program.expression_table.expression_handles(call.arguments),
+                });
+            }
+        });
+    }
+    for call in calls {
+        collect_bounded_call_argument_obligations(
+            program,
+            machine,
+            state,
+            statement_index,
+            call,
+            proof_plan,
+        );
+    }
+}
+
 fn collect_bounded_call_argument_obligations(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    call: &TableCall,
+    statement_index: usize,
+    call: CallOccurrence<'_>,
     proof_plan: &mut ProofPlan<'_>,
 ) {
     let Some(parameters) = call_target_parameters(program, call.target_symbol) else {
         return;
     };
 
-    for (parameter, argument) in parameters.iter().zip(
-        program
-            .statement_table
-            .expression_handles(call.arguments)
-            .iter(),
-    ) {
+    for (parameter, argument) in parameters.iter().zip(call.arguments.iter()) {
         let Some((base_type, constraints)) =
             constrained_type_reference(program, parameter.type_reference)
         else {
@@ -872,15 +946,10 @@ fn collect_bounded_call_argument_obligations(
         let argument_constraints =
             proof_plan.store_constraints(expression_constraints(program, machine, state, argument));
         let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
-        let receiver = program.statement_table.name_path_members(call.receiver);
-        let call_arguments: Vec<ExpressionHandle> = program
-            .statement_table
-            .expression_handles(call.arguments)
-            .to_vec();
         let sibling_argument = sibling_argument_for(
             proof_plan.type_constraints.span(constraints).unwrap_or(&[]),
             parameters.iter().map(|parameter| &parameter.name),
-            &call_arguments,
+            call.arguments,
         );
 
         proof_plan.push_obligation(ProofObligation::BoundedCallArgument(
@@ -889,7 +958,8 @@ fn collect_bounded_call_argument_obligations(
                 machine: machine.name.clone(),
                 state_symbol: state.symbol,
                 state: state.name.clone(),
-                receiver: (!receiver.is_empty()).then(|| display_name_path(receiver)),
+                statement_index,
+                receiver: call.receiver.clone(),
                 target_symbol: call.target_symbol,
                 target: call.target.clone(),
                 parameter_symbol: parameter.symbol,
@@ -902,6 +972,57 @@ fn collect_bounded_call_argument_obligations(
             },
         ));
     }
+}
+
+/// A local's initializer is the local's first store: its declared constraints
+/// are owed exactly as an assignment's are. A reference binding stores the
+/// reference, not a value of the referee, so it owes the referee nothing here.
+fn collect_bounded_local_initializer_obligation(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    local: &TableLocalData,
+    proof_plan: &mut ProofPlan<'_>,
+) {
+    if !local.initial_value.is_valid()
+        || matches!(
+            program
+                .type_reference_table
+                .type_reference(local.type_reference),
+            TypeReferenceNode::Reference { .. }
+        )
+    {
+        return;
+    }
+    let Some((base_type, constraints)) = constrained_type_reference(program, local.type_reference)
+    else {
+        return;
+    };
+    let value_constraints = proof_plan.store_constraints(expression_constraints(
+        program,
+        machine,
+        state,
+        local.initial_value,
+    ));
+    let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
+    proof_plan.push_obligation(ProofObligation::BoundedInitializer(
+        BoundedInitializerObligation {
+            owner: ProofObligationOwner::StateLocal {
+                machine_symbol: machine.symbol,
+                machine: machine.name.clone(),
+                state_symbol: state.symbol,
+                state: state.name.clone(),
+                local_symbol: local.symbol,
+                local: local.name.clone(),
+                statement_index,
+            },
+            value: local.initial_value,
+            value_constraints,
+            base_type,
+            constraints,
+        },
+    ));
 }
 
 fn collect_bounded_state_return_obligation(
@@ -951,7 +1072,11 @@ fn call_target_parameters(
     program: &TypedTrees,
     target_symbol: SymbolHandle,
 ) -> Option<&[StateParameter]> {
-    state_by_symbol(program, target_symbol)
+    // A machine target enters at its first state.
+    program
+        .machine_by_symbol(target_symbol)
+        .and_then(|machine| program.machine_states(machine).first())
+        .or_else(|| state_by_symbol(program, target_symbol))
         .map(|state| program.state_parameters(state))
         .or_else(|| {
             program

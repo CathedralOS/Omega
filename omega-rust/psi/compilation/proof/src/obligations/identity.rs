@@ -155,6 +155,11 @@ pub fn proof_obligation_key(
             [
                 owner_identity(program, &obligation.owner),
                 compound("value", [expression_identity(program, obligation.value)]),
+                constraints_identity(
+                    proof_plan,
+                    obligation.value_constraints,
+                    "value-constraints",
+                ),
                 atom(
                     "base",
                     program
@@ -311,6 +316,24 @@ fn owner_identity(program: &TypedTrees, owner: &ProofObligationOwner) -> String 
                     "state-return-state",
                     symbol_identity(program, *state_symbol),
                 ),
+            ],
+        ),
+        ProofObligationOwner::StateLocal {
+            machine_symbol,
+            state_symbol,
+            local_symbol,
+            statement_index,
+            ..
+        } => compound(
+            "owner",
+            [
+                atom(
+                    "state-local-machine",
+                    symbol_identity(program, *machine_symbol),
+                ),
+                atom("state-local-state", symbol_identity(program, *state_symbol)),
+                atom("state-local", symbol_identity(program, *local_symbol)),
+                atom("state-local-statement", statement_index.to_string()),
             ],
         ),
     }
