@@ -79,17 +79,26 @@ pub(super) fn carried_lifetimes(
 /// Exact call substitutions may prove that a formerly dependent result has
 /// no carried views. A closed nonempty frontier still requires per-call loan
 /// attribution and cannot use this deliberately narrower result.
+
+/// Every substitution maps to a valid, registered type reference.
+fn substitutions_are_registered(
+    program: &TypedTrees,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    !substitutions.iter().any(|(_, reference)| {
+        reference.is_valid()
+            && !program
+                .type_reference_table
+                .contains_type_reference(*reference)
+    })
+}
+
 pub(crate) fn substituted_result_is_view_free(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    if substitutions.iter().any(|(_, reference)| {
-        reference.is_valid()
-            && !program
-                .type_reference_table
-                .contains_type_reference(*reference)
-    }) {
+    if !substitutions_are_registered(program, substitutions) {
         return false;
     }
     let mut output = Vec::new();
@@ -116,12 +125,7 @@ pub(crate) fn substituted_result_frontier_is_complete(
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    if substitutions.iter().any(|(_, reference)| {
-        reference.is_valid()
-            && !program
-                .type_reference_table
-                .contains_type_reference(*reference)
-    }) {
+    if !substitutions_are_registered(program, substitutions) {
         return false;
     }
     collect_type(
