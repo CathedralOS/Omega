@@ -463,6 +463,24 @@ def main() -> None:
         b"Q",
     )
 
+    # Body types: `let` types and cast targets bind after every signature,
+    # in the empty scope.
+    accepted(
+        program,
+        "local-and-cast-types",
+        b"machine f() { let x: u8 = 1 as u16 in Wrapping; let r: &D = g(); }\ndata D { y: u8; }",
+        (builtin("u8"), builtin("u16", WRAPPING), data(0), REFERENCE_ROW, builtin("u8")),
+    )
+    rejected(program, "unknown-local-type", b"machine f() { let x: Q; }", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(program, "unknown-cast-type", b"machine f() { g(1 as Q); }", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(
+        program,
+        "signature-types-before-body-types",
+        b"machine f(a: P) { let x: Q; }",
+        UNKNOWN_DATA_TYPE,
+        b"P",
+    )
+
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)
 

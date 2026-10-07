@@ -34,6 +34,10 @@ class Observation:
     machines: tuple[tuple[int, ...], ...] = ()
     parameters: tuple[tuple[int, ...], ...] = ()
     states: tuple[tuple[int, ...], ...] = ()
+    expressions: tuple[tuple[int, ...], ...] = ()
+    arguments: tuple[int, ...] = ()
+    construct_fields: tuple[tuple[int, ...], ...] = ()
+    statements: tuple[tuple[int, ...], ...] = ()
 
 
 class Reader:
@@ -185,6 +189,8 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
             reader.byte(),
             reader.u64(),
             reader.u64(),
@@ -216,6 +222,58 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    expressions = tuple(
+        (
+            reader.byte(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    arguments = tuple(reader.u64() for _ in range(reader.u64()))
+    construct_fields = tuple(
+        (
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    statements = tuple(
+        (
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
         )
         for _ in range(reader.u64())
     )
@@ -237,6 +295,10 @@ def decode(payload: bytes) -> Observation:
         machines,
         parameters,
         states,
+        expressions,
+        arguments,
+        construct_fields,
+        statements,
     )
 
 
@@ -282,6 +344,10 @@ def accepted(
     machines: tuple[tuple[int, ...], ...] = (),
     parameters: tuple[tuple[int, ...], ...] = (),
     states: tuple[tuple[int, ...], ...] = (),
+    expressions: tuple[tuple[int, ...], ...] = (),
+    arguments: tuple[int, ...] = (),
+    construct_fields: tuple[tuple[int, ...], ...] = (),
+    statements: tuple[tuple[int, ...], ...] = (),
 ) -> None:
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
@@ -303,6 +369,10 @@ def accepted(
         machines,
         parameters,
         states,
+        expressions,
+        arguments,
+        construct_fields,
+        statements,
     )
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
@@ -325,6 +395,8 @@ def rejected(
     machine_count: int = 0,
     parameter_count: int = 0,
     state_count: int = 0,
+    expression_count: int = 0,
+    statement_count: int = 0,
 ) -> None:
     status, payload = run(program, source)
     assert status == 250, f"{name}: status {status}"
@@ -344,6 +416,8 @@ def rejected(
     assert len(actual.machines) == machine_count, (name, actual)
     assert len(actual.parameters) == parameter_count, (name, actual)
     assert len(actual.states) == state_count, (name, actual)
+    assert len(actual.expressions) == expression_count, (name, actual)
+    assert len(actual.statements) == statement_count, (name, actual)
 
 
 def main() -> None:
@@ -1047,6 +1121,8 @@ def main() -> None:
         owner: bytes = b"",
         return_type: int = -1,
         public: bool = False,
+        first_statement: int = 0,
+        statement_count: int = 0,
     ) -> tuple[int, ...]:
         owner_span = at(source, owner) if owner else (1, 0, 0)
         return (
@@ -1057,6 +1133,8 @@ def main() -> None:
             parameter_count,
             0 if return_type < 0 else 1,
             max(return_type, 0),
+            first_statement,
+            statement_count,
             first_state,
             state_count,
             1 if public else 0,
@@ -1075,6 +1153,8 @@ def main() -> None:
         parameter_count: int,
         span: tuple[int, int],
         return_type: int = -1,
+        first_statement: int = 0,
+        statement_count: int = 0,
     ) -> tuple[int, ...]:
         return (
             *at(source, name),
@@ -1082,6 +1162,8 @@ def main() -> None:
             parameter_count,
             0 if return_type < 0 else 1,
             max(return_type, 0),
+            first_statement,
+            statement_count,
             1,
             *span,
         )
@@ -1130,11 +1212,11 @@ def main() -> None:
         program, "machine-states", source,
         ((3, 0, 1, 0, 64),), (), (),
         type_references=(named(source, b"u64"), named(source, b"u8", 1), named(source, b"u8", 2)),
-        machines=((0, 1, 0, 0, 1, 8, 11, 0, 1, 0, 0, 0, 2, 0, 1, 0, 64),),
+        machines=((0, 1, 0, 0, 1, 8, 11, 0, 1, 0, 0, 0, 0, 0, 2, 0, 1, 0, 64),),
         parameters=((1, 12, 13, 0, 1, 12, 18), (1, 33, 34, 1, 1, 33, 38)),
         states=(
-            (1, 28, 32, 1, 1, 1, 2, 1, 22, 48),
-            (1, 55, 59, 2, 0, 0, 0, 1, 49, 62),
+            (1, 28, 32, 1, 1, 1, 2, 0, 0, 1, 22, 48),
+            (1, 55, 59, 2, 0, 0, 0, 0, 0, 1, 49, 62),
         ),
     )
     source = b"machine wrap(x: u64 in Wrapping) {}"
@@ -1155,7 +1237,7 @@ def main() -> None:
         ((1, 0, 1, 16, 22),),
         ((1, 16, 17, 0, 1, 16, 22),),
         type_references=(named(source, b"u8"),),
-        machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 1, 25, 39),),
+        machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 25, 39),),
     )
     source = b"data View { target: &Record; }"
     accepted(
@@ -1184,11 +1266,11 @@ def main() -> None:
     rejected(program, "machine-return-type", b"machine f() -> {}", 46, (15, 16))
     rejected(program, "machine-bodyless", b"machine f();", 47, (11, 12))
     rejected(program, "machine-clause", b"machine f() reaches Console {}", 47, (12, 19))
-    rejected(program, "machine-statement", b"machine f() { let x: u8; }", 48, (14, 17))
+    rejected(program, "machine-unsupported-statement", b"machine f() { transition {} }", 48, (14, 24))
     rejected(program, "machine-body-end-at-end", b"machine f() {", 48, (13, 13))
     rejected(program, "state-name", b"machine f() { state }", 49, (20, 21))
     rejected(program, "state-body", b"machine f() { state s() }", 50, (24, 25))
-    rejected(program, "state-body-end", b"machine f() { state s() { x } }", 51, (26, 27))
+    rejected(program, "state-unsupported-statement", b"machine f() { state s() { if } }", 51, (26, 28))
 
     exact_machines = b"".join(f"machine m{index}() {{}} ".encode() for index in range(256))
     exact_machine_status, exact_machine_payload = run(program, exact_machines)
@@ -1235,6 +1317,204 @@ def main() -> None:
         (overflow_state_start, overflow_state_start + 5),
         state_count=1024,
     )
+
+    # Machine bodies. Each accepted case pins the four body tables exactly:
+    # expression rows (kind, operator, left, right, first, count, flag, name
+    # span, type handle, span), argument handles, construction fields and
+    # statement rows (kind, name, mutability, type, value flag and handle,
+    # target, crash cause, span). Operator tags follow OperatorKind order.
+    def body(
+        name: str,
+        source: bytes,
+        expressions: tuple[tuple[int, ...], ...],
+        statements: tuple[tuple[int, ...], ...],
+        arguments: tuple[int, ...] = (),
+        construct_fields: tuple[tuple[int, ...], ...] = (),
+    ) -> None:
+        status, payload = run(program, source)
+        assert status == 0, f"{name}: status {status}"
+        actual = decode(payload)
+        assert actual.expressions == expressions, f"{name}:\n{actual.expressions}"
+        assert actual.arguments == arguments, f"{name}:\n{actual.arguments}"
+        assert actual.construct_fields == construct_fields, f"{name}:\n{actual.construct_fields}"
+        assert actual.statements == statements, f"{name}:\n{actual.statements}"
+
+    body(
+        "precedence-and-tail",
+        b"machine f() -> u64 { 1 + 2 * 3 }",
+        (
+            (3, 0, 0, 0, 0, 0, 0, 1, 21, 22, 0, 1, 21, 22),
+            (3, 0, 0, 0, 0, 0, 0, 1, 25, 26, 0, 1, 25, 26),
+            (3, 0, 0, 0, 0, 0, 0, 1, 29, 30, 0, 1, 29, 30),
+            (9, 16, 1, 2, 0, 0, 0, 1, 0, 0, 0, 1, 25, 30),
+            (9, 14, 0, 3, 0, 0, 0, 1, 0, 0, 0, 1, 21, 30),
+        ),
+        ((4, 1, 0, 0, 0, 0, 1, 4, 0, 1, 1, 21, 30),),
+    )
+    body(
+        "logical-tiers",
+        b"machine f(a: bool, b: bool) -> bool { !a && b || a }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 39, 40, 0, 1, 39, 40),
+            (8, 19, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 38, 40),
+            (1, 0, 0, 0, 1, 1, 0, 1, 44, 45, 0, 1, 44, 45),
+            (9, 2, 1, 2, 0, 0, 0, 1, 0, 0, 0, 1, 38, 45),
+            (1, 0, 0, 0, 2, 1, 0, 1, 49, 50, 0, 1, 49, 50),
+            (9, 1, 3, 4, 0, 0, 0, 1, 0, 0, 0, 1, 38, 50),
+        ),
+        ((4, 1, 0, 0, 0, 0, 1, 5, 0, 1, 1, 38, 50),),
+    )
+    body(
+        "field-index-assignment-and-path-call",
+        b"machine f(p: &mut P) { p.x = q[i].y; Q::make(p, 1); }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 23, 24, 0, 1, 23, 24),
+            (6, 0, 0, 0, 0, 0, 0, 1, 25, 26, 0, 1, 23, 26),
+            (1, 0, 0, 0, 1, 1, 0, 1, 29, 30, 0, 1, 29, 30),
+            (1, 0, 0, 0, 2, 1, 0, 1, 31, 32, 0, 1, 31, 32),
+            (7, 0, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 29, 33),
+            (6, 0, 4, 0, 0, 0, 0, 1, 34, 35, 0, 1, 29, 35),
+            (2, 0, 0, 0, 3, 2, 0, 1, 40, 44, 0, 1, 37, 44),
+            (1, 0, 0, 0, 5, 1, 0, 1, 45, 46, 0, 1, 45, 46),
+            (3, 0, 0, 0, 0, 0, 0, 1, 48, 49, 0, 1, 48, 49),
+            (11, 0, 6, 0, 0, 2, 0, 1, 0, 0, 0, 1, 37, 50),
+        ),
+        (
+            (2, 1, 0, 0, 0, 0, 1, 5, 1, 1, 1, 23, 36),
+            (3, 1, 0, 0, 0, 0, 1, 9, 0, 1, 1, 37, 51),
+        ),
+        arguments=(7, 8),
+    )
+    body(
+        "nested-call-arguments-stay-contiguous",
+        b"machine f() { g(h(1, 2), 3); }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 14, 15, 0, 1, 14, 15),
+            (1, 0, 0, 0, 1, 1, 0, 1, 16, 17, 0, 1, 16, 17),
+            (3, 0, 0, 0, 0, 0, 0, 1, 18, 19, 0, 1, 18, 19),
+            (3, 0, 0, 0, 0, 0, 0, 1, 21, 22, 0, 1, 21, 22),
+            (11, 0, 1, 0, 0, 2, 0, 1, 0, 0, 0, 1, 16, 23),
+            (3, 0, 0, 0, 0, 0, 0, 1, 25, 26, 0, 1, 25, 26),
+            (11, 0, 0, 0, 2, 2, 0, 1, 0, 0, 0, 1, 14, 27),
+        ),
+        ((3, 1, 0, 0, 0, 0, 1, 6, 0, 1, 1, 14, 28),),
+        arguments=(2, 3, 4, 5),
+    )
+    body(
+        "group-and-qualified-cast",
+        b"machine f() -> u8 { (1 + 2) as u8 in Wrapping }",
+        (
+            (3, 0, 0, 0, 0, 0, 0, 1, 21, 22, 0, 1, 21, 22),
+            (3, 0, 0, 0, 0, 0, 0, 1, 25, 26, 0, 1, 25, 26),
+            (9, 14, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 26),
+            (10, 0, 2, 0, 0, 0, 0, 1, 0, 0, 1, 1, 21, 45),
+        ),
+        ((4, 1, 0, 0, 0, 0, 1, 3, 0, 1, 1, 20, 45),),
+    )
+    body(
+        "nested-construction-fields-stay-contiguous",
+        b"machine f() { let v: V = V { a: 1, b: W { c: true } }; }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 25, 26, 0, 1, 25, 26),
+            (3, 0, 0, 0, 0, 0, 0, 1, 32, 33, 0, 1, 32, 33),
+            (1, 0, 0, 0, 1, 1, 0, 1, 38, 39, 0, 1, 38, 39),
+            (4, 0, 0, 0, 0, 0, 1, 1, 45, 49, 0, 1, 45, 49),
+            (12, 0, 2, 0, 0, 1, 0, 1, 0, 0, 0, 1, 38, 51),
+            (12, 0, 0, 0, 1, 2, 0, 1, 0, 0, 0, 1, 25, 53),
+        ),
+        ((1, 1, 18, 19, 0, 0, 1, 5, 0, 1, 1, 14, 54),),
+        construct_fields=(
+            (1, 42, 43, 3, 1, 42, 49),
+            (1, 29, 30, 1, 1, 29, 33),
+            (1, 35, 36, 4, 1, 35, 51),
+        ),
+    )
+    body(
+        "prefix-negation-and-subtraction",
+        b"machine f(x: i64) -> i64 { -x - -1 }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 28, 29, 0, 1, 28, 29),
+            (8, 20, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 27, 29),
+            (3, 0, 0, 0, 0, 0, 0, 1, 33, 34, 0, 1, 33, 34),
+            (8, 20, 2, 0, 0, 0, 0, 1, 0, 0, 0, 1, 32, 34),
+            (9, 15, 1, 3, 0, 0, 0, 1, 0, 0, 0, 1, 27, 34),
+        ),
+        ((4, 1, 0, 0, 0, 0, 1, 4, 0, 1, 1, 27, 34),),
+    )
+    body(
+        "borrow-arguments",
+        b"machine f() { g(&mut a, &b); }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 14, 15, 0, 1, 14, 15),
+            (1, 0, 0, 0, 1, 1, 0, 1, 21, 22, 0, 1, 21, 22),
+            (8, 23, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 16, 22),
+            (1, 0, 0, 0, 2, 1, 0, 1, 25, 26, 0, 1, 25, 26),
+            (8, 22, 3, 0, 0, 0, 0, 1, 0, 0, 0, 1, 24, 26),
+            (11, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 14, 27),
+        ),
+        ((3, 1, 0, 0, 0, 0, 1, 5, 0, 1, 1, 14, 28),),
+        arguments=(2, 4),
+    )
+    body(
+        "mutable-local-and-local-named-mut",
+        b"machine f() { let mut n: u8; let mut: u8; }",
+        (),
+        (
+            (1, 1, 22, 23, 1, 0, 0, 0, 0, 1, 1, 14, 28),
+            (1, 1, 33, 36, 0, 1, 0, 0, 0, 1, 1, 29, 41),
+        ),
+    )
+    body(
+        "string-argument-and-state-tail",
+        b'machine f() { log("hi"); state s(a: u8) -> u8 { a } }',
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 14, 17, 0, 1, 14, 17),
+            (5, 0, 0, 0, 0, 0, 0, 1, 18, 22, 0, 1, 18, 22),
+            (11, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 14, 23),
+            (1, 0, 0, 0, 1, 1, 0, 1, 48, 49, 0, 1, 48, 49),
+        ),
+        (
+            (3, 1, 0, 0, 0, 0, 1, 2, 0, 1, 1, 14, 24),
+            (4, 1, 0, 0, 0, 0, 1, 3, 0, 1, 1, 48, 49),
+        ),
+        arguments=(1,),
+    )
+    body("crash-abort", b"machine f() { crash Abort; }", (), ((5, 1, 0, 0, 0, 0, 0, 0, 0, 2, 1, 14, 26),))
+
+    # Body rejections keep the nodes completed before the rejected token.
+    body_rejections = (
+        ("local-name", b"machine f() { let = 1; }", 71, (18, 19), {}),
+        ("local-colon", b"machine f() { let x = 1; }", 72, (20, 21), {}),
+        ("local-type", b"machine f() { let x: ; }", 73, (21, 22), {}),
+        ("local-initial-value", b"machine f() { let x: u8 = ; }", 74, (26, 27), {"type_reference_count": 1}),
+        ("local-end", b"machine f() { let x: u8 }", 75, (24, 25), {"type_reference_count": 1}),
+        ("assignment-value", b"machine f() { a = ; }", 76, (18, 19), {"member_count": 1, "expression_count": 1}),
+        ("assignment-semicolon", b"machine f() { a = 1 }", 77, (20, 21), {"member_count": 1, "expression_count": 2}),
+        ("statement-end", b"machine f() { a b }", 78, (16, 17), {"member_count": 1, "expression_count": 1}),
+        ("crash-cause", b"machine f() { crash Panic; }", 79, (20, 25), {}),
+        ("crash-end", b"machine f() { crash Trap }", 80, (25, 26), {}),
+        ("binary-operand", b"machine f() { 1 + ; }", 55, (18, 19), {"expression_count": 1}),
+        ("path-member", b"machine f() { a::; }", 56, (17, 18), {"member_count": 1}),
+        ("field-name", b"machine f() { a.; }", 57, (16, 17), {"member_count": 1, "expression_count": 1}),
+        ("group-end", b"machine f() { (1; }", 58, (16, 17), {"expression_count": 1}),
+        ("index-end", b"machine f() { a[1; }", 59, (17, 18), {"member_count": 1, "expression_count": 2}),
+        ("call-argument", b"machine f() { g(,); }", 60, (16, 17), {"member_count": 1, "expression_count": 1}),
+        ("call-argument-end", b"machine f() { g(1 2); }", 61, (18, 19), {"member_count": 1, "expression_count": 2}),
+        ("cast-type", b"machine f() { a as ; }", 62, (19, 20), {"member_count": 1, "expression_count": 1}),
+        ("construct-field", b"machine f() { V { 1 }; }", 63, (18, 19), {"member_count": 1, "expression_count": 1}),
+        ("construct-colon", b"machine f() { V { a 1 }; }", 64, (20, 21), {"member_count": 1, "expression_count": 1}),
+        ("construct-value", b"machine f() { V { a: }; }", 65, (21, 22), {"member_count": 1, "expression_count": 1}),
+        ("construct-field-end", b"machine f() { V { a: 1 b: 2 }; }", 66, (23, 24), {"member_count": 1, "expression_count": 2}),
+        ("statement-start", b"machine f() { ) }", 48, (14, 15), {}),
+    )
+    for name, source, diagnostic, span, counts in body_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    nested = b"machine f() { " + b"(" * 32 + b"1" + b")" * 32 + b"; }"
+    nested_status, _ = run(program, nested)
+    assert nested_status == 0, "32 nested groups"
+    too_nested = b"machine f() { " + b"(" * 33 + b"1" + b")" * 33 + b"; }"
+    rejected(program, "expression-nesting-plus-one", too_nested, 68, (46, 47))
 
     repeat_source = (
         b"use repeated::observation; data Stable [linear] { "

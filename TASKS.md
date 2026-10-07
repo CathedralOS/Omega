@@ -5711,23 +5711,25 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `source/omega/main.omg`). Psi owns parsing, resolution, typing, checking,
   proof and Terminal Psi; Omega consumes Terminal Psi for provider selection,
   realization, ABI and emission. The product reads source, lexes, parses
-  and name-resolves supported `use`/`data`/`machine` roots and exits without
-  an artifact. Extend that one
+  and name-resolves supported `use`/`data`/`machine` roots, machine bodies
+  included, and exits without an artifact. Extend that one
   pipeline through the full language in compositional slices; no private
   dialect, file/AST allowlist, source-shape-only lowering or parallel
   source-to-native route.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  130 parser cases, and `tests/psi/resolver/test-resolver.sh` passes all 57
-  resolver cases. Each gate builds its harness natively in about 40 to 75 s.
-  Machines parse with signatures and empty `state` members; every type
-  position shares one `[& [mut]] Name [in Domain]` grammar. Resolution binds
-  data and signature types and `in` domains for one source unit, rejects
-  duplicate parameters, states and overloads, and rejects every `use`, because
-  the unit is the whole source set. Next: parse machine bodies (statements,
-  expressions and transitions) and clauses (`reaches`, `crashes`, `blocks`,
-  `requires`), and resolve their names through the same pipeline. Then accept
+  166 parser cases, and `tests/psi/resolver/test-resolver.sh` passes all 61
+  resolver cases; each gate builds its harness natively in about 2.5 minutes.
+  Machines parse with signatures, entry and state statements (`let`,
+  assignment, call and tail expressions, `crash`) and expressions on explicit
+  stacks; every type position shares one `[& [mut]] Name [in Domain]`
+  grammar. Resolution binds data, signature and body types and `in` domains
+  for one source unit, rejects duplicate parameters, states and overloads,
+  and rejects every `use`, because the unit is the whole source set. Next:
+  parse `transition` blocks and clauses (`reaches`, `crashes`, `blocks`,
+  `requires`), then resolve expression names (locals, parameters, states,
+  machines, data constructors) through the same pipeline. Then accept
   multi-source compiler requests so `use` roots bind declarations of supplied
   sources. Run both gates on Linux and Windows hosts. Keep the
   acceptance/rejection, lexical handoff, structural identity, capacity and

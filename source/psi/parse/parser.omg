@@ -1,6 +1,8 @@
 use psi::parse::data;
+use psi::parse::expression;
 use psi::parse::input;
 use psi::parse::machine;
+use psi::parse::statement;
 use psi::parse::types;
 use psi::source::source;
 use psi::syntax::syntax;
@@ -63,6 +65,8 @@ pub data Parser {
     machine_parameter_count: u64 in Trapping;
     machine_has_return_type: bool;
     machine_return_type: u64 in Trapping;
+    machine_first_statement: u64 in Trapping;
+    machine_statement_count: u64 in Trapping;
     machine_first_state: u64 in Trapping;
     state_start: u64 in Trapping;
     state_name_start: u64 in Trapping;
@@ -73,6 +77,31 @@ pub data Parser {
     signature_return_type: u64 in Trapping;
     parameter_name_start: u64 in Trapping;
     parameter_name_end: u64 in Trapping;
+    // Expression stacks: operands, pending operators and open brackets, with
+    // the arguments and construction fields staged until their bracket closes.
+    expression_operands: [u64; 64] in Trapping;
+    expression_operand_depth: u64 [0..=64];
+    expression_operators: [PendingOperator; 64] in Trapping;
+    expression_operator_depth: u64 [0..=64];
+    expression_frames: [ExpressionFrame; 32] in Trapping;
+    expression_frame_depth: u64 [0..=32];
+    pending_arguments: [u64; 256] in Trapping;
+    pending_argument_count: u64 [0..=256];
+    pending_fields: [ConstructField; 64] in Trapping;
+    pending_field_count: u64 [0..=64];
+    expression_result: u64 in Trapping;
+    expression_allow_construct: bool;
+    path_first_member: u64 in Trapping;
+    path_start: u64 in Trapping;
+    committed_first: u64 in Trapping;
+    committed_count: u64 in Trapping;
+    // Statement scratch: the body's first statement and a `let` under way.
+    body_first_statement: u64 in Trapping;
+    statement_start: u64 in Trapping;
+    local_mutable: bool;
+    local_name_start: u64 in Trapping;
+    local_name_end: u64 in Trapping;
+    local_type: u64 in Trapping;
     case_start: u64 in Trapping;
     case_keyword_end: u64 in Trapping;
     case_name_start: u64 in Trapping;

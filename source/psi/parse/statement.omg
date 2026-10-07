@@ -1,0 +1,332 @@
+use psi::parse::expression;
+use psi::parse::input;
+use psi::parse::parser;
+use psi::parse::types;
+use psi::syntax::syntax;
+use psi::tokens::tokens;
+
+// Statement grammar for machine and state bodies: `let [mut] name: Type
+// [= value];`, `crash Trap;` or `crash Abort;`, `place = value;`, `value;`,
+// and a final unterminated `value` before the body's `}`, its result.
+// Statements end at the body's `}` or, in a machine body, at its first
+// `state` member; the caller then reads that token. Statement forms of later
+// slices (`transition`, `if`, `loop`, `while`, `match`, `return`) reject with
+// the caller's `unsupported` diagnostic, the body end the grammar expects
+// instead. The range lands in `body_first_statement` and the table count.
+pub machine Parser::parse_statements(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode)
+crashes Trap
+{
+    parser.body_first_statement = parser.output.statement_count as u64 in Trapping;
+    transition { _ -> next(parser, input, unsupported) }
+
+    state next(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::load_current(parser, input);
+        transition parser.current_present {
+            true -> classify(parser, input, unsupported)
+            _ -> done()
+        }
+    }
+
+    state classify(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        let token: Token = input.tokens[parser.current_index];
+        parser.statement_start = token.start;
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::RightBrace } -> done()
+            Token::Keyword { keyword: KeywordKind::State } -> done()
+            Token::Keyword { keyword: KeywordKind::Let } -> let_statement(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::Transition } -> reject(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::If } -> reject(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::Loop } -> reject(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::While } -> reject(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::Match } -> reject(parser, input, unsupported)
+            Token::Keyword { keyword: KeywordKind::Return } -> reject(parser, input, unsupported)
+            Token::Identifier -> word(parser, input, unsupported)
+            _ -> expression_statement(parser, input, unsupported)
+        }
+    }
+
+    // `crash` is a contextual word: it always opens a crash statement.
+    state word(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        let crash: bool = Parser::at_word(parser, input, "crash");
+        transition crash {
+            true -> crash_statement(parser, input, unsupported)
+            _ -> expression_statement(parser, input, unsupported)
+        }
+    }
+
+    state crash_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::take_current(parser, input);
+        let trap: bool = Parser::at_word(parser, input, "Trap");
+        transition trap {
+            true -> crash_cause(parser, input, unsupported, CrashCause::Trap)
+            _ -> crash_abort(parser, input, unsupported)
+        }
+    }
+
+    state crash_abort(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        let abort: bool = Parser::at_word(parser, input, "Abort");
+        transition abort {
+            true -> crash_cause(parser, input, unsupported, CrashCause::Abort)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedCrashCause)
+        }
+    }
+
+    state crash_cause(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, cause: CrashCause) {
+        Parser::take_current(parser, input);
+        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedCrashEnd);
+        transition parser.output.accepted {
+            true -> crash_retained(parser, input, unsupported, cause)
+            _ -> done()
+        }
+    }
+
+    state crash_retained(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, cause: CrashCause) {
+        let statement: Statement = Statement {
+            kind: StatementKind::Crash,
+            name: Parser::identifier_span(parser, 0, 0),
+            is_mutable: false,
+            type_reference: 0,
+            has_value: false,
+            value: 0,
+            target: 0,
+            cause: cause,
+            source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
+        };
+        transition { _ -> store(parser, input, unsupported, statement) }
+    }
+
+    state let_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::take_current(parser, input);
+        let mutable: bool = Parser::at_word(parser, input, "mut");
+        transition mutable {
+            true -> let_mut(parser, input, unsupported)
+            _ -> let_name(parser, input, unsupported, false)
+        }
+    }
+
+    // `mut` marks mutability only before a name; `let mut: T` declares a
+    // local named `mut`.
+    state let_mut(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::take_current(parser, input);
+        let named: bool = Parser::at_name(parser, input);
+        transition named {
+            true -> let_name(parser, input, unsupported, true)
+            _ -> let_named_mut(parser, input, unsupported)
+        }
+    }
+
+    state let_named_mut(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        parser.local_mutable = false;
+        parser.local_name_start = parser.token_start;
+        parser.local_name_end = parser.token_end;
+        transition { _ -> let_colon(parser, input, unsupported) }
+    }
+
+    state let_name(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, mutable: bool) {
+        parser.local_mutable = mutable;
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedLocalDataName);
+        transition parser.output.accepted {
+            true -> let_named(parser, input, unsupported)
+            _ -> done()
+        }
+    }
+
+    state let_named(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        parser.local_name_start = parser.name_start;
+        parser.local_name_end = parser.name_end;
+        transition { _ -> let_colon(parser, input, unsupported) }
+    }
+
+    state let_colon(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedLocalDataColon);
+        transition parser.output.accepted {
+            true -> let_type(parser, input, unsupported)
+            _ -> done()
+        }
+    }
+
+    state let_type(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedLocalDataType);
+        transition parser.output.accepted {
+            true -> let_initializer(parser, input, unsupported)
+            _ -> done()
+        }
+    }
+
+    state let_initializer(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        parser.local_type = parser.type_result;
+        let initialized: bool = Parser::at_punctuation(parser, input, PunctuationKind::Equal);
+        transition initialized {
+            true -> let_value(parser, input, unsupported)
+            _ -> let_end(parser, input, unsupported, false, 0)
+        }
+    }
+
+    state let_value(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::take_current(parser, input);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedLocalDataInitialValue, true);
+        transition parser.output.accepted {
+            true -> let_end(parser, input, unsupported, true, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    state let_end(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_value: bool,
+        value: u64 in Trapping
+    ) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedLocalDataEnd);
+        transition parser.output.accepted {
+            true -> let_retained(parser, input, unsupported, has_value, value)
+            _ -> done()
+        }
+    }
+
+    state let_retained(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_value: bool,
+        value: u64 in Trapping
+    ) {
+        let statement: Statement = Statement {
+            kind: StatementKind::Let,
+            name: Parser::identifier_span(parser, parser.local_name_start, parser.local_name_end),
+            is_mutable: parser.local_mutable,
+            type_reference: parser.local_type,
+            has_value: has_value,
+            value: value,
+            target: 0,
+            cause: CrashCause::Trap,
+            source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
+        };
+        transition { _ -> store(parser, input, unsupported, statement) }
+    }
+
+    state expression_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::parse_expression(parser, input, unsupported, true);
+        transition parser.output.accepted {
+            true -> after_expression(parser, input, unsupported, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    state after_expression(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+        Parser::load_current(parser, input);
+        transition parser.current_present {
+            true -> statement_end(parser, input, unsupported, value)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedStatementEnd)
+        }
+    }
+
+    state statement_end(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+        let token: Token = input.tokens[parser.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Equal } -> assignment(parser, input, unsupported, value)
+            Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> terminated(parser, input, unsupported, value)
+            Token::Punctuation { punctuation: PunctuationKind::RightBrace } -> tail(parser, input, unsupported, value)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedStatementEnd)
+        }
+    }
+
+    state assignment(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, target: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedAssignmentValue, true);
+        transition parser.output.accepted {
+            true -> assignment_end(parser, input, unsupported, target, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    state assignment_end(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        target: u64 in Trapping,
+        value: u64 in Trapping
+    ) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon,
+            ParseDiagnosticCode::ExpectedAssignmentSemicolon
+        );
+        transition parser.output.accepted {
+            true -> assignment_retained(parser, input, unsupported, target, value)
+            _ -> done()
+        }
+    }
+
+    state assignment_retained(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        target: u64 in Trapping,
+        value: u64 in Trapping
+    ) {
+        let statement: Statement = Statement {
+            kind: StatementKind::Assign,
+            name: Parser::identifier_span(parser, 0, 0),
+            is_mutable: false,
+            type_reference: 0,
+            has_value: true,
+            value: value,
+            target: target,
+            cause: CrashCause::Trap,
+            source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
+        };
+        transition { _ -> store(parser, input, unsupported, statement) }
+    }
+
+    state terminated(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        let statement: Statement = Statement {
+            kind: StatementKind::Expression,
+            name: Parser::identifier_span(parser, 0, 0),
+            is_mutable: false,
+            type_reference: 0,
+            has_value: true,
+            value: value,
+            target: 0,
+            cause: CrashCause::Trap,
+            source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
+        };
+        transition { _ -> store(parser, input, unsupported, statement) }
+    }
+
+    // The body's `}` stays for the caller; the tail ends at its expression.
+    state tail(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(&parser.output, value);
+        let statement: Statement = Statement {
+            kind: StatementKind::Tail,
+            name: Parser::identifier_span(parser, 0, 0),
+            is_mutable: false,
+            type_reference: 0,
+            has_value: true,
+            value: value,
+            target: 0,
+            cause: CrashCause::Trap,
+            source_span: Parser::source_span(parser, parser.statement_start, expression.source_span.span.end)
+        };
+        transition { _ -> store(parser, input, unsupported, statement) }
+    }
+
+    state store(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, statement: Statement) {
+        transition parser.output.statement_count < 1024 {
+            true -> store_bounded(parser, input, unsupported, statement)
+            _ -> reject(parser, input, ParseDiagnosticCode::StatementCapacityExceeded)
+        }
+    }
+
+    state store_bounded(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, statement: Statement) {
+        parser.output.statements[parser.output.statement_count] = statement;
+        parser.output.statement_count = parser.output.statement_count + 1;
+        transition { _ -> next(parser, input, unsupported) }
+    }
+
+    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        Parser::reject_current(parser, input, code);
+    }
+
+    state done() {}
+}

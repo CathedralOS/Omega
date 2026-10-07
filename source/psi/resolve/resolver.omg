@@ -5,7 +5,8 @@ use psi::syntax::syntax;
 // Name resolution over the parsed roots of one source unit. The pass runs in
 // fail-closed steps, each completing before the next begins: imports,
 // top-level data names, member namespaces, data type references, machine
-// signature type references, then machine namespaces. The first rejection is
+// signature type references, body type references (`let` types and cast
+// targets), then machine namespaces. The first rejection is
 // the diagnostic. Lookup mirrors the reference resolver: an
 // enclosing generic parameter, then a builtin type, then a data declaration
 // of this unit. Builtin and duplicate declarations reject before any lookup,
@@ -65,6 +66,14 @@ crashes Trap
 
     state machine_references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
         Resolver::bind_machine_references(resolver, source_unit, syntax);
+        transition resolver.output.accepted {
+            true -> body_references(resolver, source_unit, syntax)
+            _ -> done()
+        }
+    }
+
+    state body_references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
+        Resolver::bind_body_references(resolver, source_unit, syntax);
         transition resolver.output.accepted {
             true -> machines(resolver, source_unit, syntax)
             _ -> done()
@@ -1264,4 +1273,75 @@ crashes Trap
     state different() {
         false
     }
+}
+
+// Body type references: every `let` statement's type, then every cast's
+// target type, in table order. Bodies belong to machines, which declare no
+// generics in this grammar slice, so each binds in the empty scope.
+machine Resolver::bind_body_references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> statement(resolver, source_unit, syntax, 0) }
+
+    state statement(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.statement_count {
+            true -> statement_kind(resolver, source_unit, syntax, index)
+            _ -> expression(resolver, source_unit, syntax, 0)
+        }
+    }
+
+    state statement_kind(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let statement: Statement = SyntaxTrees::statement(syntax, index);
+        transition statement.kind {
+            StatementKind::Let -> bind_local(resolver, source_unit, syntax, index, statement.type_reference)
+            _ -> statement(resolver, source_unit, syntax, index + 1)
+        }
+    }
+
+    state bind_local(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        reference: u64 in Trapping
+    ) {
+        let scope: TypeScope = Resolver::empty_scope();
+        Resolver::bind_type_reference(resolver, source_unit, syntax, scope, reference);
+        transition resolver.output.accepted {
+            true -> statement(resolver, source_unit, syntax, index + 1)
+            _ -> done()
+        }
+    }
+
+    state expression(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.expression_count {
+            true -> expression_kind(resolver, source_unit, syntax, index)
+            _ -> done()
+        }
+    }
+
+    state expression_kind(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(syntax, index);
+        transition expression.kind {
+            ExpressionKind::Cast -> bind_cast(resolver, source_unit, syntax, index, expression.type_reference)
+            _ -> expression(resolver, source_unit, syntax, index + 1)
+        }
+    }
+
+    state bind_cast(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        reference: u64 in Trapping
+    ) {
+        let scope: TypeScope = Resolver::empty_scope();
+        Resolver::bind_type_reference(resolver, source_unit, syntax, scope, reference);
+        transition resolver.output.accepted {
+            true -> expression(resolver, source_unit, syntax, index + 1)
+            _ -> done()
+        }
+    }
+
+    state done() {}
 }

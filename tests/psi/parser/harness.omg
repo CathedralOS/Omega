@@ -184,6 +184,33 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::MachineCapacityExceeded -> parse_diagnostic(parser_harness, output, 52)
             ParseDiagnosticCode::ParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 53)
             ParseDiagnosticCode::StateCapacityExceeded -> parse_diagnostic(parser_harness, output, 54)
+            ParseDiagnosticCode::ExpectedOperand -> parse_diagnostic(parser_harness, output, 55)
+            ParseDiagnosticCode::ExpectedExpressionPathMember -> parse_diagnostic(parser_harness, output, 56)
+            ParseDiagnosticCode::ExpectedFieldName -> parse_diagnostic(parser_harness, output, 57)
+            ParseDiagnosticCode::ExpectedGroupEnd -> parse_diagnostic(parser_harness, output, 58)
+            ParseDiagnosticCode::ExpectedIndexEnd -> parse_diagnostic(parser_harness, output, 59)
+            ParseDiagnosticCode::ExpectedCallArgument -> parse_diagnostic(parser_harness, output, 60)
+            ParseDiagnosticCode::ExpectedCallArgumentEnd -> parse_diagnostic(parser_harness, output, 61)
+            ParseDiagnosticCode::ExpectedCastType -> parse_diagnostic(parser_harness, output, 62)
+            ParseDiagnosticCode::ExpectedStructLiteralFieldOrEnd -> parse_diagnostic(parser_harness, output, 63)
+            ParseDiagnosticCode::ExpectedStructLiteralFieldColon -> parse_diagnostic(parser_harness, output, 64)
+            ParseDiagnosticCode::ExpectedStructLiteralValue -> parse_diagnostic(parser_harness, output, 65)
+            ParseDiagnosticCode::ExpectedStructLiteralFieldEnd -> parse_diagnostic(parser_harness, output, 66)
+            ParseDiagnosticCode::ExpressionCapacityExceeded -> parse_diagnostic(parser_harness, output, 67)
+            ParseDiagnosticCode::ExpressionNestingExceeded -> parse_diagnostic(parser_harness, output, 68)
+            ParseDiagnosticCode::ArgumentCapacityExceeded -> parse_diagnostic(parser_harness, output, 69)
+            ParseDiagnosticCode::ConstructFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 70)
+            ParseDiagnosticCode::ExpectedLocalDataName -> parse_diagnostic(parser_harness, output, 71)
+            ParseDiagnosticCode::ExpectedLocalDataColon -> parse_diagnostic(parser_harness, output, 72)
+            ParseDiagnosticCode::ExpectedLocalDataType -> parse_diagnostic(parser_harness, output, 73)
+            ParseDiagnosticCode::ExpectedLocalDataInitialValue -> parse_diagnostic(parser_harness, output, 74)
+            ParseDiagnosticCode::ExpectedLocalDataEnd -> parse_diagnostic(parser_harness, output, 75)
+            ParseDiagnosticCode::ExpectedAssignmentValue -> parse_diagnostic(parser_harness, output, 76)
+            ParseDiagnosticCode::ExpectedAssignmentSemicolon -> parse_diagnostic(parser_harness, output, 77)
+            ParseDiagnosticCode::ExpectedStatementEnd -> parse_diagnostic(parser_harness, output, 78)
+            ParseDiagnosticCode::ExpectedCrashCause -> parse_diagnostic(parser_harness, output, 79)
+            ParseDiagnosticCode::ExpectedCrashEnd -> parse_diagnostic(parser_harness, output, 80)
+            ParseDiagnosticCode::StatementCapacityExceeded -> parse_diagnostic(parser_harness, output, 81)
         }
     }
 
@@ -676,10 +703,10 @@ machine ParserHarness::write_parse_observation(
 
 // The machine, parameter and state tables follow the generic parameters.
 // Machine rows carry the owner flag and span, the name, the parameter range,
-// the return-type flag and handle, the state range, the visibility flag and
-// the span. Parameter rows carry the name, type-reference handle and span.
-// State rows carry the name, parameter range, return-type flag and handle,
-// and span.
+// the return-type flag and handle, the entry statement range, the state
+// range, the visibility flag and the span. Parameter rows carry the name,
+// type-reference handle and span. State rows carry the name, parameter range,
+// return-type flag and handle, statement range and span.
 machine ParserHarness::write_machine_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
 reaches Console
 crashes Trap
@@ -703,6 +730,8 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.parameter_count);
         ParserHarness::write_flag(parser_harness, item.has_return_type);
         ParserHarness::write_u64(parser_harness, item.return_type);
+        ParserHarness::write_u64(parser_harness, item.first_statement);
+        ParserHarness::write_u64(parser_harness, item.statement_count);
         ParserHarness::write_u64(parser_harness, item.first_state);
         ParserHarness::write_u64(parser_harness, item.state_count);
         ParserHarness::write_flag(parser_harness, item.is_public);
@@ -738,8 +767,12 @@ crashes Trap
     state state_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.state_count {
             true -> write_state(parser_harness, output, index)
-            _ -> done()
+            _ -> bodies(parser_harness, output)
         }
+    }
+
+    state bodies(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_body_tables(parser_harness, output);
     }
 
     state write_state(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
@@ -749,8 +782,199 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.parameter_count);
         ParserHarness::write_flag(parser_harness, item.has_return_type);
         ParserHarness::write_u64(parser_harness, item.return_type);
+        ParserHarness::write_u64(parser_harness, item.first_statement);
+        ParserHarness::write_u64(parser_harness, item.statement_count);
         ParserHarness::write_source_span(parser_harness, item.source_span);
         transition { _ -> state_row(parser_harness, output, index + 1) }
+    }
+
+    state done() {}
+}
+
+
+// Body tables follow the states: expressions (kind and operator tags, left,
+// right, range first and count, flag, name span, type-reference handle,
+// span), call arguments (expression handles), construction fields (name,
+// value handle, span) and statements (kind tag, name, mutability, type
+// handle, value flag and handle, assignment target, crash cause tag, span).
+machine ParserHarness::write_body_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
+reaches Console
+crashes Trap
+{
+    ParserHarness::write_u64(parser_harness, output.expression_count as u64 in Trapping);
+    transition { _ -> expression_row(parser_harness, output, 0) }
+
+    state expression_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.expression_count {
+            true -> write_expression(parser_harness, output, index)
+            _ -> argument_count(parser_harness, output)
+        }
+    }
+
+    state write_expression(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(output, index);
+        transition expression.kind {
+            ExpressionKind::Name -> expression_kind(parser_harness, output, index, expression, 1)
+            ExpressionKind::Path -> expression_kind(parser_harness, output, index, expression, 2)
+            ExpressionKind::Integer -> expression_kind(parser_harness, output, index, expression, 3)
+            ExpressionKind::Boolean -> expression_kind(parser_harness, output, index, expression, 4)
+            ExpressionKind::String -> expression_kind(parser_harness, output, index, expression, 5)
+            ExpressionKind::Field -> expression_kind(parser_harness, output, index, expression, 6)
+            ExpressionKind::Index -> expression_kind(parser_harness, output, index, expression, 7)
+            ExpressionKind::Unary -> expression_kind(parser_harness, output, index, expression, 8)
+            ExpressionKind::Binary -> expression_kind(parser_harness, output, index, expression, 9)
+            ExpressionKind::Cast -> expression_kind(parser_harness, output, index, expression, 10)
+            ExpressionKind::Call -> expression_kind(parser_harness, output, index, expression, 11)
+            ExpressionKind::Construct -> expression_kind(parser_harness, output, index, expression, 12)
+        }
+    }
+
+    state expression_kind(
+        parser_harness: &mut ParserHarness,
+        output: &SyntaxTrees,
+        index: u64 in Trapping,
+        expression: Expression,
+        tag: u8
+    ) {
+        ParserHarness::write_byte(parser_harness, tag);
+        transition expression.operator {
+            OperatorKind::None -> expression_operator(parser_harness, output, index, expression, 0)
+            OperatorKind::Or -> expression_operator(parser_harness, output, index, expression, 1)
+            OperatorKind::And -> expression_operator(parser_harness, output, index, expression, 2)
+            OperatorKind::Equal -> expression_operator(parser_harness, output, index, expression, 3)
+            OperatorKind::NotEqual -> expression_operator(parser_harness, output, index, expression, 4)
+            OperatorKind::Less -> expression_operator(parser_harness, output, index, expression, 5)
+            OperatorKind::LessEqual -> expression_operator(parser_harness, output, index, expression, 6)
+            OperatorKind::Greater -> expression_operator(parser_harness, output, index, expression, 7)
+            OperatorKind::GreaterEqual -> expression_operator(parser_harness, output, index, expression, 8)
+            OperatorKind::BitOr -> expression_operator(parser_harness, output, index, expression, 9)
+            OperatorKind::BitXor -> expression_operator(parser_harness, output, index, expression, 10)
+            OperatorKind::BitAnd -> expression_operator(parser_harness, output, index, expression, 11)
+            OperatorKind::ShiftLeft -> expression_operator(parser_harness, output, index, expression, 12)
+            OperatorKind::ShiftRight -> expression_operator(parser_harness, output, index, expression, 13)
+            OperatorKind::Add -> expression_operator(parser_harness, output, index, expression, 14)
+            OperatorKind::Subtract -> expression_operator(parser_harness, output, index, expression, 15)
+            OperatorKind::Multiply -> expression_operator(parser_harness, output, index, expression, 16)
+            OperatorKind::Divide -> expression_operator(parser_harness, output, index, expression, 17)
+            OperatorKind::Modulo -> expression_operator(parser_harness, output, index, expression, 18)
+            OperatorKind::Not -> expression_operator(parser_harness, output, index, expression, 19)
+            OperatorKind::Negate -> expression_operator(parser_harness, output, index, expression, 20)
+            OperatorKind::BitNot -> expression_operator(parser_harness, output, index, expression, 21)
+            OperatorKind::Borrow -> expression_operator(parser_harness, output, index, expression, 22)
+            OperatorKind::BorrowMutable -> expression_operator(parser_harness, output, index, expression, 23)
+        }
+    }
+
+    state expression_operator(
+        parser_harness: &mut ParserHarness,
+        output: &SyntaxTrees,
+        index: u64 in Trapping,
+        expression: Expression,
+        tag: u8
+    ) {
+        ParserHarness::write_byte(parser_harness, tag);
+        ParserHarness::write_u64(parser_harness, expression.left);
+        ParserHarness::write_u64(parser_harness, expression.right);
+        ParserHarness::write_u64(parser_harness, expression.first);
+        ParserHarness::write_u64(parser_harness, expression.count);
+        ParserHarness::write_flag(parser_harness, expression.flag);
+        ParserHarness::write_source_span(parser_harness, expression.name.source_span);
+        ParserHarness::write_u64(parser_harness, expression.type_reference);
+        ParserHarness::write_source_span(parser_harness, expression.source_span);
+        transition { _ -> expression_row(parser_harness, output, index + 1) }
+    }
+
+    state argument_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.argument_count as u64 in Trapping);
+        transition { _ -> argument_row(parser_harness, output, 0) }
+    }
+
+    state argument_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.argument_count {
+            true -> write_argument(parser_harness, output, index)
+            _ -> field_count(parser_harness, output)
+        }
+    }
+
+    state write_argument(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let argument: u64 in Trapping = SyntaxTrees::argument(output, index);
+        ParserHarness::write_u64(parser_harness, argument);
+        transition { _ -> argument_row(parser_harness, output, index + 1) }
+    }
+
+    state field_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.construct_field_count as u64 in Trapping);
+        transition { _ -> field_row(parser_harness, output, 0) }
+    }
+
+    state field_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.construct_field_count {
+            true -> write_field(parser_harness, output, index)
+            _ -> statement_count(parser_harness, output)
+        }
+    }
+
+    state write_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let field: ConstructField = SyntaxTrees::construct_field(output, index);
+        ParserHarness::write_source_span(parser_harness, field.name.source_span);
+        ParserHarness::write_u64(parser_harness, field.value);
+        ParserHarness::write_source_span(parser_harness, field.source_span);
+        transition { _ -> field_row(parser_harness, output, index + 1) }
+    }
+
+    state statement_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.statement_count as u64 in Trapping);
+        transition { _ -> statement_row(parser_harness, output, 0) }
+    }
+
+    state statement_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.statement_count {
+            true -> write_statement(parser_harness, output, index)
+            _ -> done()
+        }
+    }
+
+    state write_statement(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let statement: Statement = SyntaxTrees::statement(output, index);
+        transition statement.kind {
+            StatementKind::Let -> statement_kind(parser_harness, output, index, statement, 1)
+            StatementKind::Assign -> statement_kind(parser_harness, output, index, statement, 2)
+            StatementKind::Expression -> statement_kind(parser_harness, output, index, statement, 3)
+            StatementKind::Tail -> statement_kind(parser_harness, output, index, statement, 4)
+            StatementKind::Crash -> statement_kind(parser_harness, output, index, statement, 5)
+        }
+    }
+
+    state statement_kind(
+        parser_harness: &mut ParserHarness,
+        output: &SyntaxTrees,
+        index: u64 in Trapping,
+        statement: Statement,
+        tag: u8
+    ) {
+        ParserHarness::write_byte(parser_harness, tag);
+        ParserHarness::write_source_span(parser_harness, statement.name.source_span);
+        ParserHarness::write_flag(parser_harness, statement.is_mutable);
+        ParserHarness::write_u64(parser_harness, statement.type_reference);
+        ParserHarness::write_flag(parser_harness, statement.has_value);
+        ParserHarness::write_u64(parser_harness, statement.value);
+        ParserHarness::write_u64(parser_harness, statement.target);
+        transition statement.cause {
+            CrashCause::Trap -> statement_cause(parser_harness, output, index, statement, 1)
+            CrashCause::Abort -> statement_cause(parser_harness, output, index, statement, 2)
+        }
+    }
+
+    state statement_cause(
+        parser_harness: &mut ParserHarness,
+        output: &SyntaxTrees,
+        index: u64 in Trapping,
+        statement: Statement,
+        tag: u8
+    ) {
+        ParserHarness::write_byte(parser_harness, tag);
+        ParserHarness::write_source_span(parser_harness, statement.source_span);
+        transition { _ -> statement_row(parser_harness, output, index + 1) }
     }
 
     state done() {}

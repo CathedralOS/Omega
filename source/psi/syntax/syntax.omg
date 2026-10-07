@@ -114,6 +114,103 @@ pub data Parameter [copy] {
     source_span: SourceSpan;
 }
 
+// Expression syntax. Children are handles into `SyntaxTrees::expressions`;
+// a parenthesized group adds no node. `first`/`count` select a kind's range:
+// a path's or call's callee members in `SyntaxTrees::members`, a call's
+// arguments in `SyntaxTrees::arguments`, or a construction's fields in
+// `SyntaxTrees::construct_fields` (its type path then lives in `left`'s
+// members through a Path or Name child). Unused fields of a kind are zero.
+pub data ExpressionKind [copy] {
+    case Name;
+    case Path;
+    case Integer;
+    case Boolean;
+    case String;
+    case Field;
+    case Index;
+    case Unary;
+    case Binary;
+    case Cast;
+    case Call;
+    case Construct;
+}
+
+pub data OperatorKind [copy] {
+    case None;
+    case Or;
+    case And;
+    case Equal;
+    case NotEqual;
+    case Less;
+    case LessEqual;
+    case Greater;
+    case GreaterEqual;
+    case BitOr;
+    case BitXor;
+    case BitAnd;
+    case ShiftLeft;
+    case ShiftRight;
+    case Add;
+    case Subtract;
+    case Multiply;
+    case Divide;
+    case Modulo;
+    case Not;
+    case Negate;
+    case BitNot;
+    case Borrow;
+    case BorrowMutable;
+}
+
+pub data Expression [copy] {
+    kind: ExpressionKind;
+    operator: OperatorKind;
+    left: u64 in Trapping;
+    right: u64 in Trapping;
+    first: u64 in Trapping;
+    count: u64 in Trapping;
+    flag: bool;
+    name: IdentifierSpan;
+    type_reference: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+// One `name: value` field of a construction `Path { name: value, ... }`.
+pub data ConstructField [copy] {
+    name: IdentifierSpan;
+    value: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+pub data CrashCause [copy] {
+    case Trap;
+    case Abort;
+}
+
+// Statement syntax. `Let` declares `name` with a type and an optional
+// initializer in `value`; `Assign` stores `value` into the place `target`;
+// `Expression` evaluates `value` for its effect; `Tail` is a body's final
+// unterminated expression, its result; `Crash` ends the body with `cause`.
+pub data StatementKind [copy] {
+    case Let;
+    case Assign;
+    case Expression;
+    case Tail;
+    case Crash;
+}
+
+pub data Statement [copy] {
+    kind: StatementKind;
+    name: IdentifierSpan;
+    is_mutable: bool;
+    type_reference: u64 in Trapping;
+    has_value: bool;
+    value: u64 in Trapping;
+    target: u64 in Trapping;
+    cause: CrashCause;
+    source_span: SourceSpan;
+}
+
 // A named state member of a machine body. Its parameters are a contiguous
 // range of `SyntaxTrees::parameters`.
 pub data StateItem [copy] {
@@ -122,13 +219,16 @@ pub data StateItem [copy] {
     parameter_count: u64 in Trapping;
     has_return_type: bool;
     return_type: u64 in Trapping;
+    first_statement: u64 in Trapping;
+    statement_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
 // A `machine` declaration. `Owner::name` records the owner path member;
 // a free-standing machine has no owner and an empty owner span. The
 // parameters and return type are the entry's signature; `first_state` and
-// `state_count` cover the authored `state` members.
+// `state_count` cover the authored `state` members; the entry's own
+// statements precede them in the body.
 pub data MachineItem [copy] {
     has_owner: bool;
     owner: IdentifierSpan;
@@ -137,6 +237,8 @@ pub data MachineItem [copy] {
     parameter_count: u64 in Trapping;
     has_return_type: bool;
     return_type: u64 in Trapping;
+    first_statement: u64 in Trapping;
+    statement_count: u64 in Trapping;
     first_state: u64 in Trapping;
     state_count: u64 in Trapping;
     is_public: bool;
@@ -211,6 +313,33 @@ pub data ParseDiagnosticCode [copy] {
     case MachineCapacityExceeded;
     case ParameterCapacityExceeded;
     case StateCapacityExceeded;
+    case ExpectedOperand;
+    case ExpectedExpressionPathMember;
+    case ExpectedFieldName;
+    case ExpectedGroupEnd;
+    case ExpectedIndexEnd;
+    case ExpectedCallArgument;
+    case ExpectedCallArgumentEnd;
+    case ExpectedCastType;
+    case ExpectedStructLiteralFieldOrEnd;
+    case ExpectedStructLiteralFieldColon;
+    case ExpectedStructLiteralValue;
+    case ExpectedStructLiteralFieldEnd;
+    case ExpressionCapacityExceeded;
+    case ExpressionNestingExceeded;
+    case ArgumentCapacityExceeded;
+    case ConstructFieldCapacityExceeded;
+    case ExpectedLocalDataName;
+    case ExpectedLocalDataColon;
+    case ExpectedLocalDataType;
+    case ExpectedLocalDataInitialValue;
+    case ExpectedLocalDataEnd;
+    case ExpectedAssignmentValue;
+    case ExpectedAssignmentSemicolon;
+    case ExpectedStatementEnd;
+    case ExpectedCrashCause;
+    case ExpectedCrashEnd;
+    case StatementCapacityExceeded;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -245,6 +374,14 @@ pub data SyntaxTrees {
     parameter_count: u64 [0..=1024];
     states: [StateItem; 1024] in Trapping;
     state_count: u64 [0..=1024];
+    expressions: [Expression; 2048] in Trapping;
+    expression_count: u64 [0..=2048];
+    arguments: [u64; 1024] in Trapping;
+    argument_count: u64 [0..=1024];
+    construct_fields: [ConstructField; 512] in Trapping;
+    construct_field_count: u64 [0..=512];
+    statements: [Statement; 1024] in Trapping;
+    statement_count: u64 [0..=1024];
     diagnostic: ParseDiagnostic;
     accepted: bool;
 }
@@ -263,6 +400,10 @@ pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId)
     syntax_trees.machine_count = 0;
     syntax_trees.parameter_count = 0;
     syntax_trees.state_count = 0;
+    syntax_trees.expression_count = 0;
+    syntax_trees.argument_count = 0;
+    syntax_trees.construct_field_count = 0;
+    syntax_trees.statement_count = 0;
     syntax_trees.accepted = true;
     syntax_trees.diagnostic.code = ParseDiagnosticCode::None;
     syntax_trees.diagnostic.source_span.source = source;
@@ -453,6 +594,74 @@ crashes Trap
     }
 
     state invalid() -> StateItem {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::expression(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Expression
+crashes Trap
+{
+    transition handle < syntax_trees.expression_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.expressions[handle]
+    }
+
+    state invalid() -> Expression {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::construct_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstructField
+crashes Trap
+{
+    transition handle < syntax_trees.construct_field_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.construct_fields[handle]
+    }
+
+    state invalid() -> ConstructField {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::statement(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Statement
+crashes Trap
+{
+    transition handle < syntax_trees.statement_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.statements[handle]
+    }
+
+    state invalid() -> Statement {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::argument(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition handle < syntax_trees.argument_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.arguments[handle]
+    }
+
+    state invalid() -> u64 in Trapping {
         crash Trap;
     }
 }

@@ -3,25 +3,32 @@
 This sibling package owns the Omega-written, target-neutral Psi half of the
 production compiler. `source/omega/` consumes it through the `psi` package
 identity; Omega does not own this source tree. The current live slice contains
-source/span and token
-representations, a UTF-8-framed lexer, and a fail-closed whole-file parser
-for ordinary `use path::member;` roots and basic `[pub] data` declarations with
-an optional single `[copy]` or `[linear]` multiplicity property and optional
-trailing comma, named field types with an optional `in Domain` qualifier, and
-payload-free `case Name;` members or structured
-`case Name(field: Type, ...);` payloads whose fields accept the same qualifier,
-and `[pub] machine [Owner::]name [(parameters)] [-> Type] { ... }`
-declarations whose bodies hold empty `state name [(parameters)] [-> Type] {}`
-members. Every type position (fields, payload fields, generic binders,
-parameters, return types) shares one grammar in
-[`parse/types.omg`](parse/types.omg): `[& [mut]] Name [in Domain]`.
-Direct fields and case-payload fields retain separate bounded custody while
-mixed declarations preserve exact authored field/case order and shared named
+source/span and token representations, a UTF-8-framed lexer, and a fail-closed
+whole-file parser for ordinary `use path::member;` roots and basic
+`[pub] data` declarations with an optional single `[copy]` or `[linear]`
+multiplicity property and optional trailing comma, named field types with an
+optional `in Domain` qualifier, and payload-free `case Name;` members or
+structured `case Name(field: Type, ...);` payloads whose fields accept the
+same qualifier, and
+`[pub] machine [Owner::]name [(parameters)] [-> Type] { ... }` declarations
+whose bodies hold entry statements and then
+`state name [(parameters)] [-> Type] { ... }` members. Statements are
+`let [mut] name: Type [= value];`, `crash Trap;`/`crash Abort;`,
+`place = value;`, `value;` and a final unterminated result expression.
+Expressions ([`parse/expression.omg`](parse/expression.omg)) cover literals,
+names and `::` paths, `.field`, `[index]`, calls, `as Type` casts,
+`Path { field: value }` constructions, prefix `!`, `-`, `~`, `&` and `&mut`,
+and the binary operators in the reference grammar's two precedence tiers, all
+on explicit stacks rather than recursion. Every type position (fields, payload
+fields, generic binders, parameters, return types) shares one grammar in
+[`parse/types.omg`](parse/types.omg): `[& [mut]] Name [in Domain]`. Direct
+fields and case-payload fields retain separate bounded custody while mixed
+declarations preserve exact authored field/case order and shared named
 type-reference identity. Empty payload lists and trailing payload commas are
 accepted. Unsupported roots, retired inline discriminants, richer
 property/type forms (arrays, multi-domain unions, ranged suffixes, nested
-references), and machine generics, clauses, bodyless declarations,
-statements and transitions reject
+references), machine generics, clauses and bodyless declarations, and the
+`transition`, `if`, `loop`, `while`, `match` and `return` statements reject
 instead of becoming a private bridge tree.
 
 Name resolution follows parsing over the same unit. It rejects any `use` root,
@@ -29,17 +36,18 @@ since the unit is the whole source set and supplying more sources is the
 compiler request's job. It then rejects builtin-shadowing and duplicate data
 names, and duplicate members: fields and cases share one namespace; each
 case's payload fields share another with the common fields. It binds every
-type reference, data declarations' first and machine signatures' second: an
-enclosing generic parameter by spelling (never a lifetime), then a builtin
-type, then a data declaration of the unit. It also binds every `in` qualifier
-to a compiler-known domain (`Wrapping`, `Saturating`, `Trapping`, `Finite`). A
-reference row binds as `Reference` and its referee row carries the name. Last,
-it rejects duplicate parameter names within a signature, duplicate state names
-within a machine, and a machine that repeats an earlier one's owner, name and
-parameter types (machines may otherwise overload). The binding tables are
-indexed by the syntax table's type-reference handles. Carrier compatibility
-(`Finite` on floats only, unbounded `UInt`/`Int` storage) belongs to typing,
-which does not exist yet.
+type reference, data declarations' first, machine signatures' second and body
+types (`let` types and cast targets) third: an enclosing generic parameter by
+spelling (never a lifetime), then a builtin type, then a data declaration of
+the unit. It also binds every `in` qualifier to a compiler-known domain
+(`Wrapping`, `Saturating`, `Trapping`, `Finite`). A reference row binds as
+`Reference` and its referee row carries the name. Last, it rejects duplicate
+parameter names within a signature, duplicate state names within a machine,
+and a machine that repeats an earlier one's owner, name and parameter types
+(machines may otherwise overload). The binding tables are indexed by the
+syntax table's type-reference handles. Carrier compatibility (`Finite` on
+floats only, unbounded `UInt`/`Int` storage) belongs to typing, which does not
+exist yet.
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
@@ -79,7 +87,7 @@ observes the diagnostic and every type and domain binding. Lexical or parse
 rejection exits without an observation.
 
 On macOS ARM64 both gates build their harnesses natively from a fresh CLI:
-all 130 parser cases and all 57 resolver cases pass. Each gate counts each
+all 166 parser cases and all 61 resolver cases pass. Each gate counts each
 distinct source it runs as one case. No cached executable may stand in for
 that run. Linux and Windows hosts have run neither gate.
 
@@ -113,7 +121,7 @@ owns bounded token selection and trivia traversal;
 | `tokens/` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
 | `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving comment/literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
-| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type grammar (`types.omg`), and data and machine declarations (`data.omg`, `machine.omg`). | Absorb the parser only into its canonical successor. |
+| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type grammar (`types.omg`), data and machine declarations (`data.omg`, `machine.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
 | `resolution/` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
 | `resolve/` | Owns name resolution from syntax and source bytes to the bindings. | Absorb only into the canonical multi-source resolver. |
 
