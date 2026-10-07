@@ -104,7 +104,7 @@ def main():
         ("unassigned product tag", fixture[:73] + b"\x05" + fixture[74:],
          observation(1, frame(1, 1, 1, 73, 0, 0))),
         ("hostile package-name length", fixture[:20] + b"\xff\xff\xff\x7f" + fixture[24:],
-         observation(1, frame(1, 1, 1, 20, 0, 0))),
+         observation(1, frame(1, 1, 1, 73, 0, 0))),
         ("well-formed zero commitment",
          fixture[:-32] + b"\x00" * 32,
          observation(2, frame(2, 0, 25, 0, 0, 0))),

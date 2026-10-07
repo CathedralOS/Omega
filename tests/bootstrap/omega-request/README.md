@@ -34,8 +34,9 @@ It verifies, with exact bytes, that the sealed boundary holds end to end:
   `malformed_request` at request offset 0, a truncated invocation anchors at
   the invocation length field (offset 12), a trailing byte anchors at the
   declared end (offset 132), an unassigned product tag anchors at its field
-  (offset 73), a hostile package-name length anchors at its count field
-  (offset 20), a well-formed request with a zeroed commitment still reaches
+  (offset 73), a package-name length larger than the subject anchors at the
+  subject section's end (offset 73), where its first missing byte would be, a
+  well-formed request with a zeroed commitment still reaches
   the coverage provision, and a request beyond the entry's 65,536-byte
   staging bound publishes `request_staging_bytes` with the full observed
   length as the requested amount.
