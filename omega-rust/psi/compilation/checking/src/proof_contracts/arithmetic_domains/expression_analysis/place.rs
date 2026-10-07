@@ -100,6 +100,14 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
             )
         })
         .map_or(interval, |standing| interval.intersect(standing));
+    let interval = super::super::ordered_values::refine_place_interval(
+        program,
+        walk.machine,
+        walk.state,
+        walk.environment,
+        expression,
+        interval,
+    );
     // Atomic integer types (AtomicU32, ...) have hardware wrap-around semantics,
     // so their arithmetic is Wrapping, not Exact -- a `fetch_add` never raises
     // an overflow proof obligation.

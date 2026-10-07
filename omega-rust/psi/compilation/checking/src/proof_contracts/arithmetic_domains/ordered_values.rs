@@ -250,6 +250,28 @@ impl Operand {
 }
 
 impl Relation {
+    /// A constant comparison on the exact observed operand. Display paths are
+    /// invalidation metadata, never enough to match a relation to a read.
+    fn literal_comparisons<'relation>(
+        &'relation self,
+        subject: &'relation Operand,
+    ) -> impl Iterator<Item = (i64, RelationConstraint, bool)> + 'relation {
+        [
+            (&self.left, &self.right, true),
+            (&self.right, &self.left, false),
+        ]
+        .into_iter()
+        .filter_map(move |(candidate, opposite, subject_on_left)| {
+            if candidate != subject {
+                return None;
+            }
+            let Operand::Integer(literal, _) = opposite else {
+                return None;
+            };
+            Some((literal.value_i64()?, self.constraint, subject_on_left))
+        })
+    }
+
     pub(super) fn minimum_difference(&self) -> Option<i64> {
         match self.constraint {
             RelationConstraint::MinimumDifference(floor) => Some(floor),
@@ -750,20 +772,8 @@ pub(super) fn excludes_integer_value(
         return false;
     };
     environment.ordered_values.iter().any(|relation| {
-        for (candidate, opposite, subject_is_left) in [
-            (&relation.left, &relation.right, true),
-            (&relation.right, &relation.left, false),
-        ] {
-            if *candidate != subject {
-                continue;
-            }
-            let Operand::Integer(literal, _) = opposite else {
-                continue;
-            };
-            let Some(constant) = literal.value_i64() else {
-                continue;
-            };
-            let excludes = match relation.constraint {
+        for (constant, constraint, subject_is_left) in relation.literal_comparisons(&subject) {
+            let excludes = match constraint {
                 RelationConstraint::Unequal => constant == value,
                 RelationConstraint::MinimumDifference(floor) if subject_is_left => {
                     i128::from(constant) + i128::from(floor) > i128::from(value)
@@ -778,6 +788,57 @@ pub(super) fn excludes_integer_value(
         }
         false
     })
+}
+
+/// Project retained ordering facts onto a current place read. Boolean values
+/// and state edges carry resolved relations, not the original guard's interval
+/// cache. Arithmetic must consume those surviving observations too, otherwise
+/// a count proof can succeed while the same operand's product still appears
+/// unbounded. Only representable interval endpoints are projected; inequality
+/// exclusions retain their nonconvex meaning with their existing query owner.
+pub(super) fn refine_place_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &ValueEnvironment,
+    expression: ExpressionHandle,
+    mut interval: Interval,
+) -> Interval {
+    if environment.ordered_values.is_empty() {
+        return interval;
+    }
+    let Some(subject) = state.and_then(|state| operand(program, machine, state, expression)) else {
+        return interval;
+    };
+    for relation in &environment.ordered_values {
+        for (constant, constraint, subject_on_left) in relation.literal_comparisons(&subject) {
+            let RelationConstraint::MinimumDifference(distance) = constraint else {
+                continue;
+            };
+            // Widen before computing an endpoint. Overflow of the interval's
+            // i64 window loses precision; it never fabricates a clamped bound.
+            let endpoint = if subject_on_left {
+                i128::from(constant) + i128::from(distance)
+            } else {
+                i128::from(constant) - i128::from(distance)
+            };
+            let Ok(endpoint) = i64::try_from(endpoint) else {
+                continue;
+            };
+            interval = interval.intersect(if subject_on_left {
+                Interval {
+                    low: Some(endpoint),
+                    high: None,
+                }
+            } else {
+                Interval {
+                    low: None,
+                    high: Some(endpoint),
+                }
+            });
+        }
+    }
+    interval
 }
 
 /// A live bound `ceiling - value >= distance` proves that an unsigned

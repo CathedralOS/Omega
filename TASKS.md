@@ -3215,6 +3215,10 @@ deletions, which the commit lists.
   and state transfers; `arithmetic/boolean_shift_guard_{subject_written,overwritten}`
   must not reuse withdrawn count facts. Exact left shifts still independently
   owe result representability; Saturating never admits an invalid count.
+  `arithmetic/runtime_boolean_guarded_{bit_value,product}_exit` (0) constrain
+  consuming retained live bounds for arithmetic results, including the high
+  unsigned bit and both signed endpoints; `arithmetic/boolean_bit_guard_different_subject`
+  must not transport a bound onto another argument with the same parameter name.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.
