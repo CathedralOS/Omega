@@ -31,6 +31,12 @@ fn layout() -> FinalImageLayout {
     }
 }
 
+/// A record with no resolvable symbol and no addend, for the cases whose
+/// subject is field or origin shape rather than the symbol row itself.
+fn invalid_relocation(offset: usize, byte_width: usize, kind: RelocationKind) -> RelocationRecord {
+    text_relocation(offset, byte_width, ObjectSymbolHandle::invalid(), 0, kind)
+}
+
 fn text_relocation(
     offset: usize,
     byte_width: usize,
@@ -76,13 +82,7 @@ fn declared_fields_may_change_and_the_evidence_replays_deterministically() {
     let mut final_text = encoded.to_vec();
     final_text[1..5].copy_from_slice(&3i32.to_le_bytes());
     let mut relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
-    relocations.push_record(text_relocation(
-        1,
-        4,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::X86_64Relative32,
-    ));
+    relocations.push_record(invalid_relocation(1, 4, RelocationKind::X86_64Relative32));
 
     let evidence = validate_final_text_relocation_envelope(&encoded, &final_text, &relocations)
         .expect("a relocation writing inside its declared field replays");
@@ -360,13 +360,7 @@ fn each_relocation_kind_masks_exactly_its_declared_field_bits() {
     ] {
         let encoded = vec![0u8; width + 8];
         let mut relocations = RelocationPlan::with_target(NativeTarget::host());
-        relocations.push_record(text_relocation(
-            4,
-            width,
-            ObjectSymbolHandle::invalid(),
-            0,
-            kind,
-        ));
+        relocations.push_record(invalid_relocation(4, width, kind));
 
         // Every mutable bit may change at once and the field still replays.
         let mut inside = encoded.clone();
@@ -405,13 +399,7 @@ fn malformed_relocation_fields_fail_closed() {
 
     // Final text shorter than the encoded input loses compiler code.
     let mut relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
-    relocations.push_record(text_relocation(
-        1,
-        4,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::X86_64Relative32,
-    ));
+    relocations.push_record(invalid_relocation(1, 4, RelocationKind::X86_64Relative32));
     assert!(
         validate_final_text_relocation_envelope(&encoded, &encoded[..8], &relocations).is_err(),
         "truncated final text is rejected",
@@ -419,13 +407,7 @@ fn malformed_relocation_fields_fail_closed() {
 
     // A record's declared width must match the field its kind owns.
     let mut wrong_width = RelocationPlan::with_target(NativeTarget::linux_x64());
-    wrong_width.push_record(text_relocation(
-        1,
-        8,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::X86_64Relative32,
-    ));
+    wrong_width.push_record(invalid_relocation(1, 8, RelocationKind::X86_64Relative32));
     assert!(
         validate_final_text_relocation_envelope(&encoded, &encoded, &wrong_width).is_err(),
         "a widened field is rejected",
@@ -433,20 +415,8 @@ fn malformed_relocation_fields_fail_closed() {
 
     // Two declared fields may not overlap.
     let mut overlapping = RelocationPlan::with_target(NativeTarget::linux_x64());
-    overlapping.push_record(text_relocation(
-        1,
-        4,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::X86_64Relative32,
-    ));
-    overlapping.push_record(text_relocation(
-        4,
-        8,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::Absolute64,
-    ));
+    overlapping.push_record(invalid_relocation(1, 4, RelocationKind::X86_64Relative32));
+    overlapping.push_record(invalid_relocation(4, 8, RelocationKind::Absolute64));
     assert!(
         validate_final_text_relocation_envelope(&encoded, &encoded, &overlapping).is_err(),
         "overlapping declared fields are rejected",
@@ -454,13 +424,7 @@ fn malformed_relocation_fields_fail_closed() {
 
     // A field may not extend beyond the encoded text it claims to patch.
     let mut out_of_bounds = RelocationPlan::with_target(NativeTarget::linux_x64());
-    out_of_bounds.push_record(text_relocation(
-        12,
-        8,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::Absolute64,
-    ));
+    out_of_bounds.push_record(invalid_relocation(12, 8, RelocationKind::Absolute64));
     assert!(
         validate_final_text_relocation_envelope(&encoded, &encoded, &out_of_bounds).is_err(),
         "a field past the encoded text is rejected",
@@ -469,13 +433,7 @@ fn malformed_relocation_fields_fail_closed() {
     // Non-text records are not text fields: even a malformed data record is
     // this envelope's sibling's concern, not a constraint on `.text`.
     let mut data_only = RelocationPlan::with_target(NativeTarget::linux_x64());
-    let mut data_record = text_relocation(
-        usize::MAX - 3,
-        4,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::X86_64Relative32,
-    );
+    let mut data_record = invalid_relocation(usize::MAX - 3, 4, RelocationKind::X86_64Relative32);
     data_record.section = SectionKind::Data;
     data_only.push_record(data_record);
     validate_final_text_relocation_envelope(&encoded, &encoded, &data_only)
@@ -508,33 +466,15 @@ fn envelope_digest_binds_the_exact_plan_not_its_presentation_order() {
     let unchanged = encoded.clone();
 
     let mut base = RelocationPlan::with_target(NativeTarget::linux_x64());
-    base.push_record(text_relocation(
-        0,
-        4,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::X86_64Relative32,
-    ));
+    base.push_record(invalid_relocation(0, 4, RelocationKind::X86_64Relative32));
     let base_evidence = validate_final_text_relocation_envelope(&encoded, &unchanged, &base)
         .expect("base plan replays");
 
     // Kind, offset and addend are each committed: changing any one produces
     // a different envelope, so substituted plans cannot share custody.
     for drifted_record in [
-        text_relocation(
-            0,
-            8,
-            ObjectSymbolHandle::invalid(),
-            0,
-            RelocationKind::Absolute64,
-        ),
-        text_relocation(
-            4,
-            4,
-            ObjectSymbolHandle::invalid(),
-            0,
-            RelocationKind::X86_64Relative32,
-        ),
+        invalid_relocation(0, 8, RelocationKind::Absolute64),
+        invalid_relocation(4, 4, RelocationKind::X86_64Relative32),
         text_relocation(
             0,
             4,
@@ -561,39 +501,15 @@ fn envelope_digest_binds_the_exact_plan_not_its_presentation_order() {
     // Record insertion order is presentation, not custody: the canonical
     // ordering makes the two plans interchangeable.
     let mut reordered = RelocationPlan::with_target(NativeTarget::linux_x64());
-    reordered.push_record(text_relocation(
-        8,
-        8,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::Absolute64,
-    ));
-    reordered.push_record(text_relocation(
-        0,
-        4,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::X86_64Relative32,
-    ));
+    reordered.push_record(invalid_relocation(8, 8, RelocationKind::Absolute64));
+    reordered.push_record(invalid_relocation(0, 4, RelocationKind::X86_64Relative32));
     let reordered_evidence =
         validate_final_text_relocation_envelope(&encoded, &unchanged, &reordered)
             .expect("the reordered plan replays");
 
     let mut ordered = RelocationPlan::with_target(NativeTarget::linux_x64());
-    ordered.push_record(text_relocation(
-        0,
-        4,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::X86_64Relative32,
-    ));
-    ordered.push_record(text_relocation(
-        8,
-        8,
-        ObjectSymbolHandle::invalid(),
-        0,
-        RelocationKind::Absolute64,
-    ));
+    ordered.push_record(invalid_relocation(0, 4, RelocationKind::X86_64Relative32));
+    ordered.push_record(invalid_relocation(8, 8, RelocationKind::Absolute64));
     let ordered_evidence = validate_final_text_relocation_envelope(&encoded, &unchanged, &ordered)
         .expect("the ordered plan replays");
     assert_eq!(
