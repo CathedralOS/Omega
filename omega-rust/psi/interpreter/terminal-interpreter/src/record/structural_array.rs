@@ -2,6 +2,7 @@
 //! records and cases; each element is a selected owned structural value.
 use super::storage::{ConstructorStorage, ConstructorValue};
 use super::*;
+use terminal_psi::OperationKind;
 
 impl TerminalExecution {
     pub(crate) fn execute_establish_structural_array(

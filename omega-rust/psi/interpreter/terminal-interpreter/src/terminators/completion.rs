@@ -30,12 +30,15 @@ impl TerminalExecution {
         }
         match continuation {
             CleanupContinuation::Return(result) => {
-                if !self.structural_values.is_empty()
-                    || !self.live_affine_frontier.is_empty()
-                    || !self.live_claims.is_empty()
-                {
+                if !self.live_affine_frontier.is_empty() || !self.live_claims.is_empty() {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
+                // Initialized homes are not ownership obligations. A partial
+                // move or release can settle every resource while scalar
+                // siblings remain observable until this frame completes.
+                // The checked cleanup schedule has now finished; retire its
+                // bindings without pruning backing retained by outgoing values.
+                self.structural_values.clear();
                 self.finish_return(result)
             }
             CleanupContinuation::Successor { target, bindings } => {

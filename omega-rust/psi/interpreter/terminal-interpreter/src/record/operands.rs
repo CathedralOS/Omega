@@ -179,11 +179,11 @@ impl TerminalExecution {
             if let Some(home) = home {
                 self.prune_subtree(&home);
             }
-            if !frontier.iter().any(|entry| entry.place == argument.place)
-                && !claims
-                    .values()
-                    .any(|claim| claim.place == Some(argument.place))
-            {
+            // Only a whole transfer consumes the source binding. Empty
+            // resource custody after a partial transfer does not erase the
+            // initialized storage of disjoint scalar siblings. Frame completion
+            // retires that binding after its checked cleanup schedule finishes.
+            if argument.path.is_empty() {
                 self.structural_values.remove(&argument.place);
                 self.scalar_case_values.remove(&argument.place);
             }

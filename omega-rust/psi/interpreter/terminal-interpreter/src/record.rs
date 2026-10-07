@@ -7,6 +7,10 @@
 //! `record/storage.rs` stages the complete typed payload for constructors and
 //! independent owned call/block arguments; copying only scalar fields would
 //! drop nested array backing, case discriminators and primitive cells.
+//! Initialized homes and resource custody have distinct lifetimes. A partial
+//! transfer retires its selected subtree, not the scalar siblings of its home.
+//! Completion retires remaining frame bindings after checked cleanup has settled
+//! every affine obligation and linear claim; outgoing backing remains separate.
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -15,7 +19,6 @@ use crate::values::StructuralScalarRuntimeField;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
-use terminal_psi::OperationKind;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralFieldType;
 use terminal_psi::StructuralMultiplicity;
@@ -272,52 +275,6 @@ impl TerminalExecution {
             value.path.clear();
         }
         Ok(payload)
-    }
-
-    /// A debt-free unrestricted result needs no affine cleanup, regardless of
-    /// which verified operation produced it. Retire only its frame binding;
-    /// shared descriptor backing remains owned by its original home.
-    pub(crate) fn retire_unrestricted_aggregates(&mut self) {
-        let Some(machine) = self.program.machines.get(&self.current_machine) else {
-            return;
-        };
-        let places = machine
-            .blocks
-            .values()
-            .flat_map(|block| &block.operations)
-            .filter_map(|operation| {
-                let result = operation.result.structural()?;
-                // A zeroed structural covers record members that are
-                // themselves fixed arrays: its own leaf predicate is the
-                // plain-type test.
-                let plain = match operation.kind {
-                    OperationKind::EstablishZeroedStructural { .. } => {
-                        terminal_semantics::zeroed_structural_shape(
-                            self.program.structural_types.values(),
-                            result.structural_type,
-                        )
-                    }
-                    _ => {
-                        self.plain_aggregate_type(result.structural_type)
-                            || terminal_semantics::descriptor_results::owned_shared_byte_descriptor_shape(
-                                self.program.structural_types.values(),
-                                result.structural_type,
-                            )
-                    }
-                };
-                (result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
-                    && !self.live_affine_frontier.iter().any(|entry| entry.place == result.place)
-                    && !self.live_claims.values().any(|claim| claim.place == Some(result.place))
-                    && plain)
-                    .then_some(result.place)
-            })
-            .collect::<Vec<_>>();
-        for place in places {
-            self.structural_values.remove(&place);
-        }
     }
 
     /// Aggregate snapshots use the canonical owned-storage contract. Packed
