@@ -611,19 +611,16 @@ fn establishment_scalar(
                 else {
                     return None;
                 };
-                let child = structural_child(function, operation, place, identity)?;
-                let declaration = function
-                    .structural_places
-                    .iter()
-                    .find(|declaration| declaration.id == child)?;
-                if declared_structural_type(function, declaration) != Some(next) {
-                    return None;
-                }
-                if !visiting.insert(child) {
-                    return None;
-                }
+                let (child, child_producer) = declared_field_child(
+                    function,
+                    operation,
+                    place,
+                    identity,
+                    next,
+                    &mut visiting,
+                )?;
                 place = child;
-                producer = root_producer(function, declaration);
+                producer = child_producer;
                 declared = Some(next);
                 segments.drain(..2);
             }
@@ -642,19 +639,16 @@ fn establishment_scalar(
                 else {
                     return None;
                 };
-                let child = structural_child(function, operation, place, identity)?;
-                let declaration = function
-                    .structural_places
-                    .iter()
-                    .find(|declaration| declaration.id == child)?;
-                if declared_structural_type(function, declaration) != Some(next) {
-                    return None;
-                }
-                if !visiting.insert(child) {
-                    return None;
-                }
+                let (child, child_producer) = declared_field_child(
+                    function,
+                    operation,
+                    place,
+                    identity,
+                    next,
+                    &mut visiting,
+                )?;
                 place = child;
-                producer = root_producer(function, declaration);
+                producer = child_producer;
                 declared = Some(next);
                 segments.drain(..1);
             }
@@ -1442,4 +1436,27 @@ pub(super) fn validate(
         ),
         provenance: expected_provenance,
     })
+}
+
+/// A record/case field descent's shared child resolution: the producer's
+/// structural child at `field`, its rostered declaration, the declared-type
+/// equality check, and the cycle guard. Returns the child place and its own
+/// producer for the next descent step.
+fn declared_field_child(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+    field: StructuralFieldId,
+    next: StructuralTypeId,
+    visiting: &mut BTreeSet<PlaceId>,
+) -> Option<(PlaceId, RootProducer)> {
+    let child = structural_child(function, producer, place, field)?;
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == child)?;
+    if declared_structural_type(function, declaration) != Some(next) || !visiting.insert(child) {
+        return None;
+    }
+    Some((child, root_producer(function, declaration)))
 }
