@@ -364,21 +364,14 @@ fn resolve_top_level_requirement_adapter_row(
         );
     }
     let adapter_entry = exact_adapter_entry(typed, adapter, machine_identity)?;
-    let conformances = typed
-        .machine_trait_conformances(adapter)
-        .iter()
-        .filter(|conformance| {
-            conformance.external_binding.is_none()
-                && conformance.symbol == requirement.symbol
-                && conformance.requirement_symbol == requirement.symbol
-        })
-        .count();
-    if conformances != 1 {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` binds top-level boundary requirement `{}` through {conformances} checked conformances",
-            method.requirement_identity,
-        )));
-    }
+    sole_boundary_conformance(
+        typed,
+        adapter,
+        requirement,
+        machine_identity,
+        method,
+        "requirement",
+    )?;
     let actual_parameters = typed.state_parameters(adapter_entry);
     if actual_parameters.len() != method.parameter_count {
         return Err(Diagnostic::error(format!(
@@ -433,21 +426,14 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
     // Its template owns the authored satisfaction edge; specialization
     // instantiates that conformance on each closed instance. The roster
     // carries the instance join, while this check authenticates its origin.
-    let conformances = typed
-        .machine_trait_conformances(adapter)
-        .iter()
-        .filter(|conformance| {
-            conformance.external_binding.is_none()
-                && conformance.symbol == requirement.symbol
-                && conformance.requirement_symbol == requirement.symbol
-        })
-        .count();
-    if conformances != 1 {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` binds top-level boundary requirement template `{}` through {conformances} checked conformances",
-            method.requirement_identity,
-        )));
-    }
+    sole_boundary_conformance(
+        typed,
+        adapter,
+        requirement,
+        machine_identity,
+        method,
+        "requirement template",
+    )?;
     let mut resolved = Vec::new();
     for specialization in specialization_rows.iter().filter(|specialization| {
         specialization.provider_plan_report_identity == plan.report_fingerprint()
@@ -847,4 +833,32 @@ fn exact_adapter_entry<'typed>(
         )));
     }
     Ok(entry)
+}
+
+/// The selected checked adapter must bind the top-level boundary
+/// requirement through exactly one internal conformance.
+fn sole_boundary_conformance(
+    typed: &TypedTrees,
+    adapter: &typed_trees::machine::Machine,
+    requirement: &typed_trees::machine::Machine,
+    machine_identity: &str,
+    method: &effects::provider_plan::ServiceMethod,
+    spelled: &str,
+) -> Result<(), Diagnostic> {
+    let conformances = typed
+        .machine_trait_conformances(adapter)
+        .iter()
+        .filter(|conformance| {
+            conformance.external_binding.is_none()
+                && conformance.symbol == requirement.symbol
+                && conformance.requirement_symbol == requirement.symbol
+        })
+        .count();
+    if conformances != 1 {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` binds top-level boundary {spelled} `{}` through {conformances} checked conformances",
+            method.requirement_identity,
+        )));
+    }
+    Ok(())
 }
