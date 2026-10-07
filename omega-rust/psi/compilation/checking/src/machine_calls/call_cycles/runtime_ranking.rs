@@ -1047,10 +1047,10 @@ fn carrier_arrival_bound(
 
 /// Every authored internal arrival: `(source index, destination index,
 /// actuals)` for each named transition target inside the machine.
-/// This mirrors the telescope's occurrence set
-/// exactly: a role consumed through an arrival this walk did not see would
-/// name a value the member's own judgment never established.
-fn internal_arrivals<'program>(
+/// This is the shared occurrence set the telescope's discovery reads too: a
+/// role consumed through an arrival this walk did not see would name a value
+/// the member's own judgment never established.
+pub(crate) fn internal_arrivals<'program>(
     program: &'program TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<(usize, usize, &'program [ExpressionHandle])> {

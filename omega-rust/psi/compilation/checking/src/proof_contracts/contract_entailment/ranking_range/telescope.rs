@@ -13,7 +13,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// One entry parameter symbol per non-self formal of every machine state
@@ -655,55 +655,9 @@ fn state_call_occurrences<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,
 ) -> Vec<(usize, usize, &'program [ExpressionHandle])> {
-    let states = program.machine_states(machine);
-    let mut occurrences = Vec::new();
-    for (source_position, source) in states.iter().enumerate() {
-        for statement in program.statement_table.statements(source.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
-                continue;
-            };
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
-                match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Named {
-                        path, arguments, ..
-                    } => {
-                        if let Some(target_position) =
-                            named_target_state_index(program, machine, path.symbol)
-                        {
-                            occurrences.push((
-                                source_position,
-                                target_position,
-                                program.statement_table.expression_handles(*arguments),
-                            ));
-                        }
-                    }
-                    TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {}
-                }
-            }
-        }
-    }
-    occurrences
+    crate::machine_calls::call_cycles::runtime_ranking::internal_arrivals(program, machine)
 }
 
-/// Resolve one named transition target to its state index inside `machine`.
-/// A transition back to the machine's declared entry names the machine symbol,
-/// while transitions to subordinate states name the state symbol. This
-/// normalization must match the state-graph owner so an entry back-edge is
-/// not mistaken for a nested machine invocation.
-fn named_target_state_index(
-    program: &TypedTrees,
-    machine: &Machine,
-    target_symbol: SymbolHandle,
-) -> Option<usize> {
-    crate::machine_calls::call_cycles::runtime_ranking::internal_state_index(
-        program,
-        machine,
-        target_symbol,
-    )
-}
 
 /// Compose destination formal ordinal -> exact source parameter -> entry
 /// subject. States may drop or repeat unrelated parameters. The arithmetic
