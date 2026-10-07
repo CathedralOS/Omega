@@ -294,99 +294,6 @@ pub struct CallCompositionSemanticRow {
 }
 
 impl CallCompositionSemanticRow {
-    pub const ALL: [Self; 6] = [
-        Self {
-            tag: OperationSemanticTag::Call,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::ExactModuleMachine,
-                result: CallResultRule::ScalarCalleeResult,
-                arguments: CallArgumentRule::ScalarPositionalArguments,
-                requirements: CallRequirementRule::EnumerateScalarRequires,
-                transfers: CallTransferRule::NoStructuralTransfer,
-                outcomes: CallOutcomeRule::ImportScalarEnsures,
-                crash: CallCrashRule::ComposeScalarCrashRoutes,
-                evidence: CallEvidenceRule::SameUnitOrCertifiedScalarEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::KeepsScalarFrontier,
-            },
-        },
-        Self {
-            tag: OperationSemanticTag::CallUnit,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::ExactModuleMachine,
-                result: CallResultRule::UnitCalleeResult,
-                arguments: CallArgumentRule::ScalarAndStructuralPositionalArguments,
-                requirements: CallRequirementRule::EnumerateStructuralRequires,
-                transfers: CallTransferRule::ExactClaimTransfers,
-                outcomes: CallOutcomeRule::ImportStructuralEnsures,
-                crash: CallCrashRule::ComposeStructuralCrashRoutes,
-                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::TransfersStructuralFrontier,
-            },
-        },
-        Self {
-            tag: OperationSemanticTag::CallStructuralScalar,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::ExactModuleMachine,
-                result: CallResultRule::ScalarCalleeResult,
-                arguments: CallArgumentRule::StructuralPositionalArguments,
-                requirements: CallRequirementRule::EnumerateStructuralRequires,
-                transfers: CallTransferRule::ExactClaimTransfers,
-                outcomes: CallOutcomeRule::ImportStructuralEnsures,
-                crash: CallCrashRule::ComposeStructuralCrashRoutes,
-                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::TransfersStructuralFrontier,
-            },
-        },
-        Self {
-            tag: OperationSemanticTag::CallStructural,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::ExactModuleMachine,
-                result: CallResultRule::StructuralCalleeResult,
-                arguments: CallArgumentRule::StructuralPositionalArguments,
-                requirements: CallRequirementRule::EnumerateStructuralRequires,
-                transfers: CallTransferRule::ExactClaimAndStructuralResultTransfers,
-                outcomes: CallOutcomeRule::ImportStructuralEnsures,
-                crash: CallCrashRule::ComposeStructuralCrashRoutes,
-                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::TransfersStructuralFrontier,
-            },
-        },
-        Self {
-            tag: OperationSemanticTag::CallStructuralWithScalarArguments,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::ExactModuleMachine,
-                result: CallResultRule::StructuralCalleeResult,
-                arguments: CallArgumentRule::ScalarAndStructuralPositionalArguments,
-                requirements: CallRequirementRule::EnumerateStructuralRequires,
-                transfers: CallTransferRule::ExactClaimAndStructuralResultTransfers,
-                outcomes: CallOutcomeRule::ImportStructuralEnsures,
-                crash: CallCrashRule::ComposeStructuralCrashRoutes,
-                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::TransfersStructuralFrontier,
-            },
-        },
-        Self {
-            tag: OperationSemanticTag::BoundaryCall,
-            schema: CallCompositionSchema {
-                target: CallTargetRule::ExactBoundaryMachine,
-                result: CallResultRule::BoundaryDeclaredResult,
-                arguments: CallArgumentRule::BoundaryScalarAndStructuralPositionalArguments,
-                requirements: CallRequirementRule::ValidateBoundaryRequirements,
-                transfers: CallTransferRule::ExactCompletionReceipts,
-                outcomes: CallOutcomeRule::BoundaryDeclaredCompletion,
-                crash: CallCrashRule::BoundaryHasNoCallRoutes,
-                evidence: CallEvidenceRule::ExactBoundaryDeclarationEvidence,
-                fuel: CallFuelPolicy::ConsumeOne,
-                frontier: CallFrontierRule::SettlesBoundaryFrontier,
-            },
-        },
-    ];
-
     pub const fn tag(self) -> OperationSemanticTag {
         self.tag
     }
@@ -396,16 +303,51 @@ impl CallCompositionSemanticRow {
     }
 }
 
-const fn is_call_composition_tag(tag: OperationSemanticTag) -> bool {
-    matches!(
-        tag,
-        OperationSemanticTag::Call
-            | OperationSemanticTag::CallUnit
-            | OperationSemanticTag::CallStructuralScalar
-            | OperationSemanticTag::CallStructural
-            | OperationSemanticTag::CallStructuralWithScalarArguments
-            | OperationSemanticTag::BoundaryCall
-    )
+/// `{ tag => (target, result, arguments, requirements, transfers,
+/// outcomes, crash, evidence, frontier) }` — the call-composition cohort
+/// rows and their operation-tag membership in one declarative table.
+/// `fuel` is uniform `ConsumeOne` and set by the row constructor.
+macro_rules! call_composition_rows {
+    ($( $tag:ident => ($target:ident, $result:ident, $arguments:ident,
+        $requirements:ident, $transfers:ident, $outcomes:ident,
+        $crash:ident, $evidence:ident, $frontier:ident) ),+ $(,)?) => {
+        impl CallCompositionSemanticRow {
+            pub const ALL: [Self; call_composition_rows!(@count $( $tag )+)] = [
+                $( Self {
+                    tag: OperationSemanticTag::$tag,
+                    schema: CallCompositionSchema {
+                        target: CallTargetRule::$target,
+                        result: CallResultRule::$result,
+                        arguments: CallArgumentRule::$arguments,
+                        requirements: CallRequirementRule::$requirements,
+                        transfers: CallTransferRule::$transfers,
+                        outcomes: CallOutcomeRule::$outcomes,
+                        crash: CallCrashRule::$crash,
+                        evidence: CallEvidenceRule::$evidence,
+                        fuel: CallFuelPolicy::ConsumeOne,
+                        frontier: CallFrontierRule::$frontier,
+                    },
+                } ),+
+            ];
+        }
+
+        const fn is_call_composition_tag(tag: OperationSemanticTag) -> bool {
+            matches!(tag, $( OperationSemanticTag::$tag )|+)
+        }
+    };
+    (@count $( $variant:ident )+) => {
+        <[()]>::len(&[$(call_composition_rows!(@unit $variant)),+])
+    };
+    (@unit $variant:ident) => { () };
+}
+
+call_composition_rows! {
+    Call => (ExactModuleMachine, ScalarCalleeResult, ScalarPositionalArguments, EnumerateScalarRequires, NoStructuralTransfer, ImportScalarEnsures, ComposeScalarCrashRoutes, SameUnitOrCertifiedScalarEvidence, KeepsScalarFrontier),
+    CallUnit => (ExactModuleMachine, UnitCalleeResult, ScalarAndStructuralPositionalArguments, EnumerateStructuralRequires, ExactClaimTransfers, ImportStructuralEnsures, ComposeStructuralCrashRoutes, SameUnitOrCertifiedStructuralEvidence, TransfersStructuralFrontier),
+    CallStructuralScalar => (ExactModuleMachine, ScalarCalleeResult, StructuralPositionalArguments, EnumerateStructuralRequires, ExactClaimTransfers, ImportStructuralEnsures, ComposeStructuralCrashRoutes, SameUnitOrCertifiedStructuralEvidence, TransfersStructuralFrontier),
+    CallStructural => (ExactModuleMachine, StructuralCalleeResult, StructuralPositionalArguments, EnumerateStructuralRequires, ExactClaimAndStructuralResultTransfers, ImportStructuralEnsures, ComposeStructuralCrashRoutes, SameUnitOrCertifiedStructuralEvidence, TransfersStructuralFrontier),
+    CallStructuralWithScalarArguments => (ExactModuleMachine, StructuralCalleeResult, ScalarAndStructuralPositionalArguments, EnumerateStructuralRequires, ExactClaimAndStructuralResultTransfers, ImportStructuralEnsures, ComposeStructuralCrashRoutes, SameUnitOrCertifiedStructuralEvidence, TransfersStructuralFrontier),
+    BoundaryCall => (ExactBoundaryMachine, BoundaryDeclaredResult, BoundaryScalarAndStructuralPositionalArguments, ValidateBoundaryRequirements, ExactCompletionReceipts, BoundaryDeclaredCompletion, BoundaryHasNoCallRoutes, ExactBoundaryDeclarationEvidence, SettlesBoundaryFrontier),
 }
 
 pub fn exact_call_composition_semantic_row_in(
