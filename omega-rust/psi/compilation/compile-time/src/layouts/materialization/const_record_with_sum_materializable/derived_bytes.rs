@@ -1,8 +1,6 @@
 //! Deriving the bytes of records with sums and sum arrays.
 
-use crate::layouts::materialization::const_materializable::{
-    unique_data_by_name,
-};
+use crate::layouts::materialization::const_materializable::unique_data_by_name;
 use crate::layouts::materialization::const_record_with_nested_sum_materializable::SumReachability;
 use crate::layouts::materialization::const_record_with_sum_materializable::outer_layouts::{
     exact_named_data, field_occurrence_matches, flatten_literal_array_elements,
@@ -14,14 +12,12 @@ use crate::layouts::materialization::const_record_with_sum_materializable::{
     ValidatedConstRecordSumFieldMaterialization,
 };
 use crate::layouts::materialization::{
-    BuildTimeValue, RepeatedFieldInfo,
-    normalized_schema_report_fingerprint,
+    BuildTimeValue, RepeatedFieldInfo, normalized_schema_report_fingerprint,
     validate_const_materializable_conventional_sum,
 };
 use layout_plans::{
-    ByteOrder, ConventionalSumArrayFieldLayoutReport,
-    ConventionalSumFieldLayoutReport, LayoutPlanReport, MaterializationDiagnostic,
-    materialize_aggregate_layout_into,
+    ByteOrder, ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport,
+    LayoutPlanReport, MaterializationDiagnostic, materialize_aggregate_layout_into,
 };
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
@@ -214,9 +210,7 @@ pub(crate) fn derive_record_with_sum_bytes(
     }
 
     let (supplied, members) =
-        crate::layouts::materialization::supplied_record_fields(
-            typed, data, schema_name, value,
-        )?;
+        crate::layouts::materialization::supplied_record_fields(typed, data, schema_name, value)?;
 
     let mut direct_sums = Vec::new();
     for member in members {
@@ -286,42 +280,34 @@ pub(crate) fn derive_record_with_sum_bytes(
         });
     }
 
-    let mut encoded_fields = Vec::new();
-    let mut active = vec![data.symbol];
-    for member in members {
-        let DataMember::Field(field) = member else {
-            unreachable!("outer record shape was validated above")
-        };
-        let field_value = supplied
-            .get(field.name.as_str())
-            .expect("complete record value checked above");
-        if let Some(nested_row) = nested_sums.iter().find(|row| {
-            field_occurrence_matches(
-                &row.field,
-                row.field_identity,
-                field.name.as_str(),
-                field.identity,
-            )
-        }) {
-            encoded_fields.push(EncodedOuterField {
+    let encoded_fields = crate::layouts::materialization::encode_outer_record_fields(
+        typed,
+        data,
+        members,
+        &supplied,
+        byte_order,
+        None,
+        |field| {
+            let Some(nested_row) = nested_sums.iter().find(|row| {
+                field_occurrence_matches(
+                    &row.field,
+                    row.field_identity,
+                    field.name.as_str(),
+                    field.identity,
+                )
+            }) else {
+                return Ok(None);
+            };
+            Ok(Some(EncodedOuterField {
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: nested_row.nested_sum.layout().size,
                 align: nested_row.nested_sum.layout().align,
                 repeated: None,
                 bytes: nested_row.nested_sum.bytes().to_vec(),
-            });
-            continue;
-        }
-        crate::layouts::materialization::encode_plain_outer_field(
-            typed,
-            field,
-            field_value,
-            byte_order,
-            &mut active,
-            &mut encoded_fields,
-        )?;
-    }
+            }))
+        },
+    )?;
     validate_outer_layout(layout, &encoded_fields)?;
     let byte_len = usize::try_from(layout.size.expect("validated fixed extent")).map_err(|_| {
         MaterializationDiagnostic(
@@ -482,9 +468,7 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
         )));
     }
     let (supplied, members) =
-        crate::layouts::materialization::supplied_record_fields(
-            typed, data, schema_name, value,
-        )?;
+        crate::layouts::materialization::supplied_record_fields(typed, data, schema_name, value)?;
 
     let mut selected_arrays = Vec::new();
     selected_arrays
@@ -495,7 +479,8 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
             )
         })?;
     let mut reachability = SumReachability::new(typed);
-    let runtime_fields = crate::layouts::materialization::required_supplied_fields(&supplied, members)?;
+    let runtime_fields =
+        crate::layouts::materialization::required_supplied_fields(&supplied, members)?;
     for field in runtime_fields {
         let mut selected_direct_array = false;
         match typed
@@ -581,45 +566,36 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
         )?);
     }
 
-    let mut encoded_fields = Vec::new();
-    let mut active = vec![data.symbol];
     let mut prepared_index = 0usize;
-    for member in members {
-        let DataMember::Field(field) = member else {
-            unreachable!("outer record shape was validated above")
-        };
-        let field_value = supplied
-            .get(field.name.as_str())
-            .expect("complete record value checked above");
-        if prepared_arrays.get(prepared_index).is_some_and(|prepared| {
-            field_occurrence_matches(
-                field.name.as_str(),
-                field.identity,
-                &prepared.field,
-                prepared.field_identity,
-            )
-        }) {
-            let prepared = &mut prepared_arrays[prepared_index];
-            encoded_fields.push(EncodedOuterField {
+    let encoded_fields = crate::layouts::materialization::encode_outer_record_fields(
+        typed,
+        data,
+        members,
+        &supplied,
+        byte_order,
+        None,
+        |field| {
+            let Some(prepared) = prepared_arrays.get_mut(prepared_index).filter(|prepared| {
+                field_occurrence_matches(
+                    field.name.as_str(),
+                    field.identity,
+                    &prepared.field,
+                    prepared.field_identity,
+                )
+            }) else {
+                return Ok(None);
+            };
+            prepared_index += 1;
+            Ok(Some(EncodedOuterField {
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: prepared.size,
                 align: prepared.align,
                 repeated: Some(prepared.repeated),
                 bytes: std::mem::take(&mut prepared.bytes),
-            });
-            prepared_index += 1;
-            continue;
-        }
-        crate::layouts::materialization::encode_plain_outer_field(
-            typed,
-            field,
-            field_value,
-            byte_order,
-            &mut active,
-            &mut encoded_fields,
-        )?;
-    }
+            }))
+        },
+    )?;
     if prepared_index != prepared_arrays.len() {
         return Err(MaterializationDiagnostic(
             "ConstMaterializable sum-array staging did not consume the complete authored-order set"

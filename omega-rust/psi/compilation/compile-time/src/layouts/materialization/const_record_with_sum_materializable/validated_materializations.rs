@@ -18,8 +18,7 @@ use crate::layouts::materialization::const_record_with_sum_materializable::repor
     non_authoritative_record_with_sum_materialization_report_fingerprint,
 };
 use crate::layouts::materialization::{
-    BuildTimeValue, ValidatedConstRecordArrayFieldMaterialization,
-    ValidatedConstSumMaterialization,
+    BuildTimeValue, ValidatedConstRecordArrayFieldMaterialization, ValidatedConstSumMaterialization,
 };
 use layout_plans::{
     ByteOrder, ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport,

@@ -6,11 +6,10 @@ use super::{
     ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
     ConventionalRecursiveRecordSumPathsLayoutReport,
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
-    ValidatedConstRecordArrayElementSelection,
-    ValidatedConstRecordSumChildMaterialization, ValidatedConstRecordWithSumMaterialization,
-    conventional_sum_layout_reports_match_for_replay, field_occurrence_matches, hash_byte,
-    hash_bytes, hash_text, hash_u64, hash_value, layout_plan_reports_match_for_replay,
-    normalized_conventional_sum_layout_report_fingerprint,
+    ValidatedConstRecordArrayElementSelection, ValidatedConstRecordSumChildMaterialization,
+    ValidatedConstRecordWithSumMaterialization, conventional_sum_layout_reports_match_for_replay,
+    field_occurrence_matches, hash_byte, hash_bytes, hash_text, hash_u64, hash_value,
+    layout_plan_reports_match_for_replay, normalized_conventional_sum_layout_report_fingerprint,
     normalized_layout_plan_report_fingerprint,
 };
 pub(super) fn nested_path_reports_match_for_replay(
@@ -83,7 +82,6 @@ fn record_array_selections_match(
                     == right.non_authoritative_materialization_report_fingerprint
         })
 }
-
 
 /// Exact replay comparison for one retained child custody row: the same
 /// custody kind carrying equal field identity and equal nested coordinates.

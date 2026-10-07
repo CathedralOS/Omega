@@ -11,8 +11,7 @@ use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind, DataVariant};
 
 use super::const_materializable::{
-    hash_byte, hash_bytes, hash_text, hash_u64, unique_data_by_name, validate_value,
-    value_kind,
+    hash_byte, hash_bytes, hash_text, hash_u64, unique_data_by_name, validate_value, value_kind,
 };
 use super::{
     BuildTimeValue, checked_align_up, encode_typed_owned_value,

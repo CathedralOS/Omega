@@ -1,23 +1,21 @@
 //! Recursive nested-record byte derivation and staging.
 
 use super::{
-    BuildTimeValue, ByteOrder,
-    ConventionalNestedRecordSumPathLayoutReport, ConventionalRecordSumChildHop,
-    ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
-    ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
-    DataDefinition, DataMember, DataShapeKind, DerivedNestedRecordSumMaterialization,
-    DerivedNestedRecordSumsMaterialization, DerivedRecordLevelChildrenMaterialization,
-    EncodedOuterField, MaterializationDiagnostic, NestedPathsView, RepeatedFieldInfo,
-    SumReachability, TypedTrees, ValidatedConstNestedSumRecordOccurrenceMaterialization,
+    BuildTimeValue, ByteOrder, ConventionalNestedRecordSumPathLayoutReport,
+    ConventionalRecordSumChildHop, ConventionalRecordSumChildInterior,
+    ConventionalRecordSumChildLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
+    ConventionalSumArrayFieldLayoutReport, DataDefinition, DataMember, DataShapeKind,
+    DerivedNestedRecordSumMaterialization, DerivedNestedRecordSumsMaterialization,
+    DerivedRecordLevelChildrenMaterialization, EncodedOuterField, MaterializationDiagnostic,
+    NestedPathsView, RepeatedFieldInfo, SumReachability, TypedTrees,
+    ValidatedConstNestedSumRecordOccurrenceMaterialization,
     ValidatedConstRecordArrayElementSelection, ValidatedConstRecordArrayFieldMaterialization,
     ValidatedConstRecordSumArrayFieldMaterialization, ValidatedConstRecordSumChildMaterialization,
     ValidatedConstRecordSumFieldMaterialization,
-    ValidatedConstRecursiveNestedSumOccurrenceMaterialization,
-    exact_named_data, field_occurrence_matches,
-    flatten_literal_array_elements, materialize_aggregate_layout_into,
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization, exact_named_data,
+    field_occurrence_matches, flatten_literal_array_elements, materialize_aggregate_layout_into,
     normalized_schema_report_fingerprint, prepare_sum_array_field, record_sum_profile, recursive,
-    reject_sum_array_type, unique_data_by_name,
-    validate_const_materializable_conventional_sum,
+    reject_sum_array_type, unique_data_by_name, validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums, validate_outer_layout,
     validate_outer_record_owner,
 };
@@ -93,7 +91,8 @@ pub(super) fn classify_record_level_children<'a>(
             "ConstMaterializable record-level child set exceeds compiler resources".into(),
         )
     })?;
-    let runtime_fields = crate::layouts::materialization::required_supplied_fields(&supplied, members)?;
+    let runtime_fields =
+        crate::layouts::materialization::required_supplied_fields(&supplied, members)?;
     for field in runtime_fields {
         if !reachability.type_contains_sum(field.type_reference)? {
             continue;
@@ -496,9 +495,7 @@ pub(super) fn derive_record_level_children_bytes(
         )));
     }
     let (supplied, members) =
-        crate::layouts::materialization::supplied_record_fields(
-            typed, data, schema_name, value,
-        )?;
+        crate::layouts::materialization::supplied_record_fields(typed, data, schema_name, value)?;
 
     let classified = classify_record_level_children(typed, data, &supplied, reachability)?;
     if classified.is_empty() {
@@ -788,9 +785,7 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
         )));
     }
     let (supplied, members) =
-        crate::layouts::materialization::supplied_record_fields(
-            typed, data, schema_name, value,
-        )?;
+        crate::layouts::materialization::supplied_record_fields(typed, data, schema_name, value)?;
 
     let mut candidates = Vec::new();
     candidates.try_reserve_exact(members.len()).map_err(|_| {
@@ -798,7 +793,8 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
             "ConstMaterializable nested-record occurrence set exceeds compiler resources".into(),
         )
     })?;
-    let runtime_fields = crate::layouts::materialization::required_supplied_fields(&supplied, members)?;
+    let runtime_fields =
+        crate::layouts::materialization::required_supplied_fields(&supplied, members)?;
     for field in runtime_fields {
         reject_sum_array_type(
             typed,
@@ -903,35 +899,28 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
         });
     }
 
-    let mut encoded_fields = Vec::new();
-    encoded_fields
-        .try_reserve_exact(members.len())
-        .map_err(|_| {
-            MaterializationDiagnostic(
-                "ConstMaterializable nested-record outer field custody exceeds compiler resources"
-                    .into(),
-            )
-        })?;
-    let mut active = vec![data.symbol];
     let mut occurrence_index = 0usize;
-    for member in members {
-        let DataMember::Field(field) = member else {
-            unreachable!("outer record shape was validated above")
-        };
-        let field_value = supplied
-            .get(field.name.as_str())
-            .expect("complete record value checked above");
-        let current_occurrence = inner_records
-            .get(occurrence_index)
-            .zip(path_layout.get(occurrence_index));
-        if let Some((occurrence, path)) = current_occurrence.filter(|(occurrence, _)| {
-            field_occurrence_matches(
-                occurrence.outer_field(),
-                occurrence.outer_member_identity(),
-                field.name.as_str(),
-                field.identity,
-            )
-        }) {
+    let encoded_fields = crate::layouts::materialization::encode_outer_record_fields(
+        typed,
+        data,
+        members,
+        &supplied,
+        byte_order,
+        Some("ConstMaterializable nested-record outer field custody exceeds compiler resources"),
+        |field| {
+            let current_occurrence = inner_records
+                .get(occurrence_index)
+                .zip(path_layout.get(occurrence_index));
+            let Some((occurrence, path)) = current_occurrence.filter(|(occurrence, _)| {
+                field_occurrence_matches(
+                    occurrence.outer_field(),
+                    occurrence.outer_member_identity(),
+                    field.name.as_str(),
+                    field.identity,
+                )
+            }) else {
+                return Ok(None);
+            };
             occurrence_index += 1;
             let mut inner_bytes = Vec::new();
             inner_bytes
@@ -943,25 +932,16 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
                     )
                 })?;
             inner_bytes.extend_from_slice(occurrence.inner.bytes());
-            encoded_fields.push(EncodedOuterField {
+            Ok(Some(EncodedOuterField {
                 name: field.name.to_string(),
                 identity: field.identity,
                 size: path.inner_layout.size.expect("validated inner extent"),
                 align: path.inner_layout.align,
                 repeated: None,
                 bytes: inner_bytes,
-            });
-            continue;
-        }
-        crate::layouts::materialization::encode_plain_outer_field(
-            typed,
-            field,
-            field_value,
-            byte_order,
-            &mut active,
-            &mut encoded_fields,
-        )?;
-    }
+            }))
+        },
+    )?;
     if occurrence_index != inner_records.len() {
         return Err(MaterializationDiagnostic(
             "ConstMaterializable nested-record occurrence staging did not consume the complete authored-order set"

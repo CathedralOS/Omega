@@ -34,8 +34,7 @@ use super::const_record_with_sum_materializable::{
     prepare_sum_array_field, validate_outer_layout, validate_outer_record_owner,
 };
 use super::{
-    BuildTimeValue, RepeatedFieldInfo,
-    normalized_schema_report_fingerprint,
+    BuildTimeValue, RepeatedFieldInfo, normalized_schema_report_fingerprint,
     validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums,
 };
@@ -116,7 +115,9 @@ impl ValidatedConstRecordArrayElementSelection {
 /// selection keeps its own literal index and recursive materialization
 /// coordinate beside the field's shared compact row.
 #[derive(Debug)]
-pub struct ValidatedConstRecordArrayFieldMaterialization<E = ValidatedConstRecordArrayElementSelection> {
+pub struct ValidatedConstRecordArrayFieldMaterialization<
+    E = ValidatedConstRecordArrayElementSelection,
+> {
     pub(crate) field: String,
     pub(crate) field_identity: Option<u64>,
     pub(crate) elements: Vec<E>,

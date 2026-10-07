@@ -2,7 +2,8 @@
 
 use crate::layouts::materialization::const_record_with_sum_materializable::outer_layouts::field_occurrence_matches;
 use crate::layouts::materialization::const_record_with_sum_materializable::{
-    ValidatedConstRecordSumArrayElementMaterialization, ValidatedConstRecordSumArrayFieldMaterialization,
+    ValidatedConstRecordSumArrayElementMaterialization,
+    ValidatedConstRecordSumArrayFieldMaterialization,
 };
 use layout_plans::{
     ConventionalSumArrayFieldLayoutReport, conventional_sum_layout_reports_match_for_replay,
@@ -54,7 +55,6 @@ pub(crate) fn sum_array_elements_match(
                         .non_authoritative_materialization_report_fingerprint()
         })
 }
-
 
 pub(crate) fn sum_array_layout_sets_match_for_replay(
     left: &[ConventionalSumArrayFieldLayoutReport],

@@ -34,6 +34,7 @@ pub use const_record_with_nested_sum_materializable::{
     ValidatedConstRecordWithNestedSumRecordsMaterialization,
     ValidatedConstRecordWithRecursiveNestedSumsMaterialization,
 };
+use const_record_with_sum_materializable::EncodedOuterField;
 pub use const_record_with_sum_materializable::{
     ValidatedConstRecordSumArrayElementMaterialization,
     ValidatedConstRecordSumArrayElementSelection, ValidatedConstRecordSumArrayFieldMaterialization,
@@ -44,7 +45,6 @@ pub use const_record_with_sum_materializable::{
 pub use const_sum_materializable::{
     ValidatedConstSumMaterialization, validate_const_materializable_conventional_sum,
 };
-use const_record_with_sum_materializable::EncodedOuterField;
 use owned_value_encoding::{encode_typed_owned_value, exact_struct_fields};
 
 /// Materializes one compiler-checked, source-owned record through a normalized
@@ -248,6 +248,50 @@ pub fn evaluate_and_materialize_typed_owned_layout_into(
     materialize_typed_owned_layout_into(typed, schema_data, layout, &value, byte_order, destination)
 }
 
+/// Walk an outer record's members in declaration order, letting `staged`
+/// claim a prepared payload for `field` or falling back to plain encoding.
+/// The staged callback must consume its row only when it matches `field`.
+/// `reservation_diagnostic` reserves the result vector up front where the
+/// caller accounts custody before staging.
+pub(super) fn encode_outer_record_fields(
+    typed: &TypedTrees,
+    data: &DataDefinition,
+    members: &[DataMember],
+    supplied: &std::collections::BTreeMap<&str, &BuildTimeValue>,
+    byte_order: ByteOrder,
+    reservation_diagnostic: Option<&'static str>,
+    mut staged: impl FnMut(&DataField) -> Result<Option<EncodedOuterField>, MaterializationDiagnostic>,
+) -> Result<Vec<EncodedOuterField>, MaterializationDiagnostic> {
+    let mut encoded_fields = Vec::new();
+    if let Some(diagnostic) = reservation_diagnostic {
+        encoded_fields
+            .try_reserve_exact(members.len())
+            .map_err(|_| MaterializationDiagnostic(diagnostic.into()))?;
+    }
+    let mut active = vec![data.symbol];
+    for member in members {
+        let DataMember::Field(field) = member else {
+            unreachable!("outer record shape was validated above")
+        };
+        let field_value = supplied
+            .get(field.name.as_str())
+            .expect("complete record value checked above");
+        if let Some(encoded) = staged(field)? {
+            encoded_fields.push(encoded);
+            continue;
+        }
+        encode_plain_outer_field(
+            typed,
+            field,
+            field_value,
+            byte_order,
+            &mut active,
+            &mut encoded_fields,
+        )?;
+    }
+    Ok(encoded_fields)
+}
+
 /// Validate and encode one ordinary outer-record field into
 /// `encoded_fields`; erased members contribute nothing. The nested-sum and
 /// nested-record arms stage their own payload before reaching here.
@@ -269,20 +313,15 @@ pub(super) fn encode_plain_outer_field(
     if field.relevance.is_erased() {
         return Ok(());
     }
-    let (size, align, _, _, _, _, repeated) =
-        reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
-            MaterializationDiagnostic(format!(
-                "value.{} is outside the target-independent fixed aggregate subset",
-                field.name
-            ))
-        })?;
-    let bytes = encode_typed_owned_value(
-        typed,
-        field.type_reference,
-        field_value,
-        byte_order,
-        active,
-    )?;
+    let (size, align, _, _, _, _, repeated) = reflected_field_layout(typed, field.type_reference)
+        .ok_or_else(|| {
+        MaterializationDiagnostic(format!(
+            "value.{} is outside the target-independent fixed aggregate subset",
+            field.name
+        ))
+    })?;
+    let bytes =
+        encode_typed_owned_value(typed, field.type_reference, field_value, byte_order, active)?;
     if bytes.len() as u64 != size {
         return Err(MaterializationDiagnostic(format!(
             "value.{} encoded to {} bytes, expected {size}",
@@ -311,26 +350,22 @@ pub(super) fn push_encoded_field_schema_values(
 ) -> Result<(), MaterializationDiagnostic> {
     for field in encoded_fields {
         let schema = match (field.repeated, field.identity) {
-            (Some(repeated), Some(identity)) => {
-                AggregateFieldSchema::new_repeated_numbered(
-                    &field.name,
-                    identity,
-                    repeated.element_size,
-                    repeated.element_align,
-                    repeated.element_count,
-                )?
-            }
+            (Some(repeated), Some(identity)) => AggregateFieldSchema::new_repeated_numbered(
+                &field.name,
+                identity,
+                repeated.element_size,
+                repeated.element_align,
+                repeated.element_count,
+            )?,
             (Some(repeated), None) => AggregateFieldSchema::new_repeated(
                 &field.name,
                 repeated.element_size,
                 repeated.element_align,
                 repeated.element_count,
             )?,
-            (None, Some(identity)) => AggregateFieldSchema::new_numbered(
-                &field.name,
-                identity,
-                field.size,
-            )?,
+            (None, Some(identity)) => {
+                AggregateFieldSchema::new_numbered(&field.name, identity, field.size)?
+            }
             (None, None) => AggregateFieldSchema::new(&field.name, field.size)?,
         };
         schemas.push(schema);
