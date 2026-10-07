@@ -58,6 +58,53 @@ impl CitationFacts {
     }
 }
 
+/// The callee + substitution map shared by the statement- and
+/// expression-call citations: resolve the selected citation machine, bind
+/// each spelled argument under the entry parameter's declared type scope,
+/// and pair the call's own application term under the result binder.
+fn citation_call_bindings<'program>(
+    program: &'program TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program typed_trees::state::State,
+    target_symbol: SymbolHandle,
+    target_name: &str,
+    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
+    argument_handles: &[ExpressionHandle],
+) -> Option<(
+    &'program typed_trees::machine::Machine,
+    StructuralTerm,
+    Vec<(String, StructuralTerm)>,
+)> {
+    let callee = selected_citation_machine(program, target_symbol)?;
+    let entry = program.machine_states(callee).first()?;
+    let parameters = program.state_parameters(entry);
+    if parameters.len() != argument_handles.len() {
+        return None;
+    }
+    let mut argument_terms = Vec::with_capacity(argument_handles.len());
+    for (position, argument) in argument_handles.iter().enumerate() {
+        let term = structural_term_in_scope(
+            program,
+            Some((machine, state, parameters[position].type_reference)),
+            *argument,
+        )?;
+        argument_terms.push(term);
+    }
+    let call_term = StructuralTerm::Application {
+        target: target_symbol,
+        selections: machine_arguments.to_vec(),
+        machine: target_name.to_owned(),
+        arguments: argument_terms.clone(),
+    };
+    let mut map: Vec<(String, StructuralTerm)> = parameters
+        .iter()
+        .zip(argument_terms)
+        .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
+        .collect();
+    map.push((RESULT_BINDER.to_owned(), call_term.clone()));
+    Some((callee, call_term, map))
+}
+
 fn selected_citation_machine(program: &TypedTrees, symbol: SymbolHandle) -> Option<&Machine> {
     if !symbol.is_valid() {
         return None;
@@ -477,40 +524,17 @@ pub(crate) fn intake_citation_for_edge(
     binder: Option<&str>,
     _call_expression: ExpressionHandle,
 ) {
-    let Some(callee) = selected_citation_machine(program, call.target_symbol) else {
+    let Some((callee, call_term, map)) = citation_call_bindings(
+        program,
+        machine,
+        state,
+        call.target_symbol,
+        call.target.as_str(),
+        &call.machine_arguments,
+        program.expression_table.expression_handles(call.arguments),
+    ) else {
         return;
     };
-    let Some(entry) = program.machine_states(callee).first() else {
-        return;
-    };
-    let parameters = program.state_parameters(entry);
-    let argument_handles = program.expression_table.expression_handles(call.arguments);
-    if parameters.len() != argument_handles.len() {
-        return;
-    }
-    let mut argument_terms = Vec::with_capacity(argument_handles.len());
-    for (position, argument) in argument_handles.iter().enumerate() {
-        let Some(term) = structural_term_in_scope(
-            program,
-            Some((machine, state, parameters[position].type_reference)),
-            *argument,
-        ) else {
-            return;
-        };
-        argument_terms.push(term);
-    }
-    let call_term = StructuralTerm::Application {
-        target: call.target_symbol,
-        selections: call.machine_arguments.to_vec(),
-        machine: call.target.as_str().to_owned(),
-        arguments: argument_terms.clone(),
-    };
-    let mut map: Vec<(String, StructuralTerm)> = parameters
-        .iter()
-        .zip(argument_terms)
-        .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
-        .collect();
-    map.push((RESULT_BINDER.to_owned(), call_term.clone()));
 
     let facts = |kind: typed_trees::signature::SignatureContractKind| {
         program
@@ -580,40 +604,17 @@ pub(crate) fn intake_statement_citation_for_edge(
     state: &typed_trees::state::State,
     call: &typed_trees::statement::TableCall,
 ) {
-    let Some(callee) = selected_citation_machine(program, call.target_symbol) else {
+    let Some((callee, _call_term, map)) = citation_call_bindings(
+        program,
+        machine,
+        state,
+        call.target_symbol,
+        call.target.as_str(),
+        &call.machine_arguments,
+        program.statement_table.expression_handles(call.arguments),
+    ) else {
         return;
     };
-    let Some(entry) = program.machine_states(callee).first() else {
-        return;
-    };
-    let parameters = program.state_parameters(entry);
-    let argument_handles = program.statement_table.expression_handles(call.arguments);
-    if parameters.len() != argument_handles.len() {
-        return;
-    }
-    let mut argument_terms = Vec::with_capacity(argument_handles.len());
-    for (position, argument) in argument_handles.iter().enumerate() {
-        let Some(term) = structural_term_in_scope(
-            program,
-            Some((machine, state, parameters[position].type_reference)),
-            *argument,
-        ) else {
-            return;
-        };
-        argument_terms.push(term);
-    }
-    let call_term = StructuralTerm::Application {
-        target: call.target_symbol,
-        selections: call.machine_arguments.to_vec(),
-        machine: call.target.as_str().to_owned(),
-        arguments: argument_terms.clone(),
-    };
-    let mut map: Vec<(String, StructuralTerm)> = parameters
-        .iter()
-        .zip(argument_terms)
-        .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
-        .collect();
-    map.push((RESULT_BINDER.to_owned(), call_term));
     let collect = |kind: typed_trees::signature::SignatureContractKind| {
         program
             .machine_contracts(callee)
