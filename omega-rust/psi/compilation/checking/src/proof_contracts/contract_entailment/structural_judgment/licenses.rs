@@ -40,6 +40,40 @@ pub(crate) struct DeclaredIndexAlgebraLaws {
 /// machine's `Binder: Subject satisfies Trait` conformance bound supplies the
 /// checked evidence for these slots through the ordinary generic-conformance
 /// machinery.
+/// Each `ensures`-contract equality conjunct across a state signature's
+/// contract roster, resolved to its structural-term pair.
+fn for_each_ensures_equality(
+    program: &TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+    mut arm: impl FnMut(StructuralTerm, StructuralTerm),
+) {
+    for contract in program.state_signature_contracts(signature) {
+        if contract.kind != SignatureContractKind::Ensures {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            let mut conjuncts = Vec::new();
+            collect_equality_conjuncts(program, *expression, &mut conjuncts);
+            for conjunct in conjuncts {
+                let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
+                else {
+                    continue;
+                };
+                let (Some(left), Some(right)) = (
+                    structural_term(program, binary.left),
+                    structural_term(program, binary.right),
+                ) else {
+                    continue;
+                };
+                arm(left, right);
+            }
+        }
+    }
+}
+
 pub(crate) fn declared_index_algebra_laws(
     program: &TypedTrees,
     trait_definition: &TraitDefinition,
@@ -52,41 +86,14 @@ pub(crate) fn declared_index_algebra_laws(
             .iter()
             .map(|parameter| parameter.name.as_str().to_owned())
             .collect::<Vec<_>>();
-        for contract in program.state_signature_contracts(law) {
-            if contract.kind != SignatureContractKind::Ensures {
-                continue;
+        for_each_ensures_equality(program, law, |left, right| {
+            if commutativity_shape(&left, &right, &parameters).as_deref() == Some(requirement) {
+                laws.commutativity.push(law.name.as_str().to_owned());
             }
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let ProofFact::Expression(expression) = fact else {
-                    continue;
-                };
-                let mut conjuncts = Vec::new();
-                collect_equality_conjuncts(program, *expression, &mut conjuncts);
-                for conjunct in conjuncts {
-                    let ExpressionNode::Binary(binary) =
-                        program.expression_table.expression(conjunct)
-                    else {
-                        continue;
-                    };
-                    let (Some(left), Some(right)) = (
-                        structural_term(program, binary.left),
-                        structural_term(program, binary.right),
-                    ) else {
-                        continue;
-                    };
-                    if commutativity_shape(&left, &right, &parameters).as_deref()
-                        == Some(requirement)
-                    {
-                        laws.commutativity.push(law.name.as_str().to_owned());
-                    }
-                    if associativity_shape(&left, &right, &parameters).as_deref()
-                        == Some(requirement)
-                    {
-                        laws.associativity.push(law.name.as_str().to_owned());
-                    }
-                }
+            if associativity_shape(&left, &right, &parameters).as_deref() == Some(requirement) {
+                laws.associativity.push(law.name.as_str().to_owned());
             }
-        }
+        });
     }
     laws
 }
@@ -455,46 +462,18 @@ fn algebraic_law_slots<'program>(
                     .iter()
                     .map(|parameter| parameter.name.as_str().to_owned())
                     .collect();
-                for contract in program.state_signature_contracts(requirement) {
-                    if contract.kind != SignatureContractKind::Ensures {
-                        continue;
+                for_each_ensures_equality(program, requirement, |left, right| {
+                    if let Some(op) = commutativity_shape(&left, &right, &parameters) {
+                        comm_laws.push((op, requirement.name.as_str().to_owned()));
                     }
-                    for fact in program.proof_facts.span_or_empty(contract.facts) {
-                        let ProofFact::Expression(expression) = fact else {
-                            continue;
-                        };
-                        let mut conjuncts = Vec::new();
-                        collect_equality_conjuncts(program, *expression, &mut conjuncts);
-                        for conjunct in conjuncts {
-                            let ExpressionNode::Binary(binary) =
-                                program.expression_table.expression(conjunct)
-                            else {
-                                continue;
-                            };
-                            let (Some(left), Some(right)) = (
-                                structural_term(program, binary.left),
-                                structural_term(program, binary.right),
-                            ) else {
-                                continue;
-                            };
-                            if let Some(op) = commutativity_shape(&left, &right, &parameters) {
-                                comm_laws.push((op, requirement.name.as_str().to_owned()));
-                            }
-                            if let Some(op) = associativity_shape(&left, &right, &parameters) {
-                                assoc_laws.push((op, requirement.name.as_str().to_owned()));
-                            }
-                            if let Some((mul_op, add_op)) =
-                                distributivity_shape(&left, &right, &parameters)
-                            {
-                                dist_laws.push((
-                                    mul_op,
-                                    add_op,
-                                    requirement.name.as_str().to_owned(),
-                                ));
-                            }
-                        }
+                    if let Some(op) = associativity_shape(&left, &right, &parameters) {
+                        assoc_laws.push((op, requirement.name.as_str().to_owned()));
                     }
-                }
+                    if let Some((mul_op, add_op)) = distributivity_shape(&left, &right, &parameters)
+                    {
+                        dist_laws.push((mul_op, add_op, requirement.name.as_str().to_owned()));
+                    }
+                });
             }
             (trait_definition, comm_laws, assoc_laws, dist_laws)
         })
