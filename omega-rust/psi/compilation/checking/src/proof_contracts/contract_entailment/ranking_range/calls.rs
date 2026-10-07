@@ -496,22 +496,18 @@ pub(crate) fn prove_ranking_range_call(
         match resolved {
             Some(coordinate) => {
                 let mut coordinates = lengths::SliceCoordinates::new(coordinate);
-                let expressions = installation_expressions(
+                install_call_slice_coordinates(
                     program,
                     &caller,
                     source,
+                    entry,
+                    caller_site,
+                    at_entry,
+                    &mut engine,
+                    &mut coordinates,
                     vec![subject],
                     guards,
                     arguments,
-                );
-                coordinates.install(
-                    program,
-                    caller.machine,
-                    source,
-                    entry,
-                    (!at_entry).then_some(caller_site.entry_parameters),
-                    &mut engine,
-                    &expressions,
                 )?;
                 Some(coordinates)
             }
@@ -522,22 +518,18 @@ pub(crate) fn prove_ranking_range_call(
         // measure name the same projected slice coordinates a SliceLength
         // subject does; install them over the caller's whole read surface.
         let mut coordinates = lengths::SliceCoordinates::empty();
-        let expressions = installation_expressions(
+        install_call_slice_coordinates(
             program,
             &caller,
             source,
+            entry,
+            caller_site,
+            at_entry,
+            &mut engine,
+            &mut coordinates,
             scalar_subjects(&caller, source_measure),
             guards,
             arguments,
-        );
-        coordinates.install(
-            program,
-            caller.machine,
-            source,
-            entry,
-            (!at_entry).then_some(caller_site.entry_parameters),
-            &mut engine,
-            &expressions,
         )?;
         Some(coordinates)
     };
@@ -1659,4 +1651,34 @@ fn member_call_range(
         engine.normalize(range.end)?,
         range.end_inclusive,
     )))
+}
+
+/// Build a call's slice-coordinate expressions and install them against the
+/// caller's machine coordinates — the shared surface under the subject-wide
+/// and `.len`-spelled reads.
+#[allow(clippy::too_many_arguments)]
+fn install_call_slice_coordinates<'program>(
+    program: &'program TypedTrees,
+    caller: &RankingRangeCallMember<'_>,
+    source: &State,
+    entry: &State,
+    caller_site: &RankingRangeCallSite<'_>,
+    at_entry: bool,
+    engine: &mut Engine<'_>,
+    coordinates: &mut lengths::SliceCoordinates<'program>,
+    subjects: Vec<ExpressionHandle>,
+    guards: &[(ExpressionHandle, bool)],
+    arguments: &[ExpressionHandle],
+) -> Option<()> {
+    let expressions =
+        installation_expressions(program, caller, source, subjects, guards, arguments);
+    coordinates.install(
+        program,
+        caller.machine,
+        source,
+        entry,
+        (!at_entry).then_some(caller_site.entry_parameters),
+        engine,
+        &expressions,
+    )
 }
