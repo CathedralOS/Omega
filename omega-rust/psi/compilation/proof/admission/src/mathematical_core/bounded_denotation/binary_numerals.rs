@@ -64,34 +64,27 @@ pub(super) fn fixed_magnitude(value: &BigInt) -> Option<(bool, u128)> {
 
 impl Denotation {
     fn numeral_zero(&mut self) -> Result<u32, BoundedDenotationError> {
-        if let Some(position) = self.binary_numerals.zero {
-            return Ok(position);
-        }
-        let integer = self.integer_constant()?;
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, integer));
-        self.binary_numerals.zero = Some(position);
-        Ok(position)
+        self.interned_slot_assumption(
+            |this| &mut this.binary_numerals.zero,
+            |this| this.integer_constant(),
+        )
     }
 
     fn numeral_constructor(
         &mut self,
         constructor: Constructor,
     ) -> Result<u32, BoundedDenotationError> {
-        if let Some(&position) = self.binary_numerals.constructors.get(&constructor) {
-            return Ok(position);
-        }
-        let integer = self.integer_constant()?;
-        let ty = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: integer,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.binary_numerals
-            .constructors
-            .insert(constructor, position);
-        Ok(position)
+        self.interned_keyed_assumption(
+            |this| &mut this.binary_numerals.constructors,
+            constructor,
+            |this| {
+                let integer = this.integer_constant()?;
+                Ok(this.arena.insert(Term::Pi {
+                    domain: integer,
+                    codomain: integer,
+                }))
+            },
+        )
     }
 
     fn numeral_prefix(

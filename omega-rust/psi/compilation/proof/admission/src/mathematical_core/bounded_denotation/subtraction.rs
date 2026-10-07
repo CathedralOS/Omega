@@ -47,7 +47,7 @@ use semantic_vocabulary::{
 use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
 use super::denotation::{BinaryBoundOperation, math_less_or_equal_sides};
 use super::{
-    BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
+    BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
     affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
 };
 use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
@@ -203,35 +203,33 @@ impl Denotation {
         value: TermHandle,
         evidence: TermHandle,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = if let Some(position) = self.subtraction.irreflexivity {
-            position
-        } else {
-            let integer = self.integer_constant()?;
-            let relation_position = self.integer_less_than()?;
-            let relation = self.constant(relation_position);
-            let variable = self.arena.insert(Term::Variable(0));
-            let function = self.arena.insert(Term::Apply {
-                function: relation,
-                argument: variable,
-            });
-            let domain = self.arena.insert(Term::Apply {
-                function,
-                argument: variable,
-            });
-            let empty = self.arena.insert(Term::Empty);
-            let codomain = self.arena.insert(Term::Pi {
-                domain,
-                codomain: empty,
-            });
-            let ty = self.arena.insert(Term::Pi {
-                domain: integer,
-                codomain,
-            });
-            let position = self.position()?;
-            self.declarations.push(Declaration::assumption(0, ty));
-            self.subtraction.irreflexivity = Some(position);
-            position
-        };
+        let position = self.interned_slot_assumption(
+            |this| &mut this.subtraction.irreflexivity,
+            |this| {
+                let integer = this.integer_constant()?;
+                let relation_position = this.integer_less_than()?;
+                let relation = this.constant(relation_position);
+                let variable = this.arena.insert(Term::Variable(0));
+                let function = this.arena.insert(Term::Apply {
+                    function: relation,
+                    argument: variable,
+                });
+                let domain = this.arena.insert(Term::Apply {
+                    function,
+                    argument: variable,
+                });
+                let empty = this.arena.insert(Term::Empty);
+                let codomain = this.arena.insert(Term::Pi {
+                    domain,
+                    codomain: empty,
+                });
+                let ty = this.arena.insert(Term::Pi {
+                    domain: integer,
+                    codomain,
+                });
+                Ok(ty)
+            },
+        )?;
         let function = self.constant(position);
         let function = self.arena.insert(Term::Apply {
             function,

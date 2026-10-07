@@ -49,9 +49,7 @@ use semantic_vocabulary::{
 use super::super::scheme_dsl::{self, apps, case_two, id, lam, pi, scheme_at, sigma, sort, two, v};
 use super::super::term::Level;
 use super::integer_operations::IntegerOperation;
-use super::{
-    BoundedDenotationError, Denotation, IntegerLaw, IntegerRelation, Term, TermHandle,
-};
+use super::{BoundedDenotationError, Denotation, IntegerLaw, IntegerRelation, Term, TermHandle};
 use crate::mathematical_core::substitution::shift;
 use crate::{
     CheckedIntegerCorrelatedForbiddenRoots, CorrelatedAffineBranchWitness,

@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{IntegerType, IntegerValue};
 
-use super::{BoundedDenotationError, Declaration, Denotation, ScalarTerm, Term, TermHandle};
+use super::{BoundedDenotationError, Denotation, ScalarTerm, Term, TermHandle};
 
 /// One fixed-integer operation's identity: constructor and machine types,
 /// so `u16` and `u32` multiplications remain distinct opaque functions.
@@ -91,31 +91,31 @@ impl Denotation {
         &mut self,
         operation: IntegerOperation,
     ) -> Result<u32, BoundedDenotationError> {
-        if let Some(&position) = self.integer_operations.get(&operation) {
-            return Ok(position);
-        }
-        let result = if matches!(
+        self.interned_keyed_assumption(
+            |this| &mut this.integer_operations,
             operation,
-            IntegerOperation::Equal(_)
-                | IntegerOperation::LessThan(_)
-                | IntegerOperation::LessOrEqual(_)
-        ) {
-            self.two
-        } else {
-            self.integer_constant()?
-        };
-        let domain = self.integer_constant()?;
-        let mut ty = result;
-        for _ in 0..operation.arity() {
-            ty = self.arena.insert(Term::Pi {
-                domain,
-                codomain: ty,
-            });
-        }
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.integer_operations.insert(operation, position);
-        Ok(position)
+            |this| {
+                let result = if matches!(
+                    operation,
+                    IntegerOperation::Equal(_)
+                        | IntegerOperation::LessThan(_)
+                        | IntegerOperation::LessOrEqual(_)
+                ) {
+                    this.two
+                } else {
+                    this.integer_constant()?
+                };
+                let domain = this.integer_constant()?;
+                let mut ty = result;
+                for _ in 0..operation.arity() {
+                    ty = this.arena.insert(Term::Pi {
+                        domain,
+                        codomain: ty,
+                    });
+                }
+                Ok(ty)
+            },
+        )
     }
 
     /// `op l' r'` — the applicative denotation of one open arithmetic
@@ -416,22 +416,17 @@ impl Denotation {
         &mut self,
         cache: impl Fn(&mut Self) -> &mut Option<u32>,
     ) -> Result<u32, BoundedDenotationError> {
-        if let Some(position) = *cache(self) {
-            return Ok(position);
-        }
-        let integer = self.integer_constant()?;
-        let result = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: integer,
-        });
-        let ty = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: result,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        *cache(self) = Some(position);
-        Ok(position)
+        self.interned_slot_assumption(cache, |this| {
+            let integer = this.integer_constant()?;
+            let result = this.arena.insert(Term::Pi {
+                domain: integer,
+                codomain: integer,
+            });
+            Ok(this.arena.insert(Term::Pi {
+                domain: integer,
+                codomain: result,
+            }))
+        })
     }
 
     pub(super) fn binary_terms(
@@ -476,19 +471,15 @@ impl Denotation {
         if compute(&as_integer(left), &as_integer(right)) != as_integer(result) {
             return Ok(None);
         }
-        if let Some(&position) = cache(self).get(&(left, right, result)) {
-            return Ok(Some(self.constant(position)));
-        }
-        let integer = self.integer_constant()?;
-        let application = terms(self, left_term, right_term)?;
-        let ty = self.arena.insert(Term::Id {
-            ty: integer,
-            left: application,
-            right: result_term,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        cache(self).insert((left, right, result), position);
+        let position = self.interned_keyed_assumption(cache, (left, right, result), |this| {
+            let integer = this.integer_constant()?;
+            let application = terms(this, left_term, right_term)?;
+            Ok(this.arena.insert(Term::Id {
+                ty: integer,
+                left: application,
+                right: result_term,
+            }))
+        })?;
         Ok(Some(self.constant(position)))
     }
 }

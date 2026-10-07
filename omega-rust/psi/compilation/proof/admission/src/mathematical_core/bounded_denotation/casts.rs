@@ -17,7 +17,7 @@ use semantic_vocabulary::{IntegerType, IntegerValue, Proposition, ScalarTerm};
 use crate::CheckedIntegerCastChain;
 
 use super::integer_operations::IntegerOperation;
-use super::{BoundedDenotationError, Declaration, Denotation, Term, TermHandle};
+use super::{BoundedDenotationError, Denotation, Term, TermHandle};
 
 /// `(minimum, maximum)` of one fixed native carrier, matching the chain
 /// checker's own interval gate — addresses and non-{8,16,32,64} widths
@@ -57,30 +57,29 @@ impl Denotation {
         &mut self,
         operation: IntegerOperation,
     ) -> Result<u32, BoundedDenotationError> {
-        if let Some(&position) = self.cast_identities.get(&operation) {
-            return Ok(position);
-        }
-        let integer = self.integer_constant()?;
-        let operation_position = self.integer_operation(operation)?;
-        let function = self.constant(operation_position);
-        let operand = self.arena.insert(Term::Variable(0));
-        let applied = self.arena.insert(Term::Apply {
-            function,
-            argument: operand,
-        });
-        let identity = self.arena.insert(Term::Id {
-            ty: integer,
-            left: applied,
-            right: operand,
-        });
-        let ty = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: identity,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.cast_identities.insert(operation, position);
-        Ok(position)
+        self.interned_keyed_assumption(
+            |this| &mut this.cast_identities,
+            operation,
+            |this| {
+                let integer = this.integer_constant()?;
+                let operation_position = this.integer_operation(operation)?;
+                let function = this.constant(operation_position);
+                let operand = this.arena.insert(Term::Variable(0));
+                let applied = this.arena.insert(Term::Apply {
+                    function,
+                    argument: operand,
+                });
+                let identity = this.arena.insert(Term::Id {
+                    ty: integer,
+                    left: applied,
+                    right: operand,
+                });
+                Ok(this.arena.insert(Term::Pi {
+                    domain: integer,
+                    codomain: identity,
+                }))
+            },
+        )
     }
 
     /// `cast_id prev'` : `Id Int (op·prev') prev'` — the law instantiated

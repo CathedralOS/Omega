@@ -38,8 +38,8 @@ use super::super::scheme_dsl::{self, apps, pi, scheme_at, v};
 use super::denotation::math_less_or_equal_sides;
 use super::integer_operations::IntegerOperation;
 use super::{
-    BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
-    affine_equality_for, affine_witness_root_expression,
+    BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle, affine_equality_for,
+    affine_witness_root_expression,
 };
 
 #[cfg(test)]
@@ -308,30 +308,30 @@ impl Denotation {
             return Ok(None);
         }
         let key = (integer_type, dividend, divisor, quotient);
-        if let Some(&position) = self.multiplication.numeral_quotients.get(&key) {
-            return Ok(Some(self.constant(position)));
-        }
-        let integer = self.integer_constant()?;
-        let divide = self.integer_operation(IntegerOperation::ExactDivide(integer_type))?;
-        let application = {
-            let function = self.constant(divide);
-            let function = self.arena.insert(Term::Apply {
-                function,
-                argument: dividend_term,
-            });
-            self.arena.insert(Term::Apply {
-                function,
-                argument: divisor_term,
-            })
-        };
-        let ty = self.arena.insert(Term::Id {
-            ty: integer,
-            left: application,
-            right: quotient_term,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.multiplication.numeral_quotients.insert(key, position);
+        let position = self.interned_keyed_assumption(
+            |this| &mut this.multiplication.numeral_quotients,
+            key,
+            |this| {
+                let integer = this.integer_constant()?;
+                let divide = this.integer_operation(IntegerOperation::ExactDivide(integer_type))?;
+                let application = {
+                    let function = this.constant(divide);
+                    let function = this.arena.insert(Term::Apply {
+                        function,
+                        argument: dividend_term,
+                    });
+                    this.arena.insert(Term::Apply {
+                        function,
+                        argument: divisor_term,
+                    })
+                };
+                Ok(this.arena.insert(Term::Id {
+                    ty: integer,
+                    left: application,
+                    right: quotient_term,
+                }))
+            },
+        )?;
         Ok(Some(self.constant(position)))
     }
 

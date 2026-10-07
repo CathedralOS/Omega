@@ -38,7 +38,7 @@ use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
 use super::binary_numerals;
 use super::denotation::{BinaryBoundOperation, math_less_or_equal_sides};
 use super::{
-    BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
+    BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
     affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
 };
 use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
@@ -455,19 +455,18 @@ impl Denotation {
         };
         let endpoint =
             ScalarTerm::integer(*integer_type, value).expect("carrier endpoint is representable");
-        if let Some(&position) = self.carrier_bounds.get(&(operand.clone(), lower)) {
-            return Ok((endpoint, self.constant(position)));
-        }
-        let proposition = if lower {
-            Proposition::LessOrEqual(endpoint.clone(), operand.clone())
-        } else {
-            Proposition::LessOrEqual(operand.clone(), endpoint.clone())
-        };
-        let ty = self.denote(&proposition)?;
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.carrier_bounds
-            .insert((operand.clone(), lower), position);
+        let position = self.interned_keyed_assumption(
+            |this| &mut this.carrier_bounds,
+            (operand.clone(), lower),
+            |this| {
+                let proposition = if lower {
+                    Proposition::LessOrEqual(endpoint.clone(), operand.clone())
+                } else {
+                    Proposition::LessOrEqual(operand.clone(), endpoint.clone())
+                };
+                this.denote(&proposition)
+            },
+        )?;
         Ok((endpoint, self.constant(position)))
     }
 

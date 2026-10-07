@@ -324,6 +324,33 @@ pub(super) struct BinaryBoundOperation {
     ) -> Result<Option<TermHandle>, BoundedDenotationError>,
 }
 
+/// The `get → record` surface one interned-position roster needs —
+/// shared by the `BTreeMap` tables and the `HashMap` decision table.
+pub(super) trait PositionRoster<K> {
+    fn roster_position(&self, key: &K) -> Option<u32>;
+    fn record_position(&mut self, key: K, position: u32);
+}
+
+impl<K: Ord> PositionRoster<K> for BTreeMap<K, u32> {
+    fn roster_position(&self, key: &K) -> Option<u32> {
+        self.get(key).copied()
+    }
+
+    fn record_position(&mut self, key: K, position: u32) {
+        self.insert(key, position);
+    }
+}
+
+impl<K: Eq + std::hash::Hash> PositionRoster<K> for HashMap<K, u32> {
+    fn roster_position(&self, key: &K) -> Option<u32> {
+        self.get(key).copied()
+    }
+
+    fn record_position(&mut self, key: K, position: u32) {
+        self.insert(key, position);
+    }
+}
+
 impl Denotation {
     /// Denote the checked direct binary-operation bound: a `Conjunction`
     /// of the two operand bounds proves `k ≤ op l r` or `op l r ≤ k`,
@@ -717,13 +744,11 @@ impl Denotation {
         if scalar_type == ScalarType::Boolean {
             return Ok(self.two);
         }
-        if let Some(&position) = self.carriers.get(&scalar_type) {
-            return Ok(self.constant(position));
-        }
-        let position = self.position()?;
-        self.declarations
-            .push(Declaration::assumption(0, self.type_zero));
-        self.carriers.insert(scalar_type, position);
+        let position = self.interned_keyed_assumption(
+            |this| &mut this.carriers,
+            scalar_type,
+            |this| Ok(this.type_zero),
+        )?;
         Ok(self.constant(position))
     }
 
@@ -748,13 +773,12 @@ impl Denotation {
             }
             None => term.clone(),
         };
-        if let Some(&position) = self.terms.get(&key) {
-            return Ok(self.constant(position));
-        }
-        let ty = self.carrier(key.scalar_type())?;
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.terms.insert(key, position);
+        let scalar_type = key.scalar_type();
+        let position = self.interned_keyed_assumption(
+            |this| &mut this.terms,
+            key,
+            |this| this.carrier(scalar_type),
+        )?;
         Ok(self.constant(position))
     }
 
@@ -765,13 +789,11 @@ impl Denotation {
         &mut self,
         algebra: &ContentAlgebra,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        if let Some(&position) = self.content_carriers.get(algebra) {
-            return Ok(self.constant(position));
-        }
-        let position = self.position()?;
-        self.declarations
-            .push(Declaration::assumption(0, self.type_zero));
-        self.content_carriers.insert(algebra.clone(), position);
+        let position = self.interned_keyed_assumption(
+            |this| &mut this.content_carriers,
+            algebra.clone(),
+            |this| Ok(this.type_zero),
+        )?;
         Ok(self.constant(position))
     }
 
@@ -785,28 +807,18 @@ impl Denotation {
         algebra: &ContentAlgebra,
         term: &ContentTerm,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let key = (algebra.clone(), term.clone());
-        if let Some(&position) = self.content_terms.get(&key) {
-            return Ok(self.constant(position));
-        }
-        let ty = self.content_carrier(algebra)?;
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.content_terms.insert(key, position);
+        let position = self.interned_keyed_assumption(
+            |this| &mut this.content_terms,
+            (algebra.clone(), term.clone()),
+            |this| this.content_carrier(algebra),
+        )?;
         Ok(self.constant(position))
     }
 
     /// `Int : Type 0` — the mathematical-integer carrier assumption
     /// every `Int` element and integer relation names, pushed once.
     pub(super) fn integer(&mut self) -> Result<u32, BoundedDenotationError> {
-        if let Some(position) = self.integer {
-            return Ok(position);
-        }
-        let position = self.position()?;
-        self.declarations
-            .push(Declaration::assumption(0, self.type_zero));
-        self.integer = Some(position);
-        Ok(position)
+        self.interned_slot_assumption(|this| &mut this.integer, |this| Ok(this.type_zero))
     }
 
     /// The `Int` carrier as a term — the `Constant` node every integer
@@ -840,22 +852,18 @@ impl Denotation {
 
     /// `IntLt`'s declaration position.
     pub(super) fn integer_less_than(&mut self) -> Result<u32, BoundedDenotationError> {
-        if let Some(position) = self.integer_less_than {
-            return Ok(position);
-        }
-        let position = self.integer_order_relation()?;
-        self.integer_less_than = Some(position);
-        Ok(position)
+        self.interned_slot(
+            |this| &mut this.integer_less_than,
+            |this| this.integer_order_relation(),
+        )
     }
 
     /// `IntLe`'s declaration position.
     pub(super) fn integer_less_or_equal(&mut self) -> Result<u32, BoundedDenotationError> {
-        if let Some(position) = self.integer_less_or_equal {
-            return Ok(position);
-        }
-        let position = self.integer_order_relation()?;
-        self.integer_less_or_equal = Some(position);
-        Ok(position)
+        self.interned_slot(
+            |this| &mut this.integer_less_or_equal,
+            |this| this.integer_order_relation(),
+        )
     }
 
     /// One roster law's assumption position — pushed with the carrier
@@ -904,6 +912,57 @@ impl Denotation {
         Ok(self.constant_application(position, arguments))
     }
 
+    /// One `Option<u32>` slot interning its own assumption position:
+    /// `statement` builds the declared type only on a miss.
+    pub(super) fn interned_slot_assumption(
+        &mut self,
+        slot: impl Fn(&mut Self) -> &mut Option<u32>,
+        statement: impl FnOnce(&mut Self) -> Result<TermHandle, BoundedDenotationError>,
+    ) -> Result<u32, BoundedDenotationError> {
+        if let Some(position) = *slot(self) {
+            return Ok(position);
+        }
+        let ty = statement(self)?;
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        *slot(self) = Some(position);
+        Ok(position)
+    }
+
+    /// One `Option<u32>` slot interning a position `produce` yields on a
+    /// miss — the same lookup-or-compute shape when the producer already
+    /// declares its own assumption.
+    pub(super) fn interned_slot(
+        &mut self,
+        slot: impl Fn(&mut Self) -> &mut Option<u32>,
+        produce: impl FnOnce(&mut Self) -> Result<u32, BoundedDenotationError>,
+    ) -> Result<u32, BoundedDenotationError> {
+        if let Some(position) = *slot(self) {
+            return Ok(position);
+        }
+        let position = produce(self)?;
+        *slot(self) = Some(position);
+        Ok(position)
+    }
+
+    /// One keyed position roster interning its assumption: `statement`
+    /// builds the declared type only on a miss.
+    pub(super) fn interned_keyed_assumption<K, M: PositionRoster<K>>(
+        &mut self,
+        roster: impl Fn(&mut Self) -> &mut M,
+        key: K,
+        statement: impl FnOnce(&mut Self) -> Result<TermHandle, BoundedDenotationError>,
+    ) -> Result<u32, BoundedDenotationError> {
+        if let Some(position) = roster(self).roster_position(&key) {
+            return Ok(position);
+        }
+        let ty = statement(self)?;
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        roster(self).record_position(key, position);
+        Ok(position)
+    }
+
     /// One operation roster law's assumption position — interned once per
     /// law; on a miss the operation's `statement` scripts the `Π`
     /// declaration which is pushed as an assumption under the roster
@@ -917,15 +976,14 @@ impl Denotation {
     where
         K: Ord + Copy,
     {
-        if let Some(&position) = laws(self).get(&law) {
-            return Ok(position);
-        }
-        let statement = statement(self)?;
-        let ty = scheme_dsl::build(&mut self.arena, &mut Vec::new(), &statement);
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        laws(self).insert(law, position);
-        Ok(position)
+        self.interned_keyed_assumption(laws, law, |this| {
+            let statement = statement(this)?;
+            Ok(scheme_dsl::build(
+                &mut this.arena,
+                &mut Vec::new(),
+                &statement,
+            ))
+        })
     }
 
     /// `law a₁ … aₙ` — one operation-roster constant applied to the
@@ -1072,13 +1130,11 @@ impl Denotation {
                     if let Some(applied) = self.integer_operation_term(term)? {
                         return Ok(applied);
                     }
-                    if let Some(&position) = self.scalar_integer_terms.get(term) {
-                        return Ok(self.constant(position));
-                    }
-                    let ty = self.integer_constant()?;
-                    let position = self.position()?;
-                    self.declarations.push(Declaration::assumption(0, ty));
-                    self.scalar_integer_terms.insert(term.clone(), position);
+                    let position = self.interned_keyed_assumption(
+                        |this| &mut this.scalar_integer_terms,
+                        term.clone(),
+                        |this| this.integer_constant(),
+                    )?;
                     self.constant(position)
                 }
             }
@@ -1584,21 +1640,21 @@ impl Denotation {
         premises: &[Proposition],
         conclusion: &Proposition,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let key = (premises.to_vec(), conclusion.clone());
-        if let Some(&position) = self.rule_axioms.get(&key) {
-            return Ok(self.constant(position));
-        }
-        let mut ty = self.denote(conclusion)?;
-        for premise in premises.iter().rev() {
-            let domain = self.denote(premise)?;
-            ty = self.arena.insert(Term::Pi {
-                domain,
-                codomain: ty,
-            });
-        }
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.rule_axioms.insert(key, position);
+        let position = self.interned_keyed_assumption(
+            |this| &mut this.rule_axioms,
+            (premises.to_vec(), conclusion.clone()),
+            |this| {
+                let mut ty = this.denote(conclusion)?;
+                for premise in premises.iter().rev() {
+                    let domain = this.denote(premise)?;
+                    ty = this.arena.insert(Term::Pi {
+                        domain,
+                        codomain: ty,
+                    });
+                }
+                Ok(ty)
+            },
+        )?;
         Ok(self.constant(position))
     }
 
@@ -1609,12 +1665,8 @@ impl Denotation {
         &mut self,
         ty: TermHandle,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        if let Some(&position) = self.decisions.get(&ty) {
-            return Ok(self.constant(position));
-        }
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.decisions.insert(ty, position);
+        let position =
+            self.interned_keyed_assumption(|this| &mut this.decisions, ty, |_| Ok(ty))?;
         Ok(self.constant(position))
     }
 
