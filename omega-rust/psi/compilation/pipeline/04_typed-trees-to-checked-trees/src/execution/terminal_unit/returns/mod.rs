@@ -21,6 +21,25 @@ mod structural_scalar_returns;
 pub(crate) use boundary_scalar_returns::build_boundary_scalar_return_machine;
 pub(crate) use primitive_effects::build_checked_primitive_store_scalar_return_plans;
 
+/// Type identities a machine return plan retains for shape collection: its
+/// attached type plus every structural parameter's declared identity.
+macro_rules! machine_type_identities {
+    ($machine:expr) => {
+        $machine
+            .attachment_type_identity
+            .as_deref()
+            .into_iter()
+            .chain(
+                $machine
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.type_identity.as_str()),
+            )
+    };
+}
+
+pub(crate) use machine_type_identities;
+
 /// The structural scalar returns Unit planning may call before the full return
 /// roster exists. The call-free primitive-reference bodies are one cohort.
 /// The other is every return that performs no effects and whose cleanup needs
@@ -62,13 +81,7 @@ pub(crate) fn build_checked_scalar_callee_return_plans(
         .collect::<Vec<_>>();
     let retained = independent
         .iter()
-        .flat_map(|plan| {
-            plan.attachment_type_identity.as_deref().into_iter().chain(
-                plan.structural_parameters
-                    .iter()
-                    .map(|parameter| parameter.type_identity.as_str()),
-            )
-        })
+        .flat_map(|plan| machine_type_identities!(plan))
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
     for shape in shapes.types.into_values() {
@@ -130,14 +143,7 @@ pub(crate) fn build_checked_structural_return_plans(
     let retained = machines
         .iter()
         .flat_map(|plan| {
-            plan.attachment_type_identity
-                .as_deref()
-                .into_iter()
-                .chain(
-                    plan.structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity.as_str()),
-                )
+            machine_type_identities!(plan)
                 .chain(
                     plan.trivial_affine_locals
                         .iter()
@@ -244,30 +250,12 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
         .collect::<Vec<_>>();
     let retained = machines
         .iter()
-        .flat_map(|machine| {
-            machine
-                .attachment_type_identity
-                .as_deref()
-                .into_iter()
-                .chain(
-                    machine
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity.as_str()),
-                )
-        })
-        .chain(trait_operator_machines.iter().flat_map(|machine| {
-            machine
-                .attachment_type_identity
+        .flat_map(|machine| machine_type_identities!(machine))
+        .chain(
+            trait_operator_machines
                 .iter()
-                .map(String::as_str)
-                .chain(
-                    machine
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity.as_str()),
-                )
-        }))
+                .flat_map(|machine| machine_type_identities!(machine)),
+        )
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
     CheckedStructuralScalarReturnPlans {
@@ -315,30 +303,12 @@ pub(crate) fn build_checked_boundary_scalar_return_plans(
         .collect::<Vec<_>>();
     let retained = boundary_machines
         .iter()
-        .flat_map(|boundary| {
-            boundary
-                .attachment_type_identity
+        .flat_map(|boundary| machine_type_identities!(boundary))
+        .chain(
+            machines
                 .iter()
-                .map(String::as_str)
-                .chain(
-                    boundary
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity.as_str()),
-                )
-        })
-        .chain(machines.iter().flat_map(|machine| {
-            machine
-                .attachment_type_identity
-                .as_deref()
-                .into_iter()
-                .chain(
-                    machine
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity.as_str()),
-                )
-        }))
+                .flat_map(|machine| machine_type_identities!(machine)),
+        )
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
     CheckedBoundaryScalarReturnPlans {

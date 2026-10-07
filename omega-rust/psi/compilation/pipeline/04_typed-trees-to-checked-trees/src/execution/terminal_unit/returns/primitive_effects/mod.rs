@@ -23,18 +23,7 @@ pub(crate) fn build_checked_primitive_store_scalar_return_plans(
         .collect::<Vec<_>>();
     let retained = machines
         .iter()
-        .flat_map(|machine| {
-            machine
-                .attachment_type_identity
-                .as_deref()
-                .into_iter()
-                .chain(
-                    machine
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity.as_str()),
-                )
-        })
+        .flat_map(|machine| super::machine_type_identities!(machine))
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
     CheckedStructuralScalarReturnPlans {
