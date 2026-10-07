@@ -58,8 +58,11 @@ impl PendingPackageImport {
         self.scope
     }
 
-    pub fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
-        self.request.physical_source()
+    pub fn physical_source(
+        &self,
+        filesystem: &source::SourceFileSystem,
+    ) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
+        self.request.physical_source(filesystem)
     }
 
     pub fn resolve_for_exact_target(
@@ -84,7 +87,11 @@ impl PendingPackageImport {
             .map_err(|error| vec![Diagnostic::error(error)])?;
         let requires_module = generated.as_ref() != Some(&path)
             && !direct.iter().any(|candidate| {
-                same_source_path(&self.request.expected_root.join(candidate), &path)
+                same_source_path(
+                    &self.request.expected_root.join(candidate),
+                    &path,
+                    packages.source_filesystem(),
+                )
             });
         Ok(ResolvedSourceImport {
             occurrence: self.occurrence.clone(),
@@ -94,18 +101,30 @@ impl PendingPackageImport {
     }
 }
 
-pub(super) fn direct_source_import(root: &Path, members: &[Identifier], resolved: &Path) -> bool {
+pub(super) fn direct_source_import(
+    root: &Path,
+    members: &[Identifier],
+    resolved: &Path,
+    filesystem: &source::SourceFileSystem,
+) -> bool {
     let relative = members.iter().fold(PathBuf::new(), |mut path, member| {
         path.push(member.as_str());
         path
     });
     source_path_candidates(&relative)
         .iter()
-        .any(|candidate| same_source_path(&root.join(candidate), resolved))
+        .any(|candidate| same_source_path(&root.join(candidate), resolved, filesystem))
 }
 
-fn same_source_path(candidate: &Path, resolved: &Path) -> bool {
-    candidate == resolved || candidate.canonicalize().is_ok_and(|path| path == resolved)
+fn same_source_path(
+    candidate: &Path,
+    resolved: &Path,
+    filesystem: &source::SourceFileSystem,
+) -> bool {
+    candidate == resolved
+        || filesystem
+            .canonicalize(candidate)
+            .is_ok_and(|path| path == resolved)
 }
 
 pub fn retain_module_import_bindings(

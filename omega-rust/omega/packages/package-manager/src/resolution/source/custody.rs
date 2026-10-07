@@ -1,4 +1,10 @@
-//! Transport-erased custody for one declared package snapshot.
+//! Transport-erased custody for one declared immutable package source.
+//!
+//! Persistent sources retain a sealed physical root. An ordinary compilation
+//! root retains its complete acquisition inventory instead: the root spelling
+//! only routes consumers through that closed namespace. Keeping the capture
+//! here prevents transport erasure from dropping the bytes and forcing loading
+//! or Build to reopen a changed checkout.
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
@@ -11,6 +17,7 @@ use crate::resolution::source::{
 use package_source::ImmutableSourceResolution;
 use package_source::LocalSourceLimits;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Immutable package source after acquisition, declaration extraction, and
 /// dependency projection have all succeeded.
@@ -21,6 +28,7 @@ pub struct PackageSourceCustody {
     resolution: ImmutableSourceResolution,
     materialization: PackageSourceMaterialization,
     pub(crate) snapshot_root: PathBuf,
+    captured_source: Option<Arc<source::CapturedSourceTree>>,
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
@@ -50,6 +58,7 @@ impl PartialEq for PackageSourceCustody {
             && self.resolution == other.resolution
             && self.materialization == other.materialization
             && self.snapshot_root == other.snapshot_root
+            && self.captured_source == other.captured_source
             && self.navigation == other.navigation
             && self.selection_evidence == other.selection_evidence
             && self.dependency_projections == other.dependency_projections
@@ -80,6 +89,7 @@ impl PackageSourceCustody {
             resolution,
             materialization,
             snapshot_root,
+            captured_source: None,
             navigation,
             selection_evidence,
             source_limits,
@@ -87,6 +97,15 @@ impl PackageSourceCustody {
             checked_source_cache_dir: None,
             compiled_review_cache_dir: None,
         }
+    }
+
+    pub(crate) fn with_captured_source(mut self, tree: Arc<source::CapturedSourceTree>) -> Self {
+        self.captured_source = Some(tree);
+        self
+    }
+
+    pub fn captured_source(&self) -> Option<&Arc<source::CapturedSourceTree>> {
+        self.captured_source.as_ref()
     }
 
     /// Attach the retained lane directory offered to the checked source

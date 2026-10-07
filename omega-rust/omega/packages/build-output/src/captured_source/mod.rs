@@ -272,6 +272,15 @@ impl CapturedBuildSourceInput {
         })
     }
 
+    /// Borrow exact retained entries for compiler-owned inventory selection.
+    /// Cloning an entry shares its file or link payload allocation; callers
+    /// need not materialize a tree or copy bytes to derive a narrower view.
+    pub fn retained_entries(&self) -> impl ExactSizeIterator<Item = (&[u8], &CapturedSourceEntry)> {
+        self.entries
+            .iter()
+            .map(|(relative_path, entry)| (relative_path.as_slice(), entry))
+    }
+
     /// Look up one captured regular file by canonical relative path without
     /// following any link. Returns `None` for absent paths and non-file kinds.
     pub fn file(&self, relative_path: &[u8]) -> Option<CapturedSourceFile<'_>> {

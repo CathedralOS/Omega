@@ -3,10 +3,10 @@
 //! A captured file must retain its identity, length and change indicators across
 //! the bounded copy. These host observations only guard capture; they never enter
 //! canonical source identity. Per-file checks and the per-directory close recheck
-//! supplement the later tree recheck, not an atomic-tree snapshot or isolation
-//! from a process with the same authority: a subtree mutated after its own close
-//! is only caught by the ancestors' entry-identity comparison, so whole-tree
-//! coherence still relies on the resolver's live-tree comparison.
+//! supplement capture's final recorded-member and directory recheck. They do
+//! not establish an atomic-tree snapshot or isolation from a process with the
+//! same authority. Invocation consumers retain the captured bytes; persistent
+//! publication has its own final live-tree and snapshot comparisons.
 
 use std::ffi::{OsStr, OsString};
 use std::io::Read;

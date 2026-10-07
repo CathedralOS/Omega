@@ -7,9 +7,12 @@ pub struct ProjectRoots {
     pub build: Option<std::path::PathBuf>,
 }
 
-pub fn project_roots(root_path: &std::path::Path) -> ProjectRoots {
-    if root_path.is_dir() {
-        return directory_project_roots(root_path);
+pub fn project_roots(
+    root_path: &std::path::Path,
+    filesystem: &source::SourceFileSystem,
+) -> ProjectRoots {
+    if filesystem.is_dir(root_path) {
+        return directory_project_roots(root_path, filesystem);
     }
     let mut roots = vec![root_path.to_path_buf()];
     let mut build = (root_path.file_name().and_then(|name| name.to_str()) == Some("build.omg"))
@@ -24,7 +27,7 @@ pub fn project_roots(root_path: &std::path::Path) -> ProjectRoots {
     for companion_name in companion_root_names(root_path.file_name().and_then(|name| name.to_str()))
     {
         let companion = parent.join(companion_name);
-        if companion != root_path && companion.is_file() {
+        if companion != root_path && filesystem.is_file(&companion) {
             if *companion_name == "build.omg" {
                 build = Some(companion.clone());
             }
@@ -42,12 +45,15 @@ pub fn project_roots(root_path: &std::path::Path) -> ProjectRoots {
 /// itself is not a source file, so seeding it would load a directory as
 /// source text. A directory holding neither root still names itself — the
 /// loader's directory diagnostic stays honest rather than silently skipping.
-fn directory_project_roots(directory: &std::path::Path) -> ProjectRoots {
+fn directory_project_roots(
+    directory: &std::path::Path,
+    filesystem: &source::SourceFileSystem,
+) -> ProjectRoots {
     let mut roots = Vec::new();
     let mut build = None;
     for name in ["build.omg", "main.omg"] {
         let candidate = directory.join(name);
-        if candidate.is_file() {
+        if filesystem.is_file(&candidate) {
             if name == "build.omg" {
                 build = Some(candidate.clone());
             }
@@ -111,13 +117,16 @@ pub struct ProjectSourceSelection {
 }
 
 impl ProjectSourceSelection {
-    pub fn prepare(root_path: &std::path::Path) -> Result<Self, Vec<Diagnostic>> {
-        let roots = project_roots(root_path);
+    pub fn prepare(
+        root_path: &std::path::Path,
+        filesystem: &source::SourceFileSystem,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let roots = project_roots(root_path, filesystem);
         let build_path = roots
             .build
             .as_deref()
             .map(|path| {
-                path.canonicalize().map_err(|error| {
+                filesystem.canonicalize(path).map_err(|error| {
                     vec![Diagnostic::error(format!(
                         "failed to establish exact build source {}: {error}",
                         path.display()
@@ -129,7 +138,7 @@ impl ProjectSourceSelection {
             .sources
             .into_iter()
             .map(|path| {
-                let canonical = path.canonicalize().ok();
+                let canonical = filesystem.canonicalize(&path).ok();
                 let scope = if canonical.is_some() && canonical == build_path {
                     source::DependencyScope::Build
                 } else {
@@ -159,8 +168,9 @@ impl ProjectSourceSelection {
                     .files
                     .iter()
                     .find(|(_, file)| {
-                        file.path
-                            .canonicalize()
+                        storage
+                            .filesystem
+                            .canonicalize(&file.path)
                             .is_ok_and(|loaded| loaded == selected)
                             && storage.sources.get(file.source_id).is_some_and(|source| {
                                 source.dependency_scope == source::DependencyScope::Build

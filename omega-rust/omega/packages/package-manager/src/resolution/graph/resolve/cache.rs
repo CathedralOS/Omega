@@ -1,7 +1,7 @@
 use super::git_pins::{GitResolutionOptions, pin_error};
 use crate::resolution::source::{
     GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
-    resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
+    resolve_external_local_package_source_in_lane,
     resolve_selected_git_package_source_at_revision_in_lanes,
     resolve_selected_git_package_source_from_pin_in_lanes,
     resolve_selected_git_project_source_at_revision_in_lanes,
@@ -219,19 +219,6 @@ pub(super) fn resolve_external_local_package_from_cache(
     match cache {
         SourceCacheLane::Retained(lane) => {
             resolve_external_local_package_source_in_lane(source_root, lane, limits, source_context)
-        }
-    }
-}
-
-pub(super) fn resolve_external_local_project_from_cache(
-    source_root: impl AsRef<Path>,
-    cache: SourceCacheLane<'_>,
-    limits: LocalSourceLimits,
-    source_context: ExternalSourceContext,
-) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    match cache {
-        SourceCacheLane::Retained(lane) => {
-            resolve_external_local_project_source_in_lane(source_root, lane, limits, source_context)
         }
     }
 }

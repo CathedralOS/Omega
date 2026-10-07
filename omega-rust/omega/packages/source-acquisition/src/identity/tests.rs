@@ -167,19 +167,16 @@ fn recovered_external_local_lineage_rejects_noncanonical_separators() {
     let context = ExternalSourceContext::derive(b"review-baseline");
     let canonical = std::env::temp_dir().join("omega-recovered-source");
     let canonical = canonical.to_str().unwrap().to_owned();
+    assert!(ExternalLocalLineage::from_canonical_path(canonical.clone(), context.clone()).is_ok());
     assert!(
-        ExternalLocalLineage::from_recovered_canonical_path(canonical.clone(), context.clone())
-            .is_ok()
-    );
-    assert!(
-        ExternalLocalLineage::from_recovered_canonical_path(
+        ExternalLocalLineage::from_canonical_path(
             format!("{canonical}{}", std::path::MAIN_SEPARATOR),
             context.clone(),
         )
         .is_err()
     );
     assert!(
-        ExternalLocalLineage::from_recovered_canonical_path(
+        ExternalLocalLineage::from_canonical_path(
             canonical.replacen(
                 std::path::MAIN_SEPARATOR,
                 &std::path::MAIN_SEPARATOR_STR.repeat(2),

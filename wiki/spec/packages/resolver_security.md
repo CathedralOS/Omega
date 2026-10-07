@@ -245,20 +245,32 @@ process already holding the invoking user's authority.
 
 ## Local sources
 
-Local sources skip transport but still pass through bounded snapshot staging.
-The resolver captures the requested tree, validates entries and links, publishes
-a read-only snapshot under resolver-owned storage, and rechecks the live tree
-and snapshot before returning. Ordinary concurrent drift rejects. The snapshot
-does not claim protection from a process that already possesses the same user
-authority after resolution completes.
+Local sources skip transport but retain bounded, immutable source custody.
+Ordinary compilation captures the requested tree once into invocation-owned
+memory. Declaration projection, import membership and loading consume that
+closed inventory, including negative observations, instead of reopening the
+checkout. Build derives its canonical metadata from the same captured bytes;
+its confined backing may be materialized privately for execution. None of
+these operations publishes a persistent root snapshot on an ordinary edit.
+
+Transaction candidates and retained foreign-package review still publish
+read-only snapshots under resolver-owned storage and recheck their live and
+published trees before returning. These persistence boundaries are separate
+from invocation consumption. Neither backing claims protection from a process
+that already possesses the same user authority after resolution completes.
 
 Each regular-file copy checks its observed byte count and compares the retained
 handle's identity, length, permissions and modification time before and after
 reading; Unix also compares change time. The final name is checked without
 following links through the retained parent directory, not an ambient path.
 Those host observations detect drift but never enter canonical source identity.
-They do not establish whole-tree atomicity or detect every edit that restores
-the compared observations; the later live-tree comparison remains necessary.
+The capture closes with a comparison of every recorded member and directory
+observation, rejecting detected ordinary drift even in already-visited
+subtrees. This assumes a quiescent input during capture; it does not establish
+whole-tree atomicity or detect every edit that restores the compared host
+observations. Later phases read retained bytes, so later host edits cannot
+combine a captured declaration with different imported source. Persistent
+publication retains its separate final live-tree and snapshot comparisons.
 
 Mutable local capture omits Git metadata, the root build-output directory, and
 root `omega.lock`, including ASCII case variants. Project

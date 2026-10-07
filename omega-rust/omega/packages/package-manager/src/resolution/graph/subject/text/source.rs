@@ -236,7 +236,7 @@ pub(super) fn read_lineage(
                 ExternalLocalLineage::recovery_owned_bytes(&path)
                     .ok_or_else(|| Error::new("external-local recovery allowance overflow"))?,
             )?;
-            return ExternalLocalLineage::from_recovered_canonical_path(path, context)
+            return ExternalLocalLineage::from_canonical_path(path, context)
                 .map(SourceLineage::ExternalLocal)
                 .map_err(|_| Error::new("invalid text external-local lineage"));
         }

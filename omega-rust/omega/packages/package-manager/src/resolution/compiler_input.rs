@@ -152,15 +152,20 @@ fn binding_with_canonical_source_metadata(
     custody: &crate::resolution::source::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
-    // The snapshot root this binds was hashed against this same expected
-    // content digest when the resolver published it, and the capture below
-    // traverses it again to build the index. A third read discarding its own
-    // result establishes nothing either of those two did not.
+    // Invocation custody supplies its already-captured bytes and namespace.
+    // A persisted source instead supplies sealed physical backing; its index
+    // may use the checked-source cache. A live checkout stat fingerprint is
+    // never a substitute for the content retained by this invocation.
     let invalid = |reason: String| PackageCompilationInputError::InvalidSourceRoot {
         identity: custody.key().identity(),
         path: custody.snapshot_root().to_path_buf(),
         reason: format!("invalid canonical build-source metadata: {reason}"),
     };
+    if let Some(tree) = custody.captured_source() {
+        return binding
+            .with_captured_source(std::sync::Arc::clone(tree))
+            .map_err(invalid);
+    }
     // A resolved custody may name a retained lane directory holding the
     // persistent checked-source index. Reuse is self-verifying — a retained
     // record is only replayed when its stat fingerprint still matches — so a

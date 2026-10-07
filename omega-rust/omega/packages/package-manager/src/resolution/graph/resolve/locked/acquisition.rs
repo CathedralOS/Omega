@@ -1,11 +1,11 @@
 //! Fresh source-owner acquisition; recorded IDs are only equality expectations.
 
 use super::super::cache::SourceCacheLane;
-use super::{ResolveLockedPackageClosureError as Error, Resolver};
+use super::{ResolveLockedPackageClosureError as Error, Resolver, RootPolicy};
 use crate::resolution::graph::{PackageRootSourceRequest, ResolvedSourceIdentity};
 use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceCustody, ResolvePackageSourceError,
-    resolve_external_local_project_source_in_lane,
+    capture_external_local_project_source, resolve_external_local_project_source_in_lane,
     resolve_selected_git_package_source_at_revision_in_lanes,
     resolve_selected_git_project_source_at_revision_in_lanes,
     resolve_workspace_member_project_source_in_lane,
@@ -29,20 +29,32 @@ impl Resolver<'_> {
                 requested_root,
                 source_context,
             } => {
-                let resolved = resolve_external_local_project_source_in_lane(
-                    requested_root,
-                    self.storage.external_local_sources(),
-                    self.source_limits,
-                    source_context.clone(),
-                )?;
-                self.register_local_root(resolved.key(), resolved.source().canonical_live_root())?;
+                let (custody, canonical_root) =
+                    if matches!(self.root_policy, RootPolicy::MutableLocal) {
+                        let custody = capture_external_local_project_source(
+                            requested_root,
+                            self.source_limits,
+                            source_context.clone(),
+                        )?;
+                        let root = custody.snapshot_root().to_path_buf();
+                        (custody, root)
+                    } else {
+                        let resolved = resolve_external_local_project_source_in_lane(
+                            requested_root,
+                            self.storage.external_local_sources(),
+                            self.source_limits,
+                            source_context.clone(),
+                        )?;
+                        let root = resolved.source().canonical_live_root().to_path_buf();
+                        (resolved.into_custody(), root)
+                    };
+                self.register_local_root(custody.key(), &canonical_root)?;
                 let cache_dir = SourceCacheLane::Retained(self.storage.external_local_sources())
                     .checked_source_cache_dir()?;
                 let review_cache_dir =
                     SourceCacheLane::Retained(self.storage.external_local_sources())
                         .compiled_review_cache_dir()?;
-                Ok(resolved
-                    .into_custody()
+                Ok(custody
                     .with_checked_source_cache_dir(cache_dir)
                     .with_compiled_review_cache_dir(review_cache_dir))
             }

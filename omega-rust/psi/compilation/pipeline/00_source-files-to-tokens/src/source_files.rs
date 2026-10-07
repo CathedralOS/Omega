@@ -7,7 +7,8 @@
 use arena::Arena;
 use diagnostics::Diagnostic;
 use source::{
-    DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin, SourcePosition,
+    DependencyScope, LoadedSource, LoadedSources, SourceFileSystem, SourceId, SourceOrigin,
+    SourcePosition,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -15,31 +16,28 @@ use tokens::{LexedSource, LexedSources, Token, TokenStream, TokenText};
 
 /// Read one ordered frontier, assigning consecutive source coordinates.
 /// Equal paths in different dependency scopes remain separate source instances.
+/// The supplied view owns backing selection; captured reads never reopen files.
 pub fn load_sources(
     frontier: Vec<(PathBuf, DependencyScope)>,
     first_source_id: usize,
+    view: &SourceFileSystem,
 ) -> Result<LoadedSources, Vec<Diagnostic>> {
     let source_count = frontier.len();
     let mut sources = Arena::with_capacity(source_count);
     let mut loaded = Vec::with_capacity(source_count);
 
     for (source_index, (path, scope)) in frontier.into_iter().enumerate() {
-        let source = std::fs::read_to_string(&path).map_err(|error| {
+        let source = view.read_to_string(&path).map_err(|error| {
             vec![Diagnostic::error(format!(
                 "failed to read {}: {error}",
                 path.display()
             ))]
         })?;
-        source::read_accounting::record_source_file_read(
-            "frontend_load",
-            &path,
-            source.len() as u64,
-        );
 
         loaded.push(LoadedSource {
             source_id: SourceId(first_source_id + source_index),
             path,
-            source: Arc::from(source),
+            source,
             origin: None,
             scope,
         });

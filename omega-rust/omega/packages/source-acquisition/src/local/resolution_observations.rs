@@ -2,6 +2,32 @@
 
 use crate::tree::ResolvedSourceTree;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+/// Invocation-owned immutable local source. The root is a routing spelling,
+/// never permission to reopen the checkout after acquisition. Persistence is
+/// a separate operation for transaction and review custody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedLocalSource {
+    pub(super) requested_root: PathBuf,
+    pub(super) normalized: ResolvedSourceTree,
+    pub(super) tree: Arc<source::CapturedSourceTree>,
+}
+
+impl CapturedLocalSource {
+    pub fn requested_root(&self) -> &Path {
+        &self.requested_root
+    }
+    pub fn canonical_live_root(&self) -> &Path {
+        &self.normalized.root
+    }
+    pub fn normalized(&self) -> &ResolvedSourceTree {
+        &self.normalized
+    }
+    pub fn tree(&self) -> &Arc<source::CapturedSourceTree> {
+        &self.tree
+    }
+}
 
 pub use crate::tree::{
     ResolvedLocalSource, VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,

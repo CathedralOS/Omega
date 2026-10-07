@@ -82,10 +82,13 @@ impl MissingDependencyEdge {
 }
 
 impl ReconciledPackageImportRequest {
-    pub fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
+    pub fn physical_source(
+        &self,
+        filesystem: &source::SourceFileSystem,
+    ) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
         if !source_import_candidates(&self.relative_path)
             .into_iter()
-            .any(|candidate| self.expected_root.join(candidate).exists())
+            .any(|candidate| filesystem.exists(&self.expected_root.join(candidate)))
         {
             return Ok(None);
         }
@@ -93,6 +96,7 @@ impl ReconciledPackageImportRequest {
             self.expected_root.clone(),
             &self.relative_path,
             "package",
+            filesystem,
         )?;
         self.reject_dependency_build_import(&resolved)?;
         Ok(Some(resolved))
@@ -103,6 +107,7 @@ impl ReconciledPackageImportRequest {
         packages: &PackageCompilationInputs,
         scope: DependencyScope,
     ) -> Result<PathBuf, Vec<Diagnostic>> {
+        let filesystem = packages.source_filesystem();
         if packages.package_root(self.package) != Some(self.expected_root.as_path()) {
             return Err(vec![Diagnostic::error(
                 "exact-target package source root does not match its retained import request",
@@ -122,7 +127,7 @@ impl ReconciledPackageImportRequest {
         let physical = relative_candidates
             .into_iter()
             .map(|candidate| self.expected_root.join(candidate))
-            .find(|candidate| candidate.exists());
+            .find(|candidate| filesystem.exists(candidate));
         let resolved = match (generated, physical) {
             (Some(generated), Some(physical)) => {
                 return Err(vec![Diagnostic::error(format!(
@@ -145,6 +150,7 @@ impl ReconciledPackageImportRequest {
                     self.expected_root.clone(),
                     &self.relative_path,
                     "package",
+                    filesystem,
                 )?
             }
         };
@@ -209,6 +215,7 @@ pub fn reconciled_package_import(
     contract_root: Option<&Path>,
     packages: &PackageCompilationInputs,
 ) -> Result<ReconciledPackageImport, Vec<Diagnostic>> {
+    let filesystem = packages.source_filesystem();
     let Some(first) = members.first() else {
         return Err(vec![Diagnostic::error(format!(
             "{} contains an empty import path",
@@ -218,7 +225,7 @@ pub fn reconciled_package_import(
     if is_bundled_core_path(members) {
         if let Some(root) = requester
             .and_then(|requester| packages.package_root(requester))
-            .filter(|root| local_source_exists(root, members))
+            .filter(|root| local_source_exists(root, members, filesystem))
         {
             return Err(vec![Diagnostic::error(format!(
                 "import `{}` in {} collides with a requester-local source below {}; `omega::language::core` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it",
@@ -227,8 +234,13 @@ pub fn reconciled_package_import(
                 root.display(),
             ))]);
         }
-        return resolve_reconciled_import(bundled_omega_root()?, &members[2..], "toolchain")
-            .map(ReconciledPackageImport::Toolchain);
+        return resolve_reconciled_import(
+            bundled_omega_root()?,
+            &members[2..],
+            "toolchain",
+            filesystem,
+        )
+        .map(ReconciledPackageImport::Toolchain);
     }
     if is_bundled_omega_path(members) {
         return Err(vec![Diagnostic::error(format!(
@@ -246,6 +258,7 @@ pub fn reconciled_package_import(
                 contract_root.to_path_buf(),
                 members,
                 "toolchain contract",
+                filesystem,
             )
             .map(|path| ReconciledPackageImport::ToolchainContract {
                 root: contract_root.to_path_buf(),
@@ -309,7 +322,7 @@ pub fn reconciled_package_import(
             // A requester-local module keeps precedence. Only an import that
             // has no local source and spells a known package name records
             // the edge it would need, so the eventual failure names it.
-            let missing_edge = (!local_source_exists(requester_root, members))
+            let missing_edge = (!local_source_exists(requester_root, members, filesystem))
                 .then(|| known_package_spelling(packages, requester, first.as_str()))
                 .flatten()
                 .map(|package| MissingDependencyEdge {
@@ -342,14 +355,18 @@ pub fn reconciled_package_import(
 
 /// Whether `members`, read as a requester-local path below `root`, reaches an
 /// existing source through any direct or prefix candidate.
-pub(super) fn local_source_exists(root: &Path, members: &[Identifier]) -> bool {
+pub(super) fn local_source_exists(
+    root: &Path,
+    members: &[Identifier],
+    filesystem: &source::SourceFileSystem,
+) -> bool {
     let relative = members.iter().fold(PathBuf::new(), |mut path, member| {
         path.push(member.as_str());
         path
     });
     source_import_candidates(&relative)
         .into_iter()
-        .any(|candidate| root.join(candidate).exists())
+        .any(|candidate| filesystem.exists(&root.join(candidate)))
 }
 
 /// The package `first` spells as a requester-local alias, if the compilation

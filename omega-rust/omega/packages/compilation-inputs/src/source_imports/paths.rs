@@ -7,6 +7,7 @@ use syntax_trees::identifier::Identifier;
 pub(super) fn resolve_source_path(
     root_dir: &Path,
     source_path: &[Identifier],
+    filesystem: &source::SourceFileSystem,
 ) -> Result<PathBuf, Vec<Diagnostic>> {
     let mut segments = source_path.iter();
     let mut path = if is_bundled_omega_path(source_path) {
@@ -23,7 +24,7 @@ pub(super) fn resolve_source_path(
     });
     for relative_candidate in source_import_candidates(&relative_path) {
         let candidate = path.join(relative_candidate);
-        if candidate.exists() {
+        if filesystem.exists(&candidate) {
             return Ok(candidate);
         }
     }
@@ -38,33 +39,35 @@ pub(super) fn resolve_reconciled_import(
     expected_root: PathBuf,
     source_path: &[Identifier],
     source_kind: &str,
+    filesystem: &source::SourceFileSystem,
 ) -> Result<PathBuf, Vec<Diagnostic>> {
     let mut relative_path = PathBuf::new();
     for segment in source_path {
         relative_path.push(segment.as_str());
     }
 
-    resolve_reconciled_relative_import(expected_root, &relative_path, source_kind)
+    resolve_reconciled_relative_import(expected_root, &relative_path, source_kind, filesystem)
 }
 
 pub(super) fn resolve_reconciled_relative_import(
     expected_root: PathBuf,
     relative_path: &Path,
     source_kind: &str,
+    filesystem: &source::SourceFileSystem,
 ) -> Result<PathBuf, Vec<Diagnostic>> {
     let path = expected_root.join(relative_path);
 
     let candidate = source_import_candidates(relative_path)
         .into_iter()
         .map(|candidate| expected_root.join(candidate))
-        .find(|candidate| candidate.exists())
+        .find(|candidate| filesystem.exists(candidate))
         .unwrap_or_else(|| {
             source_path_candidates(&path)
                 .into_iter()
                 .next()
                 .unwrap_or(path)
         });
-    let canonical = normalize_path(&candidate)?;
+    let canonical = normalize_path(&candidate, filesystem)?;
     if !canonical.starts_with(&expected_root) {
         return Err(vec![Diagnostic::error(format!(
             "resolved {source_kind} import {} escapes expected source root {}",
@@ -105,8 +108,11 @@ pub fn bundled_core_root() -> Result<PathBuf, Vec<Diagnostic>> {
     Ok(bundled_omega_root()?.join("core"))
 }
 
-pub(super) fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
-    path.canonicalize().map_err(|error| {
+pub(super) fn normalize_path(
+    path: &Path,
+    filesystem: &source::SourceFileSystem,
+) -> Result<PathBuf, Vec<Diagnostic>> {
+    filesystem.canonicalize(path).map_err(|error| {
         vec![Diagnostic::error(format!(
             "failed to resolve {}: {error}",
             path.display()

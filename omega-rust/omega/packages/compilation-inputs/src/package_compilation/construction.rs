@@ -1,6 +1,8 @@
-//! Builds the reconciled package graph from caller bindings, rejecting
-//! every invalid root, name, source root, alias, edge, and cycle, and
-//! revalidates the retained source roots before the compiler consumes them.
+//! Reconcile package bindings and mount their acquired source namespaces.
+//!
+//! Invalid roots, names, aliases, edges and cycles reject at construction.
+//! Captured roots are mounted lexically without reopening the checkout;
+//! physical adapters retain their own source-root validity checks.
 
 use super::dependency_graph::dependency_cycle;
 use super::{
@@ -47,7 +49,15 @@ impl PackageCompilationInputs {
                     name: package.canonical_name.clone(),
                 });
             }
-            let canonical_root = match canonical_source_root(&package.source_root) {
+            let canonical_root = match if package.captured_source.is_some() {
+                if package.source_root.is_absolute() {
+                    Ok(package.source_root.clone())
+                } else {
+                    Err("captured source root must be absolute".to_owned())
+                }
+            } else {
+                canonical_source_root(&package.source_root)
+            } {
                 Ok(root) => root,
                 Err(reason) => {
                     errors.push(PackageCompilationInputError::InvalidSourceRoot {
@@ -65,6 +75,8 @@ impl PackageCompilationInputs {
                         source_root: canonical_root.clone(),
                         canonical_name: package.canonical_name,
                         canonical_source_metadata: package.canonical_source_metadata,
+                        captured_source: package.captured_source,
+                        captured_build_source: package.captured_build_source,
                         dependencies: BTreeMap::new(),
                         build_dependencies: BTreeMap::new(),
                     },
@@ -177,9 +189,24 @@ impl PackageCompilationInputs {
             errors.push(PackageCompilationInputError::DependencyCycle { cycle });
         }
 
+        let mut filesystem = source::SourceFileSystem::default();
+        for (identity, record) in &canonical_packages {
+            if let Some(tree) = &record.captured_source
+                && let Err(error) =
+                    filesystem.add_capture(record.source_root.clone(), Arc::clone(tree))
+            {
+                errors.push(PackageCompilationInputError::InvalidSourceRoot {
+                    identity: *identity,
+                    path: record.source_root.clone(),
+                    reason: error.to_string(),
+                });
+            }
+        }
+
         if errors.is_empty() {
             Ok(Self {
                 source: Arc::new(PackageCompilationSourceInputs {
+                    filesystem,
                     root,
                     root_role,
                     packages: canonical_packages,
@@ -208,8 +235,12 @@ impl PackageCompilationInputs {
         toolchain_root: &Path,
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
+        let filesystem = self.source_filesystem();
 
         for (identity, record) in &self.source.packages {
+            if record.captured_source.is_some() {
+                continue;
+            }
             let expected_root = &record.source_root;
             match canonical_source_root(expected_root) {
                 Ok(actual_root) if actual_root == *expected_root => {}
@@ -225,7 +256,7 @@ impl PackageCompilationInputs {
                 ))),
             }
         }
-        match root_path.canonicalize() {
+        match filesystem.canonicalize(root_path) {
             Ok(root_file) => {
                 let expected_root = self
                     .package_root(self.source.root)

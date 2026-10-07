@@ -8,20 +8,29 @@
 //! files and positions. Past resolution, source text is diagnostic and debug
 //! payload, never identity.
 //!
+//! `captured_source_tree.rs` retains immutable source bytes and namespace, and
+//! `source_file_system.rs` routes compiler reads through captured roots without
+//! reopening absent members. Acquisition, admission, Build and materialization
+//! stay with their respective consumers; these models carry no authority.
+//!
 //! `read_accounting.rs` counts how many times the host was read for one source
 //! file's bytes, across every crate that reads them. Loading each consumed file
 //! once is the contract; the counter is how a second read becomes visible.
 
+mod captured_source_tree;
 mod loaded_sources;
 pub mod read_accounting;
 mod source_file;
+mod source_file_system;
 mod source_map;
 mod source_text;
 
+pub use captured_source_tree::{CapturedSourceNode, CapturedSourceTree};
 pub use loaded_sources::{LoadedSource, LoadedSources};
 pub use source_file::{
     DependencyScope, SourceFile, SourceOrigin, SourcePosition, SourceResolutionStratum,
 };
+pub use source_file_system::SourceFileSystem;
 pub use source_map::SourceMap;
 pub use source_text::SourceText;
 

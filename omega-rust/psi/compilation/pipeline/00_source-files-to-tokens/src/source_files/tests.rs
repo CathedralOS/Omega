@@ -1,5 +1,7 @@
 use super::{lex_sources, load_sources};
-use source::{DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin};
+use source::{
+    DependencyScope, LoadedSource, LoadedSources, SourceFileSystem, SourceId, SourceOrigin,
+};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -40,6 +42,7 @@ fn loading_preserves_order_and_distinct_scopes_and_reports_unreadable_paths() {
             (path.clone(), DependencyScope::Product),
         ],
         11,
+        &SourceFileSystem::new(),
     )
     .unwrap();
     let batch = loaded.sources.span_or_empty(loaded.batch);
@@ -56,8 +59,12 @@ fn loading_preserves_order_and_distinct_scopes_and_reports_unreadable_paths() {
     }
 
     let unreadable = path.join("not-a-directory");
-    let errors =
-        load_sources(vec![(unreadable.clone(), DependencyScope::Product)], 11).unwrap_err();
+    let errors = load_sources(
+        vec![(unreadable.clone(), DependencyScope::Product)],
+        11,
+        &SourceFileSystem::new(),
+    )
+    .unwrap_err();
     assert_eq!(errors.len(), 1);
     assert!(
         errors[0]

@@ -5,7 +5,6 @@ use super::super::reconcile::{
 };
 use super::cache::{
     GitAcquisitionCache, SourceCacheLane, resolve_external_local_package_from_cache,
-    resolve_external_local_project_from_cache,
 };
 use super::dependencies::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
@@ -13,6 +12,7 @@ use super::git_pins::GitResolutionOptions;
 use crate::declarations::PackageKey;
 use crate::resolution::source::{
     PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
+    capture_external_local_project_source,
 };
 use package_source::local::staging::StagedLocalSnapshot;
 use package_source::{ExternalSourceContext, SourceLineage};
@@ -189,32 +189,36 @@ fn resolve_external_local_declared_closure_from_lanes(
     git_acquisitions: &mut GitAcquisitionCache<'_>,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     let requested_root = live_root.to_path_buf();
-    let root = if application_root_allowed {
-        resolve_external_local_project_from_cache(
+    let (root, canonical_live_root) = if application_root_allowed {
+        let root = capture_external_local_project_source(
             &requested_root,
-            local_cache,
             source_limits,
             source_context.clone(),
         )
+        .map_err(ResolveExternalLocalPackageClosureError::Root)?;
+        let canonical = root.snapshot_root().to_path_buf();
+        (root, canonical)
     } else {
-        resolve_external_local_package_from_cache(
+        let root = resolve_external_local_package_from_cache(
             &requested_root,
             local_cache,
             source_limits,
             source_context.clone(),
         )
-    }
-    .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-    if root.source().requested_root() != requested_root
-        || !matches!(
-            root.key().source_lineage(),
-            SourceLineage::ExternalLocal(lineage)
-                if lineage.source_context() == &source_context
-        )
-    {
+        .map_err(ResolveExternalLocalPackageClosureError::Root)?;
+        if root.source().requested_root() != requested_root {
+            return Err(ResolveExternalLocalPackageClosureError::RootRequestMismatch);
+        }
+        let canonical = root.source().canonical_live_root().to_path_buf();
+        (root.into_custody(), canonical)
+    };
+    if !matches!(
+        root.key().source_lineage(),
+        SourceLineage::ExternalLocal(lineage)
+            if lineage.source_context() == &source_context
+    ) {
         return Err(ResolveExternalLocalPackageClosureError::RootRequestMismatch);
     }
-    let canonical_live_root = root.source().canonical_live_root().to_path_buf();
     let cache_dir = local_cache
         .checked_source_cache_dir()
         .map_err(ResolveExternalLocalPackageClosureError::Root)?;
@@ -225,8 +229,7 @@ fn resolve_external_local_declared_closure_from_lanes(
         &requested_root,
         &canonical_live_root,
         source_context,
-        root.into_custody()
-            .with_checked_source_cache_dir(cache_dir)
+        root.with_checked_source_cache_dir(cache_dir)
             .with_compiled_review_cache_dir(review_cache_dir),
         local_cache,
         workspace_cache,

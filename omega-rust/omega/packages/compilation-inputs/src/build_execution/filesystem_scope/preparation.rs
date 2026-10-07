@@ -50,6 +50,14 @@ pub fn prepare_filesystem_scope(
         crate::BuildMachineFilesystemScope::for_root(root_path, build_dir, filesystem_sponsor)
     }
     .with_execution_profile(build_execution_profile);
+    let retained_input =
+        package_inputs.and_then(|inputs| inputs.captured_source_input(inputs.root()));
+    // Retained custody always supplies the Source view, including callers
+    // that did not select an explicit snapshot request. It must never become
+    // a real-host grant merely because this activation has no output roster.
+    let automatic_snapshot =
+        retained_input.map(|_| crate::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
+    let build_snapshot = build_snapshot.or(automatic_snapshot.as_ref());
     if let Some(build_snapshot) = build_snapshot {
         // Named immutable inputs are assignment-bound to exact dependency
         // occurrences before any filesystem work: an input keyed to an edge
@@ -143,22 +151,58 @@ pub fn prepare_filesystem_scope(
                         "a package-inventory build snapshot requires compiler-validated canonical Source metadata",
                     )]);
                 }
-                crate::capture_package_source_input(&source_root).map_err(|reason| {
+                match retained_input {
+                    Some(input) => input.clone(),
+                    None => {
+                        crate::capture_package_source_input(&source_root).map_err(|reason| {
+                            vec![Diagnostic::error(format!(
+                                "could not capture the build source snapshot: {reason}"
+                            ))]
+                        })?
+                    }
+                }
+            }
+            crate::BuildSnapshotCapture::Scoped(request) => {
+                let captured = if let Some(complete) = retained_input {
+                    let filesystem = package_inputs
+                        .expect("retained source input belongs to validated package inputs")
+                        .source_filesystem();
+                    let mut required_members = Vec::new();
+                    for file in required_sources.files() {
+                        // Toolchain and injected sources are not members of
+                        // this package's inventory; virtual names need no
+                        // physical or captured path resolution here.
+                        if !file.path.starts_with(&source_root) {
+                            continue;
+                        }
+                        let resolved = filesystem.canonicalize(&file.path).map_err(|error| {
+                            vec![Diagnostic::error(format!(
+                                "could not resolve required source member {} in the invocation namespace: {error}",
+                                file.path.display()
+                            ))]
+                        })?;
+                        if let Ok(relative) = resolved.strip_prefix(&source_root) {
+                            required_members.push(relative.to_path_buf());
+                        }
+                    }
+                    crate::source_snapshot::retained_scoped_source_input(
+                        complete,
+                        request,
+                        required_members,
+                    )
+                } else {
+                    crate::capture_scoped_source_input(
+                        &source_root,
+                        request,
+                        required_sources.files().map(|file| file.path.clone()),
+                    )
+                };
+                captured.map_err(|reason| {
                     vec![Diagnostic::error(format!(
                         "could not capture the build source snapshot: {reason}"
                     ))]
                 })?
             }
-            crate::BuildSnapshotCapture::Scoped(request) => crate::capture_scoped_source_input(
-                &source_root,
-                request,
-                required_sources.files().map(|file| file.path.clone()),
-            )
-            .map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "could not capture the build source snapshot: {reason}"
-                ))]
-            })?,
         };
         // The snapshot backing lives under a private parent the occurrence
         // alone can traverse: create-exclusive 0o700 custody mirrors
@@ -201,14 +245,22 @@ pub fn prepare_filesystem_scope(
             // package. Compare exact captured entries against that package's
             // authenticated full capture rather than dropping provenance or
             // treating matching path kinds/lengths as matching source bytes.
-            let complete = crate::capture_package_source_input(&source_root).map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "could not validate the scoped package source snapshot: {reason}"
-                ))]
-            })?;
+            let physical_complete;
+            let complete = match retained_input {
+                Some(complete) => complete,
+                None => {
+                    physical_complete =
+                        crate::capture_package_source_input(&source_root).map_err(|reason| {
+                            vec![Diagnostic::error(format!(
+                                "could not validate the scoped package source snapshot: {reason}"
+                            ))]
+                        })?;
+                    &physical_complete
+                }
+            };
             build_machine_filesystem_scope.with_scoped_package_source_input(
                 captured_input,
-                &complete,
+                complete,
                 snapshot_dir,
             )?
         } else {

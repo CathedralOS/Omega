@@ -57,6 +57,7 @@ pub fn discover_imports(
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
     let parsed_sources = parsed.sources.span_or_empty(parsed.batch);
+    let filesystem = source::SourceFileSystem::default();
     let mut imports = Vec::with_capacity(parsed_sources.len());
 
     for parsed_source in parsed_sources {
@@ -64,14 +65,19 @@ pub fn discover_imports(
         for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
             if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
                 let members = syntax_trees.items.identifier_path_members(use_item.path);
-                if is_bundled_omega_path(members) && local_source_exists(&source_root, members) {
+                if is_bundled_omega_path(members)
+                    && local_source_exists(&source_root, members, &filesystem)
+                {
                     return Err(vec![Diagnostic::error(format!(
                         "import `{}` in {} collides with a requester-local source; `omega::language` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it",
                         identifier_path_text(members),
                         parsed_source.path.display(),
                     ))]);
                 }
-                let resolved = normalize_path(&resolve_source_path(&source_root, members)?)?;
+                let resolved = normalize_path(
+                    &resolve_source_path(&source_root, members, &filesystem)?,
+                    &filesystem,
+                )?;
                 let prefix = if is_bundled_omega_path(members) { 2 } else { 0 };
                 let owner = if prefix == 2 {
                     bundled_omega_root()?
@@ -85,7 +91,12 @@ pub fn discover_imports(
                         members,
                         prefix,
                     ),
-                    requires_module: !direct_source_import(&owner, &members[prefix..], &resolved),
+                    requires_module: !direct_source_import(
+                        &owner,
+                        &members[prefix..],
+                        &resolved,
+                        &filesystem,
+                    ),
                     path: resolved.clone(),
                 });
                 // Standalone imports inherit the importer's checked
@@ -154,6 +165,7 @@ pub fn discover_package_imports(
     retained: &mut Vec<ResolvedSourceImport>,
     contract_custody: &ToolchainContractCustody,
 ) -> Result<(Vec<(PathBuf, DependencyScope)>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
+    let filesystem = packages.source_filesystem();
     let generated_owner = match phase {
         PackageImportPhase::TargetIndependent => None,
         PackageImportPhase::ExactTarget(owner) => owner,
@@ -192,6 +204,7 @@ pub fn discover_package_imports(
                             &bundled_omega_root()?,
                             &members[2..],
                             &path,
+                            filesystem,
                         ),
                         path: path.clone(),
                     });
@@ -205,7 +218,7 @@ pub fn discover_package_imports(
                             members,
                             0,
                         ),
-                        requires_module: !direct_source_import(&root, members, &path),
+                        requires_module: !direct_source_import(&root, members, &path, filesystem),
                         path: path.clone(),
                     });
                     imports.push((path, parsed_source.scope));
@@ -224,7 +237,7 @@ pub fn discover_package_imports(
                     };
                     match phase {
                         PackageImportPhase::TargetIndependent => {
-                            if let Some(physical) = pending.physical_source()? {
+                            if let Some(physical) = pending.physical_source(filesystem)? {
                                 imports.push((physical, parsed_source.scope));
                             }
                             requests.push(pending);

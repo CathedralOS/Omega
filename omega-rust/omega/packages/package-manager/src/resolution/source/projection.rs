@@ -20,7 +20,50 @@ pub(super) fn project_package_build(
     snapshot_root: &Path,
     application_root_allowed: bool,
 ) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
-    let projection = match extract_build_dependency_projection(snapshot_root) {
+    project_build_projection(
+        extract_build_dependency_projection(snapshot_root),
+        application_root_allowed,
+    )
+}
+
+pub(super) fn project_captured_package_build(
+    root: &Path,
+    tree: &source::CapturedSourceTree,
+    application_root_allowed: bool,
+) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
+    let path = root.join("build.omg");
+    let text = tree
+        .read_to_string(Path::new("build.omg"))
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                ResolvePackageSourceError::Declaration(BuildDeclarationError::MissingBuildFile {
+                    path: path.clone(),
+                })
+            } else if error.kind() == std::io::ErrorKind::InvalidData {
+                ResolvePackageSourceError::Declaration(
+                    BuildDeclarationError::InvalidBuildFileEncoding { path: path.clone() },
+                )
+            } else {
+                ResolvePackageSourceError::Declaration(BuildDeclarationError::ReadBuildFile {
+                    path: path.clone(),
+                    message: error.to_string(),
+                })
+            }
+        })?;
+    project_build_projection(
+        crate::declarations::dependencies::read::extract_build_projection_from_source(&text),
+        application_root_allowed,
+    )
+}
+
+fn project_build_projection(
+    result: Result<
+        crate::declarations::dependencies::read::BuildDependencyProjection,
+        DependencyProjectionError,
+    >,
+    application_root_allowed: bool,
+) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
+    let projection = match result {
         Ok(projection) => projection,
         Err(DependencyProjectionError::MissingBuildFile { path }) => {
             return Err(ResolvePackageSourceError::Declaration(

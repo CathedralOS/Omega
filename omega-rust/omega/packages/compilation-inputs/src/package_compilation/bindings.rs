@@ -21,6 +21,8 @@ pub struct PackageSourceBinding {
     pub(super) canonical_name: String,
     pub(super) source_root: PathBuf,
     pub(super) canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
+    pub(super) captured_source: Option<Arc<source::CapturedSourceTree>>,
+    pub(super) captured_build_source: Option<build_output::CapturedBuildSourceInput>,
 }
 
 impl PackageSourceBinding {
@@ -34,12 +36,30 @@ impl PackageSourceBinding {
             canonical_name: canonical_name.into(),
             source_root,
             canonical_source_metadata: None,
+            captured_source: None,
+            captured_build_source: None,
         }
+    }
+
+    /// Carry acquisition's immutable namespace and derive Build commitments
+    /// from its retained bytes, never from a later version of the checkout.
+    pub fn with_captured_source(
+        mut self,
+        tree: Arc<source::CapturedSourceTree>,
+    ) -> Result<Self, String> {
+        let input = source_snapshot::retained_source_input(&tree)?;
+        self.canonical_source_metadata = Some(input.canonical_source_metadata().clone());
+        self.captured_source = Some(tree);
+        self.captured_build_source = Some(input);
+        Ok(self)
     }
 
     /// Capture compiler-owned canonical build-visible metadata from this exact
     /// physical root. Callers cannot supply rows or a content commitment.
     pub fn with_canonical_source_metadata(mut self) -> Result<Self, String> {
+        if self.captured_source.is_some() {
+            return Ok(self);
+        }
         let canonical_root = canonical_source_root(&self.source_root)?;
         self.canonical_source_metadata = Some(source_snapshot::capture(&canonical_root)?);
         Ok(self)
@@ -53,6 +73,9 @@ impl PackageSourceBinding {
         mut self,
         cache: &crate::checked_source_cache::CheckedSourceCache,
     ) -> Result<Self, String> {
+        if self.captured_source.is_some() {
+            return Ok(self);
+        }
         self.canonical_source_metadata = Some(
             cache
                 .capture(&self.source_root)?

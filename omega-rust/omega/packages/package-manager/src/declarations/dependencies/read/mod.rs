@@ -10,6 +10,7 @@ mod source_literal;
 pub use aliases::DependencyAliasError;
 pub use error::DependencyProjectionError;
 pub use extraction::{extract_build_dependency_projection, extract_dependency_projection};
+pub(crate) use projection::extract_build_projection_from_source;
 
 use crate::declarations::roles::BuildDeclaration;
 use crate::declarations::{AliasName, PackageName};

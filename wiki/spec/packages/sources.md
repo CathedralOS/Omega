@@ -101,6 +101,13 @@ Resolver-owned materializations — published Git trees and stored local
 snapshots — capture exactly what was published, retaining every row including
 locks and build output that a mutable root would omit.
 
+An ordinary local compilation retains this capture in memory for the invocation
+instead of publishing a persistent root copy. Its root path is routing data:
+declaration projection, source existence, contained import links and file reads
+all use the captured namespace. Build source metadata and scoped inventories
+derive from those same bytes; Build never follows captured links. Transaction
+and foreign-review snapshots retain their independent persistence requirements.
+
 ## Reconciliation and updates
 
 The current resolver performs no semantic-version solving. Requests for one key

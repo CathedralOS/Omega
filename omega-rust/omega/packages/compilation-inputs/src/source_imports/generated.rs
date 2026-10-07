@@ -161,6 +161,7 @@ impl<'source> DependencyGeneratedSource<'source> {
 pub fn admit_dependency_generated_sources(
     package_inputs: &crate::PackageCompilationInputs,
 ) -> Result<Vec<DependencyGeneratedSource<'_>>, Vec<Diagnostic>> {
+    let filesystem = package_inputs.source_filesystem();
     // A virtual path can name different bytes in the two checked scopes.
     // Route from the source graph to its exact activation bundle, not from a
     // package-wide 'build-only' classification. The acquisition remains shared.
@@ -187,7 +188,9 @@ pub fn admit_dependency_generated_sources(
         let mut loaded_paths = HashSet::with_capacity(entries.len());
         for (logical_path, _, _, scope) in &entries {
             let logical_path = logical_path.as_ref().map_err(Clone::clone)?;
-            if logical_path.exists() || !loaded_paths.insert((logical_path.as_path(), *scope)) {
+            if filesystem.exists(logical_path)
+                || !loaded_paths.insert((logical_path.as_path(), *scope))
+            {
                 return Err(vec![Diagnostic::error(format!(
                     "generated dependency source logical path `{}` collides with another source",
                     logical_path.display(),

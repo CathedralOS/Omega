@@ -12,6 +12,7 @@ use syntax_trees::SyntaxTrees;
 
 #[derive(Clone, Default)]
 pub struct SourceStorage {
+    pub filesystem: source::SourceFileSystem,
     pub files: Arena<SourceFile>,
     pub sources: SourceMap,
     pub syntax_trees: SyntaxTrees,
@@ -48,6 +49,7 @@ impl SourceStorage {
                     root_package,
                     package_inputs.root(),
                     super::bundled_core_root()?,
+                    package_inputs.source_filesystem().clone(),
                 );
                 for (identity, source_root) in package_inputs.packages() {
                     storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
@@ -87,9 +89,13 @@ impl SourceStorage {
         default_package_root: PathBuf,
         default_package_identity: PackageKeyIdentity,
         toolchain_root: PathBuf,
+        filesystem: source::SourceFileSystem,
     ) -> Self {
         Self {
-            default_package_root: normalize_directory(default_package_root),
+            default_package_root: filesystem
+                .canonicalize(&default_package_root)
+                .unwrap_or(default_package_root),
+            filesystem,
             default_package_identity: Some(default_package_identity),
             toolchain_root: Some(normalize_directory(toolchain_root)),
             ..Self::default()
@@ -160,7 +166,10 @@ impl SourceStorage {
         identity: Option<PackageKeyIdentity>,
     ) {
         let package_root = RegisteredPackageRoot {
-            root: normalize_directory(package_root),
+            root: self
+                .filesystem
+                .canonicalize(&package_root)
+                .unwrap_or(package_root),
             identity,
         };
         if !self.package_roots.contains(&package_root) {
@@ -325,7 +334,7 @@ pub fn validate_package_source_frontier(
     let mut diagnostics = Vec::new();
 
     for (source, scope) in frontier {
-        let canonical = match source.canonicalize() {
+        let canonical = match source_storage.filesystem.canonicalize(&source) {
             Ok(canonical) => canonical,
             Err(error) => {
                 diagnostics.push(Diagnostic::error(format!(

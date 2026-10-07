@@ -39,7 +39,8 @@ pub use identity::{
 pub use limits::LocalSourceLimits;
 pub use local::operations::{resolve_local_source, resolve_local_source_snapshot};
 pub use local::resolution_observations::{
-    LocalSourceResolutionObservation, ResolvedLocalSnapshot, ResolvedLocalSource,
+    CapturedLocalSource, LocalSourceResolutionObservation, ResolvedLocalSnapshot,
+    ResolvedLocalSource,
 };
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 pub use observations::storage::GitRetainedStorageCustody;

@@ -105,14 +105,14 @@ impl ExternalLocalLineage {
         })
     }
 
-    /// Reconstructs already-canonical external-local lineage from a bounded
-    /// review baseline without consulting the current filesystem.
+    /// Bind an already-canonical path from source acquisition or a bounded
+    /// review baseline without consulting a later version of the filesystem.
     ///
     /// This does not establish that the path still exists or recover source
     /// custody. It only validates the lexical invariant previously established
     /// by the source adapter.
     #[doc(hidden)]
-    pub fn from_recovered_canonical_path(
+    pub fn from_canonical_path(
         canonical_path: String,
         source_context: ExternalSourceContext,
     ) -> Result<Self, IdentityError> {

@@ -1,5 +1,6 @@
 //! Constructs the package graph and validates inputs before compilation.
-//! Physical Source capture and revalidation live in `source_snapshot`.
+//! Build metadata derives from retained source or sealed physical capture in
+//! `source_snapshot`; source queries consume the invocation's shared view.
 //!
 //! The carriers a caller binds live in `bindings`; `construction` builds
 //! and revalidates the reconciled graph; `dependency_graph` answers edge,
@@ -69,14 +70,15 @@ impl Default for PackageCompilationTargetInputs {
 /// Shared target-independent package inputs used
 /// while source roots and ordinary imports are discovered.
 ///
-/// This is not a durable package identity: it deliberately retains physical
-/// source roots and canonical build-visible metadata. Checkpoint equality
+/// This is not a durable package identity: it deliberately retains source
+/// routing, immutable captured bytes and canonical build-visible metadata. Checkpoint equality
 /// prevents a compiler source checkpoint prepared from one package graph from
 /// being reused with a child whose source-routing inputs differ. Exact-target
 /// generated sources and accepted semantic bindings are excluded because they
 /// join only after that shared checkpoint forks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationSourceInputs {
+    filesystem: source::SourceFileSystem,
     root: PackageKeyIdentity,
     root_role: BuildDeclarationKind,
     packages: BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
@@ -93,11 +95,27 @@ struct PackageCompilationSourceRecord {
     source_root: PathBuf,
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
+    captured_source: Option<Arc<source::CapturedSourceTree>>,
+    captured_build_source: Option<build_output::CapturedBuildSourceInput>,
     dependencies: BTreeMap<String, PackageKeyIdentity>,
     build_dependencies: BTreeMap<String, PackageKeyIdentity>,
 }
 
 impl PackageCompilationInputs {
+    pub fn source_filesystem(&self) -> &source::SourceFileSystem {
+        &self.source.filesystem
+    }
+
+    pub fn captured_source_input(
+        &self,
+        identity: PackageKeyIdentity,
+    ) -> Option<&build_output::CapturedBuildSourceInput> {
+        self.source
+            .packages
+            .get(&identity)?
+            .captured_build_source
+            .as_ref()
+    }
     pub fn root(&self) -> PackageKeyIdentity {
         self.source.root
     }

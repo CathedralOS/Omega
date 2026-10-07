@@ -195,7 +195,7 @@ pub(super) fn decode_source_lineage(
                     CanonicalSourceClosureSubjectError::new("invalid external source context")
                 })?;
             let path = decoder.string(maximum_identity_bytes)?;
-            return ExternalLocalLineage::from_recovered_canonical_path(path, context)
+            return ExternalLocalLineage::from_canonical_path(path, context)
                 .map(SourceLineage::ExternalLocal)
                 .map_err(|_| {
                     CanonicalSourceClosureSubjectError::new("invalid external-local lineage path")

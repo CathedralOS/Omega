@@ -409,10 +409,12 @@ fn prepare_local_project_for_targets_in_storage(
             ));
         }
     }
-    let root_snapshot = closure
+    let source_root = closure
         .source_root(closure.graph().root())
         .ok_or(PrepareLocalProjectError::MissingRootCustody)?;
-    let prepared_entry = root_snapshot.join(entry_relative);
+    // The root spelling routes through invocation-owned source inputs. It
+    // names neither a live-read permission nor a persistent snapshot copy.
+    let prepared_entry = source_root.join(entry_relative);
     Ok(Some(PreparedLocalProject {
         entry_path: prepared_entry,
         source_closure: closure,

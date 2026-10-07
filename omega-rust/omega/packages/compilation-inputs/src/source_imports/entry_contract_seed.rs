@@ -87,9 +87,10 @@ impl EntryContractSource {
         let accepted_package = inputs
             .accepted_semantic_binding(crate::program_entry_semantic_binding_role(contract))
             .map(|binding| binding.package());
+        let filesystem = inputs.source_filesystem();
         let mut suppliers = inputs
             .packages()
-            .filter(|(_, root)| root.join(contract.package_relative_source()).is_file())
+            .filter(|(_, root)| filesystem.is_file(&root.join(contract.package_relative_source())))
             .map(|(identity, _)| identity)
             .collect::<Vec<_>>();
         suppliers.sort();

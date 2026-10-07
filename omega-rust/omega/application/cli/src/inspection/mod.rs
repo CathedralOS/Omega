@@ -82,10 +82,10 @@ pub fn inspect_terminal(
 }
 
 /// Check package sources through the manager's dependency-first candidate
-/// pipeline. The prepared entry lives in an immutable resolver snapshot, so
-/// build staging is placed beside the authored root exactly as the compile
-/// command places it; the compiler's default of `<entry>/../build` would
-/// otherwise fall inside that snapshot. Package preparation needs an exact
+/// pipeline. The prepared entry routes through immutable source custody, while
+/// build staging follows the authored root exactly as the compile command
+/// places it, independently of that custody's memory or persisted backing.
+/// Package preparation needs an exact
 /// target, so the invocation resolves one first: an explicit `--target`,
 /// else the compiler host's catalogued profile. A host that owns none
 /// reports that absence as an ordinary diagnostic rather than panicking.

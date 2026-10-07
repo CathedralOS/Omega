@@ -15,7 +15,7 @@ mod declaration;
 
 use declaration::map_build_declaration_error;
 
-pub(super) fn extract_build_projection_from_source(
+pub(crate) fn extract_build_projection_from_source(
     source: &str,
 ) -> Result<BuildDependencyProjection, DependencyProjectionError> {
     let syntax_trees = syntax_trees_for(source)?;

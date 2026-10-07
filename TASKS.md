@@ -2922,17 +2922,6 @@ of a check the same flow already performed, not the check itself.
   owed: the `linux_x86_64` native corpus leg on a Linux host, with execution,
   is unchanged.
 
-- **SOURCE-READ-ONCE.** (new-scope) `8fbcb6b1a1d` made each consumed source
-  file read once per invocation, and each package root's canonical
-  build-source index is now captured once per invocation
-  (`PackageSourcePreparation::root_bindings`); `OMEGA_SOURCE_READS=1` prints
-  every read. One duplicate remains: the root project is copied into a
-  persistent snapshot on every edit and compiled from
-  `root_snapshot.join(entry_relative)`. Compiling from live-tree paths is an
-  acquisition redesign, not a deletion. Acceptance:
-  `OMEGA_SOURCE_READS=1 omega --check` over an edited root shows one read per
-  consumed file with no snapshot copy, and the check corpus is unchanged.
-
 - **BUILD-SESSION-RECEIPTS-DELETED.** (new-scope) The production-subject and
   batch-manifest chain, the report custody replays, retained Pure Build
   charges and completed-output re-reads are deleted. What remains:

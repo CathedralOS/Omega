@@ -34,8 +34,8 @@ pub use local::{
     resolve_external_local_project_source,
 };
 pub(crate) use local::{
-    recover_cached_external_local_source, resolve_external_local_package_source_in_lane,
-    resolve_external_local_project_source_in_lane,
+    capture_external_local_project_source, recover_cached_external_local_source,
+    resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
 };
 pub use materialization::PackageSourceMaterialization;
 pub use navigation::PackageSourceNavigation;

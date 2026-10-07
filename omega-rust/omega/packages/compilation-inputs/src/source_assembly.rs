@@ -97,12 +97,12 @@ impl ImmutableSourceParseCheckpoint {
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let project = ProjectSourceSelection::prepare(root_path)?;
+        let mut source_storage = SourceStorage::prepare(root_path, package_inputs)?;
+        let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
         for (path, scope) in project.sources() {
             imports.seed(path.clone(), *scope);
         }
-        let mut source_storage = SourceStorage::prepare(root_path, package_inputs)?;
         let package_imports = load_imports(
             &mut source_storage,
             &mut imports,
@@ -404,7 +404,7 @@ fn load_imports(
         };
         let first_source_id = source_storage.next_source_id();
         let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-            let sources = load_sources(frontier, first_source_id)?;
+            let sources = load_sources(frontier, first_source_id, &source_storage.filesystem)?;
             lex_sources(sources)
         })?;
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
