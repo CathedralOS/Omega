@@ -34,6 +34,7 @@ pub(crate) mod calls;
 mod expressions;
 mod statements;
 
+use super::expression_transfer::ExpressionTransfer;
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -42,13 +43,6 @@ use super::facts::RangeFacts;
 use super::seed_state_requires;
 
 use self::statements::collect_state_argument_facts_from_statement;
-
-struct StateArgumentContext<'program, 'frames> {
-    program: &'program dyn ::validation::CheckingInput,
-    machine: &'program Machine,
-    state: &'program State,
-    call_frames: Option<&'frames validation::CallFrameResolver<'program>>,
-}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct StateArgumentFacts {
@@ -241,7 +235,7 @@ pub(super) fn collect_state_argument_facts<'program>(
             if state_index != 0 && !collected.iter().any(|facts| facts.state == state.symbol) {
                 continue;
             }
-            let context = StateArgumentContext {
+            let context = ExpressionTransfer {
                 program,
                 machine,
                 state,

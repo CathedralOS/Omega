@@ -1,12 +1,12 @@
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 
+use super::StateArgumentFacts;
 use super::calls::collect_state_argument_facts_for_call;
-use super::{StateArgumentContext, StateArgumentFacts};
 use crate::checks::ranges::expression_transfer::{ExpressionTransfer, ExpressionTransferSink};
 use crate::checks::ranges::facts::RangeFacts;
 
 pub(super) fn collect_state_argument_facts_from_expression(
-    context: &StateArgumentContext<'_, '_>,
+    context: &ExpressionTransfer<'_, '_>,
     facts: &mut RangeFacts<'_>,
     expression: ExpressionHandle,
     collected: &mut Vec<StateArgumentFacts>,
@@ -22,7 +22,7 @@ pub(super) fn collect_state_argument_facts_from_expression(
 }
 
 struct CallArguments<'context, 'program, 'frames> {
-    context: &'context StateArgumentContext<'program, 'frames>,
+    context: &'context ExpressionTransfer<'program, 'frames>,
     collected: &'context mut Vec<StateArgumentFacts>,
 }
 

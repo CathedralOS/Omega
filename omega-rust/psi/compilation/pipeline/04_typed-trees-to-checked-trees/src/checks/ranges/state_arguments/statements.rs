@@ -1,8 +1,9 @@
 use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 
+use super::StateArgumentFacts;
 use super::calls::collect_state_argument_facts_for_call;
 use super::expressions::collect_state_argument_facts_from_expression;
-use super::{StateArgumentContext, StateArgumentFacts};
+use crate::checks::ranges::expression_transfer::ExpressionTransfer;
 use crate::checks::ranges::facts::RangeFacts;
 use crate::checks::ranges::statement_transfer::{StatementTransferSink, transfer_statement_facts};
 use typed_trees::expression::ExpressionHandle;
@@ -15,13 +16,13 @@ use typed_trees::statement::TableCall;
 /// a name alias, a member store, a subslice window, a guard's declared
 /// endpoint) silently weakens the merged parameter facts.
 pub(super) fn collect_state_argument_facts_from_statement<'program>(
-    context: &StateArgumentContext<'program, '_>,
+    context: &ExpressionTransfer<'program, '_>,
     facts: &mut RangeFacts<'_>,
     statement: &'program StatementNode,
     collected: &mut Vec<StateArgumentFacts>,
 ) {
     struct CollectSink<'a, 'program, 'frames> {
-        context: &'a StateArgumentContext<'program, 'frames>,
+        context: &'a ExpressionTransfer<'program, 'frames>,
         collected: &'a mut Vec<StateArgumentFacts>,
     }
     impl<'program> StatementTransferSink<'program> for CollectSink<'_, 'program, '_> {
@@ -72,7 +73,7 @@ pub(super) fn collect_state_argument_facts_from_statement<'program>(
 }
 
 fn collect_state_argument_facts_from_target(
-    context: &StateArgumentContext<'_, '_>,
+    context: &ExpressionTransfer<'_, '_>,
     facts: &mut RangeFacts<'_>,
     target: TransitionTargetHandle,
     collected: &mut Vec<StateArgumentFacts>,
