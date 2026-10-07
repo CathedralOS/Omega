@@ -1,11 +1,8 @@
 use std::collections::BTreeSet;
+use super::test_utilities::{elaborate_checked, verify_and_assert_forged};
 
-use super::Elaboration;
 use crate::proof::assumption_proof;
-use crate::{
-    AcceptedProofRule, Budget, ProofNode, ProofRule, accept_certificate, check_certificate,
-    verify_bounded_certificate,
-};
+use crate::{AcceptedProofRule, ProofNode, ProofRule, accept_certificate, check_certificate};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
@@ -52,20 +49,9 @@ fn integer_order_antisymmetry_certifies_both_orders_through_existing_core_law() 
                 .contains(&AcceptedProofRule::IntegerOrderAntisymmetry)
         );
         let parameters = BTreeSet::new();
-        let mut elaboration =
-            Elaboration::new(&context, &proof.conclusion, &premises, &[], &parameters).unwrap();
-        elaboration.node(&proof).unwrap();
+        let elaboration = elaborate_checked(&context, &proof.conclusion, &premises, &[], &parameters, &proof);
         assert!(elaboration.denotation.rule_axioms.is_empty());
-        let mut denoted = verify_bounded_certificate(
-            &context,
-            &proof.conclusion,
-            &premises,
-            &[],
-            &proof,
-            &mut Budget::default(),
-        )
-        .unwrap();
-        crate::forge_term_and_assert_rejected(&mut denoted);
+        verify_and_assert_forged(&context, &proof.conclusion, &premises, &[], &proof);
         assert!(
             check_certificate(&context, &proof.conclusion, &premises[..1], &[], &proof).is_err()
         );
@@ -162,9 +148,7 @@ fn integer_order_antisymmetry_orients_literal_and_reversed_value_equalities() {
         let (premises, proof) = proof(left, right);
         check_certificate(&context, &proof.conclusion, &premises, &[], &proof).unwrap();
         let parameters = BTreeSet::new();
-        let mut elaboration =
-            Elaboration::new(&context, &proof.conclusion, &premises, &[], &parameters).unwrap();
-        elaboration.node(&proof).unwrap();
+        let elaboration = elaborate_checked(&context, &proof.conclusion, &premises, &[], &parameters, &proof);
         assert!(elaboration.denotation.rule_axioms.is_empty());
     }
 }

@@ -1,5 +1,5 @@
-use super::super::Elaboration;
 use crate::proof::assumption_proof;
+use super::super::test_utilities::elaborate_checked;
 use crate::{
     Budget, IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule,
     verify_bounded_certificate,
@@ -38,9 +38,7 @@ fn denotation_counts(
     proof: &ProofNode,
 ) -> (usize, usize) {
     let parameters = BTreeSet::new();
-    let mut elaboration =
-        Elaboration::new(context, goal, assumptions, axioms, &parameters).unwrap();
-    elaboration.node(proof).unwrap();
+    let elaboration = elaborate_checked(context, goal, assumptions, axioms, &parameters, proof);
     (
         elaboration.denotation.rule_axioms.len(),
         elaboration.denotation.cast_identities.len(),

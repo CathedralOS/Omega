@@ -320,8 +320,7 @@ fn affine_witness_root_expression<'a>(
     if witness.definition_axioms.is_empty() && witness.literal_axioms.is_empty() {
         Some((&witness.root, None))
     } else if witness.definition_axioms.len() == 1 {
-        let (expression, proof, proposition) =
-            affine_equality_for(definitions, &witness.root)?;
+        let (expression, proof, proposition) = affine_equality_for(definitions, &witness.root)?;
         Some((expression, Some((proof, proposition))))
     } else {
         None
@@ -1667,8 +1666,7 @@ impl Denotation {
         let Some((_, from, to)) = self.identity_parts(denoted) else {
             return Ok(None);
         };
-        let Some(equality) =
-            self.directed_equality(from, to, root_term, expression_term, equality)
+        let Some(equality) = self.directed_equality(from, to, root_term, expression_term, equality)
         else {
             return Ok(None);
         };
@@ -4771,8 +4769,8 @@ mod tests {
 /// redefined verbatim under `addition/`, `multiplication/` and
 /// `subtraction/`.
 #[cfg(test)]
-mod test_utilities {
-    use super::{Denotation, Elaboration};
+pub(crate) mod test_utilities {
+    use super::{BoundedDenotation, Denotation, Elaboration};
     use crate::proof::assumption_proof;
     use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
     use semantic_vocabulary::{
@@ -4842,7 +4840,7 @@ mod test_utilities {
         );
     }
 
-    pub(crate) fn direct_fixture(
+    pub(super) fn direct_fixture(
         context: &PropositionContext,
         goal: &Proposition,
         premise: &Proposition,
@@ -4871,11 +4869,7 @@ mod test_utilities {
         right: ScalarTerm,
         premise: &Proposition,
         goal: &Proposition,
-        operation: fn(
-            IntegerType,
-            ScalarTerm,
-            ScalarTerm,
-        ) -> Result<ScalarTerm, PropositionError>,
+        operation: fn(IntegerType, ScalarTerm, ScalarTerm) -> Result<ScalarTerm, PropositionError>,
     ) -> ProofNode {
         ProofNode {
             conclusion: goal.clone(),
@@ -4889,5 +4883,51 @@ mod test_utilities {
                 },
             },
         }
+    }
+
+    /// Elaborate `proof` against `goal` under `assumptions`/`semantic_axioms`
+    /// — the prelude the bounded tests run before asserting on the recorded
+    /// rule and axiom rosters.
+    pub(super) fn elaborate_checked<'a>(
+        context: &'a PropositionContext,
+        goal: &Proposition,
+        assumptions: &'a [Proposition],
+        semantic_axioms: &'a [Proposition],
+        machine_parameter_values: &'a BTreeSet<ValueId>,
+        proof: &ProofNode,
+    ) -> Elaboration<'a> {
+        let mut elaboration = Elaboration::new(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            machine_parameter_values,
+        )
+        .unwrap();
+        elaboration.node(proof).unwrap();
+        elaboration
+    }
+
+    /// Verify `proof`'s certificate under the ambient premises, assert the
+    /// kernel rejects a forged term, and hand the denotation back for the
+    /// caller's remaining checks.
+    pub(crate) fn verify_and_assert_forged(
+        context: &PropositionContext,
+        goal: &Proposition,
+        assumptions: &[Proposition],
+        semantic_axioms: &[Proposition],
+        proof: &ProofNode,
+    ) -> BoundedDenotation {
+        let mut denoted = verify_bounded_certificate(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            proof,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        crate::forge_term_and_assert_rejected(&mut denoted);
+        denoted
     }
 }

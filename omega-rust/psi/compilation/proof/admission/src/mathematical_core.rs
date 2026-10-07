@@ -198,6 +198,8 @@ mod theorems;
 mod typing;
 
 pub(crate) use bounded_denotation::verify_bounded_certificate_on_current_thread;
+#[cfg(test)]
+pub(crate) use bounded_denotation::test_utilities::verify_and_assert_forged;
 pub use bounded_denotation::{
     BoundedDenotation, BoundedDenotationError, denote_bounded_certificate,
     verify_bounded_certificate,

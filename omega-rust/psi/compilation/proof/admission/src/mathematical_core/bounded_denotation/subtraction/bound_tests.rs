@@ -1,14 +1,12 @@
 use std::collections::BTreeSet;
 
-use super::super::test_utilities::{direct_affine_proof, direct_fixture, mathematical};
-use super::super::Elaboration;
+use super::super::test_utilities::{direct_affine_proof, direct_fixture, mathematical, elaborate_checked};
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
 };
-
 
 fn check(left: ScalarTerm, right: ScalarTerm) {
     let ScalarType::Integer(integer) = left.scalar_type() else {
@@ -41,9 +39,7 @@ fn check(left: ScalarTerm, right: ScalarTerm) {
     };
     let assumptions = [premise];
     let parameters = BTreeSet::new();
-    let mut elaboration =
-        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
-    elaboration.node(&proof).unwrap();
+    let elaboration = elaborate_checked(&context, &goal, &assumptions, &[], &parameters, &proof);
     assert!(elaboration.denotation.rule_axioms.is_empty());
     assert!(elaboration.denotation.decisions.is_empty());
     if left.integer_value().is_none() || right.integer_value().is_none() {
@@ -164,9 +160,7 @@ fn correlated_subtract_lower_uses_the_add_cancel_law() {
     )
     .unwrap();
     let parameters = BTreeSet::new();
-    let mut elaboration =
-        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
-    elaboration.node(&proof).unwrap();
+    let elaboration = elaborate_checked(&context, &goal, &assumptions, &[], &parameters, &proof);
     assert!(elaboration.denotation.rule_axioms.is_empty());
     assert_eq!(elaboration.denotation.subtraction.laws.len(), 1);
     assert!(
@@ -289,9 +283,7 @@ fn correlated_subtract_upper_through_cited_definitions() {
         .unwrap();
         let parameters = BTreeSet::new();
         let assumptions = [premise.clone()];
-        let mut elaboration =
-            Elaboration::new(&context, &goal, &assumptions, &axioms, &parameters).unwrap();
-        elaboration.node(&proof).unwrap();
+        let elaboration = elaborate_checked(&context, &goal, &assumptions, &axioms, &parameters, &proof);
         assert!(elaboration.denotation.rule_axioms.is_empty());
         assert_eq!(elaboration.denotation.subtraction.laws.len(), 1);
         assert!(
@@ -347,9 +339,7 @@ fn correlated_subtract_closed_goal_decides_by_numeral_laws() {
     )
     .unwrap();
     let parameters = BTreeSet::new();
-    let mut elaboration =
-        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
-    elaboration.node(&proof).unwrap();
+    let elaboration = elaborate_checked(&context, &goal, &assumptions, &[], &parameters, &proof);
     assert!(elaboration.denotation.rule_axioms.is_empty());
     assert!(elaboration.denotation.subtraction.laws.is_empty());
 }
@@ -389,14 +379,15 @@ fn subtraction_identity_transport_accepts_existing_leaf_math_citations() {
 
 #[test]
 fn open_subtraction_preserves_previously_skipped_numeric_resource_refusals() {
-    super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals(IntegerMathTerm::Subtract);
+    super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals(
+        IntegerMathTerm::Subtract,
+    );
 }
 
 /// The `IntegerAffineBound` direct-subtract fixture: a `Conjunction` of
 /// the two operand bounds proves `k ≤ sub l r` or `sub l r ≤ k` for the
 /// checked endpoint difference `k`. Returns the elaboration's denotation
 /// state after the shared checker and kernel have both accepted.
-
 
 #[test]
 fn direct_subtract_bound_exact_carrier_boundary_cases() {
@@ -481,13 +472,13 @@ fn direct_subtract_bound_out_of_numeral_range_keeps_instance_fallback() {
         ),
     );
     let proof = direct_affine_proof(
-            integer,
-            value(1),
-            value(2),
-            &premise,
-            &goal,
-            ScalarTerm::exact_integer_subtract,
-        );
+        integer,
+        value(1),
+        value(2),
+        &premise,
+        &goal,
+        ScalarTerm::exact_integer_subtract,
+    );
     let denotation = direct_fixture(&context, &goal, &premise, &proof);
     assert_eq!(
         denotation.rule_axioms.len(),
@@ -520,13 +511,13 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
         difference.clone(),
     );
     let proof = direct_affine_proof(
-            integer,
-            value(1),
-            value(2),
-            &premise,
-            &goal,
-            ScalarTerm::exact_integer_subtract,
-        );
+        integer,
+        value(1),
+        value(2),
+        &premise,
+        &goal,
+        ScalarTerm::exact_integer_subtract,
+    );
     let assumptions = [premise];
     // A wrong bound literal, a difference over different operands, and a
     // bound on the wrong direction all fail the shared relation check
@@ -740,15 +731,14 @@ fn exact_subtract_definition_bounds_use_the_two_sided_antitone_law() {
                 )
                 .unwrap();
                 let parameters = BTreeSet::new();
-                let mut elaboration = Elaboration::new(
+                let elaboration = super::super::test_utilities::elaborate_checked(
                     &case.context,
                     &case.goal,
                     &assumptions,
                     &axioms,
                     &parameters,
-                )
-                .unwrap();
-                elaboration.node(&proof).unwrap();
+                    &proof,
+                );
                 assert!(
                     elaboration.denotation.rule_axioms.is_empty(),
                     "exact-subtract definition bounds derive from the two-sided law"

@@ -1,3 +1,4 @@
+use crate::mathematical_core::verify_and_assert_forged;
 use crate::{
     Budget, PrimitiveJudgment, ProofNode, ProofRule, check_certificate,
     verify_bounded_certificate,
@@ -211,16 +212,7 @@ fn wrapping_polynomial_core_rechecks_the_primitive_and_rejects_forged_evidence()
     let carrier = carrier(IntegerSign::Unsigned, 64);
     let context = context(carrier, 2);
     let proof = certificate(gauss(carrier, false));
-    let mut denoted = verify_bounded_certificate(
-        &context,
-        &proof.conclusion,
-        &[],
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
-    crate::forge_term_and_assert_rejected(&mut denoted);
+    verify_and_assert_forged(&context, &proof.conclusion, &[], &[], &proof);
     let wrong = certificate(gauss(carrier, true));
     assert!(
         verify_bounded_certificate(

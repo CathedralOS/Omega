@@ -4,13 +4,13 @@
 //! orientation and minuend is load-bearing.
 
 use std::collections::BTreeSet;
+use super::super::test_utilities::elaborate_checked;
 
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
 };
 
-use super::super::Elaboration;
 use crate::{
     Budget, ProofNode, ProofRule, verify_bounded_certificate, verify_mathematical_certificate,
 };
@@ -106,9 +106,7 @@ fn antitone(
 fn checked(integer: IntegerType, assumptions: &[Proposition], proof: &ProofNode) -> bool {
     let context = context(integer);
     let parameters = BTreeSet::new();
-    let mut elaboration =
-        Elaboration::new(&context, &proof.conclusion, assumptions, &[], &parameters).unwrap();
-    elaboration.node(proof).unwrap();
+    let elaboration = elaborate_checked(&context, &proof.conclusion, assumptions, &[], &parameters, proof);
     let rule_instance = !elaboration.denotation.rule_axioms.is_empty();
     let mut denoted = verify_bounded_certificate(
         &context,

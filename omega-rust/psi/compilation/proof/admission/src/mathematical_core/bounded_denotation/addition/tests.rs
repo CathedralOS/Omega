@@ -1,5 +1,4 @@
-use super::super::test_utilities::{direct_affine_proof, direct_fixture, mathematical};
-use super::super::Elaboration;
+use super::super::test_utilities::{direct_affine_proof, direct_fixture, mathematical, elaborate_checked};
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
 use semantic_vocabulary::{
@@ -8,10 +7,11 @@ use semantic_vocabulary::{
 };
 use std::collections::BTreeSet;
 
-
 #[test]
 fn open_addition_preserves_previously_skipped_numeric_resource_refusals() {
-    super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals(IntegerMathTerm::Add);
+    super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals(
+        IntegerMathTerm::Add,
+    );
 }
 
 #[test]
@@ -95,9 +95,7 @@ fn correlated_add_bounds_transport_ssa_roots_and_carrier_endpoints() {
             assert!(denoted.certificate.signature.len() < 300);
             let parameters = BTreeSet::new();
             let assumptions = [premise.clone()];
-            let mut elaboration =
-                Elaboration::new(&context, &goal, &assumptions, &axioms, &parameters).unwrap();
-            elaboration.node(&proof).unwrap();
+            let elaboration = elaborate_checked(&context, &goal, &assumptions, &axioms, &parameters, &proof);
             assert!(elaboration.denotation.rule_axioms.is_empty());
         }
     }
@@ -157,9 +155,7 @@ fn closed_addend_rule_axioms(
     )
     .unwrap();
     let parameters = BTreeSet::new();
-    let mut elaboration =
-        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
-    elaboration.node(&proof).unwrap();
+    let elaboration = elaborate_checked(&context, &goal, &assumptions, &[], &parameters, &proof);
     assert!(
         elaboration.denotation.addition.laws.is_empty(),
         "closed goals derive from numeral laws, not the law chain"
@@ -259,9 +255,7 @@ fn open_sum_over_closed_difference_uses_the_numeral_equation() {
     )
     .unwrap();
     let parameters = BTreeSet::new();
-    let mut elaboration =
-        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
-    elaboration.node(&proof).unwrap();
+    let elaboration = elaborate_checked(&context, &goal, &assumptions, &[], &parameters, &proof);
     // The closed difference denotes to its numeral `248`, so the
     // cancellation step uses the interned numeral-operation equation
     // `add 248 7 = 255`; monotonicity and endpoint substitution re-decide
@@ -356,9 +350,14 @@ fn exact_add_definition_fixture(
     )
     .unwrap();
     let parameters = BTreeSet::new();
-    let mut elaboration =
-        Elaboration::new(context, goal, assumptions, axioms, &parameters).unwrap();
-    elaboration.node(proof).unwrap();
+    let elaboration = super::super::test_utilities::elaborate_checked(
+        context,
+        goal,
+        assumptions,
+        axioms,
+        &parameters,
+        proof,
+    );
     (denoted, elaboration.denotation)
 }
 
@@ -641,7 +640,6 @@ fn exact_add_definition_bound_rejects_mismatched_certificates() {
 /// two operand bounds proves `k ≤ add l r` or `add l r ≤ k` for the
 /// checked endpoint sum `k`. Returns the elaboration's denotation state
 /// after the shared checker and kernel have both accepted.
-
 
 #[test]
 fn direct_add_bound_out_of_numeral_range_keeps_instance_fallback() {
