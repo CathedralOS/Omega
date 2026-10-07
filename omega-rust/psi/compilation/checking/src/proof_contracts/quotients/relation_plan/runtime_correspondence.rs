@@ -455,7 +455,7 @@ pub(super) fn closed_lift_literal_for_representative(
                     target_type: program.normalized_type_identity(representative_type),
                 }));
             }
-            if integer_primitive_landing(row_primitive).is_some() {
+            if crate::value_custody::literals::primitive_landing_type(row_primitive).is_some() {
                 let rows = nested_literal_rows(program, elements, *row_width, position)?
                     .into_iter()
                     .map(|row_elements| {
@@ -535,7 +535,7 @@ pub(super) fn closed_lift_literal_for_representative(
                 target_type: program.normalized_type_identity(representative_type),
             }));
         }
-        if integer_primitive_landing(element_primitive).is_some() {
+        if crate::value_custody::literals::primitive_landing_type(element_primitive).is_some() {
             let elements = elements
                 .iter()
                 .map(|element| {
@@ -748,7 +748,7 @@ fn closed_recursive_array_element(
                     Ok(ClosedRecursiveArrayElement::Byte(byte))
                 }
                 (primitive, ExpressionNode::Integer(literal))
-                    if integer_primitive_landing(primitive).is_some() =>
+                    if crate::value_custody::literals::primitive_landing_type(primitive).is_some() =>
                 {
                     let landing =
                         exact_integer_landing(program, target_type, primitive, literal, position)?;
@@ -889,7 +889,7 @@ fn exact_integer_landing(
     let landing = match literal.landing() {
         Some(landing) => landing,
         None => IntegerLanding {
-            landed_type: integer_primitive_landing(primitive)
+            landed_type: crate::value_custody::literals::primitive_landing_type(primitive)
                 .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?,
             domain: target_domain,
         },
@@ -934,20 +934,7 @@ pub(super) fn landed_primitive(landed: LandedIntegerType) -> PrimitiveType {
     }
 }
 
-fn integer_primitive_landing(primitive: PrimitiveType) -> Option<LandedIntegerType> {
-    Some(match primitive {
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        PrimitiveType::Addr => LandedIntegerType::Addr,
-        _ => return None,
-    })
-}
+
 
 fn integer_literal_fits(literal: &IntegerLiteral, landed: LandedIntegerType) -> bool {
     let width = landed.bit_width();

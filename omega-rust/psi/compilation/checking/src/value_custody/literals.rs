@@ -35,6 +35,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
+use numerics::literals::LandedIntegerType;
 
 mod literal_widths;
 
@@ -42,6 +43,23 @@ mod literal_widths;
 /// state's parameters, or `None` when the target is not a singleton-named
 /// state. The `&mut self` receiver rides the param list but never pairs
 /// with a spelled argument -- the zip pairs only the value params.
+/// The landed integer type a primitive lands as, or `None` for a primitive
+/// without an integer landing.
+pub(crate) fn primitive_landing_type(primitive: PrimitiveType) -> Option<LandedIntegerType> {
+    Some(match primitive {
+        PrimitiveType::I8 => LandedIntegerType::I8,
+        PrimitiveType::I16 => LandedIntegerType::I16,
+        PrimitiveType::I32 => LandedIntegerType::I32,
+        PrimitiveType::I64 => LandedIntegerType::I64,
+        PrimitiveType::U8 => LandedIntegerType::U8,
+        PrimitiveType::U16 => LandedIntegerType::U16,
+        PrimitiveType::U32 => LandedIntegerType::U32,
+        PrimitiveType::U64 => LandedIntegerType::U64,
+        PrimitiveType::Addr => LandedIntegerType::Addr,
+        _ => return None,
+    })
+}
+
 fn named_transition_arguments<'program>(
     program: &'program TypedTrees,
     machine: &'program typed_trees::machine::Machine,
@@ -182,7 +200,6 @@ pub(crate) fn validate_suffix_landing(
     declared: typed_trees::types::TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    use numerics::literals::LandedIntegerType;
 
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
@@ -192,20 +209,7 @@ pub(crate) fn validate_suffix_landing(
     }
     constant_arrays::validate_declared_array_destination(program, value, declared, diagnostics);
 
-    let landed_of_primitive = |primitive: PrimitiveType| -> Option<LandedIntegerType> {
-        Some(match primitive {
-            PrimitiveType::I8 => LandedIntegerType::I8,
-            PrimitiveType::I16 => LandedIntegerType::I16,
-            PrimitiveType::I32 => LandedIntegerType::I32,
-            PrimitiveType::I64 => LandedIntegerType::I64,
-            PrimitiveType::U8 => LandedIntegerType::U8,
-            PrimitiveType::U16 => LandedIntegerType::U16,
-            PrimitiveType::U32 => LandedIntegerType::U32,
-            PrimitiveType::U64 => LandedIntegerType::U64,
-            PrimitiveType::Addr => LandedIntegerType::Addr,
-            _ => return None,
-        })
-    };
+    let landed_of_primitive = primitive_landing_type;
 
     let literal_landing =
         |expression: ExpressionHandle| -> Option<(ExpressionHandle, LandedIntegerType)> {
