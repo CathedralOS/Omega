@@ -20,7 +20,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v19\0",
+        b"omega.terminal-postallocation-machine.v20\0",
     )
 }
 
@@ -237,7 +237,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
                         selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
                         selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
                     });
-                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                    slot.invocation_site.encode_identity(bytes);
                     bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
                 }
                 selected_instructions::FrameStorageSlotId::Local(slot) => {

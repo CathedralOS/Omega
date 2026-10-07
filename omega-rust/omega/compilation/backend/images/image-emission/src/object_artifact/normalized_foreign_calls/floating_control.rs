@@ -25,9 +25,8 @@ pub(super) fn derive(
     frame: &FunctionTargetFrameLayout,
     record: &SelectedNormalizedForeignCall,
 ) -> Option<FloatingControlCustody> {
-    let slot = LocalStorageSlotId::Boundary {
-        operation: record.operation,
-    };
+    let operation = record.invocation_site.operation()?;
+    let slot = LocalStorageSlotId::Boundary { operation };
     let transport = selected_instructions::calls::normalized_foreign::return_transport::resolve(
         function, block, record,
     )?;
@@ -47,12 +46,7 @@ pub(super) fn derive(
         || restore.kind != (SelectedInstructionKind::RestoreFloatingControl { slot })
         || block.instructions[save_position..=call_position]
             .iter()
-            .any(|instruction| {
-                !instruction
-                    .provenance
-                    .operations
-                    .contains(&record.operation)
-            })
+            .any(|instruction| !instruction.provenance.operations.contains(&operation))
     {
         return None;
     }

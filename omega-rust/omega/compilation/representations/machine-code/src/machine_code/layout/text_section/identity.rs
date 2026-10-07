@@ -7,7 +7,7 @@ use super::{
 use sha2::{Digest, Sha256};
 use target::{Architecture, ObjectFormat};
 
-const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v11";
+const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v12";
 
 pub fn relocation_free_text_section_identity(
     section: &RelocationFreeTextSectionPlacement,
@@ -70,6 +70,11 @@ pub fn relocation_free_text_section_identity(
                 hasher.update([0]);
                 hasher.update(operation.get().to_le_bytes());
             }
+            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                hasher.update([2]);
+
+                hasher.update(edge.get().to_le_bytes());
+            }
             target_operations::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,
@@ -106,7 +111,16 @@ pub fn relocation_free_text_section_identity(
         hasher.update(resolution.caller.get().to_le_bytes());
         hasher.update(resolution.block.0.to_le_bytes());
         hasher.update(resolution.instruction.0.to_le_bytes());
-        hasher.update(resolution.operation.get().to_le_bytes());
+        match resolution.invocation_site {
+            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+                hasher.update([0]);
+                hasher.update(operation.get().to_le_bytes());
+            }
+            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                hasher.update([1]);
+                hasher.update(edge.get().to_le_bytes());
+            }
+        }
         hasher.update(resolution.boundary.get().to_le_bytes());
         hasher.update(resolution.ordinal.to_le_bytes());
         hasher.update(resolution.call_function_offset.to_le_bytes());

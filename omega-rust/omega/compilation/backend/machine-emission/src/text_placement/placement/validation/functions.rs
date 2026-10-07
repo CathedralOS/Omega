@@ -178,6 +178,7 @@ pub(super) fn check(
                         return Err(TextPlacementError::UnsupportedRelocationShape);
                     }
                     let FunctionFragmentControlProvenance::NormalizedForeignCall {
+                        invocation_site,
                         boundary,
                         ordinal,
                     } = source_row.control
@@ -187,16 +188,18 @@ pub(super) fn check(
                     if boundary != fixup.boundary || ordinal != fixup.ordinal {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     }
-                    let Some(operation) = source_row.provenance.operations.last() else {
-                        return Err(TextPlacementError::SourceShapeMismatch);
-                    };
+                    super::super::conversion::validate_boundary_invocation_site(
+                        invocation_site,
+                        &source_row.provenance.operations,
+                        &source_row.provenance.edges,
+                    )?;
                     let candidate = foreign.next().ok_or(TextPlacementError::ArtifactMismatch)?;
                     calls::check_foreign(
                         calls::ForeignCall {
                             caller: source.machine,
                             block: source_block.block,
                             instruction: source_row.instruction,
-                            operation: *operation,
+                            invocation_site,
                             offset: source_row.offset,
                             bytes: &source_row.bytes,
                             fixup: fixup.clone(),

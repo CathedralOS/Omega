@@ -65,7 +65,7 @@ pub fn derive_normalized_foreign_call_custody(
         let fragment =
             caller_fragment(section, function.machine).ok_or(ObjectError::TextSizeOverflow)?;
         for (ordinal, record) in function.normalized_foreign_calls.iter().enumerate() {
-            let owner = CallSiteOwner::Operation(record.operation);
+            let owner = CallSiteOwner::from(record.invocation_site);
             let invalid = || ObjectError::InvalidForeignCallSite {
                 caller: function.machine,
                 owner,
@@ -87,6 +87,12 @@ pub fn derive_normalized_foreign_call_custody(
             else {
                 return Err(invalid());
             };
+            if !foreign_invocation_provenance_matches(
+                &instruction.provenance,
+                record.invocation_site,
+            ) {
+                return Err(invalid());
+            }
             if !matches!(
                 instruction.kind,
                 selected_instructions::SelectedInstructionKind::NormalizedForeignCall {
@@ -95,11 +101,20 @@ pub fn derive_normalized_foreign_call_custody(
             ) {
                 return Err(invalid());
             }
+            if record.invocation_site.operation().is_none()
+                && selected_instructions::calls::normalized_foreign::return_transport::resolve(
+                    function, block, record,
+                )
+                .is_none()
+            {
+                return Err(invalid());
+            }
             let mut fields = section
                 .unresolved_normalized_foreign_calls
                 .iter()
                 .filter(|field| {
-                    field.caller == function.machine && field.operation == record.operation
+                    field.caller == function.machine
+                        && field.invocation_site == record.invocation_site
                 });
             let field = match (record.call.binding.import(), fields.next(), fields.next()) {
                 (Some(_), Some(field), None) => {
@@ -177,7 +192,23 @@ pub fn derive_normalized_foreign_call_custody(
                         abstract_operations::AbstractOperation::BoundaryCall {
                             psi_operation,
                             ..
-                        } if *psi_operation == record.operation => Some(index),
+                        } if record.invocation_site
+                            == semantic_vocabulary::BoundaryInvocationSite::Operation(
+                                *psi_operation,
+                            ) =>
+                        {
+                            Some(index)
+                        }
+                        abstract_operations::AbstractOperation::ExternalCompletion {
+                            psi_edge,
+                            ..
+                        } if record.invocation_site
+                            == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
+                                *psi_edge,
+                            ) =>
+                        {
+                            Some(index)
+                        }
                         _ => None,
                     });
             let operation_ordinal = match (ordinals.next(), ordinals.next()) {
@@ -204,7 +235,7 @@ pub fn derive_normalized_foreign_call_custody(
             };
             if let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result {
                 let slot = selected_instructions::LocalStorageSlotId::Structural {
-                    operation: record.operation,
+                    operation: record.invocation_site.operation().ok_or_else(invalid)?,
                     place: home.place(),
                 };
                 let mut homes = frame
@@ -247,7 +278,9 @@ pub fn derive_normalized_foreign_call_custody(
                 .ok_or(ObjectError::TextSizeOverflow)?;
             let caller_live_bytes =
                 u32::try_from(committed).map_err(|_| ObjectError::TextSizeOverflow)?;
-            let controls = if record.call.binding.import().is_some() {
+            let controls = if record.call.binding.import().is_some()
+                && record.invocation_site.operation().is_some()
+            {
                 Some(
                     floating_control::derive(
                         section.target,
@@ -414,7 +447,12 @@ fn producer_instruction(
             function
                 .normalized_foreign_calls
                 .iter()
-                .map(|record| (record.operation, record.instruction)),
+                .filter_map(|record| {
+                    record
+                        .invocation_site
+                        .operation()
+                        .map(|operation| (operation, record.instruction))
+                }),
         )
         .find(|(candidate, _)| *candidate == operation)
         .map(|(_, instruction)| instruction)
@@ -765,7 +803,7 @@ pub fn structural_result_capture(
         .result
         .as_ref()?;
     let contract = function.structural.as_ref()?;
-    if operation != record.operation
+    if Some(operation) != record.invocation_site.operation()
         || placement.shape.byte_size != shape.byte_size
         || placement.shape.alignment != shape.alignment
         || !contract.structural_places.iter().any(|place| {
@@ -1068,7 +1106,7 @@ fn foreign_scalar_result_custody(
         return Err(invalid());
     };
     let shape = scalar_shape(home.scalar_type).ok_or_else(invalid)?;
-    if home.defining_operation != record.operation
+    if Some(home.defining_operation) != record.invocation_site.operation()
         || home.shape != shape
         || placement.shape != home.shape
         || !matches!(
@@ -1104,7 +1142,8 @@ fn foreign_scalar_result_custody(
         .map(|register| register.origin);
     if normalization.kind != kind
         || Some(input.virtual_register) != transport.result_register
-        || normalization.provenance.operations.as_slice() != [record.operation]
+        || normalization.provenance.operations.as_slice()
+            != [record.invocation_site.operation().ok_or_else(invalid)?]
         || normalization.provenance.values.as_slice() != [home.source_value]
         || output_origin
             != Some(
@@ -1266,7 +1305,7 @@ where
             },
         ] if *byte_size == argument.placement.shape.byte_size => {
             let slot = selected_instructions::OutgoingArgumentSlotId {
-                operation: record.operation,
+                invocation_site: record.invocation_site,
                 argument_index: argument.parameter_index,
                 role: selected_instructions::OutgoingArgumentSlotRole::Argument,
             };
@@ -1292,8 +1331,10 @@ where
                         slot: selected_instructions::FrameStorageSlotId::Outgoing(candidate),
                         byte_offset: 0,
                     } if candidate == slot
-                ) && candidate.provenance.operations.as_slice() == [record.operation]
-                    && candidate.provenance.values.as_slice() == [source_value]
+                ) && foreign_invocation_provenance_matches(
+                    &candidate.provenance,
+                    record.invocation_site,
+                ) && candidate.provenance.values.as_slice() == [source_value]
             })?;
             let address = &block.instructions[address_index];
             let store = block.instructions.get(address_index + 1)?;
@@ -1305,7 +1346,7 @@ where
                 return None;
             };
             if stored_bytes != stored
-                || store.provenance.operations.as_slice() != [record.operation]
+                || !foreign_invocation_provenance_matches(&store.provenance, record.invocation_site)
                 || store.provenance.values.as_slice() != [source_value]
             {
                 return None;
@@ -1349,7 +1390,7 @@ fn scalar_call_result_producer(
     let mut foreign = function
         .normalized_foreign_calls
         .iter()
-        .filter(|record| record.operation == home.defining_operation);
+        .filter(|record| record.invocation_site.operation() == Some(home.defining_operation));
     let (producer, result_home) = match (internal.next(), foreign.next()) {
         (Some(contract), None) if internal.next().is_none() => (contract.instruction, None),
         (None, Some(record)) if foreign.next().is_none() => {
@@ -1404,4 +1445,27 @@ pub(crate) fn image_foreign_calls_match_object(
     image_rows: &[ObjectForeignCall],
 ) -> bool {
     image_rows == artifact.foreign_calls()
+}
+
+/// Exact operation or terminal-edge source custody, with disjoint namespaces.
+/// Selection may prepend zero-storage establishment charges to the next
+/// emitted instruction. Those operation identities remain real source/fuel
+/// custody, not owners of its foreign invocation: a returning call is the last
+/// operation, while a completion owns the single explicit edge. The retained
+/// call record and source graph establish the owner; this query does not infer
+/// one from a constructor's numeric identity or discard its charges.
+pub fn foreign_invocation_provenance_matches(
+    provenance: &selected_instructions::SelectedInstructionProvenance,
+    site: semantic_vocabulary::BoundaryInvocationSite,
+) -> bool {
+    match site {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            provenance.operations.last() == Some(&operation)
+                && provenance.edges.is_empty()
+                && provenance.fuel_settles_only_claimed_sites()
+        }
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            provenance.edges.as_slice() == [edge] && provenance.fuel_settles_only_claimed_sites()
+        }
+    }
 }

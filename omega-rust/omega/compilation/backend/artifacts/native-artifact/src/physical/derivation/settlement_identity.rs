@@ -314,6 +314,11 @@ pub(crate) fn installed_provider_internal_call_identity(
             digest.update(operation.get().to_le_bytes());
             digest.update(0_u32.to_le_bytes());
         }
+        CallSiteOwner::ExternalCompletion(edge) => {
+            digest.update([3]);
+            digest.update(edge.get().to_le_bytes());
+            digest.update(0_u32.to_le_bytes());
+        }
         CallSiteOwner::CleanupAction {
             edge,
             action_ordinal,

@@ -1,7 +1,7 @@
 //! Canonical format-36 codec for native call-site ownership.
 //!
 //! Call stack rows and ordering remain in the installation parent. This child
-//! owns only the operation-versus-cleanup owner tag and its exact identities.
+//! owns only the operation, completion-edge, or cleanup owner tag and its exact identities.
 
 use semantic_vocabulary::{EdgeId, OperationId};
 use target_operations::CallSiteOwner;
@@ -14,6 +14,11 @@ pub(crate) fn encode_call_site_owner(bytes: &mut Vec<u8>, owner: CallSiteOwner) 
             bytes.push(1);
             bytes.extend_from_slice(&[0; 3]);
             push_u64(bytes, operation.get());
+        }
+        CallSiteOwner::ExternalCompletion(edge) => {
+            bytes.push(3);
+            bytes.extend_from_slice(&[0; 3]);
+            push_u64(bytes, edge.get());
         }
         CallSiteOwner::CleanupAction {
             edge,
@@ -52,6 +57,9 @@ pub(crate) fn decode_call_site_owner(
                 action_ordinal,
             })
         }
+        3 => Ok(CallSiteOwner::ExternalCompletion(
+            EdgeId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+        )),
         tag => Err(InstallationError::InvalidCallSiteOwnerTag(tag)),
     }
 }

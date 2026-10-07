@@ -151,7 +151,7 @@ pub(super) fn argument(
                 .ok_or_else(|| SelectedInstructionError::custody())?
         };
         let slot = selected_instructions::OutgoingArgumentSlotId {
-            operation: operation.operation,
+            invocation_site: operation.operation.into(),
             argument_index: argument_index
                 .try_into()
                 .map_err(|_| SelectedInstructionError::custody())?,
@@ -347,7 +347,7 @@ pub(super) fn argument(
                 alignment,
             } => {
                 let slot = selected_instructions::OutgoingArgumentSlotId {
-                    operation: operation.operation,
+                    invocation_site: operation.operation.into(),
                     argument_index: argument_index
                         .try_into()
                         .map_err(|_| SelectedInstructionError::custody())?,

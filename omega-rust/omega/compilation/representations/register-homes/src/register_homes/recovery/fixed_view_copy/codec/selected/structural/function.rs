@@ -51,6 +51,19 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
     }
 }
 
+pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn decode_invocation_site(
+    cursor: &mut Cursor<'_>,
+) -> Result<semantic_vocabulary::BoundaryInvocationSite, FixedViewCopyDecodeError> {
+    let tag = cursor.byte()?;
+    let identity = cursor.u64()?;
+    semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(tag, identity).ok_or_else(
+        || match tag {
+            0 | 1 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
+            _ => FixedViewCopyDecodeError::UnknownOption(tag),
+        },
+    )
+}
+
 fn encode_slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
     slot.encode_identity(bytes);
 }
@@ -58,7 +71,7 @@ fn decode_slot(
     cursor: &mut Cursor<'_>,
 ) -> Result<OutgoingArgumentSlotId, FixedViewCopyDecodeError> {
     Ok(OutgoingArgumentSlotId {
-        operation: decode_id(cursor, OperationId::new)?,
+        invocation_site: decode_invocation_site(cursor)?,
         argument_index: cursor.u32()?,
         role: match cursor.byte()? {
             0 => selected_instructions::OutgoingArgumentSlotRole::Argument,

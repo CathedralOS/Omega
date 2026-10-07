@@ -37,12 +37,19 @@ pub(super) fn check(
         );
     }
     if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind {
+        let row = function
+            .normalized_foreign_calls
+            .get(ordinal as usize)
+            .ok_or(ResolvedFragmentEmissionError::ArtifactMismatch)?;
+        require(row.instruction == instruction.id && row.call.boundary == boundary)?;
         return require(matches!(
             actual,
             Control::NormalizedForeignCall {
+                invocation_site,
                 boundary: actual_boundary,
                 ordinal: actual_ordinal,
             } if *actual_boundary == boundary && *actual_ordinal == ordinal
+                && *invocation_site == row.invocation_site
         ));
     }
     let (terminal, predicate, successors) = match &block.terminator {

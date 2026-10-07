@@ -95,7 +95,7 @@ pub(super) fn validate_layout(
                 || end > u64::from(u32::MAX)
                 || source.outgoing_arguments[..index].iter().any(|earlier| {
                     earlier.id == slot.id
-                        || (earlier.id.operation == slot.id.operation
+                        || (earlier.id.invocation_site == slot.id.invocation_site
                             && u64::from(earlier.abi_stack_byte_offset) < end
                             && u64::from(slot.abi_stack_byte_offset)
                                 < u64::from(earlier.abi_stack_byte_offset)

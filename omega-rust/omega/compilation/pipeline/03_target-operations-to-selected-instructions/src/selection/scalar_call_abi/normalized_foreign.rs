@@ -9,9 +9,10 @@
 use super::{CallSignature, LegalizedScalarFunction, ValueLocation, ValueShape, scalar_shape};
 use crate::SelectedInstructionError;
 use calling_conventions::validate_boundary_entry_plan;
-use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedScalarInstruction};
+use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedValueDefinition};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint};
+use semantic_vocabulary::BoundaryInvocationSite;
 use target_operations::{
     TargetBoundaryResult, TargetStructuralArgumentSource, TargetUnitScalarArgumentSource,
 };
@@ -106,17 +107,24 @@ pub(crate) fn call_constraint(
 pub(crate) fn validate(
     function: usize,
     source: &LegalizedScalarFunction,
-    instruction: &LegalizedScalarInstruction,
+    call: &LegalizedNormalizedForeignCall,
+    invocation_site: BoundaryInvocationSite,
+    result: Option<LegalizedValueDefinition>,
     key: RegisterConstraintKey,
     constraint: &RegisterInstructionConstraint,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
-    let legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) =
-        &instruction.kind
-    else {
+    // A completion has no physical return lane or callback registration. The
+    // edge is retained as its owner, never recast as an operation identity.
+    if invocation_site.operation().is_none()
+        && (!matches!(call.result, TargetBoundaryResult::Unit)
+            || result.is_some()
+            || !call.callbacks.is_empty()
+            || !call.structural_arguments.is_empty())
+    {
         return Err(invalid());
-    };
+    }
     let plan = &call.binding.boundary_entry_plan;
     // Target applicability, calling policy, and entry control are exact
     // coordinates; the entry mechanism's sealed target must name this environment.
@@ -165,7 +173,7 @@ pub(crate) fn validate(
                     )
             }
         };
-        if callback.terminal_operation != instruction.operation
+        if Some(callback.terminal_operation) != invocation_site.operation()
             || callback.registrar_boundary_entry_plan != *plan
             || callback.registrar_context != call.callbacks[0].registrar_context
             || !callback.callback_function.is_valid()
@@ -362,11 +370,11 @@ pub(crate) fn validate(
     // source value, scalar type, and shape must equal the legalized result,
     // and the plan's result must be one register of that exact shape. A unit
     // result admits neither a home nor a plan result row.
-    let result_shape = match (&call.result, &plan.call.result, instruction.result) {
+    let result_shape = match (&call.result, &plan.call.result, result) {
         (TargetBoundaryResult::Unit, None, None) => None,
         (TargetBoundaryResult::Scalar(home), Some(placement), Some(result)) => {
             if scalar_shape(result.scalar_type).is_none()
-                || home.defining_operation != instruction.operation
+                || Some(home.defining_operation) != invocation_site.operation()
                 || home.source_value != result.value
                 || home.scalar_type != result.scalar_type
                 || scalar_shape(result.scalar_type) != Some(home.shape)
@@ -403,7 +411,7 @@ pub(crate) fn validate(
                 plan.call.policy,
             )
             .map_err(|_| invalid())?;
-            if producer != instruction.operation
+            if Some(producer) != invocation_site.operation()
                 || crate::selection::aggregate_result_input::home(source, result.place)
                     != Some((producer, result))
                 || home.layout != target_operations::TargetStructuralHomeLayout::Aggregate(storage)

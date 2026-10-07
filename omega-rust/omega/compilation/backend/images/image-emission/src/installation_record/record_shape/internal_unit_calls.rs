@@ -432,6 +432,11 @@ fn custody_facts<'a>(
             .iter()
             .find(|cleanup| cleanup.psi_edge == edge),
         CallSiteOwner::Operation(_) => None,
+        CallSiteOwner::ExternalCompletion(_) => {
+            return Err(InstallationError::InvalidInternalUnitCall(
+                installed_machine,
+            ));
+        }
     };
     let affine_cleanup = function
         .scalar_affine_cleanup

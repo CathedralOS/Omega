@@ -536,7 +536,7 @@ pub struct NormalizedForeignCallImportField {
     locator_identity: [u8; 32],
     boundary_plan_identity: [u8; 32],
     caller: MachineId,
-    operation: OperationId,
+    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
     boundary: BoundaryMachineId,
     ordinal: u32,
     object_symbol: object_file::ObjectLocalSymbolId,
@@ -560,8 +560,8 @@ impl NormalizedForeignCallImportField {
         self.caller
     }
 
-    pub const fn operation(&self) -> OperationId {
-        self.operation
+    pub const fn invocation_site(&self) -> semantic_vocabulary::BoundaryInvocationSite {
+        self.invocation_site
     }
 
     pub const fn boundary(&self) -> BoundaryMachineId {
@@ -908,6 +908,10 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
                         formatter,
                         "normalized foreign call on machine {machine} is owned by operation {operation}"
                     ),
+                    CallSiteOwner::ExternalCompletion(edge) => write!(
+                        formatter,
+                        "normalized foreign call on machine {machine} is owned by completion edge {edge}"
+                    ),
                     CallSiteOwner::CleanupAction {
                         edge,
                         action_ordinal,
@@ -1026,7 +1030,7 @@ pub(crate) fn normalized_foreign_call_import_field(
     locator_identity: [u8; 32],
     boundary_plan_identity: [u8; 32],
     caller: MachineId,
-    operation: OperationId,
+    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
     boundary: BoundaryMachineId,
     ordinal: u32,
     object_symbol: object_file::ObjectLocalSymbolId,
@@ -1040,7 +1044,7 @@ pub(crate) fn normalized_foreign_call_import_field(
         locator_identity,
         boundary_plan_identity,
         caller,
-        operation,
+        invocation_site,
         boundary,
         ordinal,
         object_symbol,

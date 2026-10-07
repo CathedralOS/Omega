@@ -976,8 +976,8 @@ defines the complete product bar.
   - `host/runtime_console_bounded_line_exit` and its
     `_{lf,full,partial_eof,middle_window}_exit` siblings: exits 20/13/34/22/70
     with exact stdout on macOS ARM64; remaining Windows and Linux.
-    **WINDOWS-CONSOLE-INPUT** owns the Windows input dependency; output
-    remains under the process-exit contract's Windows byte-leaf gap.
+    **WINDOWS-CONSOLE-INPUT** owns remaining Windows input/output execution
+    qualification and the exact selected foreign-leaf adapters.
   - `host/runtime_gui_foreground_window_exit`: Windows, exact Gui provider,
     create/query/store/destroy, exit 70.
   - `control_flow/runtime_{integer,string}_literal_dispatch_exit`: exits 22/11
@@ -1005,10 +1005,11 @@ defines the complete product bar.
   exit 70. The program reads four bytes, completes a mutable call, then
   observes its writes in transition arguments.
 
-  Native input runs: std's Windows `read_byte`/`write_byte` are checked
-  bodies over msvcrt `_read`/`_write` imports, and the fixture plus the five
-  `host/runtime_console_bounded_line*` controls build and exit with their
-  authored codes and stdout natively. Remaining: the Terminal interpreter
+  Windows-target realization on macOS builds the Loader and five
+  `host/runtime_console_bounded_line*` controls, but that host cannot execute
+  their Windows images. Current Terminal execution declines before effects
+  on the exact selected `_read` import. Std's Windows `read_byte`/`write_byte`
+  are checked bodies over msvcrt `_read`/`_write`; the Terminal interpreter
   must supply input operations from those exact selected imports through
   `omega-rust/omega/compilation/realization/provider-planning/` and
   `omega-rust/psi/interpreter/terminal-interpreter/`, coordinated with
@@ -1758,9 +1759,9 @@ then independent claimed restoration slices -> final closure.
   compares numeric exit presentation only. A same-target native failure returns
   no retained intermediate
   artifact; observing that Terminal program requires intermediate-artifact error
-  custody rather than a second source compilation. Windows Console write-byte
-  production separately lacks a closed native intrinsic catalog identity; a
-  Linux-selected FTHN effect control executes portably through the core on Windows.
+  custody rather than a second source compilation. Qualify Windows native
+  input/output and comparison on Windows after binding the exact foreign leaves;
+  macOS cross-realization alone supplies no Windows execution evidence.
 
   Correct the stale agreement in `tests/omega/corpus_both_macos_arm64.txt`:
   it currently records
@@ -3455,10 +3456,10 @@ to the remaining arrivals and product-source implementation.
   - [normalized foreign-call custody](omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact/normalized_foreign_calls.rs)
     accepts scalar homes only from call-result producers; transport a general
     computed status argument;
-  - Windows Console output needs `WriteFile` (its `CompilerIntrinsic`
-    declaration has no Windows hosted bundle); **WINDOWS-CONSOLE-INPUT**
-    owns `ReadFile` input and its interpreter dependency;
-    `ProcessExit` already selects kernel32 `ExitProcess`;
+  - **WINDOWS-CONSOLE-INPUT** owns native Windows qualification and the
+    interpreter's exact foreign read/write adapters. Execute std's checked
+    Console bodies over their selected msvcrt leaves, not a synthetic line
+    reader. A native cross-build is not Windows execution acceptance;
   - replace the fixed 256 KiB foreign-call reserve (`SAME_STACK_BYTES`) in
     [source-evaluated bindings](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_bindings.rs)
     with per-callee stack demand.

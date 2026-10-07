@@ -35,7 +35,7 @@ fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
         let outgoing = selected_instructions::SelectedOutgoingArgumentSlot {
             id: selected_instructions::OutgoingArgumentSlotId {
                 role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-                operation: semantic_vocabulary::OperationId::new(11).unwrap(),
+                invocation_site: semantic_vocabulary::OperationId::new(11).unwrap().into(),
                 argument_index: 8,
             },
             byte_size: 4,
@@ -194,7 +194,7 @@ fn outgoing_pointer_slots_reserve_storage_on_every_host_abi() {
         let slot = selected_instructions::SelectedOutgoingArgumentSlot {
             id: selected_instructions::OutgoingArgumentSlotId {
                 role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-                operation: semantic_vocabulary::OperationId::new(11).unwrap(),
+                invocation_site: semantic_vocabulary::OperationId::new(11).unwrap().into(),
                 argument_index: 8,
             },
             byte_size: 8,

@@ -24,11 +24,11 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::MachineRegister;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v2\0";
+const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v3\0";
 const CONTAINER_MAGIC: &[u8; 8] = b"OMGTRO\0\0";
-// Version 2 is the one that added the normalized-foreign import plan, so an
-// older reader cannot mistake a v2 body for a fully resolved v1 section.
-const CONTAINER_VERSION: u32 = 2;
+// Version 3 preserves the operation/completion-edge invocation namespace.
+// Older rows cannot reconstruct that identity and are not migrated.
+const CONTAINER_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ObjectLocalSymbolId(u64);
@@ -221,6 +221,8 @@ pub enum RelocationFreeObjectDecodeError {
     InvalidSymbolId,
     InvalidBoundary,
     InvalidOperation,
+    InvalidBoundaryInvocationSite,
+    UnknownBoundaryInvocationSiteTag(u8),
     UnknownTargetArchitecture(u8),
     UnknownObjectFormat(u8),
     UnknownSymbolPolicy(u8),
@@ -709,7 +711,7 @@ fn encode_normalized_foreign_resolution(
     output.extend_from_slice(&resolution.caller.get().to_le_bytes());
     output.extend_from_slice(&resolution.block.0.to_le_bytes());
     output.extend_from_slice(&resolution.instruction.0.to_le_bytes());
-    output.extend_from_slice(&resolution.operation.get().to_le_bytes());
+    resolution.invocation_site.encode_identity(output);
     output.extend_from_slice(&resolution.boundary.get().to_le_bytes());
     output.extend_from_slice(&resolution.ordinal.to_le_bytes());
     output.extend_from_slice(&resolution.call_function_offset.to_le_bytes());
@@ -951,6 +953,19 @@ fn decode_plan_content(
     })
 }
 
+fn decode_boundary_invocation_site(
+    cursor: &mut Cursor<'_>,
+) -> Result<semantic_vocabulary::BoundaryInvocationSite, RelocationFreeObjectDecodeError> {
+    let tag = cursor.byte()?;
+    let identity = u64::from_le_bytes(cursor.array()?);
+    semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(tag, identity).ok_or_else(
+        || match tag {
+            0 | 1 => RelocationFreeObjectDecodeError::InvalidBoundaryInvocationSite,
+            _ => RelocationFreeObjectDecodeError::UnknownBoundaryInvocationSiteTag(tag),
+        },
+    )
+}
+
 fn decode_normalized_foreign_resolution(
     cursor: &mut Cursor<'_>,
 ) -> Result<PlacedNormalizedForeignCallResolution, RelocationFreeObjectDecodeError> {
@@ -976,8 +991,7 @@ fn decode_normalized_foreign_resolution(
             .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?,
         block: SelectedBlockId(u32::from_le_bytes(cursor.array()?)),
         instruction: SelectedInstructionId(u32::from_le_bytes(cursor.array()?)),
-        operation: OperationId::new(u64::from_le_bytes(cursor.array()?))
-            .ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?,
+        invocation_site: decode_boundary_invocation_site(cursor)?,
         boundary: BoundaryMachineId::new(u64::from_le_bytes(cursor.array()?))
             .ok_or(RelocationFreeObjectDecodeError::InvalidBoundary)?,
         ordinal: u32::from_le_bytes(cursor.array()?),
@@ -1460,8 +1474,8 @@ mod tests {
     }
 
     #[test]
-    fn omgtro_version_2_covers_normalized_foreign_imports() {
-        assert_eq!(CONTAINER_VERSION, 2);
+    fn omgtro_version_3_retains_boundary_invocation_namespaces() {
+        assert_eq!(CONTAINER_VERSION, 3);
     }
 
     #[test]
@@ -1482,7 +1496,7 @@ mod tests {
                     caller: MachineId::new(7).unwrap(),
                     block: SelectedBlockId(0),
                     instruction: SelectedInstructionId(instruction),
-                    operation: OperationId::new(11).unwrap(),
+                    invocation_site: OperationId::new(11).unwrap().into(),
                     boundary,
                     ordinal,
                     call_function_offset: 0,

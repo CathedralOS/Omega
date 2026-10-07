@@ -59,6 +59,7 @@ impl InternalUnitCall<'_> {
                         && attribution.attribution.byte_count == custody.byte_count
                 })
             }
+            CallSiteOwner::ExternalCompletion(_) => false,
             CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,

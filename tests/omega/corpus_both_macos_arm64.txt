@@ -238,6 +238,7 @@ pass/float/runtime_qualified_carrier_conversion_exit built 4391ms exit:0 interpr
 pass/float/runtime_total_order_satisfiers_exit built 19626ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/generics/closed_generic_local_field_observation_exit built 3226ms exit:0 interpreter-exit:0 interpreter:agrees @c9b4ecc7551a
 pass/host/console_exit_process_exit built 1352ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @2424b17e715c
+pass/host/process_exit_after_zero_payload_construction built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @5d657ba9bd55+wt
 pass/host/process_exit_i32_status_mapped built 867ms exit:212 interpreter-exit:-44 interpreter:agrees @2424b17e715c
 pass/host/process_exit_i32_status_ordered built 991ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @2424b17e715c
 pass/host/process_exit_preserves_scalar_contract built 1018ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @2424b17e715c

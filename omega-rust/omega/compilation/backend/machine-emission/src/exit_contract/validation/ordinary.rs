@@ -191,7 +191,7 @@ pub(super) fn check(
                         .offset
                         .checked_add(resolved_block.byte_count)
                         .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
-                    super::super::validation_rules::crash::validate_crash(
+                    super::super::validation_rules::trap::validate_trap(
                         physical,
                         instruction,
                         actual,
@@ -235,7 +235,18 @@ pub(super) fn check(
                         .offset
                         .checked_add(resolved_block.byte_count)
                         .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
-                    validate_process_exit(instruction, encoding_row, resolved, end, encoded)?;
+                    validate_process_exit(
+                        physical,
+                        function,
+                        block,
+                        *completion_edge,
+                        instruction,
+                        actual,
+                        encoding_row,
+                        resolved,
+                        end,
+                        encoded,
+                    )?;
                     require(
                         exited.block == block.id
                             && exited.completion_edge == *completion_edge

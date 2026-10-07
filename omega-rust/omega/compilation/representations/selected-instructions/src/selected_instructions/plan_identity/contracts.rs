@@ -26,7 +26,7 @@ pub(super) fn frame_slot(bytes: &mut Vec<u8>, slot: crate::FrameStorageSlotId) {
                 crate::OutgoingArgumentSlotRole::Argument => 0,
                 crate::OutgoingArgumentSlotRole::ValueCopy => 3,
             });
-            bytes.extend_from_slice(&value.operation.get().to_le_bytes());
+            value.invocation_site.encode_identity(bytes);
             bytes.extend_from_slice(&value.argument_index.to_le_bytes());
         }
         crate::FrameStorageSlotId::Local(value) => {
@@ -64,6 +64,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 bytes.push(0);
                 bytes.extend_from_slice(&operation.get().to_le_bytes());
             }
+            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                bytes.push(2);
+
+                bytes.extend_from_slice(&edge.get().to_le_bytes());
+            }
             target_operations::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,
@@ -82,7 +87,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     encode_len(bytes, function.normalized_foreign_calls.len());
     for row in &function.normalized_foreign_calls {
         bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
-        bytes.extend_from_slice(&row.operation.get().to_le_bytes());
+        row.invocation_site.encode_identity(bytes);
         blob(
             bytes,
             &row.call

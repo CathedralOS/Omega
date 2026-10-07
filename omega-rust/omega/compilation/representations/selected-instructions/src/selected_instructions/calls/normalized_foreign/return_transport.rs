@@ -3,6 +3,8 @@
 //! Runtime splitting preserves a fixed result in a fresh virtual register before
 //! later instructions. This query follows those exact effect-free copies; it
 //! does not infer another call, normalization, or floating-control operation.
+//! An external invocation has no return transport. Its last body instruction
+//! must instead be followed by the exact edge's uncharged containment trap.
 use crate::{
     LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedInstruction,
     SelectedInstructionKind, SelectedNormalizedForeignCall, VirtualRegisterId,
@@ -32,6 +34,42 @@ pub fn resolve(
     if calls.next().is_some() {
         return None;
     }
+    if let semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) =
+        record.invocation_site
+    {
+        if !matches!(
+            record.call.result,
+            target_operations::TargetBoundaryResult::Unit
+        ) || record
+            .call
+            .binding
+            .boundary_entry_plan
+            .call
+            .result
+            .is_some()
+            || !record.call.callbacks.is_empty()
+            || !matches!(&block.terminator,
+                crate::SelectedTerminator::HostedExitProcess { instruction, completion_edge }
+                    if *completion_edge == edge
+                    && instruction.kind == SelectedInstructionKind::Crash
+                    && instruction.provenance.edges.as_slice() == [edge]
+                    && instruction.provenance.operations.is_empty()
+                    && instruction.provenance.values.is_empty()
+                    && instruction.provenance.obligations.is_empty()
+                    && instruction.provenance.fuel.is_empty()
+                    && instruction.operands.is_empty())
+            || call_position.checked_add(1)? != block.instructions.len()
+        {
+            return None;
+        }
+        return Some(ReturnTransport {
+            call_position,
+            restore_position: None,
+            normalization_position: call_position.checked_add(1)?,
+            result_register: None,
+        });
+    }
+    let operation = record.invocation_site.operation()?;
     let mut result_register = if let Some(home) = record.call.result.scalar_home() {
         let output = call.operands.last()?;
         let value = function
@@ -72,11 +110,9 @@ pub fn resolve(
         let restore = block.instructions.get(cursor)?;
         if restore.kind
             != (SelectedInstructionKind::RestoreFloatingControl {
-                slot: LocalStorageSlotId::Boundary {
-                    operation: record.operation,
-                },
+                slot: LocalStorageSlotId::Boundary { operation },
             })
-            || restore.provenance.operations.as_slice() != [record.operation]
+            || restore.provenance.operations.as_slice() != [operation]
         {
             return None;
         }

@@ -378,7 +378,7 @@ fn outgoing_frame_roles_round_trip_and_cannot_substitute_under_a_retained_identi
         OutgoingArgumentSlotRole::ValueCopy,
     ] {
         let slot = OutgoingArgumentSlotId {
-            operation: OperationId::new(43).unwrap(),
+            invocation_site: (OperationId::new(43).unwrap()).into(),
             argument_index: 7,
             role,
         };

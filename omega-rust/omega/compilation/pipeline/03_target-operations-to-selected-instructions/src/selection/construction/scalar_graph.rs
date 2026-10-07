@@ -455,12 +455,19 @@ fn select_function(
                 .push((result.value, output, result.definition_site, scalar_type));
         }
         *current_operation = None;
-        let terminator =
-            if let Some(exited) = process_exit::build(block, block_id, start, &mut builder)? {
-                exited
-            } else {
-                control::build(function, source, block, &order, &mut builder, environment)?
-            };
+        let terminator = if let Some(exited) = process_exit::build(
+            function,
+            source,
+            block,
+            block_id,
+            start,
+            &mut builder,
+            environment,
+        )? {
+            exited
+        } else {
+            control::build(function, source, block, &order, &mut builder, environment)?
+        };
         if !builder.pending_provenance.operations.is_empty()
             || !builder.pending_result_origins.is_empty()
         {

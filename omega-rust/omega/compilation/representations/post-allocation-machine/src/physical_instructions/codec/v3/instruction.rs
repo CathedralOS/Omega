@@ -117,7 +117,11 @@ pub(super) fn decode_instruction(
                         } else {
                             selected_instructions::OutgoingArgumentSlotRole::ValueCopy
                         },
-                        operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
+                        invocation_site:
+                            semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(
+                                byte(cursor)?,
+                                u64_field(cursor)?,
+                            )
                             .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
                         argument_index: u32_field(cursor)?,
                     },

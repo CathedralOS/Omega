@@ -68,7 +68,11 @@ pub(in crate::physical_instructions::codec) fn decode_content(
         for _ in 0..slot_count {
             outgoing_arguments.push(selected_instructions::SelectedOutgoingArgumentSlot {
                 id: selected_instructions::OutgoingArgumentSlotId {
-                    operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
+                    invocation_site:
+                        semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(
+                            byte(cursor)?,
+                            u64_field(cursor)?,
+                        )
                         .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
                     argument_index: u32_field(cursor)?,
                     role: match byte(cursor)? {

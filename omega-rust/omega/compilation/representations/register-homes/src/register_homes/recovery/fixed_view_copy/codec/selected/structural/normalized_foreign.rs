@@ -60,7 +60,7 @@ pub(super) fn encode_normalized_foreign_call(
     row: &SelectedNormalizedForeignCall,
 ) {
     bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
-    bytes.extend_from_slice(&row.operation.get().to_le_bytes());
+    row.invocation_site.encode_identity(bytes);
     let call = &row.call;
     bytes.extend_from_slice(&call.boundary.get().to_le_bytes());
     encode_provider_execution(bytes, call.provider_execution);
@@ -129,7 +129,7 @@ pub(super) fn decode_normalized_foreign_call(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedNormalizedForeignCall, FixedViewCopyDecodeError> {
     let instruction = SelectedInstructionId(cursor.u32()?);
-    let operation = decode_id(cursor, OperationId::new)?;
+    let invocation_site = super::function::decode_invocation_site(cursor)?;
     let boundary = decode_id(cursor, BoundaryMachineId::new)?;
     let provider_execution = decode_provider_execution(cursor)?;
     let binding = decode_call_binding(cursor)?;
@@ -189,7 +189,7 @@ pub(super) fn decode_normalized_foreign_call(
     }
     Ok(SelectedNormalizedForeignCall {
         instruction,
-        operation,
+        invocation_site,
         call: LegalizedNormalizedForeignCall {
             boundary,
             provider_execution,
@@ -204,8 +204,6 @@ pub(super) fn decode_normalized_foreign_call(
         ownership: decode_ownership(cursor)?,
     })
 }
-
-
 
 fn decode_native_callback_argument(
     cursor: &mut Cursor<'_>,
@@ -688,7 +686,7 @@ mod tests {
         let binding = binding();
         SelectedNormalizedForeignCall {
             instruction: SelectedInstructionId(3),
-            operation: OperationId::new(7).unwrap(),
+            invocation_site: OperationId::new(7).unwrap().into(),
             call: LegalizedNormalizedForeignCall {
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 provider_execution:
@@ -967,7 +965,10 @@ mod tests {
         source.call.result = target_operations::TargetBoundaryResult::Structural(
             target_operations::TargetStructuralHomeRequirement {
                 origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
-                    operation: source.operation,
+                    operation: source
+                        .invocation_site
+                        .operation()
+                        .expect("returning test call"),
                     result,
                 },
                 layout: target_operations::TargetStructuralHomeLayout::Aggregate(

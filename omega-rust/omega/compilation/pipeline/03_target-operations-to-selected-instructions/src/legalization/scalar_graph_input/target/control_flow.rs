@@ -298,14 +298,27 @@ pub(super) fn validate(
                             .ok_or_else(LegalizationError::custody)
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let expected_plan = calling_conventions::evaluate_call_plan(
-                    calling_conventions::CallingPolicy::native_for_target(native.target),
-                    &calling_conventions::CallSignature {
-                        parameters,
-                        result: None,
-                    },
-                )
-                .map_err(|_| LegalizationError::custody())?;
+                let signature = calling_conventions::CallSignature {
+                    parameters,
+                    result: None,
+                };
+                let expected_plan = match &binding.realization {
+                    target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+                        foreign,
+                    ) => calling_conventions::validate_boundary_entry_plan(
+                        foreign.boundary_entry_plan.clone(),
+                        &signature,
+                    )
+                    .map_err(|_| LegalizationError::custody())?
+                    .plan()
+                    .call
+                    .clone(),
+                    _ => calling_conventions::evaluate_call_plan(
+                        calling_conventions::CallingPolicy::native_for_target(native.target),
+                        &signature,
+                    )
+                    .map_err(|_| LegalizationError::custody())?,
+                };
                 psi_edge == expected_edge
                     && boundary == expected_boundary
                     && kind == expected_kind

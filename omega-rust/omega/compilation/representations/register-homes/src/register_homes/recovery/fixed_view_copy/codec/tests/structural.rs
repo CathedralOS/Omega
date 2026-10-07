@@ -82,7 +82,7 @@ fn structural_function() -> SelectedFunction {
     }];
     let slot = OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-        operation: OperationId::new(41).unwrap(),
+        invocation_site: OperationId::new(41).unwrap().into(),
         argument_index: 0,
     };
     function.outgoing_arguments = vec![SelectedOutgoingArgumentSlot {
@@ -93,7 +93,11 @@ fn structural_function() -> SelectedFunction {
     }];
     function.memory_accesses = vec![SelectedMemoryAccess {
         instruction: SelectedInstructionId(0),
-        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(slot.operation),
+        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+            slot.invocation_site
+                .operation()
+                .expect("operation-backed test slot"),
+        ),
         place: PlaceId::new(1).unwrap(),
         byte_offset: 8,
         byte_count: 8,
@@ -227,7 +231,11 @@ fn outgoing_slot_roles_bind_rosters_memory_and_authenticated_round_trips() {
     ] {
         function.memory_accesses.push(SelectedMemoryAccess {
             instruction: SelectedInstructionId(1),
-            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(copy.operation),
+            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                copy.invocation_site
+                    .operation()
+                    .expect("operation-backed test slot"),
+            ),
             place: PlaceId::new(1).unwrap(),
             byte_offset: 0,
             byte_count: 24,

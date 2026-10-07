@@ -648,7 +648,7 @@ mod tests {
         };
         SelectedNormalizedForeignCall {
             instruction: selected_instructions::SelectedInstructionId(4),
-            operation,
+            invocation_site: operation.into(),
             call: legalized_operations::LegalizedNormalizedForeignCall {
                 boundary: BoundaryMachineId::new(3).unwrap(),
                 provider_execution:
@@ -769,7 +769,10 @@ mod tests {
                     .call
                     .callbacks
                     .push(target_operations::TargetNativeCallbackArgument {
-                        terminal_operation: record.operation,
+                        terminal_operation: record
+                            .invocation_site
+                            .operation()
+                            .expect("callback is owned by a returning operation"),
                         placement_index,
                         callback_function: MachineFunctionIdentity::callback_thunk(
                             continuation,

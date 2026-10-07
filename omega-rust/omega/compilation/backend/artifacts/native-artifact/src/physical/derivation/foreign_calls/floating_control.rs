@@ -31,6 +31,12 @@ fn check(
     record: &SelectedNormalizedForeignCall,
     foreign: &ObjectForeignCall,
 ) -> Option<()> {
+    if record.invocation_site.operation().is_none() {
+        return (foreign.x86_floating_control.is_none()
+            && foreign.aarch64_floating_control.is_none())
+        .then_some(());
+    }
+    let operation = record.invocation_site.operation()?;
     let section = publication.text_section();
     let (target, displacement, save_offset, save_count, restore_offset, restore_count) =
         match section.target.architecture {
@@ -67,7 +73,7 @@ fn check(
         return None;
     }
     let slot = LocalStorageSlotId::Boundary {
-        operation: record.operation,
+        operation: operation,
     };
     let mut homes = function
         .local_storage_slots
@@ -97,12 +103,7 @@ fn check(
         || restore.kind != (SelectedInstructionKind::RestoreFloatingControl { slot })
         || block.instructions[save_position..=call_position]
             .iter()
-            .any(|instruction| {
-                !instruction
-                    .provenance
-                    .operations
-                    .contains(&record.operation)
-            })
+            .any(|instruction| !instruction.provenance.operations.contains(&operation))
     {
         return None;
     }

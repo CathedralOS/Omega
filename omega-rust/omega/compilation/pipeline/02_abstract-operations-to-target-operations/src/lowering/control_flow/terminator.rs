@@ -327,14 +327,30 @@ pub(super) fn lower_terminator(
                         .ok_or(LoweringError::BoundaryRealizationMismatch(*boundary))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let call_plan = calling_conventions::evaluate_call_plan(
-                calling_conventions::CallingPolicy::native_for_target(target),
-                &calling_conventions::CallSignature {
-                    parameters: shapes,
-                    result: None,
-                },
-            )
-            .map_err(LoweringError::AbiPlan)?;
+            let signature = calling_conventions::CallSignature {
+                parameters: shapes,
+                result: None,
+            };
+            // An external completion still uses its selected counterparty's
+            // exact ABI. Native defaults cannot replace the admitted entry plan
+            // (notably supervisor entries and explicitly selected foreign ABIs).
+            let call_plan = match &binding.realization {
+                target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+                    foreign,
+                ) => calling_conventions::validate_boundary_entry_plan(
+                    foreign.boundary_entry_plan.clone(),
+                    &signature,
+                )
+                .map_err(LoweringError::AbiPlan)?
+                .plan()
+                .call
+                .clone(),
+                _ => calling_conventions::evaluate_call_plan(
+                    calling_conventions::CallingPolicy::native_for_target(target),
+                    &signature,
+                )
+                .map_err(LoweringError::AbiPlan)?,
+            };
             let arguments = arguments
                 .iter()
                 .zip(&call_plan.parameters)

@@ -10,10 +10,13 @@ use selected_instructions::{
 };
 
 pub(super) fn build(
+    function: usize,
+    source_function: &legalized_operations::LegalizedScalarFunction,
     block: &LegalizedScalarBlock,
     block_id: SelectedBlockId,
     start: usize,
     builder: &mut Builder<'_>,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<Option<SelectedTerminator>, SelectedInstructionError> {
     let LegalizedScalarTerminator::ExternalCompletion {
         psi_edge,
@@ -23,6 +26,8 @@ pub(super) fn build(
         binding,
         structural_arguments,
         fuel,
+        effect,
+        ownership,
         ..
     } = &block.terminator
     else {
@@ -44,15 +49,69 @@ pub(super) fn build(
                     target_operations::CompilerBuiltinExecution::HostedExitProcessI32
                 )
         )
-        || !matches!(
-            binding.realization,
-            target_operations::BoundarySettlementRealization::Builtin(
-                target_operations::BoundaryRealization::HostedExitProcessI32(_)
-            )
-        )
         || !structural_arguments.is_empty()
         || !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
     {
+        return Err(SelectedInstructionError::custody());
+    }
+    if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(foreign) =
+        &binding.realization
+    {
+        let target_operations::BoundaryExecutionBinding::AdmittedProvider(provider_execution) =
+            binding.execution
+        else {
+            return Err(SelectedInstructionError::custody());
+        };
+        let call = legalized_operations::LegalizedNormalizedForeignCall {
+            boundary: *boundary,
+            provider_execution,
+            binding: foreign.clone(),
+            scalar_arguments: arguments.clone(),
+            structural_arguments: Vec::new(),
+            structural_indices: Vec::new(),
+            result: target_operations::TargetBoundaryResult::Unit,
+            callbacks: Vec::new(),
+        };
+        super::normalized_foreign::emit_invocation(
+            function,
+            source_function,
+            &call,
+            super::normalized_foreign::Invocation::ExternalCompletion {
+                edge: *psi_edge,
+                effect: *effect,
+                ownership,
+                fuel,
+            },
+            environment,
+            builder,
+        )?;
+        // The selected provider promises external completion. If it violates
+        // that premise and returns, trap physically; this is not a source Crash
+        // outcome and cannot establish crash permission or a normal successor.
+        builder.emit(
+            SelectedInstructionKind::Crash,
+            builder.constraints.keys.crash,
+            &[],
+            SelectedInstructionProvenance {
+                edges: vec![*psi_edge],
+                ..Default::default()
+            },
+        )?;
+        return Ok(Some(SelectedTerminator::HostedExitProcess {
+            instruction: builder
+                .instructions
+                .last()
+                .cloned()
+                .ok_or_else(SelectedInstructionError::custody)?,
+            completion_edge: *psi_edge,
+        }));
+    }
+    if !matches!(
+        binding.realization,
+        target_operations::BoundarySettlementRealization::Builtin(
+            target_operations::BoundaryRealization::HostedExitProcessI32(_)
+        )
+    ) {
         return Err(SelectedInstructionError::custody());
     }
     builder

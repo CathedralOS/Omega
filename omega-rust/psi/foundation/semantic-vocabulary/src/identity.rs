@@ -35,6 +35,26 @@ pub enum BoundaryInvocationSite {
 }
 
 impl BoundaryInvocationSite {
+    /// Canonical tagged identity; operation and completion-edge namespaces are
+    /// distinct even when their nonzero numeric coordinates coincide.
+    pub fn encode_identity(self, bytes: &mut Vec<u8>) {
+        let (tag, identity) = match self {
+            Self::Operation(operation) => (0, operation.get()),
+            Self::ExternalCompletion(edge) => (1, edge.get()),
+        };
+        bytes.push(tag);
+        bytes.extend_from_slice(&identity.to_le_bytes());
+    }
+
+    /// Decode only the closed namespace tags and valid nonzero coordinates.
+    pub fn from_tagged_identity(tag: u8, identity: u64) -> Option<Self> {
+        match tag {
+            0 => OperationId::new(identity).map(Self::Operation),
+            1 => EdgeId::new(identity).map(Self::ExternalCompletion),
+            _ => None,
+        }
+    }
+
     pub const fn operation(self) -> Option<OperationId> {
         match self {
             Self::Operation(operation) => Some(operation),

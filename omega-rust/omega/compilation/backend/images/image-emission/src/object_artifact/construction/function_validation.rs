@@ -336,6 +336,7 @@ fn validate_call_stacks(
             CallSiteOwner::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }
+            CallSiteOwner::ExternalCompletion(_) => false,
             CallSiteOwner::CleanupAction { edge, .. } => function.provenance.edges.contains(&edge),
         };
         if !owner_in_provenance {
@@ -1070,6 +1071,7 @@ fn validate_foreign_calls(
             CallSiteOwner::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }
+            CallSiteOwner::ExternalCompletion(edge) => function.provenance.edges.contains(&edge),
             CallSiteOwner::CleanupAction { edge, .. } => function.provenance.edges.contains(&edge),
         };
         if !owner_in_provenance {

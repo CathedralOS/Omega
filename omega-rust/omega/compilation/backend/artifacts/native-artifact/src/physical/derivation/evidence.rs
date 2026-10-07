@@ -157,15 +157,23 @@ pub(crate) fn derive_physical_evidence(
         return Err("native physical evidence foreign calls differ from fragment projection");
     }
     for foreign in object.foreign_calls() {
-        let CallSiteOwner::Operation(operation) = foreign.owner else {
-            return Ok(blocked(
-                NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
-                    machine: foreign.machine,
-                    owner: foreign.owner,
-                },
-            ));
+        let invocation_site = match foreign.owner {
+            CallSiteOwner::Operation(operation) => {
+                semantic_vocabulary::BoundaryInvocationSite::Operation(operation)
+            }
+            CallSiteOwner::ExternalCompletion(edge) => {
+                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge)
+            }
+            CallSiteOwner::CleanupAction { .. } => {
+                return Ok(blocked(
+                    NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
+                        machine: foreign.machine,
+                        owner: foreign.owner,
+                    },
+                ));
+            }
         };
-        let key = (foreign.machine, operation);
+        let key = (foreign.machine, invocation_site);
         if foreign_calls.insert(key, foreign).is_some() {
             return Err("native physical evidence found duplicate normalized foreign calls");
         }
@@ -173,11 +181,7 @@ pub(crate) fn derive_physical_evidence(
     let foreign_occurrence_keys = projection
         .boundary_occurrences()
         .iter()
-        .filter_map(|occurrence| {
-            occurrence
-                .operation()
-                .map(|operation| (occurrence.machine(), operation))
-        })
+        .map(|occurrence| (occurrence.machine(), occurrence.invocation_site()))
         .collect::<BTreeSet<_>>();
     if foreign_calls
         .keys()
@@ -201,9 +205,7 @@ pub(crate) fn derive_physical_evidence(
             occurrence.operation_ordinal(),
         );
         let installed = settlements.get(&key);
-        let foreign = occurrence
-            .operation()
-            .and_then(|operation| foreign_calls.get(&(occurrence.machine(), operation)));
+        let foreign = foreign_calls.get(&(occurrence.machine(), occurrence.invocation_site()));
         let internal_call = boundary_internal_call_exists(object, occurrence);
         if [installed.is_some(), foreign.is_some(), internal_call]
             .into_iter()
@@ -703,7 +705,16 @@ pub(crate) fn physical_child_identity(
         digest.update(field.locator_identity());
         digest.update(field.boundary_plan_identity());
         digest.update(field.caller().get().to_le_bytes());
-        digest.update(field.operation().get().to_le_bytes());
+        match field.invocation_site() {
+            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+                digest.update([0]);
+                digest.update(operation.get().to_le_bytes());
+            }
+            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                digest.update([1]);
+                digest.update(edge.get().to_le_bytes());
+            }
+        }
         digest.update(field.boundary().get().to_le_bytes());
         digest.update(field.ordinal().to_le_bytes());
         digest.update(field.object_symbol().get().to_le_bytes());

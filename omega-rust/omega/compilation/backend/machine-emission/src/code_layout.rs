@@ -396,7 +396,7 @@ mod tests {
                     caller: callee,
                     block: SelectedBlockId(1),
                     instruction: SelectedInstructionId(5),
-                    operation: OperationId::new(4).unwrap(),
+                    invocation_site: OperationId::new(4).unwrap().into(),
                     boundary: BoundaryMachineId::new(2).unwrap(),
                     ordinal: 1,
                     call_function_offset: 0,

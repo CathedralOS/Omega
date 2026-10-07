@@ -54,10 +54,7 @@ pub(super) fn publish(
             .iter()
             .find(|function| function.machine == field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
-        let origin = RelocationOrigin::SemanticOperation {
-            function_symbol_handle: function.symbol,
-            operation_identity: field.operation.get(),
-        };
+        let origin = import_field_origin(function.symbol, field.invocation_site);
         // A callback argument's address is a compiler-private relocation: it
         // binds the private thunk's symbol, not the import tail.
         for callback in &call.callback_addresses {
@@ -238,10 +235,7 @@ pub(super) fn validate(
             .iter()
             .find(|function| function.machine == field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
-        let origin = RelocationOrigin::SemanticOperation {
-            function_symbol_handle: function.symbol,
-            operation_identity: field.operation.get(),
-        };
+        let origin = import_field_origin(function.symbol, field.invocation_site);
         for callback in &call.callback_addresses {
             let Some((callback_symbol, callback_plan)) =
                 object_function_symbol(&artifact.object, callback.target.callback_function)
@@ -338,7 +332,7 @@ fn call_for_import_field<'a>(
 ) -> Result<(&'a ObjectForeignCall, &'a target::NormalizedForeignLocator), Error> {
     let mut matches = calls.iter().copied().filter(|(call, _)| {
         call.machine == field.caller
-            && call.owner == target_operations::CallSiteOwner::Operation(field.operation)
+            && call.owner == target_operations::CallSiteOwner::from(field.invocation_site)
             && u64::try_from(call.text_offset) == Ok(field.field_section_offset)
     });
     match (matches.next(), matches.next()) {
@@ -353,5 +347,25 @@ fn relocation_kind(kind: NormalizedForeignCallResolutionKind) -> RelocationKind 
     match kind {
         NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => RelocationKind::X86_64Relative32,
         NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => RelocationKind::Aarch64Branch26,
+    }
+}
+
+fn import_field_origin(
+    symbol: object_file::ObjectSymbolHandle,
+    site: semantic_vocabulary::BoundaryInvocationSite,
+) -> RelocationOrigin {
+    match site {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            RelocationOrigin::SemanticOperation {
+                function_symbol_handle: symbol,
+                operation_identity: operation.get(),
+            }
+        }
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            RelocationOrigin::SemanticEdge {
+                function_symbol_handle: symbol,
+                edge_identity: edge.get(),
+            }
+        }
     }
 }

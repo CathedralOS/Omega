@@ -263,7 +263,7 @@ fn argument_pointer(
     let invalid = || SelectedInstructionError::custody();
     let slot = selected_instructions::OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-        operation: operation.operation,
+        invocation_site: operation.operation.into(),
         argument_index: argument_index.try_into().map_err(|_| invalid())?,
     };
     builder

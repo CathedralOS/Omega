@@ -352,7 +352,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         .offset
                         .checked_add(resolved_block.byte_count)
                         .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
-                    super::validation_rules::crash::validate_crash(
+                    super::validation_rules::trap::validate_trap(
                         physical,
                         instruction,
                         machine_instruction,
@@ -390,7 +390,18 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         .offset
                         .checked_add(resolved_block.byte_count)
                         .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
-                    validate_process_exit(instruction, encoding_row, resolved_row, end, encoded)?;
+                    validate_process_exit(
+                        physical,
+                        function,
+                        block,
+                        *completion_edge,
+                        instruction,
+                        machine_instruction,
+                        encoding_row,
+                        resolved_row,
+                        end,
+                        encoded,
+                    )?;
                     process_exits.push(machine_code::WholeFunctionProcessExitEvidence {
                         block: block.id,
                         completion_edge: *completion_edge,

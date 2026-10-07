@@ -71,4 +71,4 @@ pub use values::{decode_target, decode_units};
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 // Version 35 retains tagged internal call targets and immutable image owners.
-const VERSION: u32 = 35;
+const VERSION: u32 = 36;

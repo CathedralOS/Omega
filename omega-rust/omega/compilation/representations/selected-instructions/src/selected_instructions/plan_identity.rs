@@ -23,7 +23,7 @@ use primitives::encode_constraint_key;
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v49\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v50\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -632,8 +632,6 @@ fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
 fn encode_len(bytes: &mut Vec<u8>, len: usize) {
     bytes.extend_from_slice(&(len as u64).to_le_bytes());
 }
-
-
 
 fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) {
     encode_len(bytes, values.len());

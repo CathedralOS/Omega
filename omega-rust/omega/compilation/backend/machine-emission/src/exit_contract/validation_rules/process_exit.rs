@@ -10,12 +10,56 @@ use selected_instructions::{
 };
 
 pub(in crate::exit_contract) fn validate_process_exit(
+    physical: &register_model::ValidatedPhysicalRegisterModel,
+    function: &selected_instructions::SelectedFunction,
+    block: &selected_instructions::SelectedBlock,
+    completion_edge: semantic_vocabulary::EdgeId,
     instruction: &SelectedInstruction,
+    machine: &physical_instructions::PostAllocationMachineInstruction,
     encoding: &SelectedFormEncodingRow,
     layout: &ResolvedSelectedFormRow,
     block_end: u64,
     encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), Error> {
+    if instruction.kind == SelectedInstructionKind::Crash {
+        // The explicit completion owns an admitted foreign invocation, not a
+        // source crash. If that provider returns, only this uncharged terminal
+        // trap may execute; no result, normal return or restoration is admitted.
+        let mut rows = function.normalized_foreign_calls.iter().filter(|row| {
+            row.invocation_site
+                == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(completion_edge)
+        });
+        let row = rows
+            .next()
+            .ok_or(Error::NonReturnControlEffect(instruction.id))?;
+        let call = block
+            .instructions
+            .last()
+            .ok_or(Error::NonReturnControlEffect(instruction.id))?;
+        let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = call.kind else {
+            return Err(Error::NonReturnControlEffect(instruction.id));
+        };
+        if rows.next().is_some()
+            || row.instruction != call.id
+            || row.call.boundary != boundary
+            || function.normalized_foreign_calls.get(ordinal as usize) != Some(row)
+            || selected_instructions::calls::normalized_foreign::return_transport::resolve(
+                function, block, row,
+            )
+            .is_none()
+        {
+            return Err(Error::NonReturnControlEffect(instruction.id));
+        }
+        return super::trap::validate_trap(
+            physical,
+            instruction,
+            machine,
+            encoding,
+            layout,
+            block_end,
+            encoded,
+        );
+    }
     if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
         return Err(Error::InstructionRosterMismatch(instruction.id));
     }

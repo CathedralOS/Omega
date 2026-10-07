@@ -54,40 +54,96 @@ pub(crate) fn derive_normalized_foreign_child(
     foreign: &image_emission::ObjectForeignCall,
     publication: Option<&FragmentPublicationBinding>,
 ) -> Result<Option<NativePhysicalChild>, &'static str> {
-    let source_operation = occurrence
-        .operation()
-        .ok_or("returning foreign call requires an operation invocation")?;
-    let matching_operations = module
-        .machines
-        .iter()
-        .filter(|machine| machine.id == occurrence.machine())
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-        .filter(|operation| operation.id == source_operation)
-        .collect::<Vec<_>>();
-    let [operation] = matching_operations.as_slice() else {
-        return Err("normalized foreign D41 occurrence does not rejoin one Terminal operation");
-    };
-    let OperationKind::BoundaryCall {
-        boundary,
-        arguments,
-        structural_arguments,
-        completion_receipts,
-        // Proof lane: verified in Psi, no physical correspondence.
-        requirement_obligations: _,
-    } = &operation.kind
-    else {
-        return Err("normalized foreign D41 occurrence is not a Terminal boundary call");
-    };
+    let invocation_site = occurrence.invocation_site();
+    let source_operation = invocation_site.operation();
+    let (boundary, arguments, structural_arguments, source_result, completion) =
+        match invocation_site {
+            semantic_vocabulary::BoundaryInvocationSite::Operation(operation_id) => {
+                let mut operations = module
+                    .machines
+                    .iter()
+                    .filter(|machine| machine.id == occurrence.machine())
+                    .flat_map(|machine| &machine.blocks)
+                    .flat_map(|block| &block.operations)
+                    .filter(|operation| operation.id == operation_id);
+                let (Some(operation), None) = (operations.next(), operations.next()) else {
+                    return Err(
+                        "normalized foreign occurrence does not rejoin one Terminal operation",
+                    );
+                };
+                let OperationKind::BoundaryCall {
+                    boundary,
+                    arguments,
+                    structural_arguments,
+                    completion_receipts,
+                    ..
+                } = &operation.kind
+                else {
+                    return Err("normalized foreign occurrence is not a Terminal boundary call");
+                };
+                if !completion_receipts.is_empty() {
+                    return Ok(None);
+                }
+                (
+                    boundary,
+                    arguments,
+                    structural_arguments,
+                    Some(&operation.result),
+                    semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                )
+            }
+            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge_id) => {
+                let mut completions = module
+                    .machines
+                    .iter()
+                    .filter(|machine| machine.id == occurrence.machine())
+                    .flat_map(|machine| &machine.blocks)
+                    .filter_map(|block| match &block.terminator {
+                        terminal_psi::Terminator::ExternalCompletion {
+                            edge,
+                            boundary,
+                            arguments,
+                            structural_arguments,
+                            kind,
+                            ..
+                        } if *edge == edge_id => {
+                            Some((boundary, arguments, structural_arguments, kind))
+                        }
+                        _ => None,
+                    });
+                let (Some((boundary, arguments, structural_arguments, kind)), None) =
+                    (completions.next(), completions.next())
+                else {
+                    return Err(
+                        "normalized foreign occurrence does not rejoin one Terminal completion",
+                    );
+                };
+                if foreign.scalar_result.is_some()
+                    || !foreign.callback_addresses.is_empty()
+                    || foreign.x86_floating_control.is_some()
+                    || foreign.aarch64_floating_control.is_some()
+                    || foreign.binding.boundary_entry_plan.call.result.is_some()
+                {
+                    return Err("normalized foreign completion retained returning-call custody");
+                }
+                (
+                    boundary,
+                    arguments,
+                    structural_arguments,
+                    None,
+                    semantic_vocabulary::BoundaryCompletion::External(*kind),
+                )
+            }
+        };
     let declaration = module
         .boundary_machines
         .iter()
         .find(|declaration| declaration.id == *boundary)
         .ok_or("normalized foreign D41 occurrence names an absent boundary")?;
-    if *boundary != occurrence.boundary()
-        || declaration.identity != requirement_identity
-        || !completion_receipts.is_empty()
-    {
+    if declaration.completion != completion {
+        return Err("normalized foreign invocation changed its completion contract");
+    }
+    if *boundary != occurrence.boundary() || declaration.identity != requirement_identity {
         return Ok(None);
     }
 
@@ -172,16 +228,15 @@ pub(crate) fn derive_normalized_foreign_child(
             )
         })
         .transpose()?;
-    let result_shape = match (
-        &operation.result,
-        &declaration.result,
-        &foreign.scalar_result,
-    ) {
-        (terminal_psi::OperationResult::Unit, terminal_psi::BoundaryMachineResult::Unit, None) => {
-            None
-        }
+    let result_shape = match (source_result, &declaration.result, &foreign.scalar_result) {
         (
-            terminal_psi::OperationResult::Scalar(value),
+            Some(terminal_psi::OperationResult::Unit),
+            terminal_psi::BoundaryMachineResult::Unit,
+            None,
+        )
+        | (None, terminal_psi::BoundaryMachineResult::Unit, None) => None,
+        (
+            Some(terminal_psi::OperationResult::Scalar(value)),
             terminal_psi::BoundaryMachineResult::Scalar(declared),
             Some(physical),
         ) if value.scalar_type == *declared
@@ -194,7 +249,7 @@ pub(crate) fn derive_normalized_foreign_child(
             Some(shape)
         }
         (
-            terminal_psi::OperationResult::Scalar(value),
+            Some(terminal_psi::OperationResult::Scalar(value)),
             terminal_psi::BoundaryMachineResult::Scalar(declared),
             None,
         ) => {
@@ -207,7 +262,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 return Err("normalized foreign D41 child changed its scalar result custody");
             };
             if value.scalar_type != *declared
-                || home.defining_operation != source_operation
+                || Some(home.defining_operation) != source_operation
                 || home.source_value != value.id
                 || home.scalar_type != *declared
             {
@@ -222,7 +277,7 @@ pub(crate) fn derive_normalized_foreign_child(
             Some(shape)
         }
         (
-            terminal_psi::OperationResult::Structural(result),
+            Some(terminal_psi::OperationResult::Structural(result)),
             terminal_psi::BoundaryMachineResult::Structural(declared),
             None,
         ) => {
@@ -261,7 +316,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 })
                 .and_then(|function| function.structural.as_ref())
                 .ok_or("normalized foreign D41 child lost its structural declarations")?;
-            if home.operation_result() != Some((source_operation, result))
+            if home.operation_result() != source_operation.map(|operation| (operation, result))
                 || result.structural_type != declared.structural_type
                 || result.multiplicity != declared.multiplicity
                 || result.qualifications != declared.qualifications
@@ -428,7 +483,7 @@ pub(crate) fn derive_normalized_foreign_child(
         {
             return Err("normalized foreign D41 child changed its callback target custody");
         }
-        if callback.target.terminal_operation != source_operation
+        if Some(callback.target.terminal_operation) != source_operation
             || callback.target.registrar_boundary_entry_plan != foreign.binding.boundary_entry_plan
             || callback
                 .target
@@ -566,7 +621,7 @@ pub(crate) fn derive_normalized_foreign_child(
         .filter(|attribution| {
             attribution.machine == occurrence.machine()
                 && attribution.attribution.site
-                    == machine_code::SemanticCodeSite::Operation(source_operation)
+                    == machine_code::SemanticCodeSite::from(invocation_site)
                 && attribution.attribution.operation_ordinal == occurrence.operation_ordinal()
         })
         .collect::<Vec<_>>();
@@ -663,7 +718,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 .collect::<Vec<_>>();
             let [sole_field] = overlapping_fields.as_slice() else {
                 return Err(
-                    "normalized foreign D41 child contains an unowned or out-of-span relocation",
+                    "normalized foreign invocation interval does not contain exactly one import field",
                 );
             };
             if !std::ptr::eq(*sole_field, field_record)
@@ -673,7 +728,7 @@ pub(crate) fn derive_normalized_foreign_child(
                     .is_none_or(|end| end > object_end)
             {
                 return Err(
-                    "normalized foreign D41 child contains an unowned or out-of-span relocation",
+                    "normalized foreign selected import field lies outside its invocation interval",
                 );
             }
             let field_start = field_offset
@@ -687,7 +742,7 @@ pub(crate) fn derive_normalized_foreign_child(
                             locator.identity_digest().as_bytes(),
                             boundary_plan_identity,
                             occurrence.machine(),
-                            source_operation,
+                            invocation_site,
                             field.boundary,
                             field.ordinal,
                             import.symbol,
@@ -700,10 +755,7 @@ pub(crate) fn derive_normalized_foreign_child(
                     ),
                 )
             } else {
-                let expected_origin = RelocationOrigin::SemanticOperation {
-                    function_symbol_handle: function.symbol,
-                    operation_identity: source_operation.get(),
-                };
+                let expected_origin = foreign_relocation_origin(function.symbol, invocation_site);
                 let import_records = object
                     .relocations()
                     .records()
@@ -732,7 +784,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 };
                 if foreign.callback_addresses.len() != field.callback_materializations.len() {
                     return Err(
-                        "normalized foreign D41 child contains an unowned or out-of-span relocation",
+                        "normalized foreign callback custody differs from its materialization inventory",
                     );
                 }
                 let mut callback_relocations =
@@ -840,7 +892,7 @@ pub(crate) fn derive_normalized_foreign_child(
                                 .is_none_or(|end| end > object_end)
                         {
                             return Err(
-                                "normalized foreign D41 child contains an unowned or out-of-span relocation",
+                                "normalized foreign callback relocation crosses its invocation interval",
                             );
                         }
                         mutable_intervals
@@ -890,10 +942,7 @@ pub(crate) fn derive_normalized_foreign_child(
                         )
                 })
                 .collect::<Vec<_>>();
-            let expected_origin = RelocationOrigin::SemanticOperation {
-                function_symbol_handle: function.symbol,
-                operation_identity: source_operation.get(),
-            };
+            let expected_origin = foreign_relocation_origin(function.symbol, invocation_site);
             let matching_import_relocations = overlapping_relocations
                 .iter()
                 .copied()
@@ -1000,7 +1049,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 })
             {
                 return Err(
-                    "normalized foreign D41 child contains an unowned or out-of-span relocation",
+                    "normalized foreign invocation relocation inventory has extra or out-of-span fields",
                 );
             }
             let mutable_intervals = overlapping_relocations
@@ -1261,4 +1310,24 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
         shapes.push(pointer_shape);
     }
     Ok(Some(shapes))
+}
+
+fn foreign_relocation_origin(
+    symbol: object_file::ObjectSymbolHandle,
+    site: semantic_vocabulary::BoundaryInvocationSite,
+) -> RelocationOrigin {
+    match site {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            RelocationOrigin::SemanticOperation {
+                function_symbol_handle: symbol,
+                operation_identity: operation.get(),
+            }
+        }
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            RelocationOrigin::SemanticEdge {
+                function_symbol_handle: symbol,
+                edge_identity: edge.get(),
+            }
+        }
+    }
 }

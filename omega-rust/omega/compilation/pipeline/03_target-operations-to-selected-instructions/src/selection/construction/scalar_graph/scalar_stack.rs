@@ -162,6 +162,22 @@ pub(super) fn argument(
     value: ValueId,
     placement: &ValuePlacement,
 ) -> Result<bool, SelectedInstructionError> {
+    invocation_argument(
+        builder,
+        operation.operation.into(),
+        argument_index,
+        value,
+        placement,
+    )
+}
+
+pub(super) fn invocation_argument(
+    builder: &mut Builder<'_>,
+    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    argument_index: usize,
+    value: ValueId,
+    placement: &ValuePlacement,
+) -> Result<bool, SelectedInstructionError> {
     let Some((abi_stack_byte_offset, byte_size, alignment)) = scalar_stack_placement(placement)
     else {
         return Ok(false);
@@ -174,7 +190,7 @@ pub(super) fn argument(
     }
     let slot = OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-        operation: operation.operation,
+        invocation_site,
         argument_index: argument_index
             .try_into()
             .map_err(|_| SelectedInstructionError::custody())?,
@@ -186,7 +202,11 @@ pub(super) fn argument(
         abi_stack_byte_offset,
     });
     let provenance = SelectedInstructionProvenance {
-        operations: vec![operation.operation],
+        operations: invocation_site.operation().into_iter().collect(),
+        edges: match invocation_site {
+            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => vec![edge],
+            _ => Vec::new(),
+        },
         values: vec![value],
         ..Default::default()
     };

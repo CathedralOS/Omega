@@ -37,9 +37,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     foreign: &image_emission::ObjectForeignCall,
     structural_arguments: &[terminal_psi::StructuralArgument],
 ) -> Result<FragmentForeignCallRejoin<'a>, &'static str> {
-    let source_operation = occurrence
-        .operation()
-        .ok_or("returning foreign fragment requires an operation invocation")?;
+    let invocation_site = occurrence.invocation_site();
     let plan = publication.relocation_free_object();
     let selected = publication.selected_plan();
     let mut functions = selected
@@ -54,7 +52,8 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
         .iter()
         .enumerate()
         .filter(|(_, record)| {
-            record.operation == source_operation && record.call.boundary == occurrence.boundary()
+            record.invocation_site == invocation_site
+                && record.call.boundary == occurrence.boundary()
         });
     let (Some((ordinal, record)), None) = (records.next(), records.next()) else {
         return Err("normalized foreign D41 child cannot rejoin one selected call");
@@ -69,6 +68,12 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     let (Some((block, instruction)), None) = (instructions.next(), instructions.next()) else {
         return Err("normalized foreign D41 roster row names an absent instruction");
     };
+    if !image_emission::foreign_invocation_provenance_matches(
+        &instruction.provenance,
+        record.invocation_site,
+    ) {
+        return Err("normalized foreign call changed its invocation source custody");
+    }
     if !matches!(instruction.kind,
         selected_instructions::SelectedInstructionKind::NormalizedForeignCall {
             boundary, ordinal: actual,
@@ -76,12 +81,20 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     {
         return Err("normalized foreign D41 instruction kind does not match its roster row");
     }
+    if record.invocation_site.operation().is_none()
+        && selected_instructions::calls::normalized_foreign::return_transport::resolve(
+            function, block, record,
+        )
+        .is_none()
+    {
+        return Err("normalized foreign completion lost its containment trap");
+    }
     let mut fields = plan
         .unresolved_normalized_foreign_calls
         .iter()
         .filter(|candidate| {
             candidate.resolution.caller == occurrence.machine()
-                && candidate.resolution.operation == source_operation
+                && candidate.resolution.invocation_site == invocation_site
         });
     let import = match (record.call.binding.import(), fields.next(), fields.next()) {
         (Some(_), Some(field), None) => {
@@ -531,7 +544,7 @@ fn fragment_immediate_argument_span_rejoin(
             },
         ] if *byte_size == argument.placement.shape.byte_size => {
             let slot = selected_instructions::OutgoingArgumentSlotId {
-                operation: record.operation,
+                invocation_site: record.invocation_site,
                 argument_index: argument.parameter_index,
                 role: selected_instructions::OutgoingArgumentSlotRole::Argument,
             };
@@ -559,8 +572,10 @@ fn fragment_immediate_argument_span_rejoin(
                         slot: selected_instructions::FrameStorageSlotId::Outgoing(candidate),
                         byte_offset: 0,
                     } if candidate == slot
-                ) && candidate.provenance.operations.as_slice() == [record.operation]
-                    && candidate.provenance.values.as_slice() == [source_value]
+                ) && image_emission::foreign_invocation_provenance_matches(
+                    &candidate.provenance,
+                    record.invocation_site,
+                ) && candidate.provenance.values.as_slice() == [source_value]
             }) else {
                 return false;
             };
@@ -576,7 +591,10 @@ fn fragment_immediate_argument_span_rejoin(
                 return false;
             };
             if stored_bytes != stored
-                || store.provenance.operations.as_slice() != [record.operation]
+                || !image_emission::foreign_invocation_provenance_matches(
+                    &store.provenance,
+                    record.invocation_site,
+                )
                 || store.provenance.values.as_slice() != [source_value]
             {
                 return false;
@@ -654,7 +672,7 @@ fn fragment_scalar_result_custody_rejoin(
     let Some(shape) = fixed_scalar_shape(home.scalar_type) else {
         return false;
     };
-    if home.defining_operation != record.operation
+    if Some(home.defining_operation) != record.invocation_site.operation()
         || home.shape != shape
         || placement.shape != home.shape
         || !matches!(
@@ -692,7 +710,8 @@ fn fragment_scalar_result_custody_rejoin(
     };
     if normalization.kind != expected_kind
         || Some(input.virtual_register) != transport.result_register
-        || normalization.provenance.operations.as_slice() != [record.operation]
+        || normalization.provenance.operations.as_slice()
+            != record.invocation_site.operation().as_slice()
         || normalization.provenance.values.as_slice() != [home.source_value]
         || output_origin
             != Some(
@@ -811,7 +830,12 @@ fn fragment_durable_home_offsets(
                         function
                             .normalized_foreign_calls
                             .iter()
-                            .map(|record| (record.operation, record.instruction)),
+                            .filter_map(|record| {
+                                record
+                                    .invocation_site
+                                    .operation()
+                                    .map(|operation| (operation, record.instruction))
+                            }),
                     )
                     .find(|(operation, _)| *operation == requirement.defining_operation)
                     .map(|(_, instruction)| instruction)
@@ -867,7 +891,7 @@ fn fragment_scalar_call_result_producer(
     let mut foreign = function
         .normalized_foreign_calls
         .iter()
-        .filter(|record| record.operation == home.defining_operation);
+        .filter(|record| record.invocation_site.operation() == Some(home.defining_operation));
     let (producer, result_home) = match (internal.next(), foreign.next()) {
         (Some(contract), None) if internal.next().is_none() => (contract.instruction, None),
         (None, Some(record)) if foreign.next().is_none() => {

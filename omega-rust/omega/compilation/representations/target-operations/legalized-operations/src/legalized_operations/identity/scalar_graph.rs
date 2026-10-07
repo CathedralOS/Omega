@@ -1056,6 +1056,10 @@ fn encode_cleanup_calls(
     encode_len(bytes, calls.len());
     for (owner, call) in calls {
         match owner {
+            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                bytes.push(2);
+                bytes.extend_from_slice(&edge.get().to_le_bytes());
+            }
             target_operations::CallSiteOwner::Operation(operation) => {
                 bytes.push(0);
                 bytes.extend_from_slice(&operation.get().to_le_bytes());

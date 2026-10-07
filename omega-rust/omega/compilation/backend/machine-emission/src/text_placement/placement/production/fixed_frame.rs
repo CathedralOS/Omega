@@ -111,6 +111,7 @@ pub(in crate::text_placement::placement) fn place(
                 }
                 if let Some(fixup) = instruction.normalized_foreign_call_fixup.clone() {
                     let FunctionFragmentControlProvenance::NormalizedForeignCall {
+                        invocation_site,
                         boundary,
                         ordinal,
                     } = instruction.control
@@ -120,13 +121,17 @@ pub(in crate::text_placement::placement) fn place(
                     if boundary != fixup.boundary || ordinal != fixup.ordinal {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     }
-                    let operation = exact_operation(&instruction.provenance.operations)?;
+                    super::super::conversion::validate_boundary_invocation_site(
+                        invocation_site,
+                        &instruction.provenance.operations,
+                        &instruction.provenance.edges,
+                    )?;
                     unresolved_foreign.push(resolve_foreign(
                         fragments.target.architecture,
                         function.machine,
                         block.block,
                         instruction.instruction,
-                        operation,
+                        invocation_site,
                         instruction.offset,
                         &instruction.bytes,
                         section_offset,
@@ -501,14 +506,15 @@ fn resolve_foreign(
     caller: MachineId,
     block: selected_instructions::SelectedBlockId,
     instruction: selected_instructions::SelectedInstructionId,
-    operation: OperationId,
+    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
     instruction_offset: u64,
     instruction_bytes: &[u8],
     function_section_offset: u64,
     fixup: FunctionFragmentNormalizedForeignCallFixup,
     function_bytes: &[u8],
 ) -> Result<PlacedNormalizedForeignCallResolution, TextPlacementError> {
-    if fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+    if (invocation_site.operation().is_none() && !fixup.callbacks.is_empty())
+        || fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
         || fixup.opcode_function_offset < instruction_offset
         || fixup.addend != 0
     {
@@ -711,7 +717,7 @@ fn resolve_foreign(
         caller,
         block,
         instruction,
-        operation,
+        invocation_site,
         boundary: fixup.boundary,
         ordinal: fixup.ordinal,
         call_function_offset: instruction_offset,

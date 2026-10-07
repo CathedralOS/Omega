@@ -2,11 +2,11 @@
 //! Calls retain their real operation owner or exact cleanup edge/action owner.
 use crate::{SelectedBlockId, SelectedInstructionId};
 use optimization_unit::{EffectLink, OwnershipEvent};
-use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId};
+use semantic_vocabulary::{BlockId, BoundaryInvocationSite, EdgeId, OperationId, PlaceId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OutgoingArgumentSlotId {
-    pub operation: OperationId,
+    pub invocation_site: BoundaryInvocationSite,
     pub argument_index: u32,
     pub role: OutgoingArgumentSlotRole,
 }
@@ -23,7 +23,7 @@ pub enum OutgoingArgumentSlotRole {
 impl OutgoingArgumentSlotId {
     /// Complete slot identity for versioned rosters without an enclosing frame tag.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&self.operation.get().to_le_bytes());
+        self.invocation_site.encode_identity(bytes);
         bytes.extend_from_slice(&self.argument_index.to_le_bytes());
         bytes.push(match self.role {
             OutgoingArgumentSlotRole::Argument => 0,

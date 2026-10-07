@@ -55,6 +55,7 @@ pub enum FunctionFragmentControlProvenance {
     /// unresolved import field rides the foreign fixup channel and binds only
     /// at object construction.
     NormalizedForeignCall {
+        invocation_site: semantic_vocabulary::BoundaryInvocationSite,
         boundary: BoundaryMachineId,
         ordinal: u32,
     },

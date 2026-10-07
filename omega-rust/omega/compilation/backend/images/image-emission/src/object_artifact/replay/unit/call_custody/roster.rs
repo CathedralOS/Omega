@@ -52,6 +52,7 @@ pub(super) fn validate_argument_free_call(
                     .count()
                     == 1
         }
+        CallSiteOwner::ExternalCompletion(_) => return Err(invalid()),
         CallSiteOwner::CleanupAction {
             edge,
             action_ordinal,

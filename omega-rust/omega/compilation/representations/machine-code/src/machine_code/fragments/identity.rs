@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v17";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v18";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -257,6 +257,11 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
                     hasher.update([0]);
                     hasher.update(operation.get().to_le_bytes());
                 }
+                target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                    hasher.update([2]);
+
+                    hasher.update(edge.get().to_le_bytes());
+                }
                 target_operations::CallSiteOwner::CleanupAction {
                     edge,
                     action_ordinal,
@@ -267,8 +272,22 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
                 }
             }
         }
-        FunctionFragmentControlProvenance::NormalizedForeignCall { boundary, ordinal } => {
+        FunctionFragmentControlProvenance::NormalizedForeignCall {
+            invocation_site,
+            boundary,
+            ordinal,
+        } => {
             hasher.update([6]);
+            match invocation_site {
+                semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+                    hasher.update([0]);
+                    hasher.update(operation.get().to_le_bytes());
+                }
+                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                    hasher.update([1]);
+                    hasher.update(edge.get().to_le_bytes());
+                }
+            }
             hasher.update(boundary.get().to_le_bytes());
             hasher.update(ordinal.to_le_bytes());
         }

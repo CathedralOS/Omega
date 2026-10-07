@@ -36,7 +36,20 @@ pub(super) fn provenance(
         });
     }
     if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = instruction.kind {
-        return Ok(FunctionFragmentControlProvenance::NormalizedForeignCall { boundary, ordinal });
+        let row = function
+            .normalized_foreign_calls
+            .get(ordinal as usize)
+            .ok_or(
+            crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch,
+        )?;
+        if row.instruction != instruction.id || row.call.boundary != boundary {
+            return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+        }
+        return Ok(FunctionFragmentControlProvenance::NormalizedForeignCall {
+            invocation_site: row.invocation_site,
+            boundary,
+            ordinal,
+        });
     }
     Ok(match &block.terminator {
         SelectedTerminator::Crash {

@@ -1,6 +1,7 @@
-//! A crash is the final instruction, not a call, cleanup, or returning exit.
-//! ISA decoding establishes the trap bytes; this check joins their effects to
-//! the selected no-successor instruction and rejects hidden machine actions.
+//! Validate a final physical trap without choosing its source disposition.
+//! ISA decoding establishes the trap bytes. Source crash and returned-provider
+//! containment independently join this primitive to their own semantic owner;
+//! trap bytes alone establish neither disposition.
 
 use super::super::WholeFunctionExitContractError as Error;
 use machine_code::{
@@ -13,7 +14,7 @@ use selected_instructions::{
     MachineEncodedTrapBehavior, SelectedInstruction, SelectedInstructionKind,
 };
 
-pub(in crate::exit_contract) fn validate_crash(
+pub(in crate::exit_contract) fn validate_trap(
     physical: &register_model::ValidatedPhysicalRegisterModel,
     instruction: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,

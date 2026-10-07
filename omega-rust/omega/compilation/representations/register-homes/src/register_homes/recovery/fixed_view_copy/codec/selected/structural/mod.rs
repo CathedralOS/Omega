@@ -12,5 +12,7 @@ mod read_result;
 mod settlements;
 mod signature;
 pub(super) use declarations::{decode_semantic_argument, encode_semantic_argument};
-pub(super) use function::{decode_contracts, decode_local_slot, encode_contracts};
+pub(super) use function::{
+    decode_contracts, decode_invocation_site, decode_local_slot, encode_contracts,
+};
 pub(super) use settlements::decode_cleanup;

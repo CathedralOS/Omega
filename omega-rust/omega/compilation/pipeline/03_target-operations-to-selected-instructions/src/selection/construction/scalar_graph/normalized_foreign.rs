@@ -17,6 +17,17 @@ use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
     LocalStorageSlotId, SelectedLocalStorageSlot, SelectedNormalizedForeignCall,
 };
+use semantic_vocabulary::BoundaryInvocationSite;
+
+pub(super) enum Invocation<'source> {
+    Operation(&'source LegalizedScalarInstruction),
+    ExternalCompletion {
+        edge: semantic_vocabulary::EdgeId,
+        effect: optimization_unit::EffectLink,
+        ownership: &'source [optimization_unit::OwnershipEvent],
+        fuel: &'source [optimization_unit::FuelSettlement],
+    },
+}
 
 pub(super) fn emit(
     function: usize,
@@ -31,6 +42,49 @@ pub(super) fn emit(
     if operation.result.is_some() != call.result.scalar_home().is_some() {
         return Err(SelectedInstructionError::custody());
     }
+    emit_invocation(
+        function,
+        source,
+        call,
+        Invocation::Operation(operation),
+        environment,
+        builder,
+    )
+}
+
+/// Marshal the admitted ABI for either a returning operation or a terminal
+/// invocation. Only a returning operation owns result capture and preservation
+/// of floating controls; a completion carries its edge through the same call.
+pub(super) fn emit_invocation(
+    function: usize,
+    source: &LegalizedScalarFunction,
+    call: &legalized_operations::LegalizedNormalizedForeignCall,
+    invocation: Invocation<'_>,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    builder: &mut Builder<'_>,
+) -> Result<(), SelectedInstructionError> {
+    let (invocation_site, operation, effect, ownership, fuel) = match invocation {
+        Invocation::Operation(operation) => (
+            operation.operation.into(),
+            Some(operation),
+            operation.effect,
+            operation.ownership.as_slice(),
+            operation.fuel.as_slice(),
+        ),
+        Invocation::ExternalCompletion {
+            edge,
+            effect,
+            ownership,
+            fuel,
+        } => (
+            BoundaryInvocationSite::ExternalCompletion(edge),
+            None,
+            effect,
+            ownership,
+            fuel,
+        ),
+    };
+    let result = operation.and_then(|operation| operation.result);
     let constraint =
         crate::selection::scalar_call_abi::normalized_foreign::call_constraint(call, environment)
             .ok_or_else(|| SelectedInstructionError::custody())?;
@@ -46,7 +100,9 @@ pub(super) fn emit(
     crate::selection::scalar_call_abi::normalized_foreign::validate(
         function,
         source,
-        operation,
+        call,
+        invocation_site,
+        result,
         key,
         &constraint,
         environment,
@@ -58,18 +114,22 @@ pub(super) fn emit(
     // Only returning user-space counterparties can change floating controls.
     // Supervisor entries retain the same argument/result sequence without a
     // private floating-control home or save/restore instructions.
-    let saved_controls = call.binding.import().map(|_| LocalStorageSlotId::Boundary {
-        operation: operation.operation,
-    });
+    let saved_controls =
+        call.binding
+            .import()
+            .and(operation)
+            .map(|operation| LocalStorageSlotId::Boundary {
+                operation: operation.operation,
+            });
     // Durable scalars retain their bits in GPR storage. Transfer floating
     // arguments into short ABI-bank homes only at the call boundary; stack
     // arguments store those same bits directly into their exact-width slots.
     let mut operands = Vec::new();
     for argument in &call.scalar_arguments {
         let value = argument.source.source_value();
-        if super::scalar_stack::argument(
+        if super::scalar_stack::invocation_argument(
             builder,
-            operation,
+            invocation_site,
             argument.parameter_index as usize,
             value,
             &argument.placement,
@@ -104,7 +164,8 @@ pub(super) fn emit(
             transfer_key,
             &[input, output],
             SelectedInstructionProvenance {
-                operations: vec![operation.operation],
+                operations: invocation_site.operation().into_iter().collect(),
+                edges: completion_edges(invocation_site),
                 values: vec![value],
                 ..Default::default()
             },
@@ -127,7 +188,7 @@ pub(super) fn emit(
         operands.extend(
             super::call_arguments::structural_argument(
                 source,
-                operation,
+                operation.ok_or_else(SelectedInstructionError::custody)?,
                 argument_index,
                 &semantic,
                 argument,
@@ -151,7 +212,10 @@ pub(super) fn emit(
     });
     let mut operands: Vec<VirtualRegisterId> =
         operands.into_iter().map(|(_, register)| register).collect();
-    let hidden = structural::indirect_results::prepare_call(source, operation, builder)?;
+    let hidden = match operation {
+        Some(operation) => structural::indirect_results::prepare_call(source, operation, builder)?,
+        None => None,
+    };
     // Marshaling only moves bytes and addresses; it does not change floating
     // controls. Save immediately around the counterparty, after preparation,
     // and before result registers acquire the call instruction's origin.
@@ -175,7 +239,7 @@ pub(super) fn emit(
                 .ok_or_else(|| SelectedInstructionError::custody())?,
             &[],
             SelectedInstructionProvenance {
-                operations: vec![operation.operation],
+                operations: invocation_site.operation().into_iter().collect(),
                 ..Default::default()
             },
         )?;
@@ -183,9 +247,9 @@ pub(super) fn emit(
     let mut result_registers = Vec::new();
     if let Some(pointer) = hidden {
         operands.push(pointer);
-    } else if let Some((result, placement, _)) =
+    } else if let Some((result, placement, _)) = operation.and_then(|operation| {
         crate::selection::aggregate_result_input::call_completion(source, operation)
-    {
+    }) {
         for location in &placement.locations {
             let ValueLocation::Register {
                 value_byte_offset, ..
@@ -209,7 +273,7 @@ pub(super) fn emit(
             result_registers.push(register);
         }
     }
-    let short_result = if let Some(result) = operation.result {
+    let short_result = if let Some(result) = result {
         let register =
             builder.register(result.value, result.definition_site, result.scalar_type)?;
         builder.registers[register.0 as usize].class = constraint
@@ -234,10 +298,10 @@ pub(super) fn emit(
                     .try_into()
                     .map_err(|_| SelectedInstructionError::custody())?,
             ),
-            operation: operation.operation,
+            invocation_site,
             call: call.clone(),
-            effect: operation.effect,
-            ownership: operation.ownership.clone(),
+            effect,
+            ownership: ownership.to_vec(),
         });
     builder.emit(
         SelectedInstructionKind::NormalizedForeignCall {
@@ -249,14 +313,15 @@ pub(super) fn emit(
         key,
         &operands,
         SelectedInstructionProvenance {
-            operations: vec![operation.operation],
+            operations: invocation_site.operation().into_iter().collect(),
+            edges: completion_edges(invocation_site),
             values: call
                 .scalar_arguments
                 .iter()
                 .map(|argument| argument.source.source_value())
-                .chain(operation.result.map(|result| result.value))
+                .chain(result.map(|result| result.value))
                 .collect(),
-            fuel: operation.fuel.clone(),
+            fuel: fuel.to_vec(),
             ..Default::default()
         },
     )?;
@@ -272,19 +337,21 @@ pub(super) fn emit(
                 .ok_or_else(|| SelectedInstructionError::custody())?,
             &[],
             SelectedInstructionProvenance {
-                operations: vec![operation.operation],
+                operations: invocation_site.operation().into_iter().collect(),
                 ..Default::default()
             },
         )?;
     }
-    if hidden.is_some() {
-        structural::indirect_results::finish_call(source, operation, builder)?;
-    } else {
-        super::unit_call::retain_result(source, operation, &result_registers, builder)?;
+    if let Some(operation) = operation {
+        if hidden.is_some() {
+            structural::indirect_results::finish_call(source, operation, builder)?;
+        } else {
+            super::unit_call::retain_result(source, operation, &result_registers, builder)?;
+        }
     }
     // After restoring machine controls, retain the exact result bits in the
     // ordinary scalar home. Integer and Boolean carriers normalize as before.
-    if let (Some(short_result), Some(result)) = (short_result, operation.result) {
+    if let (Some(short_result), Some(result)) = (short_result, result) {
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
         let (kind, transfer_key) = crate::selection::scalar_call_abi::incoming_float_transfer(
             result.scalar_type,
@@ -299,7 +366,7 @@ pub(super) fn emit(
             transfer_key,
             &[short_result, output],
             SelectedInstructionProvenance {
-                operations: vec![operation.operation],
+                operations: invocation_site.operation().into_iter().collect(),
                 values: vec![result.value],
                 ..Default::default()
             },
@@ -312,4 +379,11 @@ pub(super) fn emit(
         ));
     }
     Ok(())
+}
+
+fn completion_edges(site: BoundaryInvocationSite) -> Vec<semantic_vocabulary::EdgeId> {
+    match site {
+        BoundaryInvocationSite::Operation(_) => Vec::new(),
+        BoundaryInvocationSite::ExternalCompletion(edge) => vec![edge],
+    }
 }

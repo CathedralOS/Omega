@@ -120,9 +120,25 @@ pub(super) fn produce(
                     )?;
                 }
             }
-            Control::InternalCall { .. }
-            | Control::NormalizedForeignCall { .. }
-            | Control::None => {}
+            Control::InternalCall { owner, .. } => {
+                if let Some(edge) = owner.edge() {
+                    push(SemanticCodeSite::Edge(edge), offset, length)?;
+                }
+            }
+            Control::NormalizedForeignCall {
+                invocation_site, ..
+            } => {
+                if let semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) =
+                    invocation_site
+                {
+                    push(SemanticCodeSite::Edge(*edge), offset, length)?;
+                }
+            }
+            Control::None => {
+                for edge in &instruction.provenance.edges {
+                    push(SemanticCodeSite::Edge(*edge), offset, length)?;
+                }
+            }
         }
     }
     rows.sort_by_key(|row| (row.operation_ordinal, row.code_offset, row.byte_count));
@@ -240,14 +256,35 @@ pub(super) fn validate(
                     .map(|successor| successor.psi_edge)
                     .collect()
             }
-            Control::InternalCall { .. }
-            | Control::NormalizedForeignCall { .. }
-            | Control::None => Vec::new(),
+            Control::InternalCall { owner, .. } => owner.edge().into_iter().collect(),
+            Control::NormalizedForeignCall {
+                invocation_site, ..
+            } => match invocation_site {
+                semantic_vocabulary::BoundaryInvocationSite::Operation(_) => Vec::new(),
+                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+                    vec![*edge]
+                }
+            },
+            Control::None => instruction.provenance.edges.clone(),
         };
+        let instruction_offset = host(instruction.offset)?;
+        let instruction_end = instruction_offset
+            .checked_add(instruction.bytes.len())
+            .ok_or(Error::Overflow)?;
         for edge in edges {
             if !rows.iter().any(|row| {
                 row.site == SemanticCodeSite::Edge(edge)
-                    && supports(instruction, row.site, row.code_offset, row.byte_count)
+                    && (supports(instruction, row.site, row.code_offset, row.byte_count)
+                        || (supports(
+                            instruction,
+                            row.site,
+                            instruction_offset,
+                            instruction.bytes.len(),
+                        ) && row.code_offset <= instruction_offset
+                            && row
+                                .code_offset
+                                .checked_add(row.byte_count)
+                                .is_some_and(|end| instruction_end <= end)))
             }) {
                 return Err(Error::Mismatch("object omits an attributed control edge"));
             }
@@ -293,9 +330,15 @@ fn supports(
                             Some(FunctionFragmentBranchEvidence::Conditional(branch)) if u64::try_from(offset).ok() == Some(branch.when_fallthrough_offset)
                         ))
             }
-            Control::None
-            | Control::InternalCall { .. }
-            | Control::NormalizedForeignCall { .. } => false,
+            Control::None => ordinary && instruction.provenance.edges.contains(&edge),
+            Control::InternalCall { owner, .. } => ordinary && owner.edge() == Some(edge),
+            Control::NormalizedForeignCall {
+                invocation_site, ..
+            } => {
+                ordinary
+                    && *invocation_site
+                        == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge)
+            }
         },
     }
 }
@@ -303,13 +346,17 @@ fn interval_is_exact(
     fragment: &FunctionFragment,
     row: &SemanticCodeAttribution,
 ) -> Result<bool, Error> {
-    let SemanticCodeSite::Operation(operation) = row.site else {
-        return Ok(fragment
+    // Conditional fallthrough owns a zero-width position after the branch,
+    // rather than the branch instruction's bytes.
+    if row.byte_count == 0
+        && fragment
             .blocks
             .iter()
             .flat_map(|block| &block.instructions)
-            .any(|instruction| supports(instruction, row.site, row.code_offset, row.byte_count)));
-    };
+            .any(|instruction| supports(instruction, row.site, row.code_offset, 0))
+    {
+        return Ok(true);
+    }
     let end = row
         .code_offset
         .checked_add(row.byte_count)
@@ -323,7 +370,7 @@ fn interval_is_exact(
         let instruction_end = start
             .checked_add(instruction.bytes.len())
             .ok_or(Error::Overflow)?;
-        if instruction.provenance.operations.contains(&operation) {
+        if supports(instruction, row.site, start, instruction.bytes.len()) {
             // Other intervals for this site are checked separately. Compiler
             // spill accesses between them have no authored operation provenance.
             if (instruction_end <= row.code_offset || start >= end)

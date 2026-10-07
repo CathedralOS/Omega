@@ -9,7 +9,7 @@ use machine_code::{
     PlacedNormalizedForeignCallResolution,
 };
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
-use semantic_vocabulary::{MachineId, OperationId};
+use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
 use target::Architecture;
 
@@ -111,7 +111,7 @@ pub(super) struct ForeignCall<'a> {
     pub caller: MachineId,
     pub block: SelectedBlockId,
     pub instruction: SelectedInstructionId,
-    pub operation: OperationId,
+    pub invocation_site: semantic_vocabulary::BoundaryInvocationSite,
     pub offset: u64,
     pub bytes: &'a [u8],
     pub fixup: FunctionFragmentNormalizedForeignCallFixup,
@@ -125,7 +125,8 @@ pub(super) fn check_foreign(
     row: &PlacedNormalizedForeignCallResolution,
 ) -> Result<(), TextPlacementError> {
     let fixup = call.fixup;
-    if fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+    if (call.invocation_site.operation().is_none() && !fixup.callbacks.is_empty())
+        || fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
         || fixup.addend != 0
         || fixup.patch_byte_width != 4
     {
@@ -159,7 +160,7 @@ pub(super) fn check_foreign(
         || row.caller != call.caller
         || row.block != call.block
         || row.instruction != call.instruction
-        || row.operation != call.operation
+        || row.invocation_site != call.invocation_site
         || row.boundary != fixup.boundary
         || row.ordinal != fixup.ordinal
         || row.call_function_offset != call.offset

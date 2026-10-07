@@ -217,7 +217,7 @@ fn physical_current_format_rejects_all_retired_versions() {
 fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
     use selected_instructions::{FrameStorageSlotId, OutgoingArgumentSlotRole};
     let argument = OutgoingArgumentSlotId {
-        operation: OperationId::new(139).unwrap(),
+        invocation_site: (OperationId::new(139).unwrap()).into(),
         argument_index: 4,
         role: OutgoingArgumentSlotRole::Argument,
     };
@@ -347,7 +347,7 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
         source.functions[0].blocks[0].instructions[0].address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         let encoded = source.encode();
-        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 18);
+        assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 20);
         assert_eq!(
             PostAllocationMachinePlan::decode(&encoded),
             Ok(source.clone())
@@ -471,7 +471,7 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
     let mut source = plan();
     let slot = OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-        operation: OperationId::new(131).unwrap(),
+        invocation_site: OperationId::new(131).unwrap().into(),
         argument_index: 1,
     };
     source.functions[0]

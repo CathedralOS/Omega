@@ -132,6 +132,11 @@ fn internal_call_relocations(
                 function_symbol_handle: emitted.symbol,
                 operation_identity: operation.get(),
             },
+            CallSiteOwner::ExternalCompletion(_) => {
+                return Err(ObjectError::InvalidInternalUnitCallEvidence(
+                    function.machine,
+                ));
+            }
             CallSiteOwner::CleanupAction { edge, .. } => RelocationOrigin::SemanticEdge {
                 function_symbol_handle: emitted.symbol,
                 edge_identity: edge.get(),
@@ -166,6 +171,10 @@ fn foreign_call_relocations(
             CallSiteOwner::Operation(operation) => RelocationOrigin::SemanticOperation {
                 function_symbol_handle: emitted.symbol,
                 operation_identity: operation.get(),
+            },
+            CallSiteOwner::ExternalCompletion(edge) => RelocationOrigin::SemanticEdge {
+                function_symbol_handle: emitted.symbol,
+                edge_identity: edge.get(),
             },
             CallSiteOwner::CleanupAction { edge, .. } => RelocationOrigin::SemanticEdge {
                 function_symbol_handle: emitted.symbol,

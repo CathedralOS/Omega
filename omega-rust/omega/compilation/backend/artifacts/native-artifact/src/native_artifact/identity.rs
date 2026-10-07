@@ -169,6 +169,11 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 digest.update(operation.get().to_le_bytes());
                 digest.update(0_u32.to_le_bytes());
             }
+            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                digest.update([3]);
+                digest.update(edge.get().to_le_bytes());
+                digest.update(0_u32.to_le_bytes());
+            }
             target_operations::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,

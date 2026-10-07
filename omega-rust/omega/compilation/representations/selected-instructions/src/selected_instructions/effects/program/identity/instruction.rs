@@ -239,7 +239,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
                         crate::OutgoingArgumentSlotRole::Argument => 0,
                         crate::OutgoingArgumentSlotRole::ValueCopy => 3,
                     });
-                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                    slot.invocation_site.encode_identity(bytes);
                     bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
                 }
                 crate::FrameStorageSlotId::Local(slot) => {
@@ -423,7 +423,7 @@ mod outgoing_slot_tests {
     #[test]
     fn outgoing_frame_roles_preserve_argument_bytes_and_use_a_distinct_copy_tag() {
         let argument = OutgoingArgumentSlotId {
-            operation: OperationId::new(43).unwrap(),
+            invocation_site: (OperationId::new(43).unwrap()).into(),
             argument_index: 7,
             role: OutgoingArgumentSlotRole::Argument,
         };

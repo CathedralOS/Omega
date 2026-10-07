@@ -1,7 +1,7 @@
 //! Optimizer module role: stage group.
-pub(super) mod crash;
 mod frame;
 mod process_exit;
+pub(super) mod trap;
 pub(super) use process_exit::validate_process_exit;
 mod optimization;
 mod selected_forms;

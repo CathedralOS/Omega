@@ -104,7 +104,7 @@ pub fn aarch64_normalized_foreign_call_declaration(
     let mut register_destinations = 0_u16;
     let mut field_destinations = 0_u16;
     for callback in &record.call.callbacks {
-        if callback.terminal_operation != record.operation {
+        if Some(callback.terminal_operation) != record.invocation_site.operation() {
             return None;
         }
         match callback.destination {

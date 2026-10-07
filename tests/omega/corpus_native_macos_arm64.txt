@@ -970,6 +970,7 @@ pass/generics/runtime_mixed_generic_erased_sum_exit built 2260ms exit:70 @fb2178
 pass/generics/runtime_nested_generic_instantiations_exit built 628ms exit:30
 pass/generics/runtime_value_generic_subject_exit built 636ms exit:17
 pass/host/console_exit_process_exit built 2697ms exit:70 stdout:match @5c302dd6d305
+pass/host/process_exit_after_zero_payload_construction built 1427ms exit:70 @5d657ba9bd55+wt
 pass/host/process_exit_i32_status_mapped built 6901ms exit:212 @7c6892099245+wt
 pass/host/process_exit_i32_status_ordered built 7788ms exit:70 stdout:match @7c6892099245+wt
 pass/host/process_exit_preserves_scalar_contract built 2977ms exit:70 stdout:match @2424b17e715c

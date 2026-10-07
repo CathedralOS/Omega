@@ -124,6 +124,11 @@ fn encode_internal_unit_call(
             bytes.extend_from_slice(&[0; 3]);
             push_u64(bytes, operation.get());
         }
+        CallSiteOwner::ExternalCompletion(_) => {
+            return Err(InstallationError::InvalidInternalUnitCall(
+                installed.machine,
+            ));
+        }
         CallSiteOwner::CleanupAction {
             edge,
             action_ordinal,

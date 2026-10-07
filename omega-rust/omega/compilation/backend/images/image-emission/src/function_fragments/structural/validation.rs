@@ -107,6 +107,7 @@ pub(in crate::function_fragments) fn validate_function(
                         CallSiteOwner::Operation(operation) => {
                             SemanticCodeSite::Operation(operation)
                         }
+                        CallSiteOwner::ExternalCompletion(_) => return false,
                         CallSiteOwner::CleanupAction { edge, .. } => SemanticCodeSite::Edge(edge),
                     }
             })

@@ -2934,6 +2934,7 @@ pass/generics/runtime_mixed_generic_erased_sum_exit checked 515ms check-target:m
 pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_value_generic_subject_exit checked 1300ms check-target:macos_arm64 @2d8ed253669f
 pass/host/console_exit_process_exit checked 2187ms check-target:macos_arm64 @5c302dd6d305
+pass/host/process_exit_after_zero_payload_construction checked 1256ms check-target:macos_arm64 @5d657ba9bd55+wt
 pass/host/process_exit_i32_status_mapped checked 1100ms check-target:macos_arm64 @2d8ed253669f
 pass/host/process_exit_i32_status_ordered checked 1629ms check-target:macos_arm64 @2d8ed253669f
 pass/host/process_exit_preserves_scalar_contract checked 2603ms check-target:macos_arm64 @2424b17e715c

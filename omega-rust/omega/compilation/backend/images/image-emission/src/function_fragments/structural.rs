@@ -93,7 +93,10 @@ pub(super) fn published_call(
     // receiver ABI, including erased receivers. source::requires_graph_storage_replay
     // makes that retained evidence mandatory; omitting this duplicate projection
     // does not omit the call, its original home, or its physical realization.
-    if matches!(contract.owner, CallSiteOwner::CleanupAction { .. }) {
+    if matches!(
+        contract.owner,
+        CallSiteOwner::CleanupAction { .. } | CallSiteOwner::ExternalCompletion(_)
+    ) {
         return false;
     }
     // Fresh aggregate results use complete selected call/storage replay. The
@@ -414,6 +417,7 @@ pub(super) fn populate(
                         CallSiteOwner::Operation(operation) => {
                             SemanticCodeSite::Operation(operation)
                         }
+                        CallSiteOwner::ExternalCompletion(_) => return false,
                         CallSiteOwner::CleanupAction { edge, .. } => SemanticCodeSite::Edge(edge),
                     }
             })

@@ -80,6 +80,17 @@ pub(crate) fn validate_foreign_call_floating_control(
         caller: function.machine,
         owner: call.owner,
     };
+    if matches!(call.owner, CallSiteOwner::ExternalCompletion(_)) {
+        if call.x86_floating_control.is_some()
+            || call.aarch64_floating_control.is_some()
+            || call.scalar_result.is_some()
+            || !call.callback_addresses.is_empty()
+            || call.call_plan.result.is_some()
+        {
+            return Err(invalid());
+        }
+        return Ok(());
+    }
     let (
         saved_slot_byte_offset,
         slot_byte_count,
@@ -546,32 +557,33 @@ pub(crate) fn validate_foreign_scalar_arguments(
             ))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let result_shape = call
-        .scalar_result
-        .as_ref()
-        .map(|result| {
-            let semantic_vocabulary::ScalarType::Integer(result_type) = result.home.scalar_type
-            else {
-                return Err(invalid());
-            };
-            let expected_shape =
-                crate::object_artifact::replay::unit::scalar_call_custody::integer_shape(
-                    result_type,
-                )
-                .ok_or_else(invalid)?;
-            if result.home.defining_operation
-                != match call.owner {
-                    CallSiteOwner::Operation(operation) => operation,
-                    CallSiteOwner::CleanupAction { .. } => return Err(invalid()),
+    let result_shape =
+        call.scalar_result
+            .as_ref()
+            .map(|result| {
+                let semantic_vocabulary::ScalarType::Integer(result_type) = result.home.scalar_type
+                else {
+                    return Err(invalid());
+                };
+                let expected_shape =
+                    crate::object_artifact::replay::unit::scalar_call_custody::integer_shape(
+                        result_type,
+                    )
+                    .ok_or_else(invalid)?;
+                if result.home.defining_operation
+                    != match call.owner {
+                        CallSiteOwner::Operation(operation) => operation,
+                        CallSiteOwner::CleanupAction { .. }
+                        | CallSiteOwner::ExternalCompletion(_) => return Err(invalid()),
+                    }
+                    || result.home.shape != expected_shape
+                    || !function.unit_scalar_homes.contains(&result.home)
+                {
+                    return Err(invalid());
                 }
-                || result.home.shape != expected_shape
-                || !function.unit_scalar_homes.contains(&result.home)
-            {
-                return Err(invalid());
-            }
-            Ok(expected_shape)
-        })
-        .transpose()?;
+                Ok(expected_shape)
+            })
+            .transpose()?;
     // Only `Parameter`-destination callbacks occupy a native slot; a `Field`
     // destination writes through its root parameter's existing slot.
     let callback_ordinals = call

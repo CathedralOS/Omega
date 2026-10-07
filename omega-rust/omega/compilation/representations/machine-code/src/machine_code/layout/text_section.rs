@@ -16,7 +16,7 @@ use optimization_core::{
 use selected_instructions::{
     MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId, OperationId};
+use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
@@ -211,7 +211,7 @@ pub struct PlacedNormalizedForeignCallResolution {
     pub caller: MachineId,
     pub block: SelectedBlockId,
     pub instruction: SelectedInstructionId,
-    pub operation: OperationId,
+    pub invocation_site: semantic_vocabulary::BoundaryInvocationSite,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub ordinal: u32,
     pub call_function_offset: u64,

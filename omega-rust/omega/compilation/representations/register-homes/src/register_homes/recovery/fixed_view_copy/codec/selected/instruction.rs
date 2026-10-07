@@ -230,7 +230,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
                         selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
                         selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
                     });
-                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                    slot.invocation_site.encode_identity(bytes);
                     bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
                 }
                 selected_instructions::FrameStorageSlotId::Local(slot) => {
@@ -503,7 +503,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
                         } else {
                             selected_instructions::OutgoingArgumentSlotRole::ValueCopy
                         },
-                        operation: decode_id(cursor, OperationId::new)?,
+                        invocation_site: super::structural::decode_invocation_site(cursor)?,
                         argument_index: cursor.u32()?,
                     },
                 ),
@@ -864,13 +864,16 @@ mod tests {
 fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
     let slot = selected_instructions::OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-        operation: semantic_vocabulary::OperationId::new(43).unwrap(),
+        invocation_site: semantic_vocabulary::OperationId::new(43).unwrap().into(),
         argument_index: 1,
     };
     for kind in [
         SelectedInstructionKind::HostedReadByte {
             slot: selected_instructions::LocalStorageSlotId::Structural {
-                operation: slot.operation,
+                operation: slot
+                    .invocation_site
+                    .operation()
+                    .expect("operation-backed test slot"),
                 place: semantic_vocabulary::PlaceId::new(47).unwrap(),
             },
         },
@@ -883,7 +886,10 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
         },
         SelectedInstructionKind::HostedWriteByteI32 {
             slot: selected_instructions::LocalStorageSlotId::Boundary {
-                operation: slot.operation,
+                operation: slot
+                    .invocation_site
+                    .operation()
+                    .expect("operation-backed test slot"),
             },
         },
         SelectedInstructionKind::Store {
@@ -938,7 +944,7 @@ fn outgoing_slot_roles_round_trip_with_legacy_argument_frame_bytes() {
         FrameStorageSlotId, OutgoingArgumentSlotId, OutgoingArgumentSlotRole,
     };
     let argument = OutgoingArgumentSlotId {
-        operation: OperationId::new(43).unwrap(),
+        invocation_site: (OperationId::new(43).unwrap()).into(),
         argument_index: 7,
         role: OutgoingArgumentSlotRole::Argument,
     };

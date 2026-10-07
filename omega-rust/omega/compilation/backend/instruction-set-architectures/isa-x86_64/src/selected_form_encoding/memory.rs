@@ -557,7 +557,7 @@ mod tests {
             validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
         let slot = selected_instructions::FrameStorageSlotId::Outgoing(OutgoingArgumentSlotId {
             role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-            operation: OperationId::new(7).unwrap(),
+            invocation_site: OperationId::new(7).unwrap().into(),
             argument_index: 1,
         });
         for name in ["rax", "rbp", "r8", "r12", "r15"] {

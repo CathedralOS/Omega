@@ -182,7 +182,7 @@ fn encoding_identity_binds_symbolic_role_and_resolved_displacement() {
     let mut program = deferred_program();
     let slot = OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-        operation: OperationId::new(3).unwrap(),
+        invocation_site: OperationId::new(3).unwrap().into(),
         argument_index: 0,
     };
     program.rows[0].address = Some(ResolvedPhysicalAddress {

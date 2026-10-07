@@ -14,7 +14,7 @@ use super::{
     SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v22";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v23";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -193,7 +193,20 @@ fn encode_encoding_row(
                                 selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
                                 selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
                             }]);
-                            hasher.update(slot.operation.get().to_le_bytes());
+                            match slot.invocation_site {
+                                semantic_vocabulary::BoundaryInvocationSite::Operation(
+                                    operation,
+                                ) => {
+                                    hasher.update([0]);
+                                    hasher.update(operation.get().to_le_bytes());
+                                }
+                                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
+                                    edge,
+                                ) => {
+                                    hasher.update([1]);
+                                    hasher.update(edge.get().to_le_bytes());
+                                }
+                            }
                             hasher.update(slot.argument_index.to_le_bytes());
                         }
                         selected_instructions::FrameStorageSlotId::Local(slot) => {

@@ -42,28 +42,75 @@ pub(super) fn replay_provider_executions(
         ));
     }
     for foreign in foreign_calls {
-        let target_operations::CallSiteOwner::Operation(owner) = foreign.owner else {
-            return Err(ProviderExecutionReplayError::MissingForeignOperationOwner);
-        };
-        let matching_operations = module
-            .machines
-            .iter()
-            .filter(|machine| machine.id == foreign.machine)
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .filter(|operation| operation.id == owner)
-            .collect::<Vec<_>>();
-        let [operation] = matching_operations.as_slice() else {
-            return Err(ProviderExecutionReplayError::NonUniqueForeignOperation);
-        };
-        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
-            return Err(ProviderExecutionReplayError::ForeignOperationIsNotBoundaryCall);
+        let (boundary_id, completion) = match foreign.owner {
+            target_operations::CallSiteOwner::Operation(owner) => {
+                let mut operations = module
+                    .machines
+                    .iter()
+                    .filter(|machine| machine.id == foreign.machine)
+                    .flat_map(|machine| &machine.blocks)
+                    .flat_map(|block| &block.operations)
+                    .filter(|operation| operation.id == owner);
+                let (Some(operation), None) = (operations.next(), operations.next()) else {
+                    return Err(ProviderExecutionReplayError::NonUniqueForeignOperation);
+                };
+                let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind
+                else {
+                    return Err(ProviderExecutionReplayError::ForeignOperationIsNotBoundaryCall);
+                };
+                (
+                    *boundary,
+                    semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                )
+            }
+            target_operations::CallSiteOwner::ExternalCompletion(owner) => {
+                let mut completions = module
+                    .machines
+                    .iter()
+                    .filter(|machine| machine.id == foreign.machine)
+                    .flat_map(|machine| &machine.blocks)
+                    .filter_map(|block| match &block.terminator {
+                        terminal_psi::Terminator::ExternalCompletion {
+                            edge,
+                            boundary,
+                            kind,
+                            ..
+                        } if *edge == owner => Some((*boundary, *kind)),
+                        _ => None,
+                    });
+                let (Some((boundary, kind)), None) = (completions.next(), completions.next())
+                else {
+                    return Err(ProviderExecutionReplayError::NonUniqueForeignOperation);
+                };
+                if foreign.scalar_result.is_some()
+                    || !foreign.callback_addresses.is_empty()
+                    || foreign.x86_floating_control.is_some()
+                    || foreign.aarch64_floating_control.is_some()
+                    || foreign.binding.boundary_entry_plan.call.result.is_some()
+                {
+                    return Err(ProviderExecutionReplayError::Shared(
+                        "native external completion retained returning-call custody",
+                    ));
+                }
+                (
+                    boundary,
+                    semantic_vocabulary::BoundaryCompletion::External(kind),
+                )
+            }
+            target_operations::CallSiteOwner::CleanupAction { .. } => {
+                return Err(ProviderExecutionReplayError::MissingForeignOperationOwner);
+            }
         };
         let boundary = module
             .boundary_machines
             .iter()
-            .find(|candidate| candidate.id == *boundary)
+            .find(|candidate| candidate.id == boundary_id)
             .ok_or(ProviderExecutionReplayError::AbsentForeignBoundary)?;
+        if boundary.completion != completion {
+            return Err(ProviderExecutionReplayError::Shared(
+                "native external invocation changed its completion contract",
+            ));
+        }
         let execution = foreign.provider_execution;
         validate_foreign_provider_binding(&boundary.identity, foreign, selected_provider_plans)
             .map_err(ProviderExecutionReplayError::Shared)?;
