@@ -1543,14 +1543,7 @@ fn owned_storage_may_hold_inner(
             visiting.push(container);
             let mut found = false;
             for member in program.data_members(definition) {
-                let field_types: Vec<TypeReferenceHandle> = match member {
-                    DataMember::Field(field) => vec![field.type_reference],
-                    DataMember::Variant(variant) => program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .map(|field| field.type_reference)
-                        .collect(),
-                };
+                let field_types = member_field_types(program, member);
                 for field_type in field_types {
                     match owned_storage_may_hold_inner(
                         program, field_type, referent, visiting, bindings, identities,
@@ -1677,14 +1670,7 @@ fn storage_member_may_hold(
             visiting.push(container);
             let result = (|| {
                 for member in program.data_members(definition) {
-                    let field_types: Vec<TypeReferenceHandle> = match member {
-                        DataMember::Field(field) => vec![field.type_reference],
-                        DataMember::Variant(variant) => program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .map(|field| field.type_reference)
-                            .collect(),
-                    };
+                    let field_types = member_field_types(program, member);
                     for field_type in field_types {
                         match owned_storage_may_hold_inner(
                             program, field_type, referent, visiting, bindings, identities,
@@ -1710,6 +1696,22 @@ fn storage_member_may_hold(
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Unit
         | TypeReferenceNode::Constrained { .. } => Some(false),
+    }
+}
+
+/// Every field-type a member contributes to a storage walk: an ordinary
+/// field's single type, or each payload field's type of a variant.
+fn member_field_types(
+    program: &TypedTrees,
+    member: &DataMember,
+) -> Vec<TypeReferenceHandle> {
+    match member {
+        DataMember::Field(field) => vec![field.type_reference],
+        DataMember::Variant(variant) => program
+            .data_payload_fields(variant)
+            .iter()
+            .map(|field| field.type_reference)
+            .collect(),
     }
 }
 
