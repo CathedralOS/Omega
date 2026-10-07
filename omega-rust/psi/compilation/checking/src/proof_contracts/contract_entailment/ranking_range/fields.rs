@@ -348,11 +348,8 @@ impl<'program> FieldCoordinate<'program> {
             &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
             true,
         )?;
-        let spelled_as_declared = chain
-            .iter()
-            .zip(coordinate.steps.iter().chain([&coordinate.field]))
-            .all(|((_, spelled), field)| **spelled == field.name);
-        spelled_as_declared.then_some(coordinate)
+        declared_spelling_verified(&chain, &coordinate.steps, coordinate.field)
+            .then_some(coordinate)
     }
 
     fn for_parameter(
@@ -832,6 +829,20 @@ pub(super) fn member_chain<'program>(
     }
     chain.reverse();
     Some((parameter(program, state, cursor)?, chain))
+}
+
+
+/// A coordinate survives only when the member chain's spelled hops name the
+/// resolved fields in order — `steps` plus the leaf `field`.
+pub(super) fn declared_spelling_verified<'program>(
+    chain: &[(SymbolHandle, &'program Identifier)],
+    steps: &[&'program DataField],
+    field: &'program DataField,
+) -> bool {
+    chain
+        .iter()
+        .zip(steps.iter().chain([&field]))
+        .all(|((_, spelled), field)| **spelled == field.name)
 }
 
 /// The formal `expression` is rooted at plus its resolved member chain: `x`

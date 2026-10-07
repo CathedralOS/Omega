@@ -4,8 +4,9 @@
 //! use the same evaluator without caller facts: a later observation cannot
 //! retroactively describe the descriptor captured by an earlier binding.
 use super::fields::{
-    collect_leaf_paths, declared_field, member_chain, member_coordinate_parts,
-    nested_arrival_chain, record_referent, rooted_carrier, unique_literal_field,
+    collect_leaf_paths, declared_field, declared_spelling_verified, member_chain,
+    member_coordinate_parts, nested_arrival_chain, record_referent, rooted_carrier,
+    unique_literal_field,
 };
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
@@ -586,11 +587,8 @@ impl<'program> SliceCoordinate<'program> {
             parameter,
             &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
         )?;
-        let spelled_as_declared = chain
-            .iter()
-            .zip(coordinate.steps.iter().chain([&coordinate.field]))
-            .all(|((_, spelled), field)| **spelled == field.name);
-        spelled_as_declared.then_some(coordinate)
+        declared_spelling_verified(&chain, &coordinate.steps, coordinate.field)
+            .then_some(coordinate)
     }
 
     fn for_parameter(
