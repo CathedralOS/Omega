@@ -225,13 +225,20 @@ impl OperationFrame<'_, '_> {
         let authored = crate::call_sites::locate(self.checked, self.state, coordinate)?;
         let (_, source) = crate::declarations::state_declaration(self.checked, self.state)?;
         // A nested call can have ordinal zero when the initializer itself is
-        // a constructor. Only the exact initializer occurrence owns the local.
+        // a constructor. Only the exact initializer occurrence owns the local,
+        // and only while the declaration has not already established it: a
+        // mutable view local's declared descriptor home is bound first, and
+        // its call initializer's result is the anonymous source its first
+        // descriptor store consumes, exactly as for a later `view = f(..)`.
         let is_statement_result = matches!(
             (self.checked.statement_table.statements(source.statement_nodes)
                 .get(result.statement_index as usize), authored.source_site),
             (Some(checked_trees::statement::StatementNode::LocalData(local)),
              Some(checked_trees::NominalMachineUseSite::Expression(expression)))
                 if local.initial_value == expression
+                    && !self.evaluation.structural_locals.iter().any(|binding| {
+                        binding.root == facts::PlaceRoot::Symbol(local.symbol)
+                    })
         );
         // A computed dispatch owns one anonymous result. Publish its exact
         // source identity after ordinary result registration; copied payload

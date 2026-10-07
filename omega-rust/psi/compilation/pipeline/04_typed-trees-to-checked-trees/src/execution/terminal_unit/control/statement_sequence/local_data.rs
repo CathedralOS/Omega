@@ -1,8 +1,9 @@
 //! Planning one `let` statement of a single-state body.
 //!
 //! Each initializer kind has its own producer, tried in order: an erased or
-//! record-pattern marker plans nothing; a byte literal establishes its immutable
-//! storage; an atomic placeholder or load binds
+//! record-pattern marker plans nothing; a mutable view local establishes its
+//! descriptor home and stores its initializer there, a call's completed view
+//! included; a byte literal establishes its immutable storage; an atomic placeholder or load binds
 //! the atomic event; a selected boundary operator or IEEE FMA binds its
 //! realization; a move out of borrowed storage opens a window; a view
 //! subslice narrows an established view; a constructed structural value, a
@@ -152,18 +153,81 @@ pub(super) fn plan(
     // replace, as `EstablishPrimitiveLocal` homes a mutable primitive. The
     // initializer is the first of those stores: initialization and every
     // later reassignment are the one descriptor store a record's view field
-    // takes. A call initializer's result is planned by the call sequence.
+    // takes. A call initializer is the same store with the call's completed
+    // view as its source. The view local's structural root owns that call
+    // occurrence (the outer-call roster leaves it to the root), so the call
+    // runs through the root's ordinary value schedule into an anonymous
+    // result after the home is established, and the store consumes it.
     if local.is_mutable
         && crate::execution::terminal_unit::structural_scalar_store::is_shared_view_field(
             program,
             local.type_reference,
         )
-        && !matches!(
-            program.expression_table.expression(local.initial_value),
-            ExpressionNode::Call(_)
-        )
     {
         local_phase("statement sequence: local data: descriptor local initializer");
+        establish_declared_home(
+            program,
+            shapes,
+            binders,
+            operations,
+            structural_count,
+            structural_local_symbols,
+            structural_results,
+            index,
+            statement_index,
+            local,
+        )?;
+        let call_result = if matches!(
+            program.expression_table.expression(local.initial_value),
+            ExpressionNode::Call(_)
+        ) {
+            let root = facts.values.structural_values.root_for_expression(
+                state.symbol,
+                statement_index,
+                local.initial_value,
+            )?;
+            if root.machine != machine.symbol
+                || root.expression != local.initial_value
+                || root.type_reference != local.type_reference
+            {
+                return None;
+            }
+            let calls = structural_operands::value_calls(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural_parameters,
+                trivial_affine_locals,
+                entry_claims,
+                structural_results,
+                &*operations,
+                &mut *structural_count,
+                root.root,
+                trace,
+            )?;
+            super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
+            let result = CheckedUnitStructuralResultBindingPlan {
+                statement_index,
+                binding_ordinal: u32::try_from(*structural_count).ok()?,
+                type_identity: shapes.add_type(local.type_reference, binders, &[])?,
+                multiplicity: validation::reference_result_custody::binding_multiplicity(
+                    program,
+                    local.type_reference,
+                ),
+            };
+            *structural_count = structural_count.checked_add(1)?;
+            let binding_ordinal = result.binding_ordinal;
+            let establishment = structural_operands::establish_value(
+                facts, result, root.root, calls, None, false, operations,
+            )?;
+            operations.push(establishment);
+            Some(binding_ordinal)
+        } else {
+            None
+        };
         let store = crate::execution::terminal_unit::structural_scalar_store::descriptor_store(
             program,
             facts,
@@ -185,20 +249,17 @@ pub(super) fn plan(
             },
             statement_index,
             local.initial_value,
-            crate::execution::terminal_unit::structural_scalar_store::AssignmentSource::Authored,
+            match call_result {
+                Some(binding_ordinal) => crate::execution::terminal_unit::structural_scalar_store::AssignmentSource::StructuralCallResult {
+                    binding_ordinal,
+                    result_type: local.type_reference,
+                },
+                None => crate::execution::terminal_unit::structural_scalar_store::AssignmentSource::Authored,
+            },
         )?;
-        establish_declared_home(
-            program,
-            shapes,
-            binders,
-            operations,
-            structural_count,
-            structural_local_symbols,
-            structural_results,
-            index,
-            statement_index,
-            local,
-        )?;
+        if call_result.is_some() {
+            super::consume_results(&mut *operations, &store)?;
+        }
         operations.push(store);
         return Some(LocalPlan::Planned);
     }
