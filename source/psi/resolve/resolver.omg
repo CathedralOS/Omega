@@ -1,4 +1,5 @@
 use psi::resolution::resolution;
+use psi::resolve::names;
 use psi::source::source;
 use psi::syntax::syntax;
 
@@ -18,6 +19,8 @@ use psi::syntax::syntax;
 pub data Resolver {
     output: NameResolution;
     source: SourceId;
+    // Name-resolution scratch: what each expression's position lets it name.
+    name_roles: [NameRole; 8192];
 }
 
 pub machine Resolver::initialize(resolver: &mut Resolver, source: SourceId) {
@@ -83,6 +86,14 @@ crashes Trap
     state machines(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
         Resolver::check_machines(resolver, source_unit, syntax);
         transition resolver.output.accepted {
+            true -> names(resolver, source_unit, syntax)
+            _ -> done()
+        }
+    }
+
+    state names(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
+        Resolver::bind_body_names(resolver, source_unit, syntax);
+        transition resolver.output.accepted {
             true -> publish(resolver, syntax)
             _ -> done()
         }
@@ -90,6 +101,7 @@ crashes Trap
 
     state publish(resolver: &mut Resolver, syntax: &SyntaxTrees) {
         resolver.output.binding_count = syntax.type_reference_count;
+        resolver.output.value_binding_count = syntax.expression_count;
     }
 
     state done() {}

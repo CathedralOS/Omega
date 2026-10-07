@@ -1805,6 +1805,10 @@ def main() -> None:
     for name, source, diagnostic, span, counts in acknowledgement_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
+    # A target may call an owned machine by its path.
+    status, payload = run(program, b"machine f() { transition { _ -> Owner::step(1) } }")
+    assert status == 0, f"owned-machine-target: status {status}"
+
     # Inside brackets a braced path always constructs, even in a transition
     # target where an unbracketed `{` would open a body.
     status, payload = run(program, b"machine f() { transition { _ -> g(V { a: 1 }) } }")

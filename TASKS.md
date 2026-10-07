@@ -5893,26 +5893,29 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `OMEGA_CLI=<fresh optimized CLI> OMEGA_TARGET=macos_arm64` with
   `tests/psi/parser/test-parser.sh` passes all 236 parser cases, and
   `tests/psi/resolver/test-resolver.sh` passes all 79 resolver cases; each
-  gate builds its harness natively in about 2.5 minutes. Machines parse with
-  signatures, entry and state statements (`let`, assignment, call and tail
-  expressions, `crash`, `transition` blocks with guard, wildcard, literal and
-  case-pattern arms), expressions on explicit stacks, and clauses (`reaches`,
-  `invokes`, `suspends`, `blocks`, `crashes`, `requires`, `ensures`, `where`)
-  shared by machines, states, data and cases; every type position shares one
-  nested grammar of references, arrays, slices and applied names with `in`
-  domains. Resolution binds data, signature and body types and `in` domains
-  for one source unit, rejects duplicate parameters, states and overloads, and
-  rejects every `use`, because the unit is the whole source set. Next: parse
-  `block`/`suspend` call acknowledgements, `::` paths in types and static
-  machine arguments (`f<A, B>(x)`), and raise the member, source and token
-  capacities without exceeding the native frame limit (a 32 MiB local or
-  entry-record field fails native realization today), so the product parses
-  its own source closure; then resolve expression names (locals, parameters,
-  states, machines, data constructors) through the same pipeline. Then accept
-  multi-source compiler requests so `use` roots bind declarations of supplied
-  sources. Run both gates on Linux and Windows hosts. Keep the
-  acceptance/rejection, lexical handoff, structural identity, capacity and
-  determinism controls and range-proven narrowing casts.
+  gate builds its harness natively in several minutes. The lexer keeps only
+  semantic tokens. Machines parse with signatures, clauses shared with states,
+  data and cases, entry and state statements, transition arms, and expressions
+  including call acknowledgements and static applications; every type position
+  shares one nested grammar of references, arrays, slices and applied names or
+  paths with `in` domains. Resolution binds data, signature and body types and
+  `in` domains for one source unit, rejects duplicate generic parameters,
+  parameters, states and overloads, binds every expression name by the
+  language's resolution order (locals, arm binders, the body's own parameters,
+  then states, machines, data and cases by position), and rejects every `use`,
+  because the unit is the whole source set. The parser harness reads all 19
+  product sources whole. Next: resolve several source units together so `use`
+  binds the imported module's public declarations and the product resolves its
+  own closure, exercised through the resolver gate until requests reach Psi;
+  then typing. Size the parser tables to the request contract's
+  scalar-resource rows (roots and states 4,096; path members, data members,
+  type nodes, statements and expressions 16,384) and publish their refusals as
+  those provisions; aarch64 frames past 16 MiB now realize. The product's own
+  19 sources hold 19,430 expressions and 13,201 path members, so those rows
+  must count per source unit, or grow, before D can compile C. Run both gates on
+  Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
+  structural identity, capacity and determinism controls and range-proven
+  narrowing casts.
 
   Acceptance: the package-resolved closure implements the
   [compiler product contract](wiki/spec/build/compiler_request.md), passes the

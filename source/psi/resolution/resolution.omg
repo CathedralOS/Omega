@@ -48,6 +48,23 @@ pub data TypeBinding [copy] {
     case Literal;
 }
 
+// What a name or path in an expression denotes, indexed like
+// `SyntaxTrees::expressions`. Expressions that are not names stay
+// `NotAName`; an accepted resolution leaves no `Unresolved` name. A machine
+// binding names the first declaration of its overload family; typing selects
+// among the family.
+pub data ValueBinding [copy] {
+    case NotAName;
+    case Unresolved;
+    case Local(statement: u64 in Trapping);
+    case Parameter(parameter: u64 in Trapping);
+    case PatternBinder(field: u64 in Trapping);
+    case State(handle: u64 in Trapping);
+    case Machine(handle: u64 in Trapping);
+    case Data(item: u64 in Trapping);
+    case DataCase(item: u64 in Trapping, data_case: u64 in Trapping);
+}
+
 // The generic parameters a type name may bind: the enclosing declaration's
 // contiguous range of `SyntaxTrees::generic_parameters`.
 pub data TypeScope [copy] {
@@ -81,6 +98,7 @@ pub data ResolveDiagnosticCode [copy] {
     case DuplicateState;
     case DuplicateMachine;
     case DuplicateGenericParameter;
+    case UnknownName;
 }
 
 pub data ResolveDiagnostic [copy] {
@@ -91,16 +109,20 @@ pub data ResolveDiagnostic [copy] {
 pub data NameResolution
 where
     binding_count <= 4096,
+    value_binding_count <= 8192,
 {
     type_bindings: [TypeBinding; 4096];
     domain_bindings: [DomainBinding; 4096];
     binding_count: u64;
+    value_bindings: [ValueBinding; 8192];
+    value_binding_count: u64;
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }
 
 pub machine NameResolution::clear(resolution: &mut NameResolution, source: SourceId) {
     resolution.binding_count = 0;
+    resolution.value_binding_count = 0;
     resolution.accepted = true;
     resolution.diagnostic.code = ResolveDiagnosticCode::None;
     resolution.diagnostic.source_span.source = source;

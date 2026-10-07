@@ -739,7 +739,8 @@ crashes Trap
         }
     }
 
-    // Only a call of a bare state or machine name is a target.
+    // A target calls a named state or machine: a bare name (a state first)
+    // or an owned machine path such as `Owner::step`.
     state call_target_shape(
         parser: &mut Parser,
         input: &TokenStream,
@@ -800,16 +801,18 @@ crashes Trap
         call: Expression
     ) {
         let callee: Expression = SyntaxTrees::expression(&parser.output, call.left);
-        transition callee.kind {
-            ExpressionKind::Name -> store_arm(parser, input, unsupported, has_subject, subject, TransitionArm {
-                kind: kind,
-                pattern: pattern,
-                first_field: first_field,
-                field_count: field_count,
-                target: target,
-                terminal: false,
-                source_span: Parser::source_span(parser, parser.arm_start, call.source_span.span.end)
-            })
+        let arm: TransitionArm = TransitionArm {
+            kind: kind,
+            pattern: pattern,
+            first_field: first_field,
+            field_count: field_count,
+            target: target,
+            terminal: false,
+            source_span: Parser::source_span(parser, parser.arm_start, call.source_span.span.end)
+        };
+        let named: bool = Parser::names_declaration(callee.kind);
+        transition named {
+            true -> store_arm(parser, input, unsupported, has_subject, subject, arm)
             _ -> reject_at(parser, ParseDiagnosticCode::ExpectedTransitionTarget, callee.source_span)
         }
     }

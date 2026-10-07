@@ -20,15 +20,19 @@ Statements are `let [mut] name: Type [= value];`,
 `crash Trap;`/`crash Abort;`, `place = value;`, `value;`,
 `transition [subject] { arms }` and a final unterminated result expression.
 Arms are guards in a subjectless block and `_`, literal or case patterns
-(`Path { binder, field: value }`) over a subject, each `-> target(arguments)`
-or `-> {}`. Expressions ([`parse/expression.omg`](parse/expression.omg)) cover
-literals, names and `::` paths, `.field`, `[index]`, calls, `as Type` casts,
-`Path { field: value }` constructions, prefix `!`, `-`, `~`, `&` and `&mut`,
-and the binary operators in the reference grammar's two precedence tiers, all
-on explicit stacks rather than recursion. Every type position (fields, payload
-fields, generic binders, parameters, return types, `let` types and casts)
-shares one grammar in [`parse/types.omg`](parse/types.omg): references
-`&[mut] T`, arrays `[T; N]`, slices `[T]` and named types with static
+(`Path { binder, field: value }`) over a subject, each `-> target(arguments)`,
+possibly acknowledged (`-> suspend block f(x)`), or `-> {}`. Expressions
+([`parse/expression.omg`](parse/expression.omg)) cover literals, names and
+`::` paths (every keyword but `self` is a name), `.field`, `[index]`, calls,
+static applications `path<arguments>(...)`, `as Type` casts,
+`Path { field: value }` constructions (always inside brackets, never before an
+unbracketed body), prefix `!`, `-`, `~`, `&`, `&mut` and the call
+acknowledgements `suspend`, `block` and `suspend block`, and the binary
+operators in the reference grammar's two precedence tiers, all on explicit
+stacks rather than recursion. Every type position (fields, payload fields,
+generic binders, parameters, return types, `let` types and casts) shares one
+grammar in [`parse/types.omg`](parse/types.omg): references `&[mut] T`, arrays
+`[T; N]`, slices `[T]` and named types, possibly `::` paths, with static
 arguments `Name<T, 4>`, nested on an explicit frame stack, each form that
 admits one taking `in Domain`. A type's rows follow their children, so the
 type fills one contiguous run of the table ending at its root. Direct fields
@@ -56,8 +60,16 @@ the names. Last, it rejects duplicate parameter names within a signature,
 duplicate state names within a machine, and a machine that repeats an earlier
 one's owner, name and parameter types, compared run by run (machines may
 otherwise overload). The binding tables are indexed by the syntax table's
-type-reference handles. Carrier compatibility (`Finite` on floats only,
-unbounded `UInt`/`Int` storage) belongs to typing, which does not exist yet.
+type-reference handles. Then every name and path in a machine body binds
+([`resolve/names.omg`](resolve/names.omg)) in the language's resolution order:
+an earlier `let` of the same body, the enclosing arm's pattern binders, the
+body's own parameters (a state never sees the entry's). A callee names a
+machine, a transition target a state of its machine before a machine, a
+construction or case pattern a data declaration or `Type::Case`, and a value
+path a case or an owned machine; an unknown name rejects. These value bindings
+are indexed by expression handle. Carrier compatibility (`Finite` on floats
+only, unbounded `UInt`/`Int` storage) belongs to typing, which does not exist
+yet.
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet

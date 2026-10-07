@@ -21,6 +21,34 @@ DUPLICATE_PARAMETER = 9
 DUPLICATE_STATE = 10
 DUPLICATE_MACHINE = 11
 DUPLICATE_GENERIC_PARAMETER = 12
+UNKNOWN_NAME = 13
+
+# Value bindings: (tag, handle, case handle).
+NOT_A_NAME = (0, 0, 0)
+
+
+def local(statement: int) -> tuple[int, int, int]:
+    return (2, statement, 0)
+
+
+def parameter(handle: int) -> tuple[int, int, int]:
+    return (3, handle, 0)
+
+
+def binder(field: int) -> tuple[int, int, int]:
+    return (4, field, 0)
+
+
+def state(handle: int) -> tuple[int, int, int]:
+    return (5, handle, 0)
+
+
+def machine(handle: int) -> tuple[int, int, int]:
+    return (6, handle, 0)
+
+
+def data_case(item: int, handle: int) -> tuple[int, int, int]:
+    return (8, item, handle)
 
 BUILTIN = 1
 DATA = 2
@@ -70,6 +98,7 @@ class Observation:
     diagnostic: int
     diagnostic_span: tuple[int, int, int]
     bindings: tuple[tuple[int, int, int], ...]
+    value_bindings: tuple[tuple[int, int, int], ...] = ()
 
 
 class Reader:
@@ -103,8 +132,12 @@ def decode(payload: bytes) -> Observation:
         (reader.byte(), reader.u64(), reader.byte())
         for _ in range(reader.u64())
     )
+    value_bindings = tuple(
+        (reader.byte(), reader.u64(), reader.u64())
+        for _ in range(reader.u64())
+    )
     assert reader.cursor == len(payload), "trailing resolution observation bytes"
-    return Observation(accepted, diagnostic, diagnostic_span, bindings)
+    return Observation(accepted, diagnostic, diagnostic_span, bindings, value_bindings)
 
 
 # Every distinct source the gate runs is one case; the determinism check runs
@@ -124,11 +157,15 @@ def accepted(
     name: str,
     source: bytes,
     bindings: tuple[tuple[int, int, int], ...],
+    value_bindings: tuple[tuple[int, int, int], ...] | None = None,
 ) -> None:
+    """Value bindings are compared only when the case names them."""
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
     actual = decode(payload)
-    expected = Observation(True, 0, (1, 0, 0), bindings)
+    if value_bindings is None:
+        actual = Observation(actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings)
+    expected = Observation(True, 0, (1, 0, 0), bindings, value_bindings or ())
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
 
@@ -150,7 +187,7 @@ def rejected(
     status, payload = run(program, source)
     assert status == 249, f"{name}: status {status}"
     actual = decode(payload)
-    expected = Observation(False, diagnostic, (1, start, end), ())
+    expected = Observation(False, diagnostic, (1, start, end), (), ())
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
 
@@ -478,7 +515,7 @@ def main() -> None:
     accepted(
         program,
         "local-and-cast-types",
-        b"machine f() { let x: u8 = 1 as u16 in Wrapping; let r: &D = g(); }\ndata D { y: u8; }",
+        b"machine f() { let x: u8 = 1 as u16 in Wrapping; let r: &D = g(); }\ndata D { y: u8; }\nmachine g() {}",
         (builtin("u8"), builtin("u16", WRAPPING), data(0), REFERENCE_ROW, builtin("u8")),
     )
     rejected(program, "unknown-local-type", b"machine f() { let x: Q; }", UNKNOWN_DATA_TYPE, b"Q")
@@ -555,10 +592,65 @@ def main() -> None:
     accepted(
         program,
         "static-application-arguments",
-        b"machine f() { g<u8, Box<D>, 4>(1); }\ndata Box<T> { v: T; }\ndata D { x: u8; }",
-        (builtin("u8"), data(1), data(0), LITERAL_ROW, generic(0), builtin("u8")),
+        b"machine f() { g<u8, Box<D>, 4>(1); }\ndata Box<T> { v: T; }\ndata D { x: u8; }\nmachine g(x: u8) {}",
+        (builtin("u8"), data(1), data(0), LITERAL_ROW, generic(0), builtin("u8"), builtin("u8")),
     )
     rejected(program, "unknown-static-argument-type", b"machine f() { g<Q>(1); }", UNKNOWN_DATA_TYPE, b"Q")
+
+    # Expression names: locals, then pattern binders, then the body's own
+    # parameters; callees name machines, targets a state before a machine,
+    # constructions and paths a data declaration's case.
+    accepted(
+        program,
+        "locals-and-parameters",
+        b"machine f(a: u8) { let b: u8 = a; g(b); }\nmachine g(x: u8) {}",
+        (builtin("u8"), builtin("u8"), builtin("u8")),
+        (parameter(0), machine(1), local(0), NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "state-scope",
+        b"machine f(a: u8) { transition { _ -> s(a) } state s(b: u8) { g(b); } }\nmachine g(x: u8) {}",
+        (builtin("u8"), builtin("u8"), builtin("u8")),
+        (state(0), parameter(0), NOT_A_NAME, machine(1), parameter(1), NOT_A_NAME),
+    )
+    rejected(
+        program,
+        "state-cannot-see-entry-parameter",
+        b"machine f(a: u8) { transition { _ -> s() } state s() { g(a); } }\nmachine g(x: u8) {}",
+        UNKNOWN_NAME,
+        b"a)",
+        length=1,
+    )
+    accepted(
+        program,
+        "cases-constructions-and-patterns",
+        b"data T { case A; case B(v: u8); }\n"
+        b"machine f(t: T) { transition t { T::B { v } -> s(v) _ -> s(1) } "
+        b"state s(v: u8) { let y: T = T::B { v: v }; let z: T = T::A; } }",
+        (builtin("u8"), data(0), builtin("u8"), data(0), data(0)),
+        (
+            parameter(0), data_case(0, 1), state(0), binder(0), NOT_A_NAME,
+            state(0), NOT_A_NAME, NOT_A_NAME, data_case(0, 1), parameter(1), NOT_A_NAME, data_case(0, 0),
+        ),
+    )
+    accepted(
+        program,
+        "owned-machine-callee",
+        b"machine A::f(x: u8) {}\nmachine g() { A::f(1); }",
+        (builtin("u8"),),
+        (machine(0), NOT_A_NAME, NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "machine-target",
+        b"machine f() { transition { _ -> g(1) } }\nmachine g(x: u8) {}",
+        (builtin("u8"),),
+        (machine(1), NOT_A_NAME, NOT_A_NAME),
+    )
+    rejected(program, "unknown-case", b"data T { case A; }\nmachine f() { let x: T = T::C; }", UNKNOWN_NAME, b"T::C")
+    rejected(program, "unknown-target", b"machine f() { transition { _ -> nowhere() } }", UNKNOWN_NAME, b"nowhere")
+    rejected(program, "unknown-callee", b"machine f() { nowhere(1); }", UNKNOWN_NAME, b"nowhere")
 
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)
