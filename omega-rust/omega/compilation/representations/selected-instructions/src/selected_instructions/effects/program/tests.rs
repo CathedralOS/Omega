@@ -274,6 +274,57 @@ fn byte_copy_effect_codec_binds_dynamic_span_and_scratch_effects() {
     }
 }
 
+// Byte-sequence scans and comparisons carry the catalog's semantic tags in
+// every identity and codec. Tags 96 and 97 belong to saturating remainder
+// forms, so reusing them decoded a scan as a remainder.
+#[test]
+fn byte_sequence_scan_and_compare_codecs_round_trip() {
+    let mut scan = plan();
+    let instruction = &mut scan.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::ScanByteSequence {
+        predicate: terminal_psi::ByteSequencePredicate::NoNul,
+    };
+    instruction.memory = MachineMemoryEffect::ScanByteSequenceV1;
+    instruction.trap = MachineTrapBehavior::MayArchitecturalFaultV1;
+    instruction.alternatives.truncate(1);
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::ScanByteSequence;
+    let encoded = &mut instruction.alternatives[0].encoded;
+    encoded.memory = MachineEncodedMemoryEffect::ScanByteSequenceV1 {
+        base_pointer_operand: 0,
+        count_operand: 1,
+    };
+    encoded.external_operand_reads = vec![0, 1];
+    encoded.external_operand_writes = vec![2, 3, 4];
+    scan.identity = pre_allocation_machine_effect_identity(&scan);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&scan.encode()),
+        Ok(scan.clone())
+    );
+
+    let mut compare = plan();
+    let instruction = &mut compare.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::CompareByteSequences;
+    instruction.memory = MachineMemoryEffect::CompareByteSequencesV1;
+    instruction.trap = MachineTrapBehavior::MayArchitecturalFaultV1;
+    instruction.alternatives.truncate(1);
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::CompareByteSequences;
+    let encoded = &mut instruction.alternatives[0].encoded;
+    encoded.memory = MachineEncodedMemoryEffect::CompareByteSequencesV1 {
+        left_base_operand: 0,
+        left_count_operand: 1,
+        right_base_operand: 2,
+        right_count_operand: 3,
+    };
+    encoded.external_operand_reads = vec![0, 1, 2, 3];
+    encoded.external_operand_writes = vec![4, 5, 6, 7];
+    compare.identity = pre_allocation_machine_effect_identity(&compare);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&compare.encode()),
+        Ok(compare.clone())
+    );
+    assert_ne!(scan.identity, compare.identity);
+}
+
 #[test]
 fn zero_fill_effect_codec_binds_dynamic_span_and_cursor_effect() {
     let mut source = plan();

@@ -110,8 +110,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::CopyBytes => 59,
-        SelectedInstructionKind::ScanByteSequence { .. } => 96,
-        SelectedInstructionKind::CompareByteSequences => 97,
+        // The catalog's semantic tags: 95 + carrier ordinal belongs to the
+        // saturating remainder forms, so these cannot reuse 96 and 97.
+        SelectedInstructionKind::ScanByteSequence { .. } => 233,
+        SelectedInstructionKind::CompareByteSequences => 234,
         SelectedInstructionKind::ZeroBytes => 235,
         SelectedInstructionKind::CopyI64 => 2,
         SelectedInstructionKind::BitwiseAndI64 => 51,

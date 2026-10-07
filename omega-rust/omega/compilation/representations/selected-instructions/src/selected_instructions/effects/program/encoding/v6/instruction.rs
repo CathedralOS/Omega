@@ -34,6 +34,8 @@ pub(super) fn decode_instruction(
         2 => MachineMemoryEffect::WriteFrameStorageV1,
         7 => MachineMemoryEffect::ReadFrameStorageV1,
         6 => MachineMemoryEffect::CopyBytesV1,
+        10 => MachineMemoryEffect::ScanByteSequenceV1,
+        11 => MachineMemoryEffect::CompareByteSequencesV1,
         12 => MachineMemoryEffect::ZeroBytesV1,
         4 => MachineMemoryEffect::WritePointerV1,
         8 => MachineMemoryEffect::AtomicPointerV1,
@@ -140,6 +142,16 @@ fn decode_kind(
             value: decode_integer(cursor)?,
         },
         59 => SelectedInstructionKind::CopyBytes,
+        233 => {
+            let mask = cursor.byte()?;
+            SelectedInstructionKind::ScanByteSequence {
+                predicate: terminal_psi::ByteSequencePredicate::ALL
+                    .into_iter()
+                    .find(|predicate| predicate.mask_bit() == mask)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            }
+        }
+        234 => SelectedInstructionKind::CompareByteSequences,
         235 => SelectedInstructionKind::ZeroBytes,
         2 => SelectedInstructionKind::CopyI64,
         26 => SelectedInstructionKind::Float32ToBits,
@@ -510,6 +522,8 @@ fn decode_alternative_for_version(
         0 => MachineAlternativeFamily::CompareI64Zero,
         1 => MachineAlternativeFamily::MaterializeI64,
         59 => MachineAlternativeFamily::CopyBytes,
+        233 => MachineAlternativeFamily::ScanByteSequence,
+        234 => MachineAlternativeFamily::CompareByteSequences,
         235 => MachineAlternativeFamily::ZeroBytes,
         2 => MachineAlternativeFamily::CopyI64,
         26 => MachineAlternativeFamily::Float32ToBits,
@@ -699,6 +713,16 @@ fn decode_encoded_effects(
             source_pointer_operand: cursor.u16()?,
             destination_pointer_operand: cursor.u16()?,
             count_operand: cursor.u16()?,
+        },
+        13 => MachineEncodedMemoryEffect::ScanByteSequenceV1 {
+            base_pointer_operand: cursor.u16()?,
+            count_operand: cursor.u16()?,
+        },
+        14 => MachineEncodedMemoryEffect::CompareByteSequencesV1 {
+            left_base_operand: cursor.u16()?,
+            left_count_operand: cursor.u16()?,
+            right_base_operand: cursor.u16()?,
+            right_count_operand: cursor.u16()?,
         },
         15 => MachineEncodedMemoryEffect::ZeroBytesV1 {
             destination_pointer_operand: cursor.u16()?,

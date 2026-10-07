@@ -98,8 +98,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     bytes.extend_from_slice(&instruction.id.0.to_le_bytes());
     bytes.push(match instruction.kind {
         SelectedInstructionKind::CopyBytes => 59,
-        SelectedInstructionKind::ScanByteSequence { .. } => 96,
-        SelectedInstructionKind::CompareByteSequences => 97,
+        SelectedInstructionKind::ScanByteSequence { .. } => 233,
+        SelectedInstructionKind::CompareByteSequences => 234,
         SelectedInstructionKind::ZeroBytes => 235,
         SelectedInstructionKind::BitwiseAndI64 => 48,
         SelectedInstructionKind::BitwiseXorI64 => 49,
