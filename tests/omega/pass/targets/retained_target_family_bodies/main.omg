@@ -2,6 +2,7 @@
 // implementation, including unrequested and uncatalogued deployment tags.
 // The value bodies call the delta body for their own target, not the head.
 data Helper { seed: u32; }
+trait Value<T> { machine unrealized(helper: &T) -> u32; }
 
 linux_x86_64 machine Helper::delta(helper: &Helper) -> u32 {
     transition { _ -> 63 }
@@ -23,10 +24,12 @@ uefi_x86_64 machine Helper::value(helper: &Helper) -> u32 {
     transition { _ -> Helper::delta(helper) }
 }
 
-archive_target machine Helper::unrealized(helper: &Helper) -> u32 {
+archive_target machine Helper::unrealized(helper: &Helper) -> u32
+satisfies Value<Helper>::unrealized {
     transition { _ -> 19 }
 }
-reserved_target machine Helper::unrealized(helper: &Helper) -> u32 {
+reserved_target machine Helper::unrealized(helper: &Helper) -> u32
+satisfies Value<Helper>::unrealized {
     transition { _ -> 23 }
 }
 

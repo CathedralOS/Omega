@@ -28,11 +28,11 @@ pub(crate) fn derive_provider_plans(
 ) -> Vec<DerivedProviderPlan> {
     let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
-    // Target filtering has already admitted only unscoped and selected-target
-    // machines into typed trees. Derive from their exact retained conformance
-    // and supply identities; source syntax is no longer a binding authority.
+    // Typed trees retain every authored body and its conformances. This
+    // transitional settlement derives only the promoted realization's rows;
+    // semantic declaration queries must never perform that selection for us.
     for machine in typed.machines() {
-        if !context.contains(machine.symbol) {
+        if machine.target.is_some() || !context.contains(machine.symbol) {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
@@ -345,7 +345,7 @@ fn derive_top_level_requirement_plans(
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if !context.contains(machine.symbol) {
+        if machine.target.is_some() || !context.contains(machine.symbol) {
             continue;
         }
         // A specialization instance is minted from its authored template,
@@ -520,7 +520,7 @@ fn derive_boundary_operator_plans(
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if !context.contains(machine.symbol) {
+        if machine.target.is_some() || !context.contains(machine.symbol) {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);

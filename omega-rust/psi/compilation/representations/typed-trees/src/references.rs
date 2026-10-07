@@ -1232,7 +1232,7 @@ pub fn visit_machine(
         }
     }
 
-    for conformance in program.declared_machine_trait_conformances(machine) {
+    for conformance in program.machine_trait_conformances(machine) {
         visit_symbol(retained, conformance.requirement_symbol);
         visit_conformance(program, retained, conformance);
     }

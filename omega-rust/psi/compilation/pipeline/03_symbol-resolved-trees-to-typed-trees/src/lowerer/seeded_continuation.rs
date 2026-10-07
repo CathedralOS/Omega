@@ -707,9 +707,9 @@ fn completed_typed_base_is_retained(
             .span_mut_or_empty(old.owned_data)
             .clone_from_slice(base.machine_owned_data(old));
         for (old_conformance, new_conformance) in base
-            .declared_machine_trait_conformances(old)
+            .machine_trait_conformances(old)
             .iter()
-            .zip(candidate.declared_machine_trait_conformances(new))
+            .zip(candidate.machine_trait_conformances(new))
         {
             let mut header = new_conformance.clone();
             header.via_expression = old_conformance.via_expression;
@@ -720,7 +720,7 @@ fn completed_typed_base_is_retained(
         comparison
             .machine_trait_conformances
             .span_mut_or_empty(old.satisfies)
-            .clone_from_slice(base.declared_machine_trait_conformances(old));
+            .clone_from_slice(base.machine_trait_conformances(old));
         comparison.machines_mut()[ordinal] = old.clone();
     }
     // Symbol growth belongs to the resolver's private completion carrier, which

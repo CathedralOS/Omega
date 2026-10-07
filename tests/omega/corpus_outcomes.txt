@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 7.29, "load1_start": 6.71, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 2.4, "load1_start": 2.4, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1712,6 +1712,8 @@ fail/targets/single_target_internal_statement_caller_rejected rejected 867ms exp
 	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
 fail/targets/target_machine_duplicate_rejected rejected 5ms expected @2740301f86f2+wt
 	machine `Helper::pick` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
+fail/targets/unrealized_conformance_rejected rejected 929ms expected @20ecc46e082d+wt
+	machine `Helper::value` state `value` does not satisfy trait `Predicate` machine `value`: expected return `bool`, got `u32`
 fail/targets/unrealized_family_signature_rejected rejected 17ms expected @2740301f86f2+wt
 	machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature
 fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 145ms expected @2d8ed253669f

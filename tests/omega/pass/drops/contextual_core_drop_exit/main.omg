@@ -37,6 +37,7 @@ linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i3
 // the low byte of an i32 cell.
 data WindowsConsoleIo { }
 boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+terminates;
 reaches Console;
 data WindowsConsoleImports { }
 windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {

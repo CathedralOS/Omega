@@ -60,43 +60,64 @@ fn normalize_machine_progress_premises_from(
     program: &mut typed::TypedTrees,
     machine_frontier: usize,
 ) -> Result<(), Diagnostic> {
-    let machine_updates = program
+    // Normalize authored requirement interfaces before implementations borrow
+    // them. Trait signatures have already settled above; top-level requirements
+    // live in the same machine arena as their satisfiers, in arbitrary order.
+    let authored_updates = program
         .machines()
         .iter()
         .skip(machine_frontier)
-        .map(|machine| {
-            let authored = matches!(
+        .filter(|machine| {
+            matches!(
                 machine.termination_plan.interface,
                 TerminationInterface::Published(TerminationGuarantee::Terminates { .. })
-            );
-            let interface = if authored {
-                let parameters = program
-                    .machine_states(machine)
-                    .first()
-                    .map(|state| program.state_parameters(state))
-                    .unwrap_or_default();
-                TerminationInterface::Published(TerminationGuarantee::Terminates {
-                    premises: authored_premises(
-                        program,
-                        program.machine_contracts(machine),
-                        parameters,
-                    )?,
-                })
-            } else if let Some(inherited) = inherited_guarantee(program, machine)? {
-                TerminationInterface::Published(inherited)
-            } else {
-                machine.termination_plan.interface.clone()
-            };
+            )
+        })
+        .map(|machine| {
+            let parameters = program
+                .machine_states(machine)
+                .first()
+                .map(|state| program.state_parameters(state))
+                .unwrap_or_default();
+            let interface = TerminationInterface::Published(TerminationGuarantee::Terminates {
+                premises: authored_premises(
+                    program,
+                    program.machine_contracts(machine),
+                    parameters,
+                )?,
+            });
             Ok((machine.symbol, interface))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     for machine in program.machines_mut().iter_mut().skip(machine_frontier) {
-        if let Some((_, interface)) = machine_updates
+        if let Some((_, interface)) = authored_updates
             .iter()
             .find(|(symbol, _)| *symbol == machine.symbol)
         {
             machine.termination_plan.interface = interface.clone();
+        }
+    }
+
+    let inherited_updates = program
+        .machines()
+        .iter()
+        .skip(machine_frontier)
+        .filter(|machine| {
+            !machine
+                .termination_plan
+                .interface
+                .published()
+                .is_some_and(TerminationGuarantee::promises_termination)
+        })
+        .map(|machine| Ok((machine.symbol, inherited_guarantee(program, machine)?)))
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    for machine in program.machines_mut().iter_mut().skip(machine_frontier) {
+        if let Some((_, Some(guarantee))) = inherited_updates
+            .iter()
+            .find(|(symbol, _)| *symbol == machine.symbol)
+        {
+            machine.termination_plan.interface = TerminationInterface::Published(guarantee.clone());
         }
     }
 
@@ -108,23 +129,34 @@ fn inherited_guarantee(
     machine: &typed::machine::Machine,
 ) -> Result<Option<TerminationGuarantee>, Diagnostic> {
     for conformance in program.machine_trait_conformances(machine) {
-        let trait_definition = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == conformance.symbol);
-        let Some(trait_definition) = trait_definition else {
+        let Some(declaration) =
+            typed::machine::resolve_satisfied_declaration(program, machine, conformance)
+        else {
             continue;
         };
-        let requirement = program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|requirement| requirement.symbol == conformance.requirement_symbol);
-        let Some(requirement) = requirement else {
-            continue;
+        let (mut guarantee, required_parameters, requirement_name) = match declaration {
+            typed::machine::SatisfiedDeclaration::Trait { requirement, .. } => (
+                requirement.termination_guarantee.clone(),
+                program.state_signature_parameters(requirement),
+                &requirement.name,
+            ),
+            typed::machine::SatisfiedDeclaration::TopLevelRequirement(requirement) => (
+                requirement
+                    .termination_plan
+                    .interface
+                    .published()
+                    .cloned()
+                    .unwrap_or(TerminationGuarantee::NoGuarantee),
+                program
+                    .machine_states(requirement)
+                    .first()
+                    .map(|state| program.state_parameters(state))
+                    .unwrap_or_default(),
+                &requirement.name,
+            ),
+            typed::machine::SatisfiedDeclaration::Operator(_) => continue,
         };
-        let mut guarantee = requirement.termination_guarantee.clone();
         if let TerminationGuarantee::Terminates { premises } = &mut guarantee {
-            let required_parameters = program.state_signature_parameters(requirement);
             let actual_parameters = program
                 .machine_states(machine)
                 .first()
@@ -137,7 +169,7 @@ fn inherited_guarantee(
                 else {
                     return Err(Diagnostic::error(format!(
                         "progress premise inherited by `{}` is not rooted in requirement `{}`'s parameter telescope",
-                        machine.name, requirement.name
+                        machine.name, requirement_name
                     )));
                 };
                 let Some(actual) = actual_parameters.get(index) else {

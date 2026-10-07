@@ -2140,7 +2140,9 @@ crash and native exit behavior.
     binds same-target calls.
   - The common lowering route retains runtime bodies and opaque contracts,
     including unreachable members and uncatalogued tags, in Terminal family
-    rows; inspection exposes tags and exact callable ids. Product pruning
+    rows; inspection exposes tags and exact callable ids. Semantic conformance
+    queries expose every member's obligations, including inherited progress;
+    selected provider derivation owns its realization scope. Product pruning
     preserves those roots. Typed provider-default programs have an explicit
     declaration purpose; final Build admission retains every target's effects.
     Entry and private-callback realization share one executable scope for

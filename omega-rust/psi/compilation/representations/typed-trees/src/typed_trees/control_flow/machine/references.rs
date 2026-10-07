@@ -20,10 +20,8 @@ impl TypedTrees {
             return;
         }
         self.retarget_contract_calls(machine.contracts, replacements);
-        // Walk declarations, not the selected conformance roster: ownership
-        // of an expression does not depend on whether this body is realized.
         let via_roots = self
-            .declared_machine_trait_conformances(machine)
+            .machine_trait_conformances(machine)
             .iter()
             .map(|conformance| conformance.via_expression)
             .collect::<Vec<_>>();

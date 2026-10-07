@@ -487,7 +487,7 @@ fn lower_machine_implementation(
     if conformances.len()
         != lowerer
             .typed_trees
-            .declared_machine_trait_conformances(typed_machine)
+            .machine_trait_conformances(typed_machine)
             .len()
     {
         return Err(Diagnostic::error(
@@ -601,7 +601,7 @@ pub(crate) fn settle_satisfied_declarations_from(
     for machine in program.machines().iter().skip(machine_frontier) {
         let exposure = machine_interface_exposure(machine);
         for (ordinal, conformance) in program
-            .declared_machine_trait_conformances(machine)
+            .machine_trait_conformances(machine)
             .iter()
             .enumerate()
         {
