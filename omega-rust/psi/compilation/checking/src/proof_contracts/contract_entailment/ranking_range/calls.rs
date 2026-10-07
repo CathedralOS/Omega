@@ -582,31 +582,10 @@ pub(crate) fn prove_ranking_range_call(
         RankingRangeMeasure::IncreasingTo { limit, .. } => Some(engine.normalize(limit)?),
         _ => None,
     };
-    let source_range = if caller.range.is_valid() {
-        let ExpressionNode::Range(range) = program.expression_table.expression(caller.range) else {
-            return None;
-        };
-        // The entry-spelled endpoint reads the site's already-established
-        // caller coordinates. Its non-polynomial terms retain those inputs;
-        // neither callee formals nor callee requirements are available yet.
-        for endpoint in [range.start, range.end] {
-            meanings::install_nonpolynomial_terms(
-                program,
-                caller.machine,
-                entry,
-                &mut engine,
-                endpoint,
-                0,
-            )?;
-        }
-        Some((
-            engine.normalize(range.start)?,
-            engine.normalize(range.end)?,
-            range.end_inclusive,
-        ))
-    } else {
-        None
-    };
+    // The entry-spelled endpoint reads the site's already-established
+    // caller coordinates; neither callee formals nor callee requirements are
+    // available yet.
+    let source_range = member_call_range(program, &caller, entry, &mut engine)?;
     if !at_entry && let Some((floor, ceiling, inclusive)) = &source_range {
         // A subordinate site holds the member's own authored range on
         // arrival. Entry facts stop at the entry state, but the range is the
@@ -809,31 +788,10 @@ pub(crate) fn prove_ranking_range_call(
         | (None, RankingRangeMeasure::SliceLength(_)) => None,
         _ => return None,
     };
-    let destination_range = if callee.range.is_valid() {
-        let ExpressionNode::Range(range) = program.expression_table.expression(callee.range) else {
-            return None;
-        };
-        // Meaning belongs to the callee, but these formals and projections
-        // now denote the actuals installed by this call. Bind only now: an
-        // earlier occurrence binding would freeze the wrong namespace.
-        for endpoint in [range.start, range.end] {
-            meanings::install_nonpolynomial_terms(
-                program,
-                callee.machine,
-                destination,
-                &mut engine,
-                endpoint,
-                0,
-            )?;
-        }
-        Some((
-            engine.normalize(range.start)?,
-            engine.normalize(range.end)?,
-            range.end_inclusive,
-        ))
-    } else {
-        None
-    };
+    // Meaning belongs to the callee, but these formals and projections now
+    // denote the actuals installed by this call. Bind only now: an earlier
+    // occurrence binding would freeze the wrong namespace.
+    let destination_range = member_call_range(program, &callee, destination, &mut engine)?;
     engine.refresh_opaque_intervals();
     if engine.requires_unsatisfiable {
         return Some(RankingRangeCallProgress::Strict);
@@ -1676,4 +1634,29 @@ fn entry_scalar_parameter(
         return None;
     }
     Some(())
+}
+
+/// A call member's authored range read at one site: endpoint meanings are
+/// installed against the member machine's own coordinates, then normalized.
+/// `Some(None)` = no authored range; outer `None` = the range is unreadable.
+fn member_call_range(
+    program: &TypedTrees,
+    member: &RankingRangeCallMember<'_>,
+    state: &State,
+    engine: &mut Engine<'_>,
+) -> Option<Option<(Polynomial, Polynomial, bool)>> {
+    if !member.range.is_valid() {
+        return Some(None);
+    }
+    let ExpressionNode::Range(range) = program.expression_table.expression(member.range) else {
+        return None;
+    };
+    for endpoint in [range.start, range.end] {
+        meanings::install_nonpolynomial_terms(program, member.machine, state, engine, endpoint, 0)?;
+    }
+    Some(Some((
+        engine.normalize(range.start)?,
+        engine.normalize(range.end)?,
+        range.end_inclusive,
+    )))
 }
