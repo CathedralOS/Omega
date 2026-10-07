@@ -83,7 +83,7 @@ fn encode_candidate_features(encoded: &mut Vec<u8>, features: &ExternalCandidate
     }
 }
 
-fn encode_context(encoded: &mut Vec<u8>, context: ExternalDecisionContext) {
+pub(super) fn encode_context(encoded: &mut Vec<u8>, context: ExternalDecisionContext) {
     encoded.extend_from_slice(&context.schema.bytes());
     encoded.extend_from_slice(&context.source.bytes());
     encoded.extend_from_slice(&context.selections.bytes());
@@ -93,7 +93,7 @@ fn encode_context(encoded: &mut Vec<u8>, context: ExternalDecisionContext) {
     encoded.extend_from_slice(&context.cost_model.bytes());
 }
 
-fn encode_action(encoded: &mut Vec<u8>, action: ExternalDecisionAction) {
+pub(super) fn encode_action(encoded: &mut Vec<u8>, action: ExternalDecisionAction) {
     match action {
         ExternalDecisionAction::Choose(candidate) => {
             encoded.push(1);

@@ -1,3 +1,5 @@
+use super::identity::{encode_action, encode_context};
+
 use crate::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationDecisionIdentity,
     OptimizationDecisionLogIdentity, OptimizationDecisionSchemaIdentity,
@@ -175,16 +177,6 @@ fn decode_candidate_features(
     ExternalCandidateFeatures::new(summary, consumed_analyses, consumed_facts)
 }
 
-fn encode_context(encoded: &mut Vec<u8>, context: ExternalDecisionContext) {
-    encoded.extend_from_slice(&context.schema.bytes());
-    encoded.extend_from_slice(&context.source.bytes());
-    encoded.extend_from_slice(&context.selections.bytes());
-    encoded.extend_from_slice(&context.phase_selections.bytes());
-    encoded.extend_from_slice(&context.target.bytes());
-    encoded.extend_from_slice(&context.rule_set.bytes());
-    encoded.extend_from_slice(&context.cost_model.bytes());
-}
-
 fn decode_context(
     cursor: &mut Cursor<'_>,
 ) -> Result<ExternalDecisionContext, ExternalDecisionSchemaError> {
@@ -197,19 +189,6 @@ fn decode_context(
         OptimizationRuleSetIdentity::from_bytes(cursor.array()?),
         TargetCostModelIdentity::from_bytes(cursor.array()?),
     ))
-}
-
-fn encode_action(encoded: &mut Vec<u8>, action: ExternalDecisionAction) {
-    match action {
-        ExternalDecisionAction::Choose(candidate) => {
-            encoded.push(1);
-            encoded.extend_from_slice(&candidate.bytes());
-        }
-        ExternalDecisionAction::Skip(reason) => {
-            encoded.push(2);
-            encoded.push(reason as u8);
-        }
-    }
 }
 
 fn decode_action(
