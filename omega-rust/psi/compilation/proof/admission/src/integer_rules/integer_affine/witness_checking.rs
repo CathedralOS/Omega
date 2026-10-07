@@ -2,6 +2,7 @@
 //! chain, replaying each correlated definition, and landing literals.
 
 use crate::integer_rules::integer_affine::bound_mapping::direct_math_leaf;
+use crate::term_matchers::*;
 use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType,
@@ -562,66 +563,6 @@ fn apply_policy_expression_target(
             })
             .ok_or(IntegerAffineWitnessError::CoefficientOverflow),
     )
-}
-
-/// A term-variant destructure for the shared checker and inverse bodies —
-/// each arithmetic term carries the same `{scalar_type, left, right}` shape,
-/// so a matcher is the only per-variant surface a shared body needs.
-type TermMatcher = fn(&ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)>;
-
-fn exact_integer_add(term: &ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)> {
-    match term {
-        ScalarTerm::ExactIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        } => Some((scalar_type, left, right)),
-        _ => None,
-    }
-}
-
-fn wrapping_integer_add(term: &ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)> {
-    match term {
-        ScalarTerm::WrappingIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        } => Some((scalar_type, left, right)),
-        _ => None,
-    }
-}
-
-fn exact_integer_subtract(term: &ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)> {
-    match term {
-        ScalarTerm::ExactIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-        } => Some((scalar_type, left, right)),
-        _ => None,
-    }
-}
-
-fn exact_integer_multiply(term: &ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)> {
-    match term {
-        ScalarTerm::ExactIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-        } => Some((scalar_type, left, right)),
-        _ => None,
-    }
-}
-
-fn exact_integer_divide(term: &ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)> {
-    match term {
-        ScalarTerm::ExactIntegerDivide {
-            scalar_type,
-            left,
-            right,
-        } => Some((scalar_type, left, right)),
-        _ => None,
-    }
 }
 
 fn signed_literal(

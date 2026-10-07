@@ -36,6 +36,7 @@ use semantic_vocabulary::{
 
 use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
 use super::binary_numerals;
+use super::denotation::{ExactDefinitionBoundTarget, exact_definition_bound_target};
 use super::{
     BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
     affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
@@ -278,8 +279,7 @@ impl Denotation {
         if sum_value.is_some() {
             return Ok(None);
         }
-        let Some((difference, equality)) =
-            affine_witness_root_expression(witness, definitions)
+        let Some((difference, equality)) = affine_witness_root_expression(witness, definitions)
         else {
             return Ok(None);
         };
@@ -311,7 +311,12 @@ impl Denotation {
         let endpoint_term = self.fixed_scalar_term(endpoint)?;
         let difference_term = self.fixed_scalar_term(difference)?;
         let Some(stepped) = self.affine_root_equality_step(
-            lower, witness, left_term, difference_term, equality, evidence,
+            lower,
+            witness,
+            left_term,
+            difference_term,
+            equality,
+            evidence,
         )?
         else {
             return Ok(None);
@@ -541,42 +546,22 @@ impl Denotation {
         definition_evidence: TermHandle,
         conclusion: &Proposition,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let Proposition::LessOrEqual(conclusion_left, conclusion_right) = conclusion else {
-            return Ok(None);
-        };
-        let (literal, output, lower) = if conclusion_left.integer_value().is_some() {
-            (conclusion_left, conclusion_right, true)
-        } else if conclusion_right.integer_value().is_some() {
-            (conclusion_right, conclusion_left, false)
-        } else {
-            return Ok(None);
-        };
-        let (defined_output, expression) = match definition {
-            Proposition::Equal(first, second) => match (first, second) {
-                (output @ ScalarTerm::Value { .. }, ScalarTerm::ExactIntegerAdd { .. }) => {
-                    (output, second)
-                }
-                (ScalarTerm::ExactIntegerAdd { .. }, output @ ScalarTerm::Value { .. }) => {
-                    (output, first)
-                }
-                _ => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let ScalarTerm::ExactIntegerAdd {
+        let Some(ExactDefinitionBoundTarget {
+            literal,
+            output,
+            lower,
             scalar_type,
+            expression,
             left,
             right,
-        } = expression
+        }) = exact_definition_bound_target(
+            conclusion,
+            definition,
+            crate::term_matchers::exact_integer_add,
+        )
         else {
             return Ok(None);
         };
-        if scalar_type.carrier() != IntegerCarrier::Fixed
-            || defined_output != output
-            || output.scalar_type() != ScalarType::Integer(*scalar_type)
-        {
-            return Ok(None);
-        }
         let Some((left_endpoint, left_order)) =
             self.add_bound_endpoint(left, left_bound, left_evidence, lower, scalar_type)?
         else {

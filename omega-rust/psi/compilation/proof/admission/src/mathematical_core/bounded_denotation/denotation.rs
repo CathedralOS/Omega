@@ -1,4 +1,5 @@
 use super::*;
+use crate::term_matchers::TermMatcher;
 
 /// Proposition and scalar-term denotation state: the arena the judgment's
 /// terms live in, the declaration signature every constant names, and the
@@ -97,6 +98,64 @@ pub(super) struct Denotation {
     /// Proposition → denoted term cache; denotation is deterministic, so
     /// the same proposition always denotes to the same handle.
     pub(super) denotations: BTreeMap<Proposition, TermHandle>,
+}
+
+/// The shared front of an exact-add/subtract definition-bound check: the
+/// conclusion is a `LessOrEqual` over one literal and the defined output,
+/// and the cited definition equates that output with the matched arithmetic
+/// term. The rows differ only in the term variant, so one matcher-parameterized
+/// pass extracts the literal side, the bound direction and the operands.
+pub(super) struct ExactDefinitionBoundTarget<'a> {
+    pub(super) literal: &'a ScalarTerm,
+    pub(super) output: &'a ScalarTerm,
+    pub(super) lower: bool,
+    pub(super) scalar_type: &'a IntegerType,
+    pub(super) expression: &'a ScalarTerm,
+    pub(super) left: &'a ScalarTerm,
+    pub(super) right: &'a ScalarTerm,
+}
+
+pub(super) fn exact_definition_bound_target<'a>(
+    conclusion: &'a Proposition,
+    definition: &'a Proposition,
+    matcher: TermMatcher,
+) -> Option<ExactDefinitionBoundTarget<'a>> {
+    let Proposition::LessOrEqual(conclusion_left, conclusion_right) = conclusion else {
+        return None;
+    };
+    let (literal, output, lower) = if conclusion_left.integer_value().is_some() {
+        (conclusion_left, conclusion_right, true)
+    } else if conclusion_right.integer_value().is_some() {
+        (conclusion_right, conclusion_left, false)
+    } else {
+        return None;
+    };
+    let (defined_output, expression) = match definition {
+        Proposition::Equal(first, second) => match (first, second) {
+            (output @ ScalarTerm::Value { .. }, term) if matcher(term).is_some() => {
+                (output, second)
+            }
+            (term, output @ ScalarTerm::Value { .. }) if matcher(term).is_some() => (output, first),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let (scalar_type, left, right) = matcher(expression)?;
+    if scalar_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
+        || defined_output != output
+        || output.scalar_type() != ScalarType::Integer(*scalar_type)
+    {
+        return None;
+    }
+    Some(ExactDefinitionBoundTarget {
+        literal,
+        output,
+        lower,
+        scalar_type,
+        expression,
+        left,
+        right,
+    })
 }
 
 impl Denotation {

@@ -32,6 +32,7 @@ mod kernel;
 mod mathematical_core;
 mod predicate_denotation;
 mod proof;
+mod term_matchers;
 
 pub use admission::evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionEvidence, AdmissionKind, AuthorizedAdmission,
