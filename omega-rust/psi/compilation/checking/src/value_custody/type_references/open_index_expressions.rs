@@ -6,6 +6,7 @@ use std::fmt;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn validate_indexed_domain_arguments(
@@ -81,6 +82,32 @@ pub(crate) fn validate_indexed_qualification_arguments(
 /// compatibility checking consumes it. The bound's trait argument at the
 /// requirement's operand parameter position names the index type the
 /// operation is licensed for.
+/// Const-typed domain parameters' `(expression, expected)` sites zipped from
+/// one argument row — deduped by expression.
+fn collect_domain_const_sites<'a>(
+    program: &TypedTrees,
+    parameters: &[typed_trees::data::TypeParameter],
+    arguments: impl Iterator<Item = &'a TypeReferenceHandle>,
+    sites: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
+) {
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let TypeParameterKind::Const {
+            type_reference: expected,
+        } = parameter.kind
+        else {
+            continue;
+        };
+        let TypeReferenceNode::ConstExpression(expression) =
+            program.type_reference_table.type_reference(*argument)
+        else {
+            continue;
+        };
+        if !sites.iter().any(|(existing, _)| *existing == *expression) {
+            sites.push((*expression, expected));
+        }
+    }
+}
+
 pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut sites = Vec::new();
     for (_, _, constraints) in program
@@ -99,22 +126,7 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
                 continue;
             };
             let parameters = typed_trees::domain::index_parameters(program, definition);
-            for (parameter, argument) in parameters.iter().zip(&constraint.arguments) {
-                let TypeParameterKind::Const {
-                    type_reference: expected,
-                } = parameter.kind
-                else {
-                    continue;
-                };
-                let TypeReferenceNode::ConstExpression(expression) =
-                    program.type_reference_table.type_reference(*argument)
-                else {
-                    continue;
-                };
-                if !sites.iter().any(|(existing, _)| *existing == *expression) {
-                    sites.push((*expression, expected));
-                }
-            }
+            collect_domain_const_sites(program, parameters, constraint.arguments.iter(), &mut sites);
         }
     }
     let indexed_qualification_sites = program
@@ -137,26 +149,15 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
             continue;
         };
         let parameters = typed_trees::domain::index_parameters(program, definition);
-        for (parameter, argument) in parameters.iter().zip(
+        collect_domain_const_sites(
+            program,
+            parameters,
             program
                 .type_reference_table
-                .type_reference_handles(arguments),
-        ) {
-            let TypeParameterKind::Const {
-                type_reference: expected,
-            } = parameter.kind
-            else {
-                continue;
-            };
-            let TypeReferenceNode::ConstExpression(expression) =
-                program.type_reference_table.type_reference(*argument)
-            else {
-                continue;
-            };
-            if !sites.iter().any(|(existing, _)| *existing == *expression) {
-                sites.push((*expression, expected));
-            }
-        }
+                .type_reference_handles(arguments)
+                .iter(),
+            &mut sites,
+        );
     }
 
     let binder_owners = const_binder_owners(program);
