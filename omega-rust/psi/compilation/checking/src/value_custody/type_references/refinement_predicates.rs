@@ -17,10 +17,13 @@ pub fn scalar_type_refinement_predicates(
 }
 
 /// A scalar result can use the ordinary value-return route when every
-/// refinement has a complete predicate meaning and no semantic atom needs
-/// separate result custody. This describes the contract; returning paths
-/// still owe every predicate. In particular, finite floats and scalar ranges
-/// share the same decoder that normal-return guarantee emission consumes.
+/// refinement has a complete predicate meaning and every semantic atom is a
+/// signature tag, which the qualified Terminal result carries (see
+/// [`crate::scalar_type_signature_tags`]); any other atom needs separate
+/// result custody.
+/// This describes the contract; returning paths still owe every predicate.
+/// In particular, finite floats and scalar ranges share the same decoder that
+/// normal-return guarantee emission consumes.
 pub fn scalar_result_contract_is_represented(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -36,12 +39,20 @@ pub fn scalar_result_contract_is_represented(
             primitive_type,
         },
     )
-    .is_some_and(|refinements| !refinements.has_semantic_atoms)
+    .is_some_and(|refinements| {
+        let tags = crate::scalar_type_signature_tags(program, reference);
+        refinements
+            .semantic_atoms
+            .iter()
+            .all(|atom| tags.contains(atom))
+    })
 }
 
 struct ScalarTypeRefinements {
     predicates: Vec<CheckedBooleanExpression>,
-    has_semantic_atoms: bool,
+    /// Declared domains without a predicate or interval meaning, as
+    /// `(declaration, semantic identity)`.
+    semantic_atoms: Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
 }
 
 fn scalar_type_refinements(
@@ -56,7 +67,7 @@ fn scalar_type_refinements(
     let mut current = reference;
     let mut active = Vec::new();
     let mut predicates = Vec::new();
-    let mut has_semantic_atoms = false;
+    let mut semantic_atoms = Vec::new();
     loop {
         if !program
             .type_reference_table
@@ -71,7 +82,7 @@ fn scalar_type_refinements(
             TypeReferenceNode::Named { .. } | TypeReferenceNode::DynamicTrait { .. } => {
                 return Some(ScalarTypeRefinements {
                     predicates,
-                    has_semantic_atoms,
+                    semantic_atoms,
                 });
             }
             TypeReferenceNode::Constrained {
@@ -96,7 +107,7 @@ fn scalar_type_refinements(
                         } else if domain.predicate_body.is_present() {
                             return None;
                         } else {
-                            has_semantic_atoms = true;
+                            semantic_atoms.push((domain.symbol, domain.semantic_id));
                             continue;
                         }
                     }

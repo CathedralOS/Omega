@@ -32,6 +32,9 @@ impl PreparedScalarQualifications {
     /// cross a call through this namespace (the scalar callees); `bodies`
     /// are every machine whose retained computations resolve qualified
     /// values against it (the scalar callees and the closure's Unit bodies).
+    /// A Unit body's scalar parameter or result joins the namespace only when
+    /// it carries a scalar tag: that tag is the one semantic atom its
+    /// signature declares (see [`Self::signature_value_type`]).
     pub(crate) fn prepare(
         checked: &CheckedTrees,
         signatures: &[SymbolHandle],
@@ -61,6 +64,25 @@ impl PreparedScalarQualifications {
                 {
                     references.push(state.return_type);
                 }
+            }
+        }
+        for symbol in bodies.iter().filter(|symbol| !signatures.contains(symbol)) {
+            let machine = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == *symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar qualification closure lost a machine",
+                ))?;
+            for state in checked.machine_states(machine) {
+                references.extend(
+                    checked
+                        .state_parameters(state)
+                        .iter()
+                        .map(|parameter| parameter.type_reference)
+                        .chain([state.return_type])
+                        .filter(|reference| carries_scalar_tags(checked, *reference)),
+                );
             }
         }
         let plans = &checked.facts.values.scalar_computations;
@@ -190,6 +212,31 @@ impl PreparedScalarQualifications {
 
     pub(crate) fn catalog(&self) -> &ScalarQualificationCatalog {
         &self.catalog
+    }
+
+    /// The declared type of a Unit body's scalar parameter or result. Unit
+    /// planning admits a semantic atom on such a slot only when it is a
+    /// scalar tag, which this qualified signature carries in place of a
+    /// predicate; a slot without tags is a bare carrier, and its other
+    /// refinements stay with their predicate owners.
+    pub(crate) fn signature_value_type(
+        &self,
+        checked: &CheckedTrees,
+        reference: TypeReferenceHandle,
+    ) -> Result<QualifiedScalarType, LoweringError> {
+        if carries_scalar_tags(checked, reference) {
+            return self.value_type(checked, reference);
+        }
+        let primitive =
+            checked
+                .primitive_type_reference(reference)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit scalar signature slot is not a primitive scalar",
+                ))?;
+        Ok(QualifiedScalarType {
+            scalar_type: terminal_scalar_type(primitive)?,
+            qualifications: ScalarQualificationSetId::ZERO,
+        })
     }
 
     pub(crate) fn value_type(
@@ -350,6 +397,13 @@ fn scalar_domain_establishment_routes(
     routes.sort();
     routes.dedup();
     Ok(routes)
+}
+
+/// Whether a primitive scalar slot carries an argument-free scalar tag its
+/// Terminal signature must declare (`validation::scalar_type_signature_tags`).
+fn carries_scalar_tags(checked: &CheckedTrees, reference: TypeReferenceHandle) -> bool {
+    checked.primitive_type_reference(reference).is_some()
+        && !validation::scalar_type_signature_tags(&checked.typed, reference).is_empty()
 }
 
 pub(crate) fn type_atoms(

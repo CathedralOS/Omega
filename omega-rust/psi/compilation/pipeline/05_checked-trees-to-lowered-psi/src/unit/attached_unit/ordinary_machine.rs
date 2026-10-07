@@ -511,7 +511,13 @@ pub(super) fn emit(
             })
         {
             TerminalMachineResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
+                qualifications: super::parameters::unit_scalar_result_type(
+                    checked,
+                    plan.state,
+                    terminal_scalar_type(primitive_type)?,
+                    prepared_scalar_qualifications,
+                )?
+                .qualifications,
                 id: value_id(allocate_dense(&mut next_value_identity)?),
                 scalar_type: terminal_scalar_type(primitive_type)?,
             })
@@ -676,7 +682,13 @@ pub(super) fn emit(
                 Ok::<_, LoweringError>((
                     source.id,
                     ValueDeclaration {
-                        qualifications: Default::default(),
+                        qualifications: super::parameters::unit_scalar_result_type(
+                            checked,
+                            plan.state,
+                            scalar_type,
+                            prepared_scalar_qualifications,
+                        )?
+                        .qualifications,
                         id: value_id(allocate_dense(&mut next_value_identity)?),
                         scalar_type,
                     },
@@ -687,7 +699,13 @@ pub(super) fn emit(
             scalar_return = Some((
                 source.id,
                 ValueDeclaration {
-                    qualifications: Default::default(),
+                    qualifications: super::parameters::unit_scalar_result_type(
+                        checked,
+                        plan.state,
+                        source.scalar_type,
+                        prepared_scalar_qualifications,
+                    )?
+                    .qualifications,
                     id: value_id(allocate_dense(&mut next_value_identity)?),
                     scalar_type: source.scalar_type,
                 },

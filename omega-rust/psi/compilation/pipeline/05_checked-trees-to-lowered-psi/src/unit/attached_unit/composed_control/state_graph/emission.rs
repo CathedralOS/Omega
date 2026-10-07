@@ -9,7 +9,7 @@ use super::super::super::{
     Block, MachineContract, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine,
     Terminator, ValueDeclaration, allocate_dense, contract_id, edge_id, lookup_claim_id,
     lookup_type_id, lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling,
-    lower_unit_parameters, obligation_id, terminal_scalar_type, unsupported, value_id,
+    lower_unit_parameters, obligation_id, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{AdmittedGraph, CheckedComposedUnitControlMachinePlan, ranking, returns, successors};
@@ -103,6 +103,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         })
         .collect::<Vec<_>>();
     let machine_result = returns::result(
+        checked,
+        plan.states[0].state,
         &plan.result,
         &plan.result_reference_sources,
         &parameters,
@@ -333,17 +335,17 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             );
             state_views.push(block_parameters);
             state_values.push(
-                state
-                    .scalar_parameters
-                    .iter()
-                    .map(|parameter| {
-                        Ok(ValueDeclaration {
-                            qualifications: Default::default(),
-                            id: value_id(allocate_dense(&mut catalogs.next_value)?),
-                            scalar_type: terminal_scalar_type(parameter.primitive_type)?,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, LoweringError>>()?,
+                crate::unit::attached_unit::parameters::lower_unit_scalar_parameter_declarations(
+                    checked,
+                    state.state,
+                    &state.scalar_parameters,
+                    catalogs
+                        .prepared_scalar_qualifications
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph state formals have no qualification namespace",
+                        ))?,
+                    &mut catalogs.next_value,
+                )?,
             );
             state_erased.push(
                 crate::scalar_graph::scalar_contracts::erased_formal_declarations(

@@ -69,6 +69,26 @@ pub fn scalar_type_tags(
     })
 }
 
+/// The scalar tags a Unit body's Terminal signature carries: argument-free
+/// tags only. Admitting a tag applied to arguments (`Indexed<A + B>`) made a
+/// Unit call site's operand types disagree with the callee's signature
+/// (`pass/generics/open_computed_quantity_result`), so such machines keep
+/// their scalar graph until that call-site typing is diagnosed.
+pub fn scalar_type_signature_tags(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
+    constrained_scalar_domains(program, reference, |program, domain, primitive| {
+        domain.subject == DomainConstraintSubject::Declared
+            && domain.arguments.is_empty()
+            && program.domain_definitions().iter().any(|declaration| {
+                declaration.symbol == domain.symbol
+                    && exact_instance(program, declaration, &domain.arguments, domain.semantic_id)
+                    && vacuous_scalar_tag(program, declaration, primitive, &mut Vec::new())
+            })
+    })
+}
+
 pub fn scalar_state_contracts_are_qualifications(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,

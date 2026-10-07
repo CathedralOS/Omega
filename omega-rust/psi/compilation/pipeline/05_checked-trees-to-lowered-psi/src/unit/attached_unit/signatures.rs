@@ -6,7 +6,11 @@
 use super::admission::AdmittedBody;
 use super::claims::{LoweredUnitClaims, lower_unit_entry_claims};
 use super::ordinary_calls;
-use super::parameters::{lower_unit_parameters, lower_unit_scalar_parameter_types};
+use super::parameters::{
+    lower_unit_parameters, lower_unit_scalar_parameter_declarations,
+    lower_unit_scalar_parameter_types,
+};
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::StructuralDomainBinding;
@@ -74,6 +78,7 @@ pub(super) fn find(
 pub(super) fn lower(
     checked: &CheckedTrees,
     bodies: &[AdmittedBody<'_>],
+    qualifications: &PreparedScalarQualifications,
     type_ids: &[(String, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
     structural_types: &[StructuralTypeDeclaration],
@@ -104,16 +109,13 @@ pub(super) fn lower(
             domain_ids,
             next_place,
         )?;
-        let scalar_parameters = lower_unit_scalar_parameter_types(plan.scalar_parameters)?
-            .into_iter()
-            .map(|scalar_type| {
-                Ok(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: value_id(allocate_dense(next_value)?),
-                    scalar_type,
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let scalar_parameters = lower_unit_scalar_parameter_declarations(
+            checked,
+            plan.state,
+            plan.scalar_parameters,
+            qualifications,
+            next_value,
+        )?;
         let erased_scalar_parameters =
             lower_unit_scalar_parameter_types(plan.erased_scalar_parameters)?
                 .into_iter()

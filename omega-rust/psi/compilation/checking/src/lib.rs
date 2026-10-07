@@ -48,7 +48,7 @@ pub use proof_contracts::contract_results::{
 pub use proof_contracts::domains::{
     scalar_field_domain_predicate, scalar_field_restriction, scalar_interval_domains,
     scalar_membership_carrier, scalar_membership_predicates,
-    scalar_state_contracts_are_qualifications, scalar_type_tags,
+    scalar_state_contracts_are_qualifications, scalar_type_signature_tags, scalar_type_tags,
 };
 pub use proof_contracts::parameter_domains::{
     parameter_domain_constraints, parameter_domain_constraints_with_substitutions,

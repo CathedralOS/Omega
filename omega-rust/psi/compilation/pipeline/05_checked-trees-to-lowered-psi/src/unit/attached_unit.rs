@@ -317,10 +317,28 @@ pub(crate) fn lower_unit_closure(
         &service_ids,
         &mut next_place,
     )?;
+    // One scalar qualification namespace for every machine the closure
+    // emits; Unit signatures and scalar callees both declare against it.
+    let scalar_sources = checked_scalar_callees
+        .iter()
+        .map(CheckedScalarCallee::source_machine)
+        .collect::<Vec<_>>();
+    let qualified_bodies = closure
+        .iter()
+        .chain(&scalar_sources)
+        .copied()
+        .collect::<Vec<_>>();
+    let qualifications =
+        crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
+            checked,
+            &scalar_sources,
+            &qualified_bodies,
+        )?;
     let mut next_value = 1_u64;
     let machine_signatures = signatures::lower(
         checked,
         &admitted_bodies,
+        &qualifications,
         &type_ids,
         &domain_ids,
         &structural_types,
@@ -358,7 +376,7 @@ pub(crate) fn lower_unit_closure(
         } else {
             symbols::SymbolHandle::default()
         },
-        &closure,
+        qualifications,
         checked_scalar_callees,
         &type_ids,
         &domain_ids,

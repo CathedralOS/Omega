@@ -376,6 +376,58 @@ pub(crate) fn lower_boundary_parameter_order(
     Ok(order)
 }
 
+/// Declare one Unit state's scalar formals: each takes its authored type,
+/// tags included, from the closure's qualification namespace and a fresh
+/// value identity.
+pub(crate) fn lower_unit_scalar_parameter_declarations(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+    qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
+    next_value: &mut u64,
+) -> Result<Vec<ValueDeclaration>, LoweringError> {
+    let carriers = lower_unit_scalar_parameter_types(parameters)?;
+    let (_, declaration) = crate::declarations::state_declaration(checked, state)?;
+    let authored = checked.state_parameters(declaration);
+    parameters
+        .iter()
+        .zip(carriers)
+        .map(|(parameter, carrier)| {
+            let authored = usize::try_from(parameter.source_position)
+                .ok()
+                .and_then(|position| authored.get(position))
+                .ok_or(LoweringError::Unsupported(
+                    "Unit scalar formal has no authored parameter",
+                ))?;
+            let declared = qualifications.signature_value_type(checked, authored.type_reference)?;
+            if declared.scalar_type != carrier {
+                return unsupported("Unit scalar formal has a different authored carrier");
+            }
+            Ok(ValueDeclaration {
+                qualifications: declared.qualifications,
+                id: crate::terminal_identities::value_id(allocate_dense(next_value)?),
+                scalar_type: carrier,
+            })
+        })
+        .collect()
+}
+
+/// The declared type of a Unit state's scalar result: its authored result
+/// type, tags included, from the closure's qualification namespace.
+pub(crate) fn unit_scalar_result_type(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    carrier: ScalarType,
+    qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
+) -> Result<semantic_vocabulary::QualifiedScalarType, LoweringError> {
+    let (_, declaration) = crate::declarations::state_declaration(checked, state)?;
+    let declared = qualifications.signature_value_type(checked, declaration.return_type)?;
+    if declared.scalar_type != carrier {
+        return unsupported("Unit scalar result has a different authored carrier");
+    }
+    Ok(declared)
+}
+
 pub(crate) fn lower_unit_scalar_parameter_types(
     parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
 ) -> Result<Vec<ScalarType>, LoweringError> {

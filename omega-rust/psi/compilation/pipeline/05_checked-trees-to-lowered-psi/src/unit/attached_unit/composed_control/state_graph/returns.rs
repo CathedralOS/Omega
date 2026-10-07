@@ -318,6 +318,8 @@ pub(super) fn validate_structural(
 }
 
 pub(super) fn result(
+    checked: &CheckedTrees,
+    entry_state: symbols::SymbolHandle,
     plan: &CheckedControlResultPlan,
     reference_sources: &[checked_trees::CheckedReferenceResultSourcePlan],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
@@ -327,10 +329,20 @@ pub(super) fn result(
     let result = match plan {
         CheckedControlResultPlan::Unit => return Ok(TerminalMachineResult::Unit),
         CheckedControlResultPlan::Scalar { primitive_type } => {
+            let declared = crate::unit::attached_unit::parameters::unit_scalar_result_type(
+                checked,
+                entry_state,
+                terminal_scalar_type(*primitive_type)?,
+                catalogs
+                    .prepared_scalar_qualifications
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph scalar result has no qualification namespace",
+                    ))?,
+            )?;
             return Ok(TerminalMachineResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
+                qualifications: declared.qualifications,
                 id: value_id(allocate_dense(&mut catalogs.next_value)?),
-                scalar_type: terminal_scalar_type(*primitive_type)?,
+                scalar_type: declared.scalar_type,
             }));
         }
         CheckedControlResultPlan::Structural(result) => result,

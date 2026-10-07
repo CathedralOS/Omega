@@ -102,31 +102,17 @@ pub(super) struct PreparedScalarCallees {
 
 /// Allocate each graph callee's structural parameters, then its primitive
 /// locals, from the closure's place namespace, and prepare every callee
-/// against them. The qualification namespace covers every computation the
-/// closure emits: a qualified value in a Unit body resolves against the same
-/// catalog as one in a scalar callee. Only scalar callees contribute their
-/// signatures, because only their scalar parameters and results cross a call
-/// as qualified scalars.
+/// against them and the closure's one qualification namespace.
 pub(super) fn prepare<'checked>(
     checked: &'checked CheckedTrees,
     direct_result: symbols::SymbolHandle,
-    unit_bodies: &[symbols::SymbolHandle],
+    qualifications: PreparedScalarQualifications,
     callees: Vec<CheckedScalarCallee<'checked>>,
     type_ids: &[(String, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<PreparedScalarCallees, LoweringError> {
-    let sources = callees
-        .iter()
-        .map(CheckedScalarCallee::source_machine)
-        .collect::<Vec<_>>();
-    let bodies = unit_bodies
-        .iter()
-        .copied()
-        .chain(sources.iter().copied())
-        .collect::<Vec<_>>();
-    let qualifications = PreparedScalarQualifications::prepare(checked, &sources, &bodies)?;
     let allocated = callees
         .iter()
         .map(|callee| {

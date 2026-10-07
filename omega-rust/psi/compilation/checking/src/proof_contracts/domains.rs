@@ -5,7 +5,8 @@ pub use runtime_predicates::{
 };
 mod scalar_tags;
 pub use scalar_tags::{
-    scalar_interval_domains, scalar_state_contracts_are_qualifications, scalar_type_tags,
+    scalar_interval_domains, scalar_state_contracts_are_qualifications, scalar_type_signature_tags,
+    scalar_type_tags,
 };
 
 use crate::declarations::symbols::TopLevelSymbols;

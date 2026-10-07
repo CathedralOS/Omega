@@ -133,6 +133,7 @@ pub fn structural_state_contract_scalar_predicates(
                 expected.extend(
                     crate::scalar_interval_domains(program, reference)
                         .into_iter()
+                        .chain(crate::scalar_type_signature_tags(program, reference))
                         .map(|(_, domain)| (parameter.symbol, domain.0)),
                 );
             }
@@ -184,14 +185,18 @@ pub fn structural_state_contract_scalar_predicates(
                         .find(|domain| domain.symbol == membership.domain_symbol)?;
                     actual.push((symbol, domain.semantic_id.0));
                     // A scalar parameter's interval membership is carried as its
-                    // closed interval; the qualification comparison below still
-                    // requires it to restate the declared type exactly.
+                    // closed interval; a scalar tag is carried by the qualified
+                    // Terminal signature itself and needs no row. The
+                    // qualification comparison below still requires either to
+                    // restate the declared type exactly.
                     if let Some(parameter) = program
                         .state_parameters(state)
                         .iter()
                         .find(|parameter| parameter.symbol == path.symbol)
                         && let Some(primitive) =
                             program.primitive_type_reference(parameter.type_reference)
+                        && !crate::scalar_type_signature_tags(program, parameter.type_reference)
+                            .contains(&(membership.domain_symbol, membership.semantic_domain))
                     {
                         let (minimum, maximum) = scalar_interval_bounds(
                             program,

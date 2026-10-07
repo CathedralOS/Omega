@@ -2578,14 +2578,19 @@ code and preserve check/native behavior for the named customer slices.
   the same body route as Unit machines and delete
   `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (18.6k lines) and
   the plan-presence matrix in `machine_lowering/machine_dispatch.rs`. Stage 04
-  now plans a Unit body for a graph-owned scalar machine, and
+  plans a Unit body for a graph-owned scalar machine, and
   `CheckedScalarCallee::find_for_unit_call` lowers that body whenever it
   exists; the graph is only the fallback. A census over the full checked
   corpus (2026-10-07) found 16,307 scalar callee lowerings through a Unit body
-  and 109 still through a graph, for three planning gaps:
-  - qualified scalar results and formals (`-> f64 in Measured`,
-    `value: f64 in Measured`): the sequence route's "result contract" check
-    and the state graph's "state signature: contract shape unadmitted";
+  and 109 through a graph. Unit bodies now carry argument-free scalar tags on
+  their formals and results; the census was not rerun after that. Known
+  remaining gaps:
+  - generic tags (`i64 in Indexed<A + B>`, in
+    `pass/generics/open_computed_quantity_result`): admitting them refused
+    that fixture with "completed call scalar operands disagree with the
+    target signature", so `scalar_type_signature_tags` excludes them. The
+    graph resolves the same formals through `scalar_state_types`; where the
+    Unit call site's operand types diverge is not yet diagnosed;
   - "state graph: natural ranks" (for example `Main::count` in
     `pass/calls/runtime_value_call_statement_recursive_walk_exit`): a machine
     with an implementation witness and no proven natural ranks;
@@ -2596,9 +2601,26 @@ code and preserve check/native behavior for the named customer slices.
   Also account for continuation-arm custody
   (`CheckedStructuralControlSuccessorPlan` lacks continuation identity),
   later-state mutable scalar stores, crash predicates, float prefix
-  initializers and debug maps. The scalar computation and contract helpers in
-  `scalar_graph/` that Unit bodies call (`scalar_computations`,
-  `scalar_contracts`) move to a shared owner rather than being deleted.
+  initializers and debug maps. Map of stage 05 (2026-10-07): `call_catalog`
+  already moves every Unit-bodied scalar callee into the Unit closure, so
+  `scalar_callees.rs` and `PreparedScalarCallee` serve graph callees only.
+  Graph-only code is 18 files, 7,070 lines: `scalar_graph_lowering/`
+  `graph_preparation`, `bindings`, `field_stores`, `branch_destinations`,
+  `contract_lowering`, `cycles`, `graph_validation`, `known_evaluation`,
+  `state_contracts`, `primitive_locals`, `scalar_computations/erased_scope`,
+  and `scalar_graph_module` with its submodules. The rest is shared with Unit
+  bodies and moves to a shared owner: `scalar_computations` (`Expansion`),
+  `scalar_contracts` (proof terms, clauses, erased formals),
+  `prepared_graph`'s branch and effect types, `guards`, `structural_values`,
+  `unit_operations`, `scalar_graph_effects`, and the qualification emitter.
+  Graph presence, rather than callee kind, still decides
+  `machine_dispatch.rs`, `caller_erased_proof_roster` and
+  `Caller::published` (they prefer the graph's erased-proof roster),
+  `proofs/float_meaning_projection.rs` and the scalar-result branch of
+  `proofs/evidence_lowering/proof_output_calls.rs` (both require a graph).
+  In stage 04, Unit planning reads the graph builder's `guarded_tails` and
+  `guarded_exits` (guard order, coverage and destinations), which need an
+  owner of their own before the graph roster can go.
 
   Acceptance: `machine_dispatch.rs` selects no route by plan presence; distinct
   exits returning 20 and 30 under `ensures result >= 20` still hold;
