@@ -1929,9 +1929,39 @@ pub fn nested_call_record_argument(
         return false;
     };
     !path.is_empty()
-        && !sources.is_empty()
+        && sources_replay_active_leaf_loans(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            call,
+            destination,
+            &sources,
+            |source| source.path.starts_with(path),
+        )
+}
+
+
+
+
+/// Every admitted returned leaf source replays through the call's exact
+/// actual to an active leaf loan at this statement.
+#[allow(clippy::too_many_arguments)]
+fn sources_replay_active_leaf_loans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    call: &typed_trees::expression::TableCallExpression,
+    destination: &typed_trees::state::State,
+    sources: &[checked_trees::CheckedReferenceResultSourcePlan],
+    admits: impl Fn(&checked_trees::CheckedReferenceResultSourcePlan) -> bool,
+) -> bool {
+    !sources.is_empty()
         && sources.iter().all(|source| {
-            source.path.starts_with(path)
+            admits(source)
                 && call_actual_leaf_loan(
                     program,
                     facts,
@@ -1954,8 +1984,6 @@ pub fn nested_call_record_argument(
                 })
         })
 }
-
-
 
 /// The call's reference-record destination state + its returned leaf
 /// sources — `None` when the call does not return a reference record.
@@ -1996,22 +2024,17 @@ pub fn nested_call_result_loans(
     let Some((destination, sources)) = reference_record_call_sources(program, call) else {
         return false;
     };
-    !sources.is_empty()
-        && sources.iter().all(|source| {
-            call_actual_leaf_loan(
-                program,
-                facts,
-                machine,
-                state,
-                statement_index,
-                call,
-                destination,
-                source,
-            )
-            .is_some_and(|loan| {
-                record_loan_is_active(program, facts, machine, state.symbol, statement_index, loan)
-            })
-        })
+    sources_replay_active_leaf_loans(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        call,
+        destination,
+        &sources,
+        |_| true,
+    )
 }
 
 /// A projected argument crosses the stored carrier only after its exact local
