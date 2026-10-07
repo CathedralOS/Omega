@@ -492,10 +492,24 @@ machine Lexer::lex_identifier(lexer: &mut Lexer) {
         transition { _ -> continue_scan(lexer) }
     }
 
+    // A word's spelling is its decoded bytes, so contextual words such as the
+    // `in` of a qualified type compare against `TokenStream::decoded`.
     state finish(lexer: &mut Lexer) {
         lexer.token_end = lexer.cursor;
+        lexer.copy_cursor = lexer.token_start;
+        lexer.copy_end = lexer.token_end;
+        Lexer::copy_source_to_decoded(lexer);
+        transition lexer.output.accepted {
+            true -> classify(lexer)
+            _ -> rejected()
+        }
+    }
+
+    state classify(lexer: &mut Lexer) {
         Lexer::classify_keyword(lexer);
     }
+
+    state rejected() {}
 }
 
 machine Lexer::lex_whitespace(lexer: &mut Lexer) {
