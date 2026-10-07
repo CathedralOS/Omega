@@ -191,7 +191,7 @@ pub use semantic_unit_wrapper_encoding::{
     X86_64SemanticUnitWrapperEncodingError, X86_64SemanticUnitWrapperEncodingPolicy,
     X86_64SemanticUnitWrapperEncodingRequest, X86_64SemanticUnitWrapperFootprint,
     X86_64SemanticUnitWrapperReceiverSlot, X86_64SemanticUnitWrapperRelocation,
-    X86_64SemanticUnitWrapperRelocationKind, X86_64SemanticUnitWrapperRelocationState,
+    X86_64SemanticUnitWrapperRelocationKind,
     X86_64SemanticUnitWrapperResolution, X86_64SemanticUnitWrapperResolutionError,
     X86_64SemanticUnitWrapperResolutionState, X86_64SemanticUnitWrapperTrapBehavior,
     canonical_x86_64_semantic_unit_wrapper_encoding_request,

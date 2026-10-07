@@ -9,6 +9,8 @@
 use calling_conventions::{MachineRegister, RegisterSet};
 use target::NativeTarget;
 
+use crate::X86_64ScalarCallFixupState;
+
 pub const X86_64_SEMANTIC_UNIT_WRAPPER_CALL_BUNDLE_BYTE_COUNT: usize = 89;
 pub const X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT: usize = 90;
 pub const X86_64_SEMANTIC_UNIT_WRAPPER_CALL_OPCODE_OFFSET: u16 = 80;
@@ -116,14 +118,9 @@ pub enum X86_64SemanticUnitWrapperRelocationKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64SemanticUnitWrapperRelocationState {
-    UnresolvedZeroFieldV1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct X86_64SemanticUnitWrapperRelocation {
     pub kind: X86_64SemanticUnitWrapperRelocationKind,
-    pub state: X86_64SemanticUnitWrapperRelocationState,
+    pub state: X86_64ScalarCallFixupState,
     pub opcode_function_byte_offset: u16,
     pub field_function_byte_offset: u16,
     pub next_instruction_function_byte_offset: u16,
@@ -650,7 +647,7 @@ fn expected_relocation(
     .unwrap_or(u16::MAX);
     X86_64SemanticUnitWrapperRelocation {
         kind: X86_64SemanticUnitWrapperRelocationKind::Relative32PrivateContinuationFromNextInstructionV1,
-        state: X86_64SemanticUnitWrapperRelocationState::UnresolvedZeroFieldV1,
+        state: X86_64ScalarCallFixupState::UnresolvedZeroFieldV1,
         opcode_function_byte_offset: opcode,
         field_function_byte_offset: opcode + 1,
         next_instruction_function_byte_offset: opcode + 5,
