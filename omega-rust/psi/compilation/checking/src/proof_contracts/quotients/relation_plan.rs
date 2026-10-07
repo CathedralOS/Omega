@@ -40,7 +40,24 @@ use precondition::{
     derive_define_precondition_correspondence, derive_direct_lift_public_precondition_partition,
     derive_public_precondition_partition, derive_representative_precondition_partition,
 };
-use precondition::{RepresentativeContractFactLocation, RepresentativeContractOwner};
+
+/// Which side of a state signature owns a contract slot — shared by the
+/// representative and theorem fact-location records.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ContractOwner {
+    Machine,
+    State,
+}
+
+/// A `(contract, fact)` position inside one owner's contract roster —
+/// shared by the representative and theorem fact-location records.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ContractFactLocation {
+    pub(super) owner: ContractOwner,
+    pub(super) contract_position: usize,
+    pub(super) fact_position: usize,
+}
+
 pub(super) use representative::pure_representative_effect;
 use representative::{
     RepresentativeTelescope, RepresentativeTermination, derive_representative_telescope,
@@ -925,8 +942,8 @@ pub(super) fn render_failed_builtin_implication(
 
 fn render_implication_coordinate_diagnostic(
     application: &str,
-    public_coordinates: &[RepresentativeContractFactLocation],
-    representative_coordinate: RepresentativeContractFactLocation,
+    public_coordinates: &[ContractFactLocation],
+    representative_coordinate: ContractFactLocation,
 ) -> String {
     let public_coordinates = public_coordinates
         .iter()
@@ -939,13 +956,10 @@ fn render_implication_coordinate_diagnostic(
     )
 }
 
-fn render_contract_coordinate(
-    scope: &str,
-    coordinate: RepresentativeContractFactLocation,
-) -> String {
+fn render_contract_coordinate(scope: &str, coordinate: ContractFactLocation) -> String {
     let owner = match coordinate.owner {
-        RepresentativeContractOwner::Machine => "machine-contract",
-        RepresentativeContractOwner::State => "state-contract",
+        ContractOwner::Machine => "machine-contract",
+        ContractOwner::State => "state-contract",
     };
     format!(
         "{scope}.{owner}[{}].fact[{}]",

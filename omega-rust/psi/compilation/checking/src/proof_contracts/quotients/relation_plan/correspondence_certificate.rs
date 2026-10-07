@@ -7,8 +7,8 @@
 //! membership/proposition implication or adapted-argument judgment.
 
 use super::precondition::{
-    DefinePreconditionCorrespondence, RepresentativeContractFactLocation,
-    RepresentativeContractOwner, RepresentativePreconditionPartition, precondition_fact_at,
+    ContractFactLocation, ContractOwner, DefinePreconditionCorrespondence,
+    RepresentativePreconditionPartition, precondition_fact_at,
 };
 use super::proof_fact_identity::{
     ProofFactIdentityContext, ProofValueSubstitution, proof_facts_match,
@@ -18,10 +18,7 @@ use super::runtime_correspondence::{
     DefineRuntimeCorrespondence, DirectLiftArgumentSource, DirectLiftRuntimeCorrespondence,
     DirectLiftRuntimePosition, landed_primitive,
 };
-use super::theorem_schema::{
-    ExpectedTheoremSchema, TheoremApplicationSide, TheoremContractFactLocation,
-    TheoremContractOwner,
-};
+use super::theorem_schema::{ExpectedTheoremSchema, TheoremApplicationSide};
 use super::theorem_schema_verification::VerifiedTheoremSchema;
 use super::transport_schema::VerifiedForwardPreconditionTransportSchema;
 use super::{PlannedQuotientTheoremEvidence, RelationPlanError, RepresentativeTelescope};
@@ -39,13 +36,13 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum DirectLiftPreconditionProof {
     ExactMatch {
-        public: RepresentativeContractFactLocation,
+        public: ContractFactLocation,
     },
     ArithmeticEntailment {
         /// Complete authored dependent-Q roster, in source contract order.
         /// The strict kernel consumes this exact list; it does not report a
         /// smaller opaque premise subset.
-        premises: Vec<RepresentativeContractFactLocation>,
+        premises: Vec<ContractFactLocation>,
     },
 }
 
@@ -53,8 +50,8 @@ pub(super) enum DirectLiftPreconditionProof {
 pub(super) struct DirectLiftPreconditionFactRow {
     pub(super) application: TheoremApplicationSide,
     pub(super) proof: DirectLiftPreconditionProof,
-    pub(super) representative: RepresentativeContractFactLocation,
-    pub(super) theorem: TheoremContractFactLocation,
+    pub(super) representative: ContractFactLocation,
+    pub(super) theorem: ContractFactLocation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,13 +62,13 @@ pub(in crate::proof_contracts::quotients) struct DirectLiftPreconditionImplicati
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum FixedRepresentativeCallProof {
     ExactMatch {
-        public: RepresentativeContractFactLocation,
+        public: ContractFactLocation,
     },
     ArithmeticEntailment {
         /// Complete authored fixed-Q roster, in source contract order. The
         /// strict kernel consumes this exact list and accepts only when every
         /// row is an integer expression inside its language.
-        premises: Vec<RepresentativeContractFactLocation>,
+        premises: Vec<ContractFactLocation>,
     },
 }
 
@@ -79,12 +76,12 @@ pub(super) enum FixedRepresentativeCallProof {
 pub(super) struct FixedRepresentativeCallFactRow {
     /// One proof discharges the one representative call performed at runtime.
     pub(super) proof: FixedRepresentativeCallProof,
-    pub(super) representative: RepresentativeContractFactLocation,
+    pub(super) representative: ContractFactLocation,
     /// The selected theorem independently retains the same legality fact for
     /// both hypothetical representative applications. Both coordinates are
     /// retained here so replay cannot collapse or substitute either side.
-    pub(super) theorem_left: TheoremContractFactLocation,
-    pub(super) theorem_right: TheoremContractFactLocation,
+    pub(super) theorem_left: ContractFactLocation,
+    pub(super) theorem_right: ContractFactLocation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,8 +126,8 @@ fn exact_public_precondition<'program>(
     representative: &RepresentativeTelescope,
     representative_values: &[ProofValueSubstitution],
     representative_fact: &ProofFact,
-    candidates: &[RepresentativeContractFactLocation],
-) -> Option<RepresentativeContractFactLocation> {
+    candidates: &[ContractFactLocation],
+) -> Option<ContractFactLocation> {
     candidates.iter().copied().find(|location| {
         precondition_fact_at(
             program,
@@ -260,7 +257,7 @@ fn public_expression_hypotheses(
     program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
-    locations: &[RepresentativeContractFactLocation],
+    locations: &[ContractFactLocation],
 ) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
     locations
         .iter()
@@ -665,8 +662,8 @@ fn verified_legality_coordinate(
     expected: &ExpectedTheoremSchema,
     verified: &VerifiedTheoremSchema,
     application: TheoremApplicationSide,
-    representative: RepresentativeContractFactLocation,
-) -> Option<TheoremContractFactLocation> {
+    representative: ContractFactLocation,
+) -> Option<ContractFactLocation> {
     let expected_position = expected.legality_premises.iter().position(|premise| {
         premise.application == application && premise.fact == theorem_location(representative)
     })?;
@@ -676,11 +673,11 @@ fn verified_legality_coordinate(
         .find_map(|fact| (fact.expected_position == expected_position).then_some(fact.actual))
 }
 
-fn theorem_location(location: RepresentativeContractFactLocation) -> TheoremContractFactLocation {
-    TheoremContractFactLocation {
+fn theorem_location(location: ContractFactLocation) -> ContractFactLocation {
+    ContractFactLocation {
         owner: match location.owner {
-            RepresentativeContractOwner::Machine => TheoremContractOwner::Machine,
-            RepresentativeContractOwner::State => TheoremContractOwner::State,
+            ContractOwner::Machine => ContractOwner::Machine,
+            ContractOwner::State => ContractOwner::State,
         },
         contract_position: location.contract_position,
         fact_position: location.fact_position,

@@ -9,16 +9,14 @@
 
 use super::correspondence_certificate::proof_value_substitutions;
 use super::precondition::{
-    RepresentativeContractFactLocation, RepresentativeContractOwner,
-    RepresentativePreconditionPartition, precondition_fact_at,
+    ContractFactLocation, ContractOwner, RepresentativePreconditionPartition, precondition_fact_at,
 };
 use super::proof_fact_identity::{
     ProofFactIdentityContext, ProofValueSubstitution, proof_facts_match,
 };
 use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
-    ExpectedTheoremSchema, TheoremApplicationSide, TheoremContractFactLocation,
-    collect_contract_facts,
+    ExpectedTheoremSchema, TheoremApplicationSide, collect_contract_facts,
 };
 use super::theorem_schema_verification::{VerifiedTheoremParameter, verify_parameters};
 use super::{DirectLiftRuntimeCorrespondence, RelationPlanError, RepresentativeTelescope};
@@ -29,8 +27,8 @@ use typed_trees::state::State;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct VerifiedTransportFact {
     pub(super) application: TheoremApplicationSide,
-    pub(super) source: RepresentativeContractFactLocation,
-    pub(super) actual: TheoremContractFactLocation,
+    pub(super) source: ContractFactLocation,
+    pub(super) actual: ContractFactLocation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -233,17 +231,15 @@ fn exact_theorem_state<'a>(
     Ok(state)
 }
 
-fn ordered_locations(
-    partition: &RepresentativePreconditionPartition,
-) -> Vec<RepresentativeContractFactLocation> {
+fn ordered_locations(partition: &RepresentativePreconditionPartition) -> Vec<ContractFactLocation> {
     let mut locations = Vec::with_capacity(partition.dependent.len() + partition.fixed.len());
     locations.extend_from_slice(&partition.dependent);
     locations.extend_from_slice(&partition.fixed);
     locations.sort_by_key(|location| {
         (
             match location.owner {
-                RepresentativeContractOwner::Machine => 0,
-                RepresentativeContractOwner::State => 1,
+                ContractOwner::Machine => 0,
+                ContractOwner::State => 1,
             },
             location.contract_position,
             location.fact_position,

@@ -12,6 +12,8 @@ use typed_trees::domain::ProofFact;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
+pub(super) use super::{ContractFactLocation, ContractOwner};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TheoremParameterRole {
     QuotientLeft,
@@ -38,22 +40,9 @@ pub(super) struct TheoremRelationPremise {
     pub(super) right_parameter: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum TheoremContractOwner {
-    Machine,
-    State,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct TheoremContractFactLocation {
-    pub(super) owner: TheoremContractOwner,
-    pub(super) contract_position: usize,
-    pub(super) fact_position: usize,
-}
-
 #[derive(Clone, Copy)]
 pub(super) struct LocatedFact<'a> {
-    pub(super) location: TheoremContractFactLocation,
+    pub(super) location: ContractFactLocation,
     pub(super) fact: &'a ProofFact,
 }
 
@@ -67,8 +56,8 @@ pub(super) fn collect_contract_facts<'a>(
     let mut requires = Vec::new();
     let mut ensures = Vec::new();
     for (owner, span) in [
-        (TheoremContractOwner::Machine, theorem.machine_contracts),
-        (TheoremContractOwner::State, theorem.state_contracts),
+        (ContractOwner::Machine, theorem.machine_contracts),
+        (ContractOwner::State, theorem.state_contracts),
     ] {
         for (contract_position, contract) in program
             .signature_contracts
@@ -94,7 +83,7 @@ pub(super) fn collect_contract_facts<'a>(
                 .enumerate()
             {
                 destination.push(LocatedFact {
-                    location: TheoremContractFactLocation {
+                    location: ContractFactLocation {
                         owner,
                         contract_position,
                         fact_position,
@@ -120,7 +109,7 @@ pub(super) struct TheoremLegalityPremise {
     /// `requires` substitution carrier. Stage 2 must consume these fields and
     /// must not reconstruct an application from a rendered formula.
     pub(super) application: TheoremApplicationSide,
-    pub(super) fact: TheoremContractFactLocation,
+    pub(super) fact: ContractFactLocation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -220,13 +209,13 @@ pub(super) fn derive_expected_theorem_schema(
     let mut legality_premises = Vec::new();
     for (owner, contracts) in [
         (
-            TheoremContractOwner::Machine,
+            ContractOwner::Machine,
             program
                 .signature_contracts
                 .span_or_empty(representative.machine_contracts),
         ),
         (
-            TheoremContractOwner::State,
+            ContractOwner::State,
             program
                 .signature_contracts
                 .span_or_empty(representative.state_contracts),
@@ -237,7 +226,7 @@ pub(super) fn derive_expected_theorem_schema(
                 continue;
             }
             for fact_position in 0..contract.facts.len() {
-                let fact = TheoremContractFactLocation {
+                let fact = ContractFactLocation {
                     owner,
                     contract_position,
                     fact_position,

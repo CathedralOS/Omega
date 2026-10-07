@@ -11,9 +11,8 @@ use super::proof_fact_identity::{
 };
 use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
-    ExpectedTheoremSchema, TheoremApplicationSide, TheoremContractFactLocation,
-    TheoremContractOwner, TheoremLegalityPremise, TheoremRepresentativeApplication,
-    collect_contract_facts,
+    ContractFactLocation, ContractOwner, ExpectedTheoremSchema, TheoremApplicationSide,
+    TheoremLegalityPremise, TheoremRepresentativeApplication, collect_contract_facts,
 };
 use super::{RelationPlanError, RepresentativeTelescope};
 use symbols::SymbolHandle;
@@ -31,7 +30,7 @@ pub(super) struct VerifiedTheoremParameter {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct VerifiedTheoremFact {
     pub(super) expected_position: usize,
-    pub(super) actual: TheoremContractFactLocation,
+    pub(super) actual: ContractFactLocation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,7 +40,7 @@ pub(in crate::proof_contracts::quotients) struct VerifiedTheoremSchema {
     pub(super) parameters: Vec<VerifiedTheoremParameter>,
     pub(super) relation_premises: Vec<VerifiedTheoremFact>,
     pub(super) legality_premises: Vec<VerifiedTheoremFact>,
-    pub(super) conclusion: TheoremContractFactLocation,
+    pub(super) conclusion: ContractFactLocation,
 }
 
 pub(super) fn verify_selected_theorem_schema(
@@ -193,8 +192,8 @@ fn representative_fact<'a>(
     premise: &TheoremLegalityPremise,
 ) -> Option<&'a ProofFact> {
     let span = match premise.fact.owner {
-        TheoremContractOwner::Machine => representative.machine_contracts,
-        TheoremContractOwner::State => representative.state_contracts,
+        ContractOwner::Machine => representative.machine_contracts,
+        ContractOwner::State => representative.state_contracts,
     };
     let contract = program
         .signature_contracts

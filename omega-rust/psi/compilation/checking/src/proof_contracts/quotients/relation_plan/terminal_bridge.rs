@@ -21,13 +21,11 @@ use typed_trees::statement::StatementNode;
 use super::correspondence_certificate::{
     QuotientCorrespondenceCertificate, QuotientCorrespondenceEvidence,
 };
-use super::precondition::{RepresentativeContractFactLocation, RepresentativeContractOwner};
+use super::precondition::{ContractFactLocation, ContractOwner};
 use super::representative::RepresentativePurity;
 use super::result_flow::{CompleteResultFlow, CompleteStateForwardingResultFlow};
 use super::runtime_correspondence::{DirectLiftArgumentSource, direct_public_parameter_symbol};
-use super::theorem_schema::{
-    TheoremApplicationSide, TheoremContractFactLocation, TheoremContractOwner, TheoremParameterRole,
-};
+use super::theorem_schema::{TheoremApplicationSide, TheoremParameterRole};
 use super::transport_schema::VerifiedForwardPreconditionTransportSchema;
 use super::{DirectTerminalRelationPlan, ExactQuotientRelation, InputRelation};
 
@@ -707,7 +705,7 @@ fn theorem_application_side(application: TheoremApplicationSide) -> QuotientTheo
 }
 
 fn theorem_contract_coordinate(
-    location: super::theorem_schema::TheoremContractFactLocation,
+    location: super::theorem_schema::ContractFactLocation,
 ) -> Result<QuotientContractFactCoordinate, String> {
     contract_coordinate(location)
 }
@@ -857,12 +855,12 @@ fn canonical_type(
 }
 
 fn contract_coordinate(
-    location: TheoremContractFactLocation,
+    location: ContractFactLocation,
 ) -> Result<QuotientContractFactCoordinate, String> {
     Ok(QuotientContractFactCoordinate {
         owner: match location.owner {
-            TheoremContractOwner::Machine => QuotientContractOwner::Machine,
-            TheoremContractOwner::State => QuotientContractOwner::State,
+            ContractOwner::Machine => QuotientContractOwner::Machine,
+            ContractOwner::State => QuotientContractOwner::State,
         },
         contract_position: to_u32(location.contract_position, "contract position")?,
         fact_position: to_u32(location.fact_position, "contract fact position")?,
@@ -870,12 +868,12 @@ fn contract_coordinate(
 }
 
 fn representative_contract_coordinate(
-    location: RepresentativeContractFactLocation,
+    location: ContractFactLocation,
 ) -> Result<QuotientContractFactCoordinate, String> {
     Ok(QuotientContractFactCoordinate {
         owner: match location.owner {
-            RepresentativeContractOwner::Machine => QuotientContractOwner::Machine,
-            RepresentativeContractOwner::State => QuotientContractOwner::State,
+            ContractOwner::Machine => QuotientContractOwner::Machine,
+            ContractOwner::State => QuotientContractOwner::State,
         },
         contract_position: to_u32(location.contract_position, "source contract position")?,
         fact_position: to_u32(location.fact_position, "source contract fact position")?,

@@ -23,33 +23,22 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContract, SignatureContractKind};
 use typed_trees::state::State;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum RepresentativeContractOwner {
-    Machine,
-    State,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct RepresentativeContractFactLocation {
-    pub(super) owner: RepresentativeContractOwner,
-    pub(super) contract_position: usize,
-    pub(super) fact_position: usize,
-}
+pub(super) use super::{ContractFactLocation, ContractOwner};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::proof_contracts::quotients) struct RepresentativePreconditionPartition {
     /// Exact `requires` facts whose expression depends on at least one
     /// quotient-bearing representative position. This is the future `P`
     /// surface; retaining it proves no implication or invariance law.
-    pub(super) dependent: Vec<RepresentativeContractFactLocation>,
+    pub(super) dependent: Vec<ContractFactLocation>,
     /// Exact `requires` facts independent of quotient-bearing positions.
-    pub(super) fixed: Vec<RepresentativeContractFactLocation>,
+    pub(super) fixed: Vec<ContractFactLocation>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct DefinePreconditionFactPair {
-    pub(super) public: RepresentativeContractFactLocation,
-    pub(super) representative: RepresentativeContractFactLocation,
+    pub(super) public: ContractFactLocation,
+    pub(super) representative: ContractFactLocation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,11 +171,11 @@ fn derive_precondition_partition(
     };
     for (owner, contracts) in [
         (
-            RepresentativeContractOwner::Machine,
+            ContractOwner::Machine,
             program.signature_contracts.span_or_empty(machine_contracts),
         ),
         (
-            RepresentativeContractOwner::State,
+            ContractOwner::State,
             program.signature_contracts.span_or_empty(state_contracts),
         ),
     ] {
@@ -200,7 +189,7 @@ fn derive_precondition_partition(
                 .iter()
                 .enumerate()
             {
-                let location = RepresentativeContractFactLocation {
+                let location = ContractFactLocation {
                     owner,
                     contract_position,
                     fact_position,
@@ -278,8 +267,8 @@ fn pair_precondition_facts(
     public_state_contracts: HandleSpan<SignatureContract>,
     representative_machine_contracts: HandleSpan<SignatureContract>,
     representative_state_contracts: HandleSpan<SignatureContract>,
-    public_locations: &[RepresentativeContractFactLocation],
-    representative_locations: &[RepresentativeContractFactLocation],
+    public_locations: &[ContractFactLocation],
+    representative_locations: &[ContractFactLocation],
     public_substitutions: &[ProofValueSubstitution],
     representative_substitutions: &[ProofValueSubstitution],
     representative_static: &[RepresentativeStaticBinding],
@@ -337,15 +326,11 @@ pub(super) fn precondition_fact_at(
     program: &dyn crate::CheckingInput,
     machine_contracts: HandleSpan<SignatureContract>,
     state_contracts: HandleSpan<SignatureContract>,
-    location: RepresentativeContractFactLocation,
+    location: ContractFactLocation,
 ) -> Option<&ProofFact> {
     let contracts = match location.owner {
-        RepresentativeContractOwner::Machine => {
-            program.signature_contracts.span_or_empty(machine_contracts)
-        }
-        RepresentativeContractOwner::State => {
-            program.signature_contracts.span_or_empty(state_contracts)
-        }
+        ContractOwner::Machine => program.signature_contracts.span_or_empty(machine_contracts),
+        ContractOwner::State => program.signature_contracts.span_or_empty(state_contracts),
     };
     let contract = contracts.get(location.contract_position)?;
     if contract.kind != SignatureContractKind::Requires {
