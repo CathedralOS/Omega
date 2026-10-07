@@ -1700,11 +1700,12 @@ then independent claimed restoration slices -> final closure.
   non-hosted roots and required receiver qualifications. Hosted byte input uses
   an explicit finite replay stream shared by selected input slots; CLI and
   corpus give each engine the same authored bytes with independent positions.
-  Remaining custody witnesses on macOS ARM64 are
-  `borrows/projected_reference_record_residual_exit` (native 29, Terminal
-  malformed operation) and `calls/runtime_case_payload_indexed_calls_exit`
-  (native 70, the same refusal), reproducible on `b6ec5f4824ac`. Preserve
-  `calls/runtime_call_carrier_partition_exit` while repairing those joins.
+  The remaining custody witness on macOS ARM64 is
+  `calls/runtime_case_payload_indexed_calls_exit` (native 70, Terminal
+  malformed operation), reproducible on `b6ec5f4824ac`. Preserve
+  `calls/runtime_call_carrier_partition_exit` and
+  `borrows/runtime_projected_reference_call_return_exit` while repairing
+  that join; physical backing prefixes are not logical partial ownership.
   Qualify the ordinary `omega run --both` route for
   `borrows/indexed_record_field_replacement_exit` after its full-stdlib package
   review: the initial graph requests 277 decisions, including `FilesystemHost`;

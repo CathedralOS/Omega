@@ -307,12 +307,11 @@ impl TerminalExecution {
             let value = self.structural_values.get(&argument.place);
             let case = self.scalar_case_values.get(&argument.place);
             match (value, case) {
-                (Some(value), None)
-                    if value.qualifications.is_empty()
-                        && (matches!(
-                            parameter.access,
-                            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-                        ) || value.path.is_empty()) => {}
+                // A logical root can retain a nonempty physical backing path
+                // after an earlier projected transfer. Source declarations and
+                // the affine frontier below determine its current custody;
+                // the original backing prefix does not make it a partial owner.
+                (Some(value), None) if value.qualifications.is_empty() => {}
                 (None, Some(case))
                     if parameter.access == StructuralAccess::Owned
                         && argument.path.is_empty()
