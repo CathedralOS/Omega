@@ -116,10 +116,10 @@ impl ZeroedStructuralLeaf {
 /// Resolve whether a structural type's whole storage may begin zero: every
 /// leaf a zero-valid scalar, sum case tag, or empty bounded byte field, and
 /// every aggregate a record, fixed array, or admissible sum. A sum admits only when its first
-/// declared case exists and every non-erased field of that case admits a zero
-/// scalar: the tag's all-zero bits select that case (tag = case ordinal).
-/// Bounded integer fields must contain the carrier's zero; nested composites
-/// in sum payloads still need case-aware leaf paths. Bounded byte fields admit
+/// declared case exists and every field of that case is a zero-valid scalar or
+/// an aggregate that itself admits: the tag's all-zero bits select that case
+/// (tag = case ordinal). Bounded integer fields must contain the carrier's
+/// zero; an erased payload field has no zero spelling. Bounded byte fields admit
 /// only when all declared byte predicates hold for the empty live range.
 /// Instantiated references, borrowed views, whole byte carriers and erased
 /// members have no admitted zero spelling through this structural operation.
@@ -190,13 +190,17 @@ fn zeroed_declaration_graph(
             let Some(first) = cases.first() else {
                 return false;
             };
-            // Nested payload aggregates still need case-aware structural paths.
-            if first
-                .fields
-                .iter()
-                .any(|field| zeroed_field_scalar(field).is_none())
-            {
-                return false;
+            // The first case's payload is part of the zero value: a scalar
+            // must accept zero and an aggregate must itself begin zero.
+            for field in &first.fields {
+                if field.relevance.is_erased() {
+                    return false;
+                }
+                if let StructuralFieldType::Structural(member) = field.field_type {
+                    pending.push((member, false));
+                } else if zeroed_field_scalar(field).is_none() {
+                    return false;
+                }
             }
         }
         active[position] = true;
@@ -364,11 +368,9 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                 // Zeroed storage selects the first declared case — the tag
                 // stores the case ordinal and zero names ordinal 0. Payload
                 // leaves mint for that case only; later cases carry no cells.
-                // Only a first case of zero-valid scalar fields admits;
-                // nested composites have no case-aware leaf path segment.
-                let Some(first) = cases.first() else {
-                    return None;
-                };
+                // An aggregate payload member continues below the case's own
+                // `Case` path segment, the way a payload observation names it.
+                let first = cases.first()?;
                 let tag_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).ok()?);
                 leaves.push(ZeroedStructuralLeaf::SumSelection {
                     path: path.clone(),
@@ -377,12 +379,19 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                     scalar_type: tag_type,
                 });
                 for field in &first.fields {
-                    leaves.push(ZeroedStructuralLeaf::CaseField {
-                        path: path.clone(),
-                        case: first.id,
-                        field: field.id,
-                        scalar_type: zeroed_field_scalar(field)?,
-                    });
+                    if let StructuralFieldType::Structural(member) = field.field_type {
+                        let mut member_path = path.clone();
+                        member_path.push(StructuralPathSegment::Case(first.id));
+                        member_path.push(StructuralPathSegment::Field(field.identity.clone()));
+                        pending.push((member, member_path));
+                    } else {
+                        leaves.push(ZeroedStructuralLeaf::CaseField {
+                            path: path.clone(),
+                            case: first.id,
+                            field: field.id,
+                            scalar_type: zeroed_field_scalar(field)?,
+                        });
+                    }
                     if leaves.len().saturating_add(pending.len()) > MAX_ZEROED_LEAVES {
                         return None;
                     }

@@ -418,9 +418,16 @@ impl TerminalExecution {
             }
         };
         for leaf in &leaves {
+            // Runtime places name a case payload member by its field alone;
+            // the leaf's `Case` segment only selects that payload's fields.
             let storage_path = || {
                 let mut path = value.path.clone();
-                path.extend_from_slice(leaf.path());
+                path.extend(
+                    leaf.path()
+                        .iter()
+                        .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))
+                        .cloned(),
+                );
                 path
             };
             match leaf {
@@ -487,7 +494,14 @@ impl TerminalExecution {
                                 opaque_identity: value.opaque_identity,
                                 path: {
                                     let mut path = value.path.clone();
-                                    path.extend_from_slice(parent);
+                                    path.extend(
+                                        parent
+                                            .iter()
+                                            .filter(|segment| {
+                                                !matches!(segment, StructuralPathSegment::Case(_))
+                                            })
+                                            .cloned(),
+                                    );
                                     path
                                 },
                             })

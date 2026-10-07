@@ -628,14 +628,14 @@ pub fn declared_carriers_match(
 /// Whether a declared type is wholly zero-constructible: a primitive scalar,
 /// a fixed array of literal extent whose element qualifies, a named record
 /// whose fields all qualify recursively, or a named sum whose first declared
-/// case exists and carries only plain scalar payload fields. Zeroed storage
+/// case exists and whose payload fields qualify recursively. Zeroed storage
 /// selects the first case (the tag stores the case ordinal and all-zero bits
-/// name ordinal 0), so only that case's payload contributes cells — and only
-/// when every field is an unrestricted integer, boolean, or address scalar:
-/// constrained or bounded carriers may exclude 0, floats spell their own
-/// terminal leaf, and nested composites have no case-aware leaf path.
-/// Common fields beside cases follow the ordinary record rule; the first
-/// case supplies the additional active payload. This is shape admission,
+/// name ordinal 0), so only that case's payload contributes cells; a float
+/// payload is +0.0 and an aggregate payload is its own zero value
+/// (dependent_values.md, default domains and zero initialization).
+/// Reference and constrained payload carriers still decline: a reference has
+/// no zero spelling and a constrained carrier may exclude 0. Common fields
+/// beside cases follow the ordinary record rule. This is shape admission,
 /// not proof of a declaration's domain constraints, which source validation
 /// checks separately. Byte sequences and erased members remain unsupported.
 pub fn zeroed_structural_parts(
@@ -703,14 +703,7 @@ pub fn zeroed_structural_parts(
                     {
                         return false;
                     }
-                    match program.primitive_type_reference(field.type_reference) {
-                        Some(
-                            typed_trees::types::PrimitiveType::F32
-                            | typed_trees::types::PrimitiveType::F64,
-                        )
-                        | None => return false,
-                        _ => {}
-                    }
+                    pending.push(field.type_reference);
                 }
             }
             _ => return false,

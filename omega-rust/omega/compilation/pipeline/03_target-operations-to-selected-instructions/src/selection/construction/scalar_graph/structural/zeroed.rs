@@ -1,8 +1,9 @@
 //! Establish a whole zero-constructible structural value in one home. A
 //! zero-constructible home is exactly all-zero bytes, so either spelling
 //! below establishes it: a small home stores one zero register into every
-//! scalar-leaf range; a large home is written by one `ZeroBytes` over its
-//! whole byte extent, padding and unused payload bytes included.
+//! scalar-leaf range; a large home, or a small one with a leaf inside a case
+//! payload member, is written by one `ZeroBytes` over its whole byte extent,
+//! padding and unused payload bytes included.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedInstructionKind,
     SelectedMemoryAccessRole, memory, transport_register,
@@ -32,14 +33,12 @@ pub(super) fn establish(
         .ok_or(SelectedInstructionError::custody())?;
     // Small homes keep their exact per-leaf store sequence; only they expand
     // leaves, so the leaf budget never bounds a whole-extent establishment.
-    let leaf_stores = if shape.byte_size <= PER_LEAF_ZEROING_MAX_BYTES {
-        Some(
-            crate::selection::zeroed_structural_input::storage(source, established)
-                .ok_or(SelectedInstructionError::custody())?,
-        )
-    } else {
-        None
-    };
+    // `home` already admitted the value as zero-constructible, so a small home
+    // whose leaves the store grammar cannot address directly (a member of a
+    // case payload) takes the whole-extent fill like a large one.
+    let leaf_stores = (shape.byte_size <= PER_LEAF_ZEROING_MAX_BYTES)
+        .then(|| crate::selection::zeroed_structural_input::storage(source, established))
+        .flatten();
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: established.place,

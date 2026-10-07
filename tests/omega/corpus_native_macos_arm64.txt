@@ -674,6 +674,8 @@ pass/data/runtime_mixed_case_payload_dispatch_exit built 1710ms exit:70 @4800836
 pass/data/runtime_mixed_shape_exit built 2406ms exit:70 @fb2178def922
 pass/data/runtime_proof_only_data_declared_exit built 534ms exit:70
 pass/data/runtime_record_field_value_pattern_exit built 923ms exit:70 @3f4da4527c2d+wt
+pass/data/runtime_zeroed_first_case_enum_payload_exit built 1431ms exit:70
+pass/data/runtime_zeroed_first_case_float_payload_exit built 1229ms exit:70
 pass/dependent/boundary_equality_recast_witness_compile checked 1571ms @be8e4cb5674c+wt
 pass/dependent/boundary_requires_caller_field_extent_compile checked 190ms
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 209ms
