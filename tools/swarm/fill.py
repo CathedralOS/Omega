@@ -116,11 +116,6 @@ def save_ledger(repository, wave, ledger):
     return path
 
 
-def slot_owner_tail(manifest, session_name):
-    """The claim-owner tail a slot's agent uses: '<prefix>-<name>'."""
-    return f"{manifest['owner_label_prefix']}-{session_name}"
-
-
 def slot_claims(row, session_name, manifest):
     """Live claims attached to this slot's worktree or owner label.
 
