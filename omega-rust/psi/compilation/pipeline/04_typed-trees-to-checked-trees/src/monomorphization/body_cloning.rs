@@ -1,7 +1,7 @@
 //! Fresh instance storage, lexical symbol remapping, and retained source custody.
 use super::{
-    Diagnostic, ExpressionHandle, ExpressionNode, HandleSpan, ProofFact, StatementNode,
-    SymbolHandle, SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    Diagnostic, ExpressionHandle, ExpressionNode, HandleSpan, StatementNode, SymbolHandle,
+    SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::monomorphization::body_rewriting::{
     cloned_expression_roots, rebind_state_scoped_range_endpoints,
@@ -943,19 +943,10 @@ pub(super) fn remap_contract_value_subjects(
     if realized.is_empty() {
         return;
     }
-    let roots: Vec<ExpressionHandle> = program
-        .proof_facts
-        .span_or_empty(contract.facts)
-        .iter()
-        .flat_map(|fact| match fact {
-            ProofFact::Expression(expression) => vec![*expression],
-            ProofFact::Membership(membership) => vec![membership.value],
-            ProofFact::Proposition(application) => program
-                .expression_table
-                .expression_handles(application.arguments)
-                .to_vec(),
-        })
-        .collect();
+    let mut roots = Vec::new();
+    for fact in program.proof_facts.span_or_empty(contract.facts) {
+        crate::facts::contract_occurrences::append_fact_expression_roots(program, fact, &mut roots);
+    }
     for root in roots {
         program.expression_table.remap_symbols_in(root, realized);
     }

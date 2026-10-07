@@ -30,7 +30,11 @@ pub(super) fn bind_contract_expression_evidence_arguments(
 
     for (owner, fact) in owners {
         let mut expressions = Vec::new();
-        proof_fact_expression_roots(program, fact, &mut expressions);
+        crate::facts::contract_occurrences::append_fact_expression_roots(
+            program,
+            program.proof_facts.get(fact),
+            &mut expressions,
+        );
         let mut visited = std::collections::HashSet::new();
         while let Some(expression) = expressions.pop() {
             if !expression.is_valid() || !visited.insert(expression.arena_index()) {
@@ -166,8 +170,9 @@ pub(super) fn bind_contract_expression_evidence_arguments(
         .contract_expression_static_conformance_applications = static_conformance_applications;
 }
 
+||||||| parent of 4971bb56a8e (psi: share the proof-fact expression-roots traversal across evidence and monomorphization)
 fn proof_fact_expression_roots(
-    program: &dyn ::validation::CheckingInput,
+    program: &typed_trees::TypedTrees,
     fact: Handle<typed_trees::domain::ProofFact>,
     expressions: &mut Vec<typed_trees::expression::ExpressionHandle>,
 ) {
