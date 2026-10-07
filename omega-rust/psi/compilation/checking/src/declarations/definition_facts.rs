@@ -406,27 +406,49 @@ fn append_data_expression_place(
                 facts::resolve_place_member_symbol(program, facts, place, member.member.as_str())
                     .unwrap_or_else(symbols::SymbolHandle::invalid)
             };
-            if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
-                facts.push_place_segment(place, facts::PlaceSegment::Case { variant });
-            }
-            facts.push_place_segment(place, facts::PlaceSegment::Field { symbol });
+            push_member_field_segments(program, facts, place, symbol);
             place
         }
         ExpressionNode::Indexed(indexed) => {
             let place = append_data_expression_place(program, facts, data, indexed.collection);
-            let segment = program
-                .expression_table
-                .constant_integer_value(indexed.index)
-                .and_then(|value| usize::try_from(value).ok())
-                .map(|index| facts::PlaceSegment::FixedIndex { index })
-                .unwrap_or(facts::PlaceSegment::Index {
-                    expression: indexed.index,
-                });
-            facts.push_place_segment(place, segment);
+            push_index_place_segment(program, facts, indexed, place);
             place
         }
         _ => facts.append_place_from_expression(program, expression),
     }
+}
+
+/// An index expression's place segment: a constant index becomes a fixed
+/// slot, anything else keeps the expression.
+fn push_index_place_segment(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    indexed: &typed_trees::expression::TableIndexedExpression,
+    place: PlaceHandle,
+) {
+    let segment = program
+        .expression_table
+        .constant_integer_value(indexed.index)
+        .and_then(|value| usize::try_from(value).ok())
+        .map(|index| facts::PlaceSegment::FixedIndex { index })
+        .unwrap_or(facts::PlaceSegment::Index {
+            expression: indexed.index,
+        });
+    facts.push_place_segment(place, segment);
+}
+
+/// Push the resolved member's case-variant (when payload-carried) and field
+/// segments onto `place`.
+fn push_member_field_segments(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    place: PlaceHandle,
+    symbol: symbols::SymbolHandle,
+) {
+    if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+        facts.push_place_segment(place, facts::PlaceSegment::Case { variant });
+    }
+    facts.push_place_segment(place, facts::PlaceSegment::Field { symbol });
 }
 
 fn data_field_symbol(
@@ -683,24 +705,13 @@ fn append_domain_expression_place(
                     })
                     .unwrap_or_else(symbols::SymbolHandle::invalid)
             };
-            if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
-                facts.push_place_segment(place, facts::PlaceSegment::Case { variant });
-            }
-            facts.push_place_segment(place, facts::PlaceSegment::Field { symbol });
+            push_member_field_segments(program, facts, place, symbol);
             place
         }
         ExpressionNode::Indexed(indexed) => {
             let place =
                 append_domain_expression_place(program, facts, domain_target, indexed.collection);
-            let segment = program
-                .expression_table
-                .constant_integer_value(indexed.index)
-                .and_then(|value| usize::try_from(value).ok())
-                .map(|index| facts::PlaceSegment::FixedIndex { index })
-                .unwrap_or(facts::PlaceSegment::Index {
-                    expression: indexed.index,
-                });
-            facts.push_place_segment(place, segment);
+            push_index_place_segment(program, facts, indexed, place);
             place
         }
         _ => facts.append_place_from_expression(program, expression),
