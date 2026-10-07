@@ -26,6 +26,32 @@ pub enum StrictArithmeticBindingValue {
 /// symbol namespace. The caller must establish immutable operands and exact
 /// builtin arithmetic meaning; this query does not establish executable
 /// arithmetic formation or replace its overflow obligations.
+impl StrictArithmeticSymbolBinding {
+    /// An unsigned-atom binding for a scoped integer symbol: `identity` names
+    /// the binding in strict-arithmetic premise space; `unsigned` reflects
+    /// only the declared `uN` widths (`Addr` is not an integer literal
+    /// carrier here).
+    pub(crate) fn unsigned_integer_atom(
+        symbol: symbols::SymbolHandle,
+        identity: String,
+        primitive: typed_trees::types::PrimitiveType,
+    ) -> Self {
+        Self {
+            symbol,
+            value: StrictArithmeticBindingValue::Atom {
+                identity,
+                unsigned: matches!(
+                    primitive,
+                    typed_trees::types::PrimitiveType::U8
+                        | typed_trees::types::PrimitiveType::U16
+                        | typed_trees::types::PrimitiveType::U32
+                        | typed_trees::types::PrimitiveType::U64
+                ),
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrictArithmeticExpressionBinding {
     pub symbol: symbols::SymbolHandle,

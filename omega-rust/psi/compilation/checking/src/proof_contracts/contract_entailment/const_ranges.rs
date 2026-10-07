@@ -259,19 +259,9 @@ fn scope_engine<'program>(
         }
         let identity = format!("value:{symbol:?}");
         push_enforced_type_bound_premises(program, type_reference, &identity, &mut premises);
-        bindings.push(StrictArithmeticSymbolBinding {
-            symbol,
-            value: StrictArithmeticBindingValue::Atom {
-                identity,
-                unsigned: matches!(
-                    primitive,
-                    typed_trees::types::PrimitiveType::U8
-                        | typed_trees::types::PrimitiveType::U16
-                        | typed_trees::types::PrimitiveType::U32
-                        | typed_trees::types::PrimitiveType::U64
-                ),
-            },
-        });
+        bindings.push(StrictArithmeticSymbolBinding::unsigned_integer_atom(
+            symbol, identity, primitive,
+        ));
     };
     if let Some(state) = state {
         for parameter in program.state_parameters(state).iter() {
@@ -292,19 +282,11 @@ fn scope_engine<'program>(
         {
             let identity = format!("const:{:?}", parameter.symbol);
             push_enforced_type_bound_premises(program, type_reference, &identity, &mut premises);
-            bindings.push(StrictArithmeticSymbolBinding {
-                symbol: parameter.symbol,
-                value: StrictArithmeticBindingValue::Atom {
-                    identity,
-                    unsigned: matches!(
-                        primitive,
-                        typed_trees::types::PrimitiveType::U8
-                            | typed_trees::types::PrimitiveType::U16
-                            | typed_trees::types::PrimitiveType::U32
-                            | typed_trees::types::PrimitiveType::U64
-                    ),
-                },
-            });
+            bindings.push(StrictArithmeticSymbolBinding::unsigned_integer_atom(
+                parameter.symbol,
+                identity,
+                primitive,
+            ));
         }
     }
     if let Some(environment) = environment {

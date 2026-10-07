@@ -1471,19 +1471,11 @@ fn integer_bindings(
         if !parameter.symbol.is_valid() {
             return None;
         }
-        bindings.push(StrictArithmeticSymbolBinding {
-            symbol: parameter.symbol,
-            value: StrictArithmeticBindingValue::Atom {
-                identity: format!("\0ranking:{:?}", parameter.symbol),
-                unsigned: matches!(
-                    primitive,
-                    PrimitiveType::U8
-                        | PrimitiveType::U16
-                        | PrimitiveType::U32
-                        | PrimitiveType::U64
-                ),
-            },
-        });
+        bindings.push(StrictArithmeticSymbolBinding::unsigned_integer_atom(
+            parameter.symbol,
+            format!("\0ranking:{:?}", parameter.symbol),
+            primitive,
+        ));
     }
     Some(bindings)
 }
