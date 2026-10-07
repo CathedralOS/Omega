@@ -11,6 +11,7 @@
 
 pub(crate) mod boolean_predicates;
 mod canonical_encoding;
+pub(crate) use canonical_encoding::encode_type_spelling;
 pub(crate) mod capabilities;
 mod carry;
 pub(crate) mod contextual_cleanup;

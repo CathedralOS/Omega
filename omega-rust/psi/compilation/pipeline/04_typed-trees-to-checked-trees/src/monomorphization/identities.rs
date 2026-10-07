@@ -817,28 +817,7 @@ pub(super) fn encode_normalized_text(
     binders: &[(String, String)],
     output: &mut Vec<u8>,
 ) {
-    let mut word = String::new();
-    let flush = |word: &mut String, output: &mut Vec<u8>| {
-        if word.is_empty() {
-            return;
-        }
-        if let Some((_, replacement)) = binders.iter().find(|(name, _)| name == word) {
-            output.extend(replacement.as_bytes());
-        } else {
-            output.extend(word.as_bytes());
-        }
-        word.clear();
-    };
-    for character in text.chars() {
-        if character.is_ascii_alphanumeric() || character == '_' {
-            word.push(character);
-        } else {
-            flush(&mut word, output);
-            output.extend(character.to_string().as_bytes());
-        }
-    }
-    flush(&mut word, output);
-    output.push(0);
+    crate::facts::encode_type_spelling(text, binders, output)
 }
 
 pub(super) fn specialization_selection_report_fingerprint(
