@@ -18,9 +18,9 @@ pub fn scalar_type_refinement_predicates(
 
 /// A scalar result can use the ordinary value-return route when every
 /// refinement has a complete predicate meaning and every semantic atom is a
-/// signature tag, which the qualified Terminal result carries (see
-/// [`crate::scalar_type_signature_tags`]); any other atom needs separate
-/// result custody.
+/// scalar tag, which the qualified Terminal result carries (see
+/// [`crate::scalar_type_tags`]); any other atom needs separate result
+/// custody.
 /// This describes the contract; returning paths still owe every predicate.
 /// In particular, finite floats and scalar ranges share the same decoder that
 /// normal-return guarantee emission consumes.
@@ -40,7 +40,7 @@ pub fn scalar_result_contract_is_represented(
         },
     )
     .is_some_and(|refinements| {
-        let tags = crate::scalar_type_signature_tags(program, reference);
+        let tags = crate::scalar_type_tags(program, reference);
         refinements
             .semantic_atoms
             .iter()

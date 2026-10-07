@@ -24,7 +24,6 @@ use crate::unit::{
     value_id,
 };
 use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
-use semantic_vocabulary::ScalarQualificationSetId;
 
 /// The completed operands one call hands the frame. Each route evaluates
 /// them on its own schedule before the call.
@@ -639,23 +638,36 @@ impl OperationFrame<'_, '_> {
             .prepared_scalar_machines
             .iter()
             .find(|prepared| prepared.source_machine() == *realization_machine);
-        // The call result republishes the callee's own declared membership:
-        // a prepared graph carries its qualified result; every other callee
-        // kind mints an unqualified result, which is exactly what its emitted
-        // machine declares. Operands meet the callee's emitted entry
-        // parameters the same way — qualified where the callee publishes
-        // qualifications, unqualified where it does not.
-        let (target_result, result_qualifications) = match prepared {
-            Some(PreparedScalarCallee::Graph(graph)) => (
-                graph.result_type.scalar_type,
-                graph.result_type.qualifications,
-            ),
+        // The call result republishes the callee's own declared membership,
+        // and operands meet the callee's declared entry formals: a prepared
+        // graph carries both on its prepared signature, and a Unit body on
+        // its allocated `MachineSignature`, tags included.
+        let unit_signature = match prepared {
+            Some(PreparedScalarCallee::Graph(_)) => None,
             None if self.callees.closure.contains(realization_machine)
                 && matches!(target, CheckedScalarCallee::Operations(_)) =>
             {
-                (target.result_type()?, ScalarQualificationSetId::ZERO)
+                Some(super::super::signatures::find(
+                    self.callees.signatures,
+                    *realization_machine,
+                )?)
             }
             None => {
+                return unsupported("Unit scalar call target is absent from the prepared closure");
+            }
+        };
+        let (target_result, result_qualifications) = match (prepared, unit_signature) {
+            (Some(PreparedScalarCallee::Graph(graph)), _) => (
+                graph.result_type.scalar_type,
+                graph.result_type.qualifications,
+            ),
+            (_, Some(signature)) => {
+                let result = signature.scalar_result.ok_or(LoweringError::Unsupported(
+                    "Unit scalar call target declares no scalar result",
+                ))?;
+                (result.scalar_type, result.qualifications)
+            }
+            (None, None) => {
                 return unsupported("Unit scalar call target is absent from the prepared closure");
             }
         };
@@ -677,11 +689,27 @@ impl OperationFrame<'_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "scalar call target lost its prepared entry state",
                 ))?,
-            _ => target_parameter_types
-                .iter()
-                .copied()
-                .map(semantic_vocabulary::QualifiedScalarType::from)
-                .collect(),
+            _ => {
+                let signature = unit_signature.ok_or(LoweringError::Unsupported(
+                    "Unit scalar call target is absent from the prepared closure",
+                ))?;
+                let declared = signature
+                    .scalar_parameters
+                    .iter()
+                    .map(|parameter| parameter.value_type())
+                    .collect::<Vec<_>>();
+                if declared.len() != target_parameter_types.len()
+                    || declared
+                        .iter()
+                        .zip(&target_parameter_types)
+                        .any(|(declared, carrier)| declared.scalar_type != *carrier)
+                {
+                    return unsupported(
+                        "Unit scalar call target formals disagree with its signature",
+                    );
+                }
+                declared
+            }
         };
         let (arguments, erased_arguments, erased_proof_arguments) = match (
             call.erased_scalar_arguments(),

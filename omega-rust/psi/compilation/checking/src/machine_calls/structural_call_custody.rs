@@ -133,7 +133,7 @@ pub fn structural_state_contract_scalar_predicates(
                 expected.extend(
                     crate::scalar_interval_domains(program, reference)
                         .into_iter()
-                        .chain(crate::scalar_type_signature_tags(program, reference))
+                        .chain(crate::scalar_type_tags(program, reference))
                         .map(|(_, domain)| (parameter.symbol, domain.0)),
                 );
             }
@@ -183,20 +183,36 @@ pub fn structural_state_contract_scalar_predicates(
                         .domain_definitions()
                         .iter()
                         .find(|domain| domain.symbol == membership.domain_symbol)?;
-                    actual.push((symbol, domain.semantic_id.0));
                     // A scalar parameter's interval membership is carried as its
                     // closed interval; a scalar tag is carried by the qualified
                     // Terminal signature itself and needs no row. The
                     // qualification comparison below still requires either to
-                    // restate the declared type exactly.
-                    if let Some(parameter) = program
+                    // restate the declared type exactly. A tag compares by its
+                    // applied identity, which differs from its declaration's
+                    // when the family takes arguments (`Indexed<A>`).
+                    let parameter = program
                         .state_parameters(state)
                         .iter()
-                        .find(|parameter| parameter.symbol == path.symbol)
+                        .find(|parameter| parameter.symbol == path.symbol);
+                    let tag = parameter.is_some_and(|parameter| {
+                        program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                            && crate::scalar_type_tags(program, parameter.type_reference)
+                                .contains(&(membership.domain_symbol, membership.semantic_domain))
+                    });
+                    actual.push((
+                        symbol,
+                        if tag {
+                            membership.semantic_domain.0
+                        } else {
+                            domain.semantic_id.0
+                        },
+                    ));
+                    if let Some(parameter) = parameter
                         && let Some(primitive) =
                             program.primitive_type_reference(parameter.type_reference)
-                        && !crate::scalar_type_signature_tags(program, parameter.type_reference)
-                            .contains(&(membership.domain_symbol, membership.semantic_domain))
+                        && !tag
                     {
                         let (minimum, maximum) = scalar_interval_bounds(
                             program,

@@ -2647,21 +2647,34 @@ code and preserve check/native behavior for the named customer slices.
   `CheckedScalarCallee::find_for_unit_call` lowers that body whenever it
   exists; the graph is only the fallback. A census over the full checked
   corpus (2026-10-07) found 16,307 scalar callee lowerings through a Unit body
-  and 109 through a graph. Unit bodies now carry argument-free scalar tags on
-  their formals and results; the census was not rerun after that. Known
-  remaining gaps:
-  - generic tags (`i64 in Indexed<A + B>`, in
-    `pass/generics/open_computed_quantity_result`): admitting them refused
-    that fixture with "completed call scalar operands disagree with the
-    target signature", so `scalar_type_signature_tags` excludes them. The
-    graph resolves the same formals through `scalar_state_types`; where the
-    Unit call site's operand types diverge is not yet diagnosed;
-  - "state graph: natural ranks" (for example `Main::count` in
-    `pass/calls/runtime_value_call_statement_recursive_walk_exit`): a machine
-    with an implementation witness and no proven natural ranks;
-  - ranked loops through the general rank plans, retiring the
+  and 109 through a graph; after Unit bodies took scalar tags, 65 through a
+  graph, in six fixtures. Unit bodies now carry scalar tags, generic ones
+  included, on their formals and results, and Unit scalar calls take their
+  operand and result types from the callee's signature. Known remaining
+  graph users:
+  - the two specializations of `retag_i64` in
+    `pass/generics/closed_indexed_quantity`
+    (`-> i64 [0..=100] in Quantity<To>`): "result contract", a result tag
+    over a const binder resolved by specialization;
+  - `mutate(mut value: u32)` in
+    `pass/borrows/runtime_direct_immutable_scalar_loan_exit`: a mutable
+    scalar formal reassigned (`value = 8`) and borrowed (`&mut value`); the
+    store's root has no structural parameter plan, so Unit planning stops
+    at "structural field store: destination parameter";
+  - `Main::count` with `Main::step` in
+    `pass/termination/runtime_saved_rank_cycle_exit`,
+    `pass/termination/rank_range_state_call` and
+    `pass/termination/runtime_rank_range_state_call_exit`: a cross-machine
+    cycle ranked by `remaining in 0..=9`, which
+    `proven_fused_state_natural_ranks_with_call_frames` (Nat countdowns
+    only) cannot spell. The graph projects the shared
+    `validated_runtime_natural_components` judgment instead
+    (`terminal_scalar/ranking.rs`); the state graph should read the same
+    judgment, including how a weak edge reaches the Terminal rank
+    comparison. This is also the general-rank-plan work, which retires the
     `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne` special
-    case, with a fixture for resumable (fuel-suspended) ranked execution.
+    case and needs a fixture for resumable (fuel-suspended) ranked
+    execution.
 
   Also account for continuation-arm custody
   (`CheckedStructuralControlSuccessorPlan` lacks continuation identity),

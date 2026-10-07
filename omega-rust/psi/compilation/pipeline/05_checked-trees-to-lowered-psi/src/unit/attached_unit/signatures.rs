@@ -31,6 +31,9 @@ pub(super) struct MachineSignature {
     pub source: SymbolHandle,
     pub parameters: Vec<StructuralParameterDeclaration>,
     pub scalar_parameters: Vec<ValueDeclaration>,
+    /// The declared scalar result, tags included, for a body that completes
+    /// with a scalar; a scalar call's result value republishes this type.
+    pub scalar_result: Option<semantic_vocabulary::QualifiedScalarType>,
     /// Proof-only erased scalar formals in authored order.
     pub erased_scalar_parameters: Vec<ValueDeclaration>,
     /// Erased proof-only formals in authored order. The checked roster is
@@ -127,6 +130,17 @@ pub(super) fn lower(
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
+        let scalar_result = body
+            .scalar_result_type()
+            .map(|primitive| {
+                super::parameters::unit_scalar_result_type(
+                    checked,
+                    plan.state,
+                    crate::emission::scalar_types::terminal_scalar_type(primitive)?,
+                    qualifications,
+                )
+            })
+            .transpose()?;
         let erased_proof_parameters = plan.erased_proof_parameters.to_vec();
         // Claims stay machine-local: unrelated callees cannot shift these IDs.
         let claims =
@@ -135,6 +149,7 @@ pub(super) fn lower(
             source: plan.machine,
             parameters,
             scalar_parameters,
+            scalar_result,
             erased_scalar_parameters,
             erased_proof_parameters,
             predicate_parameters: Vec::new(),

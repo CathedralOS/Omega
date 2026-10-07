@@ -399,11 +399,11 @@ fn scalar_domain_establishment_routes(
     Ok(routes)
 }
 
-/// Whether a primitive scalar slot carries an argument-free scalar tag its
-/// Terminal signature must declare (`validation::scalar_type_signature_tags`).
+/// Whether a primitive scalar slot carries a scalar tag its Terminal
+/// signature must declare (`validation::scalar_type_tags`).
 fn carries_scalar_tags(checked: &CheckedTrees, reference: TypeReferenceHandle) -> bool {
     checked.primitive_type_reference(reference).is_some()
-        && !validation::scalar_type_signature_tags(&checked.typed, reference).is_empty()
+        && !validation::scalar_type_tags(&checked.typed, reference).is_empty()
 }
 
 pub(crate) fn type_atoms(
