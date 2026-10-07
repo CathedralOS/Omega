@@ -96,6 +96,37 @@ fn literal_indexed_recast_preamble<'program>(
     Some((cast, source, indexed))
 }
 
+/// A slice cast target pins the footprint to its recast byte region: the
+/// region must name the same collection and start offset as `indexed`.
+/// `Some(None)` means the target is not a slice — the caller falls back to
+/// the literal target-size arm.
+fn slice_backed_recast_region<'program>(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    cast: &'program TableCastExpression,
+    source: ExpressionHandle,
+    indexed: &'program TableIndexedExpression,
+) -> Option<Option<super::raw_byte_region::SliceRecastByteRegion>> {
+    if !matches!(
+        program
+            .type_reference_table
+            .type_reference(cast.target_type),
+        TypeReferenceNode::Slice { .. }
+    ) {
+        return Some(None);
+    }
+    let region = super::slice_recast_byte_region(program, machine, state, expression)?;
+    if region.source != source
+        || region.collection != indexed.collection
+        || region.start != indexed.index
+    {
+        return None;
+    }
+    Some(Some(region))
+}
+
 /// Replay the canonical recast judgment and retain one exact literal-index
 /// byte footprint for borrow overlap.
 ///
@@ -129,19 +160,9 @@ pub fn validate_literal_indexed_recast_footprint(
         return None;
     };
     let start = usize::try_from(offset.value_i64()?).ok()?;
-    let end = if matches!(
-        program
-            .type_reference_table
-            .type_reference(cast.target_type),
-        TypeReferenceNode::Slice { .. }
-    ) {
-        let region = super::slice_recast_byte_region(program, machine, state, expression)?;
-        if region.source != source
-            || region.collection != indexed.collection
-            || region.start != indexed.index
-        {
-            return None;
-        }
+    let end = if let Some(region) =
+        slice_backed_recast_region(program, machine, state, expression, cast, source, indexed)?
+    {
         usize::try_from(region.extent).ok()?
     } else {
         start.checked_add(literal_indexed_recast_target_size(
@@ -206,22 +227,12 @@ pub fn validate_runtime_indexed_recast_source(
         return None;
     }
 
-    if matches!(
-        program
-            .type_reference_table
-            .type_reference(cast.target_type),
-        TypeReferenceNode::Slice { .. }
-    ) {
-        // The judgment above independently checks bounds and exact tiling of
-        // this complete suffix. Source syntax identifies its backing, not a
-        // guessed one-element footprint or a newly assumed representation.
-        let region = super::slice_recast_byte_region(program, machine, state, expression)?;
-        if region.source != source
-            || region.collection != indexed.collection
-            || region.start != indexed.index
-        {
-            return None;
-        }
+    // The judgment above independently checks bounds and exact tiling of
+    // this complete suffix. Source syntax identifies its backing, not a
+    // guessed one-element footprint or a newly assumed representation.
+    if let Some(region) =
+        slice_backed_recast_region(program, machine, state, expression, cast, source, indexed)?
+    {
         return Some(region.collection);
     }
 
