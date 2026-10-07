@@ -37,7 +37,7 @@ pub use satisfied_operators::{
     resolve_specialized_checked_operator_application,
 };
 pub use spellings::{
-    OperandType, has_builtin_spelled_expression_meaning, resolve_spelling,
+    OperandType, binary_operator_spelling, has_builtin_spelled_expression_meaning, resolve_spelling,
     resolve_spelling_for_operand_types, resolve_spelling_for_operands,
 };
 pub use trait_operators::{

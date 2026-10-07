@@ -8,6 +8,7 @@ use crate::typed_trees::declarations::operator::{
     OperatorConstBinding, OperatorDefinition, SpelledOperator,
     selected_trait_operator_meaning_exists,
 };
+use crate::expression::BinaryOperator;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
@@ -78,6 +79,26 @@ pub fn resolve_spelling<'program>(
             None => true,
         })
         .collect()
+}
+
+/// The authored [`OperatorSpelling`] of a binary operator that carries one —
+/// the arithmetic, comparison, and equality operators. Connective, bitwise,
+/// shift, and case-membership operators have no spelling and map to `None`.
+pub fn binary_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
+    Some(match operator {
+        BinaryOperator::Add => OperatorSpelling::Add,
+        BinaryOperator::Subtract => OperatorSpelling::Subtract,
+        BinaryOperator::Multiply => OperatorSpelling::Multiply,
+        BinaryOperator::Divide => OperatorSpelling::Divide,
+        BinaryOperator::Modulo => OperatorSpelling::Modulo,
+        BinaryOperator::Equal => OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        _ => return None,
+    })
 }
 
 /// What one operand's type is known to be at a use site.

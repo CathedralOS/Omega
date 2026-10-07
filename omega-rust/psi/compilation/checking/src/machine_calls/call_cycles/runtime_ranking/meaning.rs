@@ -1,7 +1,6 @@
 //! The early validator may use intrinsic arithmetic only when the existing
 //! operator owner rules out authored and selected-trait interpretations.
 
-use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
@@ -27,26 +26,15 @@ pub(super) fn binary_is_builtin(
                     )
                 });
         }
-        BinaryOperator::Add => OperatorSpelling::Add,
-        BinaryOperator::Subtract => OperatorSpelling::Subtract,
-        BinaryOperator::Multiply => OperatorSpelling::Multiply,
-        BinaryOperator::Divide => OperatorSpelling::Divide,
-        BinaryOperator::Modulo => OperatorSpelling::Modulo,
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        // These have no authored OperatorSpelling. Their operands still
-        // traverse the same inert-expression check.
-        BinaryOperator::And
-        | BinaryOperator::Or
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => return true,
+        operator => {
+            let Some(spelling) = typed_trees::operator::binary_operator_spelling(operator)
+            else {
+                // These have no authored OperatorSpelling. Their operands
+                // still traverse the same inert-expression check.
+                return true;
+            };
+            spelling
+        }
     };
     typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,

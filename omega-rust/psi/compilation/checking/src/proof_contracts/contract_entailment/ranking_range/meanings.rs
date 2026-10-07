@@ -3,7 +3,6 @@ use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State, TypedTrees,
     fields, lengths, saved_arguments,
 };
-use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::UnaryOperator;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -193,19 +192,11 @@ pub(super) fn builtin(
                 };
             }
             let spelling = match binary.operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                BinaryOperator::Divide => OperatorSpelling::Divide,
-                BinaryOperator::Modulo => OperatorSpelling::Modulo,
-                BinaryOperator::Equal => OperatorSpelling::Equal,
-                BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-                BinaryOperator::Less => OperatorSpelling::Less,
-                BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-                BinaryOperator::Greater => OperatorSpelling::Greater,
-                BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
                 BinaryOperator::And | BinaryOperator::Or => return Some(None),
-                _ => return None,
+                operator => match typed_trees::operator::binary_operator_spelling(operator) {
+                    Some(spelling) => spelling,
+                    None => return None,
+                },
             };
             if !typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program,
