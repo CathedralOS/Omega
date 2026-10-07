@@ -496,20 +496,8 @@ fn bounds(
                 BinaryOperator::BitwiseAnd | BinaryOperator::ShiftRight
             ) =>
         {
-            let left = bounds(
-                program,
-                machine,
-                state,
-                binary.left,
-                declared_mutable_leaves,
-            )?;
-            let right = bounds(
-                program,
-                machine,
-                state,
-                binary.right,
-                declared_mutable_leaves,
-            )?;
+            let (left, right) =
+                binary_operand_bounds(program, machine, state, binary, declared_mutable_leaves)?;
             unsigned_bitwise_bounds(program, binary.operator, left, right)
         }
         ExpressionNode::Binary(binary) => {
@@ -521,20 +509,8 @@ fn bounds(
                 BinaryOperator::Modulo => OperatorSpelling::Modulo,
                 _ => return None,
             };
-            let left = bounds(
-                program,
-                machine,
-                state,
-                binary.left,
-                declared_mutable_leaves,
-            )?;
-            let right = bounds(
-                program,
-                machine,
-                state,
-                binary.right,
-                declared_mutable_leaves,
-            )?;
+            let (left, right) =
+                binary_operand_bounds(program, machine, state, binary, declared_mutable_leaves)?;
             // A wholly anonymous tree was handled by the closed query above.
             // Its failure cannot grant a second, integer-only evaluation route.
             if left.primitive.is_none() && right.primitive.is_none() {
@@ -659,6 +635,31 @@ fn bounds(
 /// builtin. A mask keeps the smaller bounded operand's ceiling; a right shift
 /// by a count inside the carrier's width scales both endpoints down. Signed
 /// carriers and out-of-width counts stay unbounded here.
+/// Both operands' bounds, `?`-threaded — the binary arms share this pair.
+fn binary_operand_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    binary: &typed_trees::expression::TableBinaryExpression,
+    declared_mutable_leaves: bool,
+) -> Option<(Bounds, Bounds)> {
+    let left = bounds(
+        program,
+        machine,
+        state,
+        binary.left,
+        declared_mutable_leaves,
+    )?;
+    let right = bounds(
+        program,
+        machine,
+        state,
+        binary.right,
+        declared_mutable_leaves,
+    )?;
+    Some((left, right))
+}
+
 fn unsigned_bitwise_bounds(
     program: &TypedTrees,
     operator: BinaryOperator,
