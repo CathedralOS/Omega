@@ -435,6 +435,30 @@ macro_rules! integer_shift_term {
     };
 }
 
+macro_rules! integer_binary_term_mismatch {
+    ($name:ident => $variant:ident, $error:ident) => {
+        pub fn $name(
+            scalar_type: IntegerType,
+            left: ScalarTerm,
+            right: ScalarTerm,
+        ) -> Result<Self, PropositionError> {
+            let expected = ScalarType::Integer(scalar_type);
+            if left.scalar_type() != expected || right.scalar_type() != expected {
+                return Err(PropositionError::$error {
+                    expected,
+                    left: left.scalar_type(),
+                    right: right.scalar_type(),
+                });
+            }
+            Ok(Self::$variant {
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            })
+        }
+    };
+}
+
 impl ScalarTerm {
     pub fn value(id: ValueId, scalar_type: ScalarType) -> Self {
         Self::Value { id, scalar_type }
@@ -741,125 +765,17 @@ impl ScalarTerm {
         Ok(Self::Integer { scalar_type, value })
     }
 
-    pub fn wrapping_integer_add(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::WrappingIntegerAddTypeMismatch {
-                expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
-        Ok(Self::WrappingIntegerAdd {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term_mismatch!(wrapping_integer_add => WrappingIntegerAdd, WrappingIntegerAddTypeMismatch);
 
-    pub fn saturating_integer_add(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::SaturatingIntegerAddTypeMismatch {
-                expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
-        Ok(Self::SaturatingIntegerAdd {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term_mismatch!(saturating_integer_add => SaturatingIntegerAdd, SaturatingIntegerAddTypeMismatch);
 
-    pub fn wrapping_integer_subtract(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::WrappingIntegerSubtractTypeMismatch {
-                expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
-        Ok(Self::WrappingIntegerSubtract {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term_mismatch!(wrapping_integer_subtract => WrappingIntegerSubtract, WrappingIntegerSubtractTypeMismatch);
 
-    pub fn saturating_integer_subtract(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::SaturatingIntegerSubtractTypeMismatch {
-                expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
-        Ok(Self::SaturatingIntegerSubtract {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term_mismatch!(saturating_integer_subtract => SaturatingIntegerSubtract, SaturatingIntegerSubtractTypeMismatch);
 
-    pub fn wrapping_integer_multiply(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::WrappingIntegerMultiplyTypeMismatch {
-                expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
-        Ok(Self::WrappingIntegerMultiply {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term_mismatch!(wrapping_integer_multiply => WrappingIntegerMultiply, WrappingIntegerMultiplyTypeMismatch);
 
-    pub fn saturating_integer_multiply(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
-            return Err(PropositionError::SaturatingIntegerMultiplyTypeMismatch {
-                expected,
-                left: left.scalar_type(),
-                right: right.scalar_type(),
-            });
-        }
-        Ok(Self::SaturatingIntegerMultiply {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term_mismatch!(saturating_integer_multiply => SaturatingIntegerMultiply, SaturatingIntegerMultiplyTypeMismatch);
 
     /// Visits every `ValueId` carried by `Value` leaves. Returning `false`
     /// from `visit` short-circuits the traversal and propagates `false`.
