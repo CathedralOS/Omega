@@ -20,11 +20,12 @@ Key resolution: TYPESAFE_API_KEY, --key-file, build/typesafe.env.txt,
 """
 import argparse
 import json
-import os
 import subprocess
 import sys
 import urllib.request
 from pathlib import Path
+
+import typesafe_key
 
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 MODEL = "jev-1.13.0"
@@ -111,42 +112,6 @@ def make_request(command, failure, commits):
                         "false": "infrastructure/environment/older history"}}}}
 
 
-def read_key(path):
-    if not path.exists():
-        return ""
-    keys = [line.partition("=")[2].strip().strip("\"'")
-            for line in path.read_text(encoding="utf-8-sig").splitlines()
-            if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
-    return keys[0] if len(keys) == 1 else ""
-
-
-def main_checkout_root():
-    try:
-        done = subprocess.run(
-            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-            capture_output=True, text=True, timeout=15)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return Path(done.stdout.strip()).parent if done.returncode == 0 else None
-
-
-def find_key(key_file):
-    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
-    if key:
-        return key
-    candidates = ([key_file] if key_file else [])
-    candidates.append(Path("build/typesafe.env.txt"))
-    root = main_checkout_root()
-    if root is not None:
-        candidates.append(root / "build/typesafe.env.txt")
-    candidates.append(Path.home() / ".config" / "typesafe" / "typesafe.env.txt")
-    for path in candidates:
-        key = read_key(path)
-        if key:
-            return key
-    return ""
-
-
 def evaluate(request, response):
     answers = response.get("answers", {})
     suspect = answers.get("suspect", {}).get("choice", "")
@@ -187,7 +152,7 @@ def main():
     if not failure.strip():
         print("triage_advisor: empty failure output", file=sys.stderr)
         return 0
-    key = find_key(arguments.key_file)
+    key = typesafe_key.find_key(arguments.key_file)
     if not key:
         print("  = triage advisory unavailable: no TYPESAFE_API_KEY",
               file=sys.stderr)
