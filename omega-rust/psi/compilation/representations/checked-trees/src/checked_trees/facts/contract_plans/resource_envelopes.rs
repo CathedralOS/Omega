@@ -157,27 +157,20 @@ impl CheckedEntryResourceEnvelope {
         contract_report_fingerprint: u64,
         contract_commitment: MachineContractCommitment,
     ) -> Self {
-        let stack = CheckedResourceAxisAnchor::from_checked_contract(
-            machine,
-            entry,
-            contract_report_fingerprint,
-            contract_commitment,
+        let [stack, logical_structural_work, machine_state] = [
             CheckedResourceDerivationObligation::TerminalAndTargetStackClosure,
-        );
-        let logical_structural_work = CheckedResourceAxisAnchor::from_checked_contract(
-            machine,
-            entry,
-            contract_report_fingerprint,
-            contract_commitment,
             CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule,
-        );
-        let machine_state = CheckedResourceAxisAnchor::from_checked_contract(
-            machine,
-            entry,
-            contract_report_fingerprint,
-            contract_commitment,
             CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint,
-        );
+        ]
+        .map(|obligation| {
+            CheckedResourceAxisAnchor::from_checked_contract(
+                machine,
+                entry,
+                contract_report_fingerprint,
+                contract_commitment,
+                obligation,
+            )
+        });
         let report_fingerprint = checked_resource_envelope_report_fingerprint(
             machine,
             entry,
@@ -235,27 +228,28 @@ impl CheckedEntryResourceEnvelope {
         if self.contract_report_fingerprint == 0 || self.contract_commitment.is_zero() {
             return Err("checked resource envelope requires a nonzero exact contract identity");
         }
-        self.stack.validate(
-            self.machine,
-            self.entry,
-            self.contract_report_fingerprint,
-            self.contract_commitment,
-            CheckedResourceDerivationObligation::TerminalAndTargetStackClosure,
-        )?;
-        self.logical_structural_work.validate(
-            self.machine,
-            self.entry,
-            self.contract_report_fingerprint,
-            self.contract_commitment,
-            CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule,
-        )?;
-        self.machine_state.validate(
-            self.machine,
-            self.entry,
-            self.contract_report_fingerprint,
-            self.contract_commitment,
-            CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint,
-        )?;
+        for (anchor, obligation) in [
+            (
+                &self.stack,
+                CheckedResourceDerivationObligation::TerminalAndTargetStackClosure,
+            ),
+            (
+                &self.logical_structural_work,
+                CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule,
+            ),
+            (
+                &self.machine_state,
+                CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint,
+            ),
+        ] {
+            anchor.validate(
+                self.machine,
+                self.entry,
+                self.contract_report_fingerprint,
+                self.contract_commitment,
+                obligation,
+            )?;
+        }
         if self.report_fingerprint
             != checked_resource_envelope_report_fingerprint(
                 self.machine,
