@@ -560,15 +560,7 @@ fn validate_indexed_domain_argument_pack(
             )));
             continue;
         };
-        let (TypeParameterKind::Const {
-            type_reference: actual,
-        }
-        | TypeParameterKind::Value {
-            type_reference: actual,
-        }) = binder.kind
-        else {
-            unreachable!();
-        };
+        let actual = const_binder_type_reference(binder);
         if !type_references_match(program, actual, expected) {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} forwards const binder `{}` of type `{}` into `{}`, which requires `{}`",
@@ -579,6 +571,19 @@ fn validate_indexed_domain_argument_pack(
             )));
         }
     }
+}
+
+/// A const or value binder's declared type reference — the only kinds the
+/// candidate filters above admit.
+fn const_binder_type_reference(
+    binder: &typed_trees::data::TypeParameter,
+) -> TypeReferenceHandle {
+    let (TypeParameterKind::Const { type_reference }
+    | TypeParameterKind::Value { type_reference }) = binder.kind
+    else {
+        unreachable!();
+    };
+    type_reference
 }
 
 fn validate_open_index_expression(
@@ -633,15 +638,7 @@ fn validate_open_index_expression(
                 )));
                 return;
             };
-            let (TypeParameterKind::Const {
-                type_reference: actual,
-            }
-            | TypeParameterKind::Value {
-                type_reference: actual,
-            }) = binder.kind
-            else {
-                unreachable!();
-            };
+            let actual = const_binder_type_reference(binder);
             if !type_references_match(program, actual, expected) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses const binder `{}` of type `{}` in `{domain_name}`, whose index expression requires `{}`",
