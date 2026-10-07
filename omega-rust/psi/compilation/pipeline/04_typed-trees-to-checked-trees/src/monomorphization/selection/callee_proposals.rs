@@ -1,11 +1,14 @@
 //! Callee resolution, machine proposals, contract facts and expression
 //! trees.
 
+use validation::expression_traversal::{
+    collect_contract_facts, collect_expression_tree, collect_statement_expression_trees,
+};
+
 use crate::monomorphization::selection::static_bindings::infer_static_bindings;
 use crate::monomorphization::{
     CallSite, CalleeState, Candidate, ExpressionHandle, ExpressionNode, ProofFact,
-    StaticMachineArgument, SymbolHandle, SymbolKind, TypeReferenceHandle,
-    collect_statement_expression_trees, const_arguments,
+    StaticMachineArgument, SymbolHandle, SymbolKind, TypeReferenceHandle, const_arguments,
 };
 
 /// An explicit argument has no binder slot of its selected kind. Omitted
@@ -226,98 +229,6 @@ pub(crate) fn contract_expression_handles(
         }
     }
     handles
-}
-
-pub(crate) fn collect_contract_facts(
-    program: &dyn ::validation::CheckingInput,
-    facts: arena::HandleSpan<ProofFact>,
-    handles: &mut Vec<ExpressionHandle>,
-) {
-    for fact in program.proof_facts.span_or_empty(facts) {
-        match fact {
-            ProofFact::Expression(expression) => {
-                collect_expression_tree(program, *expression, handles)
-            }
-            ProofFact::Membership(membership) => {
-                collect_expression_tree(program, membership.value, handles)
-            }
-            ProofFact::Proposition(application) => {
-                for argument in program
-                    .expression_table
-                    .expression_handles(application.arguments)
-                {
-                    collect_expression_tree(program, *argument, handles);
-                }
-            }
-        }
-    }
-}
-
-pub(crate) fn collect_expression_tree(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-    handles: &mut Vec<ExpressionHandle>,
-) {
-    if !expression.is_valid() || handles.contains(&expression) {
-        return;
-    }
-    handles.push(expression);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            collect_expression_tree(program, dispatch.subject, handles);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    collect_expression_tree(program, pattern, handles);
-                }
-                collect_expression_tree(program, arm.value, handles);
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                collect_expression_tree(program, *value, handles);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            collect_expression_tree(program, atomic.value, handles);
-            collect_expression_tree(program, atomic.result, handles);
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_expression_tree(program, binary.left, handles);
-            collect_expression_tree(program, binary.right, handles);
-        }
-        ExpressionNode::Cast(cast) => collect_expression_tree(program, cast.value, handles),
-        ExpressionNode::Call(call) => {
-            collect_expression_tree(program, call.receiver, handles);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_tree(program, *argument, handles);
-            }
-        }
-        ExpressionNode::Indexed(indexed) => {
-            collect_expression_tree(program, indexed.collection, handles);
-            collect_expression_tree(program, indexed.index, handles);
-        }
-        ExpressionNode::Member(member) => {
-            collect_expression_tree(program, member.receiver, handles)
-        }
-        ExpressionNode::Borrow(inner) => collect_expression_tree(program, inner.target, handles),
-        ExpressionNode::Range(range) => {
-            collect_expression_tree(program, range.start, handles);
-            collect_expression_tree(program, range.end, handles);
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                collect_expression_tree(program, field.value, handles);
-            }
-        }
-        ExpressionNode::Unary(unary) => collect_expression_tree(program, unary.operand, handles),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
-    }
 }
 
 /// Ordinal of the statement enclosing one call site inside its state. A

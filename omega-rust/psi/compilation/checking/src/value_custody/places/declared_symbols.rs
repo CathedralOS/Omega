@@ -1,64 +1,10 @@
+//! Exact declaration roots, nominal type heads and scoped storage names.
+
 use ::symbols::SymbolHandle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
-pub(crate) fn machine_state_count(program: &dyn ::validation::CheckingInput) -> usize {
-    program
-        .machines()
-        .iter()
-        .map(|machine| program.machine_states(machine).len())
-        .sum()
-}
-
-// The machine, state and data-declaration lookups below all resolve through
-// the indexes the program owns (`TypedTrees::declaration_indexes`): each
-// slot pairs its map with the revision of the arenas it was built from, so
-// a mutation — including the machines monomorphization appends mid-compile —
-// rebuilds the index on the next query, and a dropped program can never lend
-// a replacement its verdicts.
-
-pub(crate) fn machine_by_symbol(
-    program: &dyn ::validation::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::machine::Machine> {
-    program.machine_by_symbol(symbol)
-}
-
-pub(crate) fn state_index_by_symbol(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    symbol: SymbolHandle,
-) -> Option<usize> {
-    program.state_position_by_symbol(machine.symbol, symbol)
-}
-
-pub(crate) fn data_definition_by_symbol(
-    program: &dyn ::validation::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
-    program.data_definition_by_symbol(symbol)
-}
-
-pub(crate) fn state_by_symbol<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    machine: &'program typed_trees::machine::Machine,
-    symbol: SymbolHandle,
-) -> Option<&'program typed_trees::state::State> {
-    state_index_by_symbol(program, machine, symbol)
-        .map(|index| &program.machine_states(machine)[index])
-}
-
-pub(crate) fn machine_state_by_symbol(
-    program: &dyn ::validation::CheckingInput,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
-    let machine = machine_by_symbol(program, machine_symbol)?;
-    let state = state_by_symbol(program, machine, state_symbol)?;
-    Some((machine, state))
-}
-
-pub(crate) fn machine_symbol_from_type_reference_handle(
-    program: &dyn ::validation::CheckingInput,
+pub fn machine_symbol_from_type_reference_handle(
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> SymbolHandle {
     match program.type_reference_table.type_reference(type_reference) {
@@ -86,7 +32,7 @@ pub(crate) fn machine_symbol_from_type_reference_handle(
     }
 }
 
-pub(crate) fn expression_root_symbol(
+pub fn expression_root_symbol(
     expression: ExpressionHandle,
     expressions: &typed_trees::expression::ExpressionTable,
     machine_symbol: SymbolHandle,
@@ -116,7 +62,7 @@ pub(crate) fn expression_root_symbol(
     }
 }
 
-pub(crate) fn first_valid_name_path_symbol(
+pub fn first_valid_name_path_symbol(
     path: &typed_trees::expression::TableNamePath,
     expressions: &typed_trees::expression::ExpressionTable,
 ) -> Option<SymbolHandle> {
@@ -132,8 +78,8 @@ pub(crate) fn first_valid_name_path_symbol(
 /// The nearest `let` of a bare name before a call boundary: state parameters
 /// shadow nothing, and a shadowed local re-derives its binding by scope —
 /// the same rule `resolve_runtime_subject` applies during selection.
-pub(crate) fn nearest_scoped_local(
-    program: &dyn ::validation::CheckingInput,
+pub fn nearest_scoped_local(
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     scope_limit: usize,
     path: &[typed_trees::name::Identifier],
@@ -166,8 +112,8 @@ pub(crate) fn nearest_scoped_local(
 /// field's declared `#identity` when present, else its authored name — the
 /// spelling `structural_parameter_place` produces, so a transported leaf
 /// resolves to the same canonical storage.
-pub(crate) fn structural_member_identity(
-    program: &dyn ::validation::CheckingInput,
+pub fn structural_member_identity(
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<String> {
     program.data_definitions().iter().find_map(|data| {
@@ -215,8 +161,8 @@ pub(crate) fn data_member_symbol_by_name(
 
 /// Data definition a type reference names, through reference and constraint
 /// shells.
-pub(crate) fn declared_data_type(
-    program: &dyn ::validation::CheckingInput,
+pub fn declared_data_type(
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -240,8 +186,8 @@ pub(crate) fn declared_data_type(
 /// Parameter or earlier local a single name resolves to inside a state's
 /// scope — the scope-roster half of name-path root resolution after direct
 /// path symbols are exhausted.
-pub(crate) fn state_scoped_name_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn state_scoped_name_symbol(
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     name: &str,
     statement_index: usize,

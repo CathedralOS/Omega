@@ -217,7 +217,9 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                         continue;
                     }
                     let mut tree = Vec::new();
-                    crate::monomorphization::collect_expression_tree(program, root, &mut tree);
+                    validation::expression_traversal::collect_expression_tree(
+                        program, root, &mut tree,
+                    );
                     for expression in tree {
                         let ExpressionNode::Call(call) =
                             program.expression_table.expression(expression)

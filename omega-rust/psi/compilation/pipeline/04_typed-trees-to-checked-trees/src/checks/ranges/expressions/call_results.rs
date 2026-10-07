@@ -29,26 +29,22 @@ pub(in crate::checks::ranges) fn ensured_call_result_bounds(
     // Resolve the contract target the way `call_target_parameters` does: a
     // machine head names the machine and binds contracts on its entry state; a
     // state call names the state inside its machine.
-    let (machine, target) =
-        if let Some(machine) = crate::lookup::machine_by_symbol(program, call.target_symbol) {
-            (machine, program.machine_states(machine).first()?)
-        } else {
-            crate::semantic::calls::find_state_with_machine(program, call.target_symbol)?
-        };
+    let (machine, target) = if let Some(machine) = program.machine_by_symbol(call.target_symbol) {
+        (machine, program.machine_states(machine).first()?)
+    } else {
+        validation::find_state_with_machine(program, call.target_symbol)?
+    };
     // An authored parameter named `result` on the called signature shadows the
     // reserved binder; a `result` operand then denotes that parameter, not the
     // return value (the `is_result_reference` precedence rule in
     // contracts/return_values, applied to the same parameter source the
     // contract-label instantiation uses).
-    let result_is_parameter = crate::semantic::calls::call_target_parameters(
-        program,
-        call.target_symbol,
-    )
-    .is_some_and(|parameters| {
-        parameters.iter().any(|parameter| {
-            parameter.name.as_str() == crate::checks::contracts::labels::calls::RESULT_BINDER
-        })
-    });
+    let result_is_parameter = validation::call_target_parameters(program, call.target_symbol)
+        .is_some_and(|parameters| {
+            parameters.iter().any(|parameter| {
+                parameter.name.as_str() == crate::checks::contracts::labels::calls::RESULT_BINDER
+            })
+        });
     if result_is_parameter {
         return None;
     }

@@ -1,10 +1,10 @@
 //! field domains slice of result_domains.
 
+use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+
 use super::super::super::return_values::exit_return_expression;
 use super::scalar_exits::*;
-use crate::flow::{
-    CanonicalPlace, canonical_place_from_expression_in_state, canonical_place_from_semantic_place,
-};
+use crate::flow::canonical_place_from_semantic_place;
 use checked_trees::{CheckFacts, FlowExitFact};
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint};
@@ -255,8 +255,7 @@ pub(crate) fn mutable_referent_field_requirements(
     machine_symbol: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
 ) -> Vec<facts::Fact> {
-    let Some(state) =
-        crate::semantic::calls::find_state_in_machine(program, machine_symbol, state_symbol)
+    let Some(state) = validation::find_state_in_machine(program, machine_symbol, state_symbol)
     else {
         return Vec::new();
     };
@@ -324,11 +323,9 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
     // Mutable roots use implicit signature preconditions rather than seeded
     // StateParameterDomain facts. Their declaration still creates a return
     // obligation, even when a write retired every copy of the entry evidence.
-    if let Some(state) = crate::semantic::calls::find_state_in_machine(
-        program,
-        exit.machine_symbol,
-        exit.state_symbol,
-    ) {
+    if let Some(state) =
+        validation::find_state_in_machine(program, exit.machine_symbol, exit.state_symbol)
+    {
         for parameter in program
             .state_parameters(state)
             .iter()

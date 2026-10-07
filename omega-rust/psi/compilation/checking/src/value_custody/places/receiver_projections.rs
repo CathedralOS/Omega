@@ -3,22 +3,21 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
-    data::DataMember,
     expression::{ExpressionHandle, ExpressionNode},
     name::Identifier,
     state::State,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
 
-pub(super) struct Projection {
+pub struct Projection {
     pub root_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
     pub type_reference: TypeReferenceHandle,
     pub depth: usize,
 }
 
-pub(super) fn root(
-    program: &dyn ::validation::CheckingInput,
+pub fn root(
+    program: &dyn crate::CheckingInput,
     state: &State,
     before: usize,
     symbol: SymbolHandle,
@@ -48,13 +47,13 @@ pub(super) fn root(
     })
 }
 
-pub(super) fn field(
-    program: &dyn ::validation::CheckingInput,
+pub fn field(
+    program: &dyn crate::CheckingInput,
     receiver: Projection,
     name: &Identifier,
 ) -> Option<Projection> {
     let mut nominal =
-        super::super::machine_symbol_from_type_reference_handle(program, receiver.type_reference);
+        crate::machine_symbol_from_type_reference_handle(program, receiver.type_reference);
     // A self reference names its attached machine, not the data declaration.
     // Rejoin only that machine's actual self root before walking record fields;
     // ordinary values cannot borrow a same-spelled machine's attachment.
@@ -70,18 +69,13 @@ pub(super) fn field(
         .data_definitions()
         .iter()
         .find(|definition| nominal.is_valid() && definition.symbol == nominal)?;
-    let mut fields =
-        program
-            .data_members(definition)
-            .iter()
-            .filter_map(|candidate| match candidate {
-                DataMember::Field(field) if field.name == *name => Some(field),
-                _ => None,
-            });
-    let selected = fields.next()?;
-    if fields.next().is_some() || !selected.symbol.is_valid() {
-        return None;
-    }
+    let selected = super::exact_data_member_field(
+        program,
+        definition,
+        SymbolHandle::invalid(),
+        name.as_str(),
+        None,
+    )?;
     Some(Projection {
         root_symbol: receiver.root_symbol,
         symbol: selected.symbol,
@@ -90,8 +84,8 @@ pub(super) fn field(
     })
 }
 
-pub(super) fn expression(
-    program: &dyn ::validation::CheckingInput,
+pub fn expression(
+    program: &dyn crate::CheckingInput,
     state: &State,
     before: usize,
     handle: ExpressionHandle,
@@ -152,10 +146,10 @@ pub(super) fn expression(
             else {
                 return Ok(None);
             };
-            let Some(machine) = crate::semantic::calls::find_machine(program, state.symbol) else {
+            let Some(machine) = crate::find_machine(program, state.symbol) else {
                 return Ok(None);
             };
-            if !validation::place_has_builtin_coordinates(program, machine, Some(state), handle) {
+            if !crate::place_has_builtin_coordinates(program, machine, Some(state), handle) {
                 // Authored indexing retains its selected result declaration;
                 // the collection's element type cannot replace that meaning.
                 return Ok(None);
@@ -167,7 +161,7 @@ pub(super) fn expression(
                 return Ok(None);
             }
             let Some(collection) =
-                validation::unwrapped_type_reference(program, receiver.type_reference)
+                crate::unwrapped_type_reference(program, receiver.type_reference)
             else {
                 return Ok(None);
             };
@@ -192,7 +186,7 @@ pub(super) fn expression(
 }
 
 fn check_symbol(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     authored: SymbolHandle,
     selected: &Projection,
@@ -204,4 +198,29 @@ fn check_symbol(
         ]);
     }
     Ok(())
+}
+
+pub fn projected_statement_receiver_place(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    before: usize,
+    call: &typed_trees::statement::TableCall,
+) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+    let members = program.statement_table.name_path_members(call.receiver);
+    let mut receiver = root(
+        program,
+        state,
+        before,
+        call.receiver_root_symbol,
+        members.first()?,
+    )?;
+    let root = receiver.symbol;
+    let mut segments = Vec::new();
+    for member in members.iter().skip(1) {
+        receiver = field(program, receiver, member)?;
+        segments.push(facts::PlaceSegment::Field {
+            symbol: receiver.symbol,
+        });
+    }
+    (receiver.symbol == call.receiver_symbol).then_some((root, segments))
 }

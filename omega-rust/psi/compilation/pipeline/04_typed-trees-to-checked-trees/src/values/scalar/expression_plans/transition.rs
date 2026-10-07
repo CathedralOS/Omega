@@ -112,7 +112,7 @@ pub(super) fn plan(
             // Free names retain the machine head, while qualified names can
             // retain its entry child. Both supply the first state's formals;
             // foreign interior states remain invalid call targets.
-            crate::semantic::calls::find_machine_head(program, path.symbol).map(|(_, entry)| entry)
+            validation::find_machine_head(program, path.symbol).map(|(_, entry)| entry)
         }) else {
             continue;
         };

@@ -75,7 +75,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     let mut consumed = Vec::new();
     let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
-    let owner = crate::lookup::machine_by_symbol(program, machine)?;
+    let owner = program.machine_by_symbol(machine)?;
     let mut scalar_local_count = 0u32;
     let control_prefix =
         statement_sequence::scalar_control(program, facts, owner, state).map(|(_, prefix)| prefix);
@@ -410,7 +410,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         outer.push(call);
         trace.phase("outer calls: structural operands");
         trace.statement(u32::try_from(call.statement_index).ok());
-        let owner = crate::lookup::machine_by_symbol(program, machine)?;
+        let owner = program.machine_by_symbol(machine)?;
         for nested in structural_operands::for_call(program, facts, owner, state, call)? {
             // The value graph and canonical-place operand can name the same
             // captured occurrence. This is one catalog entry, not a second
@@ -430,7 +430,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             let (expression, authored) =
                 ordered_statement_call(program, owner, state, call.statement_index)?;
             if call.authored_expression != expression
-                || call.target_symbol != crate::flow::call_target_symbol(program, authored)
+                || call.target_symbol != validation::call_target_symbol(program, authored)
             {
                 return None;
             }
@@ -463,7 +463,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 if terminal_named_call(program, owner, state, call.statement_index)
                     == Some(call.target_symbol) =>
             {
-                let site = crate::semantic::calls::find_call_site(
+                let site = validation::find_call_site(
                     program,
                     machine,
                     state.symbol,
@@ -472,7 +472,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 )?;
                 (
                     call.target_symbol,
-                    crate::semantic::calls::call_site_argument_expressions(program, &site),
+                    validation::call_site_argument_expressions(program, &site),
                 )
             }
             StatementNode::Call(authored) => (
@@ -485,7 +485,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 let (_, authored) =
                     ordered_statement_call(program, owner, state, call.statement_index)?;
                 (
-                    crate::flow::call_target_symbol(program, authored),
+                    validation::call_target_symbol(program, authored),
                     program
                         .expression_table
                         .expression_handles(authored.arguments),
@@ -516,7 +516,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     return None;
                 };
                 (
-                    crate::flow::call_target_symbol(program, authored),
+                    validation::call_target_symbol(program, authored),
                     program
                         .expression_table
                         .expression_handles(authored.arguments),
@@ -534,7 +534,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     return None;
                 };
                 (
-                    crate::flow::call_target_symbol(program, authored),
+                    validation::call_target_symbol(program, authored),
                     program
                         .expression_table
                         .expression_handles(authored.arguments),
@@ -586,7 +586,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         if scalar_intrinsic(call) || omitted(call) {
             continue;
         }
-        let owner = crate::lookup::machine_by_symbol(program, machine)?;
+        let owner = program.machine_by_symbol(machine)?;
         for nested in structural_operands::for_call(program, facts, owner, state, call)? {
             if !structural.iter().any(|prior| std::ptr::eq(*prior, nested)) {
                 structural.push(nested);
@@ -596,14 +596,14 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     for call in &structural {
         trace.phase("outer calls: structural argument calls");
         trace.statement(u32::try_from(call.statement_index).ok());
-        let site = crate::semantic::calls::find_call_site(
+        let site = validation::find_call_site(
             program,
             machine,
             state.symbol,
             call.statement_index,
             call.call_ordinal,
         )?;
-        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+        let arguments = validation::call_site_argument_expressions(program, &site);
         collect_argument_calls(
             program,
             facts,

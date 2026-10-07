@@ -61,13 +61,13 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let semantic = &facts.semantic;
     let parameters = target_state.contract_parameters(program);
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
+    let arguments = validation::call_site_argument_expressions(program, call_site);
     let substitute = |expression| {
         let typed_trees::expression::ExpressionNode::Name(path) =
             program.expression_table.expression(expression)
@@ -183,7 +183,7 @@ fn instantiated_live_value_proves(
     contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     target: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
@@ -191,7 +191,7 @@ fn instantiated_live_value_proves(
     use typed_trees::expression::ExpressionNode;
 
     let parameters = target.contract_parameters(program);
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
+    let arguments = validation::call_site_argument_expressions(program, call_site);
     evaluate_scalar(program, expression, &mut |formal| {
         let argument = match program.expression_table.expression(formal) {
             ExpressionNode::Name(path)
@@ -229,7 +229,7 @@ fn instantiated_live_value_proves(
             // snapshots which survived the scheduled argument effects. Live
             // scalar facts are spread across the entry contexts, so reads run
             // over their union just like `assigned_values`' domain prover.
-            if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            if let Some(place) = validation::canonical_place_from_expression_in_state(
                 program,
                 caller_state_symbol,
                 statement_index,
@@ -302,7 +302,7 @@ fn projected_formal_leaf_value(
         .iter()
         .position(|parameter| parameter.symbol == formal)?;
     let argument = *arguments.get(position)?;
-    let mut actual = crate::flow::canonical_place_from_expression_in_state(
+    let mut actual = validation::canonical_place_from_expression_in_state(
         program,
         caller_state_symbol,
         statement_index,
@@ -316,7 +316,7 @@ fn projected_formal_leaf_value(
         // A stored selector narrows to the fixed element it currently names.
         // The read below rejects anything the live evidence cannot pin down,
         // and mutation invalidation has already retired a stale selector.
-        let Some(selector) = crate::flow::canonical_place_from_expression_in_state(
+        let Some(selector) = validation::canonical_place_from_expression_in_state(
             program,
             caller_state_symbol,
             statement_index,
@@ -370,7 +370,7 @@ fn projected_collection_extent(
     {
         return None;
     }
-    let reference = crate::flow::expression_place_type_reference(program, receiver, &[])?;
+    let reference = validation::expression_place_type_reference(program, receiver, &[])?;
     let length = crate::checks::ranges::fixed_array_type_length(program, reference)?;
     Some(facts::ScalarValue::Integer(
         numerics::bignum::BigInt::from_u64(u64::try_from(length).ok()?),

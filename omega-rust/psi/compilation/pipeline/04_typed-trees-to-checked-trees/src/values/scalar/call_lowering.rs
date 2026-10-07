@@ -76,7 +76,7 @@ pub(crate) fn lower_call_arguments(
     state: &typed_trees::state::State,
     statement_ordinal: u32,
     call_ordinal: usize,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     parameters: &[StateParameter],
     authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
@@ -84,17 +84,16 @@ pub(crate) fn lower_call_arguments(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<LoweredCallArguments> {
     let target_symbol = match call_site {
-        crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
-        crate::semantic::calls::CallSite::Expression { call, .. } => {
-            crate::flow::call_target_symbol(program, call)
+        validation::CallSite::Statement(call) => call.target_symbol,
+        validation::CallSite::Expression { call, .. } => {
+            validation::call_target_symbol(program, call)
         }
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => return None,
+        validation::CallSite::TransitionNamed { .. } => return None,
     };
     let is_boundary = call_is_boundary(program, target_symbol);
 
-    let target_parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)?;
-    let explicit_arguments =
-        crate::semantic::calls::call_site_argument_expressions(program, call_site);
+    let target_parameters = validation::call_target_parameters(program, target_symbol)?;
+    let explicit_arguments = validation::call_site_argument_expressions(program, call_site);
     let mut explicit_index = 0usize;
     let mut scalar_index = 0usize;
     let mut scalar_erased_index = 0usize;
@@ -371,9 +370,8 @@ pub(crate) fn lower_direct_call_binding_arguments(
     if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
         return None;
     }
-    crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
-    let target_parameters =
-        crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
+    validation::find_machine_by_entry_state(program, call.target_symbol)?;
+    let target_parameters = validation::call_target_parameters(program, call.target_symbol)?;
     if target_parameters.iter().any(|parameter| {
         (parameter.is_const)
             || (parameter.is_mutable
@@ -509,7 +507,7 @@ pub(crate) fn scalar_qualified_call_expression(
                 expression = cast.value;
             }
             ExpressionNode::Call(call) => {
-                let state = crate::semantic::calls::find_state(program, call.target_symbol)?;
+                let state = program.state_by_symbol(call.target_symbol)?;
                 let primitive = program.primitive_type_reference(state.return_type)?;
                 return (is_integer(primitive)
                     && primitive != PrimitiveType::Addr

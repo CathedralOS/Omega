@@ -19,7 +19,7 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+        let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self
             .program
             .machine_states(machine)
@@ -94,7 +94,7 @@ impl Builder<'_, '_> {
         typed_trees::types::TypeReferenceHandle,
         checked_trees::CheckedUnitStructuralArgumentPlan,
     )> {
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,
             statement_index,
@@ -109,7 +109,7 @@ impl Builder<'_, '_> {
         let symbol = if let Some(parameter) = parameter {
             parameter.symbol
         } else {
-            let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+            let machine = self.program.machine_by_symbol(self.machine)?;
             let state = self
                 .program
                 .machine_states(machine)

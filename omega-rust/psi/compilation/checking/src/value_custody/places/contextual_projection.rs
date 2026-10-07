@@ -1,14 +1,16 @@
-use super::resolution;
-use super::resolution::resolve_member_symbol_from_type_symbol;
-use crate::flow::CanonicalPlace;
-use crate::flow::index_place_segment;
-use crate::flow::push_field_place_segments;
-use crate::lookup::first_valid_name_path_symbol;
+//! Resolve storage names and members at an exact statement prefix.
+
+use super::canonical_projection::CanonicalPlace;
+use super::canonical_projection::index_place_segment;
+use super::canonical_projection::push_field_place_segments;
+use super::member_resolution;
+use super::member_resolution::resolve_member_symbol_from_type_symbol;
+use crate::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
-pub(crate) fn contextual_canonical_place_from_expression(
-    program: &dyn ::validation::CheckingInput,
+pub fn contextual_canonical_place_from_expression(
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -79,10 +81,10 @@ pub(crate) fn contextual_canonical_place_from_expression(
                 member.receiver,
             )?;
             let symbol = {
-                let symbol = resolution::effective_member_symbol_from_position(
+                let symbol = member_resolution::effective_member_symbol_from_position(
                     program,
                     member.receiver,
-                    resolution::expression_type_position(program, member.receiver),
+                    member_resolution::expression_type_position(program, member.receiver),
                     member,
                 );
                 if symbol.is_valid() {
@@ -118,19 +120,19 @@ pub(crate) fn contextual_canonical_place_from_expression(
 }
 
 fn resolve_contextual_name_path_root(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<SymbolHandle> {
     let name = program.expression_table.display_name(expression);
-    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     if let Some(symbol) = first_valid_name_path_symbol(path, &program.expression_table) {
         return Some(symbol);
     }
 
-    crate::lookup::state_scoped_name_symbol(program, state, &name, statement_index)
+    crate::state_scoped_name_symbol(program, state, &name, statement_index)
 }
 
 /// Resolve the demanded member on the place walk's leaf. `case_variant`
@@ -139,21 +141,23 @@ fn resolve_contextual_name_path_root(
 /// answered only by the field that exact variant declares — an unqualified
 /// name search would mint a sibling case's same-named field for it.
 pub(super) fn resolve_member_symbol_from_place(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     place: &CanonicalPlace,
     member_name: &str,
     case_variant: Option<&str>,
     retained: SymbolHandle,
 ) -> Option<SymbolHandle> {
     let position = match place.root {
-        facts::PlaceRoot::Symbol(symbol) => resolution::symbol_type_position(program, symbol)?,
+        facts::PlaceRoot::Symbol(symbol) => {
+            member_resolution::symbol_type_position(program, symbol)?
+        }
         facts::PlaceRoot::Expression(expression) => {
-            resolution::expression_type_position(program, expression)?
+            member_resolution::expression_type_position(program, expression)?
         }
         // A type-reference root names the place's own stored type: the walk
         // resumes at that reference with its reaching application intact.
         facts::PlaceRoot::TypeReference(reference) => {
-            resolution::MemberPosition::Reference(reference)
+            member_resolution::MemberPosition::Reference(reference)
         }
         facts::PlaceRoot::Unknown => return None,
     };
@@ -164,21 +168,25 @@ pub(super) fn resolve_member_symbol_from_place(
     // declared type, and a window keeps its element while refusing member
     // demands — the same contract `expression_place_type_reference` replays
     // for reference-world consumers.
-    let position = resolution::member_position_after_segments(program, position, &place.segments)?;
+    let position =
+        member_resolution::member_position_after_segments(program, position, &place.segments)?;
 
     if case_variant.is_none() {
-        if let Some(symbol) =
-            resolution::closed_generic_member_symbol(program, Some(position), member_name, retained)
-        {
+        if let Some(symbol) = member_resolution::closed_generic_member_symbol(
+            program,
+            Some(position),
+            member_name,
+            retained,
+        ) {
             return Some(symbol);
         }
         if retained.is_valid() {
             return Some(retained);
         }
     }
-    let current = resolution::position_leaf_symbol(program, position);
+    let current = member_resolution::position_leaf_symbol(program, position);
     match case_variant {
-        Some(variant) => resolution::resolve_case_member_symbol_from_type_symbol(
+        Some(variant) => member_resolution::resolve_case_member_symbol_from_type_symbol(
             program,
             current,
             variant,

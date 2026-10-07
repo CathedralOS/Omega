@@ -1,6 +1,8 @@
 //! Scalar postconditions consume exact return and live place values. Entry
 //! parameter names are substituted only through the retained exit origin map.
 
+use validation::canonical_place_from_expression_in_state;
+
 use checked_trees::{CheckFacts, CheckedScalarExpressionRole, FlowExitFact};
 use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
 use typed_trees::{expression::ExpressionHandle, machine::Machine};
@@ -12,7 +14,7 @@ use super::super::{
     },
     return_values::{exit_return_expression, is_result_reference},
 };
-use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from_symbol};
+use crate::flow::canonical_place_from_symbol;
 
 mod boolean_results;
 pub(crate) mod calls;
@@ -160,7 +162,7 @@ impl ExitScalars<'_, '_> {
         {
             return false;
         }
-        let Some(state) = crate::semantic::calls::find_state_in_machine(
+        let Some(state) = validation::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -333,7 +335,7 @@ impl ExitScalars<'_, '_> {
         else {
             return false;
         };
-        let Some(state) = crate::semantic::calls::find_state_in_machine(
+        let Some(state) = validation::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -449,8 +451,12 @@ impl ExitScalars<'_, '_> {
         // Exit contexts describe storage after return-expression effects.
         // Even short-circuit operands cannot be reread after a later write.
         let mut nodes = Vec::new();
-        crate::monomorphization::collect_expression_tree(self.program, expression, &mut nodes);
-        let state = crate::semantic::calls::find_state_in_machine(
+        validation::expression_traversal::collect_expression_tree(
+            self.program,
+            expression,
+            &mut nodes,
+        );
+        let state = validation::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,
@@ -507,7 +513,7 @@ impl ExitScalars<'_, '_> {
     }
 
     fn return_expression_role(&self) -> Option<CheckedScalarExpressionRole> {
-        let state = crate::semantic::calls::find_state_in_machine(
+        let state = validation::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -564,7 +570,7 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
-        let state = crate::semantic::calls::find_state_in_machine(
+        let state = validation::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,

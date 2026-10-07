@@ -18,7 +18,7 @@ pub(super) fn call_moves_no_ownership(
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     !call.receiver.is_valid()
-        && crate::semantic::calls::call_target_parameters(program, call.target_symbol).is_some_and(
+        && validation::call_target_parameters(program, call.target_symbol).is_some_and(
             |parameters| {
                 parameters.iter().all(|parameter| {
                     program.type_multiplicity(parameter.type_reference)

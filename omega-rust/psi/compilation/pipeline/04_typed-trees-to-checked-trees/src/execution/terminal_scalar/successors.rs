@@ -110,7 +110,7 @@ fn arguments<'a>(
     source: &'a CheckedScalarStateGraph,
     successor: &'a CheckedScalarSuccessor,
 ) -> Option<SuccessorArguments> {
-    let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
+    let machine = program.machine_by_symbol(graph.machine)?;
     let states = program.machine_states(machine);
     // A fused graph retains a sibling machine's states beside its own, so a
     // retained state may be authored under another owner: resolve authored
@@ -119,7 +119,7 @@ fn arguments<'a>(
     let (source_machine, source_state) =
         match states.iter().find(|state| state.symbol == source.state) {
             Some(source_state) => (machine, source_state),
-            None => crate::semantic::calls::find_state_with_machine(program, source.state)?,
+            None => validation::find_state_with_machine(program, source.state)?,
         };
     // Every body a tail arm reaches is a member of this graph
     // (`build_machine_graph`), so the target resolves inside it.
@@ -130,7 +130,7 @@ fn arguments<'a>(
     let (target_machine, target_state) =
         match states.iter().find(|state| state.symbol == target.state) {
             Some(target_state) => (machine, target_state),
-            None => crate::semantic::calls::find_state_with_machine(program, target.state)?,
+            None => validation::find_state_with_machine(program, target.state)?,
         };
     let target_states = program.machine_states(target_machine);
     let source_parameters = program.state_parameters(source_state);
@@ -196,7 +196,7 @@ fn arguments<'a>(
         // Normalize either the exact machine head or its entry child, as
         // graph construction does. The owning machine must still agree with
         // the retained destination; a foreign interior state is not a head.
-        let (entry_machine, _) = crate::semantic::calls::find_machine_head(program, path.symbol)?;
+        let (entry_machine, _) = validation::find_machine_head(program, path.symbol)?;
         if entry_machine.symbol != target_machine.symbol {
             return None;
         }
@@ -496,7 +496,7 @@ fn transition_permission_source(
     state: &State,
     successor: &CheckedScalarSuccessor,
 ) -> Option<PermissionEventSource> {
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
     let statement_index = successor.statement_ordinal as usize;
     let StatementNode::Transition(transition) = program
         .statement_table
@@ -511,15 +511,15 @@ fn transition_permission_source(
         transition.target
     };
     let mut call_ordinal = 0usize;
-    while let Some(site) = crate::semantic::calls::find_call_site(
+    while let Some(site) = validation::find_call_site(
         program,
         machine_symbol,
         state.symbol,
         statement_index,
         call_ordinal,
     ) {
-        if let crate::semantic::calls::CallSite::TransitionNamed { path, .. } = site
-            && crate::semantic::calls::transition_call_target(
+        if let validation::CallSite::TransitionNamed { path, .. } = site
+            && validation::transition_call_target(
                 program,
                 machine,
                 state,

@@ -206,7 +206,7 @@ pub(super) fn first_unsupported_statement(
                             || (crate::execution::terminal_unit::types::borrowed_named_view(
                                 program,
                                 state.return_type,
-                            ) && crate::flow::canonical_place_from_expression_in_state(
+                            ) && validation::canonical_place_from_expression_in_state(
                                 program,
                                 state.symbol,
                                 *index,
@@ -303,7 +303,7 @@ fn statement_call_target(
     let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
         return None;
     };
-    Some(crate::flow::call_target_symbol(program, call))
+    Some(validation::call_target_symbol(program, call))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -583,7 +583,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 trace.phase("statement sequence: call: discarded result type");
                 trace.statement(Some(statement_index));
                 let result_type =
-                    crate::flow::call_target_return_type(program, call.target_symbol)?;
+                    validation::call_target_return_type(program, call.target_symbol)?;
                 if let Some(primitive_type) = program.primitive_type_reference(result_type) {
                     // Discarding the value does not discard the invocation or
                     // change its result signature. Keep the ordinary SSA result

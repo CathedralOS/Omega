@@ -52,7 +52,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     ) else {
         return;
     };
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let arguments = validation::call_site_argument_expressions(program, &site);
     let mut rows = Vec::new();
     let mut argument_index = 0usize;
     for parameter in parameters {
@@ -120,7 +120,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             actual.clone(),
             build.call_frames,
         );
-        let targets: Vec<(crate::flow::CanonicalPlace, bool)> = match exact {
+        let targets: Vec<(validation::CanonicalPlace, bool)> = match exact {
             Some(storage) => vec![(storage, false)],
             None => {
                 let PlaceRoot::Symbol(root) = actual.root else {
@@ -184,7 +184,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     );
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
-    let mut contexts: Vec<(crate::flow::CanonicalPlace, HandleSpan<facts::FactRef>)> = Vec::new();
+    let mut contexts: Vec<(validation::CanonicalPlace, HandleSpan<facts::FactRef>)> = Vec::new();
     for (storage, path, domain_symbol, semantic_domain) in rows {
         let mut place = storage.clone();
         place.extend_segments(&path);
@@ -239,7 +239,7 @@ fn row_was_live(
     semantic: &mut FactPlan,
     build: &FlowBuildContext,
     pre_contexts: HandleSpan<FlowSemanticContextRef>,
-    storage: &crate::flow::CanonicalPlace,
+    storage: &validation::CanonicalPlace,
     path: &[PlaceSegment],
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,

@@ -74,8 +74,7 @@ impl Builder<'_, '_> {
         operand: ExpressionHandle,
         target: typed_trees::types::TypeReferenceHandle,
     ) -> Option<CheckedUnitStructuralArgumentPlan> {
-        let (machine, state) =
-            crate::semantic::calls::find_state_with_machine(self.program, self.state)?;
+        let (machine, state) = validation::find_state_with_machine(self.program, self.state)?;
         crate::execution::terminal_unit::byte_operands::plan(
             self.program,
             self.operators,

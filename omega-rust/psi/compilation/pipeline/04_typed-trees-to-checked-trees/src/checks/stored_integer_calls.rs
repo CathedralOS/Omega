@@ -105,37 +105,31 @@ fn internal_state_call(
     call: &FlowCallFact,
 ) -> bool {
     call_values::target_machine(program, call).is_none()
-        && crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
+        && validation::find_state_with_machine(program, call.target_symbol)
             .is_some_and(|(machine, _)| machine.symbol == state.machine_symbol)
 }
 
 impl<'a> Admission<'a> {
     fn owner(&self, state: &FlowStateFact) -> Result<(&'a Machine, &'a State), &'static str> {
-        crate::lookup::symbols::machine_state_by_symbol(
-            self.program,
-            state.machine_symbol,
-            state.state_symbol,
-        )
-        .ok_or("call has no exact source owner")
+        validation::machine_state_by_symbols(self.program, state.machine_symbol, state.state_symbol)
+            .ok_or("call has no exact source owner")
     }
 
     fn call_origins(&self, state: &FlowStateFact, call: &FlowCallFact) -> Option<CallWriteOrigins> {
         let (machine, body) = self.owner(state).ok()?;
-        match crate::semantic::calls::find_call_site(
+        match validation::find_call_site(
             self.program,
             machine.symbol,
             body.symbol,
             call.statement_index,
             call.call_ordinal,
         )? {
-            crate::semantic::calls::CallSite::Statement(call) => {
-                self.frames.call_write_origins(machine, call)
-            }
-            crate::semantic::calls::CallSite::Expression { expression, .. } => self
+            validation::CallSite::Statement(call) => self.frames.call_write_origins(machine, call),
+            validation::CallSite::Expression { expression, .. } => self
                 .frames
                 .expression_call_write_origins(machine, expression),
-            crate::semantic::calls::CallSite::TransitionNamed { .. } => {
-                let target = crate::semantic::calls::transition_call_target(
+            validation::CallSite::TransitionNamed { .. } => {
+                let target = validation::transition_call_target(
                     self.program,
                     machine,
                     body,
@@ -151,19 +145,19 @@ impl<'a> Admission<'a> {
         let Ok((machine, body)) = self.owner(state) else {
             return false;
         };
-        match crate::semantic::calls::find_call_site(
+        match validation::find_call_site(
             self.program,
             machine.symbol,
             body.symbol,
             call.statement_index,
             call.call_ordinal,
         ) {
-            Some(crate::semantic::calls::CallSite::Statement(call)) => self
+            Some(validation::CallSite::Statement(call)) => self
                 .frames
                 .may_write_frame(machine, call)
                 .complete_paths()
                 .is_some_and(|paths| paths.is_empty()),
-            Some(crate::semantic::calls::CallSite::Expression { expression, .. }) => self
+            Some(validation::CallSite::Expression { expression, .. }) => self
                 .frames
                 .expression_write_frame(machine, expression)
                 .complete_paths()
@@ -190,12 +184,13 @@ impl<'a> Admission<'a> {
             .iter()
             .any(|access| access.kind.is_exclusive() && access.end_before_access.is_none());
         let declared_writable =
-            crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)
-                .is_some_and(|parameters| {
+            validation::call_target_parameters(self.program, call.target_symbol).is_some_and(
+                |parameters| {
                     parameters
                         .iter()
                         .any(|parameter| self.runtime_write_parameter(parameter))
-                });
+                },
+            );
         if !writable && !declared_writable {
             return Ok(());
         }
@@ -423,7 +418,7 @@ impl<'a> Admission<'a> {
                 }
                 // Source occurrence coverage is separate from a may-write
                 // footprint: a nested invocation cannot disappear from it.
-                let sites = crate::semantic::calls::collect_call_sites_in_statement(
+                let sites = validation::collect_call_sites_in_statement(
                     self.program,
                     machine,
                     body,
@@ -459,7 +454,7 @@ impl<'a> Admission<'a> {
         ordinal: usize,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<Vec<LocalWriteSource>> {
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             self.program,
             state.symbol,
             ordinal,
@@ -592,9 +587,8 @@ impl<'a> Admission<'a> {
         call: &FlowCallFact,
         origins: &CallWriteOrigins,
     ) -> Result<bool, &'static str> {
-        let parameters =
-            crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)
-                .ok_or("effectful invocation has no exact parameter roster")?;
+        let parameters = validation::call_target_parameters(self.program, call.target_symbol)
+            .ok_or("effectful invocation has no exact parameter roster")?;
         let (machine, body) = self.owner(state)?;
         let mut needs_fit = false;
         for (position, parameter) in parameters.iter().enumerate() {
@@ -648,9 +642,8 @@ impl<'a> Admission<'a> {
             .enumerate()
             .find(|(_, entry)| entry.target.symbol == symbol)
             .ok_or("recursive source invocation is absent")?;
-        let parameters =
-            crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)
-                .ok_or("recursive parameter roster is absent")?;
+        let parameters = validation::call_target_parameters(self.program, call.target_symbol)
+            .ok_or("recursive parameter roster is absent")?;
         let (caller, body) = self.owner(state)?;
         let (prior_caller, prior_body) = self.owner(prior.state)?;
         for (position, parameter) in parameters.iter().enumerate() {

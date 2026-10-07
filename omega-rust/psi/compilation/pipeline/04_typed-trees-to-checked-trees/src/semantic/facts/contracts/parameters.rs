@@ -16,13 +16,13 @@ pub(crate) fn projected_argument_place(
     expression: typed_trees::expression::ExpressionHandle,
     reference: typed_trees::types::TypeReferenceHandle,
     path: &[facts::PlaceSegment],
-) -> Option<crate::flow::CanonicalPlace> {
+) -> Option<validation::CanonicalPlace> {
     let projections =
         crate::flow::literal_value_projections(program, expression, reference, path, false)?;
     let [projection] = projections.as_slice() else {
         return None;
     };
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
+    let mut place = validation::canonical_place_from_expression_in_state(
         program,
         state,
         statement,
@@ -39,7 +39,7 @@ pub(crate) fn contract_parameter_position(
     target: SymbolHandle,
     declared: SymbolHandle,
 ) -> Result<Option<usize>, ()> {
-    let parameters = crate::semantic::calls::call_target_parameters(program, target).ok_or(())?;
+    let parameters = validation::call_target_parameters(program, target).ok_or(())?;
     if let Some(position) = parameters
         .iter()
         .position(|parameter| parameter.symbol == declared)

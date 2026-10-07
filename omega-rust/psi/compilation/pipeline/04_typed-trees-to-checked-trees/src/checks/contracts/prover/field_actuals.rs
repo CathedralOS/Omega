@@ -1,11 +1,11 @@
 //! Exact referent substitution for supplied Boolean field facts at call entry.
 
+use validation::CanonicalPlace;
+
 use facts::{FactPlan, PlaceRoot};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
-
-use crate::flow::CanonicalPlace;
 
 /// None leaves unrelated computed-value proof paths unchanged. A recognized
 /// place requirement returns Some(false) on mismatch and cannot use labels.
@@ -15,7 +15,7 @@ pub(super) fn proves(
     contexts: &[facts::FactContextHandle],
     caller_state: SymbolHandle,
     statement_index: usize,
-    call: &crate::semantic::calls::CallSite<'_>,
+    call: &validation::CallSite<'_>,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<bool> {
@@ -41,7 +41,7 @@ pub(super) fn proves(
     let position = parameters
         .iter()
         .position(|parameter| parameter.symbol == formal)?;
-    let Some(argument) = crate::semantic::calls::call_site_argument_expressions(program, call)
+    let Some(argument) = validation::call_site_argument_expressions(program, call)
         .get(position)
         .copied()
     else {
@@ -55,7 +55,7 @@ pub(super) fn proves(
     if !matches!(raw_actual.root, PlaceRoot::Symbol(_)) {
         return None;
     }
-    let Some(mut actual) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(mut actual) = validation::canonical_place_from_expression_in_state(
         program,
         caller_state,
         statement_index,

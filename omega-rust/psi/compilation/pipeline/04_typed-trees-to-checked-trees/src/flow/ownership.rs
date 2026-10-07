@@ -1,9 +1,11 @@
-//! Ownership move events and place types. `discover_state_move_events` walks one
+//! Ownership move events and borrowed operand events. `discover_state_move_events` walks one
 //! state's statements and borrow calls and returns the moves they make, for the
-//! multiplicity checks and terminal cleanup. `place_types` answers the declared
-//! type at a place or expression.
+//! multiplicity checks and terminal cleanup. Exact place types are read from
+//! validation's independent value-custody projection owner.
+use validation::canonical_place_from_expression_in_state;
+
 use crate::flow::borrow_state_fact;
-use crate::flow::canonical_place_from_expression_in_state;
+
 use crate::flow::canonical_place_from_symbol;
 use checked_trees::BorrowFacts;
 use checked_trees::statement::StatementNode;
@@ -12,7 +14,6 @@ use symbols::SymbolHandle;
 pub(crate) mod calls;
 mod events;
 mod moves;
-mod place_types;
 mod result_storage;
 mod type_references;
 
@@ -25,11 +26,6 @@ pub(crate) use events::{
 use moves::{
     append_move_events_for_expression, append_move_events_for_operator_statement_call,
     initializer_produces_owned_value,
-};
-pub(crate) use place_types::{
-    canonical_place_type_reference, collection_element_type_reference,
-    expression_type_reference_in_state, loan_carrier_has_owned_storage,
-    project_type_reference_from_segments,
 };
 use type_references::type_requires_ownership;
 

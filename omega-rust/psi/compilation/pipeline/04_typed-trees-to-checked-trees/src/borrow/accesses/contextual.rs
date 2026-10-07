@@ -1,7 +1,8 @@
-use crate::flow::{
+use validation::first_valid_name_path_symbol;
+use validation::{
     effective_member_symbol, effective_member_symbol_from_type_symbol, symbol_type_symbol,
 };
-use crate::lookup::first_valid_name_path_symbol;
+
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -89,7 +90,7 @@ fn contextual_symbol_type_symbol(
         return Some(type_symbol);
     }
 
-    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     let (_, local_data) = program
         .state_local_declaration(state, symbol)
         .filter(|&(ordinal, _)| ordinal < statement_index)?;
@@ -110,7 +111,7 @@ pub(super) fn contextual_name_root_symbol(
         return Some(symbol);
     }
 
-    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     let name = program.expression_table.display_name(expression);
-    crate::lookup::state_scoped_name_symbol(program, state, &name, statement_index)
+    validation::state_scoped_name_symbol(program, state, &name, statement_index)
 }

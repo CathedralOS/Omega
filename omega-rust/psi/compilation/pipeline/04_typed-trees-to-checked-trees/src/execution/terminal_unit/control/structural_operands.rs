@@ -174,7 +174,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     call,
                     trace,
                 )?;
-                let reference = crate::flow::call_target_return_type(program, call.target_symbol)?;
+                let reference = validation::call_target_return_type(program, call.target_symbol)?;
                 let mut result = checked_structural_result_type(
                     program,
                     shapes,
@@ -367,7 +367,7 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
 ) -> Option<Vec<Operand<'a>>> {
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span(flow.calls)?;
-    let has_value_operands = crate::semantic::calls::find_call_site(
+    let has_value_operands = validation::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -375,9 +375,8 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
         call.call_ordinal,
     )
     .map(|site| {
-        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-        let Some(parameters) =
-            crate::semantic::calls::call_target_parameters(program, call.target_symbol)
+        let arguments = validation::call_site_argument_expressions(program, &site);
+        let Some(parameters) = validation::call_target_parameters(program, call.target_symbol)
         else {
             return false;
         };
@@ -440,15 +439,15 @@ fn collect<'a>(
     active: &mut Vec<typed_trees::expression::ExpressionHandle>,
     output: &mut Vec<Operand<'a>>,
 ) -> Option<()> {
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         machine.symbol,
         state.symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-    let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
+    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let parameters = parameters.iter().enumerate().collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;
@@ -481,7 +480,7 @@ fn collect<'a>(
             output.push(Operand::Value { root, source });
             continue;
         }
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             call.statement_index,
@@ -525,7 +524,7 @@ fn collect<'a>(
             nested.statement_index == call.statement_index
                 && nested.call_ordinal > call.call_ordinal
                 && nested.authored_expression == expression
-                && nested.target_symbol == crate::flow::call_target_symbol(program, authored)
+                && nested.target_symbol == validation::call_target_symbol(program, authored)
         });
         let nested = matching.next()?;
         if matching.next().is_some() {

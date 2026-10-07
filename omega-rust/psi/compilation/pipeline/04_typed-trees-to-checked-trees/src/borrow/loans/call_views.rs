@@ -5,7 +5,7 @@ use super::super::tracker::StateLoanTracker;
 use super::RebasedBorrowPlace;
 use super::owner_paths::owner_path_matches;
 use crate::borrow::view_link::{ViewReturnSource, resolve_signature_view_return_source};
-use crate::semantic::calls::find_state;
+
 use arena::Handle;
 use checked_trees::expression::ExpressionHandle;
 use language_semantics::declaration_selection::CollectionViewOperation;
@@ -133,7 +133,7 @@ pub(super) fn call_site_substitutions(
     signature: &typed_trees::signature::StateSignature,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>> {
-    let (caller, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
+    let (caller, state) = validation::find_state_with_machine(program, state_symbol)?;
     validation::closed_static_call_type_bindings(
         program,
         caller,
@@ -167,7 +167,7 @@ pub(in crate::borrow) fn call_view_signature(
     typed_trees::types::TypeReferenceHandle,
     Option<&typed_trees::signature::StateSignature>,
 )> {
-    if let Some(target_state) = find_state(program, target_symbol) {
+    if let Some(target_state) = program.state_by_symbol(target_symbol) {
         return Some((
             program.state_parameters(target_state),
             target_state.return_type,

@@ -67,7 +67,7 @@ pub(crate) fn shared_temporary_owners(
         {
             continue;
         }
-        let Some(site) = crate::semantic::calls::find_call_site(
+        let Some(site) = validation::find_call_site(
             program,
             machine.symbol,
             state.symbol,
@@ -76,12 +76,11 @@ pub(crate) fn shared_temporary_owners(
         ) else {
             continue;
         };
-        let Some(parameters) =
-            crate::semantic::calls::call_target_parameters(program, consumer.target_symbol)
+        let Some(parameters) = validation::call_target_parameters(program, consumer.target_symbol)
         else {
             continue;
         };
-        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+        let arguments = validation::call_site_argument_expressions(program, &site);
         if parameters.len() != arguments.len() {
             continue;
         }
@@ -96,7 +95,7 @@ pub(crate) fn shared_temporary_owners(
             ) else {
                 continue;
             };
-            let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            let Some(place) = validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 consumer.statement_index,
@@ -107,11 +106,11 @@ pub(crate) fn shared_temporary_owners(
             let facts::PlaceRoot::Expression(expression) = place.root else {
                 continue;
             };
-            let root = crate::flow::CanonicalPlace {
+            let root = validation::CanonicalPlace {
                 root: place.root,
                 segments: Vec::new(),
             };
-            let Some(type_reference) = crate::flow::canonical_place_type_reference(
+            let Some(type_reference) = validation::canonical_place_type_reference(
                 program,
                 state.symbol,
                 consumer.statement_index,

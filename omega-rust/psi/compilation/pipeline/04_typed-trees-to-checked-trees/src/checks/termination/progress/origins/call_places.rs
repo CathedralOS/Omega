@@ -1,8 +1,10 @@
 //! call places slice of origins.
+use validation::CanonicalPlace;
+
 use super::{callee_values::*, reference_bounds::*};
 
 use super::{FlowCallFact, FlowStateFact, ProgressSubject};
-use crate::flow::{self, CanonicalPlace};
+use crate::flow::{self};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -30,7 +32,7 @@ pub(super) fn disagreeing_call_result_subjects(
     let PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let typed_state = program.state_by_symbol(state.state_symbol)?;
     let (statement_index, local) = program
         .state_local_declaration(typed_state, root)
         .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
@@ -209,8 +211,7 @@ pub(super) fn call_result_place(
     if depth == 0 {
         return None;
     }
-    let (callee, callee_state) =
-        crate::semantic::calls::find_state_with_machine(program, call.target_symbol)?;
+    let (callee, callee_state) = validation::find_state_with_machine(program, call.target_symbol)?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
         || !callee.lifetime_parameters.is_empty()

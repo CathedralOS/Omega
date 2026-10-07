@@ -230,7 +230,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
             // machine — custody predicates keep answering through the
             // state's own owner, not the dispatch machine.
             let Some((owner, state)) =
-                crate::semantic::calls::find_state_with_machine(program, retained.state)
+                validation::find_state_with_machine(program, retained.state)
             else {
                 stage = "machine has no source-independent checked scalar control plan (fused state owner)";
                 return false;
@@ -323,7 +323,7 @@ fn build_machine_graph(
                 continue;
             }
             let Some((target_owner, _)) =
-                crate::semantic::calls::find_machine_by_entry_state(program, successor.target)
+                validation::find_machine_by_entry_state(program, successor.target)
             else {
                 continue;
             };
@@ -862,7 +862,7 @@ fn checked_binding_value(
         return None;
     }
     let (target_machine, target_state) =
-        crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
+        validation::find_machine_by_entry_state(program, call.target_symbol)?;
     // DirectCall retains a checked body, not a requirement to be installed.
     // Whole-value boundary calls belong to the ordinary operation sequence,
     // which owns their result binding and exact provider-call custody. Giving
@@ -934,7 +934,7 @@ fn checked_successor(
         // A free name may retain the machine head while a qualified call
         // names its entry child. Both denote the same exact first state;
         // neither grants access to a foreign machine's interior states.
-        crate::semantic::calls::find_machine_head(program, path.symbol)?
+        validation::find_machine_head(program, path.symbol)?
             .1
             .symbol
     };

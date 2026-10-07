@@ -107,7 +107,7 @@ pub(crate) fn build_affine_array_construction_prefix(
         let StatementNode::Assignment(assignment) = statement else {
             return None;
         };
-        let target = crate::flow::canonical_place_from_expression_in_state(
+        let target = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             expected_index + 1,

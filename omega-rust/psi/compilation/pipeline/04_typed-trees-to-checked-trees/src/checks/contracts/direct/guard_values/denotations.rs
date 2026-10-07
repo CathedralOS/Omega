@@ -153,10 +153,8 @@ impl Denotations<'_> {
         {
             return None;
         }
-        let (machine, state) = crate::semantic::calls::find_state_with_machine(
-            self.program,
-            self.caller_state_symbol,
-        )?;
+        let (machine, state) =
+            validation::find_state_with_machine(self.program, self.caller_state_symbol)?;
         let statements = self
             .program
             .statement_table

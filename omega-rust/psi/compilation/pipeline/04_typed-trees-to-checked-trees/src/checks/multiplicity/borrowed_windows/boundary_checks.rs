@@ -22,7 +22,7 @@ pub(in crate::checks::multiplicity) fn check_call_occurrences(
         if control.is_retired(state.symbol, call) {
             continue;
         }
-        let expected = crate::semantic::calls::find_call_site(
+        let expected = validation::find_call_site(
             program,
             machine.symbol,
             state.symbol,
@@ -30,7 +30,7 @@ pub(in crate::checks::multiplicity) fn check_call_occurrences(
             call.call_ordinal,
         )
         .map(|site| match site {
-            crate::semantic::calls::CallSite::Expression { expression, .. } => expression,
+            validation::CallSite::Expression { expression, .. } => expression,
             _ => ExpressionHandle::invalid(),
         });
         if expected != Some(call.authored_expression) {
@@ -52,7 +52,7 @@ pub(in crate::checks::multiplicity) fn check_recorded_invocations(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     for (_, invocation) in facts.contextual_cleanup.window_invocations.iter() {
-        let Some(machine) = crate::lookup::machine_by_symbol(program, invocation.machine) else {
+        let Some(machine) = program.machine_by_symbol(invocation.machine) else {
             return Err(vec![Diagnostic::error(
                 "borrowed-storage invocation has no owning machine",
             )]);
@@ -190,7 +190,7 @@ pub(super) fn call_may_enter_boundary(
             continue;
         }
         visited.push(target);
-        let Some(machine) = crate::lookup::machine_by_symbol(program, target) else {
+        let Some(machine) = program.machine_by_symbol(target) else {
             return true;
         };
         if !machine.supply_mode.is_checked_body() || !machine.body_is_present {

@@ -18,7 +18,7 @@ pub(crate) fn proves_exit(
     let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
         return false;
     };
-    let Some(machine) = crate::lookup::machine_by_symbol(program, exit.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(exit.machine_symbol) else {
         return false;
     };
     let Some(state) = program
@@ -79,7 +79,7 @@ pub(crate) fn proves_call(
     expression: ExpressionHandle,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = program
@@ -89,7 +89,7 @@ pub(crate) fn proves_call(
     else {
         return false;
     };
-    let Some(site) = crate::semantic::calls::find_call_site(
+    let Some(site) = validation::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -98,16 +98,14 @@ pub(crate) fn proves_call(
     ) else {
         return false;
     };
-    let Some(parameters) =
-        crate::semantic::calls::call_target_parameters(program, call.target_symbol)
-    else {
+    let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {
         return false;
     };
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let arguments = validation::call_site_argument_expressions(program, &site);
     if arguments.len() != parameters.len() {
         return false;
     }
-    let target = if let crate::semantic::calls::CallSite::TransitionNamed {
+    let target = if let validation::CallSite::TransitionNamed {
         path, arguments, ..
     } = &site
     {
@@ -151,8 +149,8 @@ pub(crate) fn proves_call(
         );
     }
     let Some((callee, callee_state)) =
-        crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)
-            .or_else(|| crate::semantic::calls::find_machine_head(program, call.target_symbol))
+        validation::find_machine_by_entry_state(program, call.target_symbol)
+            .or_else(|| validation::find_machine_head(program, call.target_symbol))
     else {
         return false;
     };

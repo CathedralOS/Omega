@@ -46,7 +46,7 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract
         .iter()
         .all(|fact| match (&contract.kind, fact) {
             (SignatureContractKind::Requires, ProofFact::Membership(membership)) => {
-                let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                let Some(place) = validation::canonical_place_from_expression_in_state(
                     program,
                     state.symbol,
                     0,
@@ -304,7 +304,7 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
             }
             return None;
         };
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             0,

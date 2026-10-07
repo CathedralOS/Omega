@@ -133,7 +133,7 @@ fn captured_contract_proven(
                 if let Some((predicate, subject)) =
                     super::super::prover::place_predicate(program, expression)
                 {
-                    let declared = crate::flow::canonical_place_from_expression(program, subject)?;
+                    let declared = validation::canonical_place_from_expression(program, subject)?;
                     let actual = actual_for_formal_place(
                         program, facts, state, call, contract, target, &declared,
                     )?;
@@ -151,7 +151,7 @@ fn captured_contract_proven(
                             value.type_reference,
                             call.entry_constraints,
                         );
-                        let mut place = crate::flow::canonical_place_from_expression_in_state(
+                        let mut place = validation::canonical_place_from_expression_in_state(
                             program,
                             state.state_symbol,
                             call.statement_index,
@@ -178,7 +178,7 @@ fn actual_for_formal_place<'program>(
     call: &FlowCallFact,
     contract: &checked_trees::ContractProofFact,
     target: symbols::SymbolHandle,
-    declared: &crate::flow::CanonicalPlace,
+    declared: &validation::CanonicalPlace,
 ) -> Option<call_values::Actual<'program>> {
     let PlaceRoot::Symbol(symbol) = declared.root else {
         return None;
@@ -221,8 +221,8 @@ fn bound_contract_predicate(
             _ => return None,
         }
     };
-    let actual = crate::semantic::calls::call_target_parameters(program, target)?;
-    let parameters = crate::semantic::calls::call_target_parameters(program, declared)?
+    let actual = validation::call_target_parameters(program, target)?;
+    let parameters = validation::call_target_parameters(program, declared)?
         .iter()
         .map(|parameter| {
             let position = crate::semantic::facts::contract_parameter_position(
@@ -285,7 +285,7 @@ fn source_substitution_preserves_captures(
     );
     let invocation = facts.flow.control.operands.span(call.operands)?.last();
     for occurrence in occurrences {
-        let declared = crate::flow::canonical_place_from_expression(program, occurrence)?;
+        let declared = validation::canonical_place_from_expression(program, occurrence)?;
         let PlaceRoot::Symbol(symbol) = declared.root else {
             continue;
         };
@@ -389,7 +389,7 @@ fn capture_preserves_source(
     // guarantee rather than decide one.
     if remaining.is_empty()
         && matches!(
-            crate::flow::canonical_place_from_expression_in_state(
+            validation::canonical_place_from_expression_in_state(
                 program,
                 state.state_symbol,
                 call.statement_index,
@@ -420,7 +420,7 @@ fn capture_preserves_source(
         }
     }
     for observation in observations {
-        let mut place = crate::flow::canonical_place_from_expression_in_state(
+        let mut place = validation::canonical_place_from_expression_in_state(
             program,
             state.state_symbol,
             call.statement_index,

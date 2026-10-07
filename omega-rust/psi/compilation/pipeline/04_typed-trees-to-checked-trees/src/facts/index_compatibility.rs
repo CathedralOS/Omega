@@ -46,11 +46,10 @@ pub(super) fn build_index_compatibility_facts(
     let mut unresolved = Vec::new();
 
     for (_, state_flow) in flow.control.states.iter() {
-        let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
-        else {
+        let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
-        let Some(state) = crate::semantic::calls::find_state_in_machine(
+        let Some(state) = validation::find_state_in_machine(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,
@@ -61,13 +60,11 @@ pub(super) fn build_index_compatibility_facts(
         let state_calls = StateCallIndex::new(program, flow, state_flow);
         for resolved in &state_calls.calls {
             let call = resolved.fact;
-            let Some(parameters) =
-                crate::semantic::calls::call_target_parameters(program, call.target_symbol)
+            let Some(parameters) = validation::call_target_parameters(program, call.target_symbol)
             else {
                 continue;
             };
-            let arguments =
-                crate::semantic::calls::call_site_argument_expressions(program, &resolved.site);
+            let arguments = validation::call_site_argument_expressions(program, &resolved.site);
             let point = ProgramPoint::Call {
                 machine_symbol: state_flow.machine_symbol,
                 state_symbol: state_flow.state_symbol,
@@ -134,7 +131,7 @@ pub(super) fn build_index_compatibility_facts(
                     );
                 }
                 StatementNode::Assignment(assignment) => {
-                    if let Some(target_type) = crate::flow::expression_type_reference_in_state(
+                    if let Some(target_type) = validation::expression_type_reference_in_state(
                         program,
                         state.symbol,
                         statement_index,

@@ -48,12 +48,10 @@ pub(crate) fn validate_linear_permission_events(
         &mut diagnostics,
     );
     for (_, state_flow) in facts.flow.control.states.iter() {
-        let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol)
-        else {
+        let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
             continue;
         };
-        let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
-        else {
+        let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
         // A bodyless contract state declares the crossing as its parameter
@@ -79,11 +77,11 @@ pub(crate) fn validate_linear_permission_events(
             if !matches!(event.root, facts::PlaceRoot::Expression(_)) {
                 continue;
             }
-            let root = crate::flow::CanonicalPlace {
+            let root = validation::CanonicalPlace {
                 root: event.root,
                 segments: Vec::new(),
             };
-            let Some(type_reference) = crate::flow::canonical_place_type_reference(
+            let Some(type_reference) = validation::canonical_place_type_reference(
                 program,
                 state.symbol,
                 permission_event_statement_index(event.source).unwrap_or_default(),
@@ -332,9 +330,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
         else {
             continue;
         };
-        let Some(target_state) =
-            crate::semantic::calls::call_target_state(program, call.target_symbol)
-        else {
+        let Some(target_state) = validation::call_target_state(program, call.target_symbol) else {
             continue;
         };
         if program
@@ -415,7 +411,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
         }
     }
 
-    let machine_name = crate::semantic::calls::find_state_with_machine(program, state.symbol)
+    let machine_name = validation::find_state_with_machine(program, state.symbol)
         .map(|(machine, _)| machine.name.as_str())
         .unwrap_or("<unknown machine>");
     for (statement_index, path) in unresolved_statements {

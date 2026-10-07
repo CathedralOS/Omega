@@ -722,7 +722,7 @@ fn case_field_store(
     if !unrestricted_sum(field_data, program) {
         return None;
     }
-    let value_place = crate::flow::canonical_place_from_expression_in_state(
+    let value_place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index as usize,
@@ -976,7 +976,7 @@ fn bound_structural_parameter(
     let Ok(index) = usize::try_from(statement_index) else {
         return false;
     };
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(place) = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         index,

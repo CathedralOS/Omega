@@ -19,7 +19,7 @@ pub(super) fn parameter_binding_receiver_matches(
     state: &typed_trees::state::State,
     statement_index: usize,
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     requirement: SymbolHandle,
 ) -> bool {
     let Some((source, _)) =
@@ -43,26 +43,26 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
     program: &'program dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     requirement: SymbolHandle,
-) -> Option<(&'program StateParameter, crate::flow::CanonicalPlace)> {
+) -> Option<(&'program StateParameter, validation::CanonicalPlace)> {
     let place = match call_site {
-        crate::semantic::calls::CallSite::Expression { call, .. } => {
-            crate::flow::canonical_place_from_expression_in_state(
+        validation::CallSite::Expression { call, .. } => {
+            validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 statement_index,
                 call.receiver,
             )
         }
-        crate::semantic::calls::CallSite::Statement(call) => {
-            crate::lookup::projected_statement_receiver_place(program, state, statement_index, call)
-                .map(|(root, segments)| crate::flow::CanonicalPlace {
+        validation::CallSite::Statement(call) => {
+            validation::projected_statement_receiver_place(program, state, statement_index, call)
+                .map(|(root, segments)| validation::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(root),
                     segments,
                 })
         }
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => None,
+        validation::CallSite::TransitionNamed { .. } => None,
     };
     let place = place?;
     let facts::PlaceRoot::Symbol(root) = place.root else {
@@ -213,10 +213,10 @@ fn fixed_array_slice_view_parts<'a>(
 /// A direct `Boundary::method` call and a non-`self` receiver have neither.
 fn provider_attachment_receiver(
     program: &dyn ::validation::CheckingInput,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
 ) -> Option<(typed_trees::name::Identifier, Option<SymbolHandle>)> {
     match call_site {
-        crate::semantic::calls::CallSite::Statement(call) => {
+        validation::CallSite::Statement(call) => {
             let [self_name, field_name] = program.statement_table.name_path_members(call.receiver)
             else {
                 return None;
@@ -226,8 +226,8 @@ fn provider_attachment_receiver(
             }
             Some((field_name.clone(), None))
         }
-        crate::semantic::calls::CallSite::Expression { call, .. } => {
-            let (_, Some(receiver)) = crate::lookup::call_receiver_parts(program, call.receiver)
+        validation::CallSite::Expression { call, .. } => {
+            let (_, Some(receiver)) = validation::call_receiver_parts(program, call.receiver)
             else {
                 return None;
             };
@@ -239,7 +239,7 @@ fn provider_attachment_receiver(
             }
             Some((field_name.clone(), Some(receiver.member_symbol(1))))
         }
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => None,
+        validation::CallSite::TransitionNamed { .. } => None,
     }
 }
 
@@ -247,7 +247,7 @@ fn provider_attachment_receiver(
 /// call is routed through `self.<field>` at all.
 pub(crate) fn provider_attachment_receiver_field(
     program: &dyn ::validation::CheckingInput,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
 ) -> Option<typed_trees::name::Identifier> {
     provider_attachment_receiver(program, call_site).map(|(name, _)| name)
 }
@@ -255,7 +255,7 @@ pub(crate) fn provider_attachment_receiver_field(
 pub(crate) fn provider_attachment_receiver_matches(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     provider_symbol: SymbolHandle,
 ) -> bool {
     let Some((field_name, selected_field)) = provider_attachment_receiver(program, call_site)

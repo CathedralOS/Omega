@@ -90,7 +90,7 @@ fn replay_partition_data(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    if let Some(data) = crate::lookup::declared_data_type(program, type_reference) {
+    if let Some(data) = validation::declared_data_type(program, type_reference) {
         return Some(data);
     }
     match program.type_reference_table.type_reference(type_reference) {

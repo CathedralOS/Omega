@@ -146,7 +146,7 @@ pub(crate) struct ParameterArgument<'argument> {
     pub(crate) machine: SymbolHandle,
     pub(crate) state: SymbolHandle,
     pub(crate) statement_index: usize,
-    pub(crate) place: &'argument crate::flow::CanonicalPlace,
+    pub(crate) place: &'argument validation::CanonicalPlace,
     pub(crate) target: TypeReferenceHandle,
     pub(crate) target_identity: &'argument str,
 }

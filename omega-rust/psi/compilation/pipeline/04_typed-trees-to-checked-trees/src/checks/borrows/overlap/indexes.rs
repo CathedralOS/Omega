@@ -617,7 +617,7 @@ pub(super) fn projected_bound(
     // carries; the authored member spelling can disagree for `self` members.
     let field = match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
-            crate::flow::effective_member_symbol(program, member.receiver, member)
+            validation::effective_member_symbol(program, member.receiver, member)
         }
         _ => field,
     };
@@ -665,7 +665,7 @@ pub(super) fn normalized_bound(
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) | ExpressionNode::Borrow(_)
-    ) && let Some(place) = crate::flow::canonical_place_from_expression(program, expression)
+    ) && let Some(place) = validation::canonical_place_from_expression(program, expression)
         && let facts::PlaceRoot::Expression(root) = place.root
         && matches!(
             program.expression_table.expression(root),

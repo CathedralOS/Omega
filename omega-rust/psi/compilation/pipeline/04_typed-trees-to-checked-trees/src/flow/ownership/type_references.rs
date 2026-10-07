@@ -1,4 +1,5 @@
-use super::place_types::expression_type_reference_in_state;
+use validation::expression_type_reference_in_state;
+
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -144,7 +145,7 @@ pub(super) fn intrinsic_enum_equality(
         _ => return false,
     };
     let machine_symbol = program.symbols.get(state).parent;
-    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(machine_symbol) else {
         return false;
     };
     let Some(state) = program
@@ -187,7 +188,7 @@ pub(super) fn intrinsic_enum_equality(
     // The nominal premise commits to one declaration row: a second row
     // bearing the operand's symbol cannot mint member evidence for the wrong
     // subject, so ambiguous identity declines the classification.
-    let Some(data) = super::place_types::unique_data_definition_by_symbol(program, symbol) else {
+    let Some(data) = validation::unique_data_definition_by_symbol(program, symbol) else {
         return false;
     };
     let members = program.data_members(data);

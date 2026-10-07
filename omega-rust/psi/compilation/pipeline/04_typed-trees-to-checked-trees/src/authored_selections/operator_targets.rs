@@ -114,7 +114,7 @@ pub(crate) fn checked_generic_operator_target(
             }
             checked_trees::CheckedValueOrigin::NestedExpression { .. } => continue,
         };
-        let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+        let Some(machine) = program.machine_by_symbol(machine_symbol) else {
             continue;
         };
         if machine.conformance_bounds.is_empty() {
@@ -354,14 +354,14 @@ pub(crate) fn checked_structural_equality_call(
                 .map(move |checked_call| (state, checked_call))
         })
         .filter_map(|(state, checked_call)| {
-            match crate::semantic::calls::find_call_site(
+            match validation::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
                 checked_call.statement_index,
                 checked_call.call_ordinal,
             ) {
-                Some(crate::semantic::calls::CallSite::Expression {
+                Some(validation::CallSite::Expression {
                     expression: candidate,
                     ..
                 }) if candidate == expression => Some(checked_call.target_symbol),
@@ -554,7 +554,7 @@ pub(crate) fn authored_operand_type(
         ExpressionNode::Cast(cast) => Some(cast.target_type),
         ExpressionNode::Member(member) => declaration_type_reference(
             program,
-            crate::flow::effective_member_symbol(program, member.receiver, member),
+            validation::effective_member_symbol(program, member.receiver, member),
         ),
         ExpressionNode::Call(call) => exact_named_operator_call(program, call)
             .map(|operator| operator.return_type)

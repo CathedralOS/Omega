@@ -219,7 +219,7 @@ fn predicate_expression_holds_on_value(
             else {
                 return false;
             };
-            let Some(mut place) = crate::flow::canonical_place_from_expression_in_state(
+            let Some(mut place) = validation::canonical_place_from_expression_in_state(
                 program,
                 state.state_symbol,
                 statement_index,
@@ -304,7 +304,7 @@ fn selected_case_is(
     {
         return Some(selected == case_symbol);
     }
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.state_symbol,
         statement_index,
@@ -415,7 +415,7 @@ fn member_scalar_at_subject(
     {
         return Some(scalar);
     }
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.state_symbol,
         statement_index,
@@ -564,7 +564,7 @@ fn member_subject_satisfies_domain(
             contexts,
         );
     }
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(place) = validation::canonical_place_from_expression_in_state(
         program,
         state.state_symbol,
         statement_index,

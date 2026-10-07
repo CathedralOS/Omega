@@ -56,25 +56,19 @@ fn validate_permissions_at(
     if producers.next().is_some() {
         return None;
     }
-    let consumer_site = crate::semantic::calls::find_call_site(
-        program,
-        machine,
-        state,
-        statement_index,
-        call_ordinal,
-    )?;
-    let mut selected =
-        crate::semantic::calls::call_site_argument_expressions(program, &consumer_site)
-            .iter()
-            .filter_map(|argument| {
-                crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state,
-                    statement_index,
-                    *argument,
-                )
-            })
-            .filter(|place| place.root == root && !place.segments.is_empty());
+    let consumer_site =
+        validation::find_call_site(program, machine, state, statement_index, call_ordinal)?;
+    let mut selected = validation::call_site_argument_expressions(program, &consumer_site)
+        .iter()
+        .filter_map(|argument| {
+            validation::canonical_place_from_expression_in_state(
+                program,
+                state,
+                statement_index,
+                *argument,
+            )
+        })
+        .filter(|place| place.root == root && !place.segments.is_empty());
     let selected_place = selected.next()?;
     if selected.next().is_some() {
         return None;
@@ -121,7 +115,7 @@ fn validate_permissions_at(
             PermissionEventKind::AffineDrop
                 if transferred && event.source == source(consumer) && !segments.is_empty() =>
             {
-                let place = crate::flow::CanonicalPlace {
+                let place = validation::CanonicalPlace {
                     root,
                     segments: segments.to_vec(),
                 };

@@ -51,14 +51,14 @@ pub(crate) fn checked_statement_call_target(
             continue;
         }
         if matches!(
-            crate::semantic::calls::find_call_site(
+            validation::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
                 statement_index,
                 call.call_ordinal,
             ),
-            Some(crate::semantic::calls::CallSite::Statement(_))
+            Some(validation::CallSite::Statement(_))
         ) {
             return call.target_symbol;
         }
@@ -124,10 +124,10 @@ pub(crate) fn checked_call_target(
     }
     for (_, state) in facts.flow.control.states.iter() {
         for call in facts.flow.control.calls.span_or_empty(state.calls) {
-            if let Some(crate::semantic::calls::CallSite::Expression {
+            if let Some(validation::CallSite::Expression {
                 expression: candidate,
                 ..
-            }) = crate::semantic::calls::find_call_site(
+            }) = validation::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
@@ -180,7 +180,7 @@ pub(crate) fn checked_name_path_segment_target(
     path: &typed_trees::expression::TableNamePath,
     target_index: usize,
 ) -> SymbolHandle {
-    let direct = crate::lookup::resolve_name_path_member_symbol(program, path, target_index);
+    let direct = validation::resolve_name_path_member_symbol(program, path, target_index);
     if direct.is_valid() && target_index != 0 {
         return direct;
     }
@@ -194,10 +194,10 @@ pub(crate) fn checked_name_path_segment_target(
             let root = if direct.is_valid() {
                 direct
             } else {
-                let Some(crate::flow::CanonicalPlace {
+                let Some(validation::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(root),
                     ..
-                }) = crate::flow::canonical_place_from_expression_in_state(
+                }) = validation::canonical_place_from_expression_in_state(
                     program,
                     state.symbol,
                     statement_index,
@@ -234,9 +234,9 @@ pub(crate) fn checked_name_path_segment_target(
         .skip(1)
         .take(target_index)
     {
-        selected = crate::flow::symbol_type_symbol(program, selected)
+        selected = validation::symbol_type_symbol(program, selected)
             .and_then(|type_symbol| {
-                crate::flow::resolve_member_symbol_from_type_symbol(
+                validation::resolve_member_symbol_from_type_symbol(
                     program,
                     type_symbol,
                     member.as_str(),
@@ -268,7 +268,7 @@ fn authored_contextual_root(
     else {
         return selected;
     };
-    let Some(template) = crate::lookup::machine_by_symbol(program, template_symbol) else {
+    let Some(template) = program.machine_by_symbol(template_symbol) else {
         return selected;
     };
     let Some(state_ordinal) = program

@@ -285,7 +285,7 @@ fn assignment_borrow_loans(
     else {
         return Vec::new();
     };
-    let Some(target_type) = crate::flow::expression_type_reference_in_state(
+    let Some(target_type) = validation::expression_type_reference_in_state(
         program,
         state.symbol,
         statement_index,

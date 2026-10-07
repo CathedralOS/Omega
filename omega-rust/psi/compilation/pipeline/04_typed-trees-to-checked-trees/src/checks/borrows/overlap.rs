@@ -108,7 +108,7 @@ fn attached_field_place_under_receiver(
 /// `canonical_place_loan_compatibility` judges the pair. Returns `None` for
 /// roots that cannot name a symbol place at all.
 pub(super) fn canonical_place_for_loan(
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     loan: &checked_trees::BorrowLoanFact,
 ) -> Option<checked_trees::CapturedPlace> {
     match place.root {
@@ -156,7 +156,7 @@ pub(super) fn canonical_place_for_loan(
 
 pub(super) fn canonical_place_loan_compatibility<'p>(
     program: &'p dyn ::validation::CheckingInput,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     loan: &checked_trees::BorrowLoanFact,
     borrow: &checked_trees::BorrowFacts,
     premises: &[StatedOrderingPremise],
@@ -217,12 +217,12 @@ fn place_segments_share_dependent_fact(
         return false;
     };
 
-    let Some(mut parent_type) = crate::flow::symbol_type_symbol(program, root_symbol) else {
+    let Some(mut parent_type) = validation::symbol_type_symbol(program, root_symbol) else {
         return false;
     };
     for segment in &left[..divergence] {
         if let facts::PlaceSegment::Field { symbol } = segment {
-            let Some(next_type) = crate::flow::symbol_type_symbol(program, *symbol) else {
+            let Some(next_type) = validation::symbol_type_symbol(program, *symbol) else {
                 return false;
             };
             parent_type = next_type;

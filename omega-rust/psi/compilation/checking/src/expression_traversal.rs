@@ -254,3 +254,113 @@ pub(crate) fn single_segment_name_symbol(
     }
     Some(path.symbol)
 }
+
+/// Append structural expression handles in preorder, once per existing roster.
+/// Atomic result edges are structural evidence too; executable occurrence
+/// traversal deliberately has a different edge contract.
+pub fn collect_expression_tree(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    handles: &mut Vec<ExpressionHandle>,
+) {
+    if !expression.is_valid() || handles.contains(&expression) {
+        return;
+    }
+    handles.push(expression);
+    children(
+        program,
+        program.expression_table.expression(expression),
+        |child| {
+            collect_expression_tree(program, child, handles);
+        },
+    );
+}
+
+/// Collect the structural roots rewritten by typed preparation. An assembly
+/// fact contributes evidence; a root binding contributes its implementation
+/// operand, not the receiver evaluated by the executable occurrence visitor.
+pub fn collect_statement_expression_trees(
+    program: &dyn crate::CheckingInput,
+    statement: &typed_trees::statement::StatementNode,
+    handles: &mut Vec<ExpressionHandle>,
+) {
+    match statement {
+        typed_trees::statement::StatementNode::RootBinding(binding) => {
+            if binding.implementation_operand.is_valid() {
+                collect_expression_tree(program, binding.implementation_operand, handles);
+            }
+        }
+        typed_trees::statement::StatementNode::AssemblyFact(fact) => {
+            collect_expression_tree(program, fact.expression, handles)
+        }
+        typed_trees::statement::StatementNode::Assignment(assignment) => {
+            collect_expression_tree(program, assignment.target, handles);
+            collect_expression_tree(program, assignment.value, handles);
+        }
+        typed_trees::statement::StatementNode::Call(call) => {
+            for argument in program.statement_table.expression_handles(call.arguments) {
+                collect_expression_tree(program, *argument, handles);
+            }
+        }
+        typed_trees::statement::StatementNode::Expression(expression) => {
+            collect_expression_tree(program, *expression, handles)
+        }
+        typed_trees::statement::StatementNode::LocalData(local) => {
+            collect_expression_tree(program, local.initial_value, handles)
+        }
+        typed_trees::statement::StatementNode::Transition(transition) => {
+            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+                collect_expression_tree(program, guard, handles);
+            }
+            collect_transition_target_expression_trees(program, transition.target, handles);
+            collect_transition_target_expression_trees(program, transition.continuation, handles);
+        }
+    }
+}
+
+pub fn collect_transition_target_expression_trees(
+    program: &dyn crate::CheckingInput,
+    target: typed_trees::statement::TransitionTargetHandle,
+    handles: &mut Vec<ExpressionHandle>,
+) {
+    if !target.is_valid() {
+        return;
+    }
+    match program.statement_table.transition_target(target) {
+        typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+            for argument in program.statement_table.expression_handles(*arguments) {
+                collect_expression_tree(program, *argument, handles);
+            }
+        }
+        typed_trees::statement::TransitionTargetNode::Value(expression) => {
+            collect_expression_tree(program, *expression, handles)
+        }
+        typed_trees::statement::TransitionTargetNode::Terminal => {}
+    }
+}
+
+/// Append structural expression trees from a contract's proof-fact span.
+pub fn collect_contract_facts(
+    program: &dyn crate::CheckingInput,
+    facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
+    handles: &mut Vec<ExpressionHandle>,
+) {
+    for fact in program.proof_facts.span_or_empty(facts) {
+        match fact {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                collect_expression_tree(program, *expression, handles)
+            }
+            typed_trees::domain::ProofFact::Membership(membership) => {
+                collect_expression_tree(program, membership.value, handles)
+            }
+            typed_trees::domain::ProofFact::Proposition(application) => {
+                for argument in program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                {
+                    collect_expression_tree(program, *argument, handles);
+                }
+            }
+        }
+    }
+}

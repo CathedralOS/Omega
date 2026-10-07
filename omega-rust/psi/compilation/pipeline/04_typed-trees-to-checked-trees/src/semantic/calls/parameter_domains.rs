@@ -17,10 +17,10 @@ pub(crate) fn call_parameter_domains(
     target_state: SymbolHandle,
     site: &CallSite<'_>,
 ) -> Vec<(ExpressionHandle, FactPayload)> {
-    let Some(caller) = crate::lookup::machine_by_symbol(program, caller_machine) else {
+    let Some(caller) = program.machine_by_symbol(caller_machine) else {
         return Vec::new();
     };
-    let Some(callee) = crate::lookup::machine_by_symbol(program, target_machine) else {
+    let Some(callee) = program.machine_by_symbol(target_machine) else {
         return Vec::new();
     };
     let Some(state) = program

@@ -863,3 +863,25 @@ fn validate_value_call_argument_classes(
         // make the argument position a false-positive minefield.)
     }
 }
+
+mod topology;
+pub use topology::{
+    call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
+    call_target_type_parameters, find_machine, find_machine_by_entry_state, find_machine_head,
+    find_state_in_machine, find_state_with_machine, machine_state_by_symbols, machine_state_count,
+    terminal_callable_target,
+};
+mod receiver_topology;
+pub use receiver_topology::{
+    call_receiver_parts, machine_parameter_signature_symbol, receiver_can_dispatch_to_machine,
+    resolve_name_path_member_symbol, resolve_state_call_target,
+    statement_call_can_dispatch_to_machine, statement_call_receiver_members,
+    statement_call_receiver_path, trait_machine_signature_symbol,
+};
+mod occurrences;
+pub use occurrences::{
+    CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,
+    collect_call_sites_in_statement, find_call_site, find_call_site_in_state,
+    transition_call_target,
+};
+pub use receiver_topology::declared_receiver_target;

@@ -12,14 +12,14 @@ fn entry_place_at_write_boundary(
     state_symbol: SymbolHandle,
     before_statement: usize,
     write_scan_end: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> Option<CrashPredicateExpression> {
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
     // Even stable whole storage cannot authenticate an unrelated declaration's
     // field. Replay the complete path from this binding's declared type first.
-    crate::flow::canonical_place_type_reference(program, state_symbol, before_statement, place)?;
+    validation::canonical_place_type_reference(program, state_symbol, before_statement, place)?;
     let mut projection = Vec::with_capacity(place.segments.len());
     let mut members = Vec::with_capacity(place.segments.len());
     let mut selected_case = None;
@@ -106,7 +106,7 @@ pub(crate) fn entry_parameter_place(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)> {
     entry_parameter_place_at_write_boundary(
         program,
@@ -125,7 +125,7 @@ pub(crate) fn entry_parameter_place_before_statement(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)> {
     entry_parameter_place_at_write_boundary(
         program,
@@ -143,7 +143,7 @@ fn entry_parameter_place_at_write_boundary(
     state_symbol: SymbolHandle,
     before_statement: usize,
     write_scan_end: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)> {
     let expression = entry_place_at_write_boundary(
         program,
@@ -294,15 +294,14 @@ pub(super) fn projection_requires_write_scan(
         if boundary > 0 && matches!(segments[boundary - 1], facts::PlaceSegment::Case { .. }) {
             continue;
         }
-        let current = crate::flow::project_type_reference_from_segments(
+        let current = validation::project_type_reference_from_segments(
             program,
             root_type,
             &segments[..boundary],
         )?;
         mutable |= traversed_storage_requires_write_scan(program, current)?;
     }
-    let endpoint =
-        crate::flow::project_type_reference_from_segments(program, root_type, &segments)?;
+    let endpoint = validation::project_type_reference_from_segments(program, root_type, &segments)?;
     validation::has_contents(
         program,
         endpoint,

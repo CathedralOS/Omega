@@ -45,7 +45,7 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
     if reads.is_empty() {
         return true;
     }
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = program
@@ -56,7 +56,7 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
         return false;
     };
     let arm_of = |call_ordinal: usize| -> Option<TransitionTargetHandle> {
-        crate::semantic::calls::transition_call_target(
+        validation::transition_call_target(
             program,
             machine,
             state,

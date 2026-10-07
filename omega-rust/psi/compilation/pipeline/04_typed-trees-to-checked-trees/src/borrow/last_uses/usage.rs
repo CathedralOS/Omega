@@ -97,7 +97,7 @@ pub(super) fn statement_uses_owner_path(
         StatementNode::Assignment(assignment) => uses(assignment.target) || uses(assignment.value),
         StatementNode::Call(call) => {
             call.receiver_symbol == owner_symbol
-                || crate::lookup::statement_call_receiver_members(program, call)
+                || validation::statement_call_receiver_members(program, call)
                     .and_then(|members| members.first())
                     .is_some_and(|member| member.as_str() == owner_name)
                 || program
@@ -159,7 +159,7 @@ fn expression_uses_owner_path(
     owner_symbol: SymbolHandle,
     owner_path: &[BorrowOwnerSegment],
 ) -> bool {
-    if crate::flow::canonical_place_from_expression_in_state(
+    if validation::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,

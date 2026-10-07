@@ -26,7 +26,7 @@ pub(super) fn plan(
         }
         return runtime_plan(graph, component).map(Some);
     }
-    let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
+    let machine = program.machine_by_symbol(graph.machine)?;
     if machine.termination_plan.implementation_witness.is_none() {
         // Fusion does not erase a callee's termination contract. If the shared
         // component projection above cannot represent a retained owner's
@@ -34,7 +34,7 @@ pub(super) fn plan(
         // plan publish the rank. Publishing an unranked fused graph here would
         // preempt that route and fail only after the caller had been selected.
         for row in &graph.states {
-            let (owner, _) = crate::semantic::calls::find_state_with_machine(program, row.state)?;
+            let (owner, _) = validation::find_state_with_machine(program, row.state)?;
             if owner.termination_plan.implementation_witness.is_some() {
                 return None;
             }
@@ -132,8 +132,7 @@ pub(super) fn plan(
         // owns a formal position but no actual, so bound the coordinate against
         // the target state's authored parameter count instead. The target may
         // live on a fused successor machine, so resolve its owner by state.
-        let (_, target_state) =
-            crate::semantic::calls::find_state_with_machine(program, edge.target_state)?;
+        let (_, target_state) = validation::find_state_with_machine(program, edge.target_state)?;
         let target_parameters = program.state_parameters(target_state);
         if successor.argument_count as usize != target_parameters.iter().count()
             || edge.target_rank_parameter_position as usize >= target_parameters.len()

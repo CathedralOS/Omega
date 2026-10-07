@@ -15,8 +15,7 @@ pub(super) fn binding_reference_access(
     statement_index: usize,
     root_symbol: SymbolHandle,
 ) -> Option<checked_trees::BorrowAccessKind> {
-    let state =
-        crate::semantic::calls::find_state_in_machine(program, machine_symbol, state_symbol)?;
+    let state = validation::find_state_in_machine(program, machine_symbol, state_symbol)?;
     let type_reference = program
         .state_parameters(state)
         .iter()

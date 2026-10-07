@@ -105,7 +105,7 @@ pub(super) fn plan(
             state,
             statement_ordinal,
             0,
-            &crate::semantic::calls::CallSite::Expression { expression, call },
+            &validation::CallSite::Expression { expression, call },
             scalar_parameters,
             parameters,
             parameter_types,
@@ -125,7 +125,7 @@ pub(super) fn plan(
     }
     // Retain selected RHS meaning at the statement. A later
     // executable consumer still owns its admitted store shape.
-    let Some(target_type_reference) = crate::flow::expression_type_reference_in_state(
+    let Some(target_type_reference) = validation::expression_type_reference_in_state(
         program,
         state.symbol,
         statement_index,

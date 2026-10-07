@@ -74,7 +74,7 @@ pub(super) fn collect_state_argument_facts_for_call(
     // fact spelled under the argument's place re-keys onto the parameter's
     // name (`put(&mut buf)` delivers `buf.i` as the callee's `buf.i`). Ordinary
     // calls and runtime-selector arguments carry no storage evidence.
-    let mut argument_storages: Vec<(crate::flow::CanonicalPlace, SymbolHandle)> =
+    let mut argument_storages: Vec<(validation::CanonicalPlace, SymbolHandle)> =
         if !receiver_transition {
             Vec::new()
         } else {
@@ -83,8 +83,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                 .iter()
                 .zip(arguments.iter().copied())
                 .filter_map(|(parameter, argument)| {
-                    let mut place =
-                        crate::flow::canonical_place_from_expression(program, argument)?;
+                    let mut place = validation::canonical_place_from_expression(program, argument)?;
                     if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
                         return None;
                     }

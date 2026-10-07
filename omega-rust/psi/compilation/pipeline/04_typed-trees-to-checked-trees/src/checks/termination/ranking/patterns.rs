@@ -181,7 +181,7 @@ fn target_symbol_matches_state_symbol(
     if target_symbol == state_symbol {
         return true;
     }
-    let Some(machine) = crate::lookup::machine_by_symbol(program, target_symbol) else {
+    let Some(machine) = program.machine_by_symbol(target_symbol) else {
         return false;
     };
     let entry_name = machine

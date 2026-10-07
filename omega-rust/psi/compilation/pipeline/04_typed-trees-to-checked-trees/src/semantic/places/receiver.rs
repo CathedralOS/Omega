@@ -1,4 +1,5 @@
-use crate::lookup::{statement_call_receiver_members, statement_call_receiver_path};
+use validation::{statement_call_receiver_members, statement_call_receiver_path};
+
 use checked_trees::ContractCallFact;
 use facts::FactPlan;
 

@@ -12,14 +12,15 @@
 //! invalidate values but use shared access. Retain that operation provenance
 //! across calls instead of turning every caller-visible write into a mutable
 //! loan requirement. Ordinary replacement of an atomic cell remains exclusive.
-use crate::flow::CanonicalPlace;
-use crate::flow::canonical_place_from_expression;
-use crate::flow::canonical_place_from_expression_in_state;
+
+use validation::CanonicalPlace;
+use validation::call_site_argument_expressions;
+use validation::canonical_place_from_expression;
+use validation::canonical_place_from_expression_in_state;
+use validation::find_call_site;
+
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::WritePlaceNamespace;
-use crate::semantic::calls::call_site_argument_expressions;
-use crate::semantic::calls::find_call_site;
-use crate::semantic::calls::find_state;
 
 use super::local_origins::rebase_local_write_places;
 use checked_trees::expression::ExpressionNode;
@@ -80,7 +81,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     loan: Option<&CanonicalPlace>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let target_state = find_state(program, borrow_call.target_symbol)?;
+    let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
     let summary = state_mutation_summary(program, borrow, cache, target_state, call_frames)?;
     let run = target_run(
         program,
@@ -131,9 +132,9 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
     cache: &StateMutationSummaryCache,
     loan: &CanonicalPlace,
 ) -> Option<Vec<CanonicalPlace>> {
-    let target_state = find_state(program, borrow_call.target_symbol)?;
+    let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
     let target_machine_symbol = machine_symbol_for_state(program, target_state);
-    let target_machine = crate::lookup::machine_by_symbol(program, target_machine_symbol)?;
+    let target_machine = program.machine_by_symbol(target_machine_symbol)?;
     let data_binding =
         program.data_binding_parameter(target_machine, program.state_parameters(target_state));
     let summary = state_mutation_summary(program, borrow, cache, target_state, None)?;
@@ -216,7 +217,7 @@ fn build_state_mutation_summaries(
     }
 
     for borrow_state in borrow.states.iter().map(|(_, state)| state) {
-        let Some(state) = find_state(program, borrow_state.state_symbol) else {
+        let Some(state) = program.state_by_symbol(borrow_state.state_symbol) else {
             continue;
         };
         let direct_writes = collect_state_mutation_summary_places(program, state, call_frames);
@@ -248,7 +249,8 @@ fn propagate_state_mutation_summaries(
     let owners: Vec<_> = states
         .iter()
         .map(|summary| {
-            find_state(program, summary.state_symbol)
+            program
+                .state_by_symbol(summary.state_symbol)
                 .map(|state| (state, machine_symbol_for_state(program, state)))
         })
         .collect();
@@ -482,7 +484,7 @@ fn machine_symbol_for_state(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> SymbolHandle {
-    crate::semantic::calls::find_state_with_machine(program, state.symbol)
+    validation::find_state_with_machine(program, state.symbol)
         .map(|(machine, _)| machine.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }
@@ -491,15 +493,13 @@ fn state_has_concrete_body_signature(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> bool {
-    crate::semantic::calls::find_state_with_machine(program, state.symbol).is_some_and(
-        |(machine, _)| {
-            machine.body_is_present
-                && program
-                    .state_parameters(state)
-                    .iter()
-                    .all(|parameter| parameter.type_reference.is_valid())
-        },
-    )
+    validation::find_state_with_machine(program, state.symbol).is_some_and(|(machine, _)| {
+        machine.body_is_present
+            && program
+                .state_parameters(state)
+                .iter()
+                .all(|parameter| parameter.type_reference.is_valid())
+    })
 }
 
 // Owned primitive formals contain no references: writes change callee storage,
@@ -527,7 +527,7 @@ fn collect_state_mutation_summary_places(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<MutationWrite>> {
     let machine_symbol = machine_symbol_for_state(program, state);
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
     let mut writes = Vec::new();
 
     for (statement_index, statement) in program
@@ -621,7 +621,7 @@ pub(in crate::flow) fn instantiate_call_relative_places(
     {
         return None;
     }
-    let target_state = find_state(program, borrow_call.target_symbol)?;
+    let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
     let mut argument_index = 0usize;
 
     for parameter in program.state_parameters(target_state) {

@@ -6,7 +6,7 @@ pub(super) fn place_is_used_after_call(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
-    target: &crate::semantic::calls::CallSite<'_>,
+    target: &validation::CallSite<'_>,
     symbol: SymbolHandle,
     fallback_name: &str,
 ) -> bool {
@@ -35,7 +35,7 @@ struct EvaluationTraversal<'program, 'target> {
     program: &'program dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    target: &'target crate::semantic::calls::CallSite<'program>,
+    target: &'target validation::CallSite<'program>,
     target_reached: bool,
     place_used_after_target: bool,
     symbol: SymbolHandle,
@@ -63,7 +63,7 @@ impl EvaluationTraversal<'_, '_> {
                 {
                     self.visit_expression(*argument);
                 }
-                if matches!(self.target, crate::semantic::calls::CallSite::Statement(target) if std::ptr::eq(*target, call))
+                if matches!(self.target, validation::CallSite::Statement(target) if std::ptr::eq(*target, call))
                 {
                     self.target_reached = true;
                 }
@@ -95,7 +95,7 @@ impl EvaluationTraversal<'_, '_> {
                 for argument in self.program.statement_table.expression_handles(*arguments) {
                     self.visit_expression(*argument);
                 }
-                if matches!(self.target, crate::semantic::calls::CallSite::TransitionNamed { arguments: target, .. } if *target == *arguments)
+                if matches!(self.target, validation::CallSite::TransitionNamed { arguments: target, .. } if *target == *arguments)
                 {
                     self.target_reached = true;
                 }
@@ -157,7 +157,7 @@ impl EvaluationTraversal<'_, '_> {
                 {
                     self.visit_expression(*argument);
                 }
-                if matches!(self.target, crate::semantic::calls::CallSite::Expression { call: target, .. } if std::ptr::eq(*target, call))
+                if matches!(self.target, validation::CallSite::Expression { call: target, .. } if std::ptr::eq(*target, call))
                 {
                     self.target_reached = true;
                 }
@@ -197,7 +197,7 @@ impl EvaluationTraversal<'_, '_> {
         if !self.target_reached {
             return;
         }
-        let canonical_matches = crate::flow::canonical_place_from_expression_in_state(
+        let canonical_matches = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state_symbol,
             self.statement_index,

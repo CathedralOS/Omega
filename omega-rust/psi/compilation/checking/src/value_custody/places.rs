@@ -714,3 +714,31 @@ pub fn zeroed_structural_parts(
     }
     true
 }
+
+mod declared_symbols;
+pub use declared_symbols::{
+    declared_data_type, expression_root_symbol, first_valid_name_path_symbol,
+    machine_symbol_from_type_reference_handle, nearest_scoped_local, state_scoped_name_symbol,
+    structural_member_identity,
+};
+mod canonical_projection;
+pub use canonical_projection::{
+    CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,
+    index_place_segment, push_field_place_segments,
+};
+mod contextual_projection;
+pub use contextual_projection::contextual_canonical_place_from_expression;
+mod member_resolution;
+pub use member_resolution::{
+    effective_member_symbol, effective_member_symbol_from_type_symbol,
+    expression_place_type_reference, expression_type_symbol,
+    resolve_member_symbol_from_type_symbol, symbol_type_symbol,
+};
+mod projection_types;
+pub use projection_types::{
+    canonical_place_type_reference, collection_element_type_reference,
+    expression_type_reference_in_state, loan_carrier_has_owned_storage,
+    project_type_reference_from_segments, unique_data_definition_by_symbol,
+};
+pub mod receiver_projections;
+pub use receiver_projections::projected_statement_receiver_place;

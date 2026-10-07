@@ -396,7 +396,7 @@ fn floor_at_least_one(
     state: &typed_trees::state::State,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    crate::semantic::calls::find_state_with_machine(program, state.symbol)
+    validation::find_state_with_machine(program, state.symbol)
         .and_then(|(machine, state)| {
             validation::state_parameter_integer_interval(program, machine, state, parameter.symbol)
         })
@@ -446,8 +446,7 @@ fn has_builtin_meaning(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some((machine, _)) = crate::semantic::calls::find_state_with_machine(program, state.symbol)
-    else {
+    let Some((machine, _)) = validation::find_state_with_machine(program, state.symbol) else {
         return false;
     };
     validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)

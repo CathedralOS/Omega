@@ -1,6 +1,8 @@
 //! Exact lexical owner of a view formation. Locals hold a retained loan;
 //! inline operands borrow at one authenticated call or transition occurrence.
 //! Both feed the same collection/region lowering in the parent module.
+use validation::{call_site_argument_expressions, find_call_site};
+
 use super::{Builder, ExpressionHandle, ExpressionNode, StatementNode, TypeReferenceHandle};
 use checked_trees::CheckedStructuralAccess;
 
@@ -10,14 +12,14 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
         expected_access: language_semantics::ReferenceAccess,
-    ) -> Option<(crate::flow::CanonicalPlace, CheckedStructuralAccess)> {
+    ) -> Option<(validation::CanonicalPlace, CheckedStructuralAccess)> {
         // Argument custody belongs to its exact invocation, even when that
         // invocation initializes a local. The statement's syntax cannot
         // substitute its local's loan for a nested operand's loan.
         if let Some(formation) = self.call_view_formation(expression, expected, expected_access) {
             return Some(formation);
         }
-        let state = crate::semantic::calls::find_state(self.program, self.state)?;
+        let state = self.program.state_by_symbol(self.state)?;
         match self
             .program
             .statement_table
@@ -37,7 +39,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
         expected_access: language_semantics::ReferenceAccess,
-    ) -> Option<(crate::flow::CanonicalPlace, CheckedStructuralAccess)> {
+    ) -> Option<(validation::CanonicalPlace, CheckedStructuralAccess)> {
         if local.is_mutable || !local.symbol.is_valid() {
             return None;
         }
@@ -113,7 +115,7 @@ impl Builder<'_, '_> {
             }
             _ => return None,
         };
-        let place = crate::flow::CanonicalPlace {
+        let place = validation::CanonicalPlace {
             root: facts::PlaceRoot::Symbol(loan.root_symbol),
             segments: self
                 .borrow
@@ -130,8 +132,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
         expected_access: language_semantics::ReferenceAccess,
-    ) -> Option<(crate::flow::CanonicalPlace, CheckedStructuralAccess)> {
-        use crate::semantic::calls::{call_site_argument_expressions, find_call_site};
+    ) -> Option<(validation::CanonicalPlace, CheckedStructuralAccess)> {
         let mut flow_states = self
             .flow
             .control
@@ -165,8 +166,7 @@ impl Builder<'_, '_> {
             if !arguments.contains(&expression) {
                 continue;
             }
-            let parameters =
-                crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)?;
+            let parameters = validation::call_target_parameters(self.program, call.target_symbol)?;
             let parameters = parameters.iter().collect::<Vec<_>>();
             if arguments.len() != parameters.len() {
                 return None;
@@ -202,7 +202,7 @@ impl Builder<'_, '_> {
             self.machine,
             expression,
         )?;
-        let place = crate::flow::CanonicalPlace {
+        let place = validation::CanonicalPlace {
             root: facts::PlaceRoot::Symbol(captured.root_symbol),
             segments: captured.segments,
         };

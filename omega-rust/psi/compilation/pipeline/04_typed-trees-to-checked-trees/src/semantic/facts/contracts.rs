@@ -414,14 +414,14 @@ fn instantiate_call_domain_membership_instance(
     if arguments.is_empty() || arguments.len() != index_parameters.len() {
         return;
     }
-    let Some(state) = crate::semantic::calls::find_state_in_machine(
+    let Some(state) = validation::find_state_in_machine(
         program,
         call.caller_machine_symbol,
         call.caller_state_symbol,
     ) else {
         return;
     };
-    let Some(site) = crate::semantic::calls::find_call_site(
+    let Some(site) = validation::find_call_site(
         program,
         call.caller_machine_symbol,
         call.caller_state_symbol,
@@ -431,13 +431,13 @@ fn instantiate_call_domain_membership_instance(
         return;
     };
     let (target_symbol, machine_arguments) = match &site {
-        crate::semantic::calls::CallSite::Statement(call) => {
+        validation::CallSite::Statement(call) => {
             (call.target_symbol, call.machine_arguments.as_ref())
         }
-        crate::semantic::calls::CallSite::Expression { call, .. } => {
+        validation::CallSite::Expression { call, .. } => {
             (call.target_symbol, call.machine_arguments.as_ref())
         }
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => return,
+        validation::CallSite::TransitionNamed { .. } => return,
     };
     let substitutions = crate::facts::index_compatibility::bound_index_substitutions(
         program,
@@ -556,7 +556,7 @@ fn instantiate_call_contract_payload(
     ) {
         return;
     }
-    let Some(call_site) = crate::semantic::calls::find_call_site(
+    let Some(call_site) = validation::find_call_site(
         program,
         call.caller_machine_symbol,
         call.caller_state_symbol,
@@ -582,7 +582,7 @@ fn instantiate_call_contract_payload(
         program.state_signature_parameters(requirement)
     } else {
         let Some(parameters) =
-            crate::semantic::calls::call_target_parameters(program, call.target_state_symbol)
+            validation::call_target_parameters(program, call.target_state_symbol)
         else {
             return;
         };
@@ -850,7 +850,7 @@ fn append_parameter_domain_requirements(
     call: &ContractCallFact,
     refs: &mut HandleSpan<FactRef>,
 ) {
-    let Some(site) = crate::semantic::calls::find_call_site(
+    let Some(site) = validation::find_call_site(
         program,
         call.caller_machine_symbol,
         call.caller_state_symbol,

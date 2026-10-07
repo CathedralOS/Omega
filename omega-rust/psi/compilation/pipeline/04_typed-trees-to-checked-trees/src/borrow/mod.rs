@@ -16,6 +16,8 @@
 //! it for the returned-view checks. `last_uses` and `loans` also export
 //! queries used elsewhere in the crate.
 
+use validation::machine_state_count;
+
 use checked_trees::BorrowFacts;
 pub(crate) mod accesses;
 pub(crate) mod calls;
@@ -36,7 +38,6 @@ pub(crate) use loans::store_destination_places;
 pub(crate) use loans::types::reference_borrow_access_kind;
 pub(crate) use tracker::BorrowOwnerSegment;
 
-use crate::lookup::machine_state_count;
 use roots::estimated_borrow_root_capacity;
 use state::{BorrowFactArenas, append_state_borrow_facts};
 

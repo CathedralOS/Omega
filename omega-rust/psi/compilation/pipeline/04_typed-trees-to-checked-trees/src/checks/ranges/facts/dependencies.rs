@@ -5,6 +5,8 @@
 //! state. Field/index paths survive that join; spelling alone cannot keep a
 //! stale predecessor parameter current or authorize an unrelated binding.
 
+use validation::CanonicalPlace;
+
 mod captures;
 mod reads;
 pub(crate) use reads::enter_root_currency_scope;
@@ -14,7 +16,7 @@ use reads::collect_reads;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::RangeFacts;
-use crate::flow::CanonicalPlace;
+
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::{machine::Machine, state::State};

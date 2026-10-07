@@ -39,7 +39,7 @@ pub(super) fn append_transfer(
                 facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
             )
         })
-        || crate::semantic::calls::find_state(program, state).is_none()
+        || program.state_by_symbol(state).is_none()
     {
         return;
     }
@@ -60,16 +60,16 @@ pub(super) fn append_transfer(
     {
         return;
     }
-    let root = crate::flow::CanonicalPlace {
+    let root = validation::CanonicalPlace {
         root: event.root,
         segments: Vec::new(),
     };
-    let projected = crate::flow::CanonicalPlace {
+    let projected = validation::CanonicalPlace {
         root: event.root,
         segments: path.to_vec(),
     };
-    let affine = |place: &crate::flow::CanonicalPlace| {
-        crate::flow::canonical_place_type_reference(program, state, statement_index, place)
+    let affine = |place: &validation::CanonicalPlace| {
+        validation::canonical_place_type_reference(program, state, statement_index, place)
             .is_some_and(|mut type_reference| {
                 while let TypeReferenceNode::Constrained { base_type, .. } =
                     program.type_reference_table.type_reference(type_reference)
@@ -86,7 +86,7 @@ pub(super) fn append_transfer(
     };
     if !affine(&root)
         || !affine(&projected)
-        || crate::semantic::calls::find_state(program, state).is_none_or(|declaration| {
+        || program.state_by_symbol(state).is_none_or(|declaration| {
             is_borrowed_place_transfer(program, machine, declaration, event, path)
         })
     {
@@ -119,12 +119,12 @@ pub(in crate::checks) fn transfers_owned_storage(
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],
 ) -> bool {
-    let place = crate::flow::CanonicalPlace {
+    let place = validation::CanonicalPlace {
         root: event.root,
         segments: path.to_vec(),
     };
     let Some(projected_type) =
-        crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
+        validation::canonical_place_type_reference(program, state, statement_index, &place)
     else {
         return false;
     };
@@ -153,11 +153,11 @@ pub(super) fn is_borrowed_place_transfer(
     // A reference may occur at the root or inside an owned wrapper. Copying
     // or moving that reference does not permit taking its referent's value.
     (0..path.len()).any(|length| {
-        let prefix = crate::flow::CanonicalPlace {
+        let prefix = validation::CanonicalPlace {
             root: event.root,
             segments: path[..length].to_vec(),
         };
-        crate::flow::canonical_place_type_reference(program, state.symbol, statement_index, &prefix)
+        validation::canonical_place_type_reference(program, state.symbol, statement_index, &prefix)
             .is_some_and(|reference| type_reference_is_reference(program, reference))
     })
 }
@@ -180,7 +180,7 @@ pub(super) fn append_replacement(
     let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
         return;
     };
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(place) = validation::canonical_place_from_expression_in_state(
         program,
         state,
         statement_index,
@@ -213,12 +213,12 @@ pub(super) fn append_replacement(
     // Crossing any reference changes storage ownership. Replacing the
     // borrowed carrier itself is also unrelated to nominal value cleanup.
     for length in 0..=place.segments.len() {
-        let prefix = crate::flow::CanonicalPlace {
+        let prefix = validation::CanonicalPlace {
             root: place.root,
             segments: place.segments[..length].to_vec(),
         };
         let Some(reference) =
-            crate::flow::canonical_place_type_reference(program, state, statement_index, &prefix)
+            validation::canonical_place_type_reference(program, state, statement_index, &prefix)
         else {
             return;
         };
@@ -232,7 +232,7 @@ pub(super) fn append_replacement(
         }
     }
     let endpoint =
-        crate::flow::canonical_place_type_reference(program, state, statement_index, &place);
+        validation::canonical_place_type_reference(program, state, statement_index, &place);
     let affine = endpoint
         .is_some_and(|reference| type_multiplicity(program, reference) == Multiplicity::Affine);
     if !affine && !remaining.is_reserved(place.root) {
@@ -252,11 +252,11 @@ pub(super) fn append_replacement(
         // Reserved storage may contain zero-valid copy fields alongside its
         // established owners. Completion needs both; disposal owes only the
         // selected value's actual multiplicity, never its parent's.
-        let discarded = crate::flow::CanonicalPlace {
+        let discarded = validation::CanonicalPlace {
             root: place.root,
             segments: path,
         };
-        if crate::flow::canonical_place_type_reference(program, state, statement_index, &discarded)
+        if validation::canonical_place_type_reference(program, state, statement_index, &discarded)
             .is_none_or(|reference| type_multiplicity(program, reference) != Multiplicity::Affine)
         {
             continue;

@@ -44,7 +44,7 @@ pub(crate) fn written_linear_targets(
                     .collect();
             }
             (
-                crate::flow::CanonicalPlace {
+                validation::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(local.symbol),
                     segments: Vec::new(),
                 },
@@ -52,7 +52,7 @@ pub(crate) fn written_linear_targets(
             )
         }
         StatementNode::Assignment(assignment) => {
-            let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            let Some(place) = validation::canonical_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
@@ -81,7 +81,7 @@ pub(crate) fn written_owner_targets(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    target: &crate::flow::CanonicalPlace,
+    target: &validation::CanonicalPlace,
     value: typed_trees::expression::ExpressionHandle,
     places: &[LinearPlace],
 ) -> Vec<WrittenLinearTarget> {
@@ -218,7 +218,7 @@ fn expression_permission_claim_scan<X>(
         return None;
     }
 
-    let source = crate::flow::canonical_place_from_expression_in_state(
+    let source = validation::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,
@@ -253,7 +253,7 @@ fn expression_permission_claim_identity_for_claim(
                 // A checked result is a distinct occurrence until its exact
                 // return map proves forwarding. One owned argument does not
                 // prove that a conditional callee returns that argument.
-                if crate::semantic::calls::find_state(program, call.target_symbol).is_some() {
+                if program.state_by_symbol(call.target_symbol).is_some() {
                     return None;
                 }
                 let mut candidates = Vec::new();
@@ -338,7 +338,7 @@ fn expression_permission_provenance_for_claim(
 ) -> Option<PermissionProvenance> {
     if let typed_trees::expression::ExpressionNode::Call(call) =
         program.expression_table.expression(expression)
-        && crate::semantic::calls::find_state(program, call.target_symbol).is_some()
+        && program.state_by_symbol(call.target_symbol).is_some()
     {
         return None;
     }

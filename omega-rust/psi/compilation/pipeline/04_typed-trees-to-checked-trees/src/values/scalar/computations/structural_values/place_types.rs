@@ -53,7 +53,7 @@ pub(super) fn projected_leaf_type(
     ) {
         return None;
     }
-    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let place = validation::canonical_place_from_expression(program, expression)?;
     if place.segments.is_empty()
         || !place.segments.iter().all(|segment| {
             matches!(
@@ -68,16 +68,16 @@ pub(super) fn projected_leaf_type(
         facts::PlaceRoot::Symbol(symbol) => symbol_declared_type(program, symbol)?,
         facts::PlaceRoot::Expression(expression) => {
             match program.expression_table.expression(expression) {
-                ExpressionNode::Call(call) => crate::flow::call_target_return_type(
+                ExpressionNode::Call(call) => validation::call_target_return_type(
                     program,
-                    crate::flow::call_target_symbol(program, call),
+                    validation::call_target_symbol(program, call),
                 )?,
                 _ => return None,
             }
         }
         _ => return None,
     };
-    crate::flow::project_type_reference_from_segments(program, root, &place.segments)
+    validation::project_type_reference_from_segments(program, root, &place.segments)
 }
 
 /// The place shape a shared-borrow arm target must canonicalize to: a named
@@ -86,7 +86,7 @@ pub(super) fn projected_leaf_type(
 /// source -- a computed root cannot be re-derived at replay, and a dynamic
 /// index or range segment has no statically checkable ordinal.
 pub(in crate::values::scalar::computations) fn canonical_place_is_borrowable(
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> bool {
     matches!(place.root, facts::PlaceRoot::Symbol(_))
         && place.segments.iter().all(|segment| {
@@ -104,7 +104,7 @@ pub(in crate::values::scalar::computations) fn canonical_place_is_borrowable(
 /// enclosing array's extent. The `&place` borrow and scalar-case lanes keep
 /// the static shape — a loan or a case read replays the place, not a runtime
 /// element.
-pub(super) fn canonical_place_is_copyable(place: &crate::flow::CanonicalPlace) -> bool {
+pub(super) fn canonical_place_is_copyable(place: &validation::CanonicalPlace) -> bool {
     matches!(place.root, facts::PlaceRoot::Symbol(_))
         && place.segments.iter().all(|segment| {
             matches!(
@@ -192,7 +192,7 @@ pub(in crate::values::scalar::computations) fn is_scalar_case_place_value(
     if !scalar_case_place_type(program, expected) {
         return false;
     }
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(place) = validation::canonical_place_from_expression_in_state(
         program,
         state,
         statement_index,
@@ -218,10 +218,9 @@ pub(in crate::values::scalar::computations) fn is_scalar_case_place_value(
     ) {
         return false;
     }
-    crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
-        .is_some_and(|leaf| {
-            program.normalized_type_identity(leaf) == program.normalized_type_identity(expected)
-        })
+    validation::canonical_place_type_reference(program, state, statement_index, &place).is_some_and(
+        |leaf| program.normalized_type_identity(leaf) == program.normalized_type_identity(expected),
+    )
 }
 
 /// A copyable `Unrestricted` leaf of any structural shape: a named `data`
@@ -293,7 +292,7 @@ pub(in crate::values::scalar::computations) fn needs_copied_place_root(
     {
         return false;
     }
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(place) = validation::canonical_place_from_expression_in_state(
         program,
         state,
         statement_index,
@@ -345,7 +344,7 @@ pub(in crate::values::scalar::computations) fn needs_copied_place_root(
         // affine; a write-only loan still grants no observation authority.
         return false;
     }
-    crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
+    validation::canonical_place_type_reference(program, state, statement_index, &place)
         .is_some_and(|leaf| validation::declared_carriers_match(program, leaf, expected))
 }
 

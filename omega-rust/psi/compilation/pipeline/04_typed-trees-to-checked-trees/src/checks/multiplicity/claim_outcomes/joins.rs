@@ -170,10 +170,8 @@ fn state_frontiers(
                             TransitionTargetNode::Named {
                                 path, arguments, ..
                             } => {
-                                let target_state = crate::semantic::calls::call_target_state(
-                                    program,
-                                    path.symbol,
-                                )?;
+                                let target_state =
+                                    validation::call_target_state(program, path.symbol)?;
                                 let mut children = state_frontiers(
                                     program,
                                     target_state,
@@ -280,7 +278,7 @@ fn expression_frontiers(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    let target = crate::semantic::calls::call_target_state(program, call.target_symbol)?;
+    let target = validation::call_target_state(program, call.target_symbol)?;
     let mut frontiers = state_frontiers(program, target, ownership, events, maps, active)?;
     for frontier in &mut frontiers {
         for entry in &mut frontier.entries {
@@ -361,15 +359,15 @@ fn expand_joined_frontier(
     }
     let mut visited = visited.to_vec();
     visited.push(invocation);
-    let crate::semantic::calls::CallSite::Expression { call, .. } =
-        crate::semantic::calls::find_call_site(program, machine, owner, statement, ordinal)?
+    let validation::CallSite::Expression { call, .. } =
+        validation::find_call_site(program, machine, owner, statement, ordinal)?
     else {
         return None;
     };
     if call.target_symbol != target_symbol {
         return None;
     }
-    let target = crate::semantic::calls::call_target_state(program, target_symbol)?;
+    let target = validation::call_target_state(program, target_symbol)?;
     let children = state_frontiers(program, target, ownership, events, maps, active)?;
     let mut expanded = Vec::new();
     for child in children {
@@ -552,7 +550,7 @@ fn excluded_input_at_call(
     if !projections.is_empty() {
         return None;
     }
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
+    let mut place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,
@@ -577,7 +575,7 @@ fn excluded_input_at_call(
     else {
         return None;
     };
-    let machine = crate::lookup::machine_by_symbol(program, establishment.machine_symbol)?;
+    let machine = program.machine_by_symbol(establishment.machine_symbol)?;
     let frames = validation::CallFrameResolver::new(program)?;
     let borrowed_state = borrow
         .states
@@ -672,19 +670,18 @@ fn derive_receipts(
         let Some((statement_index, expression)) = super::receiving_value(program, event) else {
             continue;
         };
-        let Some(state) = crate::semantic::calls::find_state(program, event.state_symbol) else {
+        let Some(state) = program.state_by_symbol(event.state_symbol) else {
             continue;
         };
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
             continue;
         };
-        let Some(target) = crate::semantic::calls::call_target_state(program, call.target_symbol)
-        else {
+        let Some(target) = validation::call_target_state(program, call.target_symbol) else {
             continue;
         };
         let mut ordinal = 0;
         let exact_call = loop {
-            let Some(site) = crate::semantic::calls::find_call_site(
+            let Some(site) = validation::find_call_site(
                 program,
                 event.machine_symbol,
                 event.state_symbol,
@@ -693,7 +690,7 @@ fn derive_receipts(
             ) else {
                 break false;
             };
-            if matches!(site, crate::semantic::calls::CallSite::Expression { expression: found, .. } if found == expression)
+            if matches!(site, validation::CallSite::Expression { expression: found, .. } if found == expression)
             {
                 break true;
             }

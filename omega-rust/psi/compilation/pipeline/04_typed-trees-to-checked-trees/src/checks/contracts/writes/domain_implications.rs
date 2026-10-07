@@ -25,7 +25,7 @@ pub(super) fn value_proves_qualification(
     if !crate::facts::field_domain::domain_requires_provenance(program, domain) {
         return value_proves_domain(program, facts, state, statement_index, value, domain);
     }
-    let Some(subject) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(subject) = validation::canonical_place_from_expression_in_state(
         program,
         state.state_symbol,
         statement_index,
@@ -86,7 +86,7 @@ pub(super) fn value_case_path_is_selected(
     statement_index: usize,
     value: ExpressionHandle,
 ) -> bool {
-    let Some(subject) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(subject) = validation::canonical_place_from_expression_in_state(
         program,
         state.state_symbol,
         statement_index,
@@ -164,7 +164,7 @@ pub(super) fn construction_value_proves_qualification(
     identity: language_semantics::SemanticDomainId,
     contexts: &[facts::FactContextHandle],
 ) -> bool {
-    let subject = crate::flow::canonical_place_from_expression_in_state(
+    let subject = validation::canonical_place_from_expression_in_state(
         program,
         state.state_symbol,
         statement_index,
@@ -321,7 +321,7 @@ pub(super) fn value_proves_domain_in_contexts(
     }
 
     let value_label = program.expression_table.display_name(value);
-    let value_place = crate::flow::canonical_place_from_expression_in_state(
+    let value_place = validation::canonical_place_from_expression_in_state(
         program,
         state_flow.state_symbol,
         statement_index,
@@ -387,10 +387,10 @@ fn declared_value_domain_implies(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
-    let Some(state) = crate::semantic::calls::find_state_in_machine(
+    let Some(state) = validation::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -426,7 +426,7 @@ fn value_call_return_domain_implies(
     let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
         return false;
     };
-    let Some(target) = crate::semantic::calls::find_state(program, call.target_symbol) else {
+    let Some(target) = program.state_by_symbol(call.target_symbol) else {
         return false;
     };
     if !target.return_type.is_valid() {
@@ -486,7 +486,7 @@ fn recast_source_proves_domain(
     contexts: &[facts::FactContextHandle],
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(subject) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(subject) = validation::canonical_place_from_expression_in_state(
         program,
         state_flow.state_symbol,
         statement_index,
@@ -519,10 +519,10 @@ fn recast_source_declared_domain_implies(
     source: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
-    let Some(state) = crate::semantic::calls::find_state_in_machine(
+    let Some(state) = validation::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -686,14 +686,10 @@ fn zero_value_scalar_leaf(
     leaf: ExpressionHandle,
 ) -> Option<super::super::prover::ScalarValue> {
     let leaf_type =
-        crate::flow::expression_place_type_reference(program, leaf, &[]).or_else(|| {
+        validation::expression_place_type_reference(program, leaf, &[]).or_else(|| {
             let segments =
                 crate::flow::relative_place_segments_from_expression(program, leaf, domain)?;
-            crate::flow::project_type_reference_from_segments(
-                program,
-                domain.target_type,
-                &segments,
-            )
+            validation::project_type_reference_from_segments(program, domain.target_type, &segments)
         })?;
     match program.type_reference_table.primitive_type(leaf_type) {
         Some(typed_trees::types::PrimitiveType::Bool) => {
@@ -744,7 +740,7 @@ fn value_declared_type_carries_domain(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = program

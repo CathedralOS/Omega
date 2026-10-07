@@ -22,7 +22,8 @@
 //! change this source substitution; ordinary lifetime/escape checks still
 //! establish whether the returned access and source relation are legal.
 
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -38,7 +39,7 @@ pub(crate) fn reference_result_candidates_before_statement(
     local_symbol: SymbolHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let prefix = statements.get(..statement_index)?;
     let (binding_index, local) = program
@@ -50,7 +51,7 @@ pub(crate) fn reference_result_candidates_before_statement(
     // A later bare assignment may rebind the reference to another result.
     if prefix[binding_index + 1..].iter().any(|statement| {
         matches!(statement, StatementNode::Assignment(assignment)
-            if crate::flow::canonical_place_from_expression_in_state(
+            if validation::canonical_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
@@ -117,7 +118,7 @@ pub(crate) fn reference_expression_storage_places(
         }
         _ => {}
     }
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state,
         statement_index,
@@ -161,8 +162,7 @@ pub(crate) fn call_result_sources(
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ReferenceResultSource>> {
-    let (callee, callee_state) =
-        crate::semantic::calls::find_state_with_machine(program, call.target_symbol)?;
+    let (callee, callee_state) = validation::find_state_with_machine(program, call.target_symbol)?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
         || !program.machine_type_parameters(callee).is_empty()
@@ -180,7 +180,7 @@ pub(crate) fn call_result_sources(
     }
     let mut sources = Vec::new();
     for (returned_index, returned) in callee_returned_expressions(program, callee_state)? {
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             program,
             callee_state.symbol,
             returned_index,

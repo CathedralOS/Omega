@@ -86,19 +86,18 @@ fn argument_for(
     {
         return None;
     }
-    let parameters =
-        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)?;
+    let parameters = validation::call_target_parameters(program, call_flow.target_symbol)?;
     let position = parameters
         .iter()
         .position(|candidate| candidate.symbol == name.symbol)?;
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
         call_flow.statement_index,
         call_flow.call_ordinal,
     )?;
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let arguments = validation::call_site_argument_expressions(program, &site);
     // Arguments and parameters correspond positionally only when every
     // parameter has its own argument.
     if arguments.len() != parameters.len() {

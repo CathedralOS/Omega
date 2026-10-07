@@ -155,7 +155,7 @@ pub(crate) fn collect_true(
         (binary.left, binary.right, binary.operator),
         (binary.right, binary.left, reverse(binary.operator)),
     ] {
-        let Some(reference) = crate::flow::expression_type_reference_in_state(
+        let Some(reference) = validation::expression_type_reference_in_state(
             program,
             state.symbol,
             statement_index,
@@ -177,7 +177,7 @@ pub(crate) fn collect_true(
         ) {
             continue;
         }
-        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        let Some(place) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             statement_index,
@@ -186,7 +186,7 @@ pub(crate) fn collect_true(
             continue;
         };
         let predicate = if operator == BinaryOperator::Equal
-            && crate::flow::canonical_place_from_expression_in_state(
+            && validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 statement_index,
@@ -265,7 +265,7 @@ pub(crate) fn comparison(
                 && call.evidence_arguments.is_empty() =>
         {
             let (machine, _) =
-                crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
+                validation::find_machine_by_entry_state(program, call.target_symbol)?;
             let binding = program
                 .machine_token_bindings()
                 .iter()

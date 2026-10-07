@@ -22,7 +22,7 @@ pub(crate) fn expression_establishes_obligation(
     relative_path: &[facts::PlaceSegment],
     places: &[LinearPlace],
 ) -> bool {
-    if let Some(source) = crate::flow::canonical_place_from_expression_in_state(
+    if let Some(source) = validation::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,

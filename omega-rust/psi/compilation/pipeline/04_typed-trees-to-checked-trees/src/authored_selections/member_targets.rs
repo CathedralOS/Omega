@@ -19,7 +19,7 @@ pub(crate) fn checked_member_target(
     member: &typed_trees::expression::TableMemberExpression,
     owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<AuthoredSelectionResolutionTarget> {
-    declaration_target(crate::flow::effective_member_symbol(
+    declaration_target(validation::effective_member_symbol(
         program,
         member.receiver,
         member,
@@ -124,7 +124,7 @@ pub(super) fn for_each_statement_containing(
                 .enumerate()
             {
                 let mut expressions = Vec::new();
-                crate::monomorphization::collect_statement_expression_trees(
+                validation::expression_traversal::collect_statement_expression_trees(
                     program,
                     statement,
                     &mut expressions,
@@ -146,7 +146,7 @@ fn contextual_statement_member_target(
 ) -> Option<AuthoredSelectionResolutionTarget> {
     let mut resolved = None;
     for_each_statement_containing(program, expression, |_, state, statement_index, _| {
-        let receiver_type = crate::flow::expression_type_reference_in_state(
+        let receiver_type = validation::expression_type_reference_in_state(
             program,
             state.symbol,
             statement_index,
@@ -249,7 +249,7 @@ pub(crate) fn expression_is_contextual_statement_primitive(
         for (machine, state, statement_index) in sites {
             let machine = &program.machines()[machine];
             let state = &program.machine_states(machine)[state];
-            let Some(type_reference) = crate::flow::expression_type_reference_in_state(
+            let Some(type_reference) = validation::expression_type_reference_in_state(
                 program,
                 state.symbol,
                 statement_index,
@@ -269,7 +269,7 @@ pub(crate) fn expression_is_contextual_statement_primitive(
         program,
         containing_expression,
         |_, state, statement_index, _| {
-            let Some(type_reference) = crate::flow::expression_type_reference_in_state(
+            let Some(type_reference) = validation::expression_type_reference_in_state(
                 program,
                 state.symbol,
                 statement_index,
@@ -324,7 +324,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
             }
             declaration_type_reference(
                 program,
-                crate::flow::effective_member_symbol(program, member.receiver, member),
+                validation::effective_member_symbol(program, member.receiver, member),
             )
         }
         ExpressionNode::Binary(binary)

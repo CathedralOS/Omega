@@ -74,12 +74,10 @@ pub(crate) fn prepare_permission_events(
         .map(|(_, state)| state.clone())
         .collect::<Vec<_>>();
     for state_flow in state_flows {
-        let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
-        else {
+        let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
-        let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol)
-        else {
+        let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
             continue;
         };
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -336,12 +334,10 @@ pub(crate) fn record_crash_frontier_lower_bounds(
 ) {
     let mut derived = Vec::new();
     for (_, state_flow) in facts.flow.control.states.iter() {
-        let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
-        else {
+        let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
-        let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol)
-        else {
+        let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
             continue;
         };
         let events = owned_permission_events(facts, state_flow.machine_symbol, state.symbol);
@@ -669,7 +665,7 @@ fn guarded_case_subject(
     statement_index: usize,
     subject: typed_trees::expression::ExpressionHandle,
 ) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,
@@ -774,7 +770,7 @@ fn apply_statically_inactive_call_results(
             else {
                 return None;
             };
-            let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
+            let target = program.state_by_symbol(call.target_symbol)?;
             let map = maps.iter().find(|map| map.state_symbol == target.symbol)?;
             let receiving_path = segments.span_or_empty(event.segments);
             (!map

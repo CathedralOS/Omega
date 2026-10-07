@@ -1,6 +1,7 @@
-use crate::flow::{
+use validation::{
     canonical_place_from_expression_in_state, expression_type_symbol, symbol_type_symbol,
 };
+
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, NamePath};
 use facts::FactPlan;
@@ -46,7 +47,7 @@ pub(crate) fn resolve_place_member_symbol(
     let place = facts.places.get(place);
     let base_symbol = fact_place_type_symbol(program, facts, place)?;
 
-    if let Some(machine) = crate::lookup::machine_by_symbol(program, base_symbol)
+    if let Some(machine) = program.machine_by_symbol(base_symbol)
         && let Some(data) = program.attached_data_definition(machine)
     {
         if let Some(symbol) =

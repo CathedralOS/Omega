@@ -1,9 +1,9 @@
 //! Shared lookup of current assignment values. Storage invalidation owns their
 //! lifetime; neither a local initializer nor a nonliteral expression is replayed.
 
-use crate::flow::{
-    CanonicalPlace, canonical_place_from_semantic_place, canonical_place_from_symbol,
-};
+use validation::CanonicalPlace;
+
+use crate::flow::{canonical_place_from_semantic_place, canonical_place_from_symbol};
 use facts::{FactContext, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 

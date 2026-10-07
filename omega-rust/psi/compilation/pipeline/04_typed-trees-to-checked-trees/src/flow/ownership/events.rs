@@ -1,4 +1,5 @@
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
@@ -114,7 +115,7 @@ pub(crate) fn call_permission_evaluation(
         .get(statement_index)
     {
         Some(typed_trees::statement::StatementNode::Transition(_)) => {
-            match crate::semantic::calls::transition_call_target(
+            match validation::transition_call_target(
                 program,
                 machine,
                 state,

@@ -760,7 +760,7 @@ fn data_definition(
     // The shared symbol index answers valid symbols with the scan's first
     // match; an invalid handle keeps the scan it would otherwise skip.
     if symbol.is_valid() {
-        return crate::lookup::data_definition_by_symbol(program, symbol);
+        return program.data_definition_by_symbol(symbol);
     }
     program
         .data_definitions()

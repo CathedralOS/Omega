@@ -2,7 +2,11 @@
 //! machines each machine depends on, with their exposure, read from signatures,
 //! call return types, ownership events, and cleanup plans in the complete check
 //! facts. The check pass derives it after execution finalization, not during flow.
-use super::{CanonicalPlace, canonical_place_type_reference, project_type_reference_from_segments};
+
+use validation::{
+    CanonicalPlace, canonical_place_type_reference, project_type_reference_from_segments,
+};
+
 use checked_trees::{
     CheckFacts, CheckedSemanticDependencies, CheckedSemanticDependency,
     CheckedSemanticDependencyExposure as Exposure, CheckedSemanticDependencyKind as Kind,
@@ -75,7 +79,7 @@ pub(crate) fn derive_checked_semantic_dependencies(
         // Pruning keeps span-addressed ownership arenas intact. Expression
         // roots can still resolve through a retained producer after their
         // consumer is removed, but that dead event is not a product dependency.
-        if crate::lookup::machine_by_symbol(program, event.machine_symbol).is_none() {
+        if program.machine_by_symbol(event.machine_symbol).is_none() {
             continue;
         }
         let statement_index = event_statement_index(program, event.state_symbol, event.source);
@@ -223,7 +227,7 @@ pub(super) fn event_type_reference(
                 typed_trees::expression::ExpressionNode::Call(call) => {
                     call_return_type_reference(program, call.target_symbol)
                 }
-                _ => super::expression_type_reference_in_state(
+                _ => validation::expression_type_reference_in_state(
                     program,
                     state_symbol,
                     statement_index,

@@ -66,7 +66,7 @@ pub(super) fn check_call_result_qualifications(
             else {
                 return None;
             };
-            let site = crate::semantic::calls::find_call_site(
+            let site = validation::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
@@ -77,7 +77,7 @@ pub(super) fn check_call_result_qualifications(
                 (place.root, site),
                 (
                     PlaceRoot::Expression(expression),
-                    crate::semantic::calls::CallSite::Expression {
+                    validation::CallSite::Expression {
                         expression: actual,
                         ..
                     }
@@ -97,10 +97,8 @@ pub(super) fn check_call_result_qualifications(
                     statement_index,
                 );
             }
-            let (
-                PlaceRoot::Expression(expression),
-                crate::semantic::calls::CallSite::Expression { call, .. },
-            ) = (place.root, site)
+            let (PlaceRoot::Expression(expression), validation::CallSite::Expression { call, .. }) =
+                (place.root, site)
             else {
                 return None;
             };
@@ -133,14 +131,13 @@ pub(super) fn check_call_result_qualifications(
             // Checked bodies owe routed field membership at every exit. The
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
-            if crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
+            if validation::find_state_with_machine(program, call.target_symbol)
                 .is_some_and(|(machine, _)| machine.body_is_present)
             {
                 return Some(());
             }
 
-            let call_parameters =
-                crate::semantic::calls::call_target_parameters(program, call.target_symbol);
+            let call_parameters = validation::call_target_parameters(program, call.target_symbol);
 
             // Preserve the existing bare-result issuance route, including its
             // exact carrier/subject checks. Fresh supply must be fresh: a
@@ -317,14 +314,14 @@ fn call_parameter_qualification_join(
     path: &[PlaceSegment],
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
-    site: crate::semantic::calls::CallSite<'_>,
+    site: validation::CallSite<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
 ) -> Option<()> {
     let call_target = match site {
-        crate::semantic::calls::CallSite::Expression { call, .. } => call.target_symbol,
-        crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
-        crate::semantic::calls::CallSite::TransitionNamed { path, .. } => path.symbol,
+        validation::CallSite::Expression { call, .. } => call.target_symbol,
+        validation::CallSite::Statement(call) => call.target_symbol,
+        validation::CallSite::TransitionNamed { path, .. } => path.symbol,
     };
     if evidence.origin != QualificationEvidenceOrigin::Propagated
         || evidence.source_symbol != call_target
@@ -333,11 +330,11 @@ fn call_parameter_qualification_join(
     {
         return None;
     }
-    let parameters = crate::semantic::calls::call_target_parameters(program, call_target)?;
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let parameters = validation::call_target_parameters(program, call_target)?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
     let position = parameters.iter().enumerate().find_map(|(position, _)| {
         let argument = arguments.get(position)?;
-        let canonical = crate::flow::canonical_place_from_expression_in_state(
+        let canonical = validation::canonical_place_from_expression_in_state(
             program,
             state_symbol,
             statement_index,
@@ -360,7 +357,7 @@ fn call_parameter_qualification_join(
         return None;
     }
     // Checked bodies owe their authored parameter claims at every exit.
-    if crate::semantic::calls::find_state_with_machine(program, call_target)
+    if validation::find_state_with_machine(program, call_target)
         .is_some_and(|(machine, _)| machine.body_is_present)
     {
         return Some(());
@@ -766,7 +763,7 @@ fn consumes_qualified_input(
         let Some(argument) = input_argument(program, invocation, parameters, position) else {
             return false;
         };
-        let Some(actual) = crate::flow::canonical_place_from_expression_in_state(
+        let Some(actual) = validation::canonical_place_from_expression_in_state(
             program,
             invocation.state,
             invocation.statement,
@@ -811,7 +808,7 @@ fn input_claim(
         let [projection] = projections.as_slice() else {
             return None;
         };
-        let mut actual = crate::flow::canonical_place_from_expression_in_state(
+        let mut actual = validation::canonical_place_from_expression_in_state(
             program,
             invocation.state,
             invocation.statement,
@@ -820,7 +817,7 @@ fn input_claim(
         actual.extend_segments(&projection.remaining);
         actual
     } else {
-        let mut actual = crate::flow::canonical_place_from_expression_in_state(
+        let mut actual = validation::canonical_place_from_expression_in_state(
             program,
             invocation.state,
             invocation.statement,
@@ -887,20 +884,20 @@ fn result_claim(
     ) {
         return Some(identity);
     }
-    let state = crate::semantic::calls::find_state(program, invocation.state)?;
+    let state = program.state_by_symbol(invocation.state)?;
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
         .get(invocation.statement)?;
     let mut destination = match statement {
         StatementNode::LocalData(local) if local.initial_value == invocation.expression => {
-            crate::flow::CanonicalPlace {
+            validation::CanonicalPlace {
                 root: PlaceRoot::Symbol(local.symbol),
                 segments: Vec::new(),
             }
         }
         StatementNode::Assignment(assignment) if assignment.value == invocation.expression => {
-            crate::flow::canonical_place_from_expression_in_state(
+            validation::canonical_place_from_expression_in_state(
                 program,
                 invocation.state,
                 invocation.statement,

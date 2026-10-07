@@ -1,8 +1,12 @@
 //! Substituting fixed-array const and const index expression parameters.
 
+use validation::expression_traversal::{
+    collect_expression_tree, collect_statement_expression_trees,
+};
+
 use crate::monomorphization::{
     Candidate, ExpressionHandle, ExpressionNode, StatementNode, SymbolHandle, TypeConstraintNode,
-    TypeReferenceHandle, TypeReferenceNode, TypedTrees, collect_expression_tree,
+    TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
 
 pub(crate) fn fixed_array_const_replacements(
@@ -214,66 +218,6 @@ pub(crate) fn candidate_const_index_expressions(
         }
     }
     expressions
-}
-
-pub(crate) fn collect_statement_expression_trees(
-    program: &dyn ::validation::CheckingInput,
-    statement: &StatementNode,
-    handles: &mut Vec<ExpressionHandle>,
-) {
-    match statement {
-        StatementNode::RootBinding(binding) => {
-            if binding.implementation_operand.is_valid() {
-                collect_expression_tree(program, binding.implementation_operand, handles);
-            }
-        }
-        StatementNode::AssemblyFact(fact) => {
-            collect_expression_tree(program, fact.expression, handles)
-        }
-        StatementNode::Assignment(assignment) => {
-            collect_expression_tree(program, assignment.target, handles);
-            collect_expression_tree(program, assignment.value, handles);
-        }
-        StatementNode::Call(call) => {
-            for argument in program.statement_table.expression_handles(call.arguments) {
-                collect_expression_tree(program, *argument, handles);
-            }
-        }
-        StatementNode::Expression(expression) => {
-            collect_expression_tree(program, *expression, handles)
-        }
-        StatementNode::LocalData(local) => {
-            collect_expression_tree(program, local.initial_value, handles)
-        }
-        StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                collect_expression_tree(program, guard, handles);
-            }
-            collect_transition_target_expression_trees(program, transition.target, handles);
-            collect_transition_target_expression_trees(program, transition.continuation, handles);
-        }
-    }
-}
-
-pub(crate) fn collect_transition_target_expression_trees(
-    program: &dyn ::validation::CheckingInput,
-    target: typed_trees::statement::TransitionTargetHandle,
-    handles: &mut Vec<ExpressionHandle>,
-) {
-    if !target.is_valid() {
-        return;
-    }
-    match program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
-            for argument in program.statement_table.expression_handles(*arguments) {
-                collect_expression_tree(program, *argument, handles);
-            }
-        }
-        typed_trees::statement::TransitionTargetNode::Value(expression) => {
-            collect_expression_tree(program, *expression, handles)
-        }
-        typed_trees::statement::TransitionTargetNode::Terminal => {}
-    }
 }
 
 pub(crate) fn collect_const_index_expressions_from_type(

@@ -81,7 +81,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
 ) -> bool {
     let operators = &facts.operators;
     let semantic = &facts.semantic;
-    let Some(call_site) = crate::semantic::calls::find_call_site(
+    let Some(call_site) = validation::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -91,7 +91,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         return false;
     };
     let Some(target_parameters) =
-        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
+        validation::call_target_parameters(program, call_flow.target_symbol)
     else {
         return false;
     };
@@ -114,7 +114,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     if let Some((predicate, subject)) = place_predicate(program, expression)
         && let Some((value, remaining)) =
             case_test_subject_actual(program, &call_site, target_parameters, subject)
-        && let Some(mut place) = crate::flow::canonical_place_from_expression_in_state(
+        && let Some(mut place) = validation::canonical_place_from_expression_in_state(
             program,
             state_flow.state_symbol,
             call_flow.statement_index,
@@ -402,7 +402,7 @@ pub(super) fn indexed_membership(
 /// an ordinary formal, or the receiver for `self`.
 fn case_test_subject_actual(
     program: &dyn ::validation::CheckingInput,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     parameters: &[typed_trees::signature::StateParameter],
     subject: typed_trees::expression::ExpressionHandle,
 ) -> Option<(
@@ -412,7 +412,7 @@ fn case_test_subject_actual(
     crate::semantic::places::call_contract_argument_projection(
         program,
         parameters,
-        crate::semantic::calls::call_site_argument_expressions(program, call_site),
+        validation::call_site_argument_expressions(program, call_site),
         subject,
     )
 }

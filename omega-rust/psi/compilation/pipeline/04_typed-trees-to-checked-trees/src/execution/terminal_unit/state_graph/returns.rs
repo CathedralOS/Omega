@@ -775,7 +775,7 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
             return None;
         }
         let statement_index = usize::try_from(statement_ordinal).ok()?;
-        let mut place = crate::flow::canonical_place_from_expression_in_state(
+        let mut place = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             statement_index,
@@ -803,7 +803,7 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
                 let mut segments = Vec::with_capacity(place.segments.len() + 1);
                 segments.push(facts::PlaceSegment::Field { symbol: member });
                 segments.extend(place.segments);
-                place = crate::flow::CanonicalPlace {
+                place = validation::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(machine.symbol),
                     segments,
                 };
@@ -830,7 +830,7 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
             }
             let mut segments = facts.borrow.loan_segments(loan).to_vec();
             segments.extend(place.segments);
-            place = crate::flow::CanonicalPlace {
+            place = validation::CanonicalPlace {
                 root: facts::PlaceRoot::Symbol(loan.root_symbol),
                 segments,
             };

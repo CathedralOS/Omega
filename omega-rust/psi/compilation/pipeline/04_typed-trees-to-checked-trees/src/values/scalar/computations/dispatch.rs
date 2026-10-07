@@ -69,7 +69,7 @@ impl Builder<'_, '_> {
         {
             return self.expression(selected, result_type);
         }
-        let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+        let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self
             .program
             .machine_states(machine)

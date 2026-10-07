@@ -187,7 +187,7 @@ pub(super) fn transparent_proposition_proves_exit(
     }) else {
         return false;
     };
-    let Some(state) = crate::semantic::calls::find_state_in_machine(
+    let Some(state) = validation::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -207,7 +207,7 @@ fn entry_premises_are_preserved(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(machine_symbol) else {
         return false;
     };
     if resolver.is_some_and(|resolver| {
@@ -250,23 +250,23 @@ pub(super) fn structural_call_requirement(
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let classification = validation::proof_only_classification(program);
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
     if !entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver) {
         return false;
     }
-    let Some(state) = crate::semantic::calls::find_state_in_machine(
+    let Some(state) = validation::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
     ) else {
         return false;
     };
-    let Some(callee) = crate::semantic::calls::find_state(program, call_flow.target_symbol) else {
+    let Some(callee) = program.state_by_symbol(call_flow.target_symbol) else {
         return false;
     };
-    let Some(call_site) = crate::semantic::calls::find_call_site(
+    let Some(call_site) = validation::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -275,8 +275,8 @@ pub(super) fn structural_call_requirement(
     ) else {
         return false;
     };
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
-    let in_transition_target = crate::semantic::calls::transition_call_target(
+    let arguments = validation::call_site_argument_expressions(program, &call_site);
+    let in_transition_target = validation::transition_call_target(
         program,
         machine,
         state,
@@ -355,7 +355,8 @@ fn isolated_proof_values(
                 .span_or_empty(state.calls)
                 .iter()
                 .all(|call| {
-                    crate::semantic::calls::find_state(program, call.target_symbol)
+                    program
+                        .state_by_symbol(call.target_symbol)
                         .is_some_and(isolated_parameters)
                 })
         })

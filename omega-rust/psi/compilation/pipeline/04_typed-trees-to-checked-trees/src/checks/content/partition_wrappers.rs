@@ -169,8 +169,7 @@ pub(crate) fn instantiate_partition_wrapper(
     source: &ContentConservationPlan,
     source_derivation_depth: u32,
 ) -> Option<ContentPartitionCompositionFact> {
-    let target_parameters =
-        crate::semantic::calls::call_target_parameters(program, invocation.target_symbol)?;
+    let target_parameters = validation::call_target_parameters(program, invocation.target_symbol)?;
     let call_ordinal = partition_invocation_call_ordinal(
         program,
         facts,
@@ -295,7 +294,7 @@ fn partition_invocation_call_ordinal(
                 && call.target_symbol == invocation.target_symbol
         })
         .filter_map(|call| {
-            let call_site = crate::semantic::calls::find_call_site(
+            let call_site = validation::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
@@ -305,11 +304,11 @@ fn partition_invocation_call_ordinal(
             let exact = match (&invocation.form, call_site) {
                 (
                     ReturnedPartitionInvocationForm::Expression(expected),
-                    crate::semantic::calls::CallSite::Expression { expression, .. },
+                    validation::CallSite::Expression { expression, .. },
                 ) => *expected == expression,
                 (
                     ReturnedPartitionInvocationForm::NamedTransition,
-                    crate::semantic::calls::CallSite::TransitionNamed { arguments, .. },
+                    validation::CallSite::TransitionNamed { arguments, .. },
                 ) => {
                     program.statement_table.expression_handles(arguments)
                         == invocation.arguments.as_slice()
@@ -318,7 +317,7 @@ fn partition_invocation_call_ordinal(
                     ReturnedPartitionInvocationForm::StagedLocal {
                         call_expression, ..
                     },
-                    crate::semantic::calls::CallSite::Expression { expression, .. },
+                    validation::CallSite::Expression { expression, .. },
                 ) => *call_expression == expression,
                 _ => false,
             };
@@ -643,8 +642,8 @@ fn partition_argument_place(
     statement_index: usize,
     argument: ExpressionHandle,
     projection_path: &[ContentPlaceSegment],
-) -> Option<crate::flow::CanonicalPlace> {
-    let mut direct = crate::flow::canonical_place_from_expression_in_state(
+) -> Option<validation::CanonicalPlace> {
+    let mut direct = validation::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,
@@ -657,7 +656,7 @@ fn partition_argument_place(
         return Some(direct);
     }
     let leaf = aggregate_argument_projection(program, argument, projection_path)?;
-    let leaf = crate::flow::canonical_place_from_expression_in_state(
+    let leaf = validation::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,

@@ -53,11 +53,8 @@ impl ContractExpressionEvaluator<'_, '_> {
             return None;
         };
         if !matches!(transition.guard, TransitionGuardNode::Always)
-            || !matches!(
-                self.call_site,
-                crate::semantic::calls::CallSite::TransitionNamed { .. }
-            )
-            || crate::semantic::calls::call_site_argument_expressions(self.program, self.call_site)
+            || !matches!(self.call_site, validation::CallSite::TransitionNamed { .. })
+            || validation::call_site_argument_expressions(self.program, self.call_site)
                 .iter()
                 .any(|argument| {
                     !matches!(
@@ -137,8 +134,10 @@ impl ContractExpressionEvaluator<'_, '_> {
         // `self.<field>` stays the callee's. Follow the resolved symbol; only
         // an unresolved receiver (a trait boundary `self` with no machine)
         // falls back to the target's data.
-        let data = crate::lookup::machine_by_symbol(self.program, path.symbol)
-            .or_else(|| crate::lookup::machine_by_symbol(self.program, path.head_symbol))
+        let data = self
+            .program
+            .machine_by_symbol(path.symbol)
+            .or_else(|| self.program.machine_by_symbol(path.head_symbol))
             .map(|machine| self.self_data_definition(machine))
             .unwrap_or_else(|| self.target_self_data_definition())?;
         for data_member in self.program.data_members(data) {
@@ -159,9 +158,11 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// `machine Vec4::get`), found through the machine that owns the target
     /// state. `None` for free machines (no attached data).
     fn target_self_data_definition(&self) -> Option<&typed_trees::data::DataDefinition> {
-        let machine =
-            crate::lookup::machine_by_symbol(self.program, self.target_symbol).or_else(|| {
-                crate::semantic::calls::find_state_with_machine(self.program, self.target_symbol)
+        let machine = self
+            .program
+            .machine_by_symbol(self.target_symbol)
+            .or_else(|| {
+                validation::find_state_with_machine(self.program, self.target_symbol)
                     .map(|(machine, _)| machine)
             })?;
         self.self_data_definition(machine)

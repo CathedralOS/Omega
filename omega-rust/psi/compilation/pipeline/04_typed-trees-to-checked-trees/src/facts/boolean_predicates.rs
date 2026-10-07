@@ -1,7 +1,9 @@
 //! True relational formulas over exact current storage. Formal coordinates
 //! identify observations; explicit bindings supply their current namespace.
 //! Flow carries scratch rows across sweeps and allocates fresh handles on seed.
-use crate::flow::CanonicalPlace;
+
+use validation::CanonicalPlace;
+
 mod paths;
 use arena::HandleSpan;
 use checked_trees::{CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar};
@@ -209,7 +211,7 @@ pub(crate) fn bind_current_guard(
     expression: typed_trees::expression::ExpressionHandle,
     value: bool,
 ) -> Option<BoundPredicate> {
-    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = validation::find_state_with_machine(program, state_symbol)?;
     if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
     {
         return None;
@@ -259,7 +261,7 @@ pub(crate) fn bind_current_guard(
             }
             _ => return None,
         };
-        let type_reference = crate::flow::canonical_place_type_reference(
+        let type_reference = validation::canonical_place_type_reference(
             program,
             state_symbol,
             statement_index,

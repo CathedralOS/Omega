@@ -1,9 +1,9 @@
 //! Domain predicates over exact, live assignment values. Mutation invalidation
 //! owns their lifetime; this consumer neither replays a body nor assumes zeros.
 
-use crate::flow::{
-    CanonicalPlace, canonical_place_from_semantic_place, relative_place_segments_from_expression,
-};
+use validation::CanonicalPlace;
+
+use crate::flow::{canonical_place_from_semantic_place, relative_place_segments_from_expression};
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceHandle};
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;

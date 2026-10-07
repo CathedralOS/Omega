@@ -48,7 +48,7 @@ pub(in crate::checks::borrows) fn resolve_place(
     entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<ResolvedPlace> {
-    let state = crate::semantic::calls::find_state(program, state_flow.state_symbol)?;
+    let state = program.state_by_symbol(state_flow.state_symbol)?;
     let reference_local = program
         .statement_table
         .statements(state.statement_nodes)

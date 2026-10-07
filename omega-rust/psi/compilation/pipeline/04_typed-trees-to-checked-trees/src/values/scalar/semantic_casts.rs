@@ -10,11 +10,9 @@ pub(super) fn result_type(
     state_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    crate::semantic::calls::find_state_with_machine(program, state_symbol).and_then(
-        |(machine, state)| {
-            validation::expression_result_type_reference(program, machine, state, expression)
-        },
-    )
+    validation::find_state_with_machine(program, state_symbol).and_then(|(machine, state)| {
+        validation::expression_result_type_reference(program, machine, state, expression)
+    })
 }
 
 /// Whether `reference` carries a declared domain that is a semantic atom. A

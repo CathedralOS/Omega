@@ -1,12 +1,14 @@
 //! Member, index, and selector reads: projected places, temporary member
 //! symbols, and the operand rosters an operator call reads through.
 
+use validation::CanonicalPlace;
+use validation::canonical_place_from_expression_in_state;
+
 use super::super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use super::collect_reads;
 use super::operands::{capture_place_read, collect_operand_reads, collect_place_read};
 use crate::checks::ranges::facts::RangeCallContext;
-use crate::flow::CanonicalPlace;
-use crate::flow::canonical_place_from_expression_in_state;
+
 use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin,
     CheckedValueStatementRole,
@@ -137,7 +139,7 @@ pub(super) fn temporary_member_symbol_at(
     if depth >= EXPRESSION_WALK_DEPTH_BOUND {
         return SymbolHandle::invalid();
     }
-    let direct = crate::flow::effective_member_symbol(program, member.receiver, member);
+    let direct = validation::effective_member_symbol(program, member.receiver, member);
     if direct.is_valid() || member.case_variant.is_some() {
         return direct;
     }
@@ -145,7 +147,7 @@ pub(super) fn temporary_member_symbol_at(
     else {
         return direct;
     };
-    crate::flow::resolve_member_symbol_from_type_symbol(program, leaf, member.member.as_str())
+    validation::resolve_member_symbol_from_type_symbol(program, leaf, member.member.as_str())
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
@@ -199,7 +201,7 @@ pub(super) fn temporary_receiver_leaf(
             if !field.is_valid() {
                 return None;
             }
-            crate::flow::symbol_type_symbol(program, field)
+            validation::symbol_type_symbol(program, field)
         }
         _ => None,
     }
@@ -382,7 +384,7 @@ pub(super) fn collect_selector_reads<'a, 'b>(
             let symbols = program
                 .expression_table
                 .name_path_member_symbols(path.member_symbols);
-            crate::lookup::first_valid_name_path_symbol(path, &program.expression_table).is_some()
+            validation::first_valid_name_path_symbol(path, &program.expression_table).is_some()
                 && (members.len() <= 1 || members.len() == symbols.len())
                 && symbols.iter().all(|symbol| symbol.is_valid())
         }
@@ -405,7 +407,7 @@ pub(super) fn collect_selector_reads<'a, 'b>(
             (member.member_symbol.is_valid()
                 || ((member.case_variant.is_some()
                     || member_receiver_escapes_binder(program, member.receiver, 0))
-                    && crate::flow::effective_member_symbol(program, member.receiver, member)
+                    && validation::effective_member_symbol(program, member.receiver, member)
                         .is_valid()))
                 && collect_selector_reads(
                     program,

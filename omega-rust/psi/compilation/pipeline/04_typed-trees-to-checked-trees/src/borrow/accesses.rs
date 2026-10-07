@@ -122,7 +122,7 @@ fn collect_target_argument_accesses(
     target_symbol: SymbolHandle,
 ) {
     let program = collection.program;
-    let mut parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)
+    let mut parameters = validation::call_target_parameters(program, target_symbol)
         .unwrap_or_default()
         .iter();
     for argument in arguments {

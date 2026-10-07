@@ -372,3 +372,36 @@ pub use program_validation::{
 };
 
 pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;
+
+// Exact typed-program queries are independently owned here so preparation
+// and immutable checking share declaration identity and occurrence order.
+pub use expression_traversal::{
+    collect_contract_facts, collect_expression_tree, collect_statement_expression_trees,
+    collect_transition_target_expression_trees,
+};
+pub use machine_calls::calls::declared_receiver_target;
+pub use machine_calls::calls::{
+    CallSite, call_is_unconditional, call_receiver_parts, call_site_argument_expressions,
+    call_site_evidence_arguments, call_target_parameters, call_target_return_type,
+    call_target_state, call_target_symbol, call_target_type_parameters,
+    collect_call_sites_in_statement, find_call_site, find_call_site_in_state, find_machine,
+    find_machine_by_entry_state, find_machine_head, find_state_in_machine, find_state_with_machine,
+    machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
+    receiver_can_dispatch_to_machine, resolve_name_path_member_symbol, resolve_state_call_target,
+    statement_call_can_dispatch_to_machine, statement_call_receiver_members,
+    statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
+    transition_call_target,
+};
+pub use value_custody::places::{
+    CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,
+    canonical_place_type_reference, collection_element_type_reference,
+    contextual_canonical_place_from_expression, declared_data_type, effective_member_symbol,
+    effective_member_symbol_from_type_symbol, expression_place_type_reference,
+    expression_root_symbol, expression_type_reference_in_state, expression_type_symbol,
+    first_valid_name_path_symbol, index_place_segment, loan_carrier_has_owned_storage,
+    machine_symbol_from_type_reference_handle, nearest_scoped_local,
+    project_type_reference_from_segments, projected_statement_receiver_place,
+    push_field_place_segments, receiver_projections, resolve_member_symbol_from_type_symbol,
+    state_scoped_name_symbol, structural_member_identity, symbol_type_symbol,
+    unique_data_definition_by_symbol,
+};

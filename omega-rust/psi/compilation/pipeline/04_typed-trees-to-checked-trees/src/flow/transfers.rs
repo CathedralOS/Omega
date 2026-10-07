@@ -11,7 +11,8 @@
 //! and bounds; `declared_domains` records the destination's declared
 //! domains; and the new facts publish as one context per exact place.
 
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::reference_spans;
@@ -132,7 +133,7 @@ pub(super) fn propagate_statement_transfers(
         let destination_type = match statement {
             StatementNode::LocalData(local) => Some(local.type_reference),
             StatementNode::Assignment(assignment) => {
-                crate::flow::expression_type_reference_in_state(
+                validation::expression_type_reference_in_state(
                     program,
                     state_symbol,
                     statement_index,
@@ -679,7 +680,7 @@ fn exact_structural_symbol_place(
                 {
                     return false;
                 }
-                let Some(data) = crate::lookup::declared_data_type(program, current) else {
+                let Some(data) = validation::declared_data_type(program, current) else {
                     return false;
                 };
                 let field = if let Some(variant_symbol) = selected_variant.take() {
@@ -714,7 +715,7 @@ fn exact_structural_symbol_place(
                 {
                     return false;
                 }
-                let Some(data) = crate::lookup::declared_data_type(program, current) else {
+                let Some(data) = validation::declared_data_type(program, current) else {
                     return false;
                 };
                 if !program.data_members(data).iter().any(|member| {
@@ -762,7 +763,7 @@ fn correspondence_root_type_reference(
     formation_statement_index: usize,
     root: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program
         .machine_states(machine)
         .iter()

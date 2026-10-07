@@ -178,7 +178,7 @@ pub(super) fn resolve_runtime_subject(
             return None;
         }
     }
-    crate::lookup::nearest_scoped_local(program, state, scope_limit, argument.path.as_ref())
+    validation::nearest_scoped_local(program, state, scope_limit, argument.path.as_ref())
 }
 
 fn validate_arguments(
@@ -452,8 +452,16 @@ pub(super) fn collect_type_expressions(
                     TypeConstraintNode::Range {
                         minimum, maximum, ..
                     } => {
-                        super::selection::collect_expression_tree(program, *minimum, expressions);
-                        super::selection::collect_expression_tree(program, *maximum, expressions);
+                        validation::expression_traversal::collect_expression_tree(
+                            program,
+                            *minimum,
+                            expressions,
+                        );
+                        validation::expression_traversal::collect_expression_tree(
+                            program,
+                            *maximum,
+                            expressions,
+                        );
                     }
                     TypeConstraintNode::Domain(domain) => {
                         for argument in &domain.arguments {
@@ -465,7 +473,11 @@ pub(super) fn collect_type_expressions(
             }
         }
         TypeReferenceNode::ConstExpression(expression) => {
-            super::selection::collect_expression_tree(program, *expression, expressions);
+            validation::expression_traversal::collect_expression_tree(
+                program,
+                *expression,
+                expressions,
+            );
         }
         TypeReferenceNode::Named { .. }
         | TypeReferenceNode::DynamicTrait { .. }
@@ -621,7 +633,7 @@ fn validate_structural_type_arguments(
                 &mut visited_types,
                 &mut expressions,
             );
-            super::selection::collect_expression_tree(
+            validation::expression_traversal::collect_expression_tree(
                 program,
                 item.initial_value,
                 &mut expressions,
@@ -632,10 +644,18 @@ fn validate_structural_type_arguments(
             .iter()
             .filter(|call| call.machine_symbol == machine.symbol)
         {
-            super::selection::collect_expression_tree(program, call.call, &mut expressions);
+            validation::expression_traversal::collect_expression_tree(
+                program,
+                call.call,
+                &mut expressions,
+            );
         }
         for contract in program.machine_contracts(machine) {
-            super::selection::collect_contract_facts(program, contract.facts, &mut expressions);
+            validation::expression_traversal::collect_contract_facts(
+                program,
+                contract.facts,
+                &mut expressions,
+            );
         }
         for state in program.machine_states(machine) {
             collect_type_expressions(
@@ -653,7 +673,11 @@ fn validate_structural_type_arguments(
                 );
             }
             for contract in program.state_contracts(state) {
-                super::selection::collect_contract_facts(program, contract.facts, &mut expressions);
+                validation::expression_traversal::collect_contract_facts(
+                    program,
+                    contract.facts,
+                    &mut expressions,
+                );
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::LocalData(local) = statement {
@@ -664,7 +688,11 @@ fn validate_structural_type_arguments(
                         &mut expressions,
                     );
                 }
-                super::collect_statement_expression_trees(program, statement, &mut expressions);
+                validation::expression_traversal::collect_statement_expression_trees(
+                    program,
+                    statement,
+                    &mut expressions,
+                );
                 if let StatementNode::Call(call) = statement {
                     validate_types(
                         program,

@@ -166,7 +166,7 @@ impl ExpressionTransfer<'_, '_> {
                     self.machine,
                     self.state,
                     writes.as_deref(),
-                    Some(&crate::semantic::calls::CallSite::Expression { expression, call }),
+                    Some(&validation::CallSite::Expression { expression, call }),
                 );
             }
             ExpressionNode::Cast(cast) => {

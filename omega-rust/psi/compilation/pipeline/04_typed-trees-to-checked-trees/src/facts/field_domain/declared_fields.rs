@@ -54,7 +54,7 @@ fn collect_data_field_domain_rows(
             continue;
         }
         let prefix_length = path.len();
-        crate::flow::push_field_place_segments(program, path, field.symbol);
+        validation::push_field_place_segments(program, path, field.symbol);
         for (domain_symbol, semantic_domain) in
             crate::facts::field_domain::domain_constraint_identities(program, field.type_reference)
         {

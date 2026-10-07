@@ -276,7 +276,7 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
     }
     let members = member_states
         .iter()
-        .map(|state| crate::semantic::calls::find_state_with_machine(program, *state))
+        .map(|state| validation::find_state_with_machine(program, *state))
         .collect::<Option<Vec<_>>>()?;
     let adjacency = members
         .iter()
@@ -456,8 +456,7 @@ pub(crate) fn proven_fused_state_natural_ranks_with_call_frames(
     let mut ranks = Vec::<checked_trees::CheckedStateNaturalRank>::new();
     for component in components {
         for edge in component.covered_cyclic_edges {
-            let (_, state) =
-                crate::semantic::calls::find_state_with_machine(program, edge.source_state)?;
+            let (_, state) = validation::find_state_with_machine(program, edge.source_state)?;
             let parameter = program
                 .state_parameters(state)
                 .get(edge.source_rank_parameter_position as usize)?;

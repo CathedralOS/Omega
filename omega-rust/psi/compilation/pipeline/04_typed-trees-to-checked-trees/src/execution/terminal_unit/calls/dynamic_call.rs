@@ -51,7 +51,7 @@ pub(super) fn build(
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     trace: &LocalConstructionTrace,
     coordinate: CheckedUnitCallCoordinate,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     slot: &typed_trees::dynamic_traits::DynamicSlotSignature,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let phase = |name: &'static str| {

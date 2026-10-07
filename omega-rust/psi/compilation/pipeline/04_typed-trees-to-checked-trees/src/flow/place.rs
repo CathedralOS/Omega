@@ -1,19 +1,14 @@
-//! `CanonicalPlace`: a place root and its path segments. The children build places
-//! from expressions, symbols, and semantic places (`canonicalization`,
-//! `contextual`), compare them (`comparison`), test case selection (`case_access`),
-//! project constructor literals, and resolve member and type identities.
+//! Flow-dependent place judgments and semantic-fact translation.
+//! Exact typed-program projection lives in validation's value-custody owner;
+//! these children narrow live selectors, compare paths and check case access.
 mod canonicalization;
 mod case_access;
 mod comparison;
-mod contextual;
 mod literal_projection;
-mod resolution;
 
 pub(crate) use canonicalization::{
-    canonical_place_from_expression, canonical_place_from_expression_in_state,
-    canonical_place_from_semantic_place, canonical_place_from_symbol, index_place_segment,
-    narrow_pinned_index_segments, projected_leaf_place, push_field_place_segments,
-    reference_source_place, reference_source_place_through_collection_views,
+    canonical_place_from_semantic_place, canonical_place_from_symbol, narrow_pinned_index_segments,
+    projected_leaf_place, reference_source_place, reference_source_place_through_collection_views,
     source_independent_place,
 };
 pub(crate) use case_access::{
@@ -24,30 +19,7 @@ pub(crate) use comparison::{
     canonical_place_segments_equal, canonical_place_segments_may_overlap, canonical_places_agree,
     place_segment_has_unresolved_identity, static_place_segment_pair_equal,
 };
-pub(crate) use contextual::contextual_canonical_place_from_expression;
 pub(crate) use literal_projection::{
     LiteralValueProjection, literal_argument_access_places, literal_value_path_is_inactive,
     literal_value_projections,
 };
-pub(crate) use resolution::{
-    effective_member_symbol, effective_member_symbol_from_type_symbol,
-    expression_place_type_reference, expression_type_symbol,
-    resolve_member_symbol_from_type_symbol, symbol_type_symbol,
-};
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct CanonicalPlace {
-    pub(crate) root: facts::PlaceRoot,
-    pub(crate) segments: Vec<facts::PlaceSegment>,
-}
-
-impl CanonicalPlace {
-    pub(crate) fn extend_segments(&mut self, segments: &[facts::PlaceSegment]) {
-        self.segments.extend(segments.iter().copied());
-    }
-
-    /// The canonical label diagnostics quote for this place.
-    pub(crate) fn label(&self, program: &dyn ::validation::CheckingInput) -> String {
-        facts::canonical_place_label_from_parts(program, self.root, &self.segments)
-    }
-}

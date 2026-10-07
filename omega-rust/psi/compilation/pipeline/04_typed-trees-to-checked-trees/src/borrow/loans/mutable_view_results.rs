@@ -4,12 +4,14 @@
 //! the returned borrow actually denotes. The tail walk answers that: the
 //! callee's return borrows, resolved through the callee's own locals back to
 //! a `&mut` parameter.
+use validation::find_state_with_machine;
+
 use super::argument_borrow_loan_place;
 use super::helper_call_borrow_loan_place;
 use crate::borrow::accesses::BorrowAccessPlace;
 use crate::borrow::accesses::borrow_access_place;
 use crate::execution::terminal_unit::calls::view_source_parameter_is_mutable;
-use crate::semantic::calls::find_state_with_machine;
+
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use language_core::ReferenceAccess;
 use symbols::SymbolHandle;

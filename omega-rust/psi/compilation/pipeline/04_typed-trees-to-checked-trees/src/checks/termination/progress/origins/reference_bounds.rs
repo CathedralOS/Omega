@@ -1,8 +1,10 @@
 //! reference bounds slice of origins.
+use validation::CanonicalPlace;
+
 use super::{callee_values::*, leaf_arrivals::*};
 
 use super::FlowStateFact;
-use crate::flow::{self, CanonicalPlace};
+use crate::flow::{self};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -148,7 +150,7 @@ where
     Resolve:
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
-    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let typed_state = program.state_by_symbol(state.state_symbol)?;
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);
@@ -363,15 +365,15 @@ where
             // a write-capable leaf's is the prefix's exact stored origin.
             // Provenance that stays unproven keeps the whole operand unproven.
             let root_type = statements_local_type(program, state, root, index).or_else(|| {
-                crate::semantic::calls::find_state(program, state.state_symbol).and_then(
-                    |typed_state| {
+                program
+                    .state_by_symbol(state.state_symbol)
+                    .and_then(|typed_state| {
                         program
                             .state_parameters(typed_state)
                             .iter()
                             .find(|parameter| parameter.symbol == root)
                             .map(|parameter| parameter.type_reference)
-                    },
-                )
+                    })
             })?;
             let reached = flow::project_type_reference_from_segments(
                 program,

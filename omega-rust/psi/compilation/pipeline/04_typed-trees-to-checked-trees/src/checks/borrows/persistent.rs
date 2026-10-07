@@ -428,7 +428,7 @@ fn analyze_persistent_state(
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
-        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        let Some(place) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             statement_index,
@@ -518,11 +518,11 @@ fn source_is_known_static_persistent_place(
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
     source_type: TypeReferenceHandle,
-    known_static: &[crate::flow::CanonicalPlace],
+    known_static: &[validation::CanonicalPlace],
     known_static_paths: &[StaticPersistentPath],
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> bool {
-    let Some(source) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(source) = validation::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,
@@ -531,7 +531,7 @@ fn source_is_known_static_persistent_place(
         return false;
     };
 
-    let Some(state) = crate::semantic::calls::find_state(program, state_symbol) else {
+    let Some(state) = program.state_by_symbol(state_symbol) else {
         return false;
     };
     if known_static
@@ -575,7 +575,7 @@ fn source_is_known_static_persistent_place(
 /// a segment below the state-local receiver root; machine-owned data can use
 /// the field symbol as the root directly.
 fn persistent_field_and_tail(
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> Option<(SymbolHandle, usize)> {
     if let facts::PlaceRoot::Symbol(symbol) = place.root
@@ -604,7 +604,7 @@ fn persistent_field_and_tail(
 fn stable_persistent_path(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> Option<StaticPersistentPath> {
     let (field, tail) = persistent_field_and_tail(place, persistent)?;
@@ -780,7 +780,7 @@ fn retain_static_paths_across_call_frame(
     state: &typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     paths: &mut Vec<StaticPersistentPath>,
-    local_places: &[crate::flow::CanonicalPlace],
+    local_places: &[validation::CanonicalPlace],
     written: impl FnOnce() -> Option<Vec<String>>,
 ) -> bool {
     // Frames only invalidate established provenance; they cannot create it.
@@ -894,8 +894,8 @@ fn owner_path_place_segments(
 
 fn static_provenance_invalidated_by_mutation(
     program: &dyn ::validation::CheckingInput,
-    known: &crate::flow::CanonicalPlace,
-    mutated: &crate::flow::CanonicalPlace,
+    known: &validation::CanonicalPlace,
+    mutated: &validation::CanonicalPlace,
 ) -> bool {
     if known.root == mutated.root
         && crate::flow::canonical_place_segments_may_overlap(
@@ -911,7 +911,7 @@ fn static_provenance_invalidated_by_mutation(
         let facts::PlaceSegment::Index { expression } = segment else {
             return false;
         };
-        crate::flow::canonical_place_from_expression(program, *expression).is_some_and(
+        validation::canonical_place_from_expression(program, *expression).is_some_and(
             |dependency| {
                 dependency.root == mutated.root
                     && crate::flow::canonical_place_segments_may_overlap(
@@ -927,8 +927,8 @@ fn static_provenance_invalidated_by_mutation(
 fn place_is_proven_prefix_of(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
-    prefix: &crate::flow::CanonicalPlace,
-    place: &crate::flow::CanonicalPlace,
+    prefix: &validation::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> bool {
     prefix.root == place.root
         && prefix.segments.len() <= place.segments.len()
@@ -1031,8 +1031,7 @@ fn is_state_independent_borrow_source(
                 && is_state_independent_borrow_source(program, state, binary.right, resolving)
         }
         typed_trees::expression::ExpressionNode::Call(call) => {
-            let Some(callee) = crate::semantic::calls::find_state(program, call.target_symbol)
-            else {
+            let Some(callee) = program.state_by_symbol(call.target_symbol) else {
                 return false;
             };
             state_returns_only_static_borrows(program, callee, &mut Vec::new())
@@ -1107,9 +1106,7 @@ fn state_returns_only_static_borrows(
                     is_state_independent_borrow_source(program, state, *expression, &mut Vec::new())
                 }
                 typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
-                    let Some(target_state) =
-                        crate::semantic::calls::find_state(program, path.symbol)
-                    else {
+                    let Some(target_state) = program.state_by_symbol(path.symbol) else {
                         return false;
                     };
                     let is_static =
@@ -1127,7 +1124,7 @@ fn state_returns_only_static_borrows(
 
 fn persistent_target_type<'program>(
     program: &dyn ::validation::CheckingInput,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     persistent: &[(SymbolHandle, &'program str, TypeReferenceHandle)],
 ) -> Option<(&'program str, TypeReferenceHandle)> {
     if let facts::PlaceRoot::Symbol(symbol) = place.root
@@ -1135,11 +1132,8 @@ fn persistent_target_type<'program>(
             .iter()
             .find(|(candidate, _, _)| *candidate == symbol)
     {
-        let target_type = crate::flow::project_type_reference_from_segments(
-            program,
-            *root_type,
-            &place.segments,
-        )?;
+        let target_type =
+            validation::project_type_reference_from_segments(program, *root_type, &place.segments)?;
         return Some((*name, target_type));
     }
 
@@ -1154,7 +1148,7 @@ fn persistent_target_type<'program>(
             let (_, name, root_type) = persistent
                 .iter()
                 .find(|(candidate, _, _)| candidate == symbol)?;
-            let target_type = crate::flow::project_type_reference_from_segments(
+            let target_type = validation::project_type_reference_from_segments(
                 program,
                 *root_type,
                 &place.segments[index + 1..],

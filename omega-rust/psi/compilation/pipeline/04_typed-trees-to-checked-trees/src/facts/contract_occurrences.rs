@@ -82,7 +82,7 @@ pub(crate) fn append_expression_occurrences(
             // Final selection custody is not published yet. Use the shared
             // receiver-type classifier, so same-spelled record fields retain
             // their ordinary complete-place identity.
-            if crate::flow::expression_place_type_reference(program, member.receiver, &[])
+            if validation::expression_place_type_reference(program, member.receiver, &[])
                 .and_then(|receiver| {
                     crate::semantic::calls::collection_measure_member(
                         program,

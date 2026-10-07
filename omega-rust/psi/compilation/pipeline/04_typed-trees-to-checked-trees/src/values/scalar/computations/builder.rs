@@ -399,7 +399,7 @@ impl Builder<'_, '_> {
                 }
                 if let Some(operator) = boundary_calls::boundary_operator(
                     self.program,
-                    crate::flow::call_target_symbol(self.program, &call),
+                    validation::call_target_symbol(self.program, &call),
                 ) {
                     return self.boundary_operator_call(expression, &call, operator, expected_type);
                 }
@@ -414,10 +414,7 @@ impl Builder<'_, '_> {
                     return None;
                 }
                 let (target_machine, target_state) =
-                    crate::semantic::calls::find_machine_by_entry_state(
-                        self.program,
-                        call.target_symbol,
-                    )?;
+                    validation::find_machine_by_entry_state(self.program, call.target_symbol)?;
                 // A bodyless boundary declaration has no checked body for this
                 // graph to embed. A whole-value statement call is the
                 // statement's own result operation (`record_root` leaves it

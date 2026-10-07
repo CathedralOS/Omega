@@ -1,7 +1,8 @@
 use crate::borrow::calls::BorrowCallCollection;
-use crate::lookup::{
+use validation::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
 };
+
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn collect_expression_borrow_calls(

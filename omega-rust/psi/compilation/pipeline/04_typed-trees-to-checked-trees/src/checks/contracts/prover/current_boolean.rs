@@ -4,9 +4,9 @@
 //! The caller supplies current contexts and owns operand freshness; this query
 //! neither recovers an old initializer nor grants immutable entry identity.
 
-use facts::{FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, ScalarValue};
+use validation::CanonicalPlace;
 
-use crate::flow::CanonicalPlace;
+use facts::{FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, ScalarValue};
 
 pub(crate) fn boolean_value_at_place(
     program: &dyn ::validation::CheckingInput,
@@ -138,7 +138,7 @@ fn postcondition_place(
     else {
         return None;
     };
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         machine_symbol,
         state_symbol,
@@ -146,19 +146,19 @@ fn postcondition_place(
         call_ordinal,
     )?;
     let target = match &site {
-        crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
-        crate::semantic::calls::CallSite::Expression { call, .. } => call.target_symbol,
-        crate::semantic::calls::CallSite::TransitionNamed { path, .. } => path.symbol,
+        validation::CallSite::Statement(call) => call.target_symbol,
+        validation::CallSite::Expression { call, .. } => call.target_symbol,
+        validation::CallSite::TransitionNamed { path, .. } => path.symbol,
     };
-    let parameters = crate::semantic::calls::call_target_parameters(program, target)?;
+    let parameters = validation::call_target_parameters(program, target)?;
     let (value, remaining) = crate::semantic::places::call_contract_argument_projection(
         program,
         parameters,
-        crate::semantic::calls::call_site_argument_expressions(program, &site),
+        validation::call_site_argument_expressions(program, &site),
         expression,
     )?;
     super::field_actuals::checked_place(program, value)?;
-    let mut actual = crate::flow::canonical_place_from_expression_in_state(
+    let mut actual = validation::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,

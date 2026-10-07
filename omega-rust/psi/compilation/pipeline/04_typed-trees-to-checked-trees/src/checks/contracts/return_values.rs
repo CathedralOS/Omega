@@ -26,7 +26,7 @@ pub(super) fn exit_return_call<'facts>(
         .flat_map(|(_, state)| facts.flow.control.calls.span_or_empty(state.calls))
         .filter(|call| call.statement_index == exit.statement_index)
         .filter(|call| {
-            let Some(site) = crate::semantic::calls::find_call_site(
+            let Some(site) = validation::find_call_site(
                 program,
                 exit.machine_symbol,
                 exit.state_symbol,
@@ -36,7 +36,7 @@ pub(super) fn exit_return_call<'facts>(
                 return false;
             };
             match site {
-                crate::semantic::calls::CallSite::Expression {
+                validation::CallSite::Expression {
                     expression,
                     call: selected,
                 } => {
@@ -45,7 +45,7 @@ pub(super) fn exit_return_call<'facts>(
                         && call.authored_expression == returned
                         && call.target_symbol == selected.target_symbol
                 }
-                crate::semantic::calls::CallSite::TransitionNamed { path: selected, .. }
+                validation::CallSite::TransitionNamed { path: selected, .. }
                     if exit.transition_target.is_valid() =>
                 {
                     let TransitionTargetNode::Named { path, .. } = program
@@ -72,11 +72,9 @@ pub(super) fn exit_return_expression(
     program: &dyn ::validation::CheckingInput,
     exit: &FlowExitFact,
 ) -> ExpressionHandle {
-    let Some(state) = crate::semantic::calls::find_state_in_machine(
-        program,
-        exit.machine_symbol,
-        exit.state_symbol,
-    ) else {
+    let Some(state) =
+        validation::find_state_in_machine(program, exit.machine_symbol, exit.state_symbol)
+    else {
         return Default::default();
     };
     let statements = program.statement_table.statements(state.statement_nodes);

@@ -178,7 +178,7 @@ pub(super) fn fact_substitutions<'program>(
     else {
         return Vec::new();
     };
-    let Some(call_site) = crate::semantic::calls::find_call_site(
+    let Some(call_site) = validation::find_call_site(
         program,
         machine_symbol,
         state_symbol,
@@ -188,18 +188,17 @@ pub(super) fn fact_substitutions<'program>(
         return Vec::new();
     };
     let target_symbol = match &call_site {
-        crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
-        crate::semantic::calls::CallSite::Expression { call, .. } => {
-            crate::flow::call_target_symbol(program, call)
+        validation::CallSite::Statement(call) => call.target_symbol,
+        validation::CallSite::Expression { call, .. } => {
+            validation::call_target_symbol(program, call)
         }
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => call_flow_at_point(flow, point)
+        validation::CallSite::TransitionNamed { .. } => call_flow_at_point(flow, point)
             .map_or_else(SymbolHandle::invalid, |call| call.target_symbol),
     };
-    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target_symbol)
-    else {
+    let Some(parameters) = validation::call_target_parameters(program, target_symbol) else {
         return Vec::new();
     };
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
+    let arguments = validation::call_site_argument_expressions(program, &call_site);
     parameters
         .iter()
         .zip(arguments)
@@ -277,8 +276,7 @@ pub(crate) fn bound_index_substitutions(
     target_symbol: SymbolHandle,
     machine_arguments: &[StaticMachineArgument],
 ) -> Vec<(SymbolHandle, BoundIndexArgument)> {
-    let type_parameters =
-        crate::semantic::calls::call_target_type_parameters(program, target_symbol);
+    let type_parameters = validation::call_target_type_parameters(program, target_symbol);
     let const_parameters = type_parameters
         .iter()
         .filter(|parameter| {
@@ -398,7 +396,7 @@ pub(super) fn resolve_scope_subject(
             _ => return None,
         }
     }
-    crate::lookup::nearest_scoped_local(program, state, scope_limit, argument.path.as_ref())
+    validation::nearest_scoped_local(program, state, scope_limit, argument.path.as_ref())
 }
 
 /// A call's index substitutions: one entry pairing each of the callee's
@@ -429,14 +427,14 @@ pub(super) fn enclosing_call_substitutions(
         return Vec::new();
     };
     let (target_symbol, machine_arguments) = match &resolved.site {
-        crate::semantic::calls::CallSite::Statement(call) => {
+        validation::CallSite::Statement(call) => {
             (call.target_symbol, call.machine_arguments.as_ref())
         }
-        crate::semantic::calls::CallSite::Expression { call, .. } => (
-            crate::flow::call_target_symbol(program, call),
+        validation::CallSite::Expression { call, .. } => (
+            validation::call_target_symbol(program, call),
             call.machine_arguments.as_ref(),
         ),
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => return Vec::new(),
+        validation::CallSite::TransitionNamed { .. } => return Vec::new(),
     };
     bound_index_substitutions(
         program,
@@ -469,7 +467,7 @@ pub(super) fn value_call_substitutions(
         program,
         state,
         statement_index,
-        crate::flow::call_target_symbol(program, call),
+        validation::call_target_symbol(program, call),
         &call.machine_arguments,
     )
 }

@@ -398,7 +398,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
             )
         }
         _ => {
-            let place = crate::flow::canonical_place_from_expression_in_state(
+            let place = validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 statement_index as usize,
@@ -409,7 +409,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                 .state_parameters(state)
                 .iter()
                 .position(|parameter| (facts::PlaceRoot::Symbol(parameter.symbol)) == root);
-            let type_reference = crate::flow::canonical_place_type_reference(
+            let type_reference = validation::canonical_place_type_reference(
                 program,
                 state.symbol,
                 statement_index as usize,

@@ -2,6 +2,8 @@
 //! Ordinary returning calls use explicit argument exclusivity, not a
 //! receiver-specific relaxation based on which fields the callee accesses.
 
+use validation::CanonicalPlace;
+
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use language_semantics::ReferenceAccess;
@@ -9,7 +11,7 @@ use typed_trees::types::TypeReferenceNode;
 
 use super::super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 use super::aliases;
-use crate::flow::{CanonicalPlace, StateMutationSummaryCache, StateReceiverReadCache};
+use crate::flow::{StateMutationSummaryCache, StateReceiverReadCache};
 use crate::labels::call_target_label;
 
 /// The receiver summaries a footprint judgment reads.
@@ -164,9 +166,9 @@ fn retained_subject_access(
     call: &BorrowCallFact,
     machine: &typed_trees::machine::Machine,
 ) -> Option<usize> {
-    let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
+    let target = program.state_by_symbol(call.target_symbol)?;
     program.data_binding_parameter(machine, program.state_parameters(target))?;
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -207,8 +209,8 @@ fn whole_mutable_jump_machine<'p>(
     call: &BorrowCallFact,
 ) -> Option<&'p typed_trees::machine::Machine> {
     super::local_jump(program, state_flow, call)?;
-    let machine = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)?;
-    let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
+    let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
+    let target = program.state_by_symbol(call.target_symbol)?;
     let parameter = program.data_binding_parameter(machine, program.state_parameters(target))?;
     if !matches!(
         program
@@ -221,7 +223,7 @@ fn whole_mutable_jump_machine<'p>(
     ) {
         return None;
     }
-    let receiver = crate::semantic::calls::find_call_site(
+    let receiver = validation::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,

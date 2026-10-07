@@ -1,6 +1,8 @@
 //! Save one completed jump argument while its operand facts are still live.
+use validation::CanonicalPlace;
+
 use super::{ScalarValue, TransitionTargetNode};
-use crate::flow::CanonicalPlace;
+
 use crate::flow::FlowBuildContext;
 use crate::flow::state_values::literal;
 use arena::HandleSpan;

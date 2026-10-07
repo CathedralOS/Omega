@@ -2,15 +2,17 @@
 //! `statement_storage_writes`, `call_mutated_places` (which falls back to the
 //! declared signature ceiling in `ceiling`), and `frame_storage_writes`. When a
 //! statement's or call's write set is `None`, flow drops every active context.
-use crate::flow::CanonicalPlace;
-use crate::flow::canonical_place_from_expression_in_state;
+
+use validation::CallSite;
+use validation::CanonicalPlace;
+use validation::call_site_argument_expressions;
+use validation::canonical_place_from_expression_in_state;
+use validation::expression_root_symbol;
+use validation::find_call_site;
+
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::canonical_place_segments_may_overlap;
-use crate::lookup::expression_root_symbol;
-use crate::semantic::calls::CallSite;
-use crate::semantic::calls::call_site_argument_expressions;
-use crate::semantic::calls::find_call_site;
-use crate::semantic::calls::find_state;
+
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowCallFact, BorrowFacts};
@@ -225,7 +227,7 @@ fn call_write_places(
             caller_state_symbol,
             borrow_call.statement_index,
             borrow_call.call_ordinal,
-        ) && let Some(target_state) = find_state(program, borrow_call.target_symbol)
+        ) && let Some(target_state) = program.state_by_symbol(borrow_call.target_symbol)
         {
             let mut argument_index = 0usize;
             for parameter in program.state_parameters(target_state) {
@@ -320,8 +322,8 @@ fn shared_call_storage_places(
     borrow_call: &BorrowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let machine = crate::lookup::machine_by_symbol(program, caller_machine_symbol)?;
-    let state = find_state(program, caller_state_symbol)?;
+    let machine = program.machine_by_symbol(caller_machine_symbol)?;
+    let state = program.state_by_symbol(caller_state_symbol)?;
     let site = find_call_site(
         program,
         caller_machine_symbol,
@@ -447,7 +449,7 @@ fn boundary_frame_access_places(
     }
     if refinable
         && let Some(parameters) =
-            crate::semantic::calls::call_target_parameters(program, borrow_call.target_symbol)
+            validation::call_target_parameters(program, borrow_call.target_symbol)
     {
         let arguments = call_site_argument_expressions(program, site);
         if parameters.iter().count() != arguments.len() {
@@ -672,7 +674,7 @@ pub(crate) fn frame_storage_writes(
     frame: &facts::NormalizedWriteFrame,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let state = find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     let mut places = Vec::new();
     for path in frame.complete_paths()? {
         let source = local_origins::place_from_origin_path(program, state, statement_index, path)?;
@@ -709,7 +711,7 @@ fn normalize_write_only_range_place(
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return;
     };
-    let Some(state) = find_state(program, state_symbol) else {
+    let Some(state) = program.state_by_symbol(state_symbol) else {
         return;
     };
     let root_is_write_only = program

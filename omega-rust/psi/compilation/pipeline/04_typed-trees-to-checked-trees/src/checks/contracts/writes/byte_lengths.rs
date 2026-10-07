@@ -64,14 +64,14 @@ pub(super) fn static_max_byte_length(
             known_lengths,
         ),
         ExpressionNode::Call(call) => {
-            let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
+            let target = program.state_by_symbol(call.target_symbol)?;
             crate::facts::field_domain::type_reference_fixed_array_capacity(
                 program,
                 target.return_type,
             )
         }
         _ => {
-            if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            if let Some(place) = validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 statement_index,
@@ -97,7 +97,7 @@ pub(super) fn static_max_byte_length(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct KnownByteLength {
-    place: crate::flow::CanonicalPlace,
+    place: validation::CanonicalPlace,
     max_length: usize,
 }
 
@@ -133,7 +133,7 @@ pub(super) fn known_byte_lengths_before(
                     assignment.value,
                     &known,
                 );
-                if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                if let Some(place) = validation::canonical_place_from_expression_in_state(
                     program,
                     state.symbol,
                     index,
@@ -179,7 +179,7 @@ pub(super) fn known_byte_lengths_before(
 fn forget_overlapping_lengths(
     program: &dyn ::validation::CheckingInput,
     known: &mut Vec<KnownByteLength>,
-    written: &crate::flow::CanonicalPlace,
+    written: &validation::CanonicalPlace,
 ) {
     known.retain(|candidate| {
         candidate.place.root != written.root

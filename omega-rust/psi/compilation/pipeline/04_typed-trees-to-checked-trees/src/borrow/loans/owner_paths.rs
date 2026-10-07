@@ -33,7 +33,7 @@ pub(crate) fn store_destination_places<'loan>(
             || !owner_path_matches(program, owner_path, &target.segments)
             || !owner_type
                 .and_then(|reference| {
-                    crate::flow::project_type_reference_from_segments(
+                    validation::project_type_reference_from_segments(
                         program,
                         reference,
                         &target.segments[..owner_path.len()],

@@ -3,7 +3,9 @@
 //! the captured contents. Borrowed formals instead describe live referents, so
 //! their own postconditions remain publishable after writes through the call.
 
-use super::super::{CanonicalPlace, FlowBuildContext};
+use validation::CanonicalPlace;
+
+use super::super::FlowBuildContext;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowCallFact, ContractCallFact, FlowControlFacts, FlowOperandFact, FlowSemanticContextRef,
@@ -138,20 +140,17 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
         control: &FlowControlFacts,
         captured_operands: &[FlowOperandFact],
     ) -> Option<Self> {
-        let site = crate::semantic::calls::find_call_site(
+        let site = validation::find_call_site(
             program,
             machine,
             state,
             call.statement_index,
             call.call_ordinal,
         )?;
-        let parameters =
-            crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
-        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+        let parameters = validation::call_target_parameters(program, call.target_symbol)?;
+        let arguments = validation::call_site_argument_expressions(program, &site);
         let receiver = match &site {
-            crate::semantic::calls::CallSite::Expression { call, .. }
-                if call.receiver.is_valid() =>
-            {
+            validation::CallSite::Expression { call, .. } if call.receiver.is_valid() => {
                 Some(call.receiver)
             }
             _ => None,
@@ -236,7 +235,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
                 if super::super::operand_binds_live_view(self.program, capture.type_reference) {
                     return true;
                 }
-                let Some(mut source) = super::super::canonical_place_from_expression_in_state(
+                let Some(mut source) = validation::canonical_place_from_expression_in_state(
                     self.program,
                     self.state,
                     self.statement,
@@ -263,7 +262,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
                     &mut occurrences,
                 );
                 occurrences.into_iter().all(|occurrence| {
-                    let Some(dependency) = super::super::canonical_place_from_expression_in_state(
+                    let Some(dependency) = validation::canonical_place_from_expression_in_state(
                         self.program,
                         self.state,
                         self.statement,
@@ -316,7 +315,7 @@ pub(super) fn retain_guarantees(
                 .into_iter()
                 .all(|occurrence| {
                     let Some(place) =
-                        super::super::canonical_place_from_expression(program, occurrence)
+                        validation::canonical_place_from_expression(program, occurrence)
                     else {
                         return true;
                     };

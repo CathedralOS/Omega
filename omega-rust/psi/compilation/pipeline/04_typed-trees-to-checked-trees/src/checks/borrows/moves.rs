@@ -2,13 +2,15 @@
 //! Statement extraction and assignment use the same captured-place compatibility
 //! judgment; call transfers retain their occurrence-specific call certificates.
 
+use validation::CanonicalPlace;
+
 use checked_trees::{CheckFacts, FlowStateFact, FlowStatementFact};
 use diagnostics::Diagnostic;
 
 use super::aliases::ResolvedAlias;
 use super::details::active_loan_detail;
 use super::overlap::{StatedOrderingPremise, canonical_place_loan_compatibility};
-use crate::flow::{CanonicalPlace, DiscoveredMoveEvent};
+use crate::flow::DiscoveredMoveEvent;
 use crate::labels::symbol_name;
 
 pub(super) fn check_storage_move<'program>(

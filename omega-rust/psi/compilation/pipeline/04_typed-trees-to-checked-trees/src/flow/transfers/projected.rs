@@ -223,7 +223,7 @@ pub(super) fn collection_view_source_place(
     ) {
         return None;
     }
-    let mut reference = crate::flow::expression_type_reference_in_state(
+    let mut reference = validation::expression_type_reference_in_state(
         program,
         state_symbol,
         statement_index,
@@ -310,8 +310,8 @@ pub(super) fn bound_reference_referent_place(
             _ => return None,
         }
     }
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
-    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     // The binding's own alias is recorded once the next statement begins, so
     // the prefix observed there is the one carrying the new referent.
     let before = program
@@ -340,7 +340,7 @@ fn declared_local_type_reference(
     statement_index: usize,
     local_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     program
         .state_local_declaration(state, local_symbol)
         .filter(|&(ordinal, _)| ordinal < statement_index)

@@ -16,8 +16,9 @@
 //! expression-root dependencies alone do
 //! not establish that a computed actual still denotes its captured value.
 
-use crate::flow::CanonicalPlace;
-use crate::semantic::calls::CallSite;
+use validation::CallSite;
+use validation::CanonicalPlace;
+
 use checked_trees::{CheckedOperatorFacts, FlowCallFact, FlowStateFact};
 use facts::{FactPayload, FactPlace, FactPlan, PlaceRoot};
 use symbols::SymbolHandle;
@@ -73,8 +74,7 @@ pub(crate) fn current_predicates(
                 parameters,
                 expression,
             )?;
-            let arguments =
-                crate::semantic::calls::call_site_argument_expressions(program, &invocation.site);
+            let arguments = validation::call_site_argument_expressions(program, &invocation.site);
             for binding in &mut predicate.bindings {
                 let position = parameters.iter().position(|parameter| {
                     binding.place.root == PlaceRoot::Symbol(parameter.symbol)
@@ -271,7 +271,7 @@ fn invocation<'program>(
     statement: usize,
     ordinal: usize,
 ) -> Option<Invocation<'program>> {
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         caller.machine_symbol,
         caller.state_symbol,
@@ -284,12 +284,10 @@ fn invocation<'program>(
         CallSite::TransitionNamed { path, .. } => path.symbol,
     };
     let callable = match &site {
-        CallSite::TransitionNamed { .. } => {
-            crate::semantic::calls::find_state_with_machine(program, target)
-                .filter(|(machine, _)| machine.symbol == caller.machine_symbol)
-                .map(|(machine, state)| Callable::Machine { machine, state })
-                .or_else(|| Callable::resolve(program, target))?
-        }
+        CallSite::TransitionNamed { .. } => validation::find_state_with_machine(program, target)
+            .filter(|(machine, _)| machine.symbol == caller.machine_symbol)
+            .map(|(machine, state)| Callable::Machine { machine, state })
+            .or_else(|| Callable::resolve(program, target))?,
         _ => Callable::resolve(program, target)?,
     };
     Some(Invocation {
@@ -306,8 +304,7 @@ fn ordinary_arguments(
     invocation: &Invocation<'_>,
 ) -> bool {
     let parameters = invocation.callable.parameters(program);
-    let arguments =
-        crate::semantic::calls::call_site_argument_expressions(program, &invocation.site);
+    let arguments = validation::call_site_argument_expressions(program, &invocation.site);
     // Receiver, static and evidence substitution retain their own owners.
     let ordinary = match &invocation.site {
         CallSite::Expression { call, .. } => {
@@ -397,7 +394,7 @@ fn exclusive_borrow_place(
     if !borrow.access.is_exclusive() {
         return None;
     }
-    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let place = validation::canonical_place_from_expression(program, expression)?;
     (matches!(place.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
         && !place.segments.iter().any(|segment| {
             matches!(segment, facts::PlaceSegment::Index { .. })
@@ -576,7 +573,7 @@ fn actual_projection(
     crate::semantic::places::call_contract_argument_projection(
         program,
         invocation.callable.parameters(program),
-        crate::semantic::calls::call_site_argument_expressions(program, &invocation.site),
+        validation::call_site_argument_expressions(program, &invocation.site),
         expression,
     )
 }
@@ -613,7 +610,7 @@ fn bound_place(
         });
     }
     let (actual, remaining) = actual_projection(program, invocation, expression)?;
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
+    let mut place = validation::canonical_place_from_expression_in_state(
         program,
         invocation.caller_state,
         invocation.statement,

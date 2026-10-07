@@ -1,6 +1,8 @@
 //! Explicit state inputs derived from live edge contexts, not declarations.
+use validation::CallSite;
+
 use crate::flow::FlowBuildContext;
-use crate::semantic::calls::CallSite;
+
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowCallFact, FlowSemanticContextRef};

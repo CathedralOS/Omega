@@ -1,6 +1,8 @@
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+use validation::expression_type_reference_in_state;
+
 use crate::flow::FlowOwnershipEventSource;
-use crate::flow::expression_type_reference_in_state;
+
 use crate::flow::ownership::DirectMoveEventSink;
 use crate::flow::ownership::append_move_events_for_expression;
 use crate::flow::ownership::moves::operator_call_ownership_policy;
@@ -211,7 +213,7 @@ pub(super) fn detached_borrowed_copy_admitted(
         return false;
     };
     let Some(projected) =
-        crate::flow::canonical_place_type_reference(program, state, statement, place)
+        validation::canonical_place_type_reference(program, state, statement, place)
     else {
         return false;
     };
@@ -234,7 +236,7 @@ pub(super) fn detached_borrowed_copy_admitted(
             segments: place.segments[..length].to_vec(),
         };
         note(
-            crate::flow::canonical_place_type_reference(program, state, statement, &prefix)
+            validation::canonical_place_type_reference(program, state, statement, &prefix)
                 .and_then(|reference| reference_access(program, reference)),
         );
     }

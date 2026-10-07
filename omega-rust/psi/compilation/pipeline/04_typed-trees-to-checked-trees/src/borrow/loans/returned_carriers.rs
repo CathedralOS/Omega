@@ -14,7 +14,7 @@ use crate::borrow::loans::reference_borrow_access_kind;
 use crate::borrow::tracker::StateLoanTracker;
 use crate::borrow::view_link::ViewReturnFieldSource;
 use crate::borrow::view_link::ViewReturnSource;
-use crate::semantic::calls::find_state;
+
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
@@ -31,7 +31,7 @@ pub(super) fn completed_field_sources(
     use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
     use validation::reference_result_custody::{loan_place_segments, returned_reference_sources};
 
-    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, target)?;
+    let (machine, state) = validation::find_state_with_machine(program, target)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present
     {
@@ -351,7 +351,7 @@ pub(super) fn argument_loans(
             argument,
             machine_symbol,
         )
-        && find_state(program, state_symbol).is_some_and(|state| {
+        && program.state_by_symbol(state_symbol).is_some_and(|state| {
             program.state_parameters(state).iter().any(|parameter| {
                 (parameter.symbol == place.root_symbol)
                     && !is_reference_type(program, parameter.type_reference)

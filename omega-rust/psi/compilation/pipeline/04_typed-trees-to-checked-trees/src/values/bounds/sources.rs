@@ -2,7 +2,7 @@ use super::{
     BigInt, CheckedStructuralPredicatePathSegment, IntegerBoundsSource, IntegerRange,
     PrimitiveType, SymbolHandle,
 };
-use crate::flow::{CanonicalPlace, canonical_place_from_symbol};
+use crate::flow::canonical_place_from_symbol;
 use crate::values::bounds::declared_bounds;
 use crate::values::bounds::primitive_range;
 use crate::values::exclusive_reference;
@@ -10,6 +10,7 @@ use facts::{FactContextHandle, FactPlan};
 use typed_trees::{
     expression::ExpressionNode, signature::StateParameter, types::TypeReferenceHandle,
 };
+use validation::CanonicalPlace;
 
 pub(crate) struct PlaceIntegerBounds<'a> {
     pub program: &'a dyn ::validation::CheckingInput,
@@ -78,7 +79,7 @@ impl PlaceIntegerBounds<'_> {
                     .primitive_type_reference(parameter.type_reference)
                     == Some(primitive_type)
         }) && let Some((machine, state)) =
-            crate::semantic::calls::find_state_with_machine(self.program, self.state)
+            validation::find_state_with_machine(self.program, self.state)
             && let Some((minimum, maximum)) =
                 validation::state_parameter_integer_interval(self.program, machine, state, symbol)
         {
@@ -127,7 +128,7 @@ impl PlaceIntegerBounds<'_> {
                 && !exclusive_reference(self.program, parameter.type_reference))
             .then_some(parameter.type_reference);
         }
-        let state = crate::semantic::calls::find_state(self.program, self.state)?;
+        let state = self.program.state_by_symbol(self.state)?;
         let (_, local) = self.program.state_local_declaration(state, symbol)?;
         (!local.is_mutable && !exclusive_reference(self.program, local.type_reference))
             .then_some(local.type_reference)

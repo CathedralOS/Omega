@@ -40,7 +40,7 @@ pub(crate) fn erased_subject(
     if borrow.access != language_core::ReferenceAccess::Shared {
         return None;
     }
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         local_statement,

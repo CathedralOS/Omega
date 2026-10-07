@@ -29,8 +29,8 @@ pub(crate) fn borrow_access_place(
             program.expression_table.expression(source),
             ExpressionNode::Indexed(_)
         ) {
-            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
-            let state = crate::semantic::calls::find_state(program, state_symbol)?;
+            let machine = program.machine_by_symbol(machine_symbol)?;
+            let state = program.state_by_symbol(state_symbol)?;
             let access = if cast.form == language_core::cast_form::CastForm::RecastMutable {
                 language_semantics::ReferenceAccess::Mutable
             } else {
@@ -88,7 +88,7 @@ pub(crate) fn borrow_access_place(
             )?;
             place
                 .segments
-                .push(crate::flow::index_place_segment(program, indexed.index));
+                .push(validation::index_place_segment(program, indexed.index));
             Some(place)
         }
         ExpressionNode::Range(_) => None,
@@ -141,7 +141,7 @@ pub(crate) fn borrow_access_place(
                         member,
                         machine_symbol,
                     );
-                    crate::flow::push_field_place_segments(program, &mut place.segments, symbol);
+                    validation::push_field_place_segments(program, &mut place.segments, symbol);
                     Some(place)
                 }
             }
@@ -170,7 +170,7 @@ pub(crate) fn borrow_access_place(
                 .unwrap_or(1);
             let mut segments = Vec::new();
             for symbol in member_symbols.iter().skip(skip).copied() {
-                crate::flow::push_field_place_segments(program, &mut segments, symbol);
+                validation::push_field_place_segments(program, &mut segments, symbol);
             }
             Some(BorrowAccessPlace {
                 root_symbol,

@@ -65,7 +65,7 @@ pub(super) fn build(
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     trace: &LocalConstructionTrace,
     coordinate: CheckedUnitCallCoordinate,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     source_site: Option<checked_trees::NominalMachineUseSite>,
     requirement: BoundaryRequirement<'_>,
     selected_realization: Option<(SymbolHandle, SymbolHandle)>,
@@ -104,19 +104,14 @@ pub(super) fn build(
         ),
     };
     let operator_arguments = match (requirement, call_site) {
-        (
-            BoundaryRequirement::Operator(_),
-            crate::semantic::calls::CallSite::Expression { call, .. },
-        ) => Some(crate::facts::operator_crashes::named_call_operands(
-            program,
-            call,
-            source_parameters,
-        )?),
+        (BoundaryRequirement::Operator(_), validation::CallSite::Expression { call, .. }) => Some(
+            crate::facts::operator_crashes::named_call_operands(program, call, source_parameters)?,
+        ),
         _ => None,
     };
-    let arguments = operator_arguments.as_deref().unwrap_or_else(|| {
-        crate::semantic::calls::call_site_argument_expressions(program, call_site)
-    });
+    let arguments = operator_arguments
+        .as_deref()
+        .unwrap_or_else(|| validation::call_site_argument_expressions(program, call_site));
     // A boundary signature is a foreign ABI contract; an erased position
     // has no agreed foreign transfer yet, so the call fails closed here.
     if source_parameters
@@ -151,11 +146,9 @@ pub(super) fn build(
     // selection indexes: validation filtered the `<>` argument list to
     // machine-typed members before recording `static_machine_ordinal`.
     let authored_machine_arguments = match &call_site {
-        crate::semantic::calls::CallSite::Statement(call) => call.machine_arguments.as_ref(),
-        crate::semantic::calls::CallSite::Expression { call, .. } => {
-            call.machine_arguments.as_ref()
-        }
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => &[],
+        validation::CallSite::Statement(call) => call.machine_arguments.as_ref(),
+        validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
+        validation::CallSite::TransitionNamed { .. } => &[],
     }
     .iter()
     .filter(|argument| {
@@ -297,7 +290,7 @@ pub(super) fn build(
             let fixed_projection = !(subslice.range.kind == view_subslice::ViewKind::Bytes
                 && subslice.range.collection.is_empty())
                 && matches!(
-                    crate::flow::canonical_place_from_expression_in_state(
+                    validation::canonical_place_from_expression_in_state(
                         program,
                         state.symbol,
                         call.statement_index,
@@ -320,12 +313,12 @@ pub(super) fn build(
         let place = caller_structural_results
             .iter()
             .find(|(_, root)| *root == facts::PlaceRoot::Expression(*argument))
-            .map(|_| crate::flow::CanonicalPlace {
+            .map(|_| validation::CanonicalPlace {
                 root: facts::PlaceRoot::Expression(*argument),
                 segments: Vec::new(),
             })
             .or_else(|| {
-                crate::flow::canonical_place_from_expression_in_state(
+                validation::canonical_place_from_expression_in_state(
                     program,
                     state.symbol,
                     call.statement_index,

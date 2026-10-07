@@ -1,6 +1,8 @@
 //! Capture exact value origins before local writes, not the last spelling of a slot.
 
-use crate::flow::{self, CanonicalPlace};
+use validation::CanonicalPlace;
+
+use crate::flow::{self};
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::{
@@ -131,7 +133,7 @@ where
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
     Rebase: Fn(&FlowStateFact, usize, &CanonicalPlace) -> Option<CanonicalPlace>,
 {
-    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let typed_state = program.state_by_symbol(state.state_symbol)?;
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);

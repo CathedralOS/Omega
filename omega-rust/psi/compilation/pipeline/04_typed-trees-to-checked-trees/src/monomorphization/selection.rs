@@ -8,6 +8,9 @@
 //! `refinement_fit.rs` resolves a transparent-refinement carrier to its base
 //! and checks the selected conformance against the refinement's clauses.
 
+use validation::collect_expression_tree;
+use validation::collect_statement_expression_trees;
+
 mod callee_proposals;
 mod candidate_bounds;
 mod refinement_fit;
@@ -15,8 +18,8 @@ mod selection_assembly;
 mod static_bindings;
 
 pub(crate) use callee_proposals::{
-    collect_contract_facts, collect_expression_tree, collect_machine_proposals_for_callee,
-    contract_expression_handles, resolve_callee, state_by_symbol,
+    collect_machine_proposals_for_callee, contract_expression_handles, resolve_callee,
+    state_by_symbol,
 };
 pub(crate) use candidate_bounds::{approved_type_bounds, validate_candidate_conformance_bounds};
 pub(crate) use refinement_fit::{refinement_fit_diagnostics, resolve_bound_carrier};
@@ -29,9 +32,7 @@ use super::{
     CallSite, ExpressionHandle, ExpressionNode, Handle, StatementNode, StaticMachineArgument,
     SymbolHandle, TypeReferenceHandle,
 };
-use crate::monomorphization::{
-    CallSelection, CalleeState, Candidate, collect_statement_expression_trees, const_arguments,
-};
+use crate::monomorphization::{CallSelection, CalleeState, Candidate, const_arguments};
 use std::collections::HashSet;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

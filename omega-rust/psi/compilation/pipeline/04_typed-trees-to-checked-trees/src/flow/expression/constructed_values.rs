@@ -82,7 +82,7 @@ impl Execution<'_, '_, '_> {
                     program: self.program,
                     parameters: self.program.state_parameters(self.state),
                     symbols: &symbols,
-                    value_at_place: |place: &crate::flow::CanonicalPlace| {
+                    value_at_place: |place: &validation::CanonicalPlace| {
                         crate::values::scalar_value_at_place(
                             self.program,
                             self.semantic,

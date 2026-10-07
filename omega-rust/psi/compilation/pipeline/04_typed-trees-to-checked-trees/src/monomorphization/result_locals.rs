@@ -358,7 +358,9 @@ fn range_endpoints_name_parameters(
         |program, minimum, maximum| {
             [minimum, maximum].into_iter().any(|endpoint| {
                 let mut tree = Vec::new();
-                super::collect_expression_tree(program, endpoint, &mut tree);
+                validation::expression_traversal::collect_expression_tree(
+                    program, endpoint, &mut tree,
+                );
                 tree.into_iter().any(|handle| {
                     matches!(
                         program.expression_table.expression(handle),
@@ -398,7 +400,7 @@ fn substitute_named_endpoints(
         .flat_map(|(minimum, maximum)| [minimum, maximum])
     {
         let mut tree = Vec::new();
-        super::collect_expression_tree(program, endpoint, &mut tree);
+        validation::expression_traversal::collect_expression_tree(program, endpoint, &mut tree);
         for member in tree {
             let replacement = match program.expression_table.expression(member) {
                 ExpressionNode::Name(path) => substitutions

@@ -65,7 +65,7 @@ pub(crate) fn finalize_checked_authored_selections(
                 let typed_trees::statement::StatementNode::RootBinding(binding) = statement else {
                     continue;
                 };
-                let receiver_type = crate::flow::expression_type_reference_in_state(
+                let receiver_type = validation::expression_type_reference_in_state(
                     program,
                     state.symbol,
                     statement_index,
@@ -106,7 +106,7 @@ pub(crate) fn finalize_checked_authored_selections(
                     // effect and ownership checks. Their declared type is not
                     // issuance authority: build evaluation still rejoins the
                     // resulting value with this activation's issued entries.
-                    let operand_type = crate::flow::expression_type_reference_in_state(
+                    let operand_type = validation::expression_type_reference_in_state(
                         program,
                         state.symbol,
                         statement_index,
@@ -294,7 +294,7 @@ pub(crate) fn finalize_checked_authored_selections(
                             if field.field_symbol.is_valid() {
                                 field.field_symbol
                             } else {
-                                crate::flow::resolve_member_symbol_from_type_symbol(
+                                validation::resolve_member_symbol_from_type_symbol(
                                     program,
                                     checked_struct_literal_type_symbol(
                                         program,

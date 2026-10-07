@@ -1,6 +1,7 @@
 use super::{CapturedValue, CheckedScalarExpressionRole};
 use crate::flow::FlowBuildContext;
-use crate::flow::canonical_place_from_expression_in_state;
+use validation::canonical_place_from_expression_in_state;
+
 use crate::flow::fact_rows::with_borrow_state_index;
 use crate::flow::transfers::scalar_values::CallValues;
 use crate::flow::transfers::scalar_values::LiveValues;
@@ -405,18 +406,18 @@ fn exact_call_occurrence<'facts>(
         .iter()
         .filter(|candidate| {
             candidate.statement_index == statement_index
-                && candidate.target_symbol == crate::flow::call_target_symbol(program, call)
+                && candidate.target_symbol == validation::call_target_symbol(program, call)
                 && candidate.has_receiver == call.receiver.is_valid()
                 && candidate.receiver_symbol == receiver_root
                 && matches!(
-                    crate::semantic::calls::find_call_site_in_state(
+                    validation::find_call_site_in_state(
                         program,
                         owner,
                         caller,
                         statement_index,
                         candidate.call_ordinal,
                     ),
-                    Some(crate::semantic::calls::CallSite::Expression { expression, .. })
+                    Some(validation::CallSite::Expression { expression, .. })
                         if expression == source
                 )
         });

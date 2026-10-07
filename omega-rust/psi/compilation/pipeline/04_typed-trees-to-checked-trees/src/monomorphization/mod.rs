@@ -21,6 +21,8 @@
 //! the live generic span. Template commitments protect its stable contract axes;
 //! application commitments also protect each exact retained-call binding.
 
+use validation::collect_statement_expression_trees;
+
 use crate::monomorphization::body_cloning::clone_specialized_machine;
 use crate::monomorphization::body_rewriting::rewrite_selected_call;
 use arena::{Handle, HandleSpan};
@@ -40,11 +42,9 @@ use validation::contract_identities::{
 
 mod candidate;
 mod selection;
-pub(crate) use selection::collect_expression_tree;
+
 mod body_rewriting;
-pub(crate) use body_rewriting::{
-    collect_evidence_requirement_closure, collect_statement_expression_trees, insert_subject_name,
-};
+pub(crate) use body_rewriting::{collect_evidence_requirement_closure, insert_subject_name};
 mod body_cloning;
 mod const_arguments;
 mod dynamic_families;
@@ -549,7 +549,7 @@ fn apply_call_specializations(
         let existing = saved_calls::selected_instance(program, program, template, selection)
             .map(|instance| instance.instance);
         let state_symbols = if let Some(existing) = existing {
-            let Some(machine) = crate::lookup::machine_by_symbol(program, existing) else {
+            let Some(machine) = program.machine_by_symbol(existing) else {
                 return Err(vec![Diagnostic::error(
                     "specialization receipt has no live instance",
                 )]);
@@ -810,7 +810,8 @@ fn closed_operator_realizations_for_machine(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Result<Vec<typed_trees::operator::ClosedOperatorRealizationApplication>, Diagnostic> {
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)
+    let machine = program
+        .machine_by_symbol(machine_symbol)
         .expect("specialized machine must remain in the typed program");
     program
         .machine_trait_conformances(machine)
@@ -884,13 +885,13 @@ fn resolve_specialized_receiver_calls(
             let StatementNode::Call(call) = statement else {
                 continue;
             };
-            let target = crate::lookup::resolve_state_call_target(
+            let target = validation::resolve_state_call_target(
                 program,
                 machine,
                 state,
                 call.receiver_symbol,
                 call.target_symbol,
-                crate::lookup::statement_call_receiver_members(program, call),
+                validation::statement_call_receiver_members(program, call),
                 &call.target,
             );
             if target.is_valid() {
@@ -902,8 +903,8 @@ fn resolve_specialized_receiver_calls(
                 continue;
             };
             let (receiver_symbol, receiver_path) =
-                crate::lookup::call_receiver_parts(program, call.receiver);
-            let target = crate::lookup::resolve_state_call_target(
+                validation::call_receiver_parts(program, call.receiver);
+            let target = validation::resolve_state_call_target(
                 program,
                 machine,
                 state,

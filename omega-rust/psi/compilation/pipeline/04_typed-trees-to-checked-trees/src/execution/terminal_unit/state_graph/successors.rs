@@ -275,7 +275,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     let case_test = match transition.guard {
         TransitionGuardNode::When(guard) => crate::proof::exact_outcome_case_test(program, guard)
             .and_then(|(subject, case)| {
-                crate::flow::canonical_place_from_expression_in_state(
+                validation::canonical_place_from_expression_in_state(
                     program,
                     source.symbol,
                     ordinal as usize,
@@ -296,7 +296,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         {
             argument = cast.value;
         }
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             program,
             source.symbol,
             ordinal as usize,
@@ -420,7 +420,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             // result forwarding needs one; its absence leaves construction
             // to the ordinary selected-edge establishment below.
             if (target.access == CheckedStructuralAccess::Owned || shared_view || mutable_view)
-                && let Some(place) = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)
+                && let Some(place) = validation::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)
                 // Forward an existing descriptor here. Borrowing an owned
                 // local establishes a loan, even when its referent has the
                 // same representation as the target. The ordinary loan path
@@ -463,7 +463,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 }
             }
             if let Some((subject_place, selected_case)) = &case_test
-                && let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                && let Some(place) = validation::canonical_place_from_expression_in_state(
                     program, source.symbol, ordinal as usize, expression,
                 )
             {
@@ -629,7 +629,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 )
             {
                 let expected_access = target.access;
-                if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                if let Some(place) = validation::canonical_place_from_expression_in_state(
                         program,
                         source.symbol,
                         ordinal as usize,
@@ -641,10 +641,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     // `self.field` spelling roots at `self`'s own symbol while
                     // the implicit receiver roots at the machine — or the one
                     // earlier result binding a local published.
-                    let parameter_subject = crate::semantic::calls::find_state(
-                        program,
-                        source.symbol,
-                    )
+                    let parameter_subject = program.state_by_symbol(source.symbol)
                     .and_then(|typed_state| {
                         program
                             .state_parameters(typed_state)
@@ -950,7 +947,7 @@ fn projected_value_subject(
     expression: typed_trees::expression::ExpressionHandle,
     target: &CheckedUnitStructuralParameterPlan,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         source.symbol,
         ordinal as usize,
@@ -1062,7 +1059,7 @@ fn projected_loan_transfer(
     machine: symbols::SymbolHandle,
     source: symbols::SymbolHandle,
     ordinal: u32,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     subject_source: CheckedUnitStructuralArgumentSourcePlan,
     borrowed_identity: Option<String>,
     expected_access: CheckedStructuralAccess,
@@ -1132,8 +1129,8 @@ fn projected_loan_transfer(
 /// re-deriving the destructure local.
 fn case_payload_transfer(
     program: &dyn ::validation::CheckingInput,
-    place: crate::flow::CanonicalPlace,
-    subject_place: &crate::flow::CanonicalPlace,
+    place: validation::CanonicalPlace,
+    subject_place: &validation::CanonicalPlace,
     selected_case: symbols::SymbolHandle,
     source: &typed_trees::state::State,
     source_structural: &[CheckedUnitStructuralParameterPlan],

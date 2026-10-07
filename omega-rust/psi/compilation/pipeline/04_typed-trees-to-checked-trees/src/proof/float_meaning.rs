@@ -245,10 +245,10 @@ fn direct_structural_float_leaf_source(
     checked_trees::CheckedStructuralParameterField,
 )> {
     let (owner_machine, _) = direct_machine_contract_owner(carriers, fact)?;
-    let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
+    let machine = program.machine_by_symbol(owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
-    let place = crate::flow::canonical_place_from_expression(program, fact.source)?;
+    let place = validation::canonical_place_from_expression(program, fact.source)?;
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
@@ -267,11 +267,11 @@ fn direct_structural_float_leaf_source(
         .iter()
         .map(|segment| match segment {
             facts::PlaceSegment::Field { symbol } => {
-                crate::lookup::structural_member_identity(program, *symbol)
+                validation::structural_member_identity(program, *symbol)
                     .map(checked_trees::CheckedStructuralPredicatePathSegment::Field)
             }
             facts::PlaceSegment::Case { variant } => {
-                crate::lookup::structural_member_identity(program, *variant)
+                validation::structural_member_identity(program, *variant)
                     .map(checked_trees::CheckedStructuralPredicatePathSegment::Case)
             }
             facts::PlaceSegment::FixedIndex { .. }
@@ -314,7 +314,7 @@ fn direct_machine_result_source(
     if !owning_contract {
         return None;
     }
-    let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
+    let machine = program.machine_by_symbol(owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     if !language_core::signature_reserves_result(
         program
@@ -350,7 +350,7 @@ fn direct_machine_parameter_source(
         return None;
     }
     let (owner_machine, _) = direct_machine_contract_owner(carriers, fact)?;
-    let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
+    let machine = program.machine_by_symbol(owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     let parameter = program
         .state_parameters(entry)
@@ -394,7 +394,7 @@ fn direct_block_parameter_source(
     }
     let (owner_machine, owner_state) = direct_machine_contract_owner(carriers, fact)?;
     let owner_state = owner_state?;
-    let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
+    let machine = program.machine_by_symbol(owner_machine)?;
     let entry = program.machine_states(machine).first()?;
     if entry.symbol == owner_state {
         return None;
@@ -929,16 +929,16 @@ fn instantiate_transported_ensures(
             statement_index: call.statement_index,
             call_ordinal: call.call_ordinal,
         };
-        let argument_expressions = crate::semantic::calls::find_call_site(
+        let argument_expressions = validation::find_call_site(
             program,
             call.caller_machine_symbol,
             call.caller_state_symbol,
             call.statement_index,
             call.call_ordinal,
         )
-        .map(|site| crate::semantic::calls::call_site_argument_expressions(program, &site));
+        .map(|site| validation::call_site_argument_expressions(program, &site));
         let target_parameters =
-            crate::semantic::calls::call_target_parameters(program, call.target_state_symbol);
+            validation::call_target_parameters(program, call.target_state_symbol);
         let operand_key = |invocation: &ValidatedFloatMeaningProjectionInvocation| {
             imported_call_operand_key(
                 program,

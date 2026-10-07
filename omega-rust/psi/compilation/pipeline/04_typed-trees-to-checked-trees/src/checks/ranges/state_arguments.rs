@@ -65,7 +65,7 @@ pub(super) struct StateArgumentFacts {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct StorageFacts {
     expression: typed_trees::expression::ExpressionHandle,
-    place: crate::flow::CanonicalPlace,
+    place: validation::CanonicalPlace,
     label: String,
     upper_bound: Option<i64>,
     non_negative: bool,

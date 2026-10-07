@@ -4,7 +4,8 @@ pub(crate) fn machine_name(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> String {
-    crate::lookup::machine_by_symbol(program, machine_symbol)
+    program
+        .machine_by_symbol(machine_symbol)
         .map(|machine| machine.name.as_str().to_owned())
         .unwrap_or_else(|| symbol_name(program, machine_symbol))
 }
@@ -41,7 +42,7 @@ pub(crate) fn symbol_name(
         return "unknown".to_owned();
     }
 
-    if let Some(machine) = crate::lookup::machine_by_symbol(program, symbol) {
+    if let Some(machine) = program.machine_by_symbol(symbol) {
         return machine.name.as_str().to_owned();
     }
 

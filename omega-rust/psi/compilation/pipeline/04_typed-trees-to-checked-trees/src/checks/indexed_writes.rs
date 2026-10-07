@@ -33,7 +33,7 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
             else {
                 continue;
             };
-            let Some(carrier) = crate::flow::canonical_place_from_expression_in_state(
+            let Some(carrier) = validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 statement_flow.statement_index,
@@ -41,7 +41,7 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
             ) else {
                 continue;
             };
-            let Some(reference) = crate::flow::canonical_place_type_reference(
+            let Some(reference) = validation::canonical_place_type_reference(
                 program,
                 state.symbol,
                 statement_flow.statement_index,

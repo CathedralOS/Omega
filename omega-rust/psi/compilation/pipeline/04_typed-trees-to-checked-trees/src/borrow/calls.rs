@@ -1,4 +1,5 @@
-use crate::lookup::{statement_call_can_dispatch_to_machine, statement_call_receiver_path};
+use validation::{statement_call_can_dispatch_to_machine, statement_call_receiver_path};
+
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 mod collection;
@@ -52,13 +53,13 @@ pub(crate) fn collect_statement_borrow_calls(
             expression::collect_expression_borrow_calls(&mut collection, assignment.value)
         }
         StatementNode::Call(call) => {
-            let resolved_target = crate::lookup::resolve_state_call_target(
+            let resolved_target = validation::resolve_state_call_target(
                 program,
                 machine,
                 state,
                 call.receiver_symbol,
                 call.target_symbol,
-                crate::lookup::statement_call_receiver_members(program, call),
+                validation::statement_call_receiver_members(program, call),
                 &call.target,
             );
             if resolved_target.is_valid()

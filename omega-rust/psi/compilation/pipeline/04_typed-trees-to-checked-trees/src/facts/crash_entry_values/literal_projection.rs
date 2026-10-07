@@ -50,7 +50,7 @@ pub(super) fn entry_value_with_selector(
     selector: &mut impl FnMut(&State, usize, ExpressionHandle) -> Option<usize>,
 ) -> Option<CrashPredicateExpression> {
     let (machine, state) =
-        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
+        validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
     projected_entry_value(
         program,
         machine,

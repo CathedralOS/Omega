@@ -287,7 +287,7 @@ pub(super) fn index_ranking_environments(
     index: &mut OwnerIndex,
 ) {
     for custody in &program.ranking_expression_custody {
-        let Some(machine) = crate::call_targets::machine_by_symbol(program, custody.machine) else {
+        let Some(machine) = program.machine_by_symbol(custody.machine) else {
             continue;
         };
         let mut reached = HashSet::default();

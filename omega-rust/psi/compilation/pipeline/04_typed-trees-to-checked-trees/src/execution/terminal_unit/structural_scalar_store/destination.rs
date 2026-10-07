@@ -64,7 +64,7 @@ impl Root<'_> {
 /// `selectors`.
 pub(super) struct Destination<'a> {
     pub(super) root: Root<'a>,
-    pub(super) place: crate::flow::CanonicalPlace,
+    pub(super) place: validation::CanonicalPlace,
     pub(super) dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
     /// The declared referee primitive of a recast loan local the target
     /// names (`let view: &mut u32 = &mut self.buf[k] as &mut u32`): the
@@ -134,7 +134,7 @@ pub(super) fn resolve<'a>(
         }
         _ => (assignment.target, None),
     };
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         ordinal,
@@ -276,7 +276,7 @@ fn local_destination<'a>(
     operators: &'a checked_trees::CheckedOperatorFacts,
     root_symbol: SymbolHandle,
     root_type: typed_trees::types::TypeReferenceHandle,
-    place: crate::flow::CanonicalPlace,
+    place: validation::CanonicalPlace,
     dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
     selectors: Option<super::selectors::TargetSelectors>,
 ) -> Destination<'a> {
@@ -307,7 +307,7 @@ fn owned_local_root<'a>(
     root_symbol: SymbolHandle,
     ordinal: usize,
     dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
-    place: crate::flow::CanonicalPlace,
+    place: validation::CanonicalPlace,
     selectors: Option<super::selectors::TargetSelectors>,
 ) -> Option<Destination<'a>> {
     let (local_ordinal, local) = program.state_local_declaration(state, root_symbol)?;
@@ -767,9 +767,9 @@ fn rejoin_loan_local(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     ordinal: usize,
-    place: crate::flow::CanonicalPlace,
+    place: validation::CanonicalPlace,
 ) -> Option<(
-    crate::flow::CanonicalPlace,
+    validation::CanonicalPlace,
     Option<typed_trees::types::PrimitiveType>,
 )> {
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
@@ -860,7 +860,7 @@ fn rejoin_loan_local(
     } else {
         None
     };
-    let mut loaned = crate::flow::canonical_place_from_expression_in_state(
+    let mut loaned = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         ordinal,
@@ -880,9 +880,9 @@ fn record_view_leaf(
     ordinal: usize,
     target: typed_trees::expression::ExpressionHandle,
     referee: typed_trees::types::TypeReferenceHandle,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> Option<(
-    crate::flow::CanonicalPlace,
+    validation::CanonicalPlace,
     Option<typed_trees::types::PrimitiveType>,
 )> {
     let [facts::PlaceSegment::Field { symbol: field }] = place.segments.as_slice() else {
@@ -890,7 +890,7 @@ fn record_view_leaf(
     };
     let source = validation::declared_place_type_raw(program, machine, Some(state), target)?;
     let leaf = validation::recast_record_source_leaf(program, source, referee, *field)?;
-    let mut loaned = crate::flow::canonical_place_from_expression_in_state(
+    let mut loaned = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         ordinal,
@@ -923,7 +923,7 @@ fn borrowed_view_local_root<'a>(
     root_symbol: SymbolHandle,
     ordinal: usize,
     dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
-    place: crate::flow::CanonicalPlace,
+    place: validation::CanonicalPlace,
     selectors: Option<super::selectors::TargetSelectors>,
 ) -> Option<Destination<'a>> {
     let statements = program.statement_table.statements(state.statement_nodes);

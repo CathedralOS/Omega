@@ -1,8 +1,9 @@
 use super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use crate::checks::ranges::facts::RangeCallContext;
-use crate::flow::CanonicalPlace;
-use crate::flow::canonical_place_from_expression_in_state;
-use crate::semantic::calls::CallSite;
+use validation::CallSite;
+use validation::CanonicalPlace;
+use validation::canonical_place_from_expression_in_state;
+
 use checked_trees::CheckedOperatorFacts;
 mod atomics;
 mod members;
@@ -193,7 +194,7 @@ pub(super) fn collect_reads<'a, 'b>(
             else {
                 return false;
             };
-            let Some(_target_state) = crate::semantic::calls::find_state_in_machine(
+            let Some(_target_state) = validation::find_state_in_machine(
                 program,
                 target_machine_symbol,
                 target_state_symbol,

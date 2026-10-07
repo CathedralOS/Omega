@@ -483,7 +483,7 @@ pub(crate) fn check_published_ceiling_coverage(
             plan.crash.interface() == checked_trees::CrashInterface::PublishedCeiling
         })
     {
-        let caller_machine = crate::lookup::machine_by_symbol(program, caller.machine);
+        let caller_machine = program.machine_by_symbol(caller.machine);
         let caller_name = caller_machine
             .map(|machine| machine.name.as_str())
             .unwrap_or("<unknown>");
@@ -516,7 +516,8 @@ pub(crate) fn check_published_ceiling_coverage(
                 if covered {
                     continue;
                 }
-                let target_name = crate::lookup::machine_by_symbol(program, call.target_machine())
+                let target_name = program
+                    .machine_by_symbol(call.target_machine())
                     .map(|machine| machine.name.as_str())
                     .unwrap_or("<unknown>");
                 diagnostics.push(Diagnostic::error(format!(
@@ -1122,11 +1123,11 @@ fn expression_is_integer_typed(
         }
         ExpressionNode::Cast(cast) => type_reference_is_integer(program, cast.target_type),
         ExpressionNode::Name(path) => {
-            crate::lookup::first_valid_name_path_symbol(path, &program.expression_table)
+            validation::first_valid_name_path_symbol(path, &program.expression_table)
                 .is_some_and(|symbol| integer_types.is_integer_typed(symbol))
         }
         ExpressionNode::Member(member) => {
-            let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
+            let symbol = validation::effective_member_symbol(program, member.receiver, member);
             integer_types.is_integer_typed(symbol)
         }
         _ => false,

@@ -95,7 +95,7 @@ pub(super) fn check(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(site) = crate::semantic::calls::find_call_site(
+    let Some(site) = validation::find_call_site(
         program,
         state.machine_symbol,
         state.state_symbol,
@@ -104,12 +104,10 @@ pub(super) fn check(
     ) else {
         return;
     };
-    let Some(parameters) =
-        crate::semantic::calls::call_target_parameters(program, call.target_symbol)
-    else {
+    let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {
         return;
     };
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let arguments = validation::call_site_argument_expressions(program, &site);
     let mut argument_index = 0;
     for parameter in parameters {
         let argument = {
@@ -119,7 +117,7 @@ pub(super) fn check(
         };
         let actual = {
             argument.and_then(|argument| {
-                crate::flow::canonical_place_from_expression_in_state(
+                validation::canonical_place_from_expression_in_state(
                     program,
                     state.state_symbol,
                     call.statement_index,
@@ -172,7 +170,7 @@ pub(super) fn check(
                     super::call_values::actual_contexts(program, facts, state, call, actual)
                 });
             let contexts = argument_contexts.as_deref().unwrap_or(contexts);
-            let proves = |subject: &crate::flow::CanonicalPlace| {
+            let proves = |subject: &validation::CanonicalPlace| {
                 prove_declared_field_domain(
                     program,
                     facts,
@@ -199,7 +197,7 @@ pub(super) fn check(
                                 call.entry_constraints,
                             );
                             let projection = &captured.projection;
-                            crate::flow::canonical_place_from_expression_in_state(
+                            validation::canonical_place_from_expression_in_state(
                                 program,
                                 state.state_symbol,
                                 call.statement_index,
@@ -290,14 +288,14 @@ fn candidate_referents_prove_domain(
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
-    actual: &crate::flow::CanonicalPlace,
+    actual: &validation::CanonicalPlace,
     segments: &[PlaceSegment],
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
     contexts: &[FactContextHandle],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state.machine_symbol) else {
         return false;
     };
     let mut owned_frames = None;
@@ -347,7 +345,7 @@ fn prove_declared_field_domain(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],
-    subject: &crate::flow::CanonicalPlace,
+    subject: &validation::CanonicalPlace,
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {

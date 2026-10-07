@@ -1,8 +1,10 @@
 //! Reuse checked call occurrences and the existing structured mutation owner.
 
+use validation::CallSite;
+use validation::CanonicalPlace;
+
 use super::RangeFacts;
-use crate::flow::CanonicalPlace;
-use crate::semantic::calls::CallSite;
+
 use typed_trees::{machine::Machine, state::State};
 
 /// Immutable owner-local call identity, borrowed across incoming passes and branches.
@@ -90,7 +92,7 @@ impl<'program> RangeCallContext<'program> {
                 // nodes even when spelled identically).
                 CallSite::TransitionNamed { path, .. } => {
                     !call.authored_expression.is_valid()
-                        && crate::semantic::calls::transition_call_target(
+                        && validation::transition_call_target(
                             program,
                             machine,
                             state,

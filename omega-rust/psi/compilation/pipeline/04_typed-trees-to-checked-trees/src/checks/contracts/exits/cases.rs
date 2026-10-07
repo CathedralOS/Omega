@@ -3,6 +3,8 @@
 //! saved places consume only live flow predicates. Initializers and calls are
 //! never replayed to recover a tag after their evaluation point.
 
+use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+
 use checked_trees::{CheckFacts, ContractProofFactKind, ContractProofFactOwner, FlowExitFact};
 use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
@@ -13,7 +15,6 @@ use typed_trees::{
 };
 
 use super::super::return_values::exit_return_expression;
-use crate::flow::{CanonicalPlace, canonical_place_from_expression_in_state};
 
 impl<'a> CaseObservation<'a> {
     pub(super) fn for_requirement(
@@ -82,7 +83,11 @@ impl<'a> CaseObservation<'a> {
             .find(|state| state.symbol == exit.state_symbol)?;
         let returned = exit_return_expression(program, exit);
         let mut returned_nodes = Vec::new();
-        crate::monomorphization::collect_expression_tree(program, returned, &mut returned_nodes);
+        validation::expression_traversal::collect_expression_tree(
+            program,
+            returned,
+            &mut returned_nodes,
+        );
         // The call-frame query covers calls, not atomic destinations or
         // selected operator implementations. Those must not be mistaken for
         // an empty write frame when rereading an earlier constructor operand.

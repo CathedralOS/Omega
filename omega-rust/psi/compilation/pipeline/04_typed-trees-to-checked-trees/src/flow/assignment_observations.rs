@@ -12,7 +12,9 @@
 //! program also stays immutable throughout that build. Do not expose this reuse
 //! to callers that can mutate published facts, places, values, or context refs.
 
-use crate::flow::{CanonicalPlace, FlowBuildContext};
+use validation::CanonicalPlace;
+
+use crate::flow::FlowBuildContext;
 use crate::values::{AssignmentObservation, prepare_assignment_observations};
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;

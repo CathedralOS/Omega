@@ -37,7 +37,7 @@ pub(super) struct CompatibilityKey {
 
 pub(super) struct ResolvedStateCall<'program, 'flow> {
     pub(super) fact: &'flow checked_trees::FlowCallFact,
-    pub(super) site: crate::semantic::calls::CallSite<'program>,
+    pub(super) site: validation::CallSite<'program>,
 }
 
 pub(super) struct StateCallIndex<'program, 'flow> {
@@ -56,7 +56,7 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
             .span_or_empty(state_flow.calls)
             .iter()
             .filter_map(|fact| {
-                crate::semantic::calls::find_call_site(
+                validation::find_call_site(
                     program,
                     state_flow.machine_symbol,
                     state_flow.state_symbol,
@@ -79,9 +79,7 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
             .iter()
             .filter(|call| call.fact.statement_index == statement_index)
             .find_map(|call| match &call.site {
-                crate::semantic::calls::CallSite::Expression { expression, .. }
-                    if *expression == value =>
-                {
+                validation::CallSite::Expression { expression, .. } if *expression == value => {
                     Some(call.fact.exit_semantic_contexts)
                 }
                 _ => None,
@@ -235,7 +233,7 @@ pub(super) fn expression_indexed_instances(
         }
         _ => {}
     }
-    if let Some(type_reference) = crate::flow::expression_type_reference_in_state(
+    if let Some(type_reference) = validation::expression_type_reference_in_state(
         program,
         state.symbol,
         statement_index,
@@ -282,7 +280,7 @@ pub(super) fn append_call_result_ensured_instances(
         call.fact.statement_index == statement_index
             && matches!(
                 &call.site,
-                crate::semantic::calls::CallSite::Expression { expression, .. }
+                validation::CallSite::Expression { expression, .. }
                     if *expression == value
             )
     }) else {
@@ -349,7 +347,7 @@ pub(super) fn call_return_type(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
-    if let Some(state) = crate::semantic::calls::find_state(program, state_symbol) {
+    if let Some(state) = program.state_by_symbol(state_symbol) {
         return Some(state.return_type);
     }
     if let Some((_, signature)) = program.machine_parameter_signature(state_symbol) {

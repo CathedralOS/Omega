@@ -24,7 +24,7 @@ pub(crate) fn finalize(program: &dyn ::validation::CheckingInput, facts: &mut Ch
                     // A fused graph holds states authored under sibling
                     // machines; the source/flow/call rows for one state all
                     // key on that state's own owner, not the graph's machine.
-                    let (machine, source) = crate::semantic::calls::find_state_with_machine(
+                    let (machine, source) = validation::find_state_with_machine(
                         program, state.state,
                     )?;
                     let flow = facts
@@ -184,7 +184,7 @@ fn eligible(
         return false;
     };
     let service_reach = call.target.service_reach;
-    let Some(state) = crate::semantic::calls::find_state(program, call.target.state) else {
+    let Some(state) = program.state_by_symbol(call.target.state) else {
         return false;
     };
     let Some(contract) = facts.contract_plans.for_machine(call.target.machine) else {

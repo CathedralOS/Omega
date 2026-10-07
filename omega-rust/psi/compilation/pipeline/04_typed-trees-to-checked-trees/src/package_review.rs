@@ -190,7 +190,7 @@ pub fn infer_machine_termination_summary(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
 ) -> Option<language_semantics::TerminationGuarantee> {
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
     Some(checks::termination::infer_machine_checked_summary(
         program, machine,
     ))

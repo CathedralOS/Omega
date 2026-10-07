@@ -1,5 +1,6 @@
 use super::RangeFacts;
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+
 use language_core::place_field;
 use typed_trees::{machine::Machine, state::State, statement::StatementNode};
 
@@ -145,7 +146,7 @@ impl RangeFacts<'_> {
         machine: &Machine,
         state: &State,
         paths: Option<&[String]>,
-        site: Option<&crate::semantic::calls::CallSite<'_>>,
+        site: Option<&validation::CallSite<'_>>,
     ) {
         if paths.is_some_and(|paths| paths.is_empty()) {
             return;

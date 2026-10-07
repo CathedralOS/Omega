@@ -82,7 +82,7 @@ pub(crate) fn lower_entry_scalar_with_subjects(
     expression: ExpressionHandle,
     primitive_type: PrimitiveType,
     subjects: &impl Fn(
-        &crate::flow::CanonicalPlace,
+        &validation::CanonicalPlace,
     ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>,
 ) -> Option<CheckedScalarExpression> {
     if primitive_type == PrimitiveType::Bool {
@@ -93,7 +93,7 @@ pub(crate) fn lower_entry_scalar_with_subjects(
             state,
             expression,
             &|leaf| {
-                let place = crate::flow::canonical_place_from_expression_in_state(
+                let place = validation::canonical_place_from_expression_in_state(
                     program,
                     state.symbol,
                     before_statement,

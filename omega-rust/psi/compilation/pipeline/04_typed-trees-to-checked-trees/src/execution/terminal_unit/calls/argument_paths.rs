@@ -126,7 +126,7 @@ fn proof_term_type_matches(
             ..
         } => actual == type_identity,
         checked_trees::CheckedProofTerm::Formal { parameter_symbol } => {
-            crate::semantic::calls::find_state(program, caller_state).is_some_and(|state| {
+            program.state_by_symbol(caller_state).is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.symbol == *parameter_symbol
                         && base_type_identity(program, parameter.type_reference, &[]).as_deref()
@@ -184,7 +184,7 @@ pub(crate) fn projected_argument_path(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> Option<(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
@@ -206,7 +206,7 @@ pub(crate) fn projected_borrowed_path(
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> Option<(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
@@ -231,7 +231,7 @@ pub(crate) fn projected_observed_path(
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     local_selector: &dyn Fn(
         typed_trees::expression::ExpressionHandle,
     ) -> Option<checked_trees::CheckedRuntimeIndex>,
@@ -258,7 +258,7 @@ pub(crate) fn projected_evaluated_path(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     selector: Option<
         &dyn Fn(
             typed_trees::expression::ExpressionHandle,
@@ -272,7 +272,7 @@ fn projected_argument_path_impl(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     runtime_index_machine: Option<SymbolHandle>,
     local_selector: Option<
         &dyn Fn(
@@ -292,11 +292,11 @@ fn projected_argument_path_impl(
     // window descend has projected a new leaf type, any shell it carries
     // belongs to a stored reference the path actually crossed.
     let inherited_crossings = {
-        let mut reference = crate::flow::canonical_place_type_reference(
+        let mut reference = validation::canonical_place_type_reference(
             program,
             state_symbol,
             statement_index,
-            &crate::flow::CanonicalPlace {
+            &validation::CanonicalPlace {
                 root: place.root,
                 segments: Vec::new(),
             },
@@ -315,11 +315,11 @@ fn projected_argument_path_impl(
         // crossing before selecting the next member. The canonical source
         // place keeps the authored field path for borrow-fact correspondence.
         if position > 0 && matches!(segment, facts::PlaceSegment::Field { .. }) {
-            let container = crate::flow::CanonicalPlace {
+            let container = validation::CanonicalPlace {
                 root: place.root,
                 segments: place.segments[..position].to_vec(),
             };
-            let mut reference = crate::flow::canonical_place_type_reference(
+            let mut reference = validation::canonical_place_type_reference(
                 program,
                 state_symbol,
                 statement_index,
@@ -349,11 +349,11 @@ fn projected_argument_path_impl(
                 path.push(CheckedUnitStructuralPathSegment::Field(identity));
             }
             facts::PlaceSegment::FixedIndex { index } => {
-                let container = crate::flow::CanonicalPlace {
+                let container = validation::CanonicalPlace {
                     root: place.root,
                     segments: place.segments[..position].to_vec(),
                 };
-                let container = crate::flow::canonical_place_type_reference(
+                let container = validation::canonical_place_type_reference(
                     program,
                     state_symbol,
                     statement_index,
@@ -372,11 +372,11 @@ fn projected_argument_path_impl(
                 // literal-bound check `FixedIndex` segments take rather than
                 // reaching for runtime-selector evidence.
                 if let Some(index) = constant_local_index(program, state_symbol, *expression) {
-                    let container = crate::flow::CanonicalPlace {
+                    let container = validation::CanonicalPlace {
                         root: place.root,
                         segments: place.segments[..position].to_vec(),
                     };
-                    let container = crate::flow::canonical_place_type_reference(
+                    let container = validation::canonical_place_type_reference(
                         program,
                         state_symbol,
                         statement_index,
@@ -419,11 +419,11 @@ fn projected_argument_path_impl(
                 // literal extent bounds the window — the same shape the
                 // `FixedIndex` walk proves — since a stored view carries no
                 // runtime bound evidence of its own.
-                let container = crate::flow::CanonicalPlace {
+                let container = validation::CanonicalPlace {
                     root: place.root,
                     segments: place.segments[..position].to_vec(),
                 };
-                let container = crate::flow::canonical_place_type_reference(
+                let container = validation::canonical_place_type_reference(
                     program,
                     state_symbol,
                     statement_index,
@@ -439,11 +439,11 @@ fn projected_argument_path_impl(
                 // Resolve the exact case and its following field together.
                 // The canonical type walker alone skips Case markers; it is
                 // not evidence that a payload belongs to the selected case.
-                let container = crate::flow::CanonicalPlace {
+                let container = validation::CanonicalPlace {
                     root: place.root,
                     segments: place.segments[..position].to_vec(),
                 };
-                let reference = crate::flow::canonical_place_type_reference(
+                let reference = validation::canonical_place_type_reference(
                     program,
                     state_symbol,
                     statement_index,
@@ -481,7 +481,7 @@ fn projected_argument_path_impl(
         }
     }
     let projected =
-        crate::flow::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
+        validation::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
     Some((projected, path))
 }
 
@@ -524,7 +524,7 @@ fn constant_local_index(
     let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
         return None;
     };
-    let source_state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let source_state = program.state_by_symbol(state_symbol)?;
     let local = program
         .statement_table
         .statements(source_state.statement_nodes)
@@ -555,7 +555,7 @@ fn runtime_index_parameter_position(
     state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<u32> {
-    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -608,12 +608,11 @@ fn runtime_index_field_selector(
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<checked_trees::CheckedRuntimeIndex> {
-    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let place = validation::canonical_place_from_expression(program, expression)?;
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let parameters =
-        program.state_parameters(crate::semantic::calls::find_state(program, state_symbol)?);
+    let parameters = program.state_parameters(program.state_by_symbol(state_symbol)?);
     let parameter_position = parameters
         .iter()
         .position(|parameter| parameter.symbol == root)?;
@@ -631,12 +630,8 @@ fn runtime_index_field_selector(
             terminal_field_identity(program, *symbol)?,
         ));
     }
-    let leaf = crate::flow::canonical_place_type_reference(
-        program,
-        state_symbol,
-        statement_index,
-        &place,
-    )?;
+    let leaf =
+        validation::canonical_place_type_reference(program, state_symbol, statement_index, &place)?;
     if !matches!(
         program.primitive_type_reference(leaf),
         Some(
@@ -666,7 +661,7 @@ pub(crate) fn projected_argument_path_with_identity(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     target_identity: &str,
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
     let (projected, path) = projected_argument_path(program, state_symbol, statement_index, place)?;
@@ -773,7 +768,7 @@ pub(crate) fn fixed_byte_array_range_path(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     target: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
     let (facts::PlaceSegment::FixedRange { start, end }, fields) = place.segments.split_last()?
@@ -803,7 +798,7 @@ pub(crate) fn open_byte_range_path(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     target: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
     let (facts::PlaceSegment::Index { expression }, fields) = place.segments.split_last()? else {
@@ -841,7 +836,7 @@ fn byte_array_range_path(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     fields: &[facts::PlaceSegment],
     start: usize,
     end: Option<usize>,
@@ -853,7 +848,7 @@ fn byte_array_range_path(
     {
         return None;
     }
-    let backing = crate::flow::CanonicalPlace {
+    let backing = validation::CanonicalPlace {
         root: place.root,
         segments: fields.to_vec(),
     };
@@ -988,7 +983,7 @@ pub(crate) fn target_contract_mentions_projected_parameter(
             let ProofFact::Membership(membership) = fact else {
                 return false;
             };
-            crate::flow::canonical_place_from_expression_in_state(
+            validation::canonical_place_from_expression_in_state(
                 program,
                 target_state.symbol,
                 0,

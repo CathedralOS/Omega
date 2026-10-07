@@ -358,7 +358,7 @@ fn parameter_domain_grants(
     let PlaceRoot::Symbol(root_symbol) = resolved.root else {
         return false;
     };
-    let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol) else {
+    let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
         return false;
     };
     let Some(parameter) = program
@@ -453,7 +453,7 @@ fn value_call_return_domain_grants(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(target) = crate::semantic::calls::find_state(program, call.target_symbol) else {
+    let Some(target) = program.state_by_symbol(call.target_symbol) else {
         return false;
     };
     if !target.return_type.is_valid() {
@@ -508,18 +508,17 @@ fn call_site_target_parameters<'p>(
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
 ) -> Option<(
-    crate::semantic::calls::CallSite<'p>,
+    validation::CallSite<'p>,
     &'p [typed_trees::signature::StateParameter],
 )> {
-    let call_site = crate::semantic::calls::find_call_site(
+    let call_site = validation::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
         call_flow.statement_index,
         call_flow.call_ordinal,
     )?;
-    let target_parameters =
-        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)?;
+    let target_parameters = validation::call_target_parameters(program, call_flow.target_symbol)?;
     Some((call_site, target_parameters))
 }
 
@@ -551,7 +550,7 @@ fn proven_predicates_grant_domain(
     else {
         return false;
     };
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = program
@@ -759,7 +758,7 @@ fn proven_predicates_grant_domain(
             facts,
             state_flow,
             call_flow,
-            crate::semantic::calls::call_site_argument_expressions(program, &call_site),
+            validation::call_site_argument_expressions(program, &call_site),
             target_parameters,
             &super::guard_operands::fact_requirement_mentions(program, facts, fact),
             call_frames,
@@ -868,7 +867,7 @@ fn incoming_guard_proves_requires(
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = program
@@ -949,7 +948,7 @@ fn incoming_guard_proves_requires(
             facts,
             state_flow,
             call_flow,
-            crate::semantic::calls::call_site_argument_expressions(program, &call_site),
+            validation::call_site_argument_expressions(program, &call_site),
             target_parameters,
             &super::guard_operands::boolean_requirement_mentions(program, expression),
             call_frames,

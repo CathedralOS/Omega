@@ -7,6 +7,8 @@
 //! emitter feeds these operations through `BorrowedWindowLedger`, and independent
 //! verification reconstructs both restoration debt and the values' custody.
 
+use validation::CanonicalPlace;
+
 use std::collections::BTreeSet;
 
 use super::{
@@ -19,7 +21,7 @@ use crate::execution::terminal_unit::structural_scalar_store::TargetSelectors;
 use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::execution::terminal_unit::types::terminal_field_identity;
-use crate::flow::CanonicalPlace;
+
 use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::ExpressionHandle;
@@ -218,14 +220,14 @@ pub(in crate::execution::terminal_unit) fn move_out_candidate(
     state: &typed_trees::state::State,
     statement_index: usize,
     local: &typed_trees::statement::TableLocalData,
-) -> Option<crate::flow::CanonicalPlace> {
+) -> Option<validation::CanonicalPlace> {
     if local.is_mutable
         || crate::checks::type_reference_is_reference(program, local.type_reference)
         || program.type_multiplicity(local.type_reference) == Multiplicity::Unrestricted
     {
         return None;
     }
-    crate::flow::canonical_place_from_expression_in_state(
+    validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,
@@ -356,7 +358,7 @@ impl OpenWindows {
             return None;
         }
         let index = usize::try_from(statement_index).ok()?;
-        let mut destination_place = crate::flow::canonical_place_from_expression_in_state(
+        let mut destination_place = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             index,

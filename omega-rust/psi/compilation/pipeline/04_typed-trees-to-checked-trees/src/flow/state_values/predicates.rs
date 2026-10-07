@@ -1,7 +1,9 @@
 //! Relational state inputs come from live completed edges. Scratch rows retain
 //! canonical places across sweeps; only reseeding allocates current fact handles.
+use validation::CanonicalPlace;
+
 use crate::facts::boolean_predicates::{self, BoundObservation, BoundPredicate};
-use crate::flow::{CanonicalPlace, FlowBuildContext};
+use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use facts::{FactOrigin, FactPlan, ProgramPoint, ScalarValue};
@@ -48,12 +50,8 @@ pub(super) fn capture(
                 root: facts::PlaceRoot::Symbol(*parameter),
                 segments: source.segments[argument.segments.len()..].to_vec(),
             };
-            let reference = crate::flow::canonical_place_type_reference(
-                program,
-                destination.symbol,
-                0,
-                &place,
-            )?;
+            let reference =
+                validation::canonical_place_type_reference(program, destination.symbol, 0, &place)?;
             if program.normalized_type_identity(reference)
                 != program.normalized_type_identity(binding.type_reference)
             {

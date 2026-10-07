@@ -294,7 +294,7 @@ pub(super) fn plan(
     }
     assignment_phase("statement sequence: assignment: call source result type");
     let result_type =
-        crate::flow::call_target_return_type(program, statement_call_target(program, assignment)?)?;
+        validation::call_target_return_type(program, statement_call_target(program, assignment)?)?;
     if let Some(primitive_type) = program.primitive_type_reference(result_type) {
         let binding_ordinal = u32::try_from(*scalar_count).ok()?;
         let position = u32::try_from(scalar_parameters.len())
@@ -569,7 +569,7 @@ fn bound_value_source(
     CheckedUnitStructuralArgumentPlan,
 )> {
     let index = usize::try_from(statement_index).ok()?;
-    let value_place = crate::flow::canonical_place_from_expression_in_state(
+    let value_place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         index,

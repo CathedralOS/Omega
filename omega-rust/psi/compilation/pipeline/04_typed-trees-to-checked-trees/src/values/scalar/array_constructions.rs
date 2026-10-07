@@ -58,7 +58,7 @@ pub(crate) fn call_array_constructions_in(
         {
             continue;
         }
-        let Some(site) = crate::semantic::calls::find_call_site(
+        let Some(site) = validation::find_call_site(
             program,
             machine.symbol,
             state.symbol,
@@ -68,29 +68,27 @@ pub(crate) fn call_array_constructions_in(
             continue;
         };
         let target_symbol = match &site {
-            crate::semantic::calls::CallSite::Expression { call, .. } => {
-                crate::flow::call_target_symbol(program, call)
+            validation::CallSite::Expression { call, .. } => {
+                validation::call_target_symbol(program, call)
             }
-            crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
-            crate::semantic::calls::CallSite::TransitionNamed { path, .. } => path.symbol,
+            validation::CallSite::Statement(call) => call.target_symbol,
+            validation::CallSite::TransitionNamed { path, .. } => path.symbol,
         };
         if target_symbol != call.target_symbol {
             continue;
         }
-        let Some(parameters) =
-            crate::semantic::calls::call_target_parameters(program, target_symbol)
-        else {
+        let Some(parameters) = validation::call_target_parameters(program, target_symbol) else {
             continue;
         };
         let return_type = match site {
             // A named invocation may retain its machine head. Keep that
             // authored identity above; its resolved entry owns the result.
             // Internal state transfers keep their successor-owned operands.
-            crate::semantic::calls::CallSite::TransitionNamed { .. } => {
-                crate::semantic::calls::terminal_callable_target(program, machine, target_symbol)
+            validation::CallSite::TransitionNamed { .. } => {
+                validation::terminal_callable_target(program, machine, target_symbol)
                     .map(|(_, return_type)| return_type)
             }
-            _ => crate::flow::call_target_return_type(program, target_symbol),
+            _ => validation::call_target_return_type(program, target_symbol),
         };
         let Some(return_type) = return_type else {
             continue;
@@ -104,7 +102,7 @@ pub(crate) fn call_array_constructions_in(
             .get(statement_index)
         {
             Some(StatementNode::Call(_)) => {
-                matches!(site, crate::semantic::calls::CallSite::Statement(_))
+                matches!(site, validation::CallSite::Statement(_))
             }
             Some(StatementNode::LocalData(local)) => {
                 call.authored_expression == local.initial_value
@@ -119,10 +117,9 @@ pub(crate) fn call_array_constructions_in(
             // A terminal invocation owns its argument preparation on the
             // selected arm. Guard and operand expression calls remain under
             // their scalar computation rather than acquiring another owner.
-            Some(StatementNode::Transition(_)) => matches!(
-                site,
-                crate::semantic::calls::CallSite::TransitionNamed { .. }
-            ),
+            Some(StatementNode::Transition(_)) => {
+                matches!(site, validation::CallSite::TransitionNamed { .. })
+            }
             _ => false,
         };
         if !direct_root && program.primitive_type_reference(return_type).is_some() {
@@ -131,7 +128,7 @@ pub(crate) fn call_array_constructions_in(
         // Construction belongs to the caller, independent of the callee's
         // implementation. The common signature lookup retains the original
         // requirement's formals; it never selects or fabricates a provider.
-        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+        let arguments = validation::call_site_argument_expressions(program, &site);
         let explicit_parameters = parameters.iter().enumerate();
         if parameters.len() != arguments.len() {
             continue;

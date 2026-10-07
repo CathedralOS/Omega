@@ -4,8 +4,10 @@
 //! local initializers or calls. The whole return must preserve its operands:
 //! a later sibling field may otherwise invalidate an earlier field's read.
 
+use validation::CanonicalPlace;
+
 use super::{ExitScalars, ExpressionHandle, ScalarValue, exit_return_expression, stable_segments};
-use crate::flow::{self, CanonicalPlace};
+use crate::flow::{self};
 use checked_trees::CheckedScalarExpression;
 use facts::PlaceRoot;
 use typed_trees::expression::{BinaryOperator, ExpressionNode};
@@ -24,7 +26,7 @@ impl ExitScalars<'_, '_> {
     fn return_arithmetic(&self, expression: ExpressionHandle) -> Option<bool> {
         use super::super::super::prover::call_guarantees::{self, arithmetic, callable::Callable};
         let entry = self.program.machine_states(self.machine).first()?;
-        let state = crate::semantic::calls::find_state_in_machine(
+        let state = validation::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,
@@ -150,7 +152,7 @@ impl ExitScalars<'_, '_> {
 
     pub(super) fn result_field_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
         let (value, remaining) = self.result_projection(expression)?;
-        let state = crate::semantic::calls::find_state_in_machine(
+        let state = validation::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,
@@ -222,7 +224,7 @@ impl ExitScalars<'_, '_> {
                 )
             };
         let entry = self.program.machine_states(self.machine).first()?;
-        let state = crate::semantic::calls::find_state_in_machine(
+        let state = validation::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,
@@ -488,7 +490,7 @@ impl ExitScalars<'_, '_> {
                 // selected operator implementations. Unknown writes cannot
                 // preserve an invocation input merely by lacking a frame row.
                 let mut nodes = Vec::new();
-                crate::monomorphization::collect_statement_expression_trees(
+                validation::expression_traversal::collect_statement_expression_trees(
                     self.program,
                     statement,
                     &mut nodes,

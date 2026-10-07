@@ -84,7 +84,7 @@ fn derive_checked_claim_outcome_map(
     // operation that could replace or consume the receiver. Do not infer this
     // from a call's single argument or from its result carrier.
     if let [StatementNode::Expression(expression)] = statements
-        && let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        && let Some(place) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             0,
@@ -256,7 +256,7 @@ fn claim_path_is_statically_inactive(
     result_expressions.iter().all(|(_, expression)| {
         expression_statically_excludes_claim_path(program, *expression, path, known_maps)
     }) && named_transitions.iter().all(|(_, target_symbol, _)| {
-        crate::semantic::calls::call_target_state(program, *target_symbol)
+        validation::call_target_state(program, *target_symbol)
             .and_then(|target| {
                 known_maps
                     .iter()
@@ -324,7 +324,7 @@ fn expression_statically_excludes_claim_path(
                 })
         }
         typed_trees::expression::ExpressionNode::Call(call) => {
-            crate::semantic::calls::call_target_state(program, call.target_symbol)
+            validation::call_target_state(program, call.target_symbol)
                 .and_then(|target| {
                     known_maps
                         .iter()
@@ -407,8 +407,7 @@ fn claim_outcomes_for_named_transition(
     permission_events: &[FlowPermissionEventFact],
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> Vec<CheckedClaimOutcomeEntry> {
-    let Some(target_state) = crate::semantic::calls::call_target_state(program, target_symbol)
-    else {
+    let Some(target_state) = validation::call_target_state(program, target_symbol) else {
         return Vec::new();
     };
     let Some(target_map) = known_maps
@@ -452,7 +451,7 @@ fn claim_outcomes_for_expression(
     output_prefix: &[facts::PlaceSegment],
 ) -> Vec<CheckedClaimOutcomeEntry> {
     let segments = &ownership.segments;
-    if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+    if let Some(place) = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,
@@ -599,8 +598,7 @@ fn claim_outcomes_for_expression(
                 .collect()
         }
         typed_trees::expression::ExpressionNode::Call(call) => {
-            let Some(target_state) =
-                crate::semantic::calls::call_target_state(program, call.target_symbol)
+            let Some(target_state) = validation::call_target_state(program, call.target_symbol)
             else {
                 return Vec::new();
             };
@@ -687,7 +685,7 @@ fn cast_conserves_carrier(
     statement_index: usize,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> bool {
-    let Some(value_type) = crate::flow::expression_type_reference_in_state(
+    let Some(value_type) = validation::expression_type_reference_in_state(
         program,
         state.symbol,
         statement_index,
@@ -935,7 +933,7 @@ fn bind_claim_outcome_source_at_arguments(
     if !projections.is_empty() {
         return None;
     }
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
+    let mut place = validation::canonical_place_from_expression_in_state(
         program,
         caller_state.symbol,
         statement_index,
@@ -1010,7 +1008,7 @@ pub(crate) fn receiving_value(
     if let facts::PlaceRoot::Expression(expression) = event.root {
         return Some((statement_index, expression));
     }
-    let state = crate::semantic::calls::find_state(program, event.state_symbol)?;
+    let state = program.state_by_symbol(event.state_symbol)?;
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
@@ -1054,7 +1052,7 @@ pub(crate) fn call_result_origin_rewrites(
         {
             continue;
         }
-        let Some(state) = crate::semantic::calls::find_state(program, event.state_symbol) else {
+        let Some(state) = program.state_by_symbol(event.state_symbol) else {
             continue;
         };
         let typed_trees::expression::ExpressionNode::Call(call) =
@@ -1062,9 +1060,7 @@ pub(crate) fn call_result_origin_rewrites(
         else {
             continue;
         };
-        let Some(target_state) =
-            crate::semantic::calls::call_target_state(program, call.target_symbol)
-        else {
+        let Some(target_state) = validation::call_target_state(program, call.target_symbol) else {
             continue;
         };
         let Some(map) = maps
@@ -1115,8 +1111,7 @@ pub(crate) fn call_result_origin_rewrites(
                     source: PermissionEventSource::Statement { statement_index },
                     ..
                 } => {
-                    if let Some(source_state) =
-                        crate::semantic::calls::find_state(program, *state_symbol)
+                    if let Some(source_state) = program.state_by_symbol(*state_symbol)
                         && let Some(statement) = program
                             .statement_table
                             .statements(source_state.statement_nodes)
@@ -1130,11 +1125,7 @@ pub(crate) fn call_result_origin_rewrites(
                         if expression.is_valid()
                             && let typed_trees::expression::ExpressionNode::Call(call) =
                                 program.expression_table.expression(expression)
-                            && crate::semantic::calls::call_target_state(
-                                program,
-                                call.target_symbol,
-                            )
-                            .is_some()
+                            && validation::call_target_state(program, call.target_symbol).is_some()
                             && !maps
                                 .iter()
                                 .any(|map| map.state_symbol == call.target_symbol)

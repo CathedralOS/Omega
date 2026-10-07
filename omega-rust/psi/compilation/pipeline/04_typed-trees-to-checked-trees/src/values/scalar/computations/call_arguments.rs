@@ -9,8 +9,7 @@ impl Builder<'_, '_> {
         target: SymbolHandle,
         arguments: &[ExpressionHandle],
     ) {
-        let Some(parameters) = crate::semantic::calls::call_target_parameters(self.program, target)
-        else {
+        let Some(parameters) = validation::call_target_parameters(self.program, target) else {
             return;
         };
         let explicit_parameters = parameters.iter();
@@ -114,13 +113,10 @@ impl Builder<'_, '_> {
                 self.plans.nodes.get_mut(root).authored_root = *argument;
                 computed_arguments.push(root);
             } else {
-                let state = crate::semantic::calls::find_state_in_machine(
-                    self.program,
-                    self.machine,
-                    self.state,
-                )?;
+                let state =
+                    validation::find_state_in_machine(self.program, self.machine, self.state)?;
                 let mut selectors = Vec::new();
-                if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                if let Some(place) = validation::canonical_place_from_expression_in_state(
                     self.program,
                     self.state,
                     self.statement_index,
@@ -128,7 +124,7 @@ impl Builder<'_, '_> {
                 ) {
                     for segment in place.segments {
                         if let facts::PlaceSegment::Index { expression } = segment {
-                            let reference = crate::flow::expression_type_reference_in_state(
+                            let reference = validation::expression_type_reference_in_state(
                                 self.program,
                                 self.state,
                                 self.statement_index,

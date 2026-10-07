@@ -1,17 +1,18 @@
-use crate::flow::CanonicalPlace;
+use validation::CallSite;
+use validation::CanonicalPlace;
+use validation::call_site_argument_expressions;
+use validation::call_target_parameters;
+use validation::find_call_site;
+
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::ownership::DirectMoveEventSink;
 use crate::flow::ownership::append_move_event_for_place;
 use crate::flow::ownership::moves;
 use crate::flow::ownership::type_requires_ownership;
-use crate::semantic::calls::CallSite;
-use crate::semantic::calls::call_site_argument_expressions;
-use crate::semantic::calls::find_call_site;
+
 use checked_trees::BorrowCallFact;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
-
-pub(crate) use crate::semantic::calls::call_target_parameters;
 
 pub(in crate::flow) fn append_call_ownership_events(
     program: &dyn ::validation::CheckingInput,
@@ -115,9 +116,8 @@ fn affine_call_result_type(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    let (receiver_symbol, receiver_path) =
-        crate::lookup::call_receiver_parts(program, call.receiver);
-    let target = crate::lookup::resolve_state_call_target(
+    let (receiver_symbol, receiver_path) = validation::call_receiver_parts(program, call.receiver);
+    let target = validation::resolve_state_call_target(
         program,
         machine,
         state,
@@ -150,7 +150,7 @@ pub(crate) fn owned_call_operand_places(
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
 ) -> Vec<CanonicalPlace> {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, caller_machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(caller_machine_symbol) else {
         return Vec::new();
     };
     let Some(state) = program

@@ -1,4 +1,5 @@
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+
 use crate::flow::append_place_segments;
 use crate::flow::reference_spans;
 use checked_trees::{

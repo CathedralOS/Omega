@@ -274,7 +274,7 @@ fn lends_collection(
     }
     // The loan names the ranged place itself: the backing followed by the
     // range's own index segment, spelled by the same canonicalization.
-    let Some(place) = crate::flow::canonical_place_from_expression(program, expression) else {
+    let Some(place) = validation::canonical_place_from_expression(program, expression) else {
         return false;
     };
 
@@ -291,7 +291,7 @@ fn lends_collection(
     let (Some(loan), None) = (loans.next(), loans.next()) else {
         return false;
     };
-    let lent = crate::flow::CanonicalPlace {
+    let lent = validation::CanonicalPlace {
         root: facts::PlaceRoot::Symbol(loan.root_symbol),
         segments: borrow.access_segments.span_or_empty(loan.segments).to_vec(),
     };
@@ -545,7 +545,7 @@ fn array_collection(
     let target_view = validation::slice_view_shell(program, target, &[])?;
     let element = target_view.element;
     let mutable = target_view.access == language_core::ReferenceAccess::Mutable;
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,

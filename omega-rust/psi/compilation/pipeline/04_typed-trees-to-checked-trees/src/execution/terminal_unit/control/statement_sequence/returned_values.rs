@@ -177,7 +177,7 @@ pub(in crate::execution::terminal_unit) fn returned_named_view(
         }
         _ => return None,
     };
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,

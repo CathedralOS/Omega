@@ -68,7 +68,8 @@ fn reconstruct_discharge(
     contracts: &MachineContractPlans,
     stand_down: ContractEntailmentStandDown,
 ) -> Result<Option<ReconstructedDischarge>, ContractEntailmentDischargeError> {
-    let machine = crate::lookup::machine_by_symbol(program, stand_down.machine_symbol)
+    let machine = program
+        .machine_by_symbol(stand_down.machine_symbol)
         .ok_or(ContractEntailmentDischargeError::MachineMissing)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
         return Err(ContractEntailmentDischargeError::MachineIsNotCheckedBody);

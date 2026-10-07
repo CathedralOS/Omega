@@ -62,7 +62,7 @@ pub(super) fn check_calls(
                     _ => {}
                 }
                 expressions.clear();
-                crate::monomorphization::collect_statement_expression_trees(
+                validation::expression_traversal::collect_statement_expression_trees(
                     program,
                     statement,
                     &mut expressions,

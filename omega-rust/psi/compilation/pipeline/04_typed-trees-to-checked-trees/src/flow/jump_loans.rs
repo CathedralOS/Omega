@@ -14,9 +14,12 @@
 //! Multiple reference leaves within one parameter currently share its footprint;
 //! dropping just one such leaf can therefore still be conservatively rejected.
 
+use validation::CanonicalPlace;
+use validation::{CallSite, find_call_site, find_state_in_machine};
+
+use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::mutation::{WritePlaceNamespace, instantiate_call_relative_places};
-use crate::flow::{CanonicalPlace, canonical_place_segments_may_overlap};
-use crate::semantic::calls::{CallSite, find_call_site, find_state_in_machine};
+
 use checked_trees::{BorrowCallFact, BorrowFacts};
 use facts::PlaceRoot;
 use symbols::SymbolHandle;
@@ -163,7 +166,8 @@ pub(super) fn target_run(
         return TargetRun::Whole;
     }
     let caller = find_state_in_machine(program, machine_symbol, state_symbol);
-    let data_parameter = crate::lookup::machine_by_symbol(program, machine_symbol)
+    let data_parameter = program
+        .machine_by_symbol(machine_symbol)
         .and_then(|machine| {
             program.data_binding_parameter(machine, program.state_parameters(target))
         })

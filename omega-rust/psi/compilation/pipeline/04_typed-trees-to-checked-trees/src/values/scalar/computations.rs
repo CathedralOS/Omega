@@ -330,7 +330,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     })
                     .unwrap_or_default()
                 {
-                    let crate::semantic::calls::CallSite::Expression { call, .. } = site else {
+                    let validation::CallSite::Expression { call, .. } = site else {
                         continue;
                     };
                     let Ok(call_ordinal) = u32::try_from(call_ordinal) else {
@@ -339,7 +339,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     builder.record_call_arguments(
                         statement_ordinal,
                         call_ordinal,
-                        crate::flow::call_target_symbol(program, call),
+                        validation::call_target_symbol(program, call),
                         program.expression_table.expression_handles(call.arguments),
                     );
                 }
@@ -369,7 +369,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         builder.record_call_arguments(
                             statement_ordinal,
                             0,
-                            crate::flow::call_target_symbol(program, call),
+                            validation::call_target_symbol(program, call),
                             program.expression_table.expression_handles(call.arguments),
                         );
                     }
@@ -435,7 +435,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     builder.record_call_arguments(
                         statement_ordinal,
                         0,
-                        crate::flow::call_target_symbol(program, call),
+                        validation::call_target_symbol(program, call),
                         program.expression_table.expression_handles(call.arguments),
                     );
                     if validation::unit_statement_call_is_supported(
@@ -468,7 +468,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     // `referent = Sum::Case` through `referent: &mut Sum`
                     // roots a value of the referee, which the sequence then
                     // stores through the loan's whole-referent window.
-                    let written = crate::flow::expression_type_reference_in_state(
+                    let written = validation::expression_type_reference_in_state(
                         program,
                         state.symbol,
                         statement_index,
@@ -556,7 +556,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         program.expression_table.expression(assignment.target),
                         ExpressionNode::Indexed(_)
                     ) && let Some(primitive_type) =
-                            crate::flow::expression_type_reference_in_state(
+                            validation::expression_type_reference_in_state(
                                 program,
                                 state.symbol,
                                 statement_index,
@@ -633,7 +633,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         builder.record_call_arguments(
                             statement_ordinal,
                             0,
-                            crate::flow::call_target_symbol(program, call),
+                            validation::call_target_symbol(program, call),
                             program.expression_table.expression_handles(call.arguments),
                         );
                     }
@@ -666,23 +666,21 @@ pub(crate) fn build_checked_value_computation_plans(
                         .iter()
                         .filter(|call| call.statement_index == statement_index)
                     {
-                        let Some(crate::semantic::calls::CallSite::TransitionNamed {
-                            arguments,
-                            ..
-                        }) = crate::semantic::calls::find_call_site(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            statement_index,
-                            call.call_ordinal,
-                        )
+                        let Some(validation::CallSite::TransitionNamed { arguments, .. }) =
+                            validation::find_call_site(
+                                program,
+                                machine.symbol,
+                                state.symbol,
+                                statement_index,
+                                call.call_ordinal,
+                            )
                         else {
                             continue;
                         };
                         // The exact callable contract owns argument roles for
                         // bodies and requirements alike. Current-activation
                         // state edges keep the transition roles below.
-                        if crate::semantic::calls::terminal_callable_target(
+                        if validation::terminal_callable_target(
                             program,
                             machine,
                             call.target_symbol,
@@ -837,7 +835,7 @@ pub(crate) fn build_checked_value_computation_plans(
                                     *argument,
                                     parameter.type_reference,
                                 )
-                                    && crate::flow::canonical_place_from_expression_in_state(
+                                    && validation::canonical_place_from_expression_in_state(
                                         program,
                                         state.symbol,
                                         statement_index,

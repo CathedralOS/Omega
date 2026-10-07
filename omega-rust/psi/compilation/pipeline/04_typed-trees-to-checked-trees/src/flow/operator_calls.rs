@@ -2,16 +2,21 @@
 //! borrow-call fact: resolve the operator, list the places its mutable operands
 //! write, and add its `ensures` onto the caller's operands. Statement calls and
 //! expression-form named uses share these rules.
-use crate::flow::CanonicalPlace;
+
+use validation::CallSite;
+use validation::CanonicalPlace;
+use validation::canonical_place_from_expression;
+use validation::symbol_type_symbol;
+
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
-use crate::flow::canonical_place_from_expression;
+
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
-use crate::flow::symbol_type_symbol;
+
 use crate::labels::semantic_contract_fact_kind;
-use crate::semantic::calls::CallSite;
+
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{
@@ -660,7 +665,7 @@ fn operator_contract_relative_place(
                     .get(offset)
                     .copied()
                     .filter(|symbol| symbol.is_valid())?;
-                crate::flow::push_field_place_segments(program, &mut segments, symbol);
+                validation::push_field_place_segments(program, &mut segments, symbol);
             }
             Some(CanonicalPlace {
                 root: facts::PlaceRoot::Symbol(parameter.symbol),
@@ -673,7 +678,7 @@ fn operator_contract_relative_place(
                 .member_symbol
                 .is_valid()
                 .then_some(member.member_symbol)?;
-            crate::flow::push_field_place_segments(program, &mut place.segments, symbol);
+            validation::push_field_place_segments(program, &mut place.segments, symbol);
             Some(place)
         }
         ExpressionNode::Indexed(indexed) => {
@@ -681,7 +686,7 @@ fn operator_contract_relative_place(
                 operator_contract_relative_place(program, operator, indexed.collection)?;
             place
                 .segments
-                .push(crate::flow::index_place_segment(program, indexed.index));
+                .push(validation::index_place_segment(program, indexed.index));
             Some(place)
         }
         _ => None,

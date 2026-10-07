@@ -80,10 +80,10 @@ pub(crate) fn infer_identity_preserving_reshuffles(
         else {
             continue;
         };
-        let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+        let Some(machine) = program.machine_by_symbol(machine_symbol) else {
             continue;
         };
-        let Some(state) = crate::semantic::calls::find_state(program, state_symbol) else {
+        let Some(state) = program.state_by_symbol(state_symbol) else {
             continue;
         };
         let Some((parameter_position, parameter)) = program

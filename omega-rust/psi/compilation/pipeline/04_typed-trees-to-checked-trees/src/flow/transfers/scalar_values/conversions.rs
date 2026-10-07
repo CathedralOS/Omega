@@ -173,7 +173,7 @@ pub(super) fn selected_operand(
             numerics::literals::LandedIntegerType::U64 => PrimitiveType::U64,
             numerics::literals::LandedIntegerType::Addr => return None,
         },
-        _ => program.primitive_type_reference(crate::flow::expression_type_reference_in_state(
+        _ => program.primitive_type_reference(validation::expression_type_reference_in_state(
             program,
             state,
             statement_index,
@@ -210,7 +210,7 @@ pub(super) fn selected_call<'a>(
             conversions: Vec::new(),
         });
     }
-    let callee = crate::semantic::calls::find_state(program, call.target_symbol)?;
+    let callee = program.state_by_symbol(call.target_symbol)?;
     let source_type = program.primitive_type_reference(callee.return_type)?;
     let conversions = classify_cast_chain(program, &casts, source_type, exact_casts)?;
     Some(SelectedCall {

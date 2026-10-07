@@ -84,7 +84,7 @@ fn place(
     dense_parameter: &dyn Fn(usize) -> Option<u32>,
     selector: &dyn Fn(ExpressionHandle) -> Option<CheckedRuntimeIndex>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,

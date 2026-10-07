@@ -43,7 +43,7 @@ impl<'a> BorrowAccessCollection<'a> {
     /// Collect a transition arm's own target roster, whose payload bindings
     /// were copied out of the dispatch's saved subject before the call.
     pub(super) fn after_dispatch_extraction(mut self) -> Self {
-        if let Some(state) = crate::semantic::calls::find_state(self.program, self.state_symbol) {
+        if let Some(state) = self.program.state_by_symbol(self.state_symbol) {
             self.dispatch_extraction =
                 DispatchExtraction::of_transition_arm(self.program, state, self.statement_index);
         }
@@ -67,7 +67,7 @@ impl<'a> BorrowAccessCollection<'a> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
-        crate::flow::expression_type_reference_in_state(
+        validation::expression_type_reference_in_state(
             self.program,
             self.state_symbol,
             self.statement_index,
@@ -152,7 +152,7 @@ impl<'a> BorrowAccessCollection<'a> {
     }
 
     pub(super) fn is_plain_copy(&self, expression: ExpressionHandle) -> bool {
-        crate::flow::expression_type_reference_in_state(
+        validation::expression_type_reference_in_state(
             self.program,
             self.state_symbol,
             self.statement_index,

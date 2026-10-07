@@ -85,7 +85,7 @@ pub(super) fn record_value_root<'plans>(
                         source.source,
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                             symbol,
-                        } if crate::semantic::calls::find_state(program, state)
+                        } if program.state_by_symbol(state)
                             .and_then(|authored| program.state_local_declaration(authored, symbol))
                             .is_some_and(|(local_ordinal, local)| {
                                 u32::try_from(local_ordinal).is_ok_and(|position| position < ordinal)
@@ -131,7 +131,7 @@ pub(super) fn retain_record_locals(
             // sentinel and establishes no structural value. Admit it when
             // the authored subject resolves to a canonical rooted place.
             if local.is_mutable
-                || crate::flow::contextual_canonical_place_from_expression(
+                || validation::contextual_canonical_place_from_expression(
                     program,
                     state.symbol,
                     ordinal,

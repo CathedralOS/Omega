@@ -8,16 +8,18 @@
 //! erase a known effect. Alias invalidation conservatively retires unknown
 //! leaves on every write, without assigning them a referent. An exact-origin
 //! query must not discard unknown alternatives.
-use crate::flow::CanonicalPlace;
-use crate::flow::canonical_place_from_expression_in_state;
+
+use validation::CanonicalPlace;
+use validation::canonical_place_from_expression_in_state;
+use validation::push_field_place_segments;
+use validation::resolve_member_symbol_from_type_symbol;
+use validation::symbol_type_symbol;
+
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::canonical_place_segments_equal;
 use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::mutation::normalize_write_only_range_place;
-use crate::flow::push_field_place_segments;
-use crate::flow::resolve_member_symbol_from_type_symbol;
-use crate::flow::symbol_type_symbol;
-use crate::semantic::calls::find_state;
+
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
@@ -35,8 +37,8 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
     if places.is_empty() {
         return Some(places);
     }
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
-    let state = find_state(program, state_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
@@ -110,8 +112,8 @@ pub(super) fn assignment_storage_places(
     let StatementNode::Assignment(assignment) = statement else {
         return None;
     };
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
-    let state = find_state(program, state_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     let mut projection = assignment.target;
     loop {
         projection = match program.expression_table.expression(projection) {
@@ -205,7 +207,7 @@ fn place_requires_local_write_origin(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return false;
     };
-    let Some(state) = find_state(program, state_symbol) else {
+    let Some(state) = program.state_by_symbol(state_symbol) else {
         return false;
     };
     let Some((_, local)) = program
@@ -240,7 +242,7 @@ pub(crate) fn rebase_exact_local_place(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = validation::find_state_with_machine(program, state_symbol)?;
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
@@ -296,7 +298,7 @@ pub(super) fn rebase_local_write_places(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = validation::find_state_with_machine(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;

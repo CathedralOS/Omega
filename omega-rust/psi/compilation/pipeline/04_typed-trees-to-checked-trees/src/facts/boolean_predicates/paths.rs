@@ -232,9 +232,9 @@ pub(crate) fn capture_entry_guard(
     expression: typed_trees::expression::ExpressionHandle,
     value: bool,
     point: ProgramPoint,
-    admit_subject: &impl Fn(&crate::flow::CanonicalPlace) -> bool,
+    admit_subject: &impl Fn(&validation::CanonicalPlace) -> bool,
 ) -> Option<FactContextHandle> {
-    let (machine, _) = crate::semantic::calls::find_state_with_machine(program, state)?;
+    let (machine, _) = validation::find_state_with_machine(program, state)?;
     let entry_index = crate::checks::termination::named_transition_target_state_index(
         program,
         machine,

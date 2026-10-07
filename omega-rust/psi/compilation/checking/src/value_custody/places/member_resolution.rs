@@ -3,7 +3,7 @@
 //! qualified fields inside the selected case so borrow and Terminal consumers
 //! see the same Case/Field path; never repair a conflicting retained identity.
 
-use crate::lookup::{data_definition_by_symbol, first_valid_name_path_symbol, machine_by_symbol};
+use super::declared_symbols::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -37,7 +37,7 @@ pub(super) enum MemberPosition {
 /// generic applications name their retained instance, not the open template;
 /// other positions retain the ordinary `type_symbol` mapping.
 pub(super) fn position_leaf_symbol(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     position: MemberPosition,
 ) -> SymbolHandle {
     match position {
@@ -52,7 +52,7 @@ pub(super) fn position_leaf_symbol(
 }
 
 fn closed_generic_owner(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     while let typed_trees::types::TypeReferenceNode::Reference { referee, .. }
@@ -71,7 +71,7 @@ fn closed_generic_owner(
 /// validated member correspondence; a foreign or sibling-instance symbol
 /// remains unresolved. `None` leaves the existing open-generic route intact.
 pub(super) fn closed_generic_member_symbol(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     position: Option<MemberPosition>,
     member_name: &str,
     retained: SymbolHandle,
@@ -96,12 +96,12 @@ pub(super) fn closed_generic_member_symbol(
 /// receiver's already-resolved position: a member chain recomputing it here
 /// would re-walk the whole receiver expression once per hop.
 fn member_type_position(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     receiver_position: Option<MemberPosition>,
     member_symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
     if let Some(MemberPosition::Reference(reference)) = receiver_position
-        && let Some(projected) = super::super::project_type_reference_from_segments(
+        && let Some(projected) = super::projection_types::project_type_reference_from_segments(
             program,
             reference,
             &[facts::PlaceSegment::Field {
@@ -142,7 +142,7 @@ enum ContainerOutcome {
 /// trait signatures, operators, machines themselves) are `Unmapped` and the
 /// caller scans.
 fn container_member_type_position(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     parent: SymbolHandle,
     symbol: SymbolHandle,
 ) -> ContainerOutcome {
@@ -161,15 +161,12 @@ fn container_member_type_position(
     let grandparent = program.symbols.get(parent).parent;
     match program.symbols.get(parent).kind {
         symbols::SymbolKind::Machine => {
-            let Some(machine) = machine_by_symbol(program, parent) else {
+            let Some(machine) = program.machine_by_symbol(parent) else {
                 return ContainerOutcome::Unmapped;
             };
-            if let Some(field) = validation::exact_attached_field(
-                program,
-                machine,
-                symbol,
-                program.symbols.name(symbol),
-            ) {
+            if let Some(field) =
+                crate::exact_attached_field(program, machine, symbol, program.symbols.name(symbol))
+            {
                 return ContainerOutcome::Position(MemberPosition::Reference(field.type_reference));
             }
             program
@@ -182,7 +179,7 @@ fn container_member_type_position(
                 .unwrap_or(ContainerOutcome::MappedMiss)
         }
         symbols::SymbolKind::Data => {
-            let Some(data) = data_definition_by_symbol(program, parent) else {
+            let Some(data) = program.data_definition_by_symbol(parent) else {
                 return ContainerOutcome::Unmapped;
             };
             program
@@ -203,7 +200,7 @@ fn container_member_type_position(
             if !grandparent.is_valid() {
                 return ContainerOutcome::Unmapped;
             }
-            let Some(data) = data_definition_by_symbol(program, grandparent) else {
+            let Some(data) = program.data_definition_by_symbol(grandparent) else {
                 return ContainerOutcome::Unmapped;
             };
             let Some(variant) = program
@@ -258,7 +255,7 @@ fn container_member_type_position(
                 .unwrap_or(ContainerOutcome::MappedMiss)
         }
         symbols::SymbolKind::State => {
-            let Some(state) = crate::semantic::calls::find_state(program, parent) else {
+            let Some(state) = program.state_by_symbol(parent) else {
                 return ContainerOutcome::Unmapped;
             };
             if let Some(parameter) = program
@@ -332,7 +329,7 @@ fn container_member_type_position(
 /// `symbol_type_symbol`, this retains the type reference so a generic
 /// application's arguments remain bound for the next member hop.
 pub(super) fn symbol_type_position(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
     if !symbol.is_valid() {
@@ -368,7 +365,7 @@ pub(super) fn symbol_type_position(
         symbols::SymbolKind::Machine => {
             // A machine's position is its attached data declaration; resolve
             // that row directly instead of walking every unrelated machine.
-            let machine = machine_by_symbol(program, symbol)?;
+            let machine = program.machine_by_symbol(symbol)?;
             if machine.attached_data_application.is_valid() {
                 return Some(MemberPosition::Reference(machine.attached_data_application));
             }
@@ -387,7 +384,7 @@ pub(super) fn symbol_type_position(
 /// The original whole-program member scan: machines and their states, trait
 /// signatures, operators, and data rows, first match wins.
 fn whole_program_member_type_position(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
     for machine in program.machines() {
@@ -481,7 +478,7 @@ fn whole_program_member_type_position(
 /// arguments bound through member hops so `b.item` under `b: &Box<Context>`
 /// stands on `Context`, not on `Box`'s unbound `T`.
 pub(super) fn expression_type_position(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<MemberPosition> {
     if !expression.is_valid() {
@@ -494,10 +491,8 @@ pub(super) fn expression_type_position(
         // checked interpreter lowers the node the same way), so the position
         // is the operand's position rather than an opaque leaf.
         ExpressionNode::Atomic(atomic) => expression_type_position(program, atomic.value),
-        ExpressionNode::Call(call) => {
-            super::super::calls::call_target_return_type(program, call.target_symbol)
-                .map(MemberPosition::Reference)
-        }
+        ExpressionNode::Call(call) => crate::call_target_return_type(program, call.target_symbol)
+            .map(MemberPosition::Reference),
         ExpressionNode::Name(path) => {
             let symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
             symbol_type_position(program, symbol)
@@ -509,7 +504,7 @@ pub(super) fn expression_type_position(
             // its generic argument still bound. A collection whose position
             // does not project to an element keeps no position rather than
             // minting the collection's own for the element.
-            let segment = super::index_place_segment(program, indexed.index);
+            let segment = super::canonical_projection::index_place_segment(program, indexed.index);
             match expression_type_position(program, indexed.collection) {
                 Some(MemberPosition::Reference(reference)) => match segment {
                     // A range hop yields a window over the same element —
@@ -517,10 +512,12 @@ pub(super) fn expression_type_position(
                     // element — so the position becomes the window and only
                     // a further index hop resumes at the element.
                     facts::PlaceSegment::FixedRange { .. } => {
-                        super::super::collection_element_type_reference(program, reference)
-                            .map(MemberPosition::Sliced)
+                        super::projection_types::collection_element_type_reference(
+                            program, reference,
+                        )
+                        .map(MemberPosition::Sliced)
                     }
-                    _ => super::super::project_type_reference_from_segments(
+                    _ => super::projection_types::project_type_reference_from_segments(
                         program,
                         reference,
                         &[segment],
@@ -585,7 +582,7 @@ pub(super) fn expression_type_position(
 /// a declaration leaf, another window — carry no element handle the window
 /// could reuse, so the literal keeps no position there either.
 fn array_literal_position(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     elements: &[ExpressionHandle],
 ) -> Option<MemberPosition> {
     let mut positions = elements
@@ -637,7 +634,7 @@ fn array_literal_position(
 /// slice declares no fields to answer it with. Re-windowing a window keeps
 /// its element.
 pub(super) fn member_position_after_segments(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     position: MemberPosition,
     segments: &[facts::PlaceSegment],
 ) -> Option<MemberPosition> {
@@ -647,7 +644,7 @@ pub(super) fn member_position_after_segments(
             facts::PlaceSegment::Case { .. } => position,
             facts::PlaceSegment::Field { symbol } => match position {
                 MemberPosition::Reference(reference) => {
-                    match super::super::project_type_reference_from_segments(
+                    match super::projection_types::project_type_reference_from_segments(
                         program,
                         reference,
                         std::slice::from_ref(segment),
@@ -663,7 +660,7 @@ pub(super) fn member_position_after_segments(
             facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
                 match position {
                     MemberPosition::Reference(reference) => MemberPosition::Reference(
-                        super::super::project_type_reference_from_segments(
+                        super::projection_types::project_type_reference_from_segments(
                             program,
                             reference,
                             std::slice::from_ref(segment),
@@ -675,7 +672,7 @@ pub(super) fn member_position_after_segments(
             }
             facts::PlaceSegment::FixedRange { .. } => match position {
                 MemberPosition::Reference(reference) => MemberPosition::Sliced(
-                    super::super::collection_element_type_reference(program, reference)?,
+                    super::projection_types::collection_element_type_reference(program, reference)?,
                 ),
                 MemberPosition::Sliced(element) => MemberPosition::Sliced(element),
                 MemberPosition::Declaration(_) => return None,
@@ -696,8 +693,8 @@ pub(super) fn member_position_after_segments(
 /// an existing named reference by its exact symbol, just as constructor result
 /// typing does. An absent declaration row or a sliced position cannot mint a
 /// type reference from a same-shaped row or an enclosing expected type.
-pub(crate) fn expression_place_type_reference(
-    program: &dyn ::validation::CheckingInput,
+pub fn expression_place_type_reference(
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -718,7 +715,7 @@ pub(crate) fn expression_place_type_reference(
 /// an arm spelled through a distinct handle to an equal type is that same
 /// disagreement, not a join.
 fn match_result_position(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     dispatch: &typed_trees::expression::TableMatchExpression,
 ) -> Option<MemberPosition> {
     let mut positions = program
@@ -734,8 +731,8 @@ fn match_result_position(
         .then_some(first)
 }
 
-pub(crate) fn effective_member_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn effective_member_symbol(
+    program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
@@ -750,8 +747,8 @@ pub(crate) fn effective_member_symbol(
 /// Resolve a member against the declaration supplied by a contextual place
 /// owner, preserving the same case and retained-symbol checks as expression
 /// type resolution.
-pub(crate) fn effective_member_symbol_from_type_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn effective_member_symbol_from_type_symbol(
+    program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
     type_symbol: SymbolHandle,
     member: &typed_trees::expression::TableMemberExpression,
@@ -767,8 +764,8 @@ pub(crate) fn effective_member_symbol_from_type_symbol(
 /// `effective_member_symbol` with the receiver's type position already
 /// resolved — member-chain walks share one receiver walk between the symbol
 /// answer and the position hop instead of resolving it once per use.
-pub(crate) fn effective_member_symbol_from_position(
-    program: &dyn ::validation::CheckingInput,
+pub(super) fn effective_member_symbol_from_position(
+    program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
     receiver_position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
@@ -790,7 +787,7 @@ pub(crate) fn effective_member_symbol_from_position(
         let selected = receiver_position
             .map(|position| position_leaf_symbol(program, position))
             .and_then(|type_symbol| {
-                let declaration = data_definition_by_symbol(program, type_symbol)?;
+                let declaration = program.data_definition_by_symbol(type_symbol)?;
                 let variant =
                     program
                         .data_members(declaration)
@@ -845,12 +842,12 @@ pub(crate) fn effective_member_symbol_from_position(
 /// known; a variant that is absent or declares no such payload field yields
 /// no symbol rather than borrowing a same-shaped row.
 pub(super) fn resolve_case_member_symbol_from_type_symbol(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_symbol: SymbolHandle,
     case_name: &str,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    let declaration = data_definition_by_symbol(program, type_symbol)?;
+    let declaration = program.data_definition_by_symbol(type_symbol)?;
     let variant = program
         .data_members(declaration)
         .iter()
@@ -869,18 +866,18 @@ pub(super) fn resolve_case_member_symbol_from_type_symbol(
         .map(|field| field.symbol)
 }
 
-pub(crate) fn resolve_member_symbol_from_type_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn resolve_member_symbol_from_type_symbol(
+    program: &dyn crate::CheckingInput,
     type_symbol: SymbolHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    if let Some(data) = data_definition_by_symbol(program, type_symbol) {
+    if let Some(data) = program.data_definition_by_symbol(type_symbol) {
         if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
             return Some(symbol);
         }
     }
 
-    if let Some(machine) = machine_by_symbol(program, type_symbol) {
+    if let Some(machine) = program.machine_by_symbol(type_symbol) {
         if let Some(data) = program.attached_data_definition(machine) {
             if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
                 return Some(symbol);
@@ -897,7 +894,7 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
 }
 
 fn resolve_member_symbol_from_position(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     receiver_position: Option<MemberPosition>,
     member_name: &str,
 ) -> Option<SymbolHandle> {
@@ -905,16 +902,16 @@ fn resolve_member_symbol_from_position(
     resolve_member_symbol_from_type_symbol(program, type_symbol, member_name)
 }
 
-pub(crate) fn expression_type_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn expression_type_symbol(
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     expression_type_position(program, expression)
         .map(|position| position_leaf_symbol(program, position))
 }
 
-pub(crate) fn symbol_type_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn symbol_type_symbol(
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     symbol_type_position(program, symbol).map(|position| position_leaf_symbol(program, position))
@@ -923,7 +920,7 @@ pub(crate) fn symbol_type_symbol(
 /// Member or payload field a name resolves to inside a data definition —
 /// fields and variants share the namespace.
 fn data_member_symbol_by_name(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     member_name: &str,
 ) -> Option<SymbolHandle> {

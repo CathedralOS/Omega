@@ -227,8 +227,7 @@ pub(super) fn check_suspension_carry(
     let mut suspension_crossings = Vec::new();
 
     for state_borrows in facts.borrow.states.iter().map(|(_, state)| state) {
-        let Some(machine) = crate::lookup::machine_by_symbol(program, state_borrows.machine_symbol)
-        else {
+        let Some(machine) = program.machine_by_symbol(state_borrows.machine_symbol) else {
             continue;
         };
         let Some(state) = program
@@ -272,7 +271,7 @@ pub(super) fn check_suspension_carry(
                 continue;
             }
 
-            let call_site = crate::semantic::calls::find_call_site(
+            let call_site = validation::find_call_site(
                 program,
                 machine.symbol,
                 state.symbol,
@@ -431,7 +430,7 @@ fn derive_claim_carry_policies(
 fn append_call_carried_argument_diagnostics(
     program: &dyn ::validation::CheckingInput,
     call: &checked_trees::BorrowCallFact,
-    call_site: Option<&crate::semantic::calls::CallSite<'_>>,
+    call_site: Option<&validation::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
@@ -439,17 +438,15 @@ fn append_call_carried_argument_diagnostics(
     let Some(call_site) = call_site else {
         return;
     };
-    let Some(parameters) =
-        crate::semantic::calls::call_target_parameters(program, call.target_symbol)
-    else {
+    let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {
         return;
     };
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
+    let arguments = validation::call_site_argument_expressions(program, call_site);
     for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
         let display_name = program.expression_table.display_name(*argument);
         append_if_suspension_forbidden_with_type_parameters(
             program,
-            crate::semantic::calls::call_target_type_parameters(program, call.target_symbol),
+            validation::call_target_type_parameters(program, call.target_symbol),
             parameter.type_reference,
             &display_name,
             call,
@@ -467,7 +464,7 @@ fn append_live_parameter_diagnostics(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
-    call_site: Option<&crate::semantic::calls::CallSite<'_>>,
+    call_site: Option<&validation::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
@@ -514,7 +511,7 @@ fn append_live_local_diagnostics(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
-    call_site: Option<&crate::semantic::calls::CallSite<'_>>,
+    call_site: Option<&validation::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,

@@ -1,11 +1,11 @@
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
+use validation::find_state_in_machine;
 
 use crate::flow::{
     StateMutationSummaryCache, StateReceiverReadCache, call_write_accesses, statement_mutated_place,
 };
 use crate::labels::symbol_name;
-use crate::semantic::calls::find_state_in_machine;
 
 use super::details::active_loan_detail;
 use super::overlap::{
@@ -28,7 +28,7 @@ pub(super) fn check_statement_borrows<'p>(
     else {
         return;
     };
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return;
     };
     let Some(borrow_state) = facts.borrow.states.iter().find_map(|(_, state)| {
@@ -364,7 +364,7 @@ fn check_call_mutation_borrows<'p>(
                     )
                 })
                 .map(|_| {
-                    let captured = crate::flow::CanonicalPlace {
+                    let captured = validation::CanonicalPlace {
                         root: facts::PlaceRoot::Symbol(loan.root_symbol),
                         segments: facts.borrow.loan_segments(loan).to_vec(),
                     };
@@ -453,7 +453,7 @@ fn loans_live_at_call(
 /// guard or arguments are ordinary calls, not the jump.
 pub(super) struct LocalJump<'program> {
     pub(super) target: &'program typed_trees::state::State,
-    pub(super) site: crate::semantic::calls::CallSite<'program>,
+    pub(super) site: validation::CallSite<'program>,
 }
 
 pub(super) fn local_jump<'program>(
@@ -462,14 +462,14 @@ pub(super) fn local_jump<'program>(
     call: &checked_trees::BorrowCallFact,
 ) -> Option<LocalJump<'program>> {
     let target = find_state_in_machine(program, flow.machine_symbol, call.target_symbol)?;
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         flow.machine_symbol,
         flow.state_symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let crate::semantic::calls::CallSite::TransitionNamed { path, .. } = &site else {
+    let validation::CallSite::TransitionNamed { path, .. } = &site else {
         return None;
     };
     // A local state name has no explicit receiver; its head is the target
@@ -488,8 +488,8 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
 ) -> Option<&'program typed_trees::state::State> {
     let source = find_state_in_machine(program, flow.machine_symbol, flow.state_symbol)?;
     let LocalJump { target, site } = local_jump(program, flow, call)?;
-    let machine = crate::lookup::machine_by_symbol(program, flow.machine_symbol)?;
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let machine = program.machine_by_symbol(flow.machine_symbol)?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
     let parameters = program.state_parameters(target);
     let mut positional = parameters.iter();
     for argument in arguments {

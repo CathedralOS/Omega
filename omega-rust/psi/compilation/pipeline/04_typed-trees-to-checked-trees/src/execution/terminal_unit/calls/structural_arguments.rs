@@ -32,7 +32,7 @@ pub(crate) fn structural_call_arguments(
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     callee: super::CallTarget<'_>,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     statement_index: usize,
     allow_field_path_projection: bool,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
@@ -50,8 +50,7 @@ pub(crate) fn structural_call_arguments(
         caller_state,
     )
     .unwrap_or_default();
-    let explicit_arguments =
-        crate::semantic::calls::call_site_argument_expressions(program, call_site);
+    let explicit_arguments = validation::call_site_argument_expressions(program, call_site);
     let mut explicit_index = 0usize;
     let mut output = Vec::new();
     let mut structural_argument_ordinal = 0usize;
@@ -100,7 +99,7 @@ pub(crate) fn structural_call_arguments(
                 .iter()
                 .any(|(_, root)| *root == facts::PlaceRoot::Expression(owner_expression));
             if produced {
-                crate::flow::CanonicalPlace {
+                validation::CanonicalPlace {
                     root: facts::PlaceRoot::Expression(owner_expression),
                     segments: Vec::new(),
                 }
@@ -151,7 +150,7 @@ pub(crate) fn structural_call_arguments(
                 {
                     return None;
                 }
-                crate::flow::canonical_place_from_expression_in_state(
+                validation::canonical_place_from_expression_in_state(
                     program,
                     caller_state.symbol,
                     statement_index,
@@ -466,7 +465,7 @@ pub(crate) fn structural_call_arguments(
 /// access exactly.
 fn alias_forwarded_access(
     aliases: &[crate::execution::terminal_unit::receiver_aliases::ReceiverAlias],
-    authored_place: &crate::flow::CanonicalPlace,
+    authored_place: &validation::CanonicalPlace,
     authored_access: CheckedStructuralAccess,
     target_access: CheckedStructuralAccess,
     statement_index: usize,
@@ -499,8 +498,8 @@ fn reborrow_restored_call_alias_target(
     machine: SymbolHandle,
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
-    authored_place: &crate::flow::CanonicalPlace,
-) -> Option<crate::flow::CanonicalPlace> {
+    authored_place: &validation::CanonicalPlace,
+) -> Option<validation::CanonicalPlace> {
     let facts::PlaceRoot::Symbol(authored_root) = authored_place.root else {
         return None;
     };
@@ -529,7 +528,7 @@ fn reborrow_restored_call_alias_target(
                 && certified_call.receiver_symbol == call.receiver_symbol
                 && certified_call.has_receiver == call.has_receiver
                 && certified_call.accesses == call.accesses)
-                .then_some(crate::flow::CanonicalPlace {
+                .then_some(validation::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol),
                     segments: certificate.restored_place.segments.clone(),
                 })
@@ -553,9 +552,9 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     caller_state: &typed_trees::state::State,
     callee: super::CallTarget<'_>,
     call: &checked_trees::FlowCallFact,
-    call_site: &crate::semantic::calls::CallSite<'_>,
-    authored_place: &crate::flow::CanonicalPlace,
-) -> Option<crate::flow::CanonicalPlace> {
+    call_site: &validation::CallSite<'_>,
+    authored_place: &validation::CanonicalPlace,
+) -> Option<validation::CanonicalPlace> {
     let facts::PlaceRoot::Symbol(authored_root) = authored_place.root else {
         return None;
     };
@@ -582,14 +581,14 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     {
         return None;
     }
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
+    let arguments = validation::call_site_argument_expressions(program, call_site);
     if arguments.len() != target_parameters.len() {
         return None;
     }
     let argument_roots = arguments
         .iter()
         .map(|expression| {
-            let place = crate::flow::canonical_place_from_expression_in_state(
+            let place = validation::canonical_place_from_expression_in_state(
                 program,
                 caller_state.symbol,
                 call.statement_index,
@@ -659,7 +658,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
             {
                 return None;
             }
-            Some(crate::flow::CanonicalPlace {
+            Some(validation::CanonicalPlace {
                 root: facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol),
                 segments: certificate.restored_place.segments.clone(),
             })
@@ -678,7 +677,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
 /// the way it was authored.
 fn borrow_access_spelling(
     machine: SymbolHandle,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> Option<(SymbolHandle, &[facts::PlaceSegment])> {
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
@@ -698,10 +697,11 @@ pub(crate) fn exact_structural_argument_access(
     machine: SymbolHandle,
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     target_access: CheckedStructuralAccess,
 ) -> Option<CheckedStructuralAccess> {
-    let returned_loans = crate::semantic::calls::find_state(program, state)
+    let returned_loans = program
+        .state_by_symbol(state)
         .and_then(|source_state| {
             let StatementNode::LocalData(local) = program
                 .statement_table
@@ -763,7 +763,7 @@ pub(crate) fn exact_structural_borrow_access(
     machine: SymbolHandle,
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     target_access: CheckedStructuralAccess,
     returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
 ) -> Option<CheckedStructuralAccess> {

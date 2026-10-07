@@ -109,10 +109,10 @@ pub(super) fn check_formed_aggregates<'p>(
         );
     }
 
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return;
     };
-    let Some(state) = crate::semantic::calls::find_state_in_machine(
+    let Some(state) = validation::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,

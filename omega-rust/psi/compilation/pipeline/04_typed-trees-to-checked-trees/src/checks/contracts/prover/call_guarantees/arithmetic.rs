@@ -102,14 +102,12 @@ fn proves_bound(
     frames: &validation::CallFrameResolver<'_>,
     call: Option<&checked_trees::FlowCallFact>,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, caller.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(caller.machine_symbol) else {
         return false;
     };
-    let Some(state) = crate::semantic::calls::find_state_in_machine(
-        program,
-        caller.machine_symbol,
-        caller.state_symbol,
-    ) else {
+    let Some(state) =
+        validation::find_state_in_machine(program, caller.machine_symbol, caller.state_symbol)
+    else {
         return false;
     };
     for fact in contexts.iter().flat_map(|context| {
@@ -194,7 +192,7 @@ pub(super) fn at_call(
             let place = if matches!(place.root, facts::PlaceRoot::Expression(_)) {
                 place
             } else {
-                let machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
+                let machine = program.machine_by_symbol(caller.machine_symbol)?;
                 let call = invocation_fact(facts, caller, invocation)?;
                 // The statement boundary predates earlier sibling operands.
                 // Invocation inputs additionally owe their exact call-prefix
@@ -237,9 +235,9 @@ pub(in crate::checks) fn value_origin(
     caller: &FlowStateFact,
     statement: usize,
     frames: &validation::CallFrameResolver<'_>,
-    place: crate::flow::CanonicalPlace,
-) -> Option<crate::flow::CanonicalPlace> {
-    let machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
+    place: validation::CanonicalPlace,
+) -> Option<validation::CanonicalPlace> {
+    let machine = program.machine_by_symbol(caller.machine_symbol)?;
     if matches!(place.root, facts::PlaceRoot::Expression(expression)
         if matches!(program.expression_table.expression(expression), ExpressionNode::Call(_)))
     {
@@ -256,7 +254,7 @@ pub(in crate::checks) fn value_origin(
 }
 
 pub(in crate::checks) fn atom(
-    place: crate::flow::CanonicalPlace,
+    place: validation::CanonicalPlace,
     primitive: PrimitiveType,
 ) -> ScopedArithmeticValue {
     ScopedArithmeticValue::Atom {

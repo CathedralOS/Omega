@@ -124,7 +124,7 @@ pub(super) fn plan(
             return None;
         };
         if call.authored_expression != expression
-            || call.target_symbol != crate::flow::call_target_symbol(program, authored)
+            || call.target_symbol != validation::call_target_symbol(program, authored)
         {
             return None;
         }

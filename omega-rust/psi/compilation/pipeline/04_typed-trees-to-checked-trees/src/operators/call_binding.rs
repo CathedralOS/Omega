@@ -109,7 +109,7 @@ pub(crate) fn bind_selected_operator_calls(
         // operands and occurrence, not merely the operator token. Preserve its
         // computation and boundary application for independent provider replay;
         // classification grants neither provider authority nor body execution.
-        if crate::lookup::machine_by_symbol(program, selected).is_some_and(|machine| {
+        if program.machine_by_symbol(selected).is_some_and(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
                 && !machine.body_is_present
         }) && facts
@@ -190,7 +190,7 @@ pub(crate) fn bind_selected_operator_calls(
         {
             continue;
         }
-        let Some(machine) = crate::lookup::machine_by_symbol(program, requirement) else {
+        let Some(machine) = program.machine_by_symbol(requirement) else {
             continue;
         };
         let Some(entry) = program.machine_states(machine).first() else {
@@ -214,7 +214,7 @@ pub(crate) fn bind_selected_operator_calls(
             },
             _ => unreachable!("binding candidates are binary or indexed expressions"),
         };
-        let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+        let Some(machine) = program.machine_by_symbol(machine_symbol) else {
             diagnostics.push(Diagnostic::error(
                 "a selected token-bearing machine lost its typed declaration before body binding",
             ));
@@ -297,7 +297,7 @@ pub(crate) fn bind_selected_operator_calls(
 }
 
 fn machine_name(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> String {
-    crate::lookup::machine_by_symbol(program, symbol).map_or_else(
+    program.machine_by_symbol(symbol).map_or_else(
         || "<unknown machine>".to_owned(),
         |machine| machine.name.to_string(),
     )

@@ -1,9 +1,11 @@
 //! arm windows slice of borrowed_windows.
 
+use validation::CanonicalPlace;
+
 use super::{place_spelling, resolve_storage_place, same_place_set};
 
 use super::super::owned_selection::place_paths_overlap;
-use crate::flow::CanonicalPlace;
+
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -558,15 +560,13 @@ impl ArmWindowPlan {
         else {
             return ArmHandle::invalid();
         };
-        let Some(crate::semantic::calls::CallSite::Expression { expression, .. }) =
-            crate::semantic::calls::find_call_site(
-                program,
-                machine.symbol,
-                state.symbol,
-                statement_index,
-                call_ordinal,
-            )
-        else {
+        let Some(validation::CallSite::Expression { expression, .. }) = validation::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            call_ordinal,
+        ) else {
             return ArmHandle::invalid();
         };
         self.arm_of_expression
@@ -596,14 +596,14 @@ impl ArmWindowPlan {
         else {
             return ExpressionHandle::invalid();
         };
-        match crate::semantic::calls::find_call_site(
+        match validation::find_call_site(
             program,
             machine.symbol,
             state.symbol,
             statement_index,
             call_ordinal,
         ) {
-            Some(crate::semantic::calls::CallSite::Expression { expression, .. }) => expression,
+            Some(validation::CallSite::Expression { expression, .. }) => expression,
             _ => ExpressionHandle::invalid(),
         }
     }

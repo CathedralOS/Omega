@@ -5,6 +5,8 @@
 //! InvocationContexts selects its captured value's facts before this query:
 //! current storage facts must never replace a detached operand's snapshot.
 
+use validation::{CanonicalPlace, canonical_place_from_expression};
+
 use super::{InvocationContexts, closed_operators_are_builtin, operand_for_parameter};
 use checked_trees::CheckedOperatorFacts;
 use facts::{FactPayload, FactPlace, FactPlan, FloatPredicate, ProgramPoint};
@@ -14,7 +16,6 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
-use crate::flow::{CanonicalPlace, canonical_place_from_expression};
 use crate::values::float_predicates::{comparison, has_ieee_meaning, literal, reverse};
 
 struct RequiredComparison {

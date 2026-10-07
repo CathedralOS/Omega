@@ -20,7 +20,7 @@ mod projection;
 pub(super) struct ReceiverAlias {
     pub(super) owner: SymbolHandle,
     /// Immediate captured storage, before chaining through an erased parent.
-    captured_place: crate::flow::CanonicalPlace,
+    captured_place: validation::CanonicalPlace,
     pub(super) root: SymbolHandle,
     pub(super) segments: Vec<facts::PlaceSegment>,
     /// The erased loan's exact access and terminal statement. A bare-argument
@@ -369,9 +369,9 @@ fn exclusive_access(
 /// that descriptor would instead lend its suspended backing a second time.
 pub(super) fn resolve(
     aliases: &[ReceiverAlias],
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     materialized: impl Fn(facts::PlaceRoot) -> bool,
-) -> Option<crate::flow::CanonicalPlace> {
+) -> Option<validation::CanonicalPlace> {
     let mut resolved = place.clone();
     for _ in 0..aliases.len() {
         if materialized(resolved.root) {
@@ -385,7 +385,7 @@ pub(super) fn resolve(
         };
         let mut segments = alias.captured_place.segments.clone();
         segments.extend(resolved.segments);
-        resolved = crate::flow::CanonicalPlace {
+        resolved = validation::CanonicalPlace {
             root: alias.captured_place.root,
             segments,
         };
@@ -461,7 +461,7 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
         return None;
     }
 
-    let parent_source = crate::flow::canonical_place_from_expression_in_state(
+    let parent_source = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         0,
@@ -471,7 +471,7 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
         .iter()
         .enumerate()
         .map(|(offset, borrow)| {
-            crate::flow::canonical_place_from_expression_in_state(
+            validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 offset + 1,

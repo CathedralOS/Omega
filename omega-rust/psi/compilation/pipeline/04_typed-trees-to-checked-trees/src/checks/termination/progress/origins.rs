@@ -1,7 +1,9 @@
 //! Adapt exact value origins to the field-only progress subject surface.
 
+use validation::CanonicalPlace;
+
 use super::{FlowCallFact, FlowFacts, FlowStateFact, ProgressSubject};
-use crate::flow::{self, CanonicalPlace};
+use crate::flow::{self};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::TableCallExpression;
 use typed_trees::machine::Machine;

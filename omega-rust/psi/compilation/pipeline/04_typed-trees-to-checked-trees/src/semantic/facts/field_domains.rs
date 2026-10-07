@@ -99,7 +99,7 @@ fn append_zero_initialized_field_domain_facts(
         };
 
         let mut field_path = prefix.to_vec();
-        crate::flow::push_field_place_segments(program, &mut field_path, field.symbol);
+        validation::push_field_place_segments(program, &mut field_path, field.symbol);
 
         // SOUNDNESS GATE (per field, one-level or nested): surface the
         // entry-invariant only when the field's ZERO/ZII value provably satisfies

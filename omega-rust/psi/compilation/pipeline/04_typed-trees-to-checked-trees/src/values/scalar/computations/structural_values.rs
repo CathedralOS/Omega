@@ -57,7 +57,7 @@ impl Builder<'_, '_> {
         let owner_reference = if owner == value {
             reference
         } else {
-            let place = crate::flow::canonical_place_from_expression_in_state(
+            let place = validation::canonical_place_from_expression_in_state(
                 self.program,
                 self.state,
                 self.statement_index,
@@ -66,7 +66,7 @@ impl Builder<'_, '_> {
             if !place.segments.is_empty() {
                 return None;
             }
-            crate::flow::canonical_place_type_reference(
+            validation::canonical_place_type_reference(
                 self.program,
                 self.state,
                 self.statement_index,
@@ -140,7 +140,7 @@ impl Builder<'_, '_> {
                         expression,
                         expected,
                     )?;
-                    let place = crate::flow::canonical_place_from_expression_in_state(
+                    let place = validation::canonical_place_from_expression_in_state(
                         self.program,
                         self.state,
                         self.statement_index,
@@ -281,14 +281,15 @@ impl Builder<'_, '_> {
                 _ => false,
             }
         {
-            let state = crate::lookup::machine_by_symbol(self.program, self.machine).and_then(
-                |machine| {
+            let state = self
+                .program
+                .machine_by_symbol(self.machine)
+                .and_then(|machine| {
                     self.program
                         .machine_states(machine)
                         .iter()
                         .find(|state| state.symbol == self.state)
-                },
-            )?;
+                })?;
             CheckedStructuralValueKind::Reference {
                 source: validation::reference_result_custody::initializer_source(
                     self.program,
@@ -324,8 +325,8 @@ impl Builder<'_, '_> {
         } else if let ExpressionNode::Call(call) =
             self.program.expression_table.expression(expression)
         {
-            let call_target = crate::flow::call_target_symbol(self.program, call);
-            let returned = crate::flow::call_target_return_type(self.program, call_target)?;
+            let call_target = validation::call_target_symbol(self.program, call);
+            let returned = validation::call_target_return_type(self.program, call_target)?;
             if !value_predicates::structural_call_carrier_matches(self.program, returned, expected)
                 || !(validation::has_contents(
                     self.program,
@@ -434,7 +435,7 @@ impl Builder<'_, '_> {
             else {
                 return None;
             };
-            let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+            let machine = self.program.machine_by_symbol(self.machine)?;
             let state = self
                 .program
                 .machine_states(machine)

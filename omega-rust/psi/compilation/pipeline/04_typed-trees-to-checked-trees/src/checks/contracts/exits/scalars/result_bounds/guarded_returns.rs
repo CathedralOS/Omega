@@ -65,7 +65,7 @@ impl ExitScalars<'_, '_> {
                 maximum: value,
             };
         }
-        let state = crate::semantic::calls::find_state_in_machine(
+        let state = validation::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -124,7 +124,7 @@ impl ExitScalars<'_, '_> {
     ) -> Option<(&CheckedScalarExpression, &[SymbolHandle], u32)> {
         *remaining = remaining.checked_sub(1)?;
         let symbol = *symbols.get(position)?;
-        let state = crate::semantic::calls::find_state_in_machine(
+        let state = validation::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,

@@ -92,7 +92,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
         && (matches!(
             program.expression_table.expression(expression),
             typed_trees::expression::ExpressionNode::Borrow(_)
-        ) || crate::flow::canonical_place_from_expression_in_state(
+        ) || validation::canonical_place_from_expression_in_state(
             program,
             state_flow.state_symbol,
             statement.statement_index,
@@ -155,7 +155,7 @@ fn receiver_is_writable(
     entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
     receiver: &CapturedPlace,
 ) -> bool {
-    let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol) else {
+    let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
         return false;
     };
     if receiver.root_symbol == state_flow.machine_symbol {

@@ -1,13 +1,15 @@
 use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
 use crate::flow::FlowOwnershipEventSource;
-use crate::flow::canonical_place_from_expression_in_state;
+use validation::canonical_place_from_expression_in_state;
+use validation::symbol_type_symbol;
+
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::ownership::DirectMoveEventSink;
 use crate::flow::ownership::append_move_event_for_place;
 use crate::flow::ownership::type_references;
 use crate::flow::ownership::type_requires_ownership;
 use crate::flow::resolve_operator_for_call;
-use crate::flow::symbol_type_symbol;
+
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 pub(super) mod observations;
@@ -427,7 +429,7 @@ fn expression_call_is_owned_by_call_flow(
     state_symbol: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    let Some(state) = crate::semantic::calls::find_state(program, state_symbol) else {
+    let Some(state) = program.state_by_symbol(state_symbol) else {
         return false;
     };
     let Some(machine) = program.machines().iter().find(|machine| {
@@ -438,14 +440,13 @@ fn expression_call_is_owned_by_call_flow(
     }) else {
         return false;
     };
-    let (receiver_symbol, receiver_path) =
-        crate::lookup::call_receiver_parts(program, call.receiver);
+    let (receiver_symbol, receiver_path) = validation::call_receiver_parts(program, call.receiver);
     // A named boundary operator is an ordinary requirement call: borrow
     // discovery keys it by its declaration symbol and the call-flow pass moves
     // its owned arguments. Classify it the same way here.
     let boundary_operator = typed_trees::operator::resolve_named_expression_call(program, call)
         .filter(|operator| operator.is_boundary);
-    crate::lookup::resolve_state_call_target(
+    validation::resolve_state_call_target(
         program,
         machine,
         state,
@@ -455,7 +456,7 @@ fn expression_call_is_owned_by_call_flow(
         &call.target,
     )
     .is_valid()
-        || crate::lookup::receiver_can_dispatch_to_machine(
+        || validation::receiver_can_dispatch_to_machine(
             program,
             machine,
             state,
@@ -624,7 +625,7 @@ fn receiver_expression_static_path_segments(
         }
         ExpressionNode::Name(path) => {
             let value_symbol =
-                crate::lookup::first_valid_name_path_symbol(path, &program.expression_table)
+                validation::first_valid_name_path_symbol(path, &program.expression_table)
                     .filter(|symbol| symbol_type_symbol(program, *symbol).is_some());
             if value_symbol.is_some() {
                 return None;

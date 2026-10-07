@@ -20,7 +20,7 @@ pub(super) fn home_retirement(
     disposition: &checked_trees::ContextualCleanupDisposition,
     source: CheckedUnitStructuralArgumentSourcePlan,
 ) -> Option<CheckedNormalCleanupAction> {
-    let machine = crate::lookup::machine_by_symbol(program, disposition.machine)?;
+    let machine = program.machine_by_symbol(disposition.machine)?;
     let statement_index = match disposition.source {
         language_semantics::PermissionEventSource::Call {
             statement_index, ..
@@ -30,11 +30,11 @@ pub(super) fn home_retirement(
         }
         _ => disposition.exit.statement_index,
     };
-    let reference = crate::flow::canonical_place_type_reference(
+    let reference = validation::canonical_place_type_reference(
         program,
         disposition.state,
         statement_index,
-        &crate::flow::CanonicalPlace {
+        &validation::CanonicalPlace {
             root: disposition.root,
             segments: Vec::new(),
         },
@@ -81,7 +81,7 @@ pub(super) fn disposition_actions(
     source: CheckedUnitStructuralArgumentSourcePlan,
     place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
 ) -> Option<Vec<CheckedNormalCleanupAction>> {
-    let machine = crate::lookup::machine_by_symbol(program, disposition.machine)?;
+    let machine = program.machine_by_symbol(disposition.machine)?;
     let binders = machine_binders(program, machine);
     let statement_index = match disposition.source {
         language_semantics::PermissionEventSource::Call {
@@ -93,7 +93,7 @@ pub(super) fn disposition_actions(
         _ => disposition.exit.statement_index,
     };
     let selected = crate::flow::selected_cleanup_leaves(program, facts, disposition)?;
-    let place = crate::flow::CanonicalPlace {
+    let place = validation::CanonicalPlace {
         root: disposition.root,
         segments: facts
             .flow
@@ -105,7 +105,7 @@ pub(super) fn disposition_actions(
     let reference = if disposition.disposed_type.is_valid() {
         disposition.disposed_type
     } else {
-        crate::flow::canonical_place_type_reference(
+        validation::canonical_place_type_reference(
             program,
             disposition.state,
             statement_index,
@@ -135,7 +135,7 @@ pub(super) fn disposition_actions(
         .exclusions
         .span(disposition.exclusions)?
     {
-        let excluded = crate::flow::CanonicalPlace {
+        let excluded = validation::CanonicalPlace {
             root: disposition.root,
             segments: facts
                 .contextual_cleanup
@@ -174,7 +174,7 @@ pub(super) fn disposition_actions(
             return None;
         };
         for segments in crate::flow::concrete_cleanup_paths(&selected_path)? {
-            let selected_place = crate::flow::CanonicalPlace {
+            let selected_place = validation::CanonicalPlace {
                 root: disposition.root,
                 segments,
             };
@@ -265,7 +265,7 @@ fn selected_nominal(
     path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     type_identity: String,
 ) -> Option<CheckedUnitNominalAffineCleanupPlan> {
-    let machine = crate::lookup::machine_by_symbol(program, hook)?;
+    let machine = program.machine_by_symbol(hook)?;
     let state = program.machine_states(machine).first()?;
     let target = super::callable_target(targets, hook)?;
     if !super::nominal_cleanup_target_matches(program, machine, state, &target, &type_identity) {

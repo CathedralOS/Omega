@@ -33,7 +33,7 @@ pub(super) fn loan(
     source_state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
     target_identity: &str,

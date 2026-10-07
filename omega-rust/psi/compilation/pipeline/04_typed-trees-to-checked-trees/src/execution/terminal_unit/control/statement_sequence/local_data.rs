@@ -852,7 +852,7 @@ fn borrowed_local_named_root(
     parameter_root: impl Fn(SymbolHandle) -> bool,
 ) -> Option<()> {
     let statement = usize::try_from(statement_index).ok()?;
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement,

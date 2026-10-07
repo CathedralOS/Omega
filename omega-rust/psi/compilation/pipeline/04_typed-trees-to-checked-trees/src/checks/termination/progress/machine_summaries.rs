@@ -1,13 +1,15 @@
 //! Machine and selected call progress summaries.
 
+use validation::call_site_argument_expressions;
+use validation::call_target_parameters;
+use validation::find_call_site;
+
 use crate::checks::termination::progress::CheckedProgressSummary;
 use crate::checks::termination::progress::fact_subjects::{
     fact_domain, fact_subject, subject_from_place,
 };
 use crate::checks::termination::progress::{lineage, origins};
-use crate::semantic::calls::call_site_argument_expressions;
-use crate::semantic::calls::call_target_parameters;
-use crate::semantic::calls::find_call_site;
+
 use checked_trees::{BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact};
 use language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee};
 use symbols::SymbolHandle;
@@ -189,11 +191,9 @@ pub(crate) fn selected_call_summary<'a>(
             build_bound_demands: &[],
         });
     }
-    let target_machine =
-        crate::lookup::machine_by_symbol(program, target_symbol).or_else(|| {
-            crate::semantic::calls::find_state_with_machine(program, target_symbol)
-                .map(|(machine, _)| machine)
-        })?;
+    let target_machine = program.machine_by_symbol(target_symbol).or_else(|| {
+        validation::find_state_with_machine(program, target_symbol).map(|(machine, _)| machine)
+    })?;
     match &target_machine.termination_plan.interface {
         language_semantics::TerminationInterface::Published(guarantee) => {
             let build_bound_demands = summaries
@@ -350,7 +350,7 @@ fn dynamic_selector_subjects(
     program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProgressSubject>> {
     let selector = place
@@ -368,7 +368,7 @@ fn dynamic_selector_subjects(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let typed_state = crate::semantic::calls::find_state(program, state_flow.state_symbol)?;
+    let typed_state = program.state_by_symbol(state_flow.state_symbol)?;
     let (_, local) = program
         .state_local_declaration(typed_state, root)
         .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
@@ -423,10 +423,7 @@ pub(crate) fn local_state_transition_target<'program>(
         call.statement_index,
         call.call_ordinal,
     )?;
-    if !matches!(
-        call_site,
-        crate::semantic::calls::CallSite::TransitionNamed { .. }
-    ) {
+    if !matches!(call_site, validation::CallSite::TransitionNamed { .. }) {
         return None;
     }
     let target_index = crate::checks::termination::graph::named_transition_target_state_index(

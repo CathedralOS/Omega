@@ -37,7 +37,7 @@ fn exact_mutable_referent(
     source_symbol: SymbolHandle,
     returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
 ) -> Option<()> {
-    let state = crate::semantic::calls::find_state_in_machine(
+    let state = validation::find_state_in_machine(
         program,
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
@@ -59,7 +59,7 @@ fn exact_mutable_referent(
     // actual preceding writes instead; unknown or overlapping storage changes
     // stay outside this direct entry-parameter forwarding path.
     prefix_preserves_parameter(program, borrow, borrow_state, call, source_symbol)?;
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
@@ -67,20 +67,20 @@ fn exact_mutable_referent(
         call.call_ordinal,
     )?;
     let target_symbol = match &site {
-        crate::semantic::calls::CallSite::Statement(authored) => authored.target_symbol,
-        crate::semantic::calls::CallSite::Expression {
+        validation::CallSite::Statement(authored) => authored.target_symbol,
+        validation::CallSite::Expression {
             expression,
             call: authored,
         } if *expression == call.authored_expression => {
-            crate::flow::call_target_symbol(program, authored)
+            validation::call_target_symbol(program, authored)
         }
         _ => return None,
     };
     if !target_symbol.is_valid() || target_symbol != call.target_symbol {
         return None;
     }
-    let parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)?;
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let parameters = validation::call_target_parameters(program, target_symbol)?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
     // Method calls pass no expression for the receiver: align the formal list
     // with the authored argument list by dropping `self`, then compare kinds.
     let formals: Vec<&typed_trees::signature::StateParameter> = parameters.iter().collect();
@@ -183,7 +183,7 @@ fn prefix_preserves_parameter(
     call: &checked_trees::FlowCallFact,
     source_symbol: SymbolHandle,
 ) -> Option<()> {
-    let state = crate::semantic::calls::find_state_in_machine(
+    let state = validation::find_state_in_machine(
         program,
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
@@ -253,7 +253,7 @@ fn prefix_preserves_parameter(
 
 /// A write rooted at the parameter replaces its carrier only when it names
 /// the whole parameter place; a projected write lands inside the referent.
-fn replaces_carrier(place: &crate::flow::CanonicalPlace, source_symbol: SymbolHandle) -> bool {
+fn replaces_carrier(place: &validation::CanonicalPlace, source_symbol: SymbolHandle) -> bool {
     place.root == facts::PlaceRoot::Symbol(source_symbol) && place.segments.is_empty()
 }
 
@@ -269,11 +269,9 @@ fn preceding_reborrow_preserves_carrier(
     call: &checked_trees::BorrowCallFact,
     source_symbol: SymbolHandle,
 ) -> bool {
-    let Some(source_state) = crate::semantic::calls::find_state_in_machine(
-        program,
-        state.machine_symbol,
-        state.state_symbol,
-    ) else {
+    let Some(source_state) =
+        validation::find_state_in_machine(program, state.machine_symbol, state.state_symbol)
+    else {
         return false;
     };
     let Some(source) = program
@@ -283,23 +281,19 @@ fn preceding_reborrow_preserves_carrier(
     else {
         return false;
     };
-    let Some(crate::semantic::calls::CallSite::Statement(authored)) =
-        crate::semantic::calls::find_call_site(
-            program,
-            state.machine_symbol,
-            state.state_symbol,
-            call.statement_index,
-            call.call_ordinal,
-        )
-    else {
+    let Some(validation::CallSite::Statement(authored)) = validation::find_call_site(
+        program,
+        state.machine_symbol,
+        state.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
         return false;
     };
     if authored.target_symbol != call.target_symbol {
         return false;
     }
-    let Some(parameters) =
-        crate::semantic::calls::call_target_parameters(program, call.target_symbol)
-    else {
+    let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {
         return false;
     };
     let arguments = program

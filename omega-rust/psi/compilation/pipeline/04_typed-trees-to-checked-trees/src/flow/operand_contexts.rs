@@ -138,7 +138,7 @@ pub(crate) fn operand_entry_origin_is_stable(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     operand: &FlowOperandFact,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> bool {
     entry_origin_is_stable(
         program,
@@ -154,7 +154,7 @@ pub(crate) fn entry_origin_is_stable(
     control: &checked_trees::FlowControlFacts,
     writes: HandleSpan<checked_trees::FlowOperandReferent>,
     unknown: bool,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> bool {
     !unknown
         && control
@@ -183,7 +183,7 @@ pub(crate) fn operand_observations_agree(
     flow: &FlowFacts,
     first: &FlowOperandFact,
     second: &FlowOperandFact,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> bool {
     if std::ptr::eq(first, second) {
         return true;
@@ -262,7 +262,7 @@ fn prefixes_agree(
     control: &checked_trees::FlowControlFacts,
     first: HandleSpan<checked_trees::FlowOperandReferent>,
     second: HandleSpan<checked_trees::FlowOperandReferent>,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> bool {
     let Some(first) = control.operand_origin_writes.span(first) else {
         return false;

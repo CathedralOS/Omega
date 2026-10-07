@@ -59,7 +59,7 @@ fn prove(
         );
     }
     let spelling = validation::comparison_operator_spelling(binary.operator)?;
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         caller.machine_symbol,
         caller.state_symbol,
@@ -70,18 +70,18 @@ fn prove(
     // names a state of the caller's own machine, whose receiver is the
     // caller's own `self`.
     let (callee, callee_state) = match &site {
-        crate::semantic::calls::CallSite::Expression {
+        validation::CallSite::Expression {
             call: source_call, ..
         } => {
             if source_call.target_symbol != call.target_symbol
                 || (source_call.receiver.is_valid()
-                    && crate::flow::canonical_place_from_expression(program, source_call.receiver)
+                    && validation::canonical_place_from_expression(program, source_call.receiver)
                         .is_none())
                 || source_call.static_requirement_dispatch.is_some()
             {
                 return None;
             }
-            crate::semantic::calls::find_state_with_machine(program, call.target_symbol).filter(
+            validation::find_state_with_machine(program, call.target_symbol).filter(
                 |(machine, state)| {
                     program
                         .machine_states(machine)
@@ -90,7 +90,7 @@ fn prove(
                 },
             )?
         }
-        crate::semantic::calls::CallSite::TransitionNamed {
+        validation::CallSite::TransitionNamed {
             path,
             evidence_arguments,
             ..
@@ -98,29 +98,23 @@ fn prove(
             if path.symbol != call.target_symbol || !evidence_arguments.is_empty() {
                 return None;
             }
-            crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
+            validation::find_state_with_machine(program, call.target_symbol)
                 .filter(|(machine, _)| machine.symbol == caller.machine_symbol)?
         }
-        crate::semantic::calls::CallSite::Statement(_) => return None,
+        validation::CallSite::Statement(_) => return None,
     };
-    let transition = matches!(
-        site,
-        crate::semantic::calls::CallSite::TransitionNamed { .. }
-    );
+    let transition = matches!(site, validation::CallSite::TransitionNamed { .. });
     let parameters = program.state_parameters(callee_state);
     // Only explicit scalar operands are substituted below. A runtime receiver
     // contributes no premises or implicit-self value to this interval query.
     let explicit = parameters.iter().collect::<Vec<_>>();
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let arguments = validation::call_site_argument_expressions(program, &site);
     if arguments.len() != explicit.len() {
         return None;
     }
-    let machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
-    let state = crate::semantic::calls::find_state_in_machine(
-        program,
-        caller.machine_symbol,
-        caller.state_symbol,
-    )?;
+    let machine = program.machine_by_symbol(caller.machine_symbol)?;
+    let state =
+        validation::find_state_in_machine(program, caller.machine_symbol, caller.state_symbol)?;
     // A closed operand set decides the instantiated fact on value before
     // bound or guard evidence runs: `6.5 > 5.0` is true at this call whether
     // or not the caller's intervals can name it, and a decided-true requires

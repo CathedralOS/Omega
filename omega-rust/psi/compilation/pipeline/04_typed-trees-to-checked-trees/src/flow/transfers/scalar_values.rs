@@ -1,5 +1,7 @@
 //! Capture a selected initializer or assignment while its operand facts are live.
-use crate::flow::CanonicalPlace;
+
+use validation::CanonicalPlace;
+
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::CheckedScalarExpressionRole;
@@ -96,8 +98,7 @@ pub(super) fn capture_statement(
             expression,
             &mut crate::values::PlaceScalarValues {
                 program,
-                parameters: program
-                    .state_parameters(crate::semantic::calls::find_state(program, state)?),
+                parameters: program.state_parameters(program.state_by_symbol(state)?),
                 symbols,
                 value_at_place: |place: &CanonicalPlace| {
                     crate::values::scalar_value_at_place(

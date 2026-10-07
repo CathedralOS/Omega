@@ -7,8 +7,10 @@
 //! Effect discovery compresses array paths; declaration geometry supplies the
 //! exact parent-first, reverse-child execution order when premises are checked.
 
+use validation::CanonicalPlace;
+
 use crate::facts::boolean_predicates::{self, BoundPredicate};
-use crate::flow::{CanonicalPlace, CleanupLeaf, StateMutationSummaryCache};
+use crate::flow::{CleanupLeaf, StateMutationSummaryCache};
 use checked_trees::{CheckFacts, ContractProofFactKind};
 use facts::{FactContextHandle, PlaceRoot, PlaceSegment, ScalarValue};
 use symbols::SymbolHandle;

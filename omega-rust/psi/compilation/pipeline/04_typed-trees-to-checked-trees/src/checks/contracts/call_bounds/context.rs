@@ -59,7 +59,7 @@ fn prove(
     goal: ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         caller.machine_symbol,
         caller.state_symbol,
@@ -67,7 +67,7 @@ fn prove(
         call.call_ordinal,
     )?;
     let ordinary_call = match &site {
-        crate::semantic::calls::CallSite::Expression { call: source, .. } => {
+        validation::CallSite::Expression { call: source, .. } => {
             source.target_symbol == call.target_symbol
                 // A receiver that is a PLACE is admissible, not only a data
                 // namespace. The goal is substituted through the receiver
@@ -78,7 +78,7 @@ fn prove(
                 // argument facts either; a receiver that is a CALL could, and
                 // is not a canonical place.
                 && (!source.receiver.is_valid()
-                    || crate::flow::canonical_place_from_expression(program, source.receiver)
+                    || validation::canonical_place_from_expression(program, source.receiver)
                         .is_some()
                     || matches!(
                         program.expression_table.expression(source.receiver),
@@ -93,7 +93,7 @@ fn prove(
                 && source.machine_arguments.is_empty()
                 && source.evidence_arguments.is_empty()
         }
-        crate::semantic::calls::CallSite::Statement(source) => {
+        validation::CallSite::Statement(source) => {
             // The shared statement-call traversal already selected this exact
             // target. A data namespace is not a runtime receiver place. A
             // receiver that resolves to a caller place is admissible for the
@@ -108,13 +108,13 @@ fn prove(
                         || !source.receiver_root_symbol.is_valid()))
                 || (!source.receiver.is_empty()
                     && source.receiver_root_symbol.is_valid()
-                    && crate::semantic::calls::find_state_in_machine(
+                    && validation::find_state_in_machine(
                         program,
                         caller.machine_symbol,
                         caller.state_symbol,
                     )
                     .is_some_and(|caller_state| {
-                        crate::lookup::projected_statement_receiver_place(
+                        validation::projected_statement_receiver_place(
                             program,
                             caller_state,
                             call.statement_index,
@@ -128,7 +128,7 @@ fn prove(
                 && source.machine_arguments.is_empty()
                 && source.evidence_arguments.is_empty()
         }
-        crate::semantic::calls::CallSite::TransitionNamed {
+        validation::CallSite::TransitionNamed {
             path,
             evidence_arguments,
             ..
@@ -143,34 +143,26 @@ fn prove(
     if !ordinary_call {
         return None;
     }
-    let caller_machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
-    let caller_state = crate::semantic::calls::find_state_in_machine(
-        program,
-        caller.machine_symbol,
-        caller.state_symbol,
-    )?;
+    let caller_machine = program.machine_by_symbol(caller.machine_symbol)?;
+    let caller_state =
+        validation::find_state_in_machine(program, caller.machine_symbol, caller.state_symbol)?;
     // The callee is a machine head (the machine itself or its entry state),
     // or a named state of the caller's own machine that a transition arrives
     // at. Either way the goal is the target's arrival clause over its formals.
-    let head = crate::semantic::calls::find_machine_head(program, call.target_symbol);
+    let head = validation::find_machine_head(program, call.target_symbol);
     let (callee, entry) = match head {
         Some(head) => head,
-        None => crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
-            .filter(|(machine, _)| {
+        None => validation::find_state_with_machine(program, call.target_symbol).filter(
+            |(machine, _)| {
                 machine.symbol == caller.machine_symbol
-                    && matches!(
-                        site,
-                        crate::semantic::calls::CallSite::TransitionNamed { .. }
-                    )
-            })?,
+                    && matches!(site, validation::CallSite::TransitionNamed { .. })
+            },
+        )?,
     };
     let parameters = program.state_parameters(entry);
     if head.is_some()
         && caller.machine_symbol == callee.symbol
-        && matches!(
-            site,
-            crate::semantic::calls::CallSite::TransitionNamed { .. }
-        )
+        && matches!(site, validation::CallSite::TransitionNamed { .. })
         && crate::checks::termination::proves_ranked_entry_requirement_with_call_frames(
             program,
             callee,
@@ -180,7 +172,7 @@ fn prove(
     {
         return Some(true);
     }
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let arguments = validation::call_site_argument_expressions(program, &site);
     let explicit_parameters = parameters.iter();
     if explicit_parameters.clone().count() != arguments.len() {
         return None;

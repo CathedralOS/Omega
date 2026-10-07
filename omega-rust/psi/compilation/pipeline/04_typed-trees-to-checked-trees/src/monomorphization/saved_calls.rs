@@ -30,7 +30,11 @@ pub(super) fn replay(
                 source,
                 source.statement_table.statement(handle),
             ) {
-                super::collect_expression_tree(source, root, &mut expressions);
+                validation::expression_traversal::collect_expression_tree(
+                    source,
+                    root,
+                    &mut expressions,
+                );
             }
         }
     }
@@ -56,8 +60,7 @@ pub(super) fn replay(
         else {
             continue;
         };
-        let Some(instance_machine) = crate::lookup::machine_by_symbol(program, instance.instance)
-        else {
+        let Some(instance_machine) = program.machine_by_symbol(instance.instance) else {
             continue;
         };
         let Some(state) = program.machine_states(instance_machine).get(state_offset) else {

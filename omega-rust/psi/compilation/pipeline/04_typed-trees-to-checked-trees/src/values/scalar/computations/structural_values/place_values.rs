@@ -145,7 +145,7 @@ impl Builder<'_, '_> {
         checked_trees::CheckedUnitStructuralArgumentPlan,
         TypeReferenceHandle,
     )> {
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,
             self.statement_index,
@@ -237,7 +237,7 @@ impl Builder<'_, '_> {
         // built, so this projection derives the same canonical place
         // independently. The multiplicity checker's recorded transfer path is
         // compared against this path downstream, not trusted here.
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,
             self.statement_index,
@@ -265,11 +265,11 @@ impl Builder<'_, '_> {
             return None;
         }
         let root_expression = projection_root_expression(self.program, expression)?;
-        let root_reference = crate::flow::canonical_place_type_reference(
+        let root_reference = validation::canonical_place_type_reference(
             self.program,
             self.state,
             self.statement_index,
-            &crate::flow::CanonicalPlace {
+            &validation::CanonicalPlace {
                 root: place.root,
                 segments: Vec::new(),
             },
@@ -315,7 +315,7 @@ impl Builder<'_, '_> {
             return None;
         }
         let referent = shared_record_reference(self.program, expected)?;
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state,
             self.statement_index,
@@ -388,7 +388,7 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let owner = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+        let owner = self.program.machine_by_symbol(self.machine)?;
         let state = self
             .program
             .machine_states(owner)

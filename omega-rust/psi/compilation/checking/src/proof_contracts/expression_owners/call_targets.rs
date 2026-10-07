@@ -241,9 +241,8 @@ pub(super) fn executable_site_call_candidate(
     statement_index: usize,
     call: &typed_trees::expression::TableCallExpression,
 ) -> SymbolHandle {
-    let (receiver_symbol, receiver_path) =
-        crate::call_targets::call_receiver_parts(program, call.receiver);
-    let mut candidate = crate::call_targets::resolve_state_call_target(
+    let (receiver_symbol, receiver_path) = crate::call_receiver_parts(program, call.receiver);
+    let mut candidate = crate::resolve_state_call_target(
         program,
         machine,
         state,
@@ -307,11 +306,8 @@ pub(super) fn exact_static_data_receiver(
         return None;
     };
     let members = program.expression_table.name_path_members(path.members);
-    let selected = crate::call_targets::resolve_name_path_member_symbol(
-        program,
-        path,
-        members.len().checked_sub(1)?,
-    );
+    let selected =
+        crate::resolve_name_path_member_symbol(program, path, members.len().checked_sub(1)?);
     if selected.is_valid() && program.symbols.get(selected).kind == symbols::SymbolKind::Data {
         return Some(InferredType::Nominal(selected));
     }

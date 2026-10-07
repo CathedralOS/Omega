@@ -17,7 +17,6 @@ pub(in crate::execution::terminal_unit) mod scalar_arrays;
 pub(super) mod statement_sequence;
 pub(super) mod structural_operands;
 
-pub(super) use crate::semantic::calls::terminal_callable_target;
 pub(crate) use boundary_machine::{
     build_boundary_machine, build_dynamic_slot_plans, build_static_boundary_requirements,
 };

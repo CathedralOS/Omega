@@ -60,7 +60,7 @@ pub(super) fn actions(
         }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let parameter = parameters.get(parameter_index as usize)?;
-            let declaration = crate::semantic::calls::find_state(program, state)?;
+            let declaration = program.state_by_symbol(state)?;
             PlaceRoot::Symbol(
                 program
                     .state_parameters(declaration)
@@ -88,23 +88,22 @@ pub(super) fn actions(
             return None;
         }
     }
-    let replaced_place =
-        match crate::semantic::calls::find_state(program, state).and_then(|declaration| {
-            program
-                .statement_table
-                .statements(declaration.statement_nodes)
-                .get(*statement_index as usize)
-        }) {
-            Some(typed_trees::statement::StatementNode::Assignment(assignment)) => {
-                crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state,
-                    *statement_index as usize,
-                    assignment.target,
-                )
-            }
-            _ => None,
-        };
+    let replaced_place = match program.state_by_symbol(state).and_then(|declaration| {
+        program
+            .statement_table
+            .statements(declaration.statement_nodes)
+            .get(*statement_index as usize)
+    }) {
+        Some(typed_trees::statement::StatementNode::Assignment(assignment)) => {
+            validation::canonical_place_from_expression_in_state(
+                program,
+                state,
+                *statement_index as usize,
+                assignment.target,
+            )
+        }
+        _ => None,
+    };
     let mut actions = Vec::new();
     for (_, disposition) in facts
         .contextual_cleanup
@@ -123,7 +122,7 @@ pub(super) fn actions(
                     }
         })
     {
-        let place = crate::flow::CanonicalPlace {
+        let place = validation::CanonicalPlace {
             root: disposition.root,
             segments: facts
                 .flow

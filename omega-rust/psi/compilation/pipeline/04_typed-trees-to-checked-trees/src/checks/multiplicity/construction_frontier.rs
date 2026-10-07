@@ -46,7 +46,7 @@ impl ConstructionFrontier {
             let parent_length = path.len();
             path.extend(child_path);
             if let Some(child) =
-                crate::flow::project_type_reference_from_segments(program, self.reference, path)
+                validation::project_type_reference_from_segments(program, self.reference, path)
             {
                 self.seed_zero_values(program, child, path);
             }
@@ -89,7 +89,7 @@ impl ConstructionFrontier {
         for length in (0..path.len()).rev() {
             let prefix = &path[..length];
             let Some(reference) =
-                crate::flow::project_type_reference_from_segments(program, self.reference, prefix)
+                validation::project_type_reference_from_segments(program, self.reference, prefix)
             else {
                 break;
             };
@@ -149,7 +149,7 @@ fn record_children(
         TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
         _ => return Vec::new(),
     };
-    let Some(definition) = crate::lookup::data_definition_by_symbol(program, symbol) else {
+    let Some(definition) = program.data_definition_by_symbol(symbol) else {
         return Vec::new();
     };
     let mut children = Vec::new();

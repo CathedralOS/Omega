@@ -51,7 +51,7 @@ pub(super) fn build(
         return None;
     };
     let (expression, _) = crate::proof::exact_outcome_case_test(program, guard)?;
-    let dispatch = match crate::flow::contextual_canonical_place_from_expression(
+    let dispatch = match validation::contextual_canonical_place_from_expression(
         program,
         state.symbol,
         transition_start,
@@ -236,7 +236,7 @@ pub(super) fn build(
         let selected_variant = variants
             .iter()
             .find(|candidate| candidate.name.as_str() == variant)?;
-        let place = crate::flow::contextual_canonical_place_from_expression(
+        let place = validation::contextual_canonical_place_from_expression(
             program,
             state.symbol,
             marker_start + index,
@@ -660,7 +660,7 @@ impl DispatchSubject {
         matches!(root, facts::PlaceRoot::Symbol(symbol) if self.is_symbol(symbol))
     }
 
-    fn is_symbol_place(self, place: &crate::flow::CanonicalPlace) -> bool {
+    fn is_symbol_place(self, place: &validation::CanonicalPlace) -> bool {
         self.is_symbol_root(place.root) && place.segments.is_empty()
     }
 
@@ -673,7 +673,7 @@ impl DispatchSubject {
         expression: typed_trees::expression::ExpressionHandle,
     ) -> bool {
         match self {
-            Self::Place(_) => crate::flow::contextual_canonical_place_from_expression(
+            Self::Place(_) => validation::contextual_canonical_place_from_expression(
                 program,
                 state.symbol,
                 statement_index,
@@ -702,7 +702,7 @@ impl DispatchSubject {
     ) -> Option<Option<&'program typed_trees::data::DataField>> {
         match self {
             Self::Place(_) => {
-                let Some(place) = crate::flow::contextual_canonical_place_from_expression(
+                let Some(place) = validation::contextual_canonical_place_from_expression(
                     program,
                     state.symbol,
                     statement_index,
@@ -806,7 +806,7 @@ fn subject_call(
     {
         return None;
     }
-    let return_type = crate::flow::call_target_return_type(program, call.target_symbol)?;
+    let return_type = validation::call_target_return_type(program, call.target_symbol)?;
     // The subject may lend a named local of this state, exactly as a `let`
     // initializer's call does.
     let statements = program.statement_table.statements(state.statement_nodes);

@@ -15,25 +15,23 @@ pub(crate) fn validate(
     consumer: &checked_trees::FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<()> {
-    let target = crate::lookup::machine_by_symbol(
-        program,
-        crate::semantic::calls::find_state_with_machine(program, consumer.target_symbol)?
+    let target = program.machine_by_symbol(
+        validation::find_state_with_machine(program, consumer.target_symbol)?
             .0
             .symbol,
     )?;
     if target.supply_mode != MachineSupplyMode::CheckedBody {
         return None;
     }
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         machine,
         state,
         consumer.statement_index,
         consumer.call_ordinal,
     )?;
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-    let parameters =
-        crate::semantic::calls::call_target_parameters(program, consumer.target_symbol)?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
+    let parameters = validation::call_target_parameters(program, consumer.target_symbol)?;
     if parameters.len() != arguments.len() {
         return None;
     }
@@ -51,7 +49,7 @@ pub(crate) fn validate(
                     *argument,
                     parameter.type_reference,
                 )?;
-                let place = crate::flow::canonical_place_from_expression_in_state(
+                let place = validation::canonical_place_from_expression_in_state(
                     program,
                     state,
                     consumer.statement_index,
@@ -63,11 +61,11 @@ pub(crate) fn validate(
     if operands.next().is_some() {
         return None;
     }
-    let owner = crate::flow::CanonicalPlace {
+    let owner = validation::CanonicalPlace {
         root,
         segments: Vec::new(),
     };
-    let owner_type = crate::flow::canonical_place_type_reference(
+    let owner_type = validation::canonical_place_type_reference(
         program,
         state,
         consumer.statement_index,
@@ -81,8 +79,7 @@ pub(crate) fn validate(
         return None;
     }
     let multiplicity = crate::checks::type_multiplicity(program, owner_type);
-    let (source_machine, source_state) =
-        crate::semantic::calls::find_state_with_machine(program, state)?;
+    let (source_machine, source_state) = validation::find_state_with_machine(program, state)?;
     if source_machine.symbol != machine {
         return None;
     }

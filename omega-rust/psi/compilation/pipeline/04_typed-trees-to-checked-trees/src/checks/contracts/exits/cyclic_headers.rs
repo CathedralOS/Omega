@@ -348,7 +348,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 .calls
                 .span_or_empty(caller_flow.calls)
             {
-                let Some(site) = crate::semantic::calls::find_call_site(
+                let Some(site) = validation::find_call_site(
                     self.program,
                     self.machine.symbol,
                     caller.symbol,
@@ -357,7 +357,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 ) else {
                     continue;
                 };
-                let crate::semantic::calls::CallSite::TransitionNamed {
+                let validation::CallSite::TransitionNamed {
                     path,
                     evidence_arguments,
                     ..
@@ -379,8 +379,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 if !evidence_arguments.is_empty() {
                     return None;
                 }
-                let arguments =
-                    crate::semantic::calls::call_site_argument_expressions(self.program, &site);
+                let arguments = validation::call_site_argument_expressions(self.program, &site);
                 if arguments.len() != explicit
                     || !arguments
                         .iter()

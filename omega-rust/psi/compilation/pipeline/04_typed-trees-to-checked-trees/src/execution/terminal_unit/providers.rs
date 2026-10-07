@@ -134,7 +134,7 @@ pub(super) fn checked_provider_attachment_requirements(
         let [call] = matching_calls.as_slice() else {
             return None;
         };
-        let call_site = crate::semantic::calls::find_call_site(
+        let call_site = validation::find_call_site(
             program,
             machine.symbol,
             state.symbol,

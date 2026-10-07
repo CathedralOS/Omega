@@ -159,7 +159,7 @@ pub(in crate::values::scalar::computations) fn is_record_value(
             ExpressionNode::Borrow(borrow)
                 if shared_referent.is_some_and(|referent| {
                     borrow.access == language_semantics::ReferenceAccess::Shared
-                        && crate::flow::canonical_place_from_expression(program, borrow.target)
+                        && validation::canonical_place_from_expression(program, borrow.target)
                             .is_some_and(|place| canonical_place_is_borrowable(&place))
                         && borrowed_place_leaf_type(program, borrow.target).is_some_and(|leaf| {
                             program.normalized_type_identity(leaf)
@@ -170,9 +170,9 @@ pub(in crate::values::scalar::computations) fn is_record_value(
                 // A call's structural product is a fresh owned arm value: the
                 // builder admits it under the same exact return-type and
                 // whole-value custody rule it checks when constructing the node.
-                let Some(returned) = crate::flow::call_target_return_type(
+                let Some(returned) = validation::call_target_return_type(
                     program,
-                    crate::flow::call_target_symbol(program, call),
+                    validation::call_target_symbol(program, call),
                 ) else {
                     return false;
                 };
@@ -222,7 +222,7 @@ pub(in crate::values::scalar::computations) fn is_shared_borrow_value(
     };
     borrow.access == language_semantics::ReferenceAccess::Shared
         && shared_record_reference(program, expected).is_some_and(|referent| {
-            crate::flow::canonical_place_from_expression(program, borrow.target)
+            validation::canonical_place_from_expression(program, borrow.target)
                 .is_some_and(|place| canonical_place_is_borrowable(&place))
                 && borrowed_place_leaf_type(program, borrow.target).is_some_and(|leaf| {
                     program.normalized_type_identity(leaf)

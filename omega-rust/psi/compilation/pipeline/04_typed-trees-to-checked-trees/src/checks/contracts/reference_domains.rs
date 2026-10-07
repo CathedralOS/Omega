@@ -21,7 +21,7 @@ pub(super) fn proves(
         return false;
     };
     let place = facts.semantic.places.get(place);
-    let place = crate::flow::CanonicalPlace {
+    let place = validation::CanonicalPlace {
         root: place.root,
         segments: facts
             .semantic
@@ -29,7 +29,7 @@ pub(super) fn proves(
             .span_or_empty(place.segments)
             .to_vec(),
     };
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state.machine_symbol) else {
         return false;
     };
     let mut owned_frames = None;
@@ -121,7 +121,7 @@ pub(super) fn proves(
     )
 }
 
-fn field_place(place: &crate::flow::CanonicalPlace) -> bool {
+fn field_place(place: &validation::CanonicalPlace) -> bool {
     matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
         && place.segments.iter().all(|segment| {
             matches!(
@@ -135,11 +135,9 @@ fn contexts_prove_domain(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: impl Iterator<Item = FactContextHandle>,
-    source: &crate::flow::CanonicalPlace,
+    source: &validation::CanonicalPlace,
     domain_symbol: symbols::SymbolHandle,
-    mut resolve_candidate: impl FnMut(
-        crate::flow::CanonicalPlace,
-    ) -> Option<crate::flow::CanonicalPlace>,
+    mut resolve_candidate: impl FnMut(validation::CanonicalPlace) -> Option<validation::CanonicalPlace>,
 ) -> bool {
     let mut contexts = contexts;
     contexts.any(|context| {
@@ -164,7 +162,7 @@ fn contexts_prove_domain(
                 ) {
                     return false;
                 }
-                let candidate = crate::flow::CanonicalPlace {
+                let candidate = validation::CanonicalPlace {
                     root: candidate.root,
                     segments: facts
                         .semantic

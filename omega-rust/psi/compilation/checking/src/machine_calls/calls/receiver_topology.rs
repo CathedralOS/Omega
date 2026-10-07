@@ -1,11 +1,13 @@
-use super::symbols::{machine_by_symbol, machine_symbol_from_type_reference_handle};
+//! Resolve retained receiver identities to exact callable targets.
+
+use crate::machine_symbol_from_type_reference_handle;
 use ::symbols::SymbolHandle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
 use checked_trees::name::Identifier;
 use checked_trees::statement::TableCall;
 
-pub(crate) fn statement_call_can_dispatch_to_machine(
-    program: &dyn ::validation::CheckingInput,
+pub fn statement_call_can_dispatch_to_machine(
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &TableCall,
@@ -29,15 +31,15 @@ pub(crate) fn statement_call_can_dispatch_to_machine(
         )
 }
 
-pub(crate) fn statement_call_receiver_members<'a>(
-    program: &'a dyn ::validation::CheckingInput,
+pub fn statement_call_receiver_members<'a>(
+    program: &'a dyn crate::CheckingInput,
     call: &TableCall,
 ) -> Option<&'a [Identifier]> {
     (!call.receiver.is_empty()).then(|| program.statement_table.name_path_members(call.receiver))
 }
 
-pub(crate) fn statement_call_receiver_path(
-    program: &dyn ::validation::CheckingInput,
+pub fn statement_call_receiver_path(
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     before: usize,
     call: &TableCall,
@@ -45,7 +47,7 @@ pub(crate) fn statement_call_receiver_path(
     let members = statement_call_receiver_members(program, call)?;
 
     if let Some((root, segments)) =
-        super::projected_statement_receiver_place(program, state, before, call)
+        crate::projected_statement_receiver_place(program, state, before, call)
     {
         let mut path = NamePath::resolved_from_iter(members[..1].iter().cloned(), root, root);
         for (member, segment) in members[1..].iter().zip(segments) {
@@ -64,8 +66,8 @@ pub(crate) fn statement_call_receiver_path(
     ))
 }
 
-pub(crate) fn call_receiver_parts(
-    program: &dyn ::validation::CheckingInput,
+pub fn call_receiver_parts(
+    program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
 ) -> (SymbolHandle, Option<checked_trees::expression::NamePath>) {
     if !receiver.is_valid() {
@@ -105,8 +107,7 @@ pub(crate) fn call_receiver_parts(
         ExpressionNode::Member(member) => {
             let (_, path) = call_receiver_parts(program, member.receiver);
             let mut path = path.unwrap_or_default();
-            let member_symbol =
-                crate::flow::effective_member_symbol(program, member.receiver, member);
+            let member_symbol = crate::effective_member_symbol(program, member.receiver, member);
             path.push_resolved(member.member.clone(), member_symbol);
             (member_symbol, Some(path))
         }
@@ -114,8 +115,8 @@ pub(crate) fn call_receiver_parts(
     }
 }
 
-pub(crate) fn resolve_name_path_member_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn resolve_name_path_member_symbol(
+    program: &dyn crate::CheckingInput,
     path: &typed_trees::expression::TableNamePath,
     target_index: usize,
 ) -> SymbolHandle {
@@ -139,9 +140,9 @@ pub(crate) fn resolve_name_path_member_symbol(
         selected = if direct.is_valid() {
             direct
         } else {
-            crate::flow::symbol_type_symbol(program, selected)
+            crate::symbol_type_symbol(program, selected)
                 .and_then(|type_symbol| {
-                    crate::flow::resolve_member_symbol_from_type_symbol(
+                    crate::resolve_member_symbol_from_type_symbol(
                         program,
                         type_symbol,
                         member.as_str(),
@@ -159,8 +160,8 @@ pub(crate) fn resolve_name_path_member_symbol(
     SymbolHandle::invalid()
 }
 
-pub(crate) fn resolve_state_call_target(
-    program: &dyn ::validation::CheckingInput,
+pub fn resolve_state_call_target(
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     receiver_symbol: SymbolHandle,
@@ -177,7 +178,7 @@ pub(crate) fn resolve_state_call_target(
             .child_handles(receiver_symbol)
             .is_some_and(|mut children| children.any(|child| child == target_symbol))
         && let Ok(Some((_, requirement))) =
-            validation::named_conformance_target_requirement(program, machine, target_symbol)
+            crate::named_conformance_target_requirement(program, machine, target_symbol)
     {
         return requirement.symbol;
     }
@@ -215,7 +216,7 @@ pub(crate) fn resolve_state_call_target(
         return SymbolHandle::invalid();
     }
 
-    if let Some(target_machine) = machine_by_symbol(program, receiver_symbol) {
+    if let Some(target_machine) = program.machine_by_symbol(receiver_symbol) {
         return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
 
@@ -245,10 +246,10 @@ pub(crate) fn resolve_state_call_target(
             machine_symbol_from_type_reference_handle(program, parameter.type_reference)
         })
         .or_else(|| receiver_field_type_machine_symbol(program, machine, receiver_symbol))
-        .or_else(|| crate::flow::symbol_type_symbol(program, receiver_symbol))
+        .or_else(|| crate::symbol_type_symbol(program, receiver_symbol))
         .unwrap_or_else(SymbolHandle::invalid);
     if type_symbol.is_valid()
-        && let Some(target_machine) = machine_by_symbol(program, type_symbol)
+        && let Some(target_machine) = program.machine_by_symbol(type_symbol)
     {
         return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
@@ -291,8 +292,8 @@ pub(crate) fn resolve_state_call_target(
 /// `target_symbol` when it denotes a compile-time machine parameter declared
 /// by `machine`, or invalid. Such a target is a callable signature during
 /// modular checking and becomes a concrete state only during specialization.
-pub(crate) fn machine_parameter_signature_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn machine_parameter_signature_symbol(
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
@@ -310,18 +311,19 @@ pub(crate) fn machine_parameter_signature_symbol(
 /// `target_symbol` when it is a state of ANY machine in the program (a free
 /// machine's entry state, a method state resolved cross-machine), or invalid.
 fn state_symbol_in_any_machine(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
-    crate::semantic::calls::find_state(program, target_symbol)
+    program
+        .state_by_symbol(target_symbol)
         .map(|state| state.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
 /// `target_symbol` when it is a machine signature of ANY trait in the program
 /// (the resolved target of a call through a trait-typed receiver), or invalid.
-pub(crate) fn trait_machine_signature_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn trait_machine_signature_symbol(
+    program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
     if target_symbol.is_valid()
@@ -342,7 +344,7 @@ pub(crate) fn trait_machine_signature_symbol(
 /// on a data-typed reference receiver (a `&mut Data` param, or a devirtualized
 /// `dyn Trait`) to the implementing machine's state.
 fn attached_machine_state_symbol(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     data_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     target_state: &Identifier,
@@ -376,7 +378,7 @@ fn attached_machine_state_symbol(
 /// Whether `data_symbol` is a data type that has at least one machine attached to
 /// it (so a `&mut Data` receiver can dispatch a method call to that machine).
 fn data_type_has_attached_machine(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     data_symbol: SymbolHandle,
 ) -> bool {
     data_symbol.is_valid()
@@ -392,8 +394,8 @@ fn data_type_has_attached_machine(
             })
 }
 
-pub(crate) fn receiver_can_dispatch_to_machine(
-    program: &dyn ::validation::CheckingInput,
+pub fn receiver_can_dispatch_to_machine(
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     receiver_symbol: SymbolHandle,
@@ -417,8 +419,8 @@ pub(crate) fn receiver_can_dispatch_to_machine(
         .or_else(|| receiver_field_type_machine_symbol(program, machine, receiver_symbol))
         .unwrap_or_else(SymbolHandle::invalid);
 
-    machine_by_symbol(program, receiver_symbol).is_some()
-        || (type_symbol.is_valid() && machine_by_symbol(program, type_symbol).is_some())
+    program.machine_by_symbol(receiver_symbol).is_some()
+        || (type_symbol.is_valid() && program.machine_by_symbol(type_symbol).is_some())
         || data_type_has_attached_machine(program, type_symbol)
         // A `Data::method` receiver names the data type itself; dispatch is
         // possible when a machine is attached to it.
@@ -426,7 +428,7 @@ pub(crate) fn receiver_can_dispatch_to_machine(
 }
 
 fn receiver_field_type_machine_symbol(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     receiver_symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
@@ -444,7 +446,7 @@ fn receiver_field_type_machine_symbol(
 }
 
 fn attached_data_field_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     receiver_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -461,7 +463,7 @@ fn attached_data_field_type_reference(
 }
 
 fn resolve_state_symbol_in_machine(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_symbol: SymbolHandle,
 ) -> SymbolHandle {
@@ -475,4 +477,95 @@ fn resolve_state_symbol_in_machine(
         .find(|state| state.symbol == state_symbol)
         .map(|state| state.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
+}
+
+/// Resolve the callable declared on this exact projected receiver type.
+/// Conflicting retained receiver/requirement targets are diagnostics; an
+/// unselected or ambiguous declaration remains a zero target.
+pub fn declared_receiver_target(
+    program: &dyn crate::CheckingInput,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    target: SymbolHandle,
+    name: &typed_trees::name::Identifier,
+    span: source::SourceSpan,
+) -> Result<SymbolHandle, Vec<Diagnostic>> {
+    // A Binding<R> carries R's requirement identity, not methods on the
+    // Binding record itself. Resolve statement and expression calls through
+    // that exact identity before considering ordinary data declarations.
+    if let Some(requirement) =
+        typed_trees::service::exact_bound_service_requirement(program, type_reference)
+    {
+        let Some(definition) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.is_boundary && definition.symbol == requirement)
+        else {
+            return Ok(SymbolHandle::invalid());
+        };
+        let mut candidates = program
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|signature| signature.name == *name);
+        let selected = candidates
+            .next()
+            .map(|signature| signature.symbol)
+            .unwrap_or_else(SymbolHandle::invalid);
+        if candidates.next().is_some() {
+            return Ok(SymbolHandle::invalid());
+        }
+        if target.is_valid() && target != selected {
+            return Err(vec![
+                Diagnostic::error(
+                    "projected binding call target belongs to a different requirement",
+                )
+                .with_source_span(span),
+            ]);
+        }
+        return Ok(selected);
+    }
+    let nominal = crate::machine_symbol_from_type_reference_handle(program, type_reference);
+    if !nominal.is_valid()
+        || !program
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.symbol == nominal)
+    {
+        return Ok(target);
+    }
+    let mut candidates = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.attached_data_symbol == nominal && nominal.is_valid())
+        // Unresolved calls name the family's selected declaration, not the
+        // sibling bodies retained for checking. Preserve an exact target
+        // already supplied by resolution rather than selecting it again.
+        .filter(|machine| target.is_valid() || machine.target.is_none())
+        .flat_map(|machine| program.machine_states(machine))
+        .filter(|state| state.name == *name)
+        .map(|state| state.symbol);
+    if target.is_valid() {
+        if candidates.any(|candidate| candidate == target) {
+            return Ok(target);
+        }
+        if program.machines().iter().any(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == target)
+        }) {
+            return Err(vec![
+                Diagnostic::error(
+                    "projected call target belongs to a different receiver declaration",
+                )
+                .with_source_span(span),
+            ]);
+        }
+        return Ok(target);
+    }
+    let selected = candidates.next().unwrap_or_else(SymbolHandle::invalid);
+    Ok(if candidates.next().is_none() {
+        selected
+    } else {
+        SymbolHandle::invalid()
+    })
 }

@@ -39,7 +39,7 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
                 continue;
             }
             let Some((target_owner, _)) =
-                crate::semantic::calls::find_machine_by_entry_state(program, target_symbol)
+                validation::find_machine_by_entry_state(program, target_symbol)
             else {
                 continue;
             };
@@ -148,7 +148,7 @@ pub(in crate::execution::terminal_unit) fn fused_target_index(
     if let Some(index) = fused.iter().position(|(_, state)| state.symbol == target) {
         return Some(index);
     }
-    let (_, entry) = crate::semantic::calls::find_machine_head(program, target)?;
+    let (_, entry) = validation::find_machine_head(program, target)?;
     fused
         .iter()
         .position(|(_, state)| state.symbol == entry.symbol)

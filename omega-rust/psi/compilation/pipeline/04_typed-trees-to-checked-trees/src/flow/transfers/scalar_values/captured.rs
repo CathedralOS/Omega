@@ -1,7 +1,9 @@
 //! Payload evaluation for the shared selected-call custody walk.
+use validation::CanonicalPlace;
+
 use super::ScalarValue;
 use super::conversions::{ConversionKind, SelectedConversion};
-use crate::flow::CanonicalPlace;
+
 use crate::flow::FlowBuildContext;
 use crate::flow::transfers::scalar_values::CallValues;
 use arena::HandleSpan;
@@ -63,7 +65,7 @@ pub(super) trait CapturedValue: Sized {
         statement_index: usize,
         expression: ExpressionHandle,
     ) -> Option<Self> {
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             program,
             live.state,
             statement_index,
@@ -118,10 +120,7 @@ impl CapturedValue for ScalarValue {
                 program: live.program,
                 parameters: live
                     .program
-                    .state_parameters(crate::semantic::calls::find_state(
-                        live.program,
-                        live.state,
-                    )?),
+                    .state_parameters(live.program.state_by_symbol(live.state)?),
                 symbols,
                 value_at_place: |place: &CanonicalPlace| Self::at_place(place, live),
             },
@@ -221,10 +220,7 @@ impl CapturedValue for IntegerRange {
                 contexts: &contexts,
                 parameters: live
                     .program
-                    .state_parameters(crate::semantic::calls::find_state(
-                        live.program,
-                        live.state,
-                    )?),
+                    .state_parameters(live.program.state_by_symbol(live.state)?),
                 symbols,
                 state: live.state,
             },
@@ -256,14 +252,14 @@ impl CapturedValue for IntegerRange {
         if let Some(value) = Self::literal(program.expression_table.expression(expression)) {
             return Some(value);
         }
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             program,
             live.state,
             statement_index,
             expression,
         )?;
         let primitive =
-            program.primitive_type_reference(crate::flow::expression_type_reference_in_state(
+            program.primitive_type_reference(validation::expression_type_reference_in_state(
                 program,
                 live.state,
                 statement_index,
@@ -274,8 +270,7 @@ impl CapturedValue for IntegerRange {
             program,
             semantic: live.semantic,
             contexts: &contexts,
-            parameters: program
-                .state_parameters(crate::semantic::calls::find_state(program, live.state)?),
+            parameters: program.state_parameters(program.state_by_symbol(live.state)?),
             symbols: &[],
             state: live.state,
         }

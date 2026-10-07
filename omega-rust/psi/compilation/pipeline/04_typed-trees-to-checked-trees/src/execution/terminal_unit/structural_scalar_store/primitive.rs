@@ -87,7 +87,7 @@ pub(super) fn store_at(
             _ => {}
         }
     }
-    let authored = crate::flow::canonical_place_from_expression_in_state(
+    let authored = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index as usize,

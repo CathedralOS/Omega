@@ -12,7 +12,8 @@
 //! with no representable storage origin, leaves the ceiling unrepresentable,
 //! and the caller keeps retiring every live fact as before.
 
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+
 use checked_trees::{BorrowCallFact, BorrowFacts, BorrowLoanOwnerSegment};
 use facts::PlaceRoot;
 use symbols::SymbolHandle;
@@ -67,8 +68,8 @@ fn signature_ceiling_places_inner(
     borrow_call: &BorrowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let machine = crate::lookup::machine_by_symbol(program, caller_machine_symbol)?;
-    let state = crate::semantic::calls::find_state(program, caller_state_symbol)?;
+    let machine = program.machine_by_symbol(caller_machine_symbol)?;
+    let state = program.state_by_symbol(caller_state_symbol)?;
     // A builtin function (`min`, `max`, `sqrt`, the float classifiers, the
     // asm intrinsics) takes scalar values and owns no caller storage; its
     // ceiling is empty even though it declares no state parameters.
@@ -79,16 +80,15 @@ fn signature_ceiling_places_inner(
     {
         return Some(Vec::new());
     }
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         machine.symbol,
         state.symbol,
         borrow_call.statement_index,
         borrow_call.call_ordinal,
     )?;
-    let parameters =
-        crate::semantic::calls::call_target_parameters(program, borrow_call.target_symbol)?;
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let parameters = validation::call_target_parameters(program, borrow_call.target_symbol)?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
     if parameters.iter().count() != arguments.len() {
         return None;
     }
@@ -127,7 +127,7 @@ fn signature_ceiling_places_inner(
                 }
                 continue;
             }
-            crate::flow::canonical_place_from_expression_in_state(
+            validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 borrow_call.statement_index,
@@ -180,7 +180,7 @@ fn carried_exclusive_referents(
     statement_index: usize,
     argument: typed_trees::expression::ExpressionHandle,
 ) -> Option<Vec<CanonicalPlace>> {
-    let actual = crate::flow::canonical_place_from_expression_in_state(
+    let actual = validation::canonical_place_from_expression_in_state(
         program,
         caller_state_symbol,
         statement_index,

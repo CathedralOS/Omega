@@ -20,11 +20,12 @@
 //! given result expression, and `call_contract_argument_projection`, which
 //! the contract prover uses.
 
-use crate::semantic::calls::CallSite;
-use crate::semantic::calls::call_site_argument_expressions;
-use crate::semantic::calls::call_target_parameters;
-use crate::semantic::calls::find_call_site;
-use crate::semantic::calls::find_state_in_machine;
+use validation::CallSite;
+use validation::call_site_argument_expressions;
+use validation::call_target_parameters;
+use validation::find_call_site;
+use validation::find_state_in_machine;
+
 use crate::semantic::facts::contract_fact_place;
 use checked_trees::{ContractCallFact, ContractProofFact, ProofFacts};
 use facts::{FactPlace, FactPlan};
@@ -111,7 +112,7 @@ fn membership_argument_place(
     contract: &ContractProofFact,
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Option<FactPlace> {
-    let declared = crate::flow::canonical_place_from_expression(program, expression)?;
+    let declared = validation::canonical_place_from_expression(program, expression)?;
     let facts::PlaceRoot::Symbol(symbol) = declared.root else {
         return None;
     };

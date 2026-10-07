@@ -64,10 +64,10 @@ pub(crate) fn entry_boolean_predicate(
     state_symbol: SymbolHandle,
     before_statement: usize,
     expression: ExpressionHandle,
-    admit_subject: &impl Fn(&crate::flow::CanonicalPlace) -> bool,
+    admit_subject: &impl Fn(&validation::CanonicalPlace) -> bool,
 ) -> Option<checked_trees::CheckedBooleanExpression> {
     let (machine, state) =
-        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
+        validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
     crate::values::lower_entry_predicate_with_subjects(
         program,
         operators,
@@ -75,7 +75,7 @@ pub(crate) fn entry_boolean_predicate(
         state,
         expression,
         &|leaf| {
-            let place = crate::flow::canonical_place_from_expression_in_state(
+            let place = validation::canonical_place_from_expression_in_state(
                 program,
                 state_symbol,
                 before_statement,
@@ -447,7 +447,7 @@ fn member_hop_path(
     program: &dyn ::validation::CheckingInput,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
-    let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
+    let symbol = validation::effective_member_symbol(program, member.receiver, member);
     if !symbol.is_valid() {
         return (member.case_variant.is_none()
             && CollectionMeasure::from_authored_spelling(member.member.as_str())
@@ -587,11 +587,8 @@ fn entry_operand_at(
             Some(CrashPredicateExpression::Float(value.text().to_owned()))
         }
         ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
-            let (machine, state) = crate::lookup::symbols::machine_state_by_symbol(
-                program,
-                machine_symbol,
-                state_symbol,
-            )?;
+            let (machine, state) =
+                validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
             let source = program.primitive_type_reference(
                 validation::expression_result_type_reference(program, machine, state, cast.value)?,
             )?;
@@ -866,7 +863,7 @@ fn entry_operand_name_at(
     {
         return None;
     }
-    crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
+    validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
     let symbol = path.symbol;
     entry_operand_symbol_at(
         program,
@@ -896,7 +893,7 @@ fn entry_operand_symbol_at(
         return None;
     }
     let (machine, state) =
-        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
+        validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
     if let Some((ordinal, local)) = program
         .state_local_declaration(state, symbol)
         .filter(|&(ordinal, _)| ordinal < before_statement)
@@ -960,10 +957,10 @@ fn builtin_binary_meaning(
     state_symbol: SymbolHandle,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(machine) = crate::lookup::symbols::machine_by_symbol(program, machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(machine_symbol) else {
         return false;
     };
-    let state = crate::lookup::symbols::state_by_symbol(program, machine, state_symbol);
+    let state = validation::find_state_in_machine(program, machine.symbol, state_symbol);
     validation::has_builtin_binary_expression_meaning(program, machine, state, expression)
 }
 
@@ -1021,8 +1018,7 @@ fn state_parameter_entry_operand(
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
     let states = program.machine_states(machine);
-    let state_index =
-        crate::lookup::symbols::state_index_by_symbol(program, machine, state_symbol)?;
+    let state_index = program.state_position_by_symbol(machine.symbol, state_symbol)?;
     let state = &states[state_index];
     let parameters = program.state_parameters(state);
     let (parameter_ordinal, parameter) = parameters

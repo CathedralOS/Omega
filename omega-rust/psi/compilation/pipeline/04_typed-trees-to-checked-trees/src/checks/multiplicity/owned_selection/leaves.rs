@@ -68,7 +68,7 @@ pub(super) fn projected_leaf_source(
     ) {
         return None;
     }
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,
@@ -107,12 +107,8 @@ pub(super) fn projected_leaf_source(
     // exact path while the root's residual frontier stays live on every edge.
     // A linear root would put the claim at the whole place, which a projected
     // path cannot split, so the root itself must be affine.
-    let leaf_reference = crate::flow::canonical_place_type_reference(
-        program,
-        state.symbol,
-        statement_index,
-        &place,
-    )?;
+    let leaf_reference =
+        validation::canonical_place_type_reference(program, state.symbol, statement_index, &place)?;
     let leaf_multiplicity = type_multiplicity(program, leaf_reference);
     if !matches!(
         leaf_multiplicity,
@@ -143,11 +139,11 @@ pub(super) fn projected_leaf_source(
         }
     };
     let place_type_ok = |segments: &[facts::PlaceSegment], expected: Multiplicity| {
-        crate::flow::canonical_place_type_reference(
+        validation::canonical_place_type_reference(
             program,
             state.symbol,
             statement_index,
-            &crate::flow::CanonicalPlace {
+            &validation::CanonicalPlace {
                 root: place.root,
                 segments: segments.to_vec(),
             },
@@ -170,11 +166,11 @@ pub(super) fn projected_leaf_source(
     // Root and every proper prefix must be owned, never a reference: moving a
     // projected child through a borrow would imply referent custody.
     if (0..place.segments.len()).any(|length| {
-        crate::flow::canonical_place_type_reference(
+        validation::canonical_place_type_reference(
             program,
             state.symbol,
             statement_index,
-            &crate::flow::CanonicalPlace {
+            &validation::CanonicalPlace {
                 root: place.root,
                 segments: place.segments[..length].to_vec(),
             },
@@ -224,11 +220,11 @@ pub(super) fn collect_leaves(
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) if source_arm.is_valid() => {
             match projected_leaf_source(program, machine, state, statement_index, expression) {
                 Some((root, path)) => {
-                    let leaf_type = crate::flow::canonical_place_type_reference(
+                    let leaf_type = validation::canonical_place_type_reference(
                         program,
                         state.symbol,
                         statement_index,
-                        &crate::flow::CanonicalPlace {
+                        &validation::CanonicalPlace {
                             root,
                             segments: path.clone(),
                         },
@@ -375,11 +371,11 @@ pub(super) fn collect_field_leaves(
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             match projected_leaf_source(program, machine, state, statement_index, field) {
                 Some((root, path)) => {
-                    let leaf_type = crate::flow::canonical_place_type_reference(
+                    let leaf_type = validation::canonical_place_type_reference(
                         program,
                         state.symbol,
                         statement_index,
-                        &crate::flow::CanonicalPlace {
+                        &validation::CanonicalPlace {
                             root,
                             segments: path.clone(),
                         },

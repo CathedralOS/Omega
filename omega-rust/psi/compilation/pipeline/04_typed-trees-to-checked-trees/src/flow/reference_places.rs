@@ -1,6 +1,8 @@
 //! Rebase a live reference before tracing the value currently in its referent.
 
-use super::{CanonicalPlace, canonical_place_segments_may_overlap, frame_storage_writes};
+use validation::CanonicalPlace;
+
+use super::{canonical_place_segments_may_overlap, frame_storage_writes};
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::PlaceRoot;
 use typed_trees::types::TypeReferenceNode;
@@ -37,7 +39,7 @@ pub(crate) fn reference_route_source(
         .find_map(|statement| match statement {
             StatementNode::LocalData(local) if local.symbol == symbol => Some(local.initial_value),
             StatementNode::Assignment(assignment) => {
-                let target = super::canonical_place_from_expression_in_state(
+                let target = validation::canonical_place_from_expression_in_state(
                     program,
                     state.symbol,
                     statement_index,
@@ -61,7 +63,7 @@ pub(crate) fn local_reference_storage_before_statement(
     let PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let state = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let state = program.state_by_symbol(state.state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut declarations =
         statements
@@ -220,7 +222,7 @@ fn preserve_call_prefix_storage(
         .iter()
         .filter(|prior| prior.statement_index == call.statement_index)
     {
-        let site = crate::semantic::calls::find_call_site(
+        let site = validation::find_call_site(
             program,
             machine.symbol,
             state.state_symbol,
@@ -228,19 +230,19 @@ fn preserve_call_prefix_storage(
             prior.call_ordinal,
         )?;
         let frame = match site {
-            crate::semantic::calls::CallSite::Statement(call) => {
+            validation::CallSite::Statement(call) => {
                 if !frames.call_reference_bindings_are_stable(machine, call) {
                     return None;
                 }
                 frames.may_write_frame(machine, call)
             }
-            crate::semantic::calls::CallSite::Expression { expression, .. } => {
+            validation::CallSite::Expression { expression, .. } => {
                 if !frames.expression_reference_bindings_are_stable(machine, expression) {
                     return None;
                 }
                 frames.expression_write_frame(machine, expression)
             }
-            crate::semantic::calls::CallSite::TransitionNamed { .. } => return None,
+            validation::CallSite::TransitionNamed { .. } => return None,
         };
         preserve_frame(
             program,

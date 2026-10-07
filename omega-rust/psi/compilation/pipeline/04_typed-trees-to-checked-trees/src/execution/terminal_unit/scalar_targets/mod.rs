@@ -55,7 +55,7 @@ pub(super) fn registered_structural_graph_target<'facts>(
     {
         return None;
     }
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.machine_states(machine).first()?;
     if state.symbol != state_symbol
         || program.primitive_type_reference(state.return_type) != Some(result)
@@ -116,7 +116,7 @@ pub(super) fn registered_primitive_store_target<'plans>(
     {
         return None;
     }
-    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
     let mut shapes = ShapeCollector::new(program);
     let expected = returns::primitive_effects::build_machine(program, facts, &mut shapes, machine)?;
     (expected == *plan).then_some(plan)
@@ -248,7 +248,7 @@ pub(super) fn available_target(
         return (structural_arguments.is_empty() && claim_transfers.is_empty())
             .then_some(AvailableScalarTarget::Registered);
     }
-    let machine = crate::lookup::machine_by_symbol(program, *target_machine)?;
+    let machine = program.machine_by_symbol(*target_machine)?;
     // A scalar-result state graph is entered at its first authored state; every
     // other body owner describes exactly one state.
     let composed = composed_candidates.iter().enumerate().find(|(_, plan)| {
@@ -516,7 +516,7 @@ pub(super) fn available_target(
     // named locals retain their symbols, while inline constructed or copied
     // operands retain their exact authored expressions, not the destination
     // of the enclosing call-result assignment.
-    let caller_state = crate::semantic::calls::find_state(program, caller.state)?;
+    let caller_state = program.state_by_symbol(caller.state)?;
     let caller_structural_results = caller
         .operations
         .iter()
@@ -548,23 +548,22 @@ pub(super) fn available_target(
                     },
                 ..
             } => {
-                let site = crate::semantic::calls::find_call_site(
+                let site = validation::find_call_site(
                     program,
                     caller.machine,
                     caller.state,
                     result.statement_index as usize,
                     *call_ordinal as usize,
                 )?;
-                let arguments =
-                    crate::semantic::calls::call_site_argument_expressions(program, &site);
+                let arguments = validation::call_site_argument_expressions(program, &site);
                 let target = match site {
-                    crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
-                    crate::semantic::calls::CallSite::Expression { call, .. } => {
-                        crate::flow::call_target_symbol(program, call)
+                    validation::CallSite::Statement(call) => call.target_symbol,
+                    validation::CallSite::Expression { call, .. } => {
+                        validation::call_target_symbol(program, call)
                     }
-                    crate::semantic::calls::CallSite::TransitionNamed { path, .. } => path.symbol,
+                    validation::CallSite::TransitionNamed { path, .. } => path.symbol,
                 };
-                let parameters = crate::semantic::calls::call_target_parameters(program, target)?;
+                let parameters = validation::call_target_parameters(program, target)?;
                 let mut actuals = parameters.iter().enumerate().zip(arguments);
                 let expression = actuals.find_map(|((position, _), expression)| {
                     (position == *parameter_position as usize).then_some(*expression)

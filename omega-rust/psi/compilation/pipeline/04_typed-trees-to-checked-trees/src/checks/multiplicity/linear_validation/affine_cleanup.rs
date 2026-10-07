@@ -67,7 +67,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
             .unwrap_or_else(|| vec![Vec::new()]);
         for path in paths {
             if multiplicity == Multiplicity::Affine
-                && crate::flow::project_type_reference_from_segments(program, type_reference, &path)
+                && validation::project_type_reference_from_segments(program, type_reference, &path)
                     .is_none_or(|reference| {
                         type_multiplicity(program, reference) != Multiplicity::Affine
                     })

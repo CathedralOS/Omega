@@ -1,10 +1,10 @@
 //! scalar exits slice of result_domains.
 
+use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+
 use super::super::super::return_values::{exit_return_call, exit_return_expression};
 use super::proofs::*;
-use crate::flow::{
-    CanonicalPlace, canonical_place_from_expression_in_state, canonical_place_from_semantic_place,
-};
+use crate::flow::canonical_place_from_semantic_place;
 use checked_trees::{CheckFacts, FlowExitFact};
 use diagnostics::Diagnostic;
 use facts::{FactContextHandle, FactPayload, FactPlace};
@@ -211,15 +211,13 @@ pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
     call: &checked_trees::FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(crate::semantic::calls::CallSite::TransitionNamed { path, .. }) =
-        crate::semantic::calls::find_call_site(
-            program,
-            state_flow.machine_symbol,
-            state_flow.state_symbol,
-            call.statement_index,
-            call.call_ordinal,
-        )
-    else {
+    let Some(validation::CallSite::TransitionNamed { path, .. }) = validation::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
         return;
     };
     let Some(machine) = program
@@ -283,7 +281,7 @@ pub(super) fn call_result_has_domain(
 ) -> bool {
     let target = crate::proof::contract_target_from_state_symbol(program, target)
         .map_or(target, |(_, state)| state);
-    crate::flow::call_target_return_type(program, target).is_some_and(|return_type| {
+    validation::call_target_return_type(program, target).is_some_and(|return_type| {
         required.semantic_id.is_valid()
             && scalar_result_domains(program, return_type)
                 .iter()

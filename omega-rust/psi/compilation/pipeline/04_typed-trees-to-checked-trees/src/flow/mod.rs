@@ -114,8 +114,7 @@ use call_phases::{
 use calls::build_call_flow_fact;
 pub(crate) use calls::call_parameter_qualification_identities;
 pub(crate) use calls::call_result_qualification_identities;
-pub(crate) use calls::call_target_return_type;
-pub(crate) use calls::call_target_symbol;
+
 pub(crate) use calls::ensured_parameter_position;
 pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependencies;
 use constraints::{
@@ -144,7 +143,7 @@ use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,
     resolve_operator_for_call, resolve_operator_statement_call,
 };
-pub(crate) use place::contextual_canonical_place_from_expression;
+
 pub(crate) use receiver_reads::{StateReceiverReadCache, call_receiver_read_accesses};
 pub(crate) use reference_spans::append_constraint_ref;
 use reference_spans::{
@@ -183,25 +182,18 @@ pub(crate) fn resolved_operator_statement_symbol(
 }
 pub(crate) use ownership::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, call_permission_evaluation,
-    canonical_place_type_reference, collection_element_type_reference, discover_state_move_events,
-    expression_type_reference_in_state, loan_carrier_has_owned_storage, owned_call_operand_places,
-    project_type_reference_from_segments,
+    discover_state_move_events, owned_call_operand_places,
 };
 #[allow(unused_imports)]
 pub(crate) use place::{
-    CanonicalPlace, LiteralValueProjection, canonical_place_from_expression,
-    canonical_place_from_expression_in_state, canonical_place_from_semantic_place,
-    canonical_place_from_symbol, canonical_place_joined_segments_may_overlap,
-    canonical_place_overlaps_segments, canonical_place_segments_equal,
-    canonical_place_segments_may_overlap, canonical_places_agree, effective_member_symbol,
-    effective_member_symbol_from_type_symbol, expression_place_type_reference,
-    expression_type_symbol, index_place_segment, literal_argument_access_places,
-    literal_value_path_is_inactive, literal_value_projections, narrow_pinned_index_segments,
-    place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
-    place_segment_has_unresolved_identity, projected_leaf_place, push_field_place_segments,
+    LiteralValueProjection, canonical_place_from_semantic_place, canonical_place_from_symbol,
+    canonical_place_joined_segments_may_overlap, canonical_place_overlaps_segments,
+    canonical_place_segments_equal, canonical_place_segments_may_overlap, canonical_places_agree,
+    literal_argument_access_places, literal_value_path_is_inactive, literal_value_projections,
+    narrow_pinned_index_segments, place_case_has_value, place_case_path_is_inactive,
+    place_cases_are_selected, place_segment_has_unresolved_identity, projected_leaf_place,
     reference_source_place, reference_source_place_through_collection_views,
-    resolve_member_symbol_from_type_symbol, source_independent_place,
-    static_place_segment_pair_equal, symbol_type_symbol,
+    source_independent_place, static_place_segment_pair_equal,
 };
 pub(crate) use reach::attach_reach_summaries;
 use state::build_state_flow_fact;

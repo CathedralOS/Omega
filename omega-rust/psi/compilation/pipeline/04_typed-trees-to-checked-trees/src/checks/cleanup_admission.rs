@@ -113,7 +113,7 @@ pub(crate) fn validate_selected_cleanup_guarantees(
                     .span_or_empty(state.calls)
                     .iter()
                     .all(|call| {
-                        let Some(site) = crate::semantic::calls::find_call_site(
+                        let Some(site) = validation::find_call_site(
                             program,
                             target,
                             state.state_symbol,
@@ -122,10 +122,7 @@ pub(crate) fn validate_selected_cleanup_guarantees(
                         ) else {
                             return false;
                         };
-                        if matches!(
-                            site,
-                            crate::semantic::calls::CallSite::TransitionNamed { .. }
-                        ) {
+                        if matches!(site, validation::CallSite::TransitionNamed { .. }) {
                             // State arrivals remain inside this activation; their
                             // bodies already participate in this machine's plan.
                             return true;

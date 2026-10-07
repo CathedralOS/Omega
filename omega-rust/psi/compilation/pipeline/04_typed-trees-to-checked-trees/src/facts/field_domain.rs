@@ -335,7 +335,7 @@ pub(crate) fn owned_nominal_data_definition(
     let symbol = program
         .machine_by_symbol(symbol)
         .map_or(symbol, |machine| machine.attached_data_symbol);
-    let first = crate::lookup::data_definition_by_symbol(program, symbol)?;
+    let first = program.data_definition_by_symbol(symbol)?;
     if first.type_parameters.is_empty() {
         return Some(first);
     }
@@ -569,7 +569,7 @@ fn declared_owned_field_domain_identities_uncached(
                     let length = prefix.len();
                     // A payload promise is conditional on its exact case path;
                     // it never becomes a sibling alternative's field promise.
-                    crate::flow::push_field_place_segments(program, prefix, field.symbol);
+                    validation::push_field_place_segments(program, prefix, field.symbol);
                     visit(program, field.type_reference, prefix, ancestors, output);
                     prefix.truncate(length);
                 }

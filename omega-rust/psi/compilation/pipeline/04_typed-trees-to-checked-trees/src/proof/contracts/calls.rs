@@ -1,4 +1,5 @@
-use crate::lookup::machine_state_count;
+use validation::machine_state_count;
+
 use arena::HandleSpan;
 use checked_trees::statement::StatementNode;
 use checked_trees::{
@@ -36,7 +37,7 @@ pub(crate) fn build_contract_call_facts(
                     contract_owner
                 };
 
-            let call_site = crate::semantic::calls::find_call_site(
+            let call_site = validation::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
@@ -45,7 +46,7 @@ pub(crate) fn build_contract_call_facts(
             );
             let contract_target = call_site
                 .as_ref()
-                .and_then(crate::semantic::calls::CallSite::static_requirement_dispatch)
+                .and_then(validation::CallSite::static_requirement_dispatch)
                 .map(|dispatch| (dispatch.declaring_trait, dispatch.requirement))
                 .unwrap_or(contract_owner);
             append_contract_call(
@@ -53,7 +54,7 @@ pub(crate) fn build_contract_call_facts(
                 &mut fact_refs,
                 &mut calls,
                 call_site.as_ref().is_some_and(|site| {
-                    !crate::semantic::calls::call_site_evidence_arguments(site).is_empty()
+                    !validation::call_site_evidence_arguments(site).is_empty()
                         || !crate::semantic::calls::call_parameter_domains(
                             program,
                             state.machine_symbol,
@@ -86,7 +87,7 @@ pub(crate) fn build_contract_call_facts(
                     is_state_transfer: target_machine_symbol == state.machine_symbol
                         && matches!(
                             call_site,
-                            Some(crate::semantic::calls::CallSite::TransitionNamed { .. })
+                            Some(validation::CallSite::TransitionNamed { .. })
                         ),
                 },
             );
@@ -314,13 +315,13 @@ pub(crate) fn contract_target_from_state_symbol(
 
     // Named calls may carry the machine symbol rather than its entry-state
     // symbol. Resolve both forms to the same exact invocation contract.
-    if let Some(machine) = crate::lookup::machine_by_symbol(program, target_state_symbol) {
+    if let Some(machine) = program.machine_by_symbol(target_state_symbol) {
         let entry = program.machine_states(machine).first()?;
         return Some((machine.symbol, entry.symbol));
     }
 
     if let Some((target_machine, _)) =
-        crate::semantic::calls::find_state_with_machine(program, target_state_symbol)
+        validation::find_state_with_machine(program, target_state_symbol)
     {
         return Some((target_machine.symbol, target_state_symbol));
     }

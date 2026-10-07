@@ -173,7 +173,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
     }
     for root in fact_roots {
         let mut subtree = Vec::new();
-        crate::monomorphization::collect_expression_tree(program, root, &mut subtree);
+        validation::expression_traversal::collect_expression_tree(program, root, &mut subtree);
         // The clause's authored exposure survives on any sibling occurrence in
         // the same fact subtree; a subtree authored without occurrences (a
         // bare uninterpreted atom alone) falls back to private custody.

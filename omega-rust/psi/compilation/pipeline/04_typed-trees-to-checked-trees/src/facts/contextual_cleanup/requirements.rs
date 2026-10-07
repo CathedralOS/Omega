@@ -8,6 +8,8 @@
 //! storage under the source type parameter can introduce a bound obligation.
 //! Its missing proposition must still denote the invocation's original value;
 //! writes and non-entry locals cannot be repaired by assuming a fact at exit.
+use validation::CanonicalPlace;
+
 use checked_trees::{
     CheckFacts, CheckedBooleanExpression, CheckedStructuralPredicatePathSegment,
     ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, FlowStateFact,
@@ -22,7 +24,7 @@ use crate::checks::contracts::{boolean_value_at_place, contextual_cleanup as cal
 use crate::execution::terminal_unit::cleanup::{
     checked_requires_expressions, direct_boolean_field_requirement,
 };
-use crate::flow::{CanonicalPlace, CleanupLeaf, selected_cleanup_leaves};
+use crate::flow::{CleanupLeaf, selected_cleanup_leaves};
 
 use super::super::boolean_predicates::{self, BoundPredicate, conjunction, entry_path_condition};
 use super::sequence::{CurrentCleanupFacts, bound_clause, ordered_hooks};
@@ -486,7 +488,7 @@ fn has_symbolic_origin(
             segments: path[..length].to_vec(),
         };
         if let Some(mut reference) =
-            crate::flow::canonical_place_type_reference(program, source_state, statement, &source)
+            validation::canonical_place_type_reference(program, source_state, statement, &source)
         {
             while let TypeReferenceNode::Constrained { base_type, .. } =
                 program.type_reference_table.type_reference(reference)
@@ -566,9 +568,7 @@ pub(super) fn occurrence_contexts(
                 checked_trees::FlowClaimJoinExitKind::FinalExpression => Default::default(),
                 checked_trees::FlowClaimJoinExitKind::TransitionTarget
                 | checked_trees::FlowClaimJoinExitKind::TransitionContinuation => {
-                    let Some(typed_state) =
-                        crate::semantic::calls::find_state(program, state.state_symbol)
-                    else {
+                    let Some(typed_state) = program.state_by_symbol(state.state_symbol) else {
                         return None;
                     };
                     let Some(typed_trees::statement::StatementNode::Transition(transition)) =

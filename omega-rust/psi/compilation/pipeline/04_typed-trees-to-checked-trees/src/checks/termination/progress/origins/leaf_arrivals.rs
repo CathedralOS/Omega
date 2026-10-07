@@ -1,8 +1,10 @@
 //! leaf arrivals slice of origins.
+use validation::CanonicalPlace;
+
 use super::reference_bounds::*;
 
 use super::FlowStateFact;
-use crate::flow::{self, CanonicalPlace};
+use crate::flow::{self};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -18,7 +20,7 @@ pub(super) fn statements_local_type(
     root: symbols::SymbolHandle,
     bound: usize,
 ) -> Option<TypeReferenceHandle> {
-    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let typed_state = program.state_by_symbol(state.state_symbol)?;
     program
         .state_local_declaration(typed_state, root)
         .filter(|&(ordinal, _)| ordinal < bound)
@@ -64,7 +66,7 @@ where
     Resolve:
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
-    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let typed_state = program.state_by_symbol(state.state_symbol)?;
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);
@@ -300,7 +302,7 @@ pub(super) fn leaf_candidate_arrival(
     index: usize,
     mut candidate: CanonicalPlace,
 ) -> Option<LeafArrival> {
-    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let typed_state = program.state_by_symbol(state.state_symbol)?;
     for _ in 0..REFERENCE_BOUNDARY_HOPS {
         let PlaceRoot::Symbol(root) = candidate.root else {
             return None;

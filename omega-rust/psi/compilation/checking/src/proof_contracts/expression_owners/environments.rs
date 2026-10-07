@@ -47,7 +47,7 @@ pub(super) fn contract_owner_environment(
 ) -> Option<TypeEnvironment> {
     match owner {
         ContractProofFactOwner::Machine { machine_symbol } => {
-            let machine = crate::call_targets::machine_by_symbol(program, machine_symbol)?;
+            let machine = program.machine_by_symbol(machine_symbol)?;
             let entry = program.machine_states(machine).first();
             Some(machine_environment(program, machine, entry))
         }
@@ -55,7 +55,7 @@ pub(super) fn contract_owner_environment(
             machine_symbol,
             state_symbol,
         } => {
-            let machine = crate::call_targets::machine_by_symbol(program, machine_symbol)?;
+            let machine = program.machine_by_symbol(machine_symbol)?;
             let state = program
                 .machine_states(machine)
                 .iter()
@@ -271,7 +271,7 @@ pub(super) fn collect_ranking_environments(
         {
             continue;
         }
-        let Some(machine) = crate::call_targets::machine_by_symbol(program, custody.machine) else {
+        let Some(machine) = program.machine_by_symbol(custody.machine) else {
             continue;
         };
         environments.push(machine_environment(

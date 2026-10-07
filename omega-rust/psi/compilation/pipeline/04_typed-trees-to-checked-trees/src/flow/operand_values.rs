@@ -18,7 +18,7 @@ pub(super) fn operand_child_type(
 ) -> Option<TypeReferenceHandle> {
     parent
         .is_valid()
-        .then(|| super::project_type_reference_from_segments(program, parent, destination))
+        .then(|| validation::project_type_reference_from_segments(program, parent, destination))
         .flatten()
         .or_else(|| declared.is_valid().then_some(declared))
 }
@@ -101,7 +101,7 @@ fn reaching_store_values<'capture>(
     {
         return None;
     }
-    let mut source = super::canonical_place_from_expression_in_state(
+    let mut source = validation::canonical_place_from_expression_in_state(
         program,
         operand.state_symbol,
         operand.statement_index,

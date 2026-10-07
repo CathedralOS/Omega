@@ -3,10 +3,12 @@
 //! needs no provenance, and a write through a reference local keeps each
 //! candidate's membership exactly when it held before the write.
 
+use validation::CanonicalPlace;
+
 use super::{
-    CanonicalPlace, ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan,
-    FlowBuildContext, FlowSemanticContextRef, HandleSpan, PlaceHandle, ProgramPoint,
-    QualificationEvidence, StatementNode, SymbolHandle,
+    ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FlowBuildContext,
+    FlowSemanticContextRef, HandleSpan, PlaceHandle, ProgramPoint, QualificationEvidence,
+    StatementNode, SymbolHandle,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -39,12 +41,8 @@ pub(super) fn establish(
     let declared_target_domains = match statement {
         StatementNode::Assignment(assignment) => {
             match (
-                crate::lookup::machine_by_symbol(program, machine_symbol),
-                crate::semantic::calls::find_state_in_machine(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                ),
+                program.machine_by_symbol(machine_symbol),
+                validation::find_state_in_machine(program, machine_symbol, state_symbol),
             ) {
                 (Some(machine), Some(state)) => {
                     crate::facts::field_domain::assignment_target_domain_identities(

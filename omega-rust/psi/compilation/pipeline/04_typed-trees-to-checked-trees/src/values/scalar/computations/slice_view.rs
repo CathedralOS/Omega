@@ -50,7 +50,7 @@ impl Builder<'_, '_> {
             && self
                 .call_ordinal(
                     expression,
-                    crate::flow::call_target_symbol(self.program, call),
+                    validation::call_target_symbol(self.program, call),
                 )
                 .is_some()
         {
@@ -70,10 +70,10 @@ impl Builder<'_, '_> {
                     .then(|| validation::slice_view_shell(self.program, expected, &[]))
                     .flatten()
                 })?;
-        let state = crate::semantic::calls::find_state(self.program, self.state)?;
+        let state = self.program.state_by_symbol(self.state)?;
         let (mut place, access) = self.view_formation(expression, expected, view.access)?;
 
-        let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+        let machine = self.program.machine_by_symbol(self.machine)?;
         let authored_recast = validation::slice_recast_source(self.program, expression);
         let recast = validation::slice_recast_byte_region(self.program, machine, state, expression);
         if let Some(authored) = authored_recast {
@@ -85,7 +85,7 @@ impl Builder<'_, '_> {
             }
             if recast.is_none() {
                 let collection =
-                    crate::flow::canonical_place_from_expression(self.program, authored.source)?;
+                    validation::canonical_place_from_expression(self.program, authored.source)?;
 
                 if collection != place {
                     return None;
@@ -100,7 +100,7 @@ impl Builder<'_, '_> {
                 return None;
             }
             let collection =
-                crate::flow::canonical_place_from_expression(self.program, region.collection)?;
+                validation::canonical_place_from_expression(self.program, region.collection)?;
 
             // Literal suffixes have an exact range loan. A runtime suffix
             // borrows the whole byte backing conservatively; its captured
@@ -239,8 +239,8 @@ impl Builder<'_, '_> {
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
         use crate::execution::terminal_unit::{calls, types::ShapeCollector};
-        let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
-        let state = crate::semantic::calls::find_state(self.program, self.state)?;
+        let machine = self.program.machine_by_symbol(self.machine)?;
+        let state = self.program.state_by_symbol(self.state)?;
         let parameters = if machine.attached_data.is_some() {
             calls::ambient_self_scalar_graph_signature(self.program, machine, state)?.0
         } else {

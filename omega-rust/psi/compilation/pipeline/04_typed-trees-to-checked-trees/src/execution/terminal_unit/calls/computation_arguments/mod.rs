@@ -55,7 +55,7 @@ pub(crate) fn structural_computation_argument(
         }
         _ => return None,
     };
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         call.statement_index,
@@ -196,7 +196,7 @@ pub(crate) fn subslice_computation_argument(
         .machines()
         .iter()
         .find(|owner| owner.symbol == machine)?;
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         call.statement_index,
@@ -264,10 +264,9 @@ fn exact_actual(
     expression: typed_trees::expression::ExpressionHandle,
     target: &StateParameter,
 ) -> Option<()> {
-    let target_position =
-        crate::semantic::calls::call_target_parameters(program, call.target_symbol)?
-            .iter()
-            .position(|parameter| parameter == target)?;
+    let target_position = validation::call_target_parameters(program, call.target_symbol)?
+        .iter()
+        .position(|parameter| parameter == target)?;
     let ExpressionNode::Call(authored) = program
         .expression_table
         .expression(call.authored_expression)
@@ -294,7 +293,7 @@ pub(crate) fn borrowed_storage_argument(
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     target: &StateParameter,
     selectors: Option<
         &dyn Fn(
@@ -596,7 +595,7 @@ pub(in crate::execution) fn borrowed_view_argument(
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     target: &StateParameter,
     selectors: Option<
         &dyn Fn(
@@ -821,7 +820,7 @@ fn rejoin_computation_accesses(
 ) -> Option<()> {
     if !matches!(
         crate::borrow::accesses::rejoin_call_accesses(program, borrow, machine, state, source,)?,
-        crate::semantic::calls::CallSite::Expression { .. }
+        validation::CallSite::Expression { .. }
     ) {
         return None;
     }
@@ -876,7 +875,7 @@ pub(super) fn primitive_local_argument(
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     target_type: TypeReferenceHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let facts::PlaceRoot::Symbol(symbol) = place.root else {

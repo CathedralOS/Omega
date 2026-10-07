@@ -1,13 +1,14 @@
-use crate::flow::CanonicalPlace;
-use crate::flow::canonical_place_from_expression;
-use crate::flow::canonical_place_from_expression_in_state;
+use validation::CallSite;
+use validation::CanonicalPlace;
+use validation::call_site_argument_expressions;
+use validation::canonical_place_from_expression;
+use validation::canonical_place_from_expression_in_state;
+use validation::find_call_site;
+use validation::find_state_in_machine;
+
 use crate::flow::canonical_place_from_symbol;
 use crate::proof::contract_target_from_state_symbol;
-use crate::semantic::calls::CallSite;
-use crate::semantic::calls::call_site_argument_expressions;
-use crate::semantic::calls::find_call_site;
-use crate::semantic::calls::find_state;
-use crate::semantic::calls::find_state_in_machine;
+
 use checked_trees::{BorrowCallFact, BorrowFacts};
 use symbols::SymbolHandle;
 
@@ -86,7 +87,7 @@ fn receiver_place_for_call_site(
 ) -> Option<CanonicalPlace> {
     match call_site {
         CallSite::Statement(statement) => {
-            let state = find_state(program, caller_state_symbol)?;
+            let state = program.state_by_symbol(caller_state_symbol)?;
             let statements = program.statement_table.statements(state.statement_nodes);
             // The projected-receiver scope boundary is the occurrence's
             // recorded statement coordinate, not the address the row occupies
@@ -98,7 +99,7 @@ fn receiver_place_for_call_site(
             if let Some(typed_trees::statement::StatementNode::Call(candidate)) =
                 statements.get(statement_index)
                 && *candidate == **statement
-                && let Some((root, segments)) = crate::lookup::projected_statement_receiver_place(
+                && let Some((root, segments)) = validation::projected_statement_receiver_place(
                     program,
                     state,
                     statement_index,
@@ -148,7 +149,7 @@ pub(in crate::flow) fn local_jump_data_argument(
     if path.members.count() != 1 {
         return None;
     }
-    let machine = crate::lookup::machine_by_symbol(program, caller_machine_symbol)?;
+    let machine = program.machine_by_symbol(caller_machine_symbol)?;
     let target = find_state_in_machine(program, caller_machine_symbol, path.head_symbol)?;
     let parameters = program.state_parameters(target);
     let subject = program.data_binding_parameter(machine, parameters)?;

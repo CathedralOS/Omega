@@ -79,7 +79,7 @@ pub(in crate::execution) fn build_call_operation(
         trace.statement(Some(coordinate.statement_index));
     };
     phase("call operation: call site");
-    let call_site = crate::semantic::calls::find_call_site(
+    let call_site = validation::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -87,7 +87,7 @@ pub(in crate::execution) fn build_call_operation(
         call.call_ordinal,
     )?;
     let source_site = match &call_site {
-        crate::semantic::calls::CallSite::Statement(_) => {
+        validation::CallSite::Statement(_) => {
             let offset = u32::try_from(call.statement_index).ok()?;
             Some(checked_trees::NominalMachineUseSite::Statement(
                 arena::Handle::from_parts(
@@ -100,10 +100,10 @@ pub(in crate::execution) fn build_call_operation(
                 ),
             ))
         }
-        crate::semantic::calls::CallSite::Expression { expression, .. } => Some(
+        validation::CallSite::Expression { expression, .. } => Some(
             checked_trees::NominalMachineUseSite::Expression(*expression),
         ),
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => None,
+        validation::CallSite::TransitionNamed { .. } => None,
     };
 
     if program
@@ -111,7 +111,7 @@ pub(in crate::execution) fn build_call_operation(
         .builtin_function_symbol(BuiltinFunction::AsmPortOut)
         == Some(call.target_symbol)
     {
-        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
+        let arguments = validation::call_site_argument_expressions(program, &call_site);
         let [port, value] = arguments else {
             return None;
         };
@@ -224,10 +224,8 @@ pub(in crate::execution) fn build_call_operation(
     // machine invokes its entry; an explicitly selected state keeps its own
     // signature. Resolve that executable pair without rewriting the flow
     // occurrence, which still authenticates the authored call and operands.
-    let (target_machine, target_state) =
-        crate::semantic::calls::find_machine_head(program, call.target_symbol).or_else(|| {
-            crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
-        })?;
+    let (target_machine, target_state) = validation::find_machine_head(program, call.target_symbol)
+        .or_else(|| validation::find_state_with_machine(program, call.target_symbol))?;
     phase("call operation: target contract");
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     let call_target = CheckedUnitCallTarget {

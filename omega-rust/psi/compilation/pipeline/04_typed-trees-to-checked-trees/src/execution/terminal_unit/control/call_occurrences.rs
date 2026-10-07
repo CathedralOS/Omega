@@ -66,8 +66,7 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     else {
         return None;
     };
-    let (_, return_type) =
-        crate::semantic::calls::terminal_callable_target(program, machine, path.symbol)?;
+    let (_, return_type) = validation::terminal_callable_target(program, machine, path.symbol)?;
     (program.normalized_type_identity(return_type)
         == program.normalized_type_identity(state.return_type))
     .then_some(path.symbol)
@@ -159,9 +158,9 @@ pub(super) fn ordered_statement_call<'program>(
                 .statement_table
                 .statements(state.statement_nodes)
                 .len()
-            || program.normalized_type_identity(crate::flow::call_target_return_type(
+            || program.normalized_type_identity(validation::call_target_return_type(
                 program,
-                crate::flow::call_target_symbol(program, call),
+                validation::call_target_symbol(program, call),
             )?) != program.normalized_type_identity(state.return_type)
             || checked_structural_result_type(
                 program,

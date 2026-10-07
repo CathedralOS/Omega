@@ -1,7 +1,10 @@
 //! One call's flow fact. `build_call_flow_fact` joins the call into the callee's
 //! incoming values, builds entry, requires, invalidation, and exit contexts
 //! (`call_phases`), adds carry and domain facts to the exit, then appends boundary
-//! edges. The functions after it answer callee return-type and qualification queries.
+//! edges. The functions after it answer flow qualifications; exact callable types
+//! are owned by validation.
+use validation::call_target_return_type;
+
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_call_boundary_edges;
@@ -202,7 +205,7 @@ pub(super) fn memoized_call_target_parameters<'plans>(
     *build
         .call_target_parameters
         .entry(target)
-        .or_insert_with(|| crate::semantic::calls::call_target_parameters(program, target))
+        .or_insert_with(|| validation::call_target_parameters(program, target))
 }
 
 pub(super) fn memoized_find_call_site<'plans>(
@@ -212,12 +215,12 @@ pub(super) fn memoized_find_call_site<'plans>(
     state_symbol: SymbolHandle,
     statement_index: usize,
     call_ordinal: usize,
-) -> Option<crate::semantic::calls::CallSite<'plans>> {
+) -> Option<validation::CallSite<'plans>> {
     *build
         .call_sites
         .entry((machine_symbol, state_symbol, statement_index, call_ordinal))
         .or_insert_with(|| {
-            crate::semantic::calls::find_call_site(
+            validation::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
@@ -247,16 +250,14 @@ fn append_one_to_one_call_carry_facts<'plans>(
     {
         return;
     }
-    let Some(crate::semantic::calls::CallSite::Expression { expression, call }) =
-        memoized_find_call_site(
-            program,
-            build,
-            machine.symbol,
-            state.symbol,
-            borrow_call.statement_index,
-            borrow_call.call_ordinal,
-        )
-    else {
+    let Some(validation::CallSite::Expression { expression, call }) = memoized_find_call_site(
+        program,
+        build,
+        machine.symbol,
+        state.symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    ) else {
         return;
     };
 
@@ -421,16 +422,14 @@ fn append_call_result_field_domain_facts<'plans>(
     if paths.is_empty() {
         return;
     }
-    let Some(crate::semantic::calls::CallSite::Expression { expression, .. }) =
-        memoized_find_call_site(
-            program,
-            build,
-            machine.symbol,
-            state.symbol,
-            borrow_call.statement_index,
-            borrow_call.call_ordinal,
-        )
-    else {
+    let Some(validation::CallSite::Expression { expression, .. }) = memoized_find_call_site(
+        program,
+        build,
+        machine.symbol,
+        state.symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    ) else {
         return;
     };
     let point = ProgramPoint::CallEnsures {
@@ -524,7 +523,7 @@ fn append_call_parameter_domain_facts<'plans>(
     ) else {
         return;
     };
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let arguments = validation::call_site_argument_expressions(program, &site);
     let point = ProgramPoint::CallEnsures {
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
@@ -559,7 +558,7 @@ fn append_call_parameter_domain_facts<'plans>(
         let Some(&argument) = arguments.get(*position) else {
             continue;
         };
-        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        let Some(place) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             borrow_call.statement_index,
@@ -598,94 +597,6 @@ fn append_call_parameter_domain_facts<'plans>(
             FlowConstraintKind::SemanticContext { context },
         );
     }
-}
-
-/// The callee identity a typed call's flow occurrence keys on. A named
-/// `Namespace::requirement(...)` call keeps its authored receiver path and an
-/// invalid `target_symbol`; borrow discovery and flow rekey the occurrence by
-/// the selected boundary declaration's symbol (`resolve_named_expression_call`
-/// returns the same declaration a spelled call would target). Any consumer
-/// that compares or dispatches on the occurrence's `target_symbol` must
-/// resolve the same identity — the raw leaf loses every named boundary call
-/// to an empty match. A call this cannot name keeps its authored leaf and
-/// fails closed at whichever consumer reads it.
-pub(crate) fn call_target_symbol(
-    program: &dyn ::validation::CheckingInput,
-    call: &typed_trees::expression::TableCallExpression,
-) -> SymbolHandle {
-    typed_trees::operator::selected_boundary_operator(program, call)
-        .map_or(call.target_symbol, |operator| operator.symbol)
-}
-
-pub(crate) fn call_target_return_type(
-    program: &dyn ::validation::CheckingInput,
-    target_state_symbol: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    if let Some(state) = crate::semantic::calls::find_state(program, target_state_symbol) {
-        return Some(state.return_type);
-    }
-    if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {
-        return Some(slot.return_type);
-    }
-    if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
-        return Some(signature.return_type);
-    }
-    // Requirement calls retain the operator declaration, not a selected
-    // provider body. Its result type belongs to Psi even before realization.
-    if let Some(operator) =
-        typed_trees::operator::declaration_by_symbol(program, target_state_symbol)
-    {
-        return Some(operator.return_type);
-    }
-    if let Some(reference) = asm_intrinsic_result_type(program, target_state_symbol) {
-        return Some(reference);
-    }
-    program.traits().iter().find_map(|trait_definition| {
-        program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == target_state_symbol)
-            .map(|signature| signature.return_type)
-    })
-}
-
-/// The asm-block value intrinsics (`in`, `rdmsr`, `pushfq`, `read_crN`,
-/// `read_<sysreg>`) carry
-/// fixed result types declared by the instruction contract rather than an
-/// authored signature: their desugared calls target compiler builtin symbols,
-/// which own no state, machine-parameter, or trait row to rejoin above. The
-/// atom lookup keeps this a read over seeded symbols — a package cannot supply
-/// a substitute signature for an unnameable intrinsic.
-fn asm_intrinsic_result_type(
-    program: &dyn ::validation::CheckingInput,
-    target: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let atom = match program.symbols.builtin_function_for_symbol(target)? {
-        symbols::BuiltinFunction::AsmPortIn => symbols::BuiltinTypeAtom::U8,
-        symbols::BuiltinFunction::AsmSnapshotFlags
-        | symbols::BuiltinFunction::AsmReadMsr
-        | symbols::BuiltinFunction::AsmReadCr0
-        | symbols::BuiltinFunction::AsmReadCr2
-        | symbols::BuiltinFunction::AsmReadCr3
-        | symbols::BuiltinFunction::AsmReadCr4
-        | symbols::BuiltinFunction::AsmReadSctlrEl1
-        | symbols::BuiltinFunction::AsmReadTcrEl1
-        | symbols::BuiltinFunction::AsmReadTtbr0El1
-        | symbols::BuiltinFunction::AsmReadTtbr1El1
-        | symbols::BuiltinFunction::AsmReadMairEl1
-        | symbols::BuiltinFunction::AsmReadVbarEl1
-        | symbols::BuiltinFunction::AsmReadTpidrEl1
-        | symbols::BuiltinFunction::AsmReadEsrEl1
-        | symbols::BuiltinFunction::AsmReadFarEl1 => symbols::BuiltinTypeAtom::U64,
-        _ => return None,
-    };
-    let symbol = program
-        .symbols
-        .child_handles(program.symbols.root())?
-        .find(|candidate| program.symbols.builtin_type_atom(*candidate) == Some(atom))?;
-    program
-        .type_reference_table
-        .find_named_type_reference(symbol)
 }
 
 /// The signature contracts a callable's ensures/requires clauses live on: its
@@ -759,7 +670,7 @@ pub(crate) fn call_result_qualification_identities(
     let Some(return_type) = call_target_return_type(program, target) else {
         return Vec::new();
     };
-    let parameters = crate::semantic::calls::call_target_parameters(program, target);
+    let parameters = validation::call_target_parameters(program, target);
     let contracts = collect_callable_contracts(program, target);
     result_identity_rows(program, return_type, parameters, &contracts)
 }
@@ -914,7 +825,7 @@ pub(crate) fn call_parameter_qualification_identities(
     language_semantics::SemanticDomainId,
     bool,
 )> {
-    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target) else {
+    let Some(parameters) = validation::call_target_parameters(program, target) else {
         return Vec::new();
     };
     let contracts = collect_callable_contracts(program, target);

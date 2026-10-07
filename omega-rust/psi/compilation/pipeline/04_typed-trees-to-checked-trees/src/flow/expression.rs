@@ -9,14 +9,17 @@
 //! remain tied to the existing live contexts, never a second operand evaluation.
 //! Stores bind their destination carrier before evaluating children and retain
 //! that completed tree; later transfers must not reconstruct it from syntax.
-use crate::flow::CanonicalPlace;
+
+use validation::CallSite;
+use validation::CanonicalPlace;
+
 use crate::flow::FlowBuildContext;
 use crate::flow::build_call_flow_fact;
 use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::reference_spans;
-use crate::semantic::calls::CallSite;
+
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
@@ -113,7 +116,7 @@ pub(super) fn append_statement_calls<'plans>(
     let mut stored_value = Handle::invalid();
     match statement {
         StatementNode::Assignment(assignment) => {
-            let destination = super::expression_type_reference_in_state(
+            let destination = validation::expression_type_reference_in_state(
                 program,
                 state.symbol,
                 statement_index,
@@ -212,7 +215,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         call: source,
                     }) => {
                         let (receiver, path) =
-                            crate::lookup::call_receiver_parts(program, source.receiver);
+                            validation::call_receiver_parts(program, source.receiver);
                         // Borrow discovery keys a named boundary operator by
                         // its declaration symbol even when the typed call
                         // retains no target. Rejoin with that same identity;
@@ -220,7 +223,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         let boundary_operator =
                             typed_trees::operator::resolve_named_expression_call(program, source)
                                 .filter(|operator| operator.is_boundary);
-                        let target = crate::lookup::resolve_state_call_target(
+                        let target = validation::resolve_state_call_target(
                             program,
                             machine,
                             state,
@@ -498,10 +501,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .iter()
             .find(|invocation| !invocation.visited && invocation.site == site)
             .and_then(|invocation| {
-                crate::semantic::calls::call_target_parameters(
-                    self.program,
-                    invocation.call.target_symbol,
-                )
+                validation::call_target_parameters(self.program, invocation.call.target_symbol)
             })
             .and_then(|parameters| parameters.get(position))
             .map_or_else(TypeReferenceHandle::invalid, |parameter| {
@@ -527,9 +527,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .context
             .expression_result_type_at(self.program, self.machine, self.state, parent)
             .and_then(|reference| {
-                super::project_type_reference_from_segments(self.program, reference, path)
+                validation::project_type_reference_from_segments(self.program, reference, path)
             })
-            .or_else(|| super::expression_place_type_reference(self.program, parent, path))
+            .or_else(|| validation::expression_place_type_reference(self.program, parent, path))
             .unwrap_or_default();
         super::operand_values::operand_child_type(self.program, destination, path, declared)
             .unwrap_or_default()

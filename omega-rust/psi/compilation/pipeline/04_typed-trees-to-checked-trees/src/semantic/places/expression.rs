@@ -1,4 +1,5 @@
-use crate::flow::effective_member_symbol;
+use validation::effective_member_symbol;
+
 use checked_trees::ContractCallFact;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use facts::FactPlan;
@@ -61,7 +62,7 @@ fn instantiate_contract_expression_place(
             expression,
         )
     {
-        let mut place = crate::flow::canonical_place_from_expression_in_state(
+        let mut place = validation::canonical_place_from_expression_in_state(
             program,
             call.caller_state_symbol,
             call.statement_index,
@@ -124,7 +125,7 @@ fn instantiate_contract_expression_place(
                 result,
                 indexed.collection,
             )?;
-            let segment = crate::flow::index_place_segment(program, indexed.index);
+            let segment = validation::index_place_segment(program, indexed.index);
             Some(super::append_place_segment(facts, receiver, segment))
         }
         _ => None,
@@ -139,7 +140,7 @@ pub(crate) fn call_contract_argument_projection(
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
-    let formal = crate::flow::canonical_place_from_expression(program, expression)?;
+    let formal = validation::canonical_place_from_expression(program, expression)?;
     let facts::PlaceRoot::Symbol(symbol) = formal.root else {
         return None;
     };

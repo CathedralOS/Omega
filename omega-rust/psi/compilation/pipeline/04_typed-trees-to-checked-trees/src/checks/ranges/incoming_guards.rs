@@ -28,7 +28,7 @@ pub(in crate::checks) struct IncomingGuard {
     /// places at the state where `guard` was evaluated. A non-place argument
     /// makes only its own binding unknown. A single-predecessor walk composes
     /// this map through every named edge; ambiguous joins discard it.
-    parameter_argument_places: Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>>,
+    parameter_argument_places: Option<Vec<(SymbolHandle, Option<validation::CanonicalPlace>)>>,
     /// Separate from place identity: every transported binding must be an
     /// immutable owned integer at every hop. Zero symbols are unknown values.
     immutable_argument_symbols: Option<ImmutableArgumentSymbols>,
@@ -155,7 +155,7 @@ impl IncomingGuard {
     pub(in crate::checks) fn argument_place_for_parameter(
         &self,
         parameter: SymbolHandle,
-    ) -> Option<&crate::flow::CanonicalPlace> {
+    ) -> Option<&validation::CanonicalPlace> {
         self.parameter_argument_places
             .as_ref()?
             .iter()
@@ -185,7 +185,7 @@ struct CarriedGuard {
     evaluation_state: SymbolHandle,
     guard: ExpressionHandle,
     negated: bool,
-    parameter_argument_places: Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>>,
+    parameter_argument_places: Option<Vec<(SymbolHandle, Option<validation::CanonicalPlace>)>>,
     immutable_argument_symbols: Option<ImmutableArgumentSymbols>,
 }
 
@@ -546,9 +546,9 @@ fn compose_parameter_argument_places(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     arguments: arena::HandleSpan<ExpressionHandle>,
-    bindings: &[(SymbolHandle, Option<crate::flow::CanonicalPlace>)],
-) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
-    let target_state = crate::semantic::calls::find_state(program, target)?;
+    bindings: &[(SymbolHandle, Option<validation::CanonicalPlace>)],
+) -> Option<Vec<(SymbolHandle, Option<validation::CanonicalPlace>)>> {
+    let target_state = program.state_by_symbol(target)?;
     let arguments = program.statement_table.expression_handles(arguments);
     let mut replacements = Vec::new();
     let mut argument_index = 0usize;
@@ -579,8 +579,8 @@ fn compose_parameter_argument_places(
 fn direct_edge_parameter_argument_places(
     program: &dyn ::validation::CheckingInput,
     edge: &Edge,
-) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
-    let target_state = crate::semantic::calls::find_state(program, edge.target)?;
+) -> Option<Vec<(SymbolHandle, Option<validation::CanonicalPlace>)>> {
+    let target_state = program.state_by_symbol(edge.target)?;
     let identity = program
         .state_parameters(target_state)
         .iter()
@@ -603,9 +603,9 @@ fn compose_carried_parameter_argument_places(
     program: &dyn ::validation::CheckingInput,
     edge: &Edge,
     fact: &IncomingGuard,
-) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
+) -> Option<Vec<(SymbolHandle, Option<validation::CanonicalPlace>)>> {
     let direct = direct_edge_parameter_argument_places(program, edge)?;
-    let source_state = crate::semantic::calls::find_state(program, edge.source)?;
+    let source_state = program.state_by_symbol(edge.source)?;
     let replacements = program
         .state_parameters(source_state)
         .iter()
@@ -656,7 +656,7 @@ fn direct_edge_immutable_argument_symbols(
     edge: &Edge,
     bound_lookup: &validation::ImmutableBoundLookup<'_>,
 ) -> Option<ImmutableArgumentSymbols> {
-    let target = crate::semantic::calls::find_state(program, edge.target)?;
+    let target = program.state_by_symbol(edge.target)?;
     let mut bindings = immutable_parameter_symbols(program, target);
     let arguments = match edge.arguments {
         EdgeArguments::Unknown => return None,
@@ -665,7 +665,7 @@ fn direct_edge_immutable_argument_symbols(
     if arguments.len() != bindings.len() {
         return None;
     }
-    let source = crate::semantic::calls::find_state(program, edge.source)?;
+    let source = program.state_by_symbol(edge.source)?;
     for ((_, symbol), argument) in bindings.iter_mut().zip(arguments) {
         if symbol.is_valid() {
             *symbol = immutable_argument_symbol(program, source, *argument, bound_lookup)
@@ -794,9 +794,9 @@ fn immutable_integer_binding(
 }
 
 fn substitute_parameter_place(
-    place: &crate::flow::CanonicalPlace,
-    replacements: &[(SymbolHandle, Option<crate::flow::CanonicalPlace>)],
-) -> Option<crate::flow::CanonicalPlace> {
+    place: &validation::CanonicalPlace,
+    replacements: &[(SymbolHandle, Option<validation::CanonicalPlace>)],
+) -> Option<validation::CanonicalPlace> {
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
@@ -1020,8 +1020,7 @@ pub(super) fn seed_incoming_guard_facts(
             }
             continue;
         }
-        let Some(evaluation) = crate::semantic::calls::find_state(program, entry.evaluation_state)
-        else {
+        let Some(evaluation) = program.state_by_symbol(entry.evaluation_state) else {
             continue;
         };
         let parameter_roots = program
@@ -1084,7 +1083,7 @@ fn stable_scope_conjuncts(
     machine: &Machine,
     state: &State,
     evaluation_state: SymbolHandle,
-    parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
+    parameter_argument_places: Option<&[(SymbolHandle, Option<validation::CanonicalPlace>)]>,
     guard: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
     qualifying_guard_conjuncts(program, guard, &|expression| {
@@ -1152,11 +1151,11 @@ fn expression_in_stable_scope(
     machine: &Machine,
     state: &State,
     evaluation_state: SymbolHandle,
-    parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
+    parameter_argument_places: Option<&[(SymbolHandle, Option<validation::CanonicalPlace>)]>,
     expression: ExpressionHandle,
 ) -> bool {
     expression_tail_eligible(program, expression, &|expression| {
-        crate::flow::canonical_place_from_expression(program, expression).is_some_and(|place| {
+        validation::canonical_place_from_expression(program, expression).is_some_and(|place| {
             match place.root {
                 facts::PlaceRoot::Symbol(symbol) if symbol == machine.symbol => true,
                 facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() => {
@@ -1183,13 +1182,13 @@ fn parameter_bound_identically(
     program: &dyn ::validation::CheckingInput,
     evaluation_state: SymbolHandle,
     state: &State,
-    parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
+    parameter_argument_places: Option<&[(SymbolHandle, Option<validation::CanonicalPlace>)]>,
     source: SymbolHandle,
 ) -> bool {
     let Some(parameter_argument_places) = parameter_argument_places else {
         return false;
     };
-    let Some(evaluation) = crate::semantic::calls::find_state(program, evaluation_state) else {
+    let Some(evaluation) = program.state_by_symbol(evaluation_state) else {
         return false;
     };
     let Some(source_parameter) = program
@@ -1231,7 +1230,7 @@ fn guard_uses_machine_storage_only(
     expression: ExpressionHandle,
 ) -> bool {
     expression_tail_eligible(program, expression, &|expression| {
-        crate::flow::canonical_place_from_expression(program, expression)
+        validation::canonical_place_from_expression(program, expression)
             .is_some_and(|place| (place.root) == facts::PlaceRoot::Symbol(machine.symbol))
     })
 }

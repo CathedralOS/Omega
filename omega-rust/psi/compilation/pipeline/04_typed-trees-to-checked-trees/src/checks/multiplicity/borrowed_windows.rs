@@ -27,7 +27,8 @@
 //! distinguishes those cases without reclassifying ownership from syntax.
 //! A repair store runs only after its value and destination selectors finish.
 
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+
 use language_core::ReferenceAccess;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
@@ -139,7 +140,7 @@ fn exclusive_storage_chain(
             root,
             segments: path[..length].to_vec(),
         };
-        crate::flow::canonical_place_type_reference(program, state.symbol, statement_index, &prefix)
+        validation::canonical_place_type_reference(program, state.symbol, statement_index, &prefix)
             .and_then(|type_reference| reference_access(program, type_reference))
             .is_none_or(|access| access == ReferenceAccess::Mutable)
     })

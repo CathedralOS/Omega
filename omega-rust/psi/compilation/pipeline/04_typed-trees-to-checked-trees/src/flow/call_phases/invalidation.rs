@@ -1,4 +1,5 @@
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+
 use crate::flow::FlowBuildContext;
 use crate::flow::appended_span_since;
 use crate::flow::call_mutated_places;

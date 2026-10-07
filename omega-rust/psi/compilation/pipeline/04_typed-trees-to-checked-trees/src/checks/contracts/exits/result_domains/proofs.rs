@@ -1,8 +1,10 @@
 //! proofs slice of result_domains.
 
+use validation::canonical_place_from_expression_in_state;
+
 use super::super::super::return_values::exit_return_expression;
 use super::{domain_predicate_meaning, exact_integer_reference};
-use crate::flow::{canonical_place_from_expression_in_state, canonical_place_from_semantic_place};
+use crate::flow::canonical_place_from_semantic_place;
 use checked_trees::{CheckFacts, FlowExitFact};
 use facts::{FactContextHandle, FactOrigin, FactPayload, FactPlace, PlaceRoot};
 use typed_trees::types::TypeReferenceNode;
@@ -28,11 +30,9 @@ pub(super) fn establishes_scalar_predicates(
     else {
         return false;
     };
-    let Some(state) = crate::semantic::calls::find_state_in_machine(
-        program,
-        exit.machine_symbol,
-        exit.state_symbol,
-    ) else {
+    let Some(state) =
+        validation::find_state_in_machine(program, exit.machine_symbol, exit.state_symbol)
+    else {
         return false;
     };
     let proof = ScalarReturnProof {

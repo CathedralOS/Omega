@@ -73,7 +73,7 @@ fn build_state_plan(
                     if crate::checks::termination::named_transition_target_state_index(
                         program, machine, path.symbol,
                     ).is_some()
-                        || crate::semantic::calls::find_machine_by_entry_state(
+                        || validation::find_machine_by_entry_state(
                             program,
                             path.symbol,
                         )
@@ -117,8 +117,7 @@ fn build_state_plan(
             path.symbol,
         ) {
             Some(target_index) => &program.machine_states(machine)[target_index],
-            None => match crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)
-            {
+            None => match validation::find_machine_by_entry_state(program, path.symbol) {
                 Some((_, entry)) => entry,
                 None => continue,
             },
@@ -287,7 +286,7 @@ fn projected_read_retains_parent(
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == root)?;
-    let payload = crate::flow::project_type_reference_from_segments(
+    let payload = validation::project_type_reference_from_segments(
         program,
         parameter.type_reference,
         segments,
@@ -318,7 +317,7 @@ fn projected_read_retains_parent(
         return None;
     };
     let (subject, selected_case) = crate::proof::exact_outcome_case_test(program, guard)?;
-    let subject = crate::flow::contextual_canonical_place_from_expression(
+    let subject = validation::contextual_canonical_place_from_expression(
         program,
         state.symbol,
         statement_index,

@@ -12,12 +12,12 @@
 //! expression statements, and root bindings — stop the transport entirely
 //! rather than guess at what they may have written.
 
+use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+
 use facts::{FactPayload, PlaceRoot};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
-use crate::flow::{
-    CanonicalPlace, canonical_place_from_expression_in_state, statement_mutated_place,
-};
+use crate::flow::statement_mutated_place;
 
 use super::ExitScalars;
 
@@ -46,7 +46,7 @@ impl ExitScalars<'_, '_> {
     /// `place_side` is the goal operand naming the written place; `goal` is
     /// the operand it must equal at the exit.
     fn write_transport_proves(&self, place_side: ExpressionHandle, goal: ExpressionHandle) -> bool {
-        let Some(state) = crate::semantic::calls::find_state_in_machine(
+        let Some(state) = validation::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -269,7 +269,11 @@ impl ExitScalars<'_, '_> {
         write_index: usize,
     ) -> bool {
         let mut nodes = Vec::new();
-        crate::monomorphization::collect_expression_tree(self.program, substitution, &mut nodes);
+        validation::expression_traversal::collect_expression_tree(
+            self.program,
+            substitution,
+            &mut nodes,
+        );
         nodes.iter().all(|node| {
             let Some(leaf) = canonical_place_from_expression_in_state(
                 self.program,
@@ -393,7 +397,7 @@ fn transport_expression_is_pure(
     expression: ExpressionHandle,
 ) -> bool {
     let mut nodes = Vec::new();
-    crate::monomorphization::collect_expression_tree(program, expression, &mut nodes);
+    validation::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
     program.expression_table.expression_is_valid(expression)
         && nodes.iter().all(|node| {
             !matches!(

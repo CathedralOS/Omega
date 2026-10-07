@@ -2,11 +2,10 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use typed_trees::statement::{AssemblyFactKind, StatementNode};
+use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
 
 use super::prover::semantic_contexts_prove_boolean_expression;
-use crate::flow::{
-    CanonicalPlace, canonical_place_from_expression_in_state, canonical_place_segments_may_overlap,
-};
+use crate::flow::canonical_place_segments_may_overlap;
 use crate::labels::machine_name;
 
 /// Discharge each first-class `asm where requires`/`ensures` assertion at its
@@ -30,7 +29,7 @@ fn check_state_assembly_facts(
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return;
     };
     let Some(state) = program

@@ -14,19 +14,19 @@ fn selected_transition_call<'program>(
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
 ) -> Option<(
-    crate::semantic::calls::CallSite<'program>,
+    validation::CallSite<'program>,
     &'program typed_trees::machine::Machine,
     &'program typed_trees::state::State,
     typed_trees::expression::ExpressionHandle,
 )> {
-    let call_site = crate::semantic::calls::find_call_site(
+    let call_site = validation::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
         call_flow.statement_index,
         call_flow.call_ordinal,
     )?;
-    let machine = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)?;
+    let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
     let caller_state = program
         .machine_states(machine)
         .iter()
@@ -48,14 +48,14 @@ fn selected_transition_call<'program>(
     // inside the target expression, or on the continuation arm -- which holds
     // the guard's negation -- is not this edge.
     let selects_this_call = match &call_site {
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => true,
-        crate::semantic::calls::CallSite::Expression { expression, .. } => {
+        validation::CallSite::TransitionNamed { .. } => true,
+        validation::CallSite::Expression { expression, .. } => {
             matches!(
                 program.statement_table.transition_target(transition.target),
                 typed_trees::statement::TransitionTargetNode::Value(value) if value == expression
             )
         }
-        crate::semantic::calls::CallSite::Statement(_) => false,
+        validation::CallSite::Statement(_) => false,
     };
     if !selects_this_call {
         return None;
@@ -79,7 +79,7 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
         return false;
     };
     let Some(target_parameters) =
-        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
+        validation::call_target_parameters(program, call_flow.target_symbol)
     else {
         return false;
     };
@@ -109,7 +109,7 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
             facts,
             state_flow,
             call_flow,
-            crate::semantic::calls::call_site_argument_expressions(program, &call_site),
+            validation::call_site_argument_expressions(program, &call_site),
             target_parameters,
             &super::super::guard_operands::boolean_requirement_mentions(program, expression),
             call_frames,
@@ -140,7 +140,7 @@ pub(super) fn transition_guard_proves_requires(
         return false;
     }
     let Some(target_parameters) =
-        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
+        validation::call_target_parameters(program, call_flow.target_symbol)
     else {
         return false;
     };
@@ -192,7 +192,7 @@ pub(super) fn transition_guard_proves_requires(
         facts,
         state_flow,
         call_flow,
-        crate::semantic::calls::call_site_argument_expressions(program, &call_site),
+        validation::call_site_argument_expressions(program, &call_site),
         target_parameters,
         &super::super::guard_operands::fact_requirement_mentions(program, facts, fact),
         call_frames,

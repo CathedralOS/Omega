@@ -153,7 +153,7 @@ pub(super) fn check_call_access_conflicts<'p>(
                 )
                 && program.symbols.get(loan.root_symbol).kind == symbols::SymbolKind::Local
                 && program.symbols.get(loan.root_symbol).parent == state_flow.state_symbol
-                && !crate::flow::loan_carrier_has_owned_storage(
+                && !validation::loan_carrier_has_owned_storage(
                     program,
                     state_flow.state_symbol,
                     borrow_call.statement_index,
@@ -166,9 +166,7 @@ pub(super) fn check_call_access_conflicts<'p>(
                     else {
                         return false;
                     };
-                    let Some(machine) =
-                        crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
-                    else {
+                    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
                         return false;
                     };
                     let Some(source) = program
@@ -183,7 +181,7 @@ pub(super) fn check_call_access_conflicts<'p>(
                         source,
                         borrow_call.statement_index,
                         jump.target,
-                        crate::semantic::calls::call_site_argument_expressions(program, &jump.site),
+                        validation::call_site_argument_expressions(program, &jump.site),
                         loan.root_symbol,
                     )
                 })

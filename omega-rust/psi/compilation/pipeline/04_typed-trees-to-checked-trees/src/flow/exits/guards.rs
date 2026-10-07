@@ -240,7 +240,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
         ) else {
             continue;
         };
-        let Some(carrier) = crate::flow::expression_type_reference_in_state(
+        let Some(carrier) = validation::expression_type_reference_in_state(
             program,
             state_symbol,
             statement_index,

@@ -43,10 +43,12 @@
 //! consumed owner, and its established "already transferred or consumed"
 //! diagnostic stays the one reported for that shape.
 
+use validation::CanonicalPlace;
+
 use super::borrowed_windows::place_spelling;
 use super::linear_obligations::type_reference_is_reference;
 use super::owned_selection::place_paths_overlap;
-use crate::flow::CanonicalPlace;
+
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
 
@@ -165,7 +167,7 @@ impl ConsumedOwners {
         if self.consumed.is_empty() {
             return;
         }
-        let Some(target) = crate::flow::canonical_place_from_expression_in_state(
+        let Some(target) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             statement_index,
@@ -280,7 +282,7 @@ fn owned_custody_chain(
         || parameters.iter().any(|parameter| parameter.symbol == root);
     owned_root
         && (0..=place.segments.len()).all(|length| {
-            crate::flow::canonical_place_type_reference(
+            validation::canonical_place_type_reference(
                 program,
                 state.symbol,
                 statement_index,

@@ -332,7 +332,8 @@ pub(super) fn retain_available(
             .iter()
             .filter(|(caller, _)| *caller == plan.machine)
         {
-            let hook_state = crate::lookup::machine_by_symbol(program, *hook_machine)
+            let hook_state = program
+                .machine_by_symbol(*hook_machine)
                 .and_then(|hook| program.machine_states(hook).first())
                 .map(|state| state.symbol);
             match hook_state {

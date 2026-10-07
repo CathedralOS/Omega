@@ -52,7 +52,7 @@ pub(super) fn fused_service_arguments_match(
         else {
             return false;
         };
-        let mut place = crate::flow::CanonicalPlace {
+        let mut place = validation::CanonicalPlace {
             root: facts::PlaceRoot::Symbol((source).symbol),
             segments: Vec::new(),
         };
@@ -63,7 +63,7 @@ pub(super) fn fused_service_arguments_match(
             // Field identities are local to their declaring carrier. Another
             // record's same-spelled field cannot disqualify or supply this loan.
             let owner = {
-                let Some(reference) = crate::flow::canonical_place_type_reference(
+                let Some(reference) = validation::canonical_place_type_reference(
                     program,
                     caller_state.symbol,
                     statement_index,
@@ -108,7 +108,7 @@ pub(super) fn fused_service_arguments_match(
                 symbol: field.symbol,
             });
         }
-        let Some(source_type) = crate::flow::canonical_place_type_reference(
+        let Some(source_type) = validation::canonical_place_type_reference(
             program,
             caller_state.symbol,
             statement_index,

@@ -35,7 +35,9 @@ pub(super) fn substitute(
         if candidate.runtime_value_bindings[index].is_some() {
             let stray = runtime_expression_roots.iter().any(|root| {
                 let mut tree = Vec::new();
-                super::collect_expression_tree(program, *root, &mut tree);
+                validation::expression_traversal::collect_expression_tree(
+                    program, *root, &mut tree,
+                );
                 tree.into_iter().any(|handle| {
                     matches!(
                         program.expression_table.expression(handle),

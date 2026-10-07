@@ -133,16 +133,16 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     {
         return None;
     }
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         machine,
         state,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let arguments = validation::call_site_argument_expressions(program, &site);
     let mut consumed = Vec::new();
-    let owner = crate::lookup::machine_by_symbol(program, machine)?;
+    let owner = program.machine_by_symbol(machine)?;
     let source_state = program
         .machine_states(owner)
         .iter()
@@ -183,7 +183,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
             if consumed.iter().any(|handle| {
                 let guard_call = facts.flow.control.calls.get(*handle);
                 guard_call.call_ordinal >= call.call_ordinal
-                    || crate::semantic::calls::transition_call_target(
+                    || validation::transition_call_target(
                         program,
                         owner,
                         source_state,
@@ -225,7 +225,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
             return None;
         }
         consumed.push(handle);
-        let nested_site = crate::semantic::calls::find_call_site(
+        let nested_site = validation::find_call_site(
             program,
             machine,
             state,
@@ -238,7 +238,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
             machine,
             state,
             nested,
-            crate::semantic::calls::call_site_argument_expressions(program, &nested_site),
+            validation::call_site_argument_expressions(program, &nested_site),
             calls,
             &mut consumed,
         )?;
@@ -350,7 +350,7 @@ pub(super) fn scheduled_dispatch_subject(
         }
         // Scalar operand invocations execute in the preceding call's retained
         // computation roots rather than as separate structural operations.
-        let Some(site) = crate::semantic::calls::find_call_site(
+        let Some(site) = validation::find_call_site(
             program,
             machine.symbol,
             state.symbol,
@@ -366,7 +366,7 @@ pub(super) fn scheduled_dispatch_subject(
             machine.symbol,
             state.symbol,
             prior,
-            crate::semantic::calls::call_site_argument_expressions(program, &site),
+            validation::call_site_argument_expressions(program, &site),
             calls,
             &mut consumed,
         )
@@ -394,7 +394,7 @@ pub(super) fn collect_argument_calls(
     calls: &[checked_trees::FlowCallFact],
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
-    let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
+    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let formals = parameters.iter().collect::<Vec<_>>();
     if arguments.len() != formals.len() {
         return None;

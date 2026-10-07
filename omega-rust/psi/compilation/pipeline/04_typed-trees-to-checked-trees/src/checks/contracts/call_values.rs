@@ -4,7 +4,9 @@
 //! invocation's live referents. Cleanup requirements and concrete write checks
 //! share this substitution law. Neither may reread an initializer or substitute
 //! a later value for an operand already evaluated.
-use crate::flow::CanonicalPlace;
+
+use validation::CanonicalPlace;
+
 use checked_trees::{
     CheckFacts, CheckedBooleanExpression, CheckedScalarExpression, FlowCallFact, FlowStateFact,
 };
@@ -16,10 +18,11 @@ pub(crate) fn target_machine(
     program: &dyn ::validation::CheckingInput,
     call: &FlowCallFact,
 ) -> Option<SymbolHandle> {
-    crate::lookup::machine_by_symbol(program, call.target_symbol)
+    program
+        .machine_by_symbol(call.target_symbol)
         .map(|machine| machine.symbol)
         .or_else(|| {
-            crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)
+            validation::find_machine_by_entry_state(program, call.target_symbol)
                 .map(|(machine, _)| machine.symbol)
         })
 }
@@ -38,23 +41,23 @@ pub(crate) fn actual_at<'program>(
     position: usize,
     path: Vec<facts::PlaceSegment>,
 ) -> Option<Actual<'program>> {
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         state.machine_symbol,
         state.state_symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
+    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let parameter = parameters.get(position)?;
     let receiver_offset = usize::from(
-        matches!(&site, crate::semantic::calls::CallSite::Expression { call, .. } if call.receiver.is_valid()),
+        matches!(&site, validation::CallSite::Expression { call, .. } if call.receiver.is_valid()),
     );
     let ordinal = parameters[..position].iter().count();
     let operand_position = { ordinal + receiver_offset };
     let argument = {
         let ordinal = parameters[..position].iter().count();
-        Some(*crate::semantic::calls::call_site_argument_expressions(program, &site).get(ordinal)?)
+        Some(*validation::call_site_argument_expressions(program, &site).get(ordinal)?)
     };
     Some(Actual {
         parameter,
@@ -72,7 +75,7 @@ pub(crate) fn observation_actual<'program>(
     call: &FlowCallFact,
     observation: &crate::facts::boolean_predicates::BoundObservation,
 ) -> Option<Actual<'program>> {
-    let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
+    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let position = parameters.iter().position(|parameter| {
         observation.place.root == facts::PlaceRoot::Symbol(parameter.symbol)
     })?;
@@ -92,7 +95,7 @@ fn captured_operand<'facts>(
     call: &FlowCallFact,
     actual: &Actual<'_>,
 ) -> Option<&'facts checked_trees::FlowOperandFact> {
-    let site = crate::semantic::calls::find_call_site(
+    let site = validation::find_call_site(
         program,
         state.machine_symbol,
         state.state_symbol,
@@ -100,13 +103,13 @@ fn captured_operand<'facts>(
         call.call_ordinal,
     )?;
     let receiver = match &site {
-        crate::semantic::calls::CallSite::Expression { call, .. } if call.receiver.is_valid() => {
+        validation::CallSite::Expression { call, .. } if call.receiver.is_valid() => {
             Some(call.receiver)
         }
         _ => None,
     };
     let expected = receiver.into_iter().chain(
-        crate::semantic::calls::call_site_argument_expressions(program, &site)
+        validation::call_site_argument_expressions(program, &site)
             .iter()
             .copied(),
     );
@@ -174,7 +177,7 @@ pub(crate) fn membership_contexts(
     else {
         return None;
     };
-    let declared = crate::flow::canonical_place_from_expression(program, value)?;
+    let declared = validation::canonical_place_from_expression(program, value)?;
     let facts::PlaceRoot::Symbol(symbol) = declared.root else {
         return None;
     };
@@ -290,11 +293,8 @@ fn current_actual(
     contexts: &[FactContextHandle],
     bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
 ) -> Option<CheckedScalarExpression> {
-    let (machine, body) = crate::lookup::symbols::machine_state_by_symbol(
-        program,
-        state.machine_symbol,
-        state.state_symbol,
-    )?;
+    let (machine, body) =
+        validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)?;
     let expression = captured.projection.expression;
     if captured.projection.remaining.is_empty() {
         if !validation::has_builtin_bound_expression_meaning(
@@ -332,7 +332,7 @@ fn current_actual(
     // membership facts. Binding the constructor's destination here would lose
     // equality between child captures of one local field. The caller checks
     // capture epochs before joining these exact source places.
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
+    let mut place = validation::canonical_place_from_expression_in_state(
         program,
         captured.operand.state_symbol,
         captured.operand.statement_index,
@@ -354,7 +354,7 @@ fn bind_current(
     contexts: &[FactContextHandle],
     bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
 ) -> Option<CheckedScalarExpression> {
-    let type_reference = crate::flow::canonical_place_type_reference(
+    let type_reference = validation::canonical_place_type_reference(
         program,
         state.state_symbol,
         call.statement_index,
@@ -584,7 +584,7 @@ pub(crate) fn entry_predicate(
         let primitive = operand.primitive_type()?;
         let captured = captured_value(program, facts, state, call, &actual)?;
         let capture = captured.operand;
-        let (machine, body) = crate::lookup::symbols::machine_state_by_symbol(
+        let (machine, body) = validation::machine_state_by_symbols(
             program,
             state.machine_symbol,
             state.state_symbol,
@@ -619,7 +619,7 @@ pub(crate) fn entry_predicate(
             *operand = value;
             return Some(());
         }
-        let mut place = crate::flow::canonical_place_from_expression_in_state(
+        let mut place = validation::canonical_place_from_expression_in_state(
             program,
             capture.state_symbol,
             capture.statement_index,

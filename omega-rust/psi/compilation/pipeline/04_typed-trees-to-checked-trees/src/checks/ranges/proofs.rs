@@ -451,11 +451,11 @@ pub(super) fn is_exact_collection_length(
     {
         return false;
     }
-    let Some(collection_place) = crate::flow::canonical_place_from_expression(program, collection)
+    let Some(collection_place) = validation::canonical_place_from_expression(program, collection)
     else {
         return false;
     };
-    let Some(receiver_place) = crate::flow::canonical_place_from_expression(program, receiver)
+    let Some(receiver_place) = validation::canonical_place_from_expression(program, receiver)
     else {
         return false;
     };

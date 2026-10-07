@@ -105,8 +105,8 @@ pub(crate) fn canonical_place_overlaps_segments(
 /// must only match a place provably identical to its subject.
 pub(crate) fn canonical_places_agree(
     program: &dyn ::validation::CheckingInput,
-    left: &super::CanonicalPlace,
-    right: &super::CanonicalPlace,
+    left: &validation::CanonicalPlace,
+    right: &validation::CanonicalPlace,
 ) -> bool {
     left.root == right.root
         && left.segments.len() == right.segments.len()

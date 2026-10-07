@@ -25,9 +25,12 @@ pub(crate) fn infer_private_body_summaries(
     let mut nodes = plans
         .iter()
         .filter(|target| {
-            crate::lookup::machine_by_symbol(program, target.machine).is_some_and(|machine| {
-                machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            }) && target.crash.published().is_empty()
+            program
+                .machine_by_symbol(target.machine)
+                .is_some_and(|machine| {
+                    machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                })
+                && target.crash.published().is_empty()
         })
         .filter_map(|target| {
             Some(SummaryNode {
@@ -53,11 +56,14 @@ pub(crate) fn infer_private_body_summaries(
                     .iter()
                     .find(|plan| plan.machine == invocation.target_machine)
                 {
-                    crate::lookup::machine_by_symbol(program, plan.machine).is_some_and(|machine| {
-                        machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                            || !plan.crash.published().is_empty()
-                            || viable_machines.contains(&invocation.target_machine)
-                    })
+                    program
+                        .machine_by_symbol(plan.machine)
+                        .is_some_and(|machine| {
+                            machine.supply_mode
+                                != language_semantics::MachineSupplyMode::CheckedBody
+                                || !plan.crash.published().is_empty()
+                                || viable_machines.contains(&invocation.target_machine)
+                        })
                 } else {
                     crash_capsules.iter().any(|capsule| {
                         capsule.target_machine() == invocation.target_machine
@@ -96,7 +102,7 @@ pub(crate) fn infer_private_body_summaries(
                         && call.call_ordinal == invocation.call_ordinal
                 })
                 .expect("a retained summary invocation has its flow call");
-            let call_site = crate::semantic::calls::find_call_site(
+            let call_site = validation::find_call_site(
                 program,
                 node.machine,
                 invocation.caller_state,
@@ -104,16 +110,15 @@ pub(crate) fn infer_private_body_summaries(
                 invocation.call_ordinal,
             )
             .expect("a retained summary invocation has its typed call site");
-            let arguments =
-                crate::semantic::calls::call_site_argument_expressions(program, &call_site);
+            let arguments = validation::call_site_argument_expressions(program, &call_site);
 
             if let Some(target_plan) = plans
                 .iter()
                 .find(|plan| plan.machine == invocation.target_machine)
             {
-                let target_machine =
-                    crate::lookup::machine_by_symbol(program, invocation.target_machine)
-                        .expect("a local crash plan has its typed machine");
+                let target_machine = program
+                    .machine_by_symbol(invocation.target_machine)
+                    .expect("a local crash plan has its typed machine");
                 let target_state = program
                     .machine_states(target_machine)
                     .iter()
@@ -325,24 +330,21 @@ fn machine_non_transition_invocation_sites(
             {
                 continue;
             }
-            let site = crate::semantic::calls::find_call_site(
+            let site = validation::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
                 call.statement_index,
                 call.call_ordinal,
             )?;
-            if matches!(
-                site,
-                crate::semantic::calls::CallSite::TransitionNamed { .. }
-            ) {
+            if matches!(site, validation::CallSite::TransitionNamed { .. }) {
                 continue;
             }
             // Named operators have flow call rows but are not machine edges.
             // Their failure routes are already included by direct-body buckets.
             // Join the exact checked occurrence, and require that crash-bearing
             // declarations retained their site before excluding this call row.
-            if let crate::semantic::calls::CallSite::Expression { expression, .. } = site
+            if let validation::CallSite::Expression { expression, .. } = site
                 && let Some((named_handle, named)) =
                     operators.named_uses.iter().find(|(_, named)| {
                         named.expression == expression
@@ -463,10 +465,13 @@ fn private_dependency_reaches(
                 .iter()
                 .find(|plan| plan.machine == invocation.target_machine)
                 .filter(|plan| {
-                    crate::lookup::machine_by_symbol(program, plan.machine).is_some_and(|machine| {
-                        machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                            && plan.crash.published().is_empty()
-                    })
+                    program
+                        .machine_by_symbol(plan.machine)
+                        .is_some_and(|machine| {
+                            machine.supply_mode
+                                == language_semantics::MachineSupplyMode::CheckedBody
+                                && plan.crash.published().is_empty()
+                        })
                 })
                 .map(|_| invocation.target_machine)
         }));

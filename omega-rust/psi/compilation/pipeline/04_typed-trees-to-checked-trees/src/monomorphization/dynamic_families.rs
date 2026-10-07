@@ -219,9 +219,7 @@ fn collect_selection_demands(
                 // still settle.
                 continue;
             };
-            let Some(realization) =
-                crate::lookup::machine_by_symbol(program, row.realization_machine)
-            else {
+            let Some(realization) = program.machine_by_symbol(row.realization_machine) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "dynamic conformance row `{}::{}` has no exact realization machine",
                     row.declaring_trait_name, row.requirement_name

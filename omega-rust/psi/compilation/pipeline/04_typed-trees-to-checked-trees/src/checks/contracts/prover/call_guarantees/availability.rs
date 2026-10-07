@@ -2,12 +2,14 @@
 //! and capture preservation. Availability comes from the exact use's live
 //! flow contexts, never a certificate's assertion of dominance.
 
+use validation::CallSite;
+use validation::CanonicalPlace;
+
 use super::{
     Invocation, actual_projection, builtin_predicate, capture_preserved, captured_place,
     invocation, stable_predicate_inputs,
 };
-use crate::flow::CanonicalPlace;
-use crate::semantic::calls::CallSite;
+
 use checked_trees::FlowStateFact;
 use facts::{ContractFactKind, FactOrigin, FactPayload, FactPlan, PlaceRoot, ProgramPoint};
 use symbols::SymbolHandle;
@@ -128,8 +130,7 @@ pub(in crate::checks) fn available<'program>(
     contexts: &[facts::FactContextHandle],
     frames: &validation::CallFrameResolver<'_>,
 ) -> Vec<AvailableGuarantee<'program>> {
-    let Some(caller_machine) = crate::lookup::machine_by_symbol(program, caller.machine_symbol)
-    else {
+    let Some(caller_machine) = program.machine_by_symbol(caller.machine_symbol) else {
         return Vec::new();
     };
     let mut guarantees = Vec::new();

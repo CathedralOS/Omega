@@ -44,14 +44,16 @@
 //! call's receiver place, which bounds the place set so the fixed point
 //! terminates even through self-referential projections.
 
-use crate::flow::CanonicalPlace;
-use crate::flow::canonical_place_from_expression_in_state;
+use validation::CanonicalPlace;
+use validation::canonical_place_from_expression_in_state;
+use validation::{CallSite, find_call_site_in_state};
+
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{
     WritePlaceNamespace, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
     instantiate_call_relative_places, local_jump_data_argument,
 };
-use crate::semantic::calls::{CallSite, find_call_site_in_state, find_state};
+
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowCallFact, BorrowFacts};
@@ -104,7 +106,7 @@ pub(crate) fn call_receiver_read_accesses(
         .map(|place| vec![place])
         .unwrap_or_default()
     };
-    let Some(target) = find_state(program, borrow_call.target_symbol) else {
+    let Some(target) = program.state_by_symbol(borrow_call.target_symbol) else {
         return whole_receiver();
     };
     let Some(footprint) = cache
@@ -172,8 +174,7 @@ fn build_state_receiver_reads(
     let mut owners = Vec::new();
     let mut receiver_calls = Vec::new();
     for borrow_state in borrow.states.iter().map(|(_, state)| state) {
-        let Some(machine) = crate::lookup::machine_by_symbol(program, borrow_state.machine_symbol)
-        else {
+        let Some(machine) = program.machine_by_symbol(borrow_state.machine_symbol) else {
             continue;
         };
         let Some(state) = program
@@ -263,8 +264,9 @@ fn build_state_receiver_reads(
     }
     for calls in &mut receiver_calls {
         for receiver_call in calls {
-            receiver_call.target =
-                find_state(program, receiver_call.call.target_symbol).and_then(|target| {
+            receiver_call.target = program
+                .state_by_symbol(receiver_call.call.target_symbol)
+                .and_then(|target| {
                     footprints
                         .iter()
                         .position(|footprint| footprint.state_symbol == target.symbol)
@@ -404,7 +406,8 @@ impl FootprintOwner<'_> {
             return false;
         };
         root == self.machine_symbol
-            || crate::lookup::machine_by_symbol(program, self.machine_symbol)
+            || program
+                .machine_by_symbol(self.machine_symbol)
                 .and_then(|machine| {
                     program.data_binding_parameter(machine, program.state_parameters(self.state))
                 })

@@ -210,7 +210,7 @@ pub(super) fn attach_checked_crash_calls(
             else {
                 continue;
             };
-            let local_target = crate::lookup::machine_by_symbol(program, target_machine_symbol);
+            let local_target = program.machine_by_symbol(target_machine_symbol);
             let local_plan = plans
                 .iter()
                 .find(|plan| plan.machine == target_machine_symbol);
@@ -309,7 +309,7 @@ pub(super) fn attach_checked_crash_calls(
                     capsule.target_contract_commitment(),
                 )
             };
-            let Some(call_site) = crate::semantic::calls::find_call_site(
+            let Some(call_site) = validation::find_call_site(
                 program,
                 state_flow.machine_symbol,
                 state_flow.state_symbol,
@@ -318,17 +318,13 @@ pub(super) fn attach_checked_crash_calls(
             ) else {
                 continue;
             };
-            if matches!(
-                call_site,
-                crate::semantic::calls::CallSite::TransitionNamed { .. }
-            ) {
+            if matches!(call_site, validation::CallSite::TransitionNamed { .. }) {
                 // A named transition moves dispatch state inside the fused
                 // graph; it is not an invocation of a machine's public crash
                 // ceiling, so it keeps no refinement row here.
                 continue;
             }
-            let arguments =
-                crate::semantic::calls::call_site_argument_expressions(program, &call_site);
+            let arguments = validation::call_site_argument_expressions(program, &call_site);
             let surviving_summary = match target_routes {
                 SelectedTargetCrashRoutes::Published { buckets, contracts } => {
                     refine_published_crash_routes(

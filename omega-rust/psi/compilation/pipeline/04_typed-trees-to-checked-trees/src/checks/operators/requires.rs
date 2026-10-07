@@ -1212,7 +1212,7 @@ fn contexts_prove_case_membership(
     let Some((subject, case)) = crate::proof::exact_outcome_case_test(program, expression) else {
         return false;
     };
-    let Some(formal) = crate::flow::canonical_place_from_expression(program, subject) else {
+    let Some(formal) = validation::canonical_place_from_expression(program, subject) else {
         return false;
     };
     let facts::PlaceRoot::Symbol(symbol) = formal.root else {
@@ -1226,7 +1226,7 @@ fn contexts_prove_case_membership(
     };
     let Some(mut place) = operands
         .get(position)
-        .and_then(|operand| crate::flow::canonical_place_from_expression(program, *operand))
+        .and_then(|operand| validation::canonical_place_from_expression(program, *operand))
     else {
         return false;
     };

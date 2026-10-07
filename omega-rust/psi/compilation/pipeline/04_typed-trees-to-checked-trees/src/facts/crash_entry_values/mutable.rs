@@ -188,7 +188,7 @@ fn rooted_place_path(
                 && path.symbol.is_valid()
                 && path.symbol == machine_symbol
             {
-                let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
+                let symbol = validation::effective_member_symbol(program, member.receiver, member);
                 return symbol.is_valid().then_some((symbol, Vec::new()));
             }
             rooted_place_path(program, machine_symbol, member.receiver).map(|(root, mut path)| {
@@ -206,7 +206,7 @@ fn rooted_place_path(
             })
         }
         ExpressionNode::Name(path) => {
-            crate::lookup::first_valid_name_path_symbol(path, &program.expression_table)
+            validation::first_valid_name_path_symbol(path, &program.expression_table)
                 .map(|root| (root, Vec::new()))
         }
         _ => None,
@@ -235,7 +235,7 @@ pub(crate) fn statement_may_overwrite_place(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> bool {
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return true;
@@ -413,7 +413,8 @@ fn transition_may_overwrite(
                 } => {
                     let arguments = program.statement_table.expression_handles(*arguments);
                     let internal =
-                        crate::lookup::symbols::machine_by_symbol(program, machine_symbol)
+                        program
+                            .machine_by_symbol(machine_symbol)
                             .is_some_and(|machine| {
                                 crate::checks::termination::named_transition_target_state_index(
                                     program,
@@ -536,7 +537,7 @@ fn receiver_call_writes(
     program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> bool {
-    match crate::semantic::calls::call_target_parameters(program, target_symbol) {
+    match validation::call_target_parameters(program, target_symbol) {
         Some(parameters) => parameters
             .iter()
             .find(|_parameter| false)
@@ -563,8 +564,7 @@ fn call_arguments_may_overwrite(
             root == symbol && paths_interfere(&write_path, read_path)
         })
     };
-    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target_symbol)
-    else {
+    let Some(parameters) = validation::call_target_parameters(program, target_symbol) else {
         return arguments.iter().any(argument_may_write);
     };
     parameters

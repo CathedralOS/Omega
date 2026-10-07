@@ -63,16 +63,16 @@ pub(super) fn append(
     if producers.next().is_some() {
         return;
     }
-    let root = crate::flow::CanonicalPlace {
+    let root = validation::CanonicalPlace {
         root: event.root,
         segments: Vec::new(),
     };
-    let selected = crate::flow::CanonicalPlace {
+    let selected = validation::CanonicalPlace {
         root: event.root,
         segments: path.clone(),
     };
-    let affine = |place: &crate::flow::CanonicalPlace| {
-        crate::flow::canonical_place_type_reference(program, state, statement_index, place)
+    let affine = |place: &validation::CanonicalPlace| {
+        validation::canonical_place_type_reference(program, state, statement_index, place)
             .is_some_and(|reference| {
                 matches!(
                     program.type_reference_table.type_reference(reference),
@@ -146,14 +146,14 @@ fn complement(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement: usize,
-    root: &crate::flow::CanonicalPlace,
+    root: &validation::CanonicalPlace,
     selected: &[facts::PlaceSegment],
     output: &mut Vec<Vec<facts::PlaceSegment>>,
 ) -> Option<()> {
     let Some(next) = selected.first() else {
         return Some(());
     };
-    let reference = crate::flow::canonical_place_type_reference(program, state, statement, root)?;
+    let reference = validation::canonical_place_type_reference(program, state, statement, root)?;
     let children = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. }
         | TypeReferenceNode::Generic {
@@ -199,7 +199,7 @@ fn complement(
             complement(program, state, statement, &place, &selected[1..], output)?;
         } else {
             let reference =
-                crate::flow::canonical_place_type_reference(program, state, statement, &place)?;
+                validation::canonical_place_type_reference(program, state, statement, &place)?;
             if type_multiplicity(program, reference) == Multiplicity::Unrestricted {
                 continue;
             }

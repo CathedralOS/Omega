@@ -1,7 +1,8 @@
 //! One source evaluation order for ownership windows and loan exclusions.
 //! This inventory orders existing move candidates; it does not classify them.
 
-use crate::flow::CanonicalPlace;
+use validation::CanonicalPlace;
+
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::statement::StatementNode;
 
@@ -90,7 +91,7 @@ pub(super) fn statement_steps(
                 program,
                 machine.symbol,
                 state.symbol,
-                &crate::semantic::calls::CallSite::Statement(call),
+                &validation::CallSite::Statement(call),
                 statement_index,
             ) {
                 order.push(StatementStep::Observe {
@@ -228,7 +229,7 @@ impl StatementOrder<'_> {
                 // not every enclosing owner. Computed receivers and selectors
                 // still execute before that observation.
                 self.selectors(expression, conditional);
-                if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                if let Some(place) = validation::canonical_place_from_expression_in_state(
                     self.program,
                     self.state.symbol,
                     self.statement_index,

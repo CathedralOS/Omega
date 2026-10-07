@@ -77,7 +77,7 @@ pub(super) fn plan(
             state,
             statement_ordinal,
             0,
-            &crate::semantic::calls::CallSite::Expression { expression, call },
+            &validation::CallSite::Expression { expression, call },
             scalar_parameters,
             parameters,
             parameter_types,

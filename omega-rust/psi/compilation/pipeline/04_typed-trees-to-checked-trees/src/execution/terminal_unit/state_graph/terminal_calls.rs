@@ -190,7 +190,7 @@ pub(super) fn arm_call(
     let target = invoked_callable(program, machine, transition)?;
     trace.phase("state graph: terminator: terminal call arm: completion");
     trace.statement(Some(statement_ordinal));
-    let return_type = crate::flow::call_target_return_type(program, target)?;
+    let return_type = validation::call_target_return_type(program, target)?;
     // The callee's normal result is this machine's result, so the two
     // signatures must agree exactly; checking rejects any other pairing.
     let (scalar_result, mut structural_result) = match result {
@@ -238,16 +238,16 @@ pub(super) fn arm_call(
         call.statement_index == statement_ordinal as usize
             && !facts.flow.control.is_retired(state.symbol, call)
             && matches!(
-                crate::semantic::calls::find_call_site(
+                validation::find_call_site(
                     program,
                     machine.symbol,
                     state.symbol,
                     call.statement_index,
                     call.call_ordinal,
                 ),
-                Some(crate::semantic::calls::CallSite::TransitionNamed { .. })
+                Some(validation::CallSite::TransitionNamed { .. })
             )
-            && crate::semantic::calls::transition_call_target(
+            && validation::transition_call_target(
                 program,
                 machine,
                 state,

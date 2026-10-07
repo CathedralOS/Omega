@@ -44,23 +44,20 @@ impl Builder<'_, '_> {
             role,
             CheckedScalarExpressionRole::Return | CheckedScalarExpressionRole::ContinuationReturn
         ) {
-            return crate::semantic::calls::find_state_in_machine(
-                self.program,
-                self.machine,
-                self.state,
-            )
-            .and_then(|state| {
-                self.program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .get(self.statement_index)
-            })
-            .is_some_and(|statement| {
-                matches!(
-                    statement,
-                    typed_trees::statement::StatementNode::Expression(_)
-                )
-            }) && self.is_bodyless_boundary_call(expression);
+            return validation::find_state_in_machine(self.program, self.machine, self.state)
+                .and_then(|state| {
+                    self.program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .get(self.statement_index)
+                })
+                .is_some_and(|statement| {
+                    matches!(
+                        statement,
+                        typed_trees::statement::StatementNode::Expression(_)
+                    )
+                })
+                && self.is_bodyless_boundary_call(expression);
         }
         // Whole primitive stores use the same computation owner as calls nested
         // inside their RHS. Field stores retain their statement result operation;
@@ -69,7 +66,7 @@ impl Builder<'_, '_> {
             return false;
         }
         if role == CheckedScalarExpressionRole::AssignmentValue
-            && crate::semantic::calls::find_state_in_machine(
+            && validation::find_state_in_machine(
                 self.program, self.machine, self.state,
             )
             .and_then(|state| {
@@ -113,7 +110,7 @@ impl Builder<'_, '_> {
         };
         boundary_operator(
             self.program,
-            crate::flow::call_target_symbol(self.program, call),
+            validation::call_target_symbol(self.program, call),
         )
         .is_some()
             || validation::exact_external_leaf_boundary_requirement(
@@ -121,7 +118,7 @@ impl Builder<'_, '_> {
                 call.target_symbol,
             )
             .is_some()
-            || crate::semantic::calls::find_machine_by_entry_state(self.program, call.target_symbol)
+            || validation::find_machine_by_entry_state(self.program, call.target_symbol)
                 .is_some_and(|(machine, _)| {
                     machine.supply_mode.is_boundary_declaration() && !machine.body_is_present
                 })
@@ -197,7 +194,7 @@ impl Builder<'_, '_> {
             (requirement, requirement),
             // The external realization already proves signature correspondence.
             // Borrow occurrences still name the authored leaf's formal symbols.
-            crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)?,
+            validation::call_target_parameters(self.program, call.target_symbol)?,
             signature.return_type,
             &operands,
             expected_type,

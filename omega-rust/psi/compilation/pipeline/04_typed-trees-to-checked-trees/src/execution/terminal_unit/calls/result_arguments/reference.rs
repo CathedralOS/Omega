@@ -31,7 +31,7 @@ pub(super) fn argument(
     machine: SymbolHandle,
     state: &State,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     local: &TableLocalData,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,

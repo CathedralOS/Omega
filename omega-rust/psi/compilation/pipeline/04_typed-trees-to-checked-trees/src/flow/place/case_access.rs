@@ -3,9 +3,9 @@
 //! must discharge every case crossed by the source place, regardless of its
 //! multiplicity. No initializer or call is replayed to recover an old tag.
 
-use super::{
-    CanonicalPlace, canonical_place_from_expression_in_state, canonical_place_from_semantic_place,
-};
+use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+
+use super::canonical_place_from_semantic_place;
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -121,7 +121,7 @@ pub(crate) fn place_case_has_value(
     case: SymbolHandle,
     required: bool,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(machine_symbol) else {
         return false;
     };
     let Some(state) = program

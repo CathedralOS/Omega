@@ -7,6 +7,8 @@
 //! source length are supplied by the range's consumer, not by a scalar fact.
 //! An inclusive end retains its authored value here too; its exact successor is
 //! descriptor normalization after evaluation, not a second scalar source site.
+use validation::CallSite;
+
 use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpressionRole,
     CheckedSubsliceSite,
@@ -76,14 +78,10 @@ pub(super) fn sites(
     {
         result.push((local.initial_value, CheckedSubsliceSite::LocalBinding));
     }
-    for (call_ordinal, site) in crate::semantic::calls::collect_call_sites_in_statement(
-        program,
-        machine,
-        state,
-        statement_index,
-    )
-    .into_iter()
-    .enumerate()
+    for (call_ordinal, site) in
+        validation::collect_call_sites_in_statement(program, machine, state, statement_index)
+            .into_iter()
+            .enumerate()
     {
         let Ok(call_ordinal) = u32::try_from(call_ordinal) else {
             break;
@@ -91,9 +89,8 @@ pub(super) fn sites(
         // Traversal reserves an ordinal for an internal state edge, but it
         // invokes no machine. Its operands use TransitionArgument below;
         // nested endpoint calls keep their original subsequent ordinals.
-        if let crate::semantic::calls::CallSite::TransitionNamed { path, .. } = &site
-            && crate::semantic::calls::terminal_callable_target(program, machine, path.symbol)
-                .is_none()
+        if let validation::CallSite::TransitionNamed { path, .. } = &site
+            && validation::terminal_callable_target(program, machine, path.symbol).is_none()
         {
             continue;
         }
@@ -112,8 +109,7 @@ pub(super) fn sites(
         && let typed_trees::statement::TransitionTargetNode::Named {
             path, arguments, ..
         } = program.statement_table.transition_target(transition.target)
-        && let Some(parameters) =
-            crate::semantic::calls::call_target_parameters(program, path.symbol)
+        && let Some(parameters) = validation::call_target_parameters(program, path.symbol)
     {
         for (argument, (position, parameter)) in program
             .statement_table
@@ -166,18 +162,17 @@ pub(super) fn sites(
 /// consume their authored actual but no structural position.
 fn structural_call_arguments(
     program: &dyn ::validation::CheckingInput,
-    site: &crate::semantic::calls::CallSite<'_>,
+    site: &validation::CallSite<'_>,
 ) -> Vec<(typed_trees::expression::ExpressionHandle, u32)> {
-    use crate::semantic::calls::CallSite;
     let target = match site {
         CallSite::Statement(call) => call.target_symbol,
-        CallSite::Expression { call, .. } => crate::flow::call_target_symbol(program, call),
+        CallSite::Expression { call, .. } => validation::call_target_symbol(program, call),
         CallSite::TransitionNamed { path, .. } => path.symbol,
     };
-    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target) else {
+    let Some(parameters) = validation::call_target_parameters(program, target) else {
         return Vec::new();
     };
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, site);
+    let arguments = validation::call_site_argument_expressions(program, site);
     let explicit_parameters = parameters.iter();
     if parameters.len() != arguments.len() {
         return Vec::new();

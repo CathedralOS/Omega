@@ -109,7 +109,7 @@ pub(crate) fn lower_unit_scalar_argument_with_places(
     before_statement: usize,
     expression: ExpressionHandle,
     expected_type: PrimitiveType,
-    mut bind: impl FnMut(&crate::flow::CanonicalPlace, PrimitiveType) -> Option<CheckedScalarExpression>,
+    mut bind: impl FnMut(&validation::CanonicalPlace, PrimitiveType) -> Option<CheckedScalarExpression>,
 ) -> Option<CheckedScalarExpression> {
     let mut value = lower_unit_scalar_argument(
         program,
@@ -141,7 +141,7 @@ pub(crate) fn lower_unit_scalar_argument_with_places(
                     *parameter_position,
                     path,
                 )?;
-                crate::flow::CanonicalPlace {
+                validation::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(root),
                     segments,
                 }

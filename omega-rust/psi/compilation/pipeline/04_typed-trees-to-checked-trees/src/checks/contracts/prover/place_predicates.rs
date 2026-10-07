@@ -30,7 +30,7 @@ impl PlacePredicate {
         state: &FlowStateFact,
         call: &FlowCallFact,
         contexts: &[facts::FactContextHandle],
-        subject: &crate::flow::CanonicalPlace,
+        subject: &validation::CanonicalPlace,
     ) -> bool {
         match self {
             Self::Bytes(predicate) => super::byte_predicate_proven_at_place(

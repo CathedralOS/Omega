@@ -50,7 +50,7 @@ pub(crate) fn apply_statement_permission_production(
         matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
             && owner.evaluation == evaluation
     }) {
-        let target = crate::flow::CanonicalPlace { root: facts::PlaceRoot::Expression(owner.expression), segments: Vec::new() };
+        let target = validation::CanonicalPlace { root: facts::PlaceRoot::Expression(owner.expression), segments: Vec::new() };
         written_targets.extend(written_owner_targets(program, state_symbol, statement_index, &target, owner.expression, places)
             .into_iter().map(|target| (target, owner.producer)));
     }
@@ -62,8 +62,9 @@ pub(crate) fn apply_statement_permission_production(
     let calls = state_calls
         .iter()
         .filter(|call| {
-            crate::lookup::machine_by_symbol(program, machine_symbol)
-                .zip(crate::semantic::calls::find_state(program, state_symbol))
+            program
+                .machine_by_symbol(machine_symbol)
+                .zip(program.state_by_symbol(state_symbol))
                 .is_some_and(|(machine, state)| {
                     call.statement_index == statement_index
                         && crate::flow::call_permission_evaluation(
@@ -125,7 +126,7 @@ pub(crate) fn apply_statement_permission_production(
             .span_or_empty(event.segments)
             .to_vec();
         select_static_case_alternative(event.root, &event_path, places);
-        if crate::semantic::calls::find_state(program, state_symbol).is_some_and(|state| {
+        if program.state_by_symbol(state_symbol).is_some_and(|state| {
             super::super::linear_obligations::move_event_is_production_target(
                 program,
                 state,
@@ -262,11 +263,11 @@ pub(crate) fn apply_statement_permission_production(
             && (place.live || replacement_custody.is_reserved(target.root))
         {
             for path in replacement_custody.disposal_paths(target.root, &place.path) {
-                let discarded = crate::flow::CanonicalPlace {
+                let discarded = validation::CanonicalPlace {
                     root: target.root,
                     segments: path,
                 };
-                if crate::flow::canonical_place_type_reference(
+                if validation::canonical_place_type_reference(
                     program,
                     state_symbol,
                     statement_index,

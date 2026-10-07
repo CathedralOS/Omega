@@ -91,7 +91,7 @@ pub(super) fn check(
     // nested expression calls, state transfers, and attached receivers.
     for (_, state) in facts.flow.control.states.iter() {
         for call in facts.flow.control.calls.span_or_empty(state.calls) {
-            let Some(site) = crate::semantic::calls::find_call_site(
+            let Some(site) = validation::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
@@ -100,15 +100,13 @@ pub(super) fn check(
             ) else {
                 continue;
             };
-            let Some(parameters) =
-                crate::semantic::calls::call_target_parameters(program, call.target_symbol)
+            let Some(parameters) = validation::call_target_parameters(program, call.target_symbol)
             else {
                 continue;
             };
-            for (argument, parameter) in
-                crate::semantic::calls::call_site_argument_expressions(program, &site)
-                    .iter()
-                    .zip(parameters.iter())
+            for (argument, parameter) in validation::call_site_argument_expressions(program, &site)
+                .iter()
+                .zip(parameters.iter())
             {
                 check_destination(
                     program,
@@ -339,7 +337,8 @@ fn result_primitive(
             typed_trees::operator::resolve_named_expression_call(program, call)
                 .map(|operator| operator.return_type)
                 .or_else(|| {
-                    crate::semantic::calls::find_state(program, call.target_symbol)
+                    program
+                        .state_by_symbol(call.target_symbol)
                         .map(|state| state.return_type)
                 })
                 .or_else(|| {

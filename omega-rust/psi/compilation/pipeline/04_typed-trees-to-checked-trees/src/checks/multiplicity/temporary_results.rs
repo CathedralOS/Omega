@@ -66,7 +66,7 @@ pub(super) fn append_whole_affine_transfer(
         && calls.iter().any(|call| {
             call.statement_index == statement_index
                 && call.authored_expression == expression
-                && crate::flow::call_target_return_type(program, call.target_symbol).is_some_and(
+                && validation::call_target_return_type(program, call.target_symbol).is_some_and(
                     |result| {
                         matches!(
                             program.type_reference_table.type_reference(result),
@@ -115,7 +115,7 @@ pub(super) fn append_constructed_argument_transfers(
         .iter()
         .filter(|call| call.statement_index == statement_index)
     {
-        let Some(site) = crate::semantic::calls::find_call_site(
+        let Some(site) = validation::find_call_site(
             program,
             machine_symbol,
             state_symbol,
@@ -124,12 +124,11 @@ pub(super) fn append_constructed_argument_transfers(
         ) else {
             continue;
         };
-        let Some(parameters) =
-            crate::semantic::calls::call_target_parameters(program, call.target_symbol)
+        let Some(parameters) = validation::call_target_parameters(program, call.target_symbol)
         else {
             continue;
         };
-        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+        let arguments = validation::call_site_argument_expressions(program, &site);
         let explicit_parameters = parameters.iter();
         for (parameter, argument) in explicit_parameters.zip(arguments.iter()) {
             let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
@@ -195,11 +194,11 @@ pub(super) fn check_unselected_claims(
     let facts::PlaceRoot::Expression(_) = event.root else {
         return;
     };
-    let root = crate::flow::CanonicalPlace {
+    let root = validation::CanonicalPlace {
         root: event.root,
         segments: Vec::new(),
     };
-    let Some(reference) = crate::flow::canonical_place_type_reference(
+    let Some(reference) = validation::canonical_place_type_reference(
         program,
         state_symbol,
         event_statement_index(event.source).unwrap_or(0),

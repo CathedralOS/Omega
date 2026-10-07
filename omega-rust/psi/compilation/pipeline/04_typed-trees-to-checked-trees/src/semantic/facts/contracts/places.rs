@@ -1,5 +1,6 @@
-use crate::flow::effective_member_symbol;
-use crate::semantic::calls::call_target_parameters;
+use validation::call_target_parameters;
+use validation::effective_member_symbol;
+
 use crate::semantic::places::{append_place_segment, resolve_place_member_symbol};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofFacts};
@@ -203,7 +204,7 @@ fn contract_expression_place(
             Some(append_place_segment(
                 facts,
                 collection,
-                crate::flow::index_place_segment(program, indexed.index),
+                validation::index_place_segment(program, indexed.index),
             ))
         }
         _ => None,

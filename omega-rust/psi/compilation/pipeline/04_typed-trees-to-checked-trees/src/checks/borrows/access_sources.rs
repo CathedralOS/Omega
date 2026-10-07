@@ -43,7 +43,7 @@ pub(in crate::checks::borrows) fn resolve(
         }
         _ => {}
     }
-    let source = crate::flow::canonical_place_from_expression_in_state(
+    let source = validation::canonical_place_from_expression_in_state(
         program,
         state.state_symbol,
         statement.statement_index,
@@ -82,7 +82,7 @@ pub(in crate::checks::borrows) fn resolve(
     {
         return None;
     }
-    let source_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let source_state = program.state_by_symbol(state.state_symbol)?;
     let StatementNode::LocalData(local) = program
         .statement_table
         .statements(source_state.statement_nodes)

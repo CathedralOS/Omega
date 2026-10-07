@@ -1,6 +1,8 @@
-use crate::flow::CanonicalPlace;
-use crate::flow::canonical_place_from_expression_in_state;
-use crate::semantic::calls::find_state;
+//! Replay exact stored type evidence through a place's field/index segments.
+//! Generic substitutions follow the reaching application; closed fields never rebind to siblings.
+
+use super::canonical_projection::CanonicalPlace;
+use super::canonical_projection::canonical_place_from_expression_in_state;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
@@ -15,8 +17,8 @@ use symbols::SymbolHandle;
 /// segments. Leaves whose values own no declaration identity — scalar
 /// literals, unary and binary results, range operands — keep no reference
 /// rather than borrowing a same-shaped row.
-pub(crate) fn expression_type_reference_in_state(
-    program: &dyn ::validation::CheckingInput,
+pub fn expression_type_reference_in_state(
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -34,8 +36,8 @@ pub(crate) fn expression_type_reference_in_state(
     canonical_place_type_reference(program, state_symbol, statement_index, &place)
 }
 
-pub(crate) fn canonical_place_type_reference(
-    program: &dyn ::validation::CheckingInput,
+pub fn canonical_place_type_reference(
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &CanonicalPlace,
@@ -45,7 +47,11 @@ pub(crate) fn canonical_place_type_reference(
     // its own reference, a window at its element — then replays the retained
     // segments through the same hop rules member resolution commits to.
     if let facts::PlaceRoot::Expression(expression) = place.root {
-        return crate::flow::expression_place_type_reference(program, expression, &place.segments);
+        return super::member_resolution::expression_place_type_reference(
+            program,
+            expression,
+            &place.segments,
+        );
     }
     // A type-reference root names the place's own stored type: its declared
     // type is that reference replayed through the retained segments.
@@ -60,8 +66,7 @@ pub(crate) fn canonical_place_type_reference(
     // normalized to the durable machine symbol. In either form, project their
     // fields through the exact attached data declaration rather than treating
     // the machine's nominal self type as an ordinary data reference.
-    if let Some((machine, _)) =
-        crate::semantic::calls::find_state_with_machine(program, state_symbol)
+    if let Some((machine, _)) = crate::find_state_with_machine(program, state_symbol)
         && machine.symbol == root_symbol
         && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
             place.segments.split_first()
@@ -77,10 +82,9 @@ pub(crate) fn canonical_place_type_reference(
         return project_type_reference_from_segments(program, current, remaining);
     }
 
-    if let Some((machine, _)) =
-        crate::semantic::calls::find_state_with_machine(program, state_symbol)
+    if let Some((machine, _)) = crate::find_state_with_machine(program, state_symbol)
         && machine.attached_data_application.is_valid()
-        && let Some(field) = validation::exact_attached_field(
+        && let Some(field) = crate::exact_attached_field(
             program,
             machine,
             root_symbol,
@@ -102,8 +106,8 @@ pub(crate) fn canonical_place_type_reference(
     project_type_reference_from_segments(program, current, &place.segments)
 }
 
-pub(crate) fn project_type_reference_from_segments(
-    program: &dyn ::validation::CheckingInput,
+pub fn project_type_reference_from_segments(
+    program: &dyn crate::CheckingInput,
     current: typed_trees::types::TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -115,8 +119,8 @@ pub(crate) fn project_type_reference_from_segments(
 /// reference crossed before that slot instead reaches storage owned elsewhere.
 /// Retained owner paths already rebase stores through tracked local aliases.
 /// Unknown projection types cannot establish owned storage.
-pub(crate) fn loan_carrier_has_owned_storage(
-    program: &dyn ::validation::CheckingInput,
+pub fn loan_carrier_has_owned_storage(
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     owner_symbol: SymbolHandle,
@@ -130,7 +134,7 @@ pub(crate) fn loan_carrier_has_owned_storage(
     let mut substitutions = Vec::new();
     for segment in owner_path {
         current = substituted_type_reference(program, current, &substitutions);
-        if crate::borrow::reference_borrow_access_kind(program, current).is_some() {
+        if crate::reference_shell(program, current).is_some() {
             return false;
         }
         let projected = match segment {
@@ -155,15 +159,15 @@ pub(crate) fn loan_carrier_has_owned_storage(
 /// same element a half-open window shares with its collection, so
 /// `&[Box<Context>]` resumes at `Box<Context>`. A reference with no element
 /// (a record, a scalar, an unbound parameter) has none to resume at.
-pub(crate) fn collection_element_type_reference(
-    program: &dyn ::validation::CheckingInput,
+pub fn collection_element_type_reference(
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     indexed_element_type_reference(program, type_reference, &[])
 }
 
 fn project_type_reference_from_segment_iter<'segment>(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     mut current: typed_trees::types::TypeReferenceHandle,
     segments: impl IntoIterator<Item = &'segment facts::PlaceSegment>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -186,12 +190,12 @@ fn project_type_reference_from_segment_iter<'segment>(
 }
 
 fn symbol_type_reference_in_state(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let state = find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
 
     // State parameters and statement locals key their symbol parent to the
     // declaring state — the same storage invariant
@@ -223,24 +227,22 @@ fn symbol_type_reference_in_state(
 }
 
 fn machine_member_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    crate::semantic::calls::find_state_with_machine(program, state_symbol).and_then(
-        |(machine, _)| {
-            program
-                .machine_owned_data(machine)
-                .iter()
-                .find(|owned| owned.symbol == symbol)
-                .map(|owned| owned.type_reference)
-                .or_else(|| attached_data_field_type_reference(program, machine, symbol))
-        },
-    )
+    crate::find_state_with_machine(program, state_symbol).and_then(|(machine, _)| {
+        program
+            .machine_owned_data(machine)
+            .iter()
+            .find(|owned| owned.symbol == symbol)
+            .map(|owned| owned.type_reference)
+            .or_else(|| attached_data_field_type_reference(program, machine, symbol))
+    })
 }
 
 fn attached_data_field_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -256,7 +258,7 @@ fn attached_data_field_type_reference(
 }
 
 fn field_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     field_symbol: SymbolHandle,
     substitutions: &mut Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>,
@@ -315,7 +317,7 @@ fn field_type_reference(
 }
 
 fn indexed_element_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -336,7 +338,7 @@ fn indexed_element_type_reference(
 }
 
 fn substituted_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     mut type_reference: typed_trees::types::TypeReferenceHandle,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> typed_trees::types::TypeReferenceHandle {
@@ -368,8 +370,8 @@ fn substituted_type_reference(
 /// name fallback, the same spelling) makes the premise ambiguous. Refuse it
 /// rather than letting the first same-shaped row mint evidence for the wrong
 /// subject.
-pub(super) fn unique_data_definition_by_symbol(
-    program: &dyn ::validation::CheckingInput,
+pub fn unique_data_definition_by_symbol(
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let mut definitions = program
@@ -381,7 +383,7 @@ pub(super) fn unique_data_definition_by_symbol(
 }
 
 fn data_definition_by_symbol_or_name<'program>(
-    program: &'program dyn ::validation::CheckingInput,
+    program: &'program dyn crate::CheckingInput,
     symbol: SymbolHandle,
     name: &typed_trees::name::Identifier,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
@@ -400,7 +402,7 @@ fn data_definition_by_symbol_or_name<'program>(
 }
 
 fn data_field_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     field_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {

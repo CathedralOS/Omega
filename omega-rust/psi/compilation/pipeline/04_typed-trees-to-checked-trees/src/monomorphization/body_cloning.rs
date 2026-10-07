@@ -1,4 +1,6 @@
 //! Fresh instance storage, lexical symbol remapping, and retained source custody.
+use validation::collect_statement_expression_trees;
+
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, HandleSpan, StatementNode, SymbolHandle,
     SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
@@ -10,8 +12,8 @@ use crate::monomorphization::body_rewriting::{
 };
 use crate::monomorphization::{
     Candidate, candidate_conformance_fingerprint_arguments,
-    closed_operator_realizations_for_machine, collect_statement_expression_trees, const_arguments,
-    const_values, remapped_symbol, resolve_specialized_receiver_calls, specialized_attached_data,
+    closed_operator_realizations_for_machine, const_arguments, const_values, remapped_symbol,
+    resolve_specialized_receiver_calls, specialized_attached_data,
 };
 use validation::contract_identities::specialization_selection_report_fingerprint;
 
@@ -974,7 +976,7 @@ fn rebind_realized_member_symbols(
     }
     let mut members = Vec::new();
     for root in roots {
-        crate::monomorphization::collect_expression_tree(program, root, &mut members);
+        validation::expression_traversal::collect_expression_tree(program, root, &mut members);
     }
     for handle in members {
         let ExpressionNode::Member(member) = program.expression_table.expression(handle) else {

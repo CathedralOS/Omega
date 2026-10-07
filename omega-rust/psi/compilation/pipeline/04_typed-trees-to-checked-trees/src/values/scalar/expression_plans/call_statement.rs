@@ -25,7 +25,7 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, call: &typed_trees::statem
         state,
         statement_ordinal,
         0,
-        &crate::semantic::calls::CallSite::Statement(call),
+        &validation::CallSite::Statement(call),
         scalar_parameters,
         parameters,
         parameter_types,

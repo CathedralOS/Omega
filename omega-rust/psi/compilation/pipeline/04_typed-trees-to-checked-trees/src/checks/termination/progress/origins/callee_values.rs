@@ -1,8 +1,10 @@
 //! callee values slice of origins.
+use validation::CanonicalPlace;
+
 use super::{call_places::*, reference_bounds::*};
 
 use super::FlowStateFact;
-use crate::flow::{self, CanonicalPlace};
+use crate::flow::{self};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;

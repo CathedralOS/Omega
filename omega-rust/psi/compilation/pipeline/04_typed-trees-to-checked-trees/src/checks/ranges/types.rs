@@ -748,7 +748,7 @@ pub(in crate::checks::ranges) fn expression_type_reference(
         {
             let collection =
                 expression_type_reference(program, machine, state, indexed.collection)?;
-            crate::flow::project_type_reference_from_segments(
+            validation::project_type_reference_from_segments(
                 program,
                 collection,
                 &[facts::PlaceSegment::Index {

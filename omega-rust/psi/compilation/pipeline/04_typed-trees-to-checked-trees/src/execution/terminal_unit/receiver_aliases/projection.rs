@@ -7,7 +7,7 @@ pub(super) fn formation_place(
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<(crate::flow::CanonicalPlace, checked_trees::CapturedPlace)> {
+) -> Option<(validation::CanonicalPlace, checked_trees::CapturedPlace)> {
     if !validation::place_has_builtin_coordinates(program, machine, Some(state), expression) {
         return None;
     }
@@ -47,14 +47,14 @@ pub(super) fn formation_place(
                     current = member.receiver;
                     continue;
                 }
-                let receiver_type = crate::flow::expression_type_reference_in_state(
+                let receiver_type = validation::expression_type_reference_in_state(
                     program,
                     state.symbol,
                     statement_index,
                     member.receiver,
                 )?;
                 let receiver_type = validation::unwrapped_type_reference(program, receiver_type)?;
-                let resolved = crate::flow::resolve_member_symbol_from_type_symbol(
+                let resolved = validation::resolve_member_symbol_from_type_symbol(
                     program,
                     program.type_reference_table.type_symbol(receiver_type),
                     member.member.as_str(),
@@ -70,7 +70,7 @@ pub(super) fn formation_place(
                 // `index < extent` obligation, not on the segment's shape.
                 if !program.expression_table.expression_is_valid(indexed.index)
                     || !matches!(
-                        crate::flow::index_place_segment(program, indexed.index),
+                        validation::index_place_segment(program, indexed.index),
                         facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
                     )
                 {
@@ -88,7 +88,7 @@ pub(super) fn formation_place(
         expression,
         machine.symbol,
     )?;
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,

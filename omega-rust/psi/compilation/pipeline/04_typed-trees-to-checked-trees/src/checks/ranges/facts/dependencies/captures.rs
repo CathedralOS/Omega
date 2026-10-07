@@ -117,10 +117,8 @@ impl<'field> RangeFacts<'field> {
                 else {
                     continue;
                 };
-                let selector_symbol = crate::lookup::first_valid_name_path_symbol(
-                    selector,
-                    &program.expression_table,
-                );
+                let selector_symbol =
+                    validation::first_valid_name_path_symbol(selector, &program.expression_table);
                 let same_snapshot = selector.symbol.is_valid()
                     && selector.head_symbol == selector.symbol
                     && selector_symbol == Some(selector.symbol)

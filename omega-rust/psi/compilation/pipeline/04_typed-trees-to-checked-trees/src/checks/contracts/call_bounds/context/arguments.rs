@@ -151,8 +151,8 @@ fn meaning(
             // (`countdown.remaining`) names the callee's storage, and the
             // closed vocabulary gives it no binding -- its atom would collide
             // with the caller's same-declared parameter in a recursive call.
-            let machine = crate::lookup::machine_by_symbol(program, owner)?;
-            match crate::flow::canonical_place_from_expression(program, expression) {
+            let machine = program.machine_by_symbol(owner)?;
+            match validation::canonical_place_from_expression(program, expression) {
                 Some(place) if place.root == facts::PlaceRoot::Symbol(machine.symbol) => {}
                 _ => return None,
             }

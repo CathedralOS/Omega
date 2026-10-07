@@ -2,7 +2,9 @@
 //! drops loans past their last use, and `filter_reassigned_borrow_loans` drops
 //! loans carried by the place an assignment overwrites. Each dropped loan
 //! records a `FlowBorrowWeakeningFact`.
-use crate::flow::CanonicalPlace;
+
+use validation::CanonicalPlace;
+
 use crate::flow::reference_spans;
 use checked_trees::{
     BorrowFacts, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowConstraintKind,
@@ -121,7 +123,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
     // writing through one preserves its captured loan, while replacing it ends
     // the old occurrence. Classify the typed target before comparing owner paths.
     if let typed_trees::statement::StatementNode::Assignment(assignment) = statement
-        && let Some((machine, state)) = crate::semantic::calls::find_state_with_machine(
+        && let Some((machine, state)) = validation::find_state_with_machine(
             program,
             program.symbols.get(reassigned_symbol).parent,
         )
@@ -150,34 +152,32 @@ pub(crate) fn filter_reassigned_borrow_loans(
         root_symbol: reassigned_symbol,
         segments: reassigned_segments,
     };
-    let destinations = crate::semantic::calls::find_state_with_machine(
-        program,
-        program.symbols.get(reassigned_symbol).parent,
-    )
-    .map(|(_, state)| {
-        crate::borrow::store_destination_places(
-            program,
-            state,
-            target.clone(),
-            constraint_refs
-                .span_or_empty(source)
-                .iter()
-                .filter_map(|constraint| match constraint.kind {
-                    FlowConstraintKind::BorrowLoan { loan } => Some(borrow.loans.get(loan)),
-                    _ => None,
-                })
-                .filter(|loan| loan.statement_index < statement_index)
-                .map(|loan| {
-                    (
-                        loan.owner_symbol,
-                        borrow.loan_owner_path(loan),
-                        loan.root_symbol,
-                        borrow.loan_segments(loan),
-                    )
-                }),
-        )
-    })
-    .unwrap_or_else(|| vec![target]);
+    let destinations =
+        validation::find_state_with_machine(program, program.symbols.get(reassigned_symbol).parent)
+            .map(|(_, state)| {
+                crate::borrow::store_destination_places(
+                    program,
+                    state,
+                    target.clone(),
+                    constraint_refs
+                        .span_or_empty(source)
+                        .iter()
+                        .filter_map(|constraint| match constraint.kind {
+                            FlowConstraintKind::BorrowLoan { loan } => Some(borrow.loans.get(loan)),
+                            _ => None,
+                        })
+                        .filter(|loan| loan.statement_index < statement_index)
+                        .map(|loan| {
+                            (
+                                loan.owner_symbol,
+                                borrow.loan_owner_path(loan),
+                                loan.root_symbol,
+                                borrow.loan_segments(loan),
+                            )
+                        }),
+                )
+            })
+            .unwrap_or_else(|| vec![target]);
     let [destination] = destinations.as_slice() else {
         // A may-alias set cannot prove which old slot was replaced.
         return source;

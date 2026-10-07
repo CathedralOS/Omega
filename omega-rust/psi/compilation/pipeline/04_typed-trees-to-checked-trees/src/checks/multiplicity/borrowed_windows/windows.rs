@@ -1,11 +1,13 @@
 //! windows slice of borrowed_windows.
 
+use validation::CanonicalPlace;
+
 use super::{exclusive_storage_chain, place_spelling, resolve_storage_place};
 
 use super::boundary_checks::*;
 
 use super::super::owned_selection::place_paths_overlap;
-use crate::flow::CanonicalPlace;
+
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -50,7 +52,7 @@ impl BorrowedStorageWindows {
         TypeReferenceHandle,
         Vec<Vec<facts::PlaceSegment>>,
     )> {
-        let target = crate::flow::canonical_place_from_expression_in_state(
+        let target = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             statement_index,
@@ -61,7 +63,7 @@ impl BorrowedStorageWindows {
                 root: target.root,
                 segments: target.segments[..length].to_vec(),
             };
-            crate::flow::canonical_place_type_reference(
+            validation::canonical_place_type_reference(
                 program,
                 state.symbol,
                 statement_index,
@@ -83,7 +85,7 @@ impl BorrowedStorageWindows {
         {
             return None;
         }
-        let destination_type = crate::flow::canonical_place_type_reference(
+        let destination_type = validation::canonical_place_type_reference(
             program,
             state.symbol,
             statement_index,
@@ -203,7 +205,7 @@ impl BorrowedStorageWindows {
             root: event.root,
             segments: path.to_vec(),
         };
-        let required_type = crate::flow::canonical_place_type_reference(
+        let required_type = validation::canonical_place_type_reference(
             program,
             state.symbol,
             statement_index,
@@ -346,7 +348,7 @@ impl BorrowedStorageWindows {
         assignment: &typed_trees::statement::TableAssignment,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let Some(target) = crate::flow::canonical_place_from_expression_in_state(
+        let Some(target) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             statement_index,

@@ -724,7 +724,7 @@ pub(super) fn linear_source_use_conflicts(
     let mut used_paths: Vec<Vec<facts::PlaceSegment>> = expressions
         .iter()
         .filter_map(|expression| {
-            crate::flow::canonical_place_from_expression_in_state(
+            validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 statement_index,
@@ -741,7 +741,7 @@ pub(super) fn linear_source_use_conflicts(
             program,
             machine.symbol,
             state.symbol,
-            &crate::semantic::calls::CallSite::Statement(call),
+            &validation::CallSite::Statement(call),
             statement_index,
         ) {
             Some(place) if place.root == facts::PlaceRoot::Symbol(source_symbol) => {

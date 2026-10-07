@@ -212,7 +212,7 @@ pub(super) fn reference_local_borrow_loans(
                     )
             );
             let value_carries_borrow = windowed
-                || crate::flow::expression_type_reference_in_state(
+                || validation::expression_type_reference_in_state(
                     program,
                     state.symbol,
                     statement_index,

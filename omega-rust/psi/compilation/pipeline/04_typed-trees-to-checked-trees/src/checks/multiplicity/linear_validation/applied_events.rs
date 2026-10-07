@@ -241,8 +241,9 @@ fn append_borrow_permission_event(
             statement_index,
             call_ordinal,
             ..
-        } => crate::lookup::machine_by_symbol(program, machine_symbol)
-            .zip(crate::semantic::calls::find_state(program, state_symbol))
+        } => program
+            .machine_by_symbol(machine_symbol)
+            .zip(program.state_by_symbol(state_symbol))
             .map(|(machine, state)| {
                 crate::flow::call_permission_evaluation(
                     program,

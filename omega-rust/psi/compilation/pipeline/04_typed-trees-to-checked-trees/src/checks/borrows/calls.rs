@@ -32,13 +32,14 @@ pub(super) fn check_compatibility<'p>(
         let Some(borrow_state) = super::matching_borrow_state(facts, state_flow) else {
             continue;
         };
-        let premises = crate::semantic::calls::find_state_in_machine(
+        let premises = validation::find_state_in_machine(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,
         )
         .and_then(|state| {
-            crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
+            program
+                .machine_by_symbol(state_flow.machine_symbol)
                 .map(|machine| (machine, state))
         })
         .map(|(machine, state)| {

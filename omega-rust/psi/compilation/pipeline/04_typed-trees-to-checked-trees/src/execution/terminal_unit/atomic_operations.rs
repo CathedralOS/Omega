@@ -318,7 +318,7 @@ fn place(
         validation::declared_place_type_raw(program, machine, Some(state), expression)
             .and_then(|declared| program.primitive_type_reference(declared))?;
     let ordinal = usize::try_from(statement_index).ok()?;
-    let canonical = crate::flow::canonical_place_from_expression_in_state(
+    let canonical = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         ordinal,

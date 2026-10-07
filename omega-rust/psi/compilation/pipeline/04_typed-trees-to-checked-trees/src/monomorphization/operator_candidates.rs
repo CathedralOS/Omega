@@ -7,10 +7,10 @@ use crate::monomorphization::selection::{
     approved_type_bounds, validate_candidate_conformance_bounds,
 };
 use crate::monomorphization::{
-    Candidate, SpecializationKey, candidate, collect_expression_tree,
-    materialize_static_argument_types, saved_calls,
+    Candidate, SpecializationKey, candidate, materialize_static_argument_types, saved_calls,
 };
 use typed_trees::operator::ClosedOperatorApplicationArgument;
+use validation::collect_expression_tree;
 use validation::contract_identities::{
     accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
     normalized_machine_identity,

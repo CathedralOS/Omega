@@ -153,7 +153,7 @@ fn immutable_parameter_endpoint(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<i64> {
-    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let place = validation::canonical_place_from_expression(program, expression)?;
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };

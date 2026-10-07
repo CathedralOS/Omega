@@ -431,7 +431,7 @@ pub(super) fn prepare_storage_deaths(
                             &mut diagnostics,
                         );
                         for prefix_len in 0..path.len() {
-                            let prefix = crate::flow::CanonicalPlace {
+                            let prefix = validation::CanonicalPlace {
                                 root: event.root,
                                 segments: path[..prefix_len].to_vec(),
                             };
@@ -571,7 +571,7 @@ fn borrowed_move_crosses_nominal_drop(
     path: &[facts::PlaceSegment],
 ) -> bool {
     (0..path.len()).any(|prefix_len| {
-        let prefix = crate::flow::CanonicalPlace {
+        let prefix = validation::CanonicalPlace {
             root: event.root,
             segments: path[..prefix_len].to_vec(),
         };
@@ -602,23 +602,21 @@ fn nominal_drop_place_name<'program>(
     program: &'program dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
 ) -> Option<&'program str> {
     if place.segments.is_empty()
         && let facts::PlaceRoot::Symbol(root) = place.root
         && let Some(attached) =
-            crate::semantic::calls::find_state_with_machine(program, state_symbol).and_then(
-                |(machine, _)| {
-                    (machine.symbol == root)
-                        .then_some(machine.attached_data.as_deref())
-                        .flatten()
-                },
-            )
+            validation::find_state_with_machine(program, state_symbol).and_then(|(machine, _)| {
+                (machine.symbol == root)
+                    .then_some(machine.attached_data.as_deref())
+                    .flatten()
+            })
     {
         return data_name_with_nominal_drop(program, attached);
     }
     let type_reference =
-        crate::flow::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
+        validation::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
     nominal_drop_type_name(program, type_reference)
 }
 
@@ -678,12 +676,12 @@ pub(super) fn move_event_is_production_target(
         return false;
     };
     let target = match statement {
-        StatementNode::LocalData(local) => crate::flow::CanonicalPlace {
+        StatementNode::LocalData(local) => validation::CanonicalPlace {
             root: facts::PlaceRoot::Symbol(local.symbol),
             segments: Vec::new(),
         },
         StatementNode::Assignment(assignment) => {
-            let Some(target) = crate::flow::canonical_place_from_expression_in_state(
+            let Some(target) = validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 statement_index,

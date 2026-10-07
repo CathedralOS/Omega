@@ -1,9 +1,11 @@
 //! Call operands transported through an exact normal-return guarantee.
 //! No source arithmetic, callee body, or current argument storage is replayed.
+use validation::canonical_place_from_expression_in_state;
+
 use super::{CheckedScalarExpressionRole, ExpressionHandle, FactPayload, Machine, ScalarValue};
 use crate::checks::contracts::exits::scalars::ExitScalars;
 use crate::checks::contracts::return_values::is_result_reference;
-use crate::flow::canonical_place_from_expression_in_state;
+
 use crate::values::evaluate_checked_scalar;
 use crate::values::scalar_value_at_place;
 use checked_trees::{CheckedScalarComputationKind, ContractProofFactKind, ContractProofFactOwner};
@@ -119,7 +121,7 @@ impl ExitScalars<'_, '_> {
 
     pub(super) fn value_at_place(
         &self,
-        subject: &crate::flow::CanonicalPlace,
+        subject: &validation::CanonicalPlace,
     ) -> Option<ScalarValue> {
         if let Some(value) = scalar_value_at_place(
             self.program,
@@ -136,7 +138,7 @@ impl ExitScalars<'_, '_> {
 
     pub(super) fn assigned_call_at_place(
         &self,
-        subject: &crate::flow::CanonicalPlace,
+        subject: &validation::CanonicalPlace,
     ) -> Option<ExpressionHandle> {
         let mut source = None;
         for context in self.contexts {
@@ -230,10 +232,10 @@ impl ExitScalars<'_, '_> {
         if occurrences.next().is_some() || call.target_symbol != authored.target_symbol {
             return None;
         }
-        let Some(crate::semantic::calls::CallSite::Expression {
+        let Some(validation::CallSite::Expression {
             expression: actual,
             call: selected,
-        }) = crate::semantic::calls::find_call_site(
+        }) = validation::find_call_site(
             self.program,
             self.machine.symbol,
             state.state_symbol,
@@ -247,7 +249,7 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let (callee, entry) =
-            crate::semantic::calls::find_machine_by_entry_state(self.program, call.target_symbol)?;
+            validation::find_machine_by_entry_state(self.program, call.target_symbol)?;
         let parameters = self.program.state_parameters(entry);
         if parameters.iter().any(|parameter| parameter.is_const) {
             return None;
@@ -352,11 +354,8 @@ impl ExitScalars<'_, '_> {
     ) -> Option<ScalarValue> {
         let statement = u32::try_from(call.statement_index).ok()?;
         let position = u32::try_from(position).ok()?;
-        let caller_state = crate::semantic::calls::find_state_in_machine(
-            self.program,
-            self.machine.symbol,
-            state,
-        )?;
+        let caller_state =
+            validation::find_state_in_machine(self.program, self.machine.symbol, state)?;
         let statements = self
             .program
             .statement_table
@@ -420,8 +419,7 @@ impl ExitScalars<'_, '_> {
             if self.facts.flow.control.calls.get(*source_call) != call {
                 continue;
             }
-            let parameters =
-                crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)?;
+            let parameters = validation::call_target_parameters(self.program, call.target_symbol)?;
             let source_position = usize::try_from(position).ok()?;
             if self
                 .program

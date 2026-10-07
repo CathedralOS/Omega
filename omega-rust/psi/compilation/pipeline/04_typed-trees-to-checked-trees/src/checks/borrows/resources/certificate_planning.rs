@@ -172,8 +172,7 @@ fn exact_shared_cohort_observation(
     let [observation] = observation_calls.as_slice() else {
         return false;
     };
-    let Some(target_state) = crate::semantic::calls::find_state(program, observation.target_symbol)
-    else {
+    let Some(target_state) = program.state_by_symbol(observation.target_symbol) else {
         return false;
     };
     let Some(target_machine) = program.machines().iter().find(|machine| {
@@ -396,8 +395,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
         let [(call_handle, call)] = calls.as_slice() else {
             continue;
         };
-        let Some(target_state) = crate::semantic::calls::find_state(program, call.target_symbol)
-        else {
+        let Some(target_state) = program.state_by_symbol(call.target_symbol) else {
             continue;
         };
         let Some(target_machine) = program.machines().iter().find(|machine| {

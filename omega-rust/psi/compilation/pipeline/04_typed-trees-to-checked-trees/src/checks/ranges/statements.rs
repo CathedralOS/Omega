@@ -180,7 +180,7 @@ pub(super) fn bound_reference_referent_extent(
     if !exact {
         return None;
     }
-    let exact = crate::flow::canonical_place_type_reference(
+    let exact = validation::canonical_place_type_reference(
         program,
         state.symbol,
         facts.statement_index,

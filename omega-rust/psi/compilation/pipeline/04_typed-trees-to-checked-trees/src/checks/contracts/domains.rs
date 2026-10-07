@@ -23,7 +23,7 @@ pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membershi
     context: &facts::FactContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    call_site: &validation::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {

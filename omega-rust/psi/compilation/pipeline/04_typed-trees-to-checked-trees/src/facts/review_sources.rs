@@ -4,11 +4,10 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionOccurrenceId as OccurrenceId,
 };
 use source::SourceSpan;
+use validation::{CallSite, collect_call_sites_in_statement};
+use validation::{call_receiver_parts, resolve_state_call_target, statement_call_receiver_members};
 
-use crate::lookup::{
-    call_receiver_parts, resolve_state_call_target, statement_call_receiver_members,
-};
-use crate::semantic::calls::{CallSite, collect_call_sites_in_statement, dispatch_subjects};
+use crate::semantic::calls::dispatch_subjects;
 use checked_trees::{FlowCallResult, FlowCallSite};
 use typed_trees::statement::StatementNode;
 
@@ -59,7 +58,7 @@ pub(crate) fn bind_checked_body_call_source_spans(
         let mut call_sites_by_statement = std::collections::HashMap::<
             usize,
             (
-                Vec<crate::semantic::calls::CallSite<'_>>,
+                Vec<validation::CallSite<'_>>,
                 dispatch_subjects::StatementDispatchCalls,
             ),
         >::new();

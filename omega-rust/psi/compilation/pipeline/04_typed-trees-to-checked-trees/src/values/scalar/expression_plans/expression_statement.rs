@@ -35,7 +35,7 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
             state,
             statement_ordinal,
             0,
-            &crate::semantic::calls::CallSite::Expression { expression, call },
+            &validation::CallSite::Expression { expression, call },
             scalar_parameters,
             parameters,
             parameter_types,

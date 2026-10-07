@@ -32,7 +32,7 @@ pub(crate) fn is_scalar_return_call(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    crate::flow::call_target_return_type(program, crate::flow::call_target_symbol(program, call))
+    validation::call_target_return_type(program, validation::call_target_symbol(program, call))
         .is_some_and(|return_type| {
             program.primitive_type_reference(return_type) == Some(primitive_type)
         })
@@ -217,7 +217,7 @@ pub(super) fn nested_structural_call_sites<'program>(
     machine: &typed_trees::machine::Machine,
     statement: &StatementNode,
     statement_index: usize,
-) -> Vec<(usize, crate::semantic::calls::CallSite<'program>)> {
+) -> Vec<(usize, validation::CallSite<'program>)> {
     let Some(calls) = flow.control.calls.span(source.calls) else {
         return Vec::new();
     };
@@ -272,7 +272,7 @@ pub(super) fn nested_structural_call_sites<'program>(
             else {
                 return None;
             };
-            if crate::flow::call_target_symbol(program, call) != source.target_symbol
+            if validation::call_target_symbol(program, call) != source.target_symbol
                 || !call.carries_only_positional_arguments()
                 || !call.selects_only_nominal_route()
             {
@@ -298,7 +298,7 @@ pub(super) fn nested_structural_call_sites<'program>(
             }
             Some((
                 source.call_ordinal,
-                crate::semantic::calls::CallSite::Expression {
+                validation::CallSite::Expression {
                     expression: source.authored_expression,
                     call,
                 },

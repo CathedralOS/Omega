@@ -150,7 +150,7 @@ pub(crate) fn direct_integer_requirement(
         return None;
     };
     let parameter = |parameter_expression| {
-        let place = crate::flow::canonical_place_from_expression_in_state(
+        let place = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             0,
@@ -555,7 +555,7 @@ pub(crate) fn direct_boolean_field_requirement(
         _ => return None,
     };
     let place =
-        crate::flow::canonical_place_from_expression_in_state(program, state, 0, field_expression)?;
+        validation::canonical_place_from_expression_in_state(program, state, 0, field_expression)?;
     let [facts::PlaceSegment::Field { symbol }] = place.segments.as_slice() else {
         return None;
     };

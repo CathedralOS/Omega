@@ -82,10 +82,8 @@ pub(super) struct FlowBuildContext<'plans> {
     /// memoizes once and survives `discard_output` like the immutable plans
     /// above -- they hold typed-tree handles only, never sweep-local arena
     /// handles.
-    pub(super) call_sites: HashMap<
-        (SymbolHandle, SymbolHandle, usize, usize),
-        Option<crate::semantic::calls::CallSite<'plans>>,
-    >,
+    pub(super) call_sites:
+        HashMap<(SymbolHandle, SymbolHandle, usize, usize), Option<validation::CallSite<'plans>>>,
     pub(super) call_target_parameters:
         HashMap<SymbolHandle, Option<&'plans [typed_trees::signature::StateParameter]>>,
     pub(super) call_target_returns:
@@ -158,7 +156,7 @@ pub(super) struct FlowBuildContext<'plans> {
             usize,
             typed_trees::expression::ExpressionHandle,
         ),
-        Option<crate::flow::CanonicalPlace>,
+        Option<validation::CanonicalPlace>,
     >,
     expression_result_types: HashMap<
         (
@@ -179,14 +177,14 @@ pub(super) struct FlowBuildContext<'plans> {
     machine_parameter_origins:
         HashMap<SymbolHandle, Rc<crate::flow::entry_origins::MachineParameterOrigins>>,
     reference_candidate_places:
-        HashMap<(SymbolHandle, usize, SymbolHandle), Option<Rc<Vec<crate::flow::CanonicalPlace>>>>,
+        HashMap<(SymbolHandle, usize, SymbolHandle), Option<Rc<Vec<validation::CanonicalPlace>>>>,
     /// Statement storage-write places per site: the answer is program-pure on
     /// (state, statement index) -- the machine and statement are implied by
     /// the key and the shared call-frame resolver is the same `call_frames`
     /// the whole build shares -- so the enumeration runs at most once per
     /// site rather than once per pass.
     statement_storage_writes:
-        HashMap<(SymbolHandle, usize), Option<Rc<Vec<crate::flow::CanonicalPlace>>>>,
+        HashMap<(SymbolHandle, usize), Option<Rc<Vec<validation::CanonicalPlace>>>>,
     /// Declared root type for a transfer-correspondence place: another
     /// program-immutable lookup over machines, states, and statement tables.
     pub(super) correspondence_root_types: HashMap<
@@ -369,7 +367,7 @@ impl<'plans> FlowBuildContext<'plans> {
     }
 
     /// `(machines index, in-machine state index)` of a state symbol anywhere
-    /// in the program -- the shape `semantic::calls::find_state` scans for.
+    /// in the program -- the shape `TypedTrees::state_by_symbol` resolves.
     pub(super) fn state_location(
         &mut self,
         program: &dyn ::validation::CheckingInput,
@@ -387,11 +385,11 @@ impl<'plans> FlowBuildContext<'plans> {
         state_symbol: SymbolHandle,
         statement_index: usize,
         expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<crate::flow::CanonicalPlace> {
+    ) -> Option<validation::CanonicalPlace> {
         self.canonical_places
             .entry((state_symbol, statement_index, expression))
             .or_insert_with(|| {
-                crate::flow::canonical_place_from_expression_in_state(
+                validation::canonical_place_from_expression_in_state(
                     program,
                     state_symbol,
                     statement_index,
@@ -428,7 +426,7 @@ impl<'plans> FlowBuildContext<'plans> {
             .transition_call_targets
             .entry((machine.symbol, state.symbol, statement_index, call_ordinal))
             .or_insert_with(|| {
-                crate::semantic::calls::transition_call_target(
+                validation::transition_call_target(
                     program,
                     machine,
                     state,
@@ -550,7 +548,7 @@ impl<'plans> FlowBuildContext<'plans> {
         state_symbol: SymbolHandle,
         statement_index: usize,
         root: SymbolHandle,
-    ) -> Option<Rc<Vec<crate::flow::CanonicalPlace>>> {
+    ) -> Option<Rc<Vec<validation::CanonicalPlace>>> {
         self.reference_candidate_places
             .entry((state_symbol, statement_index, root))
             .or_insert_with(|| {
@@ -578,7 +576,7 @@ impl<'plans> FlowBuildContext<'plans> {
         state_symbol: SymbolHandle,
         statement_index: usize,
         statement: &checked_trees::statement::StatementNode,
-    ) -> Option<Rc<Vec<crate::flow::CanonicalPlace>>> {
+    ) -> Option<Rc<Vec<validation::CanonicalPlace>>> {
         self.statement_storage_writes
             .entry((state_symbol, statement_index))
             .or_insert_with(|| {
@@ -704,6 +702,6 @@ pub(super) fn source_transfer_cases_selected(
         machine_symbol,
         state_symbol,
         statement_index,
-        &crate::flow::CanonicalPlace { root, segments },
+        &validation::CanonicalPlace { root, segments },
     )
 }

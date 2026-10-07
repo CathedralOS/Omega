@@ -1,13 +1,15 @@
 //! Operand and place reads: the per-operand dispatch and the captured
 //! read each place contributes.
 
+use validation::CanonicalPlace;
+use validation::canonical_place_from_expression_in_state;
+
 use super::super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use super::collect_reads;
 use super::members::{collect_selector_reads, selected_operator_operands};
 use super::root_currency::root_is_current;
 use crate::checks::ranges::facts::RangeCallContext;
-use crate::flow::CanonicalPlace;
-use crate::flow::canonical_place_from_expression_in_state;
+
 use checked_trees::CheckedOperatorFacts;
 use symbols::SymbolHandle;
 

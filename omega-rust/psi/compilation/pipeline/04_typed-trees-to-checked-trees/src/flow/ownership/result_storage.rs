@@ -1,7 +1,9 @@
 //! Storage contained in a by-value call result. This does not classify the
 //! origins of references stored in that result or discharge its permissions.
-use crate::flow::CanonicalPlace;
-use crate::flow::project_type_reference_from_segments;
+
+use validation::CanonicalPlace;
+use validation::project_type_reference_from_segments;
+
 use checked_trees::expression::ExpressionNode;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};

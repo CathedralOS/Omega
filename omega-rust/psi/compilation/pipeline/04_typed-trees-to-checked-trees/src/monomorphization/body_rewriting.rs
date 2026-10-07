@@ -8,6 +8,8 @@
 //! arguments and requirements and `cloned_calls.rs` rewrites cloned calls
 //! and static machine transition targets.
 
+use validation::collect_statement_expression_trees;
+
 mod cloned_calls;
 mod const_substitution;
 mod evidence_rewrites;
@@ -15,7 +17,7 @@ mod machine_arguments;
 mod type_parameter_substitution;
 
 pub(crate) use cloned_calls::{rewrite_cloned_calls, statement_span_handles};
-pub(crate) use const_substitution::collect_statement_expression_trees;
+
 pub(crate) use evidence_rewrites::collect_evidence_requirement_closure;
 pub(crate) use machine_arguments::{
     remap_machine_argument_symbols, static_const_literal_from_type_reference,

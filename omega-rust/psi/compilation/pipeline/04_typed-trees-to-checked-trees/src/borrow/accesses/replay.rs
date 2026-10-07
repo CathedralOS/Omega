@@ -3,7 +3,9 @@
 //! Call and transition operands share place collection but keep their own
 //! dispatch lifetime rules. Access rows are observations, not formal positions;
 //! callers select operands through the exact authored call site returned here.
-use crate::semantic::calls::{CallSite, call_site_argument_expressions, find_call_site};
+
+use validation::{CallSite, call_site_argument_expressions, find_call_site};
+
 use checked_trees::{BorrowFacts, FlowCallFact};
 use symbols::SymbolHandle;
 
@@ -45,7 +47,7 @@ pub(crate) fn rejoin_call_accesses<'program>(
     let collector = match &site {
         CallSite::Expression { expression, call } => {
             if *expression != source.authored_expression
-                || crate::flow::call_target_symbol(program, call) != source.target_symbol
+                || validation::call_target_symbol(program, call) != source.target_symbol
             {
                 return None;
             }

@@ -74,7 +74,7 @@ pub(super) fn append_owned_qualification_transfer(
         // Those remain tied to the independently checked reference origins;
         // freezing them under the new slot would survive source invalidation.
         if !(0..=relative_path.len()).all(|length| {
-            let Some(mut reference) = crate::flow::project_type_reference_from_segments(
+            let Some(mut reference) = validation::project_type_reference_from_segments(
                 program,
                 destination_type,
                 &relative_path[..length],

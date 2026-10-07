@@ -1,11 +1,13 @@
 //! Atomic read/write operand reads: carrier targets, local names, and the
 //! fetch/compare-exchange operand spellings an atomic call contributes.
 
+use validation::CanonicalPlace;
+
 use super::super::{ExpressionHandle, ExpressionNode, Machine, State};
 use super::operands::{collect_operand_reads, collect_place_read};
 use super::root_currency::root_is_current;
 use crate::checks::ranges::facts::RangeCallContext;
-use crate::flow::CanonicalPlace;
+
 use checked_trees::CheckedOperatorFacts;
 use symbols::SymbolHandle;
 
@@ -216,7 +218,7 @@ pub(super) fn atomic_local_name_symbol(
     if path.members.count() != 1 {
         return None;
     }
-    let symbol = crate::lookup::first_valid_name_path_symbol(path, &program.expression_table)
+    let symbol = validation::first_valid_name_path_symbol(path, &program.expression_table)
         .or_else(|| {
             let name = program
                 .expression_table

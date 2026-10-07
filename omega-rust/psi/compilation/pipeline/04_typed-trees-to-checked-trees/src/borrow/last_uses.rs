@@ -91,7 +91,7 @@ pub(super) fn update_state_loan_last_uses(
     // Incoming storage remains live in its caller even when this state makes
     // no further lexical observation of it. Installed field loans end only
     // when replacement replay retires their slot or this state exits.
-    if let Some(state) = crate::semantic::calls::find_state(program, state_symbol) {
+    if let Some(state) = program.state_by_symbol(state_symbol) {
         for tracker in loan_trackers {
             if !tracker.owner_path.is_empty()
                 && program

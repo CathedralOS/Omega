@@ -1,7 +1,8 @@
 //! Operation meaning required before call operands supply fixed storage coordinates.
-use crate::semantic::calls::CallSite;
-use crate::semantic::calls::call_site_argument_expressions;
-use crate::semantic::calls::find_state;
+
+use validation::CallSite;
+use validation::call_site_argument_expressions;
+
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -11,10 +12,10 @@ pub(super) fn call_operands_have_builtin_coordinates(
     state_symbol: SymbolHandle,
     site: &CallSite<'_>,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+    let Some(machine) = program.machine_by_symbol(machine_symbol) else {
         return false;
     };
-    let Some(state) = find_state(program, state_symbol) else {
+    let Some(state) = program.state_by_symbol(state_symbol) else {
         return false;
     };
     if !call_site_argument_expressions(program, site)

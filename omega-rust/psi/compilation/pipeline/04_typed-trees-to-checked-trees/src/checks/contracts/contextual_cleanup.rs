@@ -1,6 +1,8 @@
 //! Bound generic cleanup inputs are ordinary call obligations. Their origin is
 //! the retained generic death row, not an authored `requires` clause; only the
 //! actual's evaluated operand facts can discharge the instantiated predicate.
+use validation::CanonicalPlace;
+
 use checked_trees::{
     CheckFacts, CheckedBooleanExpression, ContextualCleanupEntryRequirement, FlowCallFact,
     FlowStateFact,
@@ -9,7 +11,6 @@ use diagnostics::Diagnostic;
 use facts::FactContextHandle;
 
 pub(crate) use super::call_values::target_machine;
-use crate::flow::CanonicalPlace;
 
 pub(crate) fn actual_place(
     program: &dyn ::validation::CheckingInput,

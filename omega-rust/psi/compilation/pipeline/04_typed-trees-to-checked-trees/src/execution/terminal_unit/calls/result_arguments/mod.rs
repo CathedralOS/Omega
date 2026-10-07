@@ -38,14 +38,13 @@ pub(super) fn argument(
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
     target_identity: &str,
     allow_projection: bool,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let (source_machine, source_state) =
-        crate::semantic::calls::find_state_with_machine(program, state)?;
+    let (source_machine, source_state) = validation::find_state_with_machine(program, state)?;
     if let Some(argument) = super::super::reference_results::record_argument(
         program,
         facts,
@@ -555,7 +554,7 @@ pub(super) fn argument(
                 || linear
                 || owned_reference_record
             {
-                let source_state = crate::semantic::calls::find_state(program, state)?;
+                let source_state = program.state_by_symbol(state)?;
                 let StatementNode::LocalData(local) = program
                     .statement_table
                     .statements(source_state.statement_nodes)
@@ -691,7 +690,7 @@ pub(super) fn argument(
         // preorder coordinate; the shared sequencer executes it in postorder.
         facts::PlaceRoot::Expression(source) if source == value_expression || projected => {
             if projected
-                && crate::flow::canonical_place_from_expression_in_state(
+                && validation::canonical_place_from_expression_in_state(
                     program,
                     state,
                     call.statement_index,
@@ -730,7 +729,7 @@ pub(super) fn argument(
                 source,
                 &mut ShapeCollector::new(program),
             )?;
-            if crate::flow::call_target_symbol(program, authored) != producer.target_symbol
+            if validation::call_target_symbol(program, authored) != producer.target_symbol
                 || completed.type_identity != result.type_identity
                 || (access == CheckedStructuralAccess::Owned
                     && completed.qualifications
@@ -854,7 +853,7 @@ fn names_whole_local(
 fn whole_local_storage_type(
     program: &dyn ::validation::CheckingInput,
     source_state: &typed_trees::state::State,
-    place: &crate::flow::CanonicalPlace,
+    place: &validation::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let facts::PlaceRoot::Symbol(symbol) = place.root else {

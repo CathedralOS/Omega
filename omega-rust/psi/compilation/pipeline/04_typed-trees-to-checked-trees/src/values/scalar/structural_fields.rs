@@ -580,7 +580,7 @@ pub(super) fn view_local_place(
         base = member.receiver;
     }
     let (symbol, view_type) = view_local_root(program, parameters, base)?;
-    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let place = validation::canonical_place_from_expression(program, expression)?;
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -1083,7 +1083,7 @@ pub(super) fn structural_parameter_place(
     Vec<CheckedStructuralPredicatePathSegment>,
     TypeReferenceHandle,
 )> {
-    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let place = validation::canonical_place_from_expression(program, expression)?;
     // Typed member nodes may leave selection to canonical place resolution.
     // A retained symbol, however, cannot contradict that exact selection.
     let mut authored = expression;
@@ -1132,7 +1132,7 @@ pub(super) fn structural_parameter_place(
             // the receiver's exact origin/member correspondence can justify
             // that change; a sibling instance or foreign field cannot.
             let closed_field =
-                crate::flow::expression_place_type_reference(program, member.receiver, &[])
+                validation::expression_place_type_reference(program, member.receiver, &[])
                     .and_then(|reference| validation::unwrapped_type_reference(program, reference))
                     .and_then(|reference| {
                         program.closed_data_member_field(

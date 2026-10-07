@@ -228,11 +228,10 @@ fn checked_resultless_law_equality(
                 machine_symbol,
                 state_symbol,
             } => resultless_machine_state(program, machine_symbol, state_symbol),
-            ContractProofFactOwner::Machine { machine_symbol } => {
-                crate::lookup::machine_by_symbol(program, machine_symbol)
-                    .and_then(|machine| program.machine_states(machine).first())
-                    .is_some_and(|state| type_reference_is_unit(program, state.return_type))
-            }
+            ContractProofFactOwner::Machine { machine_symbol } => program
+                .machine_by_symbol(machine_symbol)
+                .and_then(|machine| program.machine_states(machine).first())
+                .is_some_and(|state| type_reference_is_unit(program, state.return_type)),
             _ => false,
         };
         if !resultless {
@@ -280,7 +279,8 @@ fn resultless_machine_state(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> bool {
-    crate::lookup::machine_by_symbol(program, machine_symbol)
+    program
+        .machine_by_symbol(machine_symbol)
         .and_then(|machine| {
             program
                 .machine_states(machine)

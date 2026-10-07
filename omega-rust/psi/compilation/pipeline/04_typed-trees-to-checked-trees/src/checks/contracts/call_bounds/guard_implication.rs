@@ -13,7 +13,7 @@ use typed_trees::{
 
 #[derive(PartialEq, Eq)]
 struct Operand {
-    place: crate::flow::CanonicalPlace,
+    place: validation::CanonicalPlace,
     meaning: Meaning,
 }
 
@@ -85,7 +85,7 @@ pub(super) fn proves(
         if actual_meaning != meaning {
             return None;
         }
-        let mut place = crate::flow::canonical_place_from_expression(program, actual)?;
+        let mut place = validation::canonical_place_from_expression(program, actual)?;
         place.segments.extend(suffix);
         exact_place(place).map(|place| Operand { place, meaning })
     };
@@ -94,7 +94,7 @@ pub(super) fn proves(
     };
     let guard_operand = |expression| {
         let (expression, meaning) = observation(program, caller, caller_state, expression)?;
-        let place = crate::flow::canonical_place_from_expression(program, expression)?;
+        let place = validation::canonical_place_from_expression(program, expression)?;
         exact_place(place).map(|place| Operand { place, meaning })
     };
     let mut pending = vec![guard];
@@ -212,7 +212,7 @@ fn observation(
     .then_some((expression, Meaning::Integer(primitive)))
 }
 
-fn exact_place(place: crate::flow::CanonicalPlace) -> Option<crate::flow::CanonicalPlace> {
+fn exact_place(place: validation::CanonicalPlace) -> Option<validation::CanonicalPlace> {
     (matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
         && place.segments.iter().all(
             |segment| matches!(segment, facts::PlaceSegment::Field { symbol } if symbol.is_valid()),
