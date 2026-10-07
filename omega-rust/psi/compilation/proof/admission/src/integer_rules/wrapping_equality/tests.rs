@@ -1,6 +1,6 @@
 use crate::{
-    Budget, PrimitiveJudgment, ProofNode, ProofRule, Term, check_certificate,
-    verify_bounded_certificate, verify_mathematical_certificate,
+    Budget, PrimitiveJudgment, ProofNode, ProofRule, check_certificate,
+    verify_bounded_certificate,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -220,15 +220,7 @@ fn wrapping_polynomial_core_rechecks_the_primitive_and_rejects_forged_evidence()
         &mut Budget::default(),
     )
     .unwrap();
-    denoted.certificate.term = denoted.arena.insert(Term::TwoZero);
-    assert!(
-        verify_mathematical_certificate(
-            &mut denoted.arena,
-            &denoted.certificate,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    crate::forge_term_and_assert_rejected(&mut denoted);
     let wrong = certificate(gauss(carrier, true));
     assert!(
         verify_bounded_certificate(

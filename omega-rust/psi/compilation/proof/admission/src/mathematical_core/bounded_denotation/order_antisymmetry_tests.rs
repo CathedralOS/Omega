@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use super::Elaboration;
 use crate::proof::assumption_proof;
 use crate::{
-    AcceptedProofRule, Budget, ProofNode, ProofRule, Term, accept_certificate, check_certificate,
-    verify_bounded_certificate, verify_mathematical_certificate,
+    AcceptedProofRule, Budget, ProofNode, ProofRule, accept_certificate, check_certificate,
+    verify_bounded_certificate,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
@@ -65,15 +65,7 @@ fn integer_order_antisymmetry_certifies_both_orders_through_existing_core_law() 
             &mut Budget::default(),
         )
         .unwrap();
-        denoted.certificate.term = denoted.arena.insert(Term::TwoZero);
-        assert!(
-            verify_mathematical_certificate(
-                &mut denoted.arena,
-                &denoted.certificate,
-                &mut Budget::default()
-            )
-            .is_err()
-        );
+        crate::forge_term_and_assert_rejected(&mut denoted);
         assert!(
             check_certificate(&context, &proof.conclusion, &premises[..1], &[], &proof).is_err()
         );

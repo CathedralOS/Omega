@@ -8,7 +8,7 @@ use semantic_vocabulary::{
 use super::super::Elaboration;
 use crate::proof::assumption_proof;
 use crate::{
-    Budget, ProofNode, ProofRule, Term, verify_bounded_certificate, verify_mathematical_certificate,
+    Budget, ProofNode, ProofRule, verify_bounded_certificate, verify_mathematical_certificate,
 };
 
 fn fixture(
@@ -66,16 +66,7 @@ fn checked(integer: IntegerType, left: ScalarTerm, right: ScalarTerm) {
         budget.remaining()
     );
     assert!(denoted.certificate.signature.len() < 800);
-    let evidence = denoted.certificate.term;
-    denoted.certificate.term = denoted.arena.insert(Term::TwoZero);
-    assert!(
-        verify_mathematical_certificate(
-            &mut denoted.arena,
-            &denoted.certificate,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    let evidence = crate::forge_term_and_assert_rejected(&mut denoted);
     denoted.certificate.term = evidence;
     verify_mathematical_certificate(
         &mut denoted.arena,

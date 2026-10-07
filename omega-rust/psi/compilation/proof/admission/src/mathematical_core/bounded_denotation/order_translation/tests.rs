@@ -3,8 +3,7 @@ use std::collections::BTreeSet;
 use super::super::Elaboration;
 use crate::proof::assumption_proof;
 use crate::{
-    Budget, ProofNode, ProofRule, Term, check_certificate, verify_bounded_certificate,
-    verify_mathematical_certificate,
+    Budget, ProofNode, ProofRule, check_certificate, verify_bounded_certificate,
 };
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
@@ -74,15 +73,7 @@ fn mathematical_order_translation_derives_from_existing_core_law() {
         &mut Budget::default(),
     )
     .unwrap();
-    denoted.certificate.term = denoted.arena.insert(Term::TwoZero);
-    assert!(
-        verify_mathematical_certificate(
-            &mut denoted.arena,
-            &denoted.certificate,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    crate::forge_term_and_assert_rejected(&mut denoted);
     assert!(check_certificate(&context, &proof.conclusion, &[], &[], &proof).is_err());
 }
 

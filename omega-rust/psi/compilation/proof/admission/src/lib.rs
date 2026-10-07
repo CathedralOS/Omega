@@ -92,3 +92,21 @@ pub use proof::{
     accept_certificate_with_machine_parameters, check_certificate, lift_exact_integer_order,
     lift_fixed_integer_relation, lower_integer_math_relation,
 };
+
+/// Forge the certificate's mathematical term to a `TwoZero` node, assert the
+/// kernel rejects the forged certificate, and return the original term so
+/// the caller may restore it and keep checking.
+#[cfg(test)]
+pub(crate) fn forge_term_and_assert_rejected(denoted: &mut BoundedDenotation) -> TermHandle {
+    let evidence = denoted.certificate.term;
+    denoted.certificate.term = denoted.arena.insert(Term::TwoZero);
+    assert!(
+        verify_mathematical_certificate(
+            &mut denoted.arena,
+            &denoted.certificate,
+            &mut Budget::default()
+        )
+        .is_err()
+    );
+    evidence
+}

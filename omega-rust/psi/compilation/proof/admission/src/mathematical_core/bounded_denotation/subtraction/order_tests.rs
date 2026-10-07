@@ -12,7 +12,7 @@ use semantic_vocabulary::{
 
 use super::super::Elaboration;
 use crate::{
-    Budget, ProofNode, ProofRule, Term, verify_bounded_certificate, verify_mathematical_certificate,
+    Budget, ProofNode, ProofRule, verify_bounded_certificate, verify_mathematical_certificate,
 };
 
 fn value(integer: IntegerType, identity: u64) -> ScalarTerm {
@@ -119,16 +119,7 @@ fn checked(integer: IntegerType, assumptions: &[Proposition], proof: &ProofNode)
         &mut Budget::default(),
     )
     .unwrap();
-    let evidence = denoted.certificate.term;
-    denoted.certificate.term = denoted.arena.insert(Term::TwoZero);
-    assert!(
-        verify_mathematical_certificate(
-            &mut denoted.arena,
-            &denoted.certificate,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    let evidence = crate::forge_term_and_assert_rejected(&mut denoted);
     denoted.certificate.term = evidence;
     verify_mathematical_certificate(
         &mut denoted.arena,
