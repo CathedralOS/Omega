@@ -37,6 +37,7 @@
 //!   and occurrence collection belong to `crate::expression_traversal`.
 
 use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 use std::fmt;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -574,19 +575,10 @@ pub(crate) fn named_value_type_reference(
             return Some(owned.type_reference);
         }
         for state in program.machine_states(machine) {
-            if let Some(parameter) = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| matches_symbol(parameter.symbol))
+            if let Some(type_reference) =
+                state_symbol_declared_type(program, state, matches_symbol)
             {
-                return Some(parameter.type_reference);
-            }
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::LocalData(local) = statement
-                    && matches_symbol(local.symbol)
-                {
-                    return Some(local.type_reference);
-                }
+                return Some(type_reference);
             }
         }
     }
@@ -711,24 +703,34 @@ fn hinted_named_value_type_reference(
                 .machine_states(machine)
                 .iter()
                 .find(|state| state.symbol == parent)?;
-            if let Some(parameter) = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| matches_symbol(parameter.symbol))
-            {
-                return Some(parameter.type_reference);
-            }
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::LocalData(local) = statement
-                    && matches_symbol(local.symbol)
-                {
-                    return Some(local.type_reference);
-                }
-            }
-            None
+            state_symbol_declared_type(program, state, matches_symbol)
         }
         _ => None,
     }
+}
+
+/// The declared type a state's parameter or `data` local carries for a
+/// matching symbol, or `None`.
+fn state_symbol_declared_type(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    matches_symbol: impl Fn(SymbolHandle) -> bool,
+) -> Option<TypeReferenceHandle> {
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| matches_symbol(parameter.symbol))
+    {
+        return Some(parameter.type_reference);
+    }
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        if let StatementNode::LocalData(local) = statement
+            && matches_symbol(local.symbol)
+        {
+            return Some(local.type_reference);
+        }
+    }
+    None
 }
 
 /// Mirror the backend layout classifier for an owned variable-fill text
