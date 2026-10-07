@@ -142,7 +142,7 @@ pub(super) fn derive(
     }
     let owned_receiver_type_identity =
         checked.normalized_nominal_type_identity(definition.symbol)?;
-    let StructuralTypeShape::Record { fields } = &structural_type.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &structural_type.shape else {
         return None;
     };
     // Plain records and fixed primitive arrays need no initialization program.
@@ -292,6 +292,7 @@ fn collect_determined_evidence_fields(
                     return None;
                 }
                 let (StructuralTypeShape::Record {
+                    storage: None,
                     fields: nested_fields,
                 }
                 | StructuralTypeShape::Mixed {
@@ -421,7 +422,7 @@ fn collect_fused_service_fields(
                     return None;
                 }
                 let nested_fields = match &nested_declaration.shape {
-                    StructuralTypeShape::Record { fields }
+                    StructuralTypeShape::Record { fields, .. }
                     | StructuralTypeShape::Mixed { fields, .. } => fields,
                     _ => continue,
                 };
@@ -586,7 +587,7 @@ fn zero_valid_shape(
         // A binding leaf is admitted only by its exact source/roster join in
         // zero_valid_fields, never by generic recursion or zero-filled bytes.
         StructuralTypeShape::FusedServiceBinding => false,
-        StructuralTypeShape::Record { fields } => zero_valid_fields(
+        StructuralTypeShape::Record { fields, .. } => zero_valid_fields(
             checked,
             declarations,
             fields,

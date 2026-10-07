@@ -72,7 +72,7 @@ pub(crate) fn contains_reference(
         };
         match &declaration.shape {
             terminal_psi::StructuralTypeShape::Reference { .. } => return true,
-            terminal_psi::StructuralTypeShape::Record { fields } => push_fields(fields),
+            terminal_psi::StructuralTypeShape::Record { fields, .. } => push_fields(fields),
             terminal_psi::StructuralTypeShape::Sum { cases } => {
                 for case in cases {
                     push_fields(&case.fields);
@@ -120,7 +120,7 @@ pub(crate) fn leaf_paths(
                 output.push(path);
                 continue;
             }
-            terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            terminal_psi::StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
             // Case payloads retain their established field identities;
             // identical paths across cases are deduplicated below.
             terminal_psi::StructuralTypeShape::Sum { cases } => {
@@ -255,7 +255,7 @@ fn plain_referent_storage(
             | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
                 continue;
             }
-            StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
             StructuralTypeShape::Sum { cases } => {
                 cases.iter().flat_map(|case| &case.fields).collect()
             }
@@ -377,7 +377,7 @@ pub(crate) fn leaf_type(
         // a segment legal while every matching case field resolves to one
         // structural type.
         let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            terminal_psi::StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
             terminal_psi::StructuralTypeShape::Sum { cases } => {
                 cases.iter().flat_map(|case| case.fields.iter()).collect()
             }

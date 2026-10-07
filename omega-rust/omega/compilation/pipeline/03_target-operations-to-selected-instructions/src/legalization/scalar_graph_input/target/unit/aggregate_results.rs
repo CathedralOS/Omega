@@ -82,6 +82,7 @@ pub(super) fn validate(
                 .ok_or(LegalizationError::custody())?;
             let terminal_psi::StructuralTypeShape::Record {
                 fields: declarations,
+                ..
             } = &declaration.shape
             else {
                 return Err(LegalizationError::custody());

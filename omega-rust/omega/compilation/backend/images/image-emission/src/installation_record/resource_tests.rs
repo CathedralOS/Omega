@@ -530,8 +530,10 @@ fn ieee_structural_and_scalar_field_formats_round_trip_in_installations() {
         id: StructuralTypeId::new(1).expect("structural type"),
         identity: "Samples".into(),
         shape: terminal_psi::StructuralTypeShape::Record {
+            storage: None,
             fields: vec![
                 terminal_psi::StructuralFieldDeclaration {
+                    storage: None,
                     id: StructuralFieldId::new(1).expect("f32 field"),
                     identity: "single".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -540,6 +542,7 @@ fn ieee_structural_and_scalar_field_formats_round_trip_in_installations() {
                     ),
                 },
                 terminal_psi::StructuralFieldDeclaration {
+                    storage: None,
                     id: StructuralFieldId::new(2).expect("f64 field"),
                     identity: "double".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -548,6 +551,7 @@ fn ieee_structural_and_scalar_field_formats_round_trip_in_installations() {
                     ),
                 },
                 terminal_psi::StructuralFieldDeclaration {
+                    storage: None,
                     id: StructuralFieldId::new(3).expect("scalar f32 field"),
                     identity: "scalar_single".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -558,6 +562,7 @@ fn ieee_structural_and_scalar_field_formats_round_trip_in_installations() {
                     ),
                 },
                 terminal_psi::StructuralFieldDeclaration {
+                    storage: None,
                     id: StructuralFieldId::new(4).expect("scalar f64 field"),
                     identity: "scalar_double".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -586,8 +591,10 @@ fn byte_sequence_carriers_round_trip_in_installations() {
         id: StructuralTypeId::new(1).expect("structural type"),
         identity: "TextFields".into(),
         shape: terminal_psi::StructuralTypeShape::Record {
+            storage: None,
             fields: vec![
                 terminal_psi::StructuralFieldDeclaration {
+                    storage: None,
                     id: StructuralFieldId::new(1).expect("borrowed field"),
                     identity: "borrowed".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -598,6 +605,7 @@ fn byte_sequence_carriers_round_trip_in_installations() {
                     ),
                 },
                 terminal_psi::StructuralFieldDeclaration {
+                    storage: None,
                     id: StructuralFieldId::new(2).expect("bounded field"),
                     identity: "bounded".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -631,6 +639,7 @@ fn payload_sum_case_fields_round_trip_in_installations() {
                     id: StructuralCaseId::new(2).expect("on case"),
                     identity: "On".into(),
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        storage: None,
                         id: StructuralFieldId::new(1).expect("payload field"),
                         identity: "value".into(),
                         relevance: terminal_psi::BindingRelevance::Relevant,
@@ -662,6 +671,7 @@ fn mixed_common_fields_and_cases_round_trip_in_installations() {
         identity: "Message".into(),
         shape: terminal_psi::StructuralTypeShape::Mixed {
             fields: vec![terminal_psi::StructuralFieldDeclaration {
+                storage: None,
                 id: StructuralFieldId::new(1).expect("common field"),
                 identity: "active".into(),
                 relevance: terminal_psi::BindingRelevance::Relevant,
@@ -679,6 +689,7 @@ fn mixed_common_fields_and_cases_round_trip_in_installations() {
                     id: StructuralCaseId::new(2).expect("data case"),
                     identity: "Data".into(),
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        storage: None,
                         id: StructuralFieldId::new(2).expect("payload field"),
                         identity: "value".into(),
                         relevance: terminal_psi::BindingRelevance::Relevant,

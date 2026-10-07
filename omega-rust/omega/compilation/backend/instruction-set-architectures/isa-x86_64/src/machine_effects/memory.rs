@@ -48,6 +48,34 @@ pub(super) fn declaration(
             },
             MachineSizeKnowledge::ExactBytes(25),
         ),
+        MachineSemanticKind::LoadEncodedScalar => (
+            MachineMemoryEffect::ReadEncodedScalarV1,
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            vec![0, 1],
+            vec![2, 3, 4, 5],
+            MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            },
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 16,
+                maximum_bytes: None,
+            },
+        ),
+        MachineSemanticKind::StoreEncodedScalar => (
+            MachineMemoryEffect::WriteEncodedScalarV1,
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            vec![0, 1, 2],
+            vec![3, 4, 5],
+            MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            },
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 16,
+                maximum_bytes: None,
+            },
+        ),
         MachineSemanticKind::ScanByteSequence => (
             MachineMemoryEffect::ScanByteSequenceV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,

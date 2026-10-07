@@ -496,12 +496,16 @@ pub(in crate::lowering) fn lower_structural_argument(
             destination: destination.clone(),
         });
     }
-    let projected_parameter_shape =
-        structural_parameter_shape(projected_shape, callee_parameter.access);
+    let projected_parameter_shape = crate::lowering::structural_layout::internal_parameter_shape(
+        projected_type,
+        projected_shape,
+        callee_parameter.access,
+        structural_types,
+    );
     if projected_type != callee_parameter.structural_type
         || argument.access != callee_parameter.access
         || projected_parameter_shape != shape
-        || shape
+        || projected_shape
             .byte_size
             .checked_add(source_byte_offset)
             .is_none_or(|end| end > source_shape.byte_size)
@@ -783,7 +787,7 @@ fn stored_shared_view_field(
         prefix,
     )
     .is_some_and(|parent| match &parent.shape {
-        StructuralTypeShape::Record { fields } => fields.iter().any(|field| {
+        StructuralTypeShape::Record { fields, .. } => fields.iter().any(|field| {
             field.identity == *identity
                 && !field.relevance.is_erased()
                 && field.field_type.byte_sequence_carrier()

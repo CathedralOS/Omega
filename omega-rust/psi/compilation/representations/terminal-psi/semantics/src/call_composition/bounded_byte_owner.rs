@@ -96,7 +96,7 @@ pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
         };
         let declaration =
             crate::runtime_structural_path_tip(types.clone(), actual.structural_type, prefix)?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
             return None;
         };
         let field = fields

@@ -52,7 +52,7 @@ fn collect_partial_affine_residuals(
     residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
 ) -> Option<()> {
     match &structural_types.get(&structural_type)?.shape {
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             if fields.is_empty()
                 || fields.iter().any(|field| {
                     field.relevance.is_erased()

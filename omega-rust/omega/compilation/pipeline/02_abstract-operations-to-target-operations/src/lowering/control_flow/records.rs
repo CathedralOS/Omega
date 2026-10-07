@@ -52,7 +52,7 @@ pub(super) fn establish(
     // the selected payload: the same roster Terminal verification checked.
     // Erased common members hold no storage and take no roster position.
     let declarations: Vec<&StructuralFieldDeclaration> = match (shape, result_case) {
-        (StructuralTypeShape::Record { fields }, None) => fields
+        (StructuralTypeShape::Record { fields, .. }, None) => fields
             .iter()
             .filter(|field| !field.relevance.is_erased())
             .collect(),
@@ -430,7 +430,7 @@ pub(super) fn establish_trivial_affine_local(
             ..
         } if declared == structural_type.id
     ) || types.get(&structural_type.id).copied() != Some(structural_type)
-        || !matches!(&structural_type.shape, StructuralTypeShape::Record { fields } if fields.is_empty())
+        || !matches!(&structural_type.shape, StructuralTypeShape::Record { fields, .. } if fields.is_empty())
         || live.structural_homes.contains_key(&place.id)
         || live
             .trivial_affine_locals

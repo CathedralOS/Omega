@@ -14,6 +14,7 @@ pub(crate) fn encode_shape(
     bytes.push(match shape.class {
         ValueClass::Integer => 1,
         ValueClass::BorrowedReference => 2,
+        ValueClass::BorrowedScalarReference if shape.byte_size == 16 && shape.alignment == 8 => 4,
         ValueClass::Float
             if matches!(shape.byte_size, 4 | 8)
                 && u32::from(shape.alignment) == shape.byte_size =>
@@ -150,6 +151,7 @@ pub(crate) fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, Instal
         1 => ValueClass::Integer,
         2 => ValueClass::BorrowedReference,
         3 => ValueClass::Float,
+        4 => ValueClass::BorrowedScalarReference,
         _ => {
             return Err(InstallationError::UnsupportedStructuralReturnShape);
         }
@@ -159,6 +161,9 @@ pub(crate) fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, Instal
     }
     let byte_size = reader.u32()?;
     let alignment = reader.u16()?;
+    if class == ValueClass::BorrowedScalarReference && (byte_size != 16 || alignment != 8) {
+        return Err(InstallationError::UnsupportedStructuralReturnShape);
+    }
     if class == ValueClass::Float
         && (!matches!(byte_size, 4 | 8) || u32::from(alignment) != byte_size)
     {

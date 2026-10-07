@@ -113,7 +113,7 @@ pub fn receiver_layout(
     if declarations.next().is_some() {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
     let mut erased = 0;
@@ -197,6 +197,7 @@ fn validate_receiver_fields(
                     };
                     match &nested_declaration.shape {
                         StructuralTypeShape::Record {
+                            storage: None,
                             fields: nested_fields,
                         }
                         | StructuralTypeShape::Mixed {
@@ -251,7 +252,7 @@ fn zero_valid_record_storage(
     }
     visiting.push(structural_type);
     let valid = match &declaration.shape {
-        StructuralTypeShape::Record { fields } => fields
+        StructuralTypeShape::Record { fields, .. } => fields
             .iter()
             .all(|field| zero_valid_field(declarations, field, visiting)),
         StructuralTypeShape::FixedArray { element, .. } => {
@@ -300,6 +301,7 @@ mod service_tests {
             shape: StructuralTypeShape::FusedServiceBinding,
         };
         let field = StructuralFieldDeclaration {
+            storage: None,
             id: StructuralFieldId::new(1).unwrap(),
             identity: "console".into(),
             relevance: BindingRelevance::Relevant,
@@ -445,7 +447,7 @@ pub fn validate_entry_shape(
     else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
-    let StructuralTypeShape::Record { fields } = &carrier.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &carrier.shape else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
     // The module names a domain row by its family on its exact carrier; the

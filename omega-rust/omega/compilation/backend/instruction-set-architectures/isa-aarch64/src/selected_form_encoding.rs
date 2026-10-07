@@ -15,6 +15,7 @@ mod compare_byte_sequences;
 mod copy_bytes;
 pub(crate) mod crash;
 mod decoding;
+mod encoded_scalar;
 mod encoding_types;
 mod float_bits;
 pub(crate) mod float_result_policy;

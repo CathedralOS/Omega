@@ -83,7 +83,7 @@ impl TerminalExecution {
             .structural_types
             .get(&parent.structural_type)
             .and_then(|declaration| match &declaration.shape {
-                StructuralTypeShape::Record { fields } => fields
+                StructuralTypeShape::Record { fields, .. } => fields
                     .iter()
                     .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
                     .and_then(|field| field.field_type.atomic_scalar_type()),

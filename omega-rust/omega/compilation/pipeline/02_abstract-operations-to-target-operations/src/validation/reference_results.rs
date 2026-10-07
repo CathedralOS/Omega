@@ -243,7 +243,7 @@ fn contains_reference(declarations: &[StructuralTypeDeclaration], root: Structur
         };
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::Record { fields } => push_fields(fields),
+            StructuralTypeShape::Record { fields, .. } => push_fields(fields),
             StructuralTypeShape::Sum { cases } => {
                 for case in cases {
                     push_fields(&case.fields);
@@ -288,7 +288,7 @@ fn leaf_paths(
                 }
                 output.push(path);
             }
-            StructuralTypeShape::Record { fields } => {
+            StructuralTypeShape::Record { fields, .. } => {
                 for field in fields.iter().rev() {
                     if let StructuralFieldType::Structural(child) = field.field_type {
                         if !contains_reference(declarations, child) {
@@ -412,7 +412,7 @@ fn leaf_type(
             return None;
         };
         let fields = match &lookup(declarations, current)?.shape {
-            StructuralTypeShape::Record { fields } => fields,
+            StructuralTypeShape::Record { fields, .. } => fields,
             StructuralTypeShape::Mixed { fields, .. } => fields,
             _ => return None,
         };
@@ -476,7 +476,7 @@ fn constructible_record(
             _ => {}
         }
         let Some(StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Record { fields },
+            shape: StructuralTypeShape::Record { fields, .. },
             ..
         }) = lookup(declarations, current)
         else {
@@ -1117,7 +1117,7 @@ fn establish_constructor(
         &[terminal_psi::StructuralFieldDeclaration],
         &[terminal_psi::StructuralFieldDeclaration],
     ) = match (shape, result_case) {
-        (StructuralTypeShape::Record { fields }, None) => (fields, &[]),
+        (StructuralTypeShape::Record { fields, .. }, None) => (fields, &[]),
         (StructuralTypeShape::Sum { cases }, Some(result_case)) => (
             &[],
             &cases.iter().find(|case| case.id == result_case)?.fields,

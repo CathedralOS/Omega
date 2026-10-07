@@ -21,7 +21,7 @@ pub(crate) fn validate_content_projection_scalar(
                 let Some(declaration) = types.get(&current) else {
                     return false;
                 };
-                let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape
+                let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape
                 else {
                     return false;
                 };

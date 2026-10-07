@@ -220,6 +220,8 @@ pub(in crate::rewrites) fn speculatable(instruction: &SelectedInstruction) -> bo
         CopyBytes
             | ZeroBytes
             | ScanByteSequence { .. }
+            | LoadEncodedScalar
+            | StoreEncodedScalar
             | LoadPacked { .. }
             | StorePacked { .. }
             | Store { .. }

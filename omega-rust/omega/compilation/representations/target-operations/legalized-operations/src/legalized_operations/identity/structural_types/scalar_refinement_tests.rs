@@ -25,6 +25,7 @@ fn refined_field_identity_retains_carrier_predicate_operator_and_literal() {
     ];
     let identities = fields.map(|(carrier, predicate)| {
         let field = StructuralFieldDeclaration {
+            storage: None,
             id: StructuralFieldId::new(1).unwrap(),
             identity: "value".into(),
             relevance: BindingRelevance::Relevant,

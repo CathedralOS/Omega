@@ -139,6 +139,9 @@ pub(crate) fn expected_uses(
     let values = match operation {
         O::EstablishStructuralArray { .. } => Vec::new(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
+        O::EstablishReference { storage, .. } => {
+            storage.iter().map(|view| view.byte_offset).collect()
+        }
         O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {

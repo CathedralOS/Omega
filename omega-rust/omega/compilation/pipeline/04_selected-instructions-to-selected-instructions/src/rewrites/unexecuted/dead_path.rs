@@ -213,13 +213,21 @@ fn edge_registers(
     for binding in &successor.structural_bindings {
         match binding.transport {
             SelectedStructuralTransport::WholeValue { argument, .. }
+            | SelectedStructuralTransport::ScalarReference {
+                base: selected_instructions::SelectedAddressBase::Register(argument),
+                ..
+            }
             | SelectedStructuralTransport::Address {
                 base: selected_instructions::SelectedAddressBase::Register(argument),
                 ..
             } => {
                 reads.insert(argument);
             }
-            SelectedStructuralTransport::Address {
+            SelectedStructuralTransport::ScalarReference {
+                base: selected_instructions::SelectedAddressBase::Local(_),
+                ..
+            }
+            | SelectedStructuralTransport::Address {
                 base: selected_instructions::SelectedAddressBase::Local(_),
                 ..
             }

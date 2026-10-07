@@ -19,6 +19,8 @@ impl<'source> From<&'source PsiOptimizationUnit> for LegalizationSource<'source>
 
 impl<'source> From<&'source ValidatedOptimizedAbstractPlan> for LegalizationSource<'source> {
     fn from(source: &'source ValidatedOptimizedAbstractPlan) -> Self {
-        Self { unit: source.unit() }
+        Self {
+            unit: source.unit(),
+        }
     }
 }

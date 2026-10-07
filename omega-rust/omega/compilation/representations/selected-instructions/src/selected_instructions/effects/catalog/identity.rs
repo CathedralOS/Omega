@@ -105,6 +105,8 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::ReadFrameStorageV1 => 7,
             crate::MachineMemoryEffect::WritePointerV1 => 4,
             crate::MachineMemoryEffect::ScanByteSequenceV1 => 10,
+            crate::MachineMemoryEffect::ReadEncodedScalarV1 => 13,
+            crate::MachineMemoryEffect::WriteEncodedScalarV1 => 14,
             crate::MachineMemoryEffect::CompareByteSequencesV1 => 11,
             crate::MachineMemoryEffect::ZeroBytesV1 => 12,
         });
@@ -285,6 +287,22 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&source_pointer_operand.to_le_bytes());
             bytes.identity_bytes(&destination_pointer_operand.to_le_bytes());
             bytes.identity_bytes(&count_operand.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
+            pointer_operand,
+            codec_operand,
+        } => {
+            bytes.identity_bytes(&[16]);
+            bytes.identity_bytes(&pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&codec_operand.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
+            pointer_operand,
+            codec_operand,
+        } => {
+            bytes.identity_bytes(&[17]);
+            bytes.identity_bytes(&pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&codec_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::ScanByteSequenceV1 {
             base_pointer_operand,
@@ -467,6 +485,8 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
     match kind {
         MachineSemanticKind::CopyBytes => 59,
         MachineSemanticKind::ScanByteSequence => 233,
+        MachineSemanticKind::LoadEncodedScalar => 236,
+        MachineSemanticKind::StoreEncodedScalar => 237,
         MachineSemanticKind::CompareByteSequences => 234,
         MachineSemanticKind::ZeroBytes => 235,
         MachineSemanticKind::CallAggregate => 35,
@@ -605,6 +625,8 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
     match family {
         MachineAlternativeFamily::CopyBytes => 59,
         MachineAlternativeFamily::ScanByteSequence => 233,
+        MachineAlternativeFamily::LoadEncodedScalar => 236,
+        MachineAlternativeFamily::StoreEncodedScalar => 237,
         MachineAlternativeFamily::CompareByteSequences => 234,
         MachineAlternativeFamily::ZeroBytes => 235,
         MachineAlternativeFamily::CallAggregate => 35,

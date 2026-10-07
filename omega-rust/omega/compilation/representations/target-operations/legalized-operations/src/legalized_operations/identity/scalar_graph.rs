@@ -203,11 +203,24 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 LegalizedScalarInstructionKind::EstablishReference {
                     result,
                     source,
+                    storage,
                     shape,
                 } => {
                     bytes.push(29);
                     super::structural_result::encode_operation_result(bytes, result);
                     super::structural_types::encode_structural_argument(bytes, source);
+                    if let Some(storage) = storage {
+                        bytes.push(1);
+                        bytes.extend_from_slice(&storage.byte_offset.get().to_le_bytes());
+                        if let Some(stored_scalar) = storage.stored_scalar {
+                            bytes.push(1);
+                            encode_scalar_type(bytes, stored_scalar);
+                        } else {
+                            bytes.push(0);
+                        }
+                    } else {
+                        bytes.push(0);
+                    }
                     super::calling::encode_shape(bytes, *shape);
                 }
                 LegalizedScalarInstructionKind::ReleaseReference { source, path } => {

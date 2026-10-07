@@ -26,7 +26,7 @@ pub(in crate::selection::construction) fn block_entry(
     for parameter in &block.structural_parameters {
         let joined = crate::selection::address_join_input::join(source, parameter.place).is_some();
         let shape = if joined {
-            crate::selection::address_join_input::carrier_shape()
+            crate::selection::address_join_input::carrier_shape(source, parameter)
         } else {
             crate::selection::aggregate_result_input::block_parameter_shape(source, parameter)
                 .ok_or(SelectedInstructionError::custody())?
@@ -76,7 +76,7 @@ pub(in crate::selection::construction) fn block_entry(
             &[pointer],
             SelectedInstructionProvenance::default(),
         )?;
-        let pointer = if joined {
+        let pointer = if joined && shape.byte_size == 8 {
             let referent = transport_register(builder, parameter.place, 0)?;
             builder.transport.memory.push(SelectedMemoryAccess {
                 instruction: SelectedInstructionId(

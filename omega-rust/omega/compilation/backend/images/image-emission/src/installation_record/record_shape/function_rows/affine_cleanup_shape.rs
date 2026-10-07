@@ -255,7 +255,7 @@ fn locals_are_malformed(
                         && local_type == structural_type.id
                 ) || !matches!(
                     structural_type.shape,
-                    StructuralTypeShape::Record { ref fields } if fields.is_empty()
+                    StructuralTypeShape::Record { ref fields, .. } if fields.is_empty()
                 )
             })
 }

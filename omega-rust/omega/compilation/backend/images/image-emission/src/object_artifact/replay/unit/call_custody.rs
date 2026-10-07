@@ -581,8 +581,42 @@ pub(crate) fn expected_projected_copy_bytes(
     {
         return projected_copy::expected_owned_projected_copy_bytes(target, argument);
     }
-    if argument.shape.class == calling_conventions::ValueClass::BorrowedReference
-        && source_placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+    let scalar_descriptor =
+        argument.shape.class == calling_conventions::ValueClass::BorrowedScalarReference;
+    if scalar_descriptor {
+        let shape = calling_conventions::ValueShape::borrowed_scalar_reference();
+        if argument.shape != shape
+            || source_placement.shape != shape
+            || argument.destination.shape != shape
+            || argument.access == terminal_psi::StructuralAccess::Owned
+            || argument.source_byte_offset != 0
+            || !matches!(
+                source_placement.locations.as_slice(),
+                [calling_conventions::ValueLocation::Indirect {
+                    pointer: calling_conventions::IndirectPointerLocation::Register(_),
+                    copy_stack_byte_offset: None,
+                    byte_size: 16,
+                    alignment: 8,
+                }]
+            ) && !matches!(
+                source_placement.locations.as_slice(),
+                [calling_conventions::ValueLocation::Indirect {
+                    pointer: calling_conventions::IndirectPointerLocation::Stack {
+                        stack_byte_offset,
+                        alignment: 8,
+                    },
+                    copy_stack_byte_offset: None,
+                    byte_size: 16,
+                    alignment: 8,
+                }] if stack_byte_offset.is_multiple_of(8)
+            )
+        {
+            return None;
+        }
+    }
+    if scalar_descriptor
+        || argument.shape.class == calling_conventions::ValueClass::BorrowedReference
+            && source_placement.shape.class == calling_conventions::ValueClass::BorrowedReference
     {
         let [
             calling_conventions::ValueLocation::Indirect {
@@ -598,6 +632,20 @@ pub(crate) fn expected_projected_copy_bytes(
         if *byte_size != argument.shape.byte_size || *alignment != argument.shape.alignment {
             return None;
         }
+        if scalar_descriptor
+            && !match pointer {
+                calling_conventions::IndirectPointerLocation::Register(_) => true,
+                calling_conventions::IndirectPointerLocation::Stack {
+                    stack_byte_offset,
+                    alignment: 8,
+                } => stack_byte_offset.is_multiple_of(8),
+                _ => false,
+            }
+        {
+            return None;
+        }
+        // A scalar descriptor forwards its residence pointer, not the referent
+        // address stored inside it. Only thin aggregate borrows add projections.
         let home = argument
             .call_stack_bytes
             .checked_add(argument.source_location.stack_byte_offset()?)?;

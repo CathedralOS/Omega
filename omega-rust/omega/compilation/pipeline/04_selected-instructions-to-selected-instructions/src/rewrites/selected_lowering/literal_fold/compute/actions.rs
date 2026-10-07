@@ -257,6 +257,10 @@ fn sole_use(
                         argument,
                         ..
                     }
+                    | selected_instructions::SelectedStructuralTransport::ScalarReference {
+                        base: selected_instructions::SelectedAddressBase::Register(argument),
+                        ..
+                    }
                     | selected_instructions::SelectedStructuralTransport::Address {
                         base: selected_instructions::SelectedAddressBase::Register(argument),
                         ..
@@ -896,6 +900,10 @@ fn dropped_def_is_dead(
                         binding.transport,
                         selected_instructions::SelectedStructuralTransport::WholeValue {
                             argument,
+                            ..
+                        }
+                        | selected_instructions::SelectedStructuralTransport::ScalarReference {
+                            base: selected_instructions::SelectedAddressBase::Register(argument),
                             ..
                         }
                         | selected_instructions::SelectedStructuralTransport::Address {

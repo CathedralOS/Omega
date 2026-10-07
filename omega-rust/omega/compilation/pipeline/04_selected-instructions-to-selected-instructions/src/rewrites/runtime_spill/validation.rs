@@ -841,7 +841,11 @@ fn reconstruct<'source>(
                 // evidence this rewrite does not relocate; spilling it stays
                 // closed.
                 if matches!(binding.transport,
-                    SelectedStructuralTransport::Address {
+                    SelectedStructuralTransport::ScalarReference {
+                        base: selected_instructions::SelectedAddressBase::Register(argument),
+                        ..
+                    }
+                    | SelectedStructuralTransport::Address {
                         base: selected_instructions::SelectedAddressBase::Register(argument),
                         ..
                     } if argument == register)

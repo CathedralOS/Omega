@@ -117,7 +117,7 @@ pub(super) fn projected_moves_cover_type(
         return false;
     };
     match &declaration.shape {
-        checked_trees::CheckedUnitStructuralTypeShape::Record { fields } => {
+        checked_trees::CheckedUnitStructuralTypeShape::Record { fields, .. } => {
             if fields.is_empty()
                 || fields.iter().enumerate().any(|(index, field)| {
                     field.relevance.is_erased()

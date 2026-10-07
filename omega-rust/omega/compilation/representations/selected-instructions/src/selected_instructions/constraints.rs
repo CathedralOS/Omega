@@ -20,6 +20,10 @@ pub struct SelectedConstraintKeys {
     /// Byte-sequence predicate scan: two preserved inputs (base, count), two
     /// early-clobber scratch registers, one defined 0/1 result operand.
     pub scan_byte_sequence: Option<RegisterConstraintKey>,
+    /// Exact codec-selected read: preserved address/codec, four early-clobber homes.
+    pub load_encoded_scalar: Option<RegisterConstraintKey>,
+    /// Exact codec-selected write: preserved address/codec/value, three early-clobber homes.
+    pub store_encoded_scalar: Option<RegisterConstraintKey>,
     /// Byte-sequence content compare: four preserved inputs (left base/left
     /// count/right base/right count), three early-clobber scratch registers,
     /// one defined 0/1 result operand.

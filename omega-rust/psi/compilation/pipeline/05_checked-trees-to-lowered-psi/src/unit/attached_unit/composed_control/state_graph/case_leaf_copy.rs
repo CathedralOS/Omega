@@ -116,7 +116,8 @@ fn walk_fields(
         structural_type = match (segment, &declaration.shape) {
             (
                 CheckedUnitStructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
+                StructuralTypeShape::Record { fields, .. }
+                | StructuralTypeShape::Mixed { fields, .. },
             ) => {
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let field = matching.next().ok_or(LoweringError::Unsupported(

@@ -22,7 +22,7 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
         roots.push(result.type_identity.clone());
     }
     match operation {
-        CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
+        CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } => {
             roots.push(result.type_identity.clone());
             roots.push(source.type_identity.clone());
         }

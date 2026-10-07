@@ -32,6 +32,32 @@ fn has_policy_trap(semantic: MachineSemanticKind) -> bool {
         )
 }
 
+fn encoded_scalar_constraint(
+    constraint: &register_model::RegisterInstructionConstraint,
+    inputs: usize,
+) -> bool {
+    constraint.operands.len() == 6
+        && constraint.implicit_uses.is_empty()
+        && constraint.implicit_defs.is_empty()
+        && !constraint.clobbers.is_empty()
+        && constraint
+            .operands
+            .iter()
+            .enumerate()
+            .all(|(position, operand)| {
+                operand.operand as usize == position
+                    && operand.access
+                        == if position < inputs {
+                            register_model::RegisterOperandAccess::Use
+                        } else {
+                            register_model::RegisterOperandAccess::Def
+                        }
+                    && operand.early_clobber == (position >= inputs)
+                    && operand.fixed_view.is_none()
+                    && operand.tied_to.is_none()
+            })
+}
+
 pub(super) fn validate_declaration(
     architecture: target::Architecture,
     constraint: &RegisterInstructionConstraint,
@@ -99,6 +125,8 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::CopyBytes => crate::MachineMemoryEffect::CopyBytesV1,
         MachineSemanticKind::ZeroBytes => crate::MachineMemoryEffect::ZeroBytesV1,
         MachineSemanticKind::ScanByteSequence => crate::MachineMemoryEffect::ScanByteSequenceV1,
+        MachineSemanticKind::LoadEncodedScalar => crate::MachineMemoryEffect::ReadEncodedScalarV1,
+        MachineSemanticKind::StoreEncodedScalar => crate::MachineMemoryEffect::WriteEncodedScalarV1,
         MachineSemanticKind::CompareByteSequences => {
             crate::MachineMemoryEffect::CompareByteSequencesV1
         }
@@ -142,6 +170,8 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::CopyBytes
         | MachineSemanticKind::ZeroBytes
         | MachineSemanticKind::ScanByteSequence
+        | MachineSemanticKind::LoadEncodedScalar
+        | MachineSemanticKind::StoreEncodedScalar
         | MachineSemanticKind::CompareByteSequences
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
@@ -899,6 +929,32 @@ fn validate_encoded_effects(
             && encoded.implicit_unit_uses == constraint.implicit_uses
             && encoded.implicit_unit_defs == constraint.implicit_defs
             && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+        (
+            MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::LoadEncodedScalar
+            && declaration.memory == crate::MachineMemoryEffect::ReadEncodedScalarV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes == [2, 3, 4, 5]
+            && encoded_scalar_constraint(constraint, 2) => {}
+        (
+            MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::StoreEncodedScalar
+            && declaration.memory == crate::MachineMemoryEffect::WriteEncodedScalarV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1, 2]
+            && encoded.external_operand_writes == [3, 4, 5]
+            && encoded_scalar_constraint(constraint, 3) => {}
         (
             MachineEncodedMemoryEffect::ScanByteSequenceV1 {
                 base_pointer_operand: 0,

@@ -373,6 +373,7 @@ fn fingerprint_value_shape(report_fingerprint: &mut u64, shape: ValueShape) {
         ValueClass::Integer => fingerprint_into(report_fingerprint, &[1]),
         ValueClass::Float => fingerprint_into(report_fingerprint, &[2]),
         ValueClass::BorrowedReference => fingerprint_into(report_fingerprint, &[5]),
+        ValueClass::BorrowedScalarReference => fingerprint_into(report_fingerprint, &[6]),
         ValueClass::HomogeneousFloatAggregate { members } => {
             fingerprint_into(report_fingerprint, &[3, members]);
         }

@@ -329,6 +329,7 @@ pub(crate) fn decode_structural_field(
         tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
     };
     Ok(StructuralFieldDeclaration {
+        storage: None,
         id,
         identity,
         relevance,

@@ -83,7 +83,7 @@ pub use checked_trees::{
     CheckedReborrowContainmentKind, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
     CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
     CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
-    CheckedReborrowRestoredCallUseCertificate, CheckedReferenceResultSourcePlan,
+    CheckedReborrowRestoredCallUseCertificate, CheckedReferenceResultSourcePlan, CheckedReferenceStorage,
     CheckedRepresentationViewStorePlan, CheckedRequirementCallMachineSelection,
     CheckedRequirementCallSpecialization, CheckedRequirementCallTypeBinding,
     CheckedResourceAxisAnchor, CheckedResourceDerivationObligation,

@@ -35,6 +35,8 @@ pub(super) fn encode_ordinary_instruction(
         MachineMemoryEffect::ReadFrameStorageV1 => 7,
         MachineMemoryEffect::WritePointerV1 => 4,
         MachineMemoryEffect::ScanByteSequenceV1 => 10,
+        MachineMemoryEffect::ReadEncodedScalarV1 => 13,
+        MachineMemoryEffect::WriteEncodedScalarV1 => 14,
         MachineMemoryEffect::CompareByteSequencesV1 => 11,
         MachineMemoryEffect::ZeroBytesV1 => 12,
     });
@@ -113,6 +115,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         // The catalog's semantic tags: 95 + carrier ordinal belongs to the
         // saturating remainder forms, so these cannot reuse 96 and 97.
         SelectedInstructionKind::ScanByteSequence { .. } => 233,
+        SelectedInstructionKind::LoadEncodedScalar => 236,
+        SelectedInstructionKind::StoreEncodedScalar => 237,
         SelectedInstructionKind::CompareByteSequences => 234,
         SelectedInstructionKind::ZeroBytes => 235,
         SelectedInstructionKind::CopyI64 => 2,
@@ -386,7 +390,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnUnit
-        | SelectedInstructionKind::CompareByteSequences => {}
+        | SelectedInstructionKind::CompareByteSequences
+        | SelectedInstructionKind::LoadEncodedScalar
+        | SelectedInstructionKind::StoreEncodedScalar => {}
         SelectedInstructionKind::ScanByteSequence { predicate } => {
             bytes.push(predicate.mask_bit());
         }

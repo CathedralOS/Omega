@@ -162,7 +162,7 @@ pub(crate) fn validate_parameter_binding_receiver(
         match (segment, &shape.shape) {
             (
                 CheckedUnitStructuralPathSegment::Field(name),
-                CheckedUnitStructuralTypeShape::Record { fields },
+                CheckedUnitStructuralTypeShape::Record { fields, .. },
             ) => {
                 let mut fields = fields.iter().filter(|field| field.identity == *name);
                 let field = fields.next().ok_or(LoweringError::Unsupported(

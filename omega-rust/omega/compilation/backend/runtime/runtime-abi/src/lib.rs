@@ -9,6 +9,9 @@
 //! the same geometry by hand. See the @Cleanup notes in `runtime_abi.rs`.
 
 mod runtime_abi;
+mod scalar_reference;
+
+pub use scalar_reference::{ScalarReferenceDescriptorAbi, ScalarStorageCodec};
 
 pub use runtime_abi::{
     DynamicTraitDescriptorAbi, FatDescriptorAbi, FatDescriptorKind, RuntimeAbiPlan, SubsliceLayout,

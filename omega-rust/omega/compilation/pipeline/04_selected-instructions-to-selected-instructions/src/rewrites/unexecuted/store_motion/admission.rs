@@ -804,7 +804,10 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
                 destination,
                 ..
             } => (Some(argument), destination, None),
-            SelectedStructuralTransport::Address {
+            SelectedStructuralTransport::ScalarReference {
+                base, destination, ..
+            }
+            | SelectedStructuralTransport::Address {
                 base, destination, ..
             } => (
                 match base {

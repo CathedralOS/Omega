@@ -35,7 +35,7 @@ pub use selected_instructions::{
     SelectedInstructionProvenance, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedNormalizedForeignCall,
     SelectedOperand, SelectedOutgoingArgumentSlot, SelectedSelectionConstraints,
-    SelectedStructuralBinding, SelectedStructuralCaseEdge, SelectedStructuralTransport,
+    SelectedStructuralBinding, SelectedStructuralCaseEdge, SelectedStructuralTransport, SelectedScalarReferenceSource,
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
     SelectedValueTransport, StoredLoadForwardingIdentity, SuccessorLiveness, TrappingForm,
     TrappingOperation, ValidatedMachineEffectCatalog, VirtualFixedConstraint,

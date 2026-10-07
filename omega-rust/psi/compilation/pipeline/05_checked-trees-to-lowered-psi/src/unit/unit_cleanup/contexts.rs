@@ -76,7 +76,7 @@ pub(super) fn validate_requirements(
             .ok_or(LoweringError::Unsupported(
                 "contextual nominal cleanup receiver shape is absent",
             ))?;
-        let valid = matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }
+        let valid = matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields, .. }
             if fields.iter().any(|field| field.identity == identity
                 && !field.relevance.is_erased()
                 && field.field_type == CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Bool)));
@@ -109,7 +109,7 @@ pub(crate) fn field_clause(
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)
         .and_then(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.iter().find(|field| {
+            StructuralTypeShape::Record { fields, .. } => fields.iter().find(|field| {
                 field.identity == identity
                     && !field.relevance.is_erased()
                     && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)

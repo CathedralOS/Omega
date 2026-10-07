@@ -1,0 +1,275 @@
+//! Closed byte geometry for reference views. Authored record placements
+//! override canonical value geometry; fragmented scalar storage has no direct
+//! projection. These queries describe bytes, never access or lifetime.
+
+use semantic_vocabulary::{AuthoredFieldStorage, ScalarType, StructuralTypeId};
+use terminal_psi::{
+    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReferenceStorageProjection {
+    pub byte_offset: u64,
+    pub logical_scalar: ScalarType,
+    pub stored_scalar: ScalarType,
+}
+
+fn align(offset: u64, alignment: u64) -> Option<u64> {
+    offset
+        .checked_add(alignment.checked_sub(1)?)
+        .map(|value| value / alignment * alignment)
+}
+
+fn scalar_geometry(scalar: ScalarType) -> Option<(u64, u64)> {
+    let width = u64::from(crate::reference_storage_byte_width(scalar)?);
+    Some((width, width))
+}
+
+fn field_geometry<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    field: &StructuralFieldDeclaration,
+    active: &mut Vec<StructuralTypeId>,
+) -> Option<(u64, u64)> {
+    if let Some(scalar) = field.field_type.scalar_type() {
+        return scalar_geometry(
+            field
+                .storage
+                .and_then(AuthoredFieldStorage::stored_scalar)
+                .unwrap_or(scalar),
+        );
+    }
+    let StructuralFieldType::Structural(child) = field.field_type else {
+        return None;
+    };
+    geometry(types, child, active)
+}
+
+fn geometry<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    active: &mut Vec<StructuralTypeId>,
+) -> Option<(u64, u64)> {
+    if active.len() >= 128 || active.contains(&root) {
+        return None;
+    }
+    let shape = &types.clone().find(|row| row.id == root)?.shape;
+    active.push(root);
+    let result = match shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => scalar_geometry(*scalar),
+        StructuralTypeShape::Record {
+            storage: Some(storage),
+            ..
+        } => Some((storage.byte_size, storage.byte_alignment)),
+        StructuralTypeShape::Record {
+            fields,
+            storage: None,
+        } => {
+            let mut size = 0;
+            let mut alignment = 1;
+            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                let (child_size, child_alignment) = field_geometry(types.clone(), field, active)?;
+                size = align(size, child_alignment)?.checked_add(child_size)?;
+                alignment = alignment.max(child_alignment);
+            }
+            Some((align(size, alignment)?, alignment))
+        }
+        StructuralTypeShape::FixedArray { element, length } => {
+            let (size, alignment) = geometry(types.clone(), *element, active)?;
+            Some((align(size, alignment)?.checked_mul(*length)?, alignment))
+        }
+        _ => None,
+    };
+    active.pop();
+    result
+}
+
+pub fn reference_storage_size<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+) -> Option<u64> {
+    geometry(types, root, &mut Vec::new()).map(|(size, _)| size)
+}
+
+/// Resolve an already-captured static path. Runtime selectors are frozen into
+/// fixed coordinates by the interpreter before this query; no expression or
+/// source declaration is replayed here.
+pub fn reference_storage_projection<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<ReferenceStorageProjection> {
+    let mut carrier = root;
+    let mut byte_offset = 0_u64;
+    let mut repeated_stride = None;
+    let mut selected_storage = None;
+    for (position, segment) in path.iter().enumerate() {
+        let shape = &types.clone().find(|row| row.id == carrier)?.shape;
+        match (shape, segment) {
+            (
+                StructuralTypeShape::Record { fields, storage },
+                StructuralPathSegment::Field(identity),
+            ) => {
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let offset = if storage.is_some() {
+                    field.storage?.byte_offset()?
+                } else {
+                    let mut offset = 0;
+                    for candidate in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                        let (size, alignment) =
+                            field_geometry(types.clone(), candidate, &mut Vec::new())?;
+                        offset = align(offset, alignment)?;
+                        if candidate.id == field.id {
+                            break;
+                        }
+                        offset = offset.checked_add(size)?;
+                    }
+                    offset
+                };
+                byte_offset = byte_offset.checked_add(offset)?;
+                selected_storage = field.storage.and_then(AuthoredFieldStorage::stored_scalar);
+                repeated_stride = field.storage.and_then(AuthoredFieldStorage::element_stride);
+                if let Some(logical_scalar) = field.field_type.scalar_type() {
+                    if position + 1 != path.len() {
+                        return None;
+                    }
+                    return Some(ReferenceStorageProjection {
+                        byte_offset,
+                        logical_scalar,
+                        stored_scalar: selected_storage.unwrap_or(logical_scalar),
+                    });
+                }
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return None;
+                };
+                carrier = child;
+            }
+            (
+                StructuralTypeShape::FixedArray { element, length },
+                StructuralPathSegment::FixedIndex(index),
+            ) if index < length => {
+                let (size, alignment) = geometry(types.clone(), *element, &mut Vec::new())?;
+                let stride = repeated_stride.take().unwrap_or(align(size, alignment)?);
+                byte_offset = byte_offset.checked_add(index.checked_mul(stride)?)?;
+                carrier = *element;
+                selected_storage = None;
+            }
+            _ => return None,
+        }
+    }
+    let StructuralTypeShape::PrimitiveScalar(logical_scalar) =
+        types.clone().find(|row| row.id == carrier)?.shape
+    else {
+        return None;
+    };
+    Some(ReferenceStorageProjection {
+        byte_offset,
+        logical_scalar,
+        stored_scalar: selected_storage.unwrap_or(logical_scalar),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{AuthoredRecordStorage, IntegerSign, IntegerType, StructuralFieldId};
+    use terminal_psi::BindingRelevance;
+
+    fn identity(value: u64) -> StructuralTypeId {
+        StructuralTypeId::new(value).expect("type identity")
+    }
+    fn scalar(bits: u16) -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, bits).expect("signed scalar"))
+    }
+    fn field(
+        value: u64,
+        field_type: StructuralFieldType,
+        storage: Option<AuthoredFieldStorage>,
+    ) -> StructuralFieldDeclaration {
+        StructuralFieldDeclaration {
+            id: StructuralFieldId::new(value).expect("field identity"),
+            identity: "value".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type,
+            storage,
+        }
+    }
+
+    #[test]
+    fn canonical_parent_keeps_authored_child_width_and_codec() {
+        let types = [
+            StructuralTypeDeclaration {
+                id: identity(1),
+                identity: "signed byte".into(),
+                shape: StructuralTypeShape::Record {
+                    storage: Some(AuthoredRecordStorage {
+                        byte_size: 1,
+                        byte_alignment: 1,
+                    }),
+                    fields: vec![field(
+                        1,
+                        StructuralFieldType::Scalar(scalar(64)),
+                        Some(AuthoredFieldStorage::Scalar {
+                            byte_offset: 0,
+                            stored_scalar: Some(scalar(8)),
+                        }),
+                    )],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: identity(2),
+                identity: "outer".into(),
+                shape: StructuralTypeShape::Record {
+                    storage: None,
+                    fields: vec![field(2, StructuralFieldType::Structural(identity(1)), None)],
+                },
+            },
+        ];
+        assert_eq!(reference_storage_size(types.iter(), identity(2)), Some(1));
+        assert_eq!(
+            reference_storage_projection(
+                types.iter(),
+                identity(2),
+                &[
+                    StructuralPathSegment::Field("value".into()),
+                    StructuralPathSegment::Field("value".into())
+                ]
+            ),
+            Some(ReferenceStorageProjection {
+                byte_offset: 0,
+                logical_scalar: scalar(64),
+                stored_scalar: scalar(8)
+            })
+        );
+    }
+
+    #[test]
+    fn fragmented_fields_do_not_hide_the_record_extent_or_invent_a_scalar_address() {
+        let types = [StructuralTypeDeclaration {
+            id: identity(1),
+            identity: "fragmented".into(),
+            shape: StructuralTypeShape::Record {
+                storage: Some(AuthoredRecordStorage {
+                    byte_size: 1,
+                    byte_alignment: 1,
+                }),
+                fields: vec![field(
+                    1,
+                    StructuralFieldType::Scalar(scalar(8)),
+                    Some(AuthoredFieldStorage::Fragmented),
+                )],
+            },
+        }];
+        assert_eq!(reference_storage_size(types.iter(), identity(1)), Some(1));
+        assert_eq!(
+            reference_storage_projection(
+                types.iter(),
+                identity(1),
+                &[StructuralPathSegment::Field("value".into())]
+            ),
+            None
+        );
+    }
+}

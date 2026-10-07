@@ -116,7 +116,7 @@ pub(super) fn adapt(
                 }
                 OperationKind::EstablishElementView { source, .. }
                 | OperationKind::EstablishMutableElementView { source, .. }
-                | OperationKind::EstablishReference { source } => {
+                | OperationKind::EstablishReference { source, .. } => {
                     let destination = DescriptorLocation::whole(result?.place);
                     let (source_location, mut backing_projection) = captured_storage_source(
                         &module.structural_types,

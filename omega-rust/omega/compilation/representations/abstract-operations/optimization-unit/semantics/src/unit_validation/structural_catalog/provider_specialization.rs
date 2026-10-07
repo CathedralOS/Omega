@@ -30,7 +30,7 @@ pub(crate) fn validate_provider_attachment_specialization(
         .attachment
         .and_then(|attachment| types.get(&attachment))
         .and_then(|attachment| match &attachment.shape {
-            terminal_psi::StructuralTypeShape::Record { fields } => Some(
+            terminal_psi::StructuralTypeShape::Record { fields, .. } => Some(
                 fields
                     .iter()
                     .filter(|field| {

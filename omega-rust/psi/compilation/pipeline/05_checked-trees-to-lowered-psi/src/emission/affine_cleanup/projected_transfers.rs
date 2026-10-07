@@ -300,7 +300,7 @@ fn partition_residual(
             "scheduled cleanup subtree declaration is absent",
         ))?;
     match &declaration.shape {
-        terminal_psi::StructuralTypeShape::Record { fields } => {
+        terminal_psi::StructuralTypeShape::Record { fields, .. } => {
             for field in fields
                 .iter()
                 .rev()

@@ -107,7 +107,7 @@ fn validate_atomic_access(
         &location.path,
     )
     .ok_or_else(invalid)?;
-    let terminal_psi::StructuralTypeShape::Record { fields } =
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } =
         &structural_types.get(&carrier).ok_or_else(invalid)?.shape
     else {
         return Err(invalid());

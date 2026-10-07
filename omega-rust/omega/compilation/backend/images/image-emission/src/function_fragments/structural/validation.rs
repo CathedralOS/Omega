@@ -368,7 +368,12 @@ fn validate_incoming_location(
             _ => Err(invalid()),
         };
     }
-    if placement.shape.class != calling_conventions::ValueClass::BorrowedReference {
+    let scalar_descriptor =
+        placement.shape.class == calling_conventions::ValueClass::BorrowedScalarReference;
+    if !(placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+        || scalar_descriptor
+            && placement.shape == calling_conventions::ValueShape::borrowed_scalar_reference())
+    {
         return Err(invalid());
     }
     let StructuralSourceLocation::IncomingBorrowedPointer { location } = location else {
@@ -384,7 +389,7 @@ fn validate_incoming_location(
                 },
             ],
             IndirectPointerLocation::Register(actual),
-        ) if *register == actual => Ok(()),
+        ) if !scalar_descriptor && *register == actual => Ok(()),
         (
             [
                 ValueLocation::Stack {
@@ -398,7 +403,7 @@ fn validate_incoming_location(
                 stack_byte_offset: actual,
                 alignment: 8,
             },
-        ) if *stack_byte_offset == actual => Ok(()),
+        ) if !scalar_descriptor && *stack_byte_offset == actual => Ok(()),
         (
             [
                 ValueLocation::Indirect {
@@ -412,11 +417,14 @@ fn validate_incoming_location(
         ) if *pointer == actual
             && *byte_size == placement.shape.byte_size
             && *alignment == placement.shape.alignment
-            && matches!(
-                pointer,
-                IndirectPointerLocation::Register(_)
-                    | IndirectPointerLocation::Stack { alignment: 8, .. }
-            ) =>
+            && match pointer {
+                IndirectPointerLocation::Register(_) => true,
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset,
+                    alignment: 8,
+                } => stack_byte_offset.is_multiple_of(8),
+                _ => false,
+            } =>
         {
             Ok(())
         }

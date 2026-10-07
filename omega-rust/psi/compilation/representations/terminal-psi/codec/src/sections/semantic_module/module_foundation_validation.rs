@@ -168,7 +168,7 @@ fn validate_provider_attachment_foundation(
                 .find(|declaration| declaration.id == attachment)
         })
         .and_then(|attachment| match &attachment.shape {
-            StructuralTypeShape::Record { fields } => Some(
+            StructuralTypeShape::Record { fields, .. } => Some(
                 fields
                     .iter()
                     .filter(|field| {
@@ -303,7 +303,7 @@ pub(crate) fn validate_structural_path(
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
                     None => match shape {
-                        StructuralTypeShape::Record { fields }
+                        StructuralTypeShape::Record { fields, .. }
                         | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
                         _ => {
                             return malformed(
@@ -1262,7 +1262,7 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. } => {}
-            StructuralTypeShape::Record { fields } => {
+            StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type {
                         visit(module, *target, active, complete)?;

@@ -92,7 +92,7 @@ pub(super) fn readable_byte_field(
         &mut BTreeSet::new(),
     )?
     .0;
-    let StructuralTypeShape::Record { fields } = &types
+    let StructuralTypeShape::Record { fields, .. } = &types
         .get(&carrier)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?
         .shape
@@ -492,7 +492,7 @@ pub(super) fn lower(
             for (position, segment) in path.iter().enumerate() {
                 match segment {
                     semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                        let StructuralTypeShape::Record { fields } = &types
+                        let StructuralTypeShape::Record { fields, .. } = &types
                             .get(&carrier)
                             .ok_or_else(|| {
                                 LoweringError::unsupported_control_flow(function.machine)
@@ -567,7 +567,7 @@ pub(super) fn lower(
             // carrier beside the tag whatever case is active.
             let fields = match (&declaration.shape, case) {
                 (
-                    StructuralTypeShape::Record { fields }
+                    StructuralTypeShape::Record { fields, .. }
                     | StructuralTypeShape::Mixed { fields, .. },
                     None,
                 ) => fields,

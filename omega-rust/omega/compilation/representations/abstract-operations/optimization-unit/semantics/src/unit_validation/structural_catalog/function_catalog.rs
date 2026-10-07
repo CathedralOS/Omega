@@ -554,7 +554,7 @@ pub(crate) fn validate_function_structural_catalog(
             )?;
             if !matches!(
                 declaration.shape,
-                terminal_psi::StructuralTypeShape::Record { ref fields } if fields.is_empty()
+                terminal_psi::StructuralTypeShape::Record { ref fields, .. } if fields.is_empty()
             ) {
                 return Err(
                     OptimizationUnitValidationError::TrivialAffineLocalDeclarationRequiresEmptyRecord {

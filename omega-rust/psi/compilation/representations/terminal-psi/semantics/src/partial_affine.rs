@@ -84,7 +84,7 @@ fn visit(
     let declaration = types.iter().find(|declaration| declaration.id == current)?;
     let mut count = 0usize;
     match &declaration.shape {
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             // Byte predicates constrain the payload, not its disposal. An
             // inline bounded owner remains cleanup-free; a borrowed view does
             // not gain that status merely by carrying the same predicate.

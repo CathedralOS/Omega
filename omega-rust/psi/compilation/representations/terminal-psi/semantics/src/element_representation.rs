@@ -115,7 +115,7 @@ pub fn element_representation_layout<'a>(
                     leaves,
                 }
             }
-            StructuralTypeShape::Record { fields } => {
+            StructuralTypeShape::Record { fields, .. } => {
                 let mut offset = 0;
                 let mut alignment = 1;
                 let mut leaves = Vec::new();

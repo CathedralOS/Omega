@@ -9,6 +9,13 @@ use crate::plans::{
 };
 use target::Architecture;
 
+fn borrowed_class(class: ValueClass) -> bool {
+    matches!(
+        class,
+        ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
+    )
+}
+
 pub fn evaluate_call_plan(
     policy: CallingPolicy,
     signature: &CallSignature,
@@ -19,7 +26,7 @@ pub fn evaluate_call_plan(
             .parameters
             .iter()
             .copied()
-            .filter(|shape| shape.byte_size != 0 || shape.class == ValueClass::BorrowedReference)
+            .filter(|shape| shape.byte_size != 0 || borrowed_class(shape.class))
             .collect(),
         result: signature.result.filter(|shape| shape.byte_size != 0),
     };
@@ -36,7 +43,7 @@ pub fn evaluate_call_plan(
         .iter()
         .copied()
         .map(|shape| {
-            if shape.byte_size == 0 && shape.class != ValueClass::BorrowedReference {
+            if shape.byte_size == 0 && !borrowed_class(shape.class) {
                 ValuePlacement {
                     shape,
                     locations: Vec::new(),
@@ -66,7 +73,7 @@ fn validate_signature_shapes(
 ) -> Result<(), PlanDiagnostic> {
     if signature
         .result
-        .is_some_and(|shape| matches!(shape.class, ValueClass::BorrowedReference))
+        .is_some_and(|shape| borrowed_class(shape.class))
     {
         return Err(PlanDiagnostic(
             "borrowed references are parameter-only call values".into(),
@@ -81,7 +88,7 @@ fn validate_signature_shapes(
         // A borrowed shape measures its referent, not its runtime pointer.
         // Only by-value empties are erased from the physical signature.
         if shape.byte_size == 0
-            && shape.class != ValueClass::BorrowedReference
+            && !borrowed_class(shape.class)
             && (shape.class != ValueClass::Integer || shape.alignment != 1)
         {
             return Err(PlanDiagnostic(
@@ -309,7 +316,7 @@ fn validate_value_placement(
     architecture: Architecture,
     value_index: usize,
 ) -> Result<(), PlanDiagnostic> {
-    if matches!(placement.shape.class, ValueClass::BorrowedReference)
+    if borrowed_class(placement.shape.class)
         && !matches!(
             placement.locations.as_slice(),
             [ValueLocation::Indirect {
@@ -319,7 +326,7 @@ fn validate_value_placement(
         )
     {
         return Err(PlanDiagnostic(format!(
-            "borrowed-reference value {value_index} must retain one direct pointer to caller storage"
+            "borrowed value {value_index} must retain one direct pointer to its caller-owned carrier"
         )));
     }
     // Validate the placement fragments, not every byte of a potentially large
@@ -408,7 +415,7 @@ fn validate_value_placement(
                 "value {value_index} placement exceeds its declared shape"
             ))
         })?;
-        if (byte_size == 0 && placement.shape.class != ValueClass::BorrowedReference)
+        if (byte_size == 0 && !borrowed_class(placement.shape.class))
             || end > placement.shape.byte_size
         {
             return Err(PlanDiagnostic(format!(
@@ -462,7 +469,7 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             ));
         }
         let slot = parameter_slot_base + index;
-        let indirect = matches!(shape.class, ValueClass::BorrowedReference)
+        let indirect = borrowed_class(shape.class)
             || (matches!(shape.class, ValueClass::Integer)
                 && !matches!(shape.byte_size, 1 | 2 | 4 | 8));
         let location = if indirect {
@@ -510,7 +517,7 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             // passed aggregates to be 16-byte aligned, even when the source
             // type itself has a smaller natural alignment.
             copy_stack_offset = align_up(copy_stack_offset, 16)?;
-            if !matches!(placement.shape.class, ValueClass::BorrowedReference) {
+            if !borrowed_class(placement.shape.class) {
                 *copy_stack_byte_offset = Some(copy_stack_offset);
                 copy_stack_offset = stack_end(copy_stack_offset, align_up(*byte_size, 8)?)?;
             }
@@ -755,7 +762,7 @@ fn evaluate_split_bank_call(
     let mut parameters = Vec::with_capacity(signature.parameters.len());
     for shape in signature.parameters.iter().copied() {
         let mut locations = Vec::new();
-        if matches!(shape.class, ValueClass::BorrowedReference) {
+        if borrowed_class(shape.class) {
             let pointer = if integer_index < integer_registers.len() {
                 let register = integer_registers[integer_index];
                 integer_index += 1;
@@ -828,7 +835,9 @@ fn evaluate_split_bank_call(
             ValueClass::Float => Some(1),
             ValueClass::HomogeneousFloatAggregate { members } => Some(members),
             ValueClass::Integer => None,
-            ValueClass::BorrowedReference => unreachable!("handled above"),
+            ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference => {
+                unreachable!("handled above")
+            }
             ValueClass::SystemVAggregate { .. } => unreachable!("handled above"),
         };
         let float_registers_needed = float_members.map(|members| {
@@ -937,7 +946,7 @@ fn evaluate_split_bank_call(
         ] = placement.locations.as_mut_slice()
         {
             stack_offset = align_up(stack_offset, u32::from((*alignment).clamp(8, 16)))?;
-            if !matches!(placement.shape.class, ValueClass::BorrowedReference) {
+            if !borrowed_class(placement.shape.class) {
                 *copy_stack_byte_offset = Some(stack_offset);
                 stack_offset = stack_end(stack_offset, align_up(*byte_size, 8)?)?;
             }
@@ -1122,7 +1131,7 @@ fn result_placement(
             shape,
         )],
         ValueClass::Float => vec![register_location(float_register(0), shape)],
-        ValueClass::BorrowedReference => {
+        ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference => {
             return Err(PlanDiagnostic(
                 "borrowed references cannot be call results".into(),
             ));

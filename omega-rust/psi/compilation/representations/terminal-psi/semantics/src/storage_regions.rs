@@ -57,7 +57,7 @@ pub fn projected_storage_region<'a>(
     if static_length == path.len()
         && let Some(field) = field
         && let Some(declaration) = crate::runtime_structural_path_tip(declarations, root, &region)
-        && let StructuralTypeShape::Record { fields } = &declaration.shape
+        && let StructuralTypeShape::Record { fields, .. } = &declaration.shape
         && let Some(field) = fields
             .iter()
             .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
@@ -100,7 +100,7 @@ pub fn canonical_field_storage_region<'a>(
                 ) else {
                     return Vec::new();
                 };
-                let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
                     return Vec::new();
                 };
                 let Some(field) = fields

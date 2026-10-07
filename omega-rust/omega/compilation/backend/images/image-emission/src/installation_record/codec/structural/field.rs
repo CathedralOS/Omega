@@ -311,6 +311,7 @@ pub(crate) fn decode_structural_field(
         }
     };
     Ok(StructuralFieldDeclaration {
+        storage: None,
         id,
         identity,
         relevance,
@@ -336,6 +337,7 @@ mod tests {
             ScalarTerm::boolean(true),
         );
         let field = StructuralFieldDeclaration {
+            storage: None,
             id: StructuralFieldId::new(1).unwrap(),
             identity: "enabled".into(),
             relevance: BindingRelevance::Relevant,
@@ -382,6 +384,7 @@ mod tests {
             ] {
                 for bits in 1..=15 {
                     let field = StructuralFieldDeclaration {
+                        storage: None,
                         id: StructuralFieldId::new(1).unwrap(),
                         identity: "text".into(),
                         relevance: BindingRelevance::Relevant,
@@ -414,6 +417,7 @@ mod tests {
     #[test]
     fn installed_bounded_fields_preserve_full_width_endpoints_and_reject_reversed_bounds() {
         let field = StructuralFieldDeclaration {
+            storage: None,
             id: StructuralFieldId::new(1).unwrap(),
             identity: "payload".into(),
             relevance: BindingRelevance::Relevant,

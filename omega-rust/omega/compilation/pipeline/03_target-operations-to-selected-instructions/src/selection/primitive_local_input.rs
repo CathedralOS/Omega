@@ -153,6 +153,55 @@ fn block_arrival(
 
 /// Exact field geometry is independent of whether its home came from an owned
 /// value ABI, an established local, or an original borrowed referent.
+pub(super) fn read_storage_codec(
+    source: &LegalizedScalarFunction,
+    row: &legalized_operations::LegalizedScalarInstruction,
+) -> Option<runtime_abi::ScalarStorageCodec> {
+    let scalar = row.result?.scalar_type;
+    let signature = source.structural.as_ref()?;
+    match &row.kind {
+        Instruction::PrimitiveScalarRead {
+            source: place,
+            path,
+            ..
+        } => {
+            if local(source, *place).is_some() {
+                return runtime_abi::ScalarStorageCodec::from_scalar(scalar);
+            }
+            let root = super::aggregate_result_input::operation_result(source, *place)
+                .map(|(_, result)| result.structural_type)
+                .or_else(|| {
+                    read_parameter(source, *place).map(|parameter| parameter.structural_type)
+                })?;
+            crate::structural_inputs::structural_reference_input::projected_scalar_codec(
+                root,
+                path,
+                &signature.structural_types,
+            )
+        }
+        Instruction::StructuralScalarFieldRead {
+            source: argument,
+            field,
+            case: None,
+        } => {
+            let root = super::aggregate_result_input::operation_result(source, argument.place)
+                .map(|(_, result)| result.structural_type)
+                .or_else(|| {
+                    read_parameter(source, argument.place)
+                        .map(|parameter| parameter.structural_type)
+                })?;
+            crate::structural_inputs::structural_reference_input::scalar_field_codec(
+                root,
+                &argument.path,
+                *field,
+                &signature.structural_types,
+            )
+            .or_else(|| runtime_abi::ScalarStorageCodec::from_scalar(scalar))
+        }
+        _ => runtime_abi::ScalarStorageCodec::from_scalar(scalar),
+    }
+}
+
 pub(super) fn read_geometry(
     source: &LegalizedScalarFunction,
     row: &legalized_operations::LegalizedScalarInstruction,

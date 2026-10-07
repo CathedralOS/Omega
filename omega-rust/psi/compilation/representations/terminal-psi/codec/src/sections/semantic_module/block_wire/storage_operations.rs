@@ -13,26 +13,51 @@ use semantic_vocabulary::CanonicalStructuralPathSegment;
 use semantic_vocabulary::{ObligationId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
 use terminal_psi::OperationKind;
 use terminal_psi::{StructuralArgument, StructuralPathSegment};
+use terminal_psi::ReferenceStorageView;
+use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 
 pub(super) fn encode_establish_reference(
     writer: &mut Writer,
     source: StructuralArgument,
+    storage: Option<ReferenceStorageView>,
 ) -> Result<(), CodecError> {
-    writer.u8(operation_tags::ESTABLISH_REFERENCE);
+    writer.u8(if storage.is_some() {
+        operation_tags::ESTABLISH_STORAGE_VIEW_REFERENCE
+    } else {
+        operation_tags::ESTABLISH_REFERENCE
+    });
     writer.id(source.place);
     super::super::structural_signature_wire::encode_structural_access(writer, source.access);
     encode_structural_path(writer, "reference source path", &source.path)?;
+    if let Some(storage) = storage {
+        writer.id(storage.byte_offset);
+        writer.boolean(storage.stored_scalar.is_some());
+        if let Some(stored_scalar) = storage.stored_scalar {
+            encode_scalar_type(writer, stored_scalar);
+        }
+    }
     Ok(())
 }
 
 pub(super) fn decode_establish_reference(
     reader: &mut Reader<'_>,
+    has_storage_view: bool,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::EstablishReference {
         source: terminal_psi::StructuralArgument {
             place: reader.id("PlaceId")?,
             access: super::super::structural_signature_wire::decode_structural_access(reader)?,
             path: decode_structural_path(reader)?,
+        },
+        storage: if has_storage_view {
+            Some(ReferenceStorageView {
+                byte_offset: reader.id("ValueId")?,
+                stored_scalar: if reader.boolean()? {
+                    Some(decode_scalar_type(reader)?)
+                } else { None },
+            })
+        } else {
+            None
         },
     })
 }

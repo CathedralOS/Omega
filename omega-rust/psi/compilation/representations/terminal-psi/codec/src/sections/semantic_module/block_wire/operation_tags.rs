@@ -222,3 +222,6 @@ pub(super) const PROJECTED_RELEASE_REFERENCE: u8 = 108;
 pub(super) const SELECT_IMPLEMENTATION: u8 = 109;
 /// `OperationKind::CallDynamic`.
 pub(super) const CALL_DYNAMIC: u8 = 110;
+
+/// A scalar reference retaining source-selected byte storage interpretation.
+pub(super) const ESTABLISH_STORAGE_VIEW_REFERENCE: u8 = 111;

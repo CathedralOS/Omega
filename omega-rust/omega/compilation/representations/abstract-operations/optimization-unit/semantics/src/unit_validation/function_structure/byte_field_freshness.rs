@@ -128,7 +128,7 @@ pub(super) fn field_path(
             (structural_type, path)
         };
     let carrier = field_carrier(types, storage_type, storage_path)?;
-    let StructuralTypeShape::Record { fields } = &types.get(&carrier)?.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &types.get(&carrier)?.shape else {
         return None;
     };
     let selected = fields

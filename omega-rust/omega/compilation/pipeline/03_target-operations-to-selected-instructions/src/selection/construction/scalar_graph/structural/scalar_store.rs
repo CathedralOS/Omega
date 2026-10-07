@@ -57,6 +57,7 @@ pub(super) fn emit(
                         .map(|_| PointerSlot {
                             byte_offset: 0,
                             indices: 0..0,
+                            scalar_descriptor: false,
                         })
                         .into_iter()
                         .collect::<Vec<_>>(),
@@ -136,6 +137,27 @@ pub(super) fn emit(
     } else {
         super::place_pointer(builder, row, destination.place(), 0)?
     };
+    if let Some((address, codec)) = super::runtime_address::scalar_reference(
+        source,
+        builder,
+        row,
+        destination.place(),
+        pointer,
+        indices,
+        &pointer_slots,
+    )? {
+        if byte_offset != 0 {
+            return Err(invalid());
+        }
+        return super::encoded_scalar::write(
+            builder,
+            row,
+            destination.place(),
+            address,
+            codec,
+            *value,
+        );
+    }
     let (pointer, leaf_index) = super::runtime_address::cross_references(
         builder,
         row,
@@ -157,6 +179,52 @@ pub(super) fn emit(
         pointer,
         leaf_indices,
     )?;
+    let declarations = &source
+        .structural
+        .as_ref()
+        .ok_or_else(|| invalid())?
+        .structural_types;
+    let codec = match &row.kind {
+        LegalizedScalarInstructionKind::StructuralScalarFieldStore { path, field, .. } => {
+            crate::structural_inputs::structural_reference_input::scalar_field_codec(
+                destination.structural_type(),
+                path,
+                *field,
+                declarations,
+            )
+            .or_else(|| runtime_abi::ScalarStorageCodec::from_scalar(value.scalar_type))
+        }
+        LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { path, .. } => {
+            crate::structural_inputs::structural_reference_input::projected_scalar_codec(
+                destination.structural_type(),
+                path,
+                declarations,
+            )
+        }
+        _ => None,
+    }
+    .ok_or_else(|| invalid())?;
+    let canonical =
+        runtime_abi::ScalarStorageCodec::from_scalar(value.scalar_type).ok_or_else(|| invalid())?;
+    if codec != canonical || matches!(codec.byte_size(), 3 | 5 | 6 | 7) {
+        let address = super::encoded_scalar::backing_address(
+            builder,
+            row,
+            destination.place(),
+            address,
+            byte_offset,
+        )?;
+        let codec =
+            super::encoded_scalar::constant_codec(builder, row, destination.place(), codec)?;
+        return super::encoded_scalar::write(
+            builder,
+            row,
+            destination.place(),
+            address,
+            codec,
+            *value,
+        );
+    }
     let (address, displacement) = super::memory_pointer(
         builder,
         row,

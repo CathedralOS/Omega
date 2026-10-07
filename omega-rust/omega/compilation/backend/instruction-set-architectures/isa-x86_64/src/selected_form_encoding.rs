@@ -21,6 +21,7 @@ mod compare_byte_sequences;
 mod copy_bytes;
 pub(crate) mod crash;
 pub(crate) mod decoding;
+mod encoded_scalar;
 mod float_bits;
 pub(crate) mod float_result_policy;
 pub(crate) mod floating_control;
@@ -159,6 +160,12 @@ pub fn encode_x86_64_selected_form(
     if kind == SelectedInstructionKind::ZeroBytes {
         return zero_bytes::encode(physical, alternative, operands);
     }
+    if matches!(
+        kind,
+        SelectedInstructionKind::LoadEncodedScalar | SelectedInstructionKind::StoreEncodedScalar
+    ) {
+        return encoded_scalar::encode(physical, kind, alternative, operands);
+    }
     if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
         return scan_byte_sequence::encode(physical, predicate, alternative, operands, 0);
     }
@@ -194,6 +201,12 @@ pub fn validate_x86_64_selected_form_encoding(
     }
     if kind == SelectedInstructionKind::ZeroBytes {
         return zero_bytes::validate(physical, alternative, operands, bytes);
+    }
+    if matches!(
+        kind,
+        SelectedInstructionKind::LoadEncodedScalar | SelectedInstructionKind::StoreEncodedScalar
+    ) {
+        return encoded_scalar::validate(physical, kind, alternative, operands, bytes);
     }
     if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
         return scan_byte_sequence::validate(physical, predicate, alternative, operands, 0, bytes);

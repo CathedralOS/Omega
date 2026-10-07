@@ -158,7 +158,6 @@ pub(super) fn decode_scalar(
     }
 }
 
-
 pub(super) fn decode_integer(
     cursor: &mut Cursor<'_>,
 ) -> Result<IntegerValue, FixedViewCopyDecodeError> {

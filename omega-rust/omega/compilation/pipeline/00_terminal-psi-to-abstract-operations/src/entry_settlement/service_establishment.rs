@@ -72,7 +72,7 @@ pub(super) fn validate_terminal_rows(
     let [attachment_type] = attachment_types.as_slice() else {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
     };
-    let terminal_psi::StructuralTypeShape::Record { fields } = &attachment_type.shape else {
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &attachment_type.shape else {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
     };
     // The source receiver is semantic identity while the attachment names the
@@ -124,7 +124,7 @@ pub(super) fn validate_terminal_rows(
                 return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
             };
             current_fields = match &nested_declaration.shape {
-                terminal_psi::StructuralTypeShape::Record { fields }
+                terminal_psi::StructuralTypeShape::Record { fields, .. }
                 | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
                 _ => {
                     return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);

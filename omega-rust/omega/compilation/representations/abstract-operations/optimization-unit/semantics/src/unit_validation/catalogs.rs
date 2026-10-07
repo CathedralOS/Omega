@@ -644,7 +644,7 @@ fn validate_structural_field_range_authority(
                 // record fields.
                 let Some(terminal_psi::StructuralTypeDeclaration {
                     shape:
-                        StructuralTypeShape::Record { fields }
+                        StructuralTypeShape::Record { fields, .. }
                         | StructuralTypeShape::Mixed { fields, .. },
                     ..
                 }) = types.get(&parent).copied()
@@ -714,6 +714,7 @@ fn validate_structural_field_range_authority(
                 let Some(terminal_psi::StructuralTypeDeclaration {
                     shape:
                         StructuralTypeShape::Record {
+                            storage: None,
                             fields: declarations,
                         },
                     ..

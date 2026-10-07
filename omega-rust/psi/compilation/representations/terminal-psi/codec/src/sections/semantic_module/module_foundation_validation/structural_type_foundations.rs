@@ -16,6 +16,7 @@ pub(super) fn validate_type_shape(
     declaration: &StructuralTypeDeclaration,
     attachment_storage: &BTreeSet<StructuralTypeId>,
 ) -> Result<(), CodecError> {
+    validate_field_storage_envelope(&declaration.shape)?;
     match &declaration.shape {
         StructuralTypeShape::Reference { referent, access } => {
             if !has_structural_type(module, *referent)
@@ -29,12 +30,76 @@ pub(super) fn validate_type_shape(
         // Formation and readers independently validate result custody; the
         // carrier declaration alone creates no source or borrowing authority.
         StructuralTypeShape::ByteSequence(_) => {}
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, storage } => {
+            if let Some(storage) = storage {
+                if storage.byte_alignment == 0 || !storage.byte_alignment.is_power_of_two() {
+                    return malformed(
+                        "authored record storage requires positive power-of-two alignment",
+                    );
+                }
+            }
             require_unique_nonempty_identities(
                 fields.iter().map(|field| field.identity.as_str()),
                 "structural field identity",
             )?;
             for field in fields {
+                match (storage, field.storage) {
+                    (Some(_), None) if !field.relevance.is_erased() => {
+                        return malformed("authored record field has no storage interpretation");
+                    }
+                    (Some(record), Some(field_storage)) => {
+                        if field.relevance.is_erased()
+                            || field_storage
+                                .byte_offset()
+                                .is_some_and(|offset| offset > record.byte_size)
+                            || field_storage.element_stride() == Some(0)
+                        {
+                            return malformed(
+                                "authored field storage has invalid offset, stride or relevance",
+                            );
+                        }
+                        if let Some(stored) = field_storage.stored_scalar() {
+                            let logical = field
+                                .field_type
+                                .scalar_type()
+                                .or_else(|| {
+                                    let StructuralFieldType::Structural(identity) =
+                                        field.field_type
+                                    else {
+                                        return None;
+                                    };
+                                    let StructuralTypeShape::PrimitiveScalar(scalar) = module
+                                        .structural_types
+                                        .iter()
+                                        .find(|declaration| declaration.id == identity)?
+                                        .shape
+                                    else {
+                                        return None;
+                                    };
+                                    Some(scalar)
+                                })
+                                .ok_or(CodecError::MalformedStructuralFoundation(
+                                    "encoded field requires a scalar referent",
+                                ))?;
+                            let width = terminal_semantics::reference_storage_byte_width(stored)
+                                .ok_or(CodecError::MalformedStructuralFoundation(
+                                    "encoded field has no byte-aligned scalar footprint",
+                                ))?;
+                            if !terminal_semantics::reference_storage_view_is_compatible(
+                                stored, logical,
+                            ) || field_storage
+                                .byte_offset()
+                                .and_then(|offset| offset.checked_add(u64::from(width)))
+                                .is_none_or(|end| end > record.byte_size)
+                            {
+                                return malformed(
+                                    "encoded field footprint or interpretation is incompatible",
+                                );
+                            }
+                        }
+                    }
+                    _ => {}
+                }
                 match &field.field_type {
                     StructuralFieldType::Atomic(_)
                         if field.field_type.atomic_scalar_type().is_none() =>
@@ -200,6 +265,34 @@ pub(super) fn validate_type_shape(
     Ok(())
 }
 
+/// Only the authored record envelope carries field geometry on the wire.
+/// Reject metadata in other rosters before an encoder can discard it.
+fn validate_field_storage_envelope(shape: &StructuralTypeShape) -> Result<(), CodecError> {
+    if matches!(
+        shape,
+        StructuralTypeShape::Record {
+            storage: Some(_),
+            ..
+        }
+    ) {
+        return Ok(());
+    }
+    let direct_storage = shape
+        .direct_fields()
+        .is_some_and(|fields| fields.iter().any(|field| field.storage.is_some()));
+    let case_storage = match shape {
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases
+            .iter()
+            .flat_map(|case| &case.fields)
+            .any(|field| field.storage.is_some()),
+        _ => false,
+    };
+    if direct_storage || case_storage {
+        return malformed("field storage requires an authored record envelope");
+    }
+    Ok(())
+}
+
 /// Receiver storage retains nested provider declarations even when no method
 /// on the nested record is demanded. This closure admits declarations only:
 /// provider roots and calls must still join the calling machine's exact,
@@ -226,7 +319,7 @@ pub(super) fn attachment_storage_types(
             }));
         };
         match &declaration.shape {
-            StructuralTypeShape::Record { fields } => retain_fields(fields),
+            StructuralTypeShape::Record { fields, .. } => retain_fields(fields),
             StructuralTypeShape::Mixed { fields, cases } => {
                 retain_fields(fields);
                 for case in cases {
@@ -247,4 +340,60 @@ pub(super) fn attachment_storage_types(
         }
     }
     storage
+}
+
+#[cfg(test)]
+mod authored_storage_envelope_tests {
+    use super::validate_field_storage_envelope;
+    use semantic_vocabulary::{
+        AuthoredFieldStorage, AuthoredRecordStorage, ScalarType, StructuralCaseId,
+        StructuralFieldId,
+    };
+    use terminal_psi::{
+        BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
+        StructuralFieldType, StructuralTypeShape,
+    };
+
+    #[test]
+    fn field_geometry_requires_the_record_envelope_in_every_field_roster() {
+        let field = StructuralFieldDeclaration {
+            id: StructuralFieldId::new(1).expect("field identity"),
+            identity: "value".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            storage: Some(AuthoredFieldStorage::Fragmented),
+        };
+        let case = StructuralCaseDeclaration {
+            id: StructuralCaseId::new(1).expect("case identity"),
+            identity: "present".into(),
+            fields: vec![field.clone()],
+        };
+        for shape in [
+            StructuralTypeShape::Record {
+                fields: vec![field.clone()],
+                storage: None,
+            },
+            StructuralTypeShape::Sum {
+                cases: vec![case.clone()],
+            },
+            StructuralTypeShape::Mixed {
+                fields: vec![field.clone()],
+                cases: Vec::new(),
+            },
+            StructuralTypeShape::Mixed {
+                fields: Vec::new(),
+                cases: vec![case],
+            },
+        ] {
+            assert!(validate_field_storage_envelope(&shape).is_err());
+        }
+        let authored = StructuralTypeShape::Record {
+            fields: vec![field],
+            storage: Some(AuthoredRecordStorage {
+                byte_size: 1,
+                byte_alignment: 1,
+            }),
+        };
+        assert!(validate_field_storage_envelope(&authored).is_ok());
+    }
 }

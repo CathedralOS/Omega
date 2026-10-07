@@ -265,7 +265,7 @@ pub(in crate::legalization) fn contains_reference(
         };
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::Record { fields } => push_fields(fields),
+            StructuralTypeShape::Record { fields, .. } => push_fields(fields),
             StructuralTypeShape::Sum { cases } => {
                 for case in cases {
                     push_fields(&case.fields);
@@ -336,7 +336,7 @@ fn leaf_paths(
                 }
                 output.push(path);
             }
-            StructuralTypeShape::Record { fields } => {
+            StructuralTypeShape::Record { fields, .. } => {
                 for field in fields.iter().rev() {
                     push_field_leaf(
                         &mut pending,
@@ -505,6 +505,17 @@ fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if *segment == StructuralPathSegment::Referent {
+            let StructuralTypeShape::Reference { referent, .. } = &types
+                .iter()
+                .find(|declaration| declaration.id == current)?
+                .shape
+            else {
+                return None;
+            };
+            current = *referent;
+            continue;
+        }
         if let StructuralPathSegment::FixedIndex(index) = segment {
             let declaration = types.iter().find(|declaration| declaration.id == current)?;
             let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
@@ -521,7 +532,7 @@ fn leaf_type(
         };
         let declaration = types.iter().find(|declaration| declaration.id == current)?;
         let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
             StructuralTypeShape::Sum { cases } => {
                 cases.iter().flat_map(|case| case.fields.iter()).collect()
             }
@@ -677,9 +688,40 @@ fn reference_source_type(
     ) {
         return None;
     }
-    if let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() {
-        let carrier = source_contract(function, custody, source.place)?;
-        return leaf_referent(types, carrier, fields);
+    if source.path.contains(&StructuralPathSegment::Referent) {
+        let mut current = source_contract(function, custody, source.place)?;
+        let mut start = 0;
+        for (position, segment) in source.path.iter().enumerate() {
+            if *segment != StructuralPathSegment::Referent {
+                continue;
+            }
+            current = leaf_type(types, current, &source.path[start..position])?;
+            let StructuralTypeShape::Reference { referent, access } = &types
+                .iter()
+                .find(|declaration| declaration.id == current)?
+                .shape
+            else {
+                return (position + 1 == source.path.len()).then_some(current);
+            };
+            let compatible = match source.access {
+                StructuralAccess::SharedBorrow => matches!(
+                    access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                ),
+                StructuralAccess::MutableBorrow => *access == StructuralAccess::MutableBorrow,
+                StructuralAccess::WriteOnlyBorrow => matches!(
+                    access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                ),
+                StructuralAccess::Owned => false,
+            };
+            if !compatible {
+                return None;
+            }
+            current = *referent;
+            start = position + 1;
+        }
+        return leaf_type(types, current, &source.path[start..]);
     }
     direct_storage_type(function, types, source)
 }
@@ -719,9 +761,6 @@ fn storage_projection_type(
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
     let carrier = source_contract(function, custody, source.place)?;
-    if let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() {
-        return leaf_referent(types, carrier, fields);
-    }
     optimization_unit_semantics::structural_projection_type(types.iter(), carrier, &source.path)
 }
 
@@ -768,7 +807,13 @@ fn normalized_direct_source(
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Result<(Root, Option<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
-    if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
+    if let Some(crossing) = source
+        .path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let carrier_path = &source.path[..crossing];
+        let suffix = &source.path[crossing + 1..];
         let Some(leaf) = custody.leaf(source.place, carrier_path) else {
             // Member storage under a carrier never held as a live reference
             // borrows the carrier's own storage; only a non-reference member
@@ -781,7 +826,8 @@ fn normalized_direct_source(
                     .find(|declaration| declaration.id == leaf)
                     .and_then(|declaration| match declaration.shape {
                         StructuralTypeShape::Reference { .. } => None,
-                        _ => Some(()),
+                        _ if suffix.is_empty() => Some(()),
+                        _ => None,
                     })
             }) {
                 Some(()) => {
@@ -804,6 +850,9 @@ fn normalized_direct_source(
                 None => Err(invalid()),
             };
         };
+        if leaf_type(types, leaf.referent, suffix).is_none() {
+            return Err(invalid());
+        }
         if custody.leaves.iter().any(|((carrier, path), child)| {
             child.parent.as_ref() == Some(&leaf.identity)
                 && !shared_source_compatible(function, custody, types, carrier, path, source.access)
@@ -1560,6 +1609,7 @@ pub(in crate::legalization) fn apply(
             psi_operation,
             result,
             source,
+            storage,
         } => {
             let referent = referent(types, result.structural_type)
                 .or_else(|| plain_record_referent(types, result.structural_type))
@@ -1577,11 +1627,19 @@ pub(in crate::legalization) fn apply(
                     .values()
                     .any(|leaf| leaf.identity.0 == result.place)
                 || !reference_source_type(function, custody, types, source).is_some_and(|actual| {
-                    terminal_semantics::reference_source_compatible(
-                        types.iter(),
-                        actual,
-                        result.structural_type,
-                    )
+                    match storage {
+                        Some(storage) => terminal_semantics::reference_storage_source_compatible(
+                            types.iter(),
+                            actual,
+                            result.structural_type,
+                            storage.stored_scalar,
+                        ),
+                        None => terminal_semantics::reference_source_compatible(
+                            types.iter(),
+                            actual,
+                            result.structural_type,
+                        ),
+                    }
                 })
             {
                 return Err(invalid());
@@ -1633,6 +1691,7 @@ pub(in crate::legalization) fn apply(
                 shape:
                     StructuralTypeShape::Record {
                         fields: declarations,
+                        ..
                     },
                 ..
             }) = types
@@ -2248,7 +2307,7 @@ fn constructible(types: &[StructuralTypeDeclaration], root: StructuralTypeId) ->
             continue;
         }
         let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
             StructuralTypeShape::Sum { cases } => {
                 cases.iter().flat_map(|case| case.fields.iter()).collect()
             }

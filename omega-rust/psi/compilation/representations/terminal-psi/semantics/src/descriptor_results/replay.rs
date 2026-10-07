@@ -187,7 +187,7 @@ fn may_contain_descriptor(
         })
     };
     let contains = match &declaration.shape {
-        StructuralTypeShape::Record { fields } => fields_contain(fields),
+        StructuralTypeShape::Record { fields, .. } => fields_contain(fields),
         StructuralTypeShape::Mixed { fields, cases } => {
             fields_contain(fields) || cases.iter().any(|case| fields_contain(&case.fields))
         }
@@ -236,7 +236,7 @@ pub fn descriptor_slots(
                 child.path.push(DescriptorPathSegment::Referent);
                 walk(types, *referent, child, active, result)?;
             }
-            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+            StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                     let mut child = location.clone();
                     child.path.push(DescriptorPathSegment::Field(field.id));

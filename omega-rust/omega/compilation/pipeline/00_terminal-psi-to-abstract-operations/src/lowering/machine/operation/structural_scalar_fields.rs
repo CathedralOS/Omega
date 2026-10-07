@@ -187,7 +187,7 @@ fn lower_store(
         .ok_or_else(invalid)?;
     // A mixed shape's common field is a direct field at one offset in every
     // case, stored without case knowledge exactly as a record field.
-    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+    let (StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. }) =
         &declaration.shape
     else {
         return Err(invalid());
@@ -499,7 +499,7 @@ fn resolve_structural_path(
     for segment in path {
         let declaration = exact_structural_type(structural_types, structural_type)?;
         structural_type = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields, .. }) => {
                 let mut matching = fields.iter().filter(|field| {
                     field.identity == *identity && field.relevance == BindingRelevance::Relevant
                 });
@@ -560,7 +560,7 @@ fn observed_scalar_field(
     // common fields through `direct_relevant_scalar_field`.
     let carrier = terminal_semantics::record_field_carrier(structural_types.iter(), root, path)?;
     let declaration = exact_structural_type(structural_types, carrier.structural_type)?;
-    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+    let (StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. }) =
         &declaration.shape
     else {
         return None;
@@ -575,7 +575,7 @@ fn direct_relevant_scalar_field(
     allow_refined_scalar: bool,
 ) -> Option<ScalarType> {
     let declaration = exact_structural_type(structural_types, structural_type)?;
-    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+    let (StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. }) =
         &declaration.shape
     else {
         return None;

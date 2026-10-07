@@ -53,7 +53,9 @@ pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
 
 /// The pointer's ABI location is distinct from any activation-local value copy.
 pub(super) fn pointer_location(placement: &ValuePlacement) -> Option<IndirectPointerLocation> {
-    if placement.shape.class != ValueClass::BorrowedReference
+    let scalar_descriptor = placement.shape.class == ValueClass::BorrowedScalarReference;
+    if !(placement.shape.class == ValueClass::BorrowedReference
+        || scalar_descriptor && placement.shape == ValueShape::borrowed_scalar_reference())
         || placement.shape.alignment == 0
         || !placement.shape.alignment.is_power_of_two()
     {
@@ -66,7 +68,7 @@ pub(super) fn pointer_location(placement: &ValuePlacement) -> Option<IndirectPoi
                 value_byte_offset: 0,
                 byte_size: 8,
             },
-        ] => Some(IndirectPointerLocation::Register(*register)),
+        ] if !scalar_descriptor => Some(IndirectPointerLocation::Register(*register)),
         [
             ValueLocation::Stack {
                 stack_byte_offset,
@@ -74,10 +76,12 @@ pub(super) fn pointer_location(placement: &ValuePlacement) -> Option<IndirectPoi
                 byte_size: 8,
                 alignment: 8,
             },
-        ] if stack_byte_offset.is_multiple_of(8) => Some(IndirectPointerLocation::Stack {
-            stack_byte_offset: *stack_byte_offset,
-            alignment: 8,
-        }),
+        ] if !scalar_descriptor && stack_byte_offset.is_multiple_of(8) => {
+            Some(IndirectPointerLocation::Stack {
+                stack_byte_offset: *stack_byte_offset,
+                alignment: 8,
+            })
+        }
         [
             ValueLocation::Indirect {
                 pointer,

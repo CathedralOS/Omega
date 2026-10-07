@@ -81,7 +81,7 @@ fn finite_cleanup_type(
         return None;
     }
     match &declarations.get(&structural_type)?.shape {
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             let mut identities = BTreeSet::new();
             if fields.windows(2).any(|pair| pair[0].id >= pair[1].id) {
                 return None;
@@ -148,7 +148,7 @@ fn append_expected_residuals(
         append_expected_residuals(child, &path, &nested, declarations, limit, output)
     };
     match &declarations.get(&structural_type)?.shape {
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             if moved.iter().any(|(path, _)| {
                 !fields.iter().any(|field| {
                     matches!(&path[0], StructuralPathSegment::Field(identity)

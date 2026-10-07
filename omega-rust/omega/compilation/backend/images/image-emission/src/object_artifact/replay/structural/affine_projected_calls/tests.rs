@@ -36,6 +36,7 @@ fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclarat
 
 fn structural_field(value: u64, identity: &str, child: u64) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
+        storage: None,
         id: StructuralFieldId::new(value).unwrap(),
         identity: identity.into(),
         relevance: BindingRelevance::Relevant,
@@ -47,7 +48,9 @@ fn token() -> StructuralTypeDeclaration {
     declaration(
         1,
         StructuralTypeShape::Record {
+            storage: None,
             fields: vec![StructuralFieldDeclaration {
+                storage: None,
                 id: StructuralFieldId::new(1).unwrap(),
                 identity: "value".into(),
                 relevance: BindingRelevance::Relevant,
@@ -130,6 +133,7 @@ fn mixed_paths_preserve_maximal_untouched_rows() {
         declaration(
             3,
             StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![
                     structural_field(1, "items", 2),
                     structural_field(2, "tail", 1),
@@ -146,6 +150,7 @@ fn mixed_paths_preserve_maximal_untouched_rows() {
         declaration(
             5,
             StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![structural_field(1, "rows", 4)],
             },
         ),
@@ -183,6 +188,7 @@ fn empty_complement_requires_every_structural_descendant() {
         declaration(
             2,
             StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![
                     structural_field(1, "first", 1),
                     structural_field(2, "last", 1),
@@ -316,6 +322,7 @@ fn full_path_layout_keeps_root_array_metadata_and_record_root_absence() {
         declaration(
             3,
             StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![
                     structural_field(1, "items", 2),
                     structural_field(2, "tail", 1),
@@ -374,6 +381,7 @@ fn full_path_layout_keeps_root_array_metadata_and_record_root_absence() {
     declarations.push(declaration(
         5,
         StructuralTypeShape::Record {
+            storage: None,
             fields: vec![structural_field(1, "rows", 4)],
         },
     ));
@@ -526,6 +534,87 @@ fn projected_row_copy(
     };
     copy.call_stack_bytes = call_stack_bytes;
     copy
+}
+
+#[test]
+fn scalar_descriptor_calls_forward_only_the_existing_descriptor_pointer() {
+    use crate::object_artifact::replay::unit::call_custody::expected_projected_copy_bytes;
+    use calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
+    use machine_code::InternalUnitStructuralArgumentSourceRecord;
+
+    for (target, register, expected) in [
+        (
+            target::NativeTarget::linux_x64(),
+            MachineRegister::X86Rdi,
+            vec![0x48, 0x8b, 0x7c, 0x24, 0x20],
+        ),
+        (
+            target::NativeTarget::linux_arm64(),
+            MachineRegister::Aarch64X(0),
+            0xf940_13e0_u32.to_le_bytes().to_vec(),
+        ),
+    ] {
+        let shape = ValueShape::borrowed_scalar_reference();
+        let placement = ValuePlacement {
+            shape,
+            locations: vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(register),
+                copy_stack_byte_offset: None,
+                byte_size: 16,
+                alignment: 8,
+            }],
+        };
+        let mut descriptor = projected_row_copy(placement.locations.clone(), 32);
+        descriptor.shape = shape;
+        descriptor.access = StructuralAccess::MutableBorrow;
+        descriptor.source_byte_offset = 0;
+        descriptor.source = placement.clone().into();
+        descriptor.destination = placement;
+        assert_eq!(
+            expected_projected_copy_bytes(target, &descriptor),
+            Some(expected)
+        );
+        for mutation in 0..7 {
+            let mut invalid = descriptor.clone();
+            let InternalUnitStructuralArgumentSourceRecord::Placement(source) = &mut invalid.source
+            else {
+                panic!("descriptor source placement");
+            };
+            match mutation {
+                0 => invalid.source_byte_offset = 8,
+                1 => source.shape = ValueShape::borrowed_reference(16, 8),
+                2 => invalid.destination.shape = ValueShape::borrowed_reference(16, 8),
+                3 => {
+                    source.locations = vec![ValueLocation::Register {
+                        register,
+                        value_byte_offset: 0,
+                        byte_size: 8,
+                    }]
+                }
+                4 => {
+                    source.locations = vec![ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Register(register),
+                        copy_stack_byte_offset: Some(0),
+                        byte_size: 16,
+                        alignment: 8,
+                    }]
+                }
+                5 => invalid.access = StructuralAccess::Owned,
+                _ => {
+                    invalid.destination.locations = vec![ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Stack {
+                            stack_byte_offset: 1,
+                            alignment: 8,
+                        },
+                        copy_stack_byte_offset: None,
+                        byte_size: 16,
+                        alignment: 8,
+                    }]
+                }
+            }
+            assert!(expected_projected_copy_bytes(target, &invalid).is_none());
+        }
+    }
 }
 
 #[test]

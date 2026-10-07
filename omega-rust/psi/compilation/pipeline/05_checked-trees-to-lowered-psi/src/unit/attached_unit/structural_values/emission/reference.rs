@@ -82,6 +82,7 @@ impl Emission<'_, '_, '_> {
             let carrier = super::super::super::reference_results::emit_carrier(
                 self.structural_type,
                 argument,
+                None,
                 self.next_place,
                 self.operations,
             )?;

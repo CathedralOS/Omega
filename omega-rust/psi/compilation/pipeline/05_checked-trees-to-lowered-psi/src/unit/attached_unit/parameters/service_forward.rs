@@ -238,7 +238,7 @@ fn validate_field(
         }
         let (
             CheckedUnitStructuralPathSegment::Field(name),
-            CheckedUnitStructuralTypeShape::Record { fields },
+            CheckedUnitStructuralTypeShape::Record { fields, .. },
         ) = (segment, &shape.shape)
         else {
             return unsupported("service field argument does not name a record-field route");

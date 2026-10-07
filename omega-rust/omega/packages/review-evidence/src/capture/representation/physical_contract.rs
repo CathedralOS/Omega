@@ -209,6 +209,9 @@ pub(crate) fn project_value_placement(
                 calling_conventions::ValueClass::BorrowedReference => {
                     PackageReviewBoundaryValueClass::BorrowedReference
                 }
+                calling_conventions::ValueClass::BorrowedScalarReference => {
+                    PackageReviewBoundaryValueClass::BorrowedScalarReference
+                }
                 calling_conventions::ValueClass::HomogeneousFloatAggregate { members } => {
                     PackageReviewBoundaryValueClass::HomogeneousFloatAggregate { members }
                 }

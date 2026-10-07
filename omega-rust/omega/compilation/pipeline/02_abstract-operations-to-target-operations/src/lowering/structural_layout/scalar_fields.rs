@@ -1,6 +1,6 @@
 //! Exact scalar-field layout, retaining canonical IEEE format identity.
 
-use super::{LoweringError, checked_align_up_u32};
+use super::LoweringError;
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
@@ -61,7 +61,7 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
         .map(|common| common.byte_offset)
         .ok_or(LoweringError::UnknownStructuralType(structural_type));
     }
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err(LoweringError::UnknownStructuralType(structural_type));
     };
     let mut offset = 0_u32;
@@ -72,15 +72,15 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
         if matches!(candidate.field_type, StructuralFieldType::Erased { .. }) {
             continue;
         }
-        let shape = super::structural_field_shape(
-            &candidate.field_type,
+        let shape = super::structural_field_storage_shape(
+            candidate,
             structural_type,
             declarations,
             &mut cache,
             &mut active,
         )?;
-        offset = checked_align_up_u32(offset, u32::from(shape.alignment))
-            .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+        offset =
+            super::structural_field_offset(candidate, offset, shape.alignment, structural_type)?;
         if candidate.id == field {
             // This is layout, not store admission: current-IR validation separately
             // binds restricted writes to their own accepted obligations.

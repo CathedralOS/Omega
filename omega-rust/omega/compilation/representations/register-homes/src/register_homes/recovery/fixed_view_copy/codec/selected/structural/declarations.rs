@@ -71,9 +71,18 @@ pub(super) fn encode_type(
             bytes.push(8);
             bytes.extend_from_slice(&element.get().to_le_bytes());
         }
-        StructuralTypeShape::Record { fields } => {
-            bytes.push(2);
+        StructuralTypeShape::Record { fields, storage } => {
+            bytes.push(if storage.is_some() { 10 } else { 2 });
+            if let Some(storage) = storage {
+                bytes.extend_from_slice(&storage.byte_size.to_le_bytes());
+                bytes.extend_from_slice(&storage.byte_alignment.to_le_bytes());
+            }
             encode_fields(bytes, fields)?;
+            if storage.is_some() {
+                for field in fields {
+                    encode_authored_field_storage(bytes, field.storage);
+                }
+            }
         }
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.push(3);
@@ -106,8 +115,23 @@ pub(super) fn decode_type(
         },
         1 => StructuralTypeShape::ByteSequence(decode_byte_sequence_carrier(cursor)?),
         2 => StructuralTypeShape::Record {
+            storage: None,
             fields: decode_fields(cursor)?,
         },
+        10 => {
+            let storage = semantic_vocabulary::AuthoredRecordStorage {
+                byte_size: cursor.u64()?,
+                byte_alignment: cursor.u64()?,
+            };
+            let mut fields = decode_fields(cursor)?;
+            for field in &mut fields {
+                field.storage = decode_authored_field_storage(cursor)?;
+            }
+            StructuralTypeShape::Record {
+                fields,
+                storage: Some(storage),
+            }
+        }
         3 => StructuralTypeShape::FixedArray {
             element: decode_id(cursor, StructuralTypeId::new)?,
             length: cursor.u64()?,
@@ -126,6 +150,65 @@ pub(super) fn decode_type(
         id,
         identity,
         shape,
+    })
+}
+
+fn encode_authored_field_storage(
+    bytes: &mut Vec<u8>,
+    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+) {
+    use semantic_vocabulary::AuthoredFieldStorage;
+    match storage {
+        None => bytes.push(0),
+        Some(AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar,
+        }) => {
+            bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            if let Some(scalar) = stored_scalar {
+                encode_scalar(bytes, scalar);
+            }
+        }
+        Some(AuthoredFieldStorage::Repeated {
+            byte_offset,
+            element_stride,
+        }) => {
+            bytes.push(3);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.extend_from_slice(&element_stride.to_le_bytes());
+        }
+        Some(AuthoredFieldStorage::Direct { byte_offset }) => {
+            bytes.push(4);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        Some(AuthoredFieldStorage::Fragmented) => bytes.push(5),
+    }
+}
+
+fn decode_authored_field_storage(
+    cursor: &mut Cursor<'_>,
+) -> Result<Option<semantic_vocabulary::AuthoredFieldStorage>, FixedViewCopyDecodeError> {
+    use semantic_vocabulary::AuthoredFieldStorage;
+    Ok(match cursor.byte()? {
+        0 => None,
+        1 => Some(AuthoredFieldStorage::Scalar {
+            byte_offset: cursor.u64()?,
+            stored_scalar: None,
+        }),
+        2 => Some(AuthoredFieldStorage::Scalar {
+            byte_offset: cursor.u64()?,
+            stored_scalar: Some(decode_scalar(cursor)?),
+        }),
+        3 => Some(AuthoredFieldStorage::Repeated {
+            byte_offset: cursor.u64()?,
+            element_stride: cursor.u64()?,
+        }),
+        4 => Some(AuthoredFieldStorage::Direct {
+            byte_offset: cursor.u64()?,
+        }),
+        5 => Some(AuthoredFieldStorage::Fragmented),
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     })
 }
 
@@ -279,6 +362,7 @@ fn decode_fields(
             tag => return Err(FixedViewCopyDecodeError::UnknownStructuralFieldType(tag)),
         };
         fields.push(StructuralFieldDeclaration {
+            storage: None,
             id,
             identity,
             relevance,

@@ -321,7 +321,7 @@ fn byte_leaf_predicates(
     let Some(field) =
         terminal_semantics::runtime_structural_path_tip(types.values().copied(), root_type, prefix)
             .and_then(|parent| match &parent.shape {
-                StructuralTypeShape::Record { fields }
+                StructuralTypeShape::Record { fields, .. }
                 | StructuralTypeShape::Mixed { fields, .. } => fields
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased()),

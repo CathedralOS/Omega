@@ -97,7 +97,7 @@ pub fn observed_field_declaration<'types>(
         carrier.fields
     } else {
         let carrier = record_field_carrier(types.clone(), root, path)?;
-        let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+        let (StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. }) =
             &types
                 .clone()
                 .find(|declaration| declaration.id == carrier.structural_type)?
@@ -178,7 +178,7 @@ fn walk_record_fields<'types>(
         let declaration = types
             .clone()
             .find(|declaration| declaration.id == structural_type)?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
             return None;
         };
         let field = fields

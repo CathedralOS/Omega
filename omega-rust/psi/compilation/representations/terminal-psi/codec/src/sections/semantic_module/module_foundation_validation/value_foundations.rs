@@ -350,7 +350,7 @@ pub(super) fn validate_establish_trivial_affine_local(
     };
     if !matches!(
         &declaration.shape,
-        StructuralTypeShape::Record { fields } if fields.is_empty()
+        StructuralTypeShape::Record { fields, .. } if fields.is_empty()
     ) {
         return malformed("trivial affine local must have an empty record type");
     }
@@ -384,6 +384,7 @@ pub(super) fn validate_establish_record(
     };
     let StructuralTypeShape::Record {
         fields: declarations,
+        ..
     } = &declaration.shape
     else {
         return malformed("record result is not a record");

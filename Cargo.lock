@@ -48,6 +48,7 @@ dependencies = [
  "installation-evidence",
  "optimization-core",
  "optimization-unit-semantics",
+ "runtime-abi",
  "semantic-vocabulary",
  "symbols",
  "target",
@@ -1517,6 +1518,7 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "register-model",
+ "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
@@ -1604,6 +1606,7 @@ dependencies = [
 name = "runtime-abi"
 version = "0.1.0"
 dependencies = [
+ "semantic-vocabulary",
  "target",
 ]
 
@@ -1973,6 +1976,7 @@ dependencies = [
  "proof-admission",
  "register-environment",
  "register-model",
+ "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "target",

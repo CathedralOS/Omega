@@ -57,6 +57,7 @@ pub use terminal_module::{
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, RecordFieldInitializer, RecordFieldValue,
+    ReferenceStorageView,
     ResultQualificationEstablishment, RetainedBorrowContentProjection, RetainedBorrowCustody,
     RetainedBorrowPlace, RetainedBorrowPlaceRoot, ScalarBlockInvariant,
     ScalarBlockInvariantArrival, ScalarCaseField, ScalarDomainDeclaration,

@@ -102,7 +102,7 @@ impl TerminalExecution {
                     let fields = match case_fields.take() {
                         Some(fields) => fields,
                         None => match &declaration.shape {
-                            StructuralTypeShape::Record { fields }
+                            StructuralTypeShape::Record { fields, .. }
                             | StructuralTypeShape::Mixed { fields, .. } => fields,
                             _ => return Err(malformed()),
                         },

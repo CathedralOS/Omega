@@ -182,7 +182,7 @@ impl OperationKind {
         map: &mut impl FnMut(PlaceId, StructuralAccess) -> PlaceId,
     ) {
         match self {
-            Self::EstablishReference { source }
+            Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. } => {
                 source.place = map(source.place, source.access);
@@ -377,7 +377,7 @@ impl OperationKind {
                     projections.push(argument_projection(source));
                 }
             }
-            Self::EstablishReference { source }
+            Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. } => {
                 projections.push(argument_projection(source));
@@ -549,7 +549,7 @@ impl OperationKind {
             } => {
                 paths.push(&mut source.path);
             }
-            Self::EstablishReference { source } | Self::EstablishElementView { source, .. } => {
+            Self::EstablishReference { source, .. } | Self::EstablishElementView { source, .. } => {
                 paths.push(&mut source.path);
             }
             Self::PrimitiveScalarRead { path, .. }

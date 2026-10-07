@@ -270,6 +270,7 @@ fn runtime_element_field_publication_rebuilds_the_declared_field() {
     };
     let cell = StructuralTypeId::new(2).unwrap();
     let field = |raw, identity: &str, field_type| StructuralFieldDeclaration {
+        storage: None,
         id: StructuralFieldId::new(raw).unwrap(),
         identity: identity.into(),
         relevance: BindingRelevance::Relevant,
@@ -288,6 +289,7 @@ fn runtime_element_field_publication_rebuilds_the_declared_field() {
             id: cell,
             identity: "test::Cell".into(),
             shape: StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![
                     field(
                         1,
@@ -546,7 +548,7 @@ fn byte_store_destination_mut(
 fn record_fields_mut(
     declaration: &mut StructuralTypeDeclaration,
 ) -> Option<&mut Vec<StructuralFieldDeclaration>> {
-    let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &mut declaration.shape else {
         return None;
     };
     Some(fields)
@@ -941,7 +943,9 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
             id: owner.structural_type,
             identity: "test::OwnedBuffer".into(),
             shape: terminal_psi::StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    storage: None,
                     id: field,
                     identity: "bytes".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -1356,7 +1360,9 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             id: root_type,
             identity: "test::Root".into(),
             shape: StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![StructuralFieldDeclaration {
+                    storage: None,
                     id: StructuralFieldId::new(2).unwrap(),
                     identity: "holder".into(),
                     relevance: BindingRelevance::Relevant,
@@ -1376,7 +1382,9 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             id: holder_type,
             identity: "test::Holder".into(),
             shape: StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![StructuralFieldDeclaration {
+                    storage: None,
                     id: field,
                     identity: "text".into(),
                     relevance: BindingRelevance::Relevant,
@@ -1459,6 +1467,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     let mut grouped = target.clone();
     let fields = record_fields_mut(&mut grouped.graph.structural_types.make_mut()[0]).unwrap();
     fields.push(StructuralFieldDeclaration {
+        storage: None,
         id: StructuralFieldId::new(3).unwrap(),
         identity: "sibling".into(),
         relevance: BindingRelevance::Relevant,
@@ -2026,7 +2035,9 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             id: function.structural_parameters[0].structural_type,
             identity: "Root".into(),
             shape: terminal_psi::StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    storage: None,
                     id: carrier_field,
                     identity: "child".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -2043,7 +2054,9 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
                 id: child,
                 identity: "Child".into(),
                 shape: terminal_psi::StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        storage: None,
                         id: carrier_field,
                         identity: "value".into(),
                         relevance: terminal_psi::BindingRelevance::Relevant,
@@ -2091,7 +2104,9 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 id: function.structural_parameters[0].structural_type,
                 identity: "Root".into(),
                 shape: terminal_psi::StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        storage: None,
                         id: maps_field,
                         identity: "maps".into(),
                         relevance: terminal_psi::BindingRelevance::Relevant,
@@ -2108,7 +2123,9 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 id: element,
                 identity: "Map".into(),
                 shape: terminal_psi::StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        storage: None,
                         id: leaf,
                         identity: "value".into(),
                         relevance: terminal_psi::BindingRelevance::Relevant,
@@ -2183,7 +2200,9 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         let mut non_array = target.clone();
         non_array.graph.structural_types.make_mut()[1].shape =
             terminal_psi::StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    storage: None,
                     id: leaf,
                     identity: "value".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,

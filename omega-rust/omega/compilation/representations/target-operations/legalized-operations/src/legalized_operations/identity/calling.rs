@@ -146,6 +146,7 @@ pub fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
         ValueClass::Integer => bytes.push(1),
         ValueClass::Float => bytes.push(2),
         ValueClass::BorrowedReference => bytes.push(5),
+        ValueClass::BorrowedScalarReference => bytes.push(6),
         ValueClass::HomogeneousFloatAggregate { members } => {
             bytes.push(3);
             bytes.push(members);

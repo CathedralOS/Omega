@@ -601,7 +601,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             } => {
                 collect(checked, plans, element_type_identity, active, selected)?;
             }
-            CheckedUnitStructuralTypeShape::Record { fields } => {
+            CheckedUnitStructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity }
                     | CheckedUnitStructuralFieldType::FusedServiceBacked {
@@ -710,7 +710,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             } => StructuralTypeShape::ElementView {
                 element: lookup_type_id(&type_ids, element_type_identity)?,
             },
-            CheckedUnitStructuralTypeShape::Record { fields } => {
+            CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                 let mut field_identities = BTreeSet::new();
                 let fields = fields.iter().map(|field| {
                 if field.identity.is_empty() || !field_identities.insert(field.identity.as_str()) {
@@ -745,6 +745,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                     field_type => (field.relevance, crate::structural_types::lower_field_type(field_type, &type_ids)?),
                 };
                 let declaration = StructuralFieldDeclaration {
+                    storage: field.storage,
                     id: structural_field_id(allocate_dense(&mut next_field)?),
                     identity: field.identity.clone(),
                     relevance,
@@ -752,7 +753,10 @@ pub(crate) fn lower_unit_structural_type_roots(
                 };
                 Ok(declaration)
                 }).collect::<Result<Vec<_>, LoweringError>>()?;
-                StructuralTypeShape::Record { fields }
+                StructuralTypeShape::Record {
+                    fields,
+                    storage: *storage,
+                }
             }
             CheckedUnitStructuralTypeShape::FixedArray {
                 element_type_identity,
@@ -791,6 +795,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                                         }
                                         let field_type = crate::structural_types::lower_field_type(&field.field_type, &type_ids)?;
                                         Ok(StructuralFieldDeclaration {
+                                            storage: field.storage,
                                             id: structural_field_id(allocate_dense(
                                                 &mut next_field,
                                             )?),

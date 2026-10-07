@@ -60,9 +60,18 @@ pub(crate) fn encode_structural_types(
                 bytes.extend_from_slice(&[8, 0, 0, 0]);
                 push_u64(bytes, element.get());
             }
-            terminal_psi::StructuralTypeShape::Record { fields } => {
-                bytes.extend_from_slice(&[1, 0, 0, 0]);
+            terminal_psi::StructuralTypeShape::Record { fields, storage } => {
+                bytes.extend_from_slice(&[if storage.is_some() { 10 } else { 1 }, 0, 0, 0]);
+                if let Some(storage) = storage {
+                    push_u64(bytes, storage.byte_size);
+                    push_u64(bytes, storage.byte_alignment);
+                }
                 encode_structural_fields(bytes, fields)?;
+                if storage.is_some() {
+                    for field in fields {
+                        encode_authored_field_storage(bytes, field.storage)?;
+                    }
+                }
             }
             terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
                 bytes.extend_from_slice(&[2, 0, 0, 0]);
@@ -109,8 +118,23 @@ pub(crate) fn decode_structural_types(
                 )?,
             },
             1 => terminal_psi::StructuralTypeShape::Record {
+                storage: None,
                 fields: decode_structural_fields(reader)?,
             },
+            10 => {
+                let storage = semantic_vocabulary::AuthoredRecordStorage {
+                    byte_size: reader.u64()?,
+                    byte_alignment: reader.u64()?,
+                };
+                let mut fields = decode_structural_fields(reader)?;
+                for field in &mut fields {
+                    field.storage = decode_authored_field_storage(reader)?;
+                }
+                terminal_psi::StructuralTypeShape::Record {
+                    fields,
+                    storage: Some(storage),
+                }
+            }
             2 => terminal_psi::StructuralTypeShape::FixedArray {
                 element: StructuralTypeId::new(reader.u64()?).ok_or(
                     InstallationError::ZeroStructuralReturnIdentity("fixed-array element type"),
@@ -166,6 +190,68 @@ pub(crate) fn decode_structural_types(
     Ok(declarations)
 }
 
+fn encode_authored_field_storage(
+    bytes: &mut Vec<u8>,
+    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+) -> Result<(), InstallationError> {
+    use semantic_vocabulary::AuthoredFieldStorage;
+    match storage {
+        None => bytes.push(0),
+        Some(AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar,
+        }) => {
+            bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
+            push_u64(bytes, byte_offset);
+            if let Some(scalar) = stored_scalar {
+                crate::installation_record::codec::unit::scalar::encode_scalar_type(bytes, scalar)?;
+            }
+        }
+        Some(AuthoredFieldStorage::Repeated {
+            byte_offset,
+            element_stride,
+        }) => {
+            bytes.push(3);
+            push_u64(bytes, byte_offset);
+            push_u64(bytes, element_stride);
+        }
+        Some(AuthoredFieldStorage::Direct { byte_offset }) => {
+            bytes.push(4);
+            push_u64(bytes, byte_offset);
+        }
+        Some(AuthoredFieldStorage::Fragmented) => bytes.push(5),
+    }
+    Ok(())
+}
+
+fn decode_authored_field_storage(
+    reader: &mut Reader<'_>,
+) -> Result<Option<semantic_vocabulary::AuthoredFieldStorage>, InstallationError> {
+    use semantic_vocabulary::AuthoredFieldStorage;
+    Ok(match reader.u8()? {
+        0 => None,
+        1 => Some(AuthoredFieldStorage::Scalar {
+            byte_offset: reader.u64()?,
+            stored_scalar: None,
+        }),
+        2 => Some(AuthoredFieldStorage::Scalar {
+            byte_offset: reader.u64()?,
+            stored_scalar: Some(
+                crate::installation_record::codec::unit::scalar::decode_scalar_type(reader)?,
+            ),
+        }),
+        3 => Some(AuthoredFieldStorage::Repeated {
+            byte_offset: reader.u64()?,
+            element_stride: reader.u64()?,
+        }),
+        4 => Some(AuthoredFieldStorage::Direct {
+            byte_offset: reader.u64()?,
+        }),
+        5 => Some(AuthoredFieldStorage::Fragmented),
+        _ => return Err(InstallationError::InvalidStructuralTypeShape),
+    })
+}
+
 #[test]
 fn fused_binding_installation_codec_retains_marker_not_empty_record() {
     let declarations = vec![terminal_psi::StructuralTypeDeclaration {
@@ -179,7 +265,10 @@ fn fused_binding_installation_codec_retains_marker_not_empty_record() {
     assert_eq!(decode_structural_types(&mut reader).unwrap(), declarations);
     assert_eq!(reader.remaining(), 0);
     let mut empty_record = declarations.clone();
-    empty_record[0].shape = terminal_psi::StructuralTypeShape::Record { fields: Vec::new() };
+    empty_record[0].shape = terminal_psi::StructuralTypeShape::Record {
+        storage: None,
+        fields: Vec::new(),
+    };
     let mut record_bytes = Vec::new();
     encode_structural_types(&mut record_bytes, &empty_record).unwrap();
     assert_ne!(bytes, record_bytes);

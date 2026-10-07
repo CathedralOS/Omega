@@ -265,7 +265,7 @@ pub fn derive_fused_program_entry_establishments(
                 .join(", "),
         ))]);
     };
-    let CheckedUnitStructuralTypeShape::Record { fields } = &structural_type.shape else {
+    let CheckedUnitStructuralTypeShape::Record { fields, .. } = &structural_type.shape else {
         return Err(vec![Diagnostic::error(
             "selected ProgramEntry receiver is not one exact Terminal record",
         )]);
@@ -513,7 +513,7 @@ fn checked_field_for_path<'a>(
             ));
         };
         current_fields = match &child_plan.shape {
-            CheckedUnitStructuralTypeShape::Record { fields }
+            CheckedUnitStructuralTypeShape::Record { fields, .. }
             | CheckedUnitStructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
             _ => {
                 return Err(format!(

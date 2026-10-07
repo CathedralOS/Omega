@@ -181,7 +181,7 @@ pub(crate) fn validate_structural_return_record(
                     || local_type.identity.is_empty()
                     || !matches!(
                         local_type.shape,
-                        terminal_psi::StructuralTypeShape::Record { ref fields } if fields.is_empty()
+                        terminal_psi::StructuralTypeShape::Record { ref fields, .. } if fields.is_empty()
                     )
             },
         )

@@ -69,9 +69,11 @@ pub(super) fn prepare(
             &mut active,
         )?;
         shapes.push(
-            crate::lowering::structural_layout::structural_parameter_shape(
+            crate::lowering::structural_layout::internal_parameter_shape(
+                parameter.structural_type,
                 referent,
                 parameter.access,
+                types,
             ),
         );
     }

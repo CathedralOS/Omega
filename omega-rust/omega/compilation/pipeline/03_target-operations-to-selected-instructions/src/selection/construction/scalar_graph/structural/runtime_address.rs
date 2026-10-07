@@ -247,6 +247,11 @@ pub(super) fn cross_references(
     // each pointer load before applying the following region's offset or indices.
     let mut leaf_index = 0;
     for slot in pointer_slots {
+        // Scalar endpoints require the codec-aware operation below. Never
+        // discard a descriptor word and fall back to semantic-width access.
+        if slot.scalar_descriptor {
+            return Err(invalid());
+        }
         let slot_indices = indices.get(slot.indices.clone()).ok_or(invalid())?;
         let address = scale(builder, row, place, slot.byte_offset, pointer, slot_indices)?;
         let (address, displacement) =
@@ -273,4 +278,75 @@ pub(super) fn cross_references(
         leaf_index = slot.indices.end;
     }
     Ok((pointer, leaf_index))
+}
+
+/// Load an internal scalar endpoint's address and codec together. Every
+/// preceding aggregate crossing retains its original address-region order.
+pub(super) fn scalar_reference(
+    source: &super::LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    pointer: VirtualRegisterId,
+    indices: &[LegalizedRuntimeIndexOperand],
+    slots: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+) -> Result<Option<(VirtualRegisterId, VirtualRegisterId)>, SelectedInstructionError> {
+    let (home, byte_offset, traversals) = if let Some(slot) =
+        slots.last().filter(|slot| slot.scalar_descriptor)
+    {
+        let (pointer, _) = cross_references(
+            builder,
+            row,
+            place,
+            pointer,
+            indices,
+            &slots[..slots.len() - 1],
+        )?;
+        let traversals = indices.get(slot.indices.clone()).ok_or(invalid())?;
+        let home = scale(builder, row, place, slot.byte_offset, pointer, traversals)?;
+        (home, slot.byte_offset, traversals)
+    } else if crate::selection::reference_input::borrowed_scalar_source(source, place).is_some() {
+        (pointer, 0, &[][..])
+    } else {
+        return Ok(None);
+    };
+    let (home, displacement) = super::memory_pointer(builder, row, place, home, byte_offset, 16)?;
+    let address = transport_register(builder, place, byte_offset)?;
+    footprint(
+        builder,
+        row,
+        place,
+        byte_offset,
+        8,
+        traversals,
+        Written::None,
+    )?;
+    builder.emit(
+        SelectedInstructionKind::Load64 {
+            byte_offset: displacement,
+        },
+        builder.constraints.keys.load64.ok_or(invalid())?,
+        &[home, address],
+        super::provenance(row),
+    )?;
+    let codec_offset = byte_offset.checked_add(8).ok_or(invalid())?;
+    let codec = transport_register(builder, place, codec_offset)?;
+    footprint(
+        builder,
+        row,
+        place,
+        codec_offset,
+        8,
+        traversals,
+        Written::None,
+    )?;
+    builder.emit(
+        SelectedInstructionKind::Load64 {
+            byte_offset: displacement.checked_add(8).ok_or(invalid())?,
+        },
+        builder.constraints.keys.load64.ok_or(invalid())?,
+        &[home, codec],
+        super::provenance(row),
+    )?;
+    Ok(Some((address, codec)))
 }

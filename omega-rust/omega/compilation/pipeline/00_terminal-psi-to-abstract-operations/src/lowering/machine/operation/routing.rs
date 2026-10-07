@@ -28,7 +28,7 @@ pub(super) fn lower(
         OperationKind::SelectImplementation { .. } | OperationKind::CallDynamic { .. } => {
             calls::lower(operation, machine)
         }
-        OperationKind::EstablishReference { source } => {
+        OperationKind::EstablishReference { source, storage } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
             };
@@ -36,6 +36,7 @@ pub(super) fn lower(
                 psi_operation: operation.id,
                 result,
                 source: source.clone(),
+                storage: *storage,
             })
         }
         OperationKind::ReleaseReference { source, path } => {

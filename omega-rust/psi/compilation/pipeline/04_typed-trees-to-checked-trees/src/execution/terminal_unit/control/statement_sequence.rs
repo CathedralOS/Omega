@@ -282,20 +282,7 @@ fn erased_alias_locals(
         let Some((statement_index, local)) = program.state_local_declaration(state, *symbol) else {
             return true;
         };
-        validation::reference_result_custody::primitive_local_source(
-            program,
-            state,
-            statement_index,
-        )
-        .or_else(|| {
-            validation::reference_result_custody::borrowed_initializer_source(
-                program,
-                state,
-                local.initial_value,
-                local.type_reference,
-            )
-        })
-        .is_none()
+        super::reference_captures::plan(program, machine, state, statement_index, local).is_none()
     });
     erased
 }

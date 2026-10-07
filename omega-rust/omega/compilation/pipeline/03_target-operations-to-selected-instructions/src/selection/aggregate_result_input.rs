@@ -603,7 +603,11 @@ pub(super) fn owned_argument_placement(placement: &calling_conventions::ValuePla
         return true;
     }
     if !placement.shape.alignment.is_power_of_two()
-        || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+        || matches!(
+            placement.shape.class,
+            calling_conventions::ValueClass::BorrowedReference
+                | calling_conventions::ValueClass::BorrowedScalarReference
+        )
         || placement.shape.byte_size == 0
     {
         return false;
@@ -682,8 +686,11 @@ pub(super) fn indirect_argument(
     else {
         return None;
     };
-    if placement.shape.class == calling_conventions::ValueClass::BorrowedReference
-        || *byte_size == 0
+    if matches!(
+        placement.shape.class,
+        calling_conventions::ValueClass::BorrowedReference
+            | calling_conventions::ValueClass::BorrowedScalarReference
+    ) || *byte_size == 0
         || *byte_size != placement.shape.byte_size
         || *alignment != placement.shape.alignment
         || !alignment.is_power_of_two()

@@ -184,7 +184,7 @@ fn zeroed_declaration_graph(
                 }
                 continue;
             }
-            StructuralTypeShape::Record { fields } => (fields.as_slice(), None),
+            StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), None),
             StructuralTypeShape::Sum { cases } => (&[][..], Some(cases)),
             StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), Some(cases)),
             _ => return false,
@@ -299,7 +299,7 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                 return None;
             }
         }
-        if let StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } =
+        if let StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } =
             &declaration.shape
         {
             for field in fields {

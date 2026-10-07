@@ -454,7 +454,7 @@ fn field_carrier(
             }
         };
     }
-    let terminal_psi::StructuralTypeShape::Record { fields } = &target
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &target
         .graph
         .structural_types
         .iter()
@@ -1089,7 +1089,7 @@ pub(super) fn retained(
                 else {
                     return false;
                 };
-                let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape
+                let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape
                 else {
                     return false;
                 };

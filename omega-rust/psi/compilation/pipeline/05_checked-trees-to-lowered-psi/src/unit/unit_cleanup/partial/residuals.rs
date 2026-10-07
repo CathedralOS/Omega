@@ -23,7 +23,7 @@ fn validate_type(
         .find(|declaration| declaration.identity == current_type)?;
     active.push(current_type.to_owned());
     match &declaration.shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => {
+        CheckedUnitStructuralTypeShape::Record { fields, .. } => {
             for (index, field) in fields.iter().enumerate() {
                 if field.identity.is_empty()
                     || field.relevance.is_erased()
@@ -91,7 +91,7 @@ fn visit(
         .find(|declaration| declaration.identity == current_type)?;
     let mut count = 0_usize;
     match &declaration.shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => {
+        CheckedUnitStructuralTypeShape::Record { fields, .. } => {
             if fields.iter().enumerate().any(|(index, field)| {
                 field.identity.is_empty()
                     || field.relevance.is_erased()

@@ -195,6 +195,7 @@ pub(super) fn decode_shape(
         1 => ValueClass::Integer,
         2 => ValueClass::Float,
         5 => ValueClass::BorrowedReference,
+        6 => ValueClass::BorrowedScalarReference,
         3 => ValueClass::HomogeneousFloatAggregate {
             members: cursor.byte()?,
         },

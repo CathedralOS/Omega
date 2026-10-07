@@ -382,6 +382,7 @@ pub enum LegalizedScalarInstructionKind {
     EstablishReference {
         result: terminal_psi::StructuralOperationResult,
         source: terminal_psi::StructuralArgument,
+        storage: Option<terminal_psi::ReferenceStorageView>,
         shape: calling_conventions::ValueShape,
     },
     /// Close the loan on the carrier at `source`. Custody metadata only;
@@ -965,6 +966,7 @@ mod structural_result_tests {
         let expected = result();
         let reference = LegalizedScalarInstructionKind::EstablishReference {
             result: expected.clone(),
+            storage: None,
             source: StructuralArgument {
                 place: PlaceId::new(3).unwrap(),
                 path: vec![],

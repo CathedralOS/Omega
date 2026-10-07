@@ -39,6 +39,7 @@ pub enum StructuralTypeShape {
         /// Declaration order is semantic. Field IDs must nevertheless be
         /// strictly increasing so the same record has one canonical spelling.
         fields: Vec<StructuralFieldDeclaration>,
+        storage: Option<semantic_vocabulary::AuthoredRecordStorage>,
     },
     FixedArray {
         element: StructuralTypeId,
@@ -73,6 +74,7 @@ pub struct StructuralFieldDeclaration {
     /// proof structure even though Omega omits them from native layout.
     pub relevance: BindingRelevance,
     pub field_type: StructuralFieldType,
+    pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
 }
 
 impl StructuralTypeShape {
@@ -81,7 +83,7 @@ impl StructuralTypeShape {
     /// offset in every case.
     pub fn direct_fields(&self) -> Option<&[StructuralFieldDeclaration]> {
         match self {
-            Self::Record { fields } | Self::Mixed { fields, .. } => Some(fields),
+            Self::Record { fields, .. } | Self::Mixed { fields, .. } => Some(fields),
             _ => None,
         }
     }

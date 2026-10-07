@@ -123,6 +123,20 @@ pub(in crate::selection) fn read(
         }
         _ => &[],
     };
+    if let Some((address, codec)) = super::runtime_address::scalar_reference(
+        source,
+        builder,
+        row,
+        place,
+        pointer,
+        indices,
+        &pointer_slots,
+    )? {
+        if byte_offset != 0 {
+            return Err(invalid());
+        }
+        return super::encoded_scalar::read(builder, row, place, address, codec);
+    }
     let (pointer, leaf_index) = super::runtime_address::cross_references(
         builder,
         row,
@@ -134,6 +148,16 @@ pub(in crate::selection) fn read(
     let indices = &indices[leaf_index..];
     let pointer =
         super::runtime_address::scale(builder, row, place, byte_offset, pointer, indices)?;
+    let codec = crate::selection::primitive_local_input::read_storage_codec(source, row)
+        .ok_or_else(|| invalid())?;
+    let canonical = runtime_abi::ScalarStorageCodec::from_scalar(definition.scalar_type)
+        .ok_or_else(|| invalid())?;
+    if codec != canonical || matches!(codec.byte_size(), 3 | 5 | 6 | 7) {
+        let address =
+            super::encoded_scalar::backing_address(builder, row, place, pointer, byte_offset)?;
+        let codec = super::encoded_scalar::constant_codec(builder, row, place, codec)?;
+        return super::encoded_scalar::read(builder, row, place, address, codec);
+    }
     let shape = crate::selection::scalar_call_abi::scalar_shape(definition.scalar_type)
         .ok_or_else(|| invalid())?;
     let (pointer, displacement) =

@@ -112,7 +112,7 @@ pub fn provider_module(
     module.structural_types.push(StructuralTypeDeclaration {
         id: provider_type,
         identity: provider_identity.to_owned(),
-        shape: StructuralTypeShape::Record { fields: Vec::new() },
+        shape: StructuralTypeShape::Record { storage: None, fields: Vec::new() },
     });
     let mut candidate = module.machines[0].clone();
     candidate.id = machine_id(2);

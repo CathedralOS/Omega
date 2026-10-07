@@ -11,6 +11,100 @@ fn borrowed(location: IndirectPointerLocation) -> StructuralSourceLocation {
 }
 
 #[test]
+fn scalar_descriptors_require_their_exact_indirect_abi() {
+    for pointer in [
+        IndirectPointerLocation::Register(MachineRegister::Aarch64X(0)),
+        IndirectPointerLocation::Stack {
+            stack_byte_offset: 24,
+            alignment: 8,
+        },
+    ] {
+        let placement = ValuePlacement {
+            shape: ValueShape::borrowed_scalar_reference(),
+            locations: vec![ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: None,
+                byte_size: 16,
+                alignment: 8,
+            }],
+        };
+        for access in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let location = super::super::incoming_location(access, &placement).unwrap();
+            assert_eq!(location, borrowed(pointer));
+            assert!(validate_incoming_location(access, &placement, location).is_ok());
+        }
+        for malformed in [
+            ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            },
+            ValueLocation::Stack {
+                stack_byte_offset: 24,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            },
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: Some(0),
+                byte_size: 16,
+                alignment: 8,
+            },
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: None,
+                byte_size: 8,
+                alignment: 8,
+            },
+            ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Stack {
+                    stack_byte_offset: 3,
+                    alignment: 8,
+                },
+                copy_stack_byte_offset: None,
+                byte_size: 16,
+                alignment: 8,
+            },
+        ] {
+            let invalid = ValuePlacement {
+                locations: vec![malformed],
+                ..placement.clone()
+            };
+            assert!(
+                super::super::incoming_location(StructuralAccess::SharedBorrow, &invalid).is_err()
+            );
+            assert!(
+                validate_incoming_location(
+                    StructuralAccess::SharedBorrow,
+                    &invalid,
+                    borrowed(pointer)
+                )
+                .is_err()
+            );
+        }
+        let mut invalid_shape = placement.clone();
+        invalid_shape.shape.byte_size = 8;
+        assert!(
+            super::super::incoming_location(StructuralAccess::SharedBorrow, &invalid_shape)
+                .is_err()
+        );
+        assert!(
+            validate_incoming_location(
+                StructuralAccess::SharedBorrow,
+                &invalid_shape,
+                borrowed(pointer)
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn borrowed_register_and_stack_locations_preserve_exact_pointer_residence() {
     for access in [
         StructuralAccess::SharedBorrow,

@@ -32,6 +32,8 @@ mod primitive_place;
 mod proof_bearing_scalar;
 mod record_field;
 mod reference_views;
+mod reference_storage_geometry;
+pub use reference_storage_geometry::{ReferenceStorageProjection, reference_storage_projection, reference_storage_size};
 mod scalar_array;
 mod scalar_field_requirements;
 mod scalar_leaf_schema;
@@ -96,6 +98,8 @@ pub use record_field::{
 };
 pub use reference_views::{
     reference_source_compatible, scalar_reference_view_is_total, scalar_reference_view_value,
+    reference_storage_byte_width, reference_storage_view_is_compatible,
+    reference_storage_source_compatible,
 };
 pub use scalar_array::scalar_array_leaf_shape;
 pub use scalar_field_requirements::{

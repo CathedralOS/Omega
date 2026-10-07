@@ -121,7 +121,7 @@ impl TerminalExecution {
                 .get(&parent_type)
                 .ok_or_else(malformed)?;
             let children = match &declaration.shape {
-                StructuralTypeShape::Record { fields } => fields
+                StructuralTypeShape::Record { fields, .. } => fields
                     .iter()
                     .filter(|field| !field.relevance.is_erased())
                     .filter_map(|field| match field.field_type {

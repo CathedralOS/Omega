@@ -925,6 +925,7 @@ impl StateGraphEmission<'_, '_> {
                                     path,
                                     access,
                                 },
+                                None,
                                 &mut self.catalogs.next_place,
                                 &mut operations,
                             )?;

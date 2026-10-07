@@ -331,7 +331,7 @@ fn writable_byte_field(
         )?
         .0
     };
-    let StructuralTypeShape::Record { fields } = &structural_types
+    let StructuralTypeShape::Record { fields, .. } = &structural_types
         .get(&carrier)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
         .shape

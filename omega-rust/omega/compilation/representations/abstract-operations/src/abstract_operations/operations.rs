@@ -685,6 +685,7 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         source: StructuralArgument,
+        storage: Option<terminal_psi::ReferenceStorageView>,
     },
     /// Close one verified loan: the carrier is discarded and the referent
     /// root's suspended access is restored. Referent storage is not disposed.

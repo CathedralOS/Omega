@@ -88,7 +88,7 @@ fn type_mutation<'types>(
                 type_mutation(declarations.clone(), *element, active)
             }
         }
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             fields_mutation(declarations.clone(), fields.iter(), active)
         }
         StructuralTypeShape::Sum { cases } => fields_mutation(

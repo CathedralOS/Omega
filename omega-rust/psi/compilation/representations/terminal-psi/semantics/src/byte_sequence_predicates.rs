@@ -374,7 +374,7 @@ pub fn shared_byte_field_copy_predicates<'a>(
         return None;
     };
     let parent = crate::runtime_structural_path_tip(types.clone(), root, parent_path)?;
-    let StructuralTypeShape::Record { fields } = &parent.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &parent.shape else {
         return None;
     };
     let field = fields
@@ -504,7 +504,7 @@ pub fn byte_copied_field_predicates_at_transfer(
         parameter.structural_type,
         parent_path,
     )?;
-    let StructuralTypeShape::Record { fields } = &parent.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &parent.shape else {
         return None;
     };
     let field = fields
@@ -559,7 +559,7 @@ pub fn byte_copied_field_predicates_at_transfer(
             candidate.id != consumer
                 && (may_change_owned_source(candidate, source)
                     || matches!(&candidate.kind,
-                OperationKind::EstablishReference { source: argument }
+                OperationKind::EstablishReference { source: argument, .. }
                 | OperationKind::EstablishElementView { source: argument, .. }
                 | OperationKind::EstablishMutableElementView { source: argument, .. }
                 if argument.place == source)
@@ -626,7 +626,7 @@ fn concatenation_operand_predicates(
                 structural_type,
                 &source.path,
             )?;
-            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
                 return None;
             };
             let field = fields

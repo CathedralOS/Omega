@@ -286,7 +286,7 @@ pub(crate) fn lower_whole_content_entry_claims(
             let child = match (segment, &carrier.shape) {
                 (
                     CheckedUnitStructuralPathSegment::Field(identity),
-                    StructuralTypeShape::Record { fields },
+                    StructuralTypeShape::Record { fields, .. },
                 ) => {
                     let field = fields
                         .iter()

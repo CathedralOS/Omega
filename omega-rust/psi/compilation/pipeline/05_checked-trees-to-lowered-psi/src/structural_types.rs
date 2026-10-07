@@ -108,6 +108,7 @@ pub(crate) fn lower_mixed_fields(
             }
             let field_type = lower_field_type(&field.field_type, type_ids)?;
             Ok(StructuralFieldDeclaration {
+                storage: field.storage.clone(),
                 id: structural_field_id(allocate_dense(next_field)?),
                 identity: field.identity.clone(),
                 relevance: field.relevance,

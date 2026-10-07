@@ -7,6 +7,7 @@ use selected_instructions::{
 mod addresses;
 mod construction;
 mod descriptors;
+mod scalar_references;
 pub(super) use construction::prepare;
 
 /// Selection scratch: edge-owned calls are materialized with the caller's
@@ -64,7 +65,8 @@ fn stored_transport(
     match transport {
         // An address transport stores a pointer it forms, never bytes it reads.
         selected_instructions::SelectedStructuralTransport::Unused
-        | selected_instructions::SelectedStructuralTransport::Address { .. } => None,
+        | selected_instructions::SelectedStructuralTransport::Address { .. }
+        | selected_instructions::SelectedStructuralTransport::ScalarReference { .. } => None,
         selected_instructions::SelectedStructuralTransport::WholeValue {
             argument,
             source_byte_offset,

@@ -57,7 +57,7 @@ fn validate_type(
     active.push(current);
     let declaration = types.get(&current).ok_or(malformed())?;
     match &declaration.shape {
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             for field in fields {
                 if field.relevance.is_erased() {
                     continue;
@@ -155,7 +155,7 @@ fn requires_contents(
                 pending.push(*element);
                 continue;
             }
-            StructuralTypeShape::Record { fields: members } => fields.extend(members),
+            StructuralTypeShape::Record { fields: members, .. } => fields.extend(members),
             StructuralTypeShape::Sum { cases } => {
                 fields.extend(cases.iter().flat_map(|case| &case.fields));
             }

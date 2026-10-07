@@ -36,6 +36,28 @@ fn storage_origin_place(
     Some(semantic.place)
 }
 
+/// Stage the two words of an internal descriptor without copying backing.
+/// The caller owns each word's meaning; this operation owns frame transport.
+pub(in crate::selection::construction::scalar_graph) fn descriptor(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    slot: LocalStorageSlotId,
+    first_word: VirtualRegisterId,
+    second_word: VirtualRegisterId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    builder
+        .transport
+        .local_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+    store(builder, row, slot, 0, first_word)?;
+    store(builder, row, slot, 8, second_word)?;
+    address(builder, row, slot, 0, 16, false)
+}
+
 /// Stage only the declared descriptor; backing remains the original array.
 /// Bounded views retain extent in their type and need only the pointer cell.
 /// Dynamic views additionally transport the independently checked extent.
@@ -55,15 +77,6 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
         operation: row.operation,
         argument_index,
     };
-    builder
-        .transport
-        .local_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: descriptor_byte_size,
-            alignment: 8,
-        });
-    store(builder, row, slot, 0, backing)?;
     if descriptor_byte_size == 16 {
         let count = transport_register(builder, place, 8)?;
         builder.emit(
@@ -74,8 +87,17 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
             &[count],
             provenance(row),
         )?;
-        store(builder, row, slot, 8, count)?;
+        return descriptor(builder, row, slot, backing, count);
     }
+    builder
+        .transport
+        .local_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: descriptor_byte_size,
+            alignment: 8,
+        });
+    store(builder, row, slot, 0, backing)?;
     address(builder, row, slot, 0, descriptor_byte_size, false)
 }
 
@@ -95,14 +117,6 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
         operation: row.operation,
         argument_index,
     };
-    builder
-        .transport
-        .local_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 16,
-            alignment: 8,
-        });
     let length = transport_register(builder, place, field_offset)?;
     memory(
         builder,
@@ -133,9 +147,7 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
         &[field, data],
         provenance(row),
     )?;
-    store(builder, row, slot, 0, data)?;
-    store(builder, row, slot, 8, length)?;
-    address(builder, row, slot, 0, 16, false)
+    descriptor(builder, row, slot, data, length)
 }
 
 pub(super) fn store(

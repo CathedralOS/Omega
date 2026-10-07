@@ -210,7 +210,7 @@ fn writable_byte_field_carrier(
     }
     let parent =
         super::byte_field_freshness::field_carrier(structural_types, root_type, storage_path)?;
-    let StructuralTypeShape::Record { fields } = &structural_types.get(&parent)?.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &structural_types.get(&parent)?.shape else {
         return None;
     };
     fields

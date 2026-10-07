@@ -417,6 +417,8 @@ fn scratch_dies(
                     matches!(
                         binding.transport,
                         SelectedStructuralTransport::WholeValue { argument, .. }
+                        | SelectedStructuralTransport::ScalarReference { base: selected_instructions::SelectedAddressBase::Register(argument), .. }
+                        | SelectedStructuralTransport::Address { base: selected_instructions::SelectedAddressBase::Register(argument), .. }
                             if argument == register
                     )
                 })
@@ -913,7 +915,10 @@ fn edge_keeps(
         let (destination, lent) = match binding.transport {
             SelectedStructuralTransport::Unused => continue,
             SelectedStructuralTransport::WholeValue { destination, .. } => (destination, None),
-            SelectedStructuralTransport::Address {
+            SelectedStructuralTransport::ScalarReference {
+                base, destination, ..
+            }
+            | SelectedStructuralTransport::Address {
                 base, destination, ..
             } => (destination, Some(base)),
         };

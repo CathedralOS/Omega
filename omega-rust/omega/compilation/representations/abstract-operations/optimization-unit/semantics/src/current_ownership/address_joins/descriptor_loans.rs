@@ -587,7 +587,7 @@ fn operation_observations(
             )
         })
         .and_then(|declaration| match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Record { fields }
+            terminal_psi::StructuralTypeShape::Record { fields, .. }
             | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields
                 .iter()
                 .find(|row| row.id == field && !row.relevance.is_erased()),

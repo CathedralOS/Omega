@@ -369,7 +369,7 @@ pub fn structural_effect_leaf_observation_in(
     let observation = match (schema.action, &operation.kind) {
         (
             StructuralEffectAction::EstablishReference,
-            OperationKind::EstablishReference { source },
+            OperationKind::EstablishReference { source, .. },
         ) => {
             let result = operation.result.structural().ok_or(
                 OperationSemanticError::StructuralEffectResultShapeMismatch(tag),

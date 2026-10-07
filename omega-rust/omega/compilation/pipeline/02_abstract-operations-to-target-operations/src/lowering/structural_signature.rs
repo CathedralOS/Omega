@@ -7,7 +7,7 @@ use semantic_vocabulary::StructuralTypeId;
 use target::NativeTarget;
 use terminal_psi::{StructuralParameterDeclaration, StructuralTypeDeclaration};
 
-use super::structural_layout::{structural_parameter_shape, structural_shape};
+use super::structural_layout::{internal_parameter_shape, structural_shape};
 use crate::LoweringError;
 
 pub(crate) struct StructuralCallSignature {
@@ -28,7 +28,12 @@ impl StructuralCallSignature {
         for parameter in parameters {
             let referent =
                 structural_shape(parameter.structural_type, declarations, cache, active)?;
-            shapes.push(structural_parameter_shape(referent, parameter.access));
+            shapes.push(internal_parameter_shape(
+                parameter.structural_type,
+                referent,
+                parameter.access,
+                declarations,
+            ));
         }
         Ok(Self {
             signature: CallSignature {

@@ -110,8 +110,10 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     id: extent_type,
                     identity: "omega::core::Extent".into(),
                     shape: StructuralTypeShape::Record {
+                        storage: None,
                         fields: vec![
                             StructuralFieldDeclaration {
+                                storage: None,
                                 id: id::<StructuralFieldId>(1),
                                 identity: "base".into(),
                                 relevance: BindingRelevance::Relevant,
@@ -122,6 +124,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                                 ),
                             },
                             StructuralFieldDeclaration {
+                                storage: None,
                                 id: id::<StructuralFieldId>(2),
                                 identity: "length".into(),
                                 relevance: BindingRelevance::Relevant,

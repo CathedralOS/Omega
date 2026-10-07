@@ -86,7 +86,7 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
                         format!("byte_sequence(bounded_owned,capacity={capacity})")
                     }
                 },
-                terminal_psi::StructuralTypeShape::Record { fields } => {
+                terminal_psi::StructuralTypeShape::Record { fields, .. } => {
                     format!("record(fields={})", fields.len())
                 }
                 terminal_psi::StructuralTypeShape::FixedArray { element, length } => {

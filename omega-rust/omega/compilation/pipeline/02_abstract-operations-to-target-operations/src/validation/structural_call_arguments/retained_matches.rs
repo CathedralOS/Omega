@@ -229,7 +229,7 @@ pub(super) fn matches_stored_view_field(
         prefix,
     )
     .is_some_and(|parent| match &parent.shape {
-        StructuralTypeShape::Record { fields } => fields.iter().any(|field| {
+        StructuralTypeShape::Record { fields, .. } => fields.iter().any(|field| {
             field.identity == *identity
                 && !field.relevance.is_erased()
                 && field.field_type.byte_sequence_carrier()

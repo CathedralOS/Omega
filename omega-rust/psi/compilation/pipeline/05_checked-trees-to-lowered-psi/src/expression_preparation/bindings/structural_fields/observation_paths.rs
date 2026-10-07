@@ -62,7 +62,8 @@ pub(super) fn explicit_path<'a>(
         selected = match (segment, &declaration.shape) {
             (
                 Source::Field(identity),
-                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
+                StructuralTypeShape::Record { fields, .. }
+                | StructuralTypeShape::Mixed { fields, .. },
             ) => {
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let (Some(field), None) = (matching.next(), matching.next()) else {

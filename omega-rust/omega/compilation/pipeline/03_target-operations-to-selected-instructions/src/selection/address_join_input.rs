@@ -50,8 +50,17 @@ pub(crate) fn join(
 }
 
 /// The join's block-owned carrier: exactly one pointer.
-pub(crate) fn carrier_shape() -> ValueShape {
-    ValueShape::integer(8, 8)
+pub(crate) fn carrier_shape(
+    source: &LegalizedScalarFunction,
+    parameter: &StructuralParameterDeclaration,
+) -> ValueShape {
+    let scalar = source.structural.as_ref().and_then(|signature| {
+        crate::structural_inputs::structural_reference_input::scalar_storage_type(
+            parameter.structural_type,
+            &signature.structural_types,
+        )
+    });
+    ValueShape::integer(if scalar.is_some() { 16 } else { 8 }, 8)
 }
 
 /// The address transport binding `argument` into the join `parameter` of
@@ -127,6 +136,29 @@ pub(crate) fn transport(
             local_slots,
         )?
     };
+    if let Some(scalar) = crate::structural_inputs::structural_reference_input::scalar_storage_type(
+        referent,
+        &signature.structural_types,
+    ) {
+        let source = if argument.path.is_empty()
+            && super::reference_input::borrowed_scalar_source(source, argument.place).is_some()
+        {
+            selected_instructions::SelectedScalarReferenceSource::Descriptor
+        } else {
+            selected_instructions::SelectedScalarReferenceSource::Canonical {
+                codec: runtime_abi::ScalarStorageCodec::from_scalar(scalar)?.encode()?,
+            }
+        };
+        return Some(SelectedStructuralTransport::ScalarReference {
+            base,
+            byte_offset,
+            source,
+            destination: LocalStorageSlotId::StructuralBlockParameter {
+                block: target,
+                place: parameter.place,
+            },
+        });
+    }
     Some(SelectedStructuralTransport::Address {
         base,
         byte_offset,

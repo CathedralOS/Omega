@@ -52,7 +52,7 @@ pub fn primitive_place_type<'a>(
     }
     if let Some((CanonicalStructuralPathSegment::Field(field), carrier)) = path.split_last() {
         let declaration = canonical_structural_path_tip(declarations.clone(), root, carrier)?;
-        if let StructuralTypeShape::Record { fields } = &declaration.shape {
+        if let StructuralTypeShape::Record { fields, .. } = &declaration.shape {
             let mut matching = fields.iter().filter(|candidate| candidate.id == *field);
             let field = matching.next()?;
             if matching.next().is_some() || field.relevance.is_erased() {
@@ -195,7 +195,7 @@ pub fn primitive_read_field<'a>(
     else {
         return None;
     };
-    let StructuralTypeShape::Record { fields } = &record.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &record.shape else {
         return None;
     };
     let mut matching = fields.iter().filter(|field| field.identity == *identity);
@@ -420,7 +420,7 @@ fn walk_primitive_projection<'a>(
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
                     None => match shape {
-                        StructuralTypeShape::Record { fields }
+                        StructuralTypeShape::Record { fields, .. }
                         | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
                         _ => return None,
                     },

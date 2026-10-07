@@ -40,6 +40,11 @@ pub(crate) fn operation_scalar_types_match(
         return false;
     }
     match operation {
+        O::EstablishReference { storage, .. } => storage.as_ref().is_none_or(|view| {
+            matches!(scalar(view.byte_offset), Some(ScalarType::Integer(integer))
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                    && integer.bits() == 64 && fixed(integer))
+        }),
         O::SelectImplementation { result, table, .. } => {
             matches!(result.scalar_type, ScalarType::Integer(integer)
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
@@ -134,7 +139,6 @@ pub(crate) fn operation_scalar_types_match(
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
-        | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::EstablishRecord { .. }
         // Restoration-window ops carry only structural places; their scalar

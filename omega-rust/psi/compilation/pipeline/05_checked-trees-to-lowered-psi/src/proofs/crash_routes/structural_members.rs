@@ -107,7 +107,7 @@ pub(crate) fn lower_structural_member_path(
             fields
         } else {
             match &declaration.shape {
-                StructuralTypeShape::Record { fields }
+                StructuralTypeShape::Record { fields, .. }
                 | StructuralTypeShape::Mixed { fields, .. } => fields,
                 _ => {
                     return unsupported(
@@ -265,7 +265,7 @@ pub(crate) fn lower_structural_sum_subject(
             fields
         } else {
             match &declaration.shape {
-                StructuralTypeShape::Record { fields }
+                StructuralTypeShape::Record { fields, .. }
                 | StructuralTypeShape::Mixed { fields, .. } => fields,
                 _ => {
                     return unsupported("structural sum predicate path receiver is not a record");

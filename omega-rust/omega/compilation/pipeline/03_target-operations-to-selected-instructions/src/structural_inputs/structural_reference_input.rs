@@ -9,9 +9,26 @@ use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+pub(crate) fn scalar_storage_type(
+    root: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ScalarType> {
+    let StructuralTypeShape::PrimitiveScalar(scalar) = declarations
+        .iter()
+        .find(|declaration| declaration.id == root)?
+        .shape
+    else {
+        return None;
+    };
+    runtime_abi::ScalarStorageCodec::from_scalar(scalar).map(|_| scalar)
+}
+
 /// Locate pointer bits in an exact borrowed-reference ABI placement, not referent bytes.
 pub(crate) fn stack_pointer_offset(placement: &ValuePlacement) -> Option<u32> {
-    if placement.shape.class != ValueClass::BorrowedReference {
+    if !matches!(
+        placement.shape.class,
+        ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
+    ) {
         return None;
     }
     match placement.locations.as_slice() {
@@ -109,6 +126,7 @@ fn runtime_reach(elements: &[RuntimeElement]) -> Option<u64> {
 pub(crate) struct PointerSlot {
     pub(crate) byte_offset: u32,
     pub(crate) indices: std::ops::Range<usize>,
+    pub(crate) scalar_descriptor: bool,
 }
 
 /// Reconstruction scratch: offsets belong to separate storage regions around
@@ -203,10 +221,12 @@ fn primitive_access_geometry(
         };
         // Bound the pointer word in its carrier region, not in its referent.
         // After the load, all following offsets and bounds start afresh.
-        if shape(reference, declarations)? != ValueShape::integer(8, 8)
+        let scalar_descriptor = scalar_storage_type(referent, declarations).is_some();
+        if shape(reference, declarations)?
+            != ValueShape::integer(if scalar_descriptor { 16 } else { 8 }, 8)
             || u64::from(byte_offset)
                 .checked_add(runtime_reach(&region_elements)?)?
-                .checked_add(8)?
+                .checked_add(if scalar_descriptor { 16 } else { 8 })?
                 > u64::from(shape(root, declarations)?.byte_size)
         {
             return None;
@@ -216,6 +236,7 @@ fn primitive_access_geometry(
         pointer_slots.push(PointerSlot {
             byte_offset,
             indices: first_index..elements.len(),
+            scalar_descriptor,
         });
         root = referent;
         segment_start = position + 1;
@@ -290,7 +311,7 @@ pub(crate) fn primitive_geometry(
     }
     if let Some((StructuralPathSegment::Field(identity), carrier_path)) = path.split_last() {
         let (carrier, _, _) = runtime_projection(root, carrier_path, declarations)?;
-        if let StructuralTypeShape::Record { fields } = &declarations
+        if let StructuralTypeShape::Record { fields, .. } = &declarations
             .iter()
             .find(|declaration| declaration.id == carrier)?
             .shape
@@ -298,11 +319,7 @@ pub(crate) fn primitive_geometry(
             let field = fields
                 .iter()
                 .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-            if matches!(
-                field.field_type,
-                StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
-                    | StructuralFieldType::IeeeFloat(_)
-            ) {
+            if field.field_type.scalar_type() == Some(scalar) {
                 return scalar_field_geometry(
                     root,
                     carrier_path,
@@ -369,7 +386,7 @@ fn contiguous_primitive_read_geometry(
         return None;
     };
     let (carrier_type, _, _) = runtime_projection(root, carrier, declarations)?;
-    let StructuralTypeShape::Record { fields } = &declarations
+    let StructuralTypeShape::Record { fields, .. } = &declarations
         .iter()
         .find(|declaration| declaration.id == carrier_type)?
         .shape
@@ -435,6 +452,9 @@ pub(crate) fn parameter_shape<'declaration>(
                     )
             }) =>
         {
+            if scalar_storage_type(parameter.structural_type, declarations).is_some() {
+                return Some(ValueShape::borrowed_scalar_reference());
+            }
             Some(ValueShape::borrowed_reference(
                 referent.byte_size,
                 referent.alignment,
@@ -551,7 +571,7 @@ fn plain_aggregate(
             .iter()
             .chain(cases.iter().flat_map(|case| case.fields.iter()))
             .all(|field| plain_field(field, declarations, active)),
-        StructuralTypeShape::Record { fields } => fields
+        StructuralTypeShape::Record { fields, .. } => fields
             .iter()
             .all(|field| plain_field(field, declarations, active)),
         _ => false,
@@ -994,12 +1014,13 @@ pub(crate) fn stored_view_field_argument(
     {
         return None;
     }
-    let StructuralTypeShape::Record { fields } = &terminal_semantics::runtime_structural_path_tip(
-        declarations.iter(),
-        source.structural_type,
-        prefix,
-    )?
-    .shape
+    let StructuralTypeShape::Record { fields, .. } =
+        &terminal_semantics::runtime_structural_path_tip(
+            declarations.iter(),
+            source.structural_type,
+            prefix,
+        )?
+        .shape
     else {
         return None;
     };
@@ -1077,7 +1098,7 @@ fn bounded_byte_field_borrow(
     } else {
         project(source.structural_type, prefix, declarations)?
     };
-    let StructuralTypeShape::Record { fields } = &declarations
+    let StructuralTypeShape::Record { fields, .. } = &declarations
         .iter()
         .find(|declaration| declaration.id == carrier)?
         .shape
@@ -1191,8 +1212,22 @@ fn shape_inner(
         }
         // A reference owns permission, not its referent's bytes. Its payload
         // transports one address; custody remains independently reconstructed.
-        StructuralTypeShape::Reference { .. } => Some(ValueShape::integer(8, 8)),
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Reference { referent, .. } => Some(ValueShape::integer(
+            if scalar_storage_type(*referent, declarations).is_some() {
+                16
+            } else {
+                8
+            },
+            8,
+        )),
+        StructuralTypeShape::Record { fields, storage } => {
+            if let Some(storage) = storage {
+                active.pop();
+                return Some(ValueShape::integer(
+                    u32::try_from(storage.byte_size).ok()?,
+                    u16::try_from(storage.byte_alignment).ok()?,
+                ));
+            }
             let mut bytes = 0;
             let mut alignment = 1;
             for field in fields.iter().filter(|field| {
@@ -1223,6 +1258,119 @@ fn shape_inner(
     };
     active.pop();
     result
+}
+
+pub(crate) fn field_storage_shape(
+    field: &terminal_psi::StructuralFieldDeclaration,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ValueShape> {
+    if let Some(stored) = field.storage.and_then(|storage| storage.stored_scalar()) {
+        let codec = runtime_abi::ScalarStorageCodec::from_scalar(stored)?;
+        return Some(ValueShape::integer(u32::from(codec.byte_size()), 1));
+    }
+    field_shape(&field.field_type, declarations, &mut Vec::new())
+}
+
+fn field_storage_offset(
+    field: &terminal_psi::StructuralFieldDeclaration,
+    conventional_offset: u32,
+    alignment: u16,
+) -> Option<u32> {
+    match field.storage {
+        Some(storage) => u32::try_from(storage.byte_offset()?).ok(),
+        None => align(conventional_offset, alignment),
+    }
+}
+
+/// Interpretation at a direct scalar endpoint, read from its admitted plan.
+pub(crate) fn projected_scalar_codec(
+    mut root: StructuralTypeId,
+    mut path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<runtime_abi::ScalarStorageCodec> {
+    while let Some(crossing) = path
+        .iter()
+        .position(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let (reference, _, _) = runtime_projection(root, &path[..crossing], declarations)?;
+        let StructuralTypeShape::Reference { referent, .. } = declarations
+            .iter()
+            .find(|declaration| declaration.id == reference)?
+            .shape
+        else {
+            return None;
+        };
+        root = referent;
+        path = &path[crossing + 1..];
+    }
+    if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
+        let (parent, _, _) = runtime_projection(root, prefix, declarations)?;
+        let StructuralTypeShape::Record { fields, .. } = &declarations
+            .iter()
+            .find(|declaration| declaration.id == parent)?
+            .shape
+        else {
+            return None;
+        };
+        let field = fields.iter().find(|field| field.identity == *identity)?;
+        if matches!(
+            field.storage,
+            Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented)
+        ) {
+            return None;
+        }
+        let scalar = field
+            .storage
+            .and_then(|storage| storage.stored_scalar())
+            .or_else(|| field.field_type.scalar_type())?;
+        return runtime_abi::ScalarStorageCodec::from_scalar(scalar);
+    }
+    let (selected, _, _) = runtime_projection(root, path, declarations)?;
+    runtime_abi::ScalarStorageCodec::from_scalar(scalar_storage_type(selected, declarations)?)
+}
+
+pub(crate) fn scalar_field_codec(
+    mut root: StructuralTypeId,
+    mut path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<runtime_abi::ScalarStorageCodec> {
+    while let Some(crossing) = path
+        .iter()
+        .position(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let (reference, _, _) = runtime_projection(root, &path[..crossing], declarations)?;
+        let StructuralTypeShape::Reference { referent, .. } = declarations
+            .iter()
+            .find(|declaration| declaration.id == reference)?
+            .shape
+        else {
+            return None;
+        };
+        root = referent;
+        path = &path[crossing + 1..];
+    }
+    let (record, _, _) = runtime_projection(root, path, declarations)?;
+    let StructuralTypeShape::Record { fields, .. } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == record)?
+        .shape
+    else {
+        return None;
+    };
+    let field = fields.iter().find(|candidate| candidate.id == field)?;
+    if matches!(
+        field.storage,
+        Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented)
+    ) {
+        return None;
+    }
+    runtime_abi::ScalarStorageCodec::from_scalar(
+        field
+            .storage
+            .and_then(|storage| storage.stored_scalar())
+            .or_else(|| field.field_type.scalar_type())?,
+    )
 }
 
 pub(crate) fn field_shape(
@@ -1309,7 +1457,7 @@ pub(crate) fn case_projection(
                 )
             }
             Segment::Field(identity) => {
-                let (StructuralTypeShape::Record { fields }
+                let (StructuralTypeShape::Record { fields, .. }
                 | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
                 else {
                     return None;
@@ -1597,15 +1745,18 @@ fn project_inner<'a>(
                 carrier = nested;
                 offset = offset.checked_add(field_offset)?;
             }
-            (Projection::FieldName(name), StructuralTypeShape::Record { fields }) => {
+            (Projection::FieldName(name), StructuralTypeShape::Record { fields, .. }) => {
                 let mut field_offset = 0;
                 let mut found = None;
                 for field in fields.iter().filter(|field| {
                     !field.relevance.is_erased()
                         && !matches!(field.field_type, StructuralFieldType::Erased { .. })
                 }) {
-                    let layout = field_shape(&field.field_type, declarations, &mut Vec::new())?;
-                    field_offset = align(field_offset, layout.alignment)?;
+                    if field.storage.is_some() && field.identity != name {
+                        continue;
+                    }
+                    let layout = field_storage_shape(field, declarations)?;
+                    field_offset = field_storage_offset(field, field_offset, layout.alignment)?;
                     if field.identity == name {
                         let nested = match &field.field_type {
                             StructuralFieldType::Structural(nested) => *nested,
@@ -1815,7 +1966,7 @@ pub(crate) fn element_leaf_projection(
     }
     if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
         let (parent, _, _) = runtime_projection(element, prefix, declarations)?;
-        let StructuralTypeShape::Record { fields } = &declarations
+        let StructuralTypeShape::Record { fields, .. } = &declarations
             .iter()
             .find(|declaration| declaration.id == parent)?
             .shape
@@ -1841,7 +1992,7 @@ fn scalar_field_geometry(
     observes_byte_length: bool,
 ) -> Option<(u32, u8, Vec<RuntimeElement>)> {
     let (carrier, carrier_offset, elements) = runtime_projection(root, path, declarations)?;
-    let StructuralTypeShape::Record { fields } = &declarations
+    let StructuralTypeShape::Record { fields, .. } = &declarations
         .iter()
         .find(|declaration| declaration.id == carrier)?
         .shape
@@ -1853,8 +2004,11 @@ fn scalar_field_geometry(
         !field.relevance.is_erased()
             && !matches!(field.field_type, StructuralFieldType::Erased { .. })
     }) {
-        let layout = field_shape(&candidate.field_type, declarations, &mut Vec::new())?;
-        offset = align(offset, layout.alignment)?;
+        if candidate.storage.is_some() && candidate.id != field {
+            continue;
+        }
+        let layout = field_storage_shape(candidate, declarations)?;
+        offset = field_storage_offset(candidate, offset, layout.alignment)?;
         if candidate.id == field {
             // A bounded owner's live length is its leading metadata word; a
             // shared view field's is the extent word after its pointer.
@@ -1937,7 +2091,14 @@ fn scalar_field_geometry(
             let offset = carrier_offset
                 .checked_add(offset)?
                 .checked_add(length_word)?;
-            let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
+            let bytes = if let Some(stored) = candidate
+                .storage
+                .and_then(|storage| storage.stored_scalar())
+            {
+                runtime_abi::ScalarStorageCodec::from_scalar(stored)?.byte_size()
+            } else {
+                u8::try_from(scalar_shape(scalar)?.byte_size).ok()?
+            };
             // A view root's descriptor is not the write's frame: the
             // referent's extent bounds the store, so the descriptor-size
             // ceiling applies only to storage the path stays inside.
@@ -2141,7 +2302,7 @@ pub(crate) fn projected_byte_field(
         return None;
     }
     let (carrier, _, _) = runtime_projection(root, path, declarations)?;
-    let StructuralTypeShape::Record { fields } = &declarations
+    let StructuralTypeShape::Record { fields, .. } = &declarations
         .iter()
         .find(|declaration| declaration.id == carrier)?
         .shape
@@ -2240,7 +2401,7 @@ pub(crate) fn byte_field_storage(
     );
     let (offset, _) = byte_field_length(structural_type, path, field, scalar, declarations)?;
     let (carrier, _) = project(structural_type, path, declarations)?;
-    let StructuralTypeShape::Record { fields } = &declarations
+    let StructuralTypeShape::Record { fields, .. } = &declarations
         .iter()
         .find(|declaration| declaration.id == carrier)?
         .shape
@@ -2277,7 +2438,7 @@ pub(crate) fn byte_view_field_descriptor(
     );
     let (length_word, _) = byte_field_length(structural_type, path, field, scalar, declarations)?;
     let (carrier, _) = project(structural_type, path, declarations)?;
-    let StructuralTypeShape::Record { fields } = &declarations
+    let StructuralTypeShape::Record { fields, .. } = &declarations
         .iter()
         .find(|declaration| declaration.id == carrier)?
         .shape

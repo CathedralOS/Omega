@@ -39,12 +39,14 @@ pub(super) use case_membership::observe;
 pub(super) mod indirect_results;
 mod record;
 pub(super) mod reference;
+pub(super) use local_storage::descriptor as stage_descriptor;
 mod scalar_array;
 mod scalar_case;
 mod structural_array;
 mod structural_local;
 mod zeroed;
 pub(super) use primitive_locals::read;
+mod encoded_scalar;
 pub(super) mod runtime_address;
 mod scalar_store;
 mod subslice;
@@ -437,7 +439,7 @@ pub(super) fn operation(
     Ok(true)
 }
 
-fn provenance(row: &LegalizedScalarInstruction) -> SelectedInstructionProvenance {
+pub(super) fn provenance(row: &LegalizedScalarInstruction) -> SelectedInstructionProvenance {
     SelectedInstructionProvenance {
         operations: vec![row.operation],
         fuel: Vec::new(),

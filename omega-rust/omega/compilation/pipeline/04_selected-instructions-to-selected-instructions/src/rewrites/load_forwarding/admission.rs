@@ -1046,6 +1046,7 @@ fn edge_preserves(
         let destination = match binding.transport {
             SelectedStructuralTransport::Unused => continue,
             SelectedStructuralTransport::WholeValue { destination, .. }
+            | SelectedStructuralTransport::ScalarReference { destination, .. }
             | SelectedStructuralTransport::Address { destination, .. } => destination,
         };
         if destination.structural_place().is_some() {

@@ -174,13 +174,14 @@ pub(super) fn operation(
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_case == result_case && retained_fields == fields
             )).count() == 1
         }
-        // The reference home stores its address word, not the referent value.
+        // The reference home stores its address and scalar interpretation,
+        // not the referent value. Aggregate references retain a thin address.
         // The exact result and source retain custody identity; mandatory
         // source/selection replay validates the address and loan independently.
-        AbstractOperation::EstablishReference { psi_operation, result, source } => {
+        AbstractOperation::EstablishReference { psi_operation, result, source, storage } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
-                TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source }
-                if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_source == source
+                TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source, storage: retained_storage }
+                if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_source == source && retained_storage == storage
             )).count() == 1
         }
         AbstractOperation::ReleaseReference { psi_operation, source, path } => {

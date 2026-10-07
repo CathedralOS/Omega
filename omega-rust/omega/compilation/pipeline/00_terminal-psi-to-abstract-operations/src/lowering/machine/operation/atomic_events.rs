@@ -176,7 +176,7 @@ fn field_type(
         carrier = match (segment, &declaration(carrier)?.shape) {
             (
                 terminal_psi::StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields },
+                StructuralTypeShape::Record { fields, .. },
             ) => match fields
                 .iter()
                 .find(|candidate| {
@@ -194,7 +194,7 @@ fn field_type(
             _ => return None,
         };
     }
-    let StructuralTypeShape::Record { fields } = &declaration(carrier)?.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration(carrier)?.shape else {
         return None;
     };
     match fields

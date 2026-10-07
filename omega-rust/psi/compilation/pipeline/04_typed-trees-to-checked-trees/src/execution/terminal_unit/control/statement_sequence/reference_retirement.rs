@@ -95,7 +95,8 @@ impl Retirement<'_> {
     ) -> bool {
         let parent = self.facts.borrow.loans.get(parent);
         self.operations.iter().any(|operation| {
-            let CheckedUnitEffectOperationPlan::EstablishReference { result, source } = operation
+            let CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } =
+                operation
             else {
                 return false;
             };

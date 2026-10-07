@@ -132,6 +132,15 @@ pub const X86_64_COPY_BYTES: RegisterConstraintKey = RegisterConstraintKey {
     variant: 736,
 };
 
+pub const X86_64_LOAD_ENCODED_SCALAR: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 758,
+};
+pub const X86_64_STORE_ENCODED_SCALAR: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 759,
+};
+
 pub const X86_64_SCAN_BYTE_SEQUENCE: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 755,
@@ -458,7 +467,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 97] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 99] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -611,6 +620,8 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 97] = [
     X86_64_SAVE_FLOATING_CONTROL,
     X86_64_RESTORE_FLOATING_CONTROL,
     X86_64_SCAN_BYTE_SEQUENCE,
+    X86_64_LOAD_ENCODED_SCALAR,
+    X86_64_STORE_ENCODED_SCALAR,
     X86_64_COMPARE_BYTE_SEQUENCES,
     X86_64_ZERO_BYTES,
     X86_64_CRASH,

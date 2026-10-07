@@ -91,7 +91,7 @@ pub fn stored_view_field_presentation<'types>(
     let (StructuralPathSegment::Field(identity), prefix) = argument.path.split_last()? else {
         return None;
     };
-    let StructuralTypeShape::Record { fields } =
+    let StructuralTypeShape::Record { fields, .. } =
         &runtime_structural_path_tip(types, root_type, prefix)?.shape
     else {
         return None;
@@ -146,7 +146,7 @@ fn inline_byte_field_capacity<'types>(
         return None;
     };
     let declaration = runtime_structural_path_tip(types.clone(), root_type, prefix)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return None;
     };
     let field = fields

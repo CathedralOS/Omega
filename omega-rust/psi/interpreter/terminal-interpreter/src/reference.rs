@@ -32,6 +32,15 @@ use terminal_psi::{Operation, StructuralResultDeclaration};
 pub(crate) struct ReferenceReferent {
     pub(crate) view: TerminalStructuralValue,
     pub(crate) primitive_loan: Option<crate::primitive_storage::PrimitiveLoan>,
+    pub(crate) byte_region: Option<ReferenceByteRegion>,
+}
+
+/// An aggregate view retains its captured byte endpoint and complete extent.
+/// Projecting a child applies catalog geometry, never the formation expression.
+#[derive(Clone)]
+pub(crate) struct ReferenceByteRegion {
+    pub(crate) endpoint: crate::primitive_storage::PrimitiveStorageEndpoint,
+    pub(crate) byte_length: usize,
 }
 
 /// Disposition ends carrier custody, never the captured primitive backing.
@@ -130,6 +139,7 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
         source: &StructuralArgument,
+        storage: Option<terminal_psi::ReferenceStorageView>,
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
         let (referent_type, access) = self.reference_contract(result.structural_type)?;
@@ -137,6 +147,8 @@ impl TerminalExecution {
         // An explicit Referent projection reborrows that backing through a live
         // carrier; it never establishes ownership of the carrier's contents.
         let mut identity_cursor = self.local_structural_identities.cursor();
+        let mut byte_region = None;
+        let mut region_referent = None;
         let primitive_loan = if matches!(
             self.program
                 .structural_types
@@ -169,13 +181,115 @@ impl TerminalExecution {
                 projected_qualifications: Vec::new(),
             };
             let mut loan = self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?;
+            if let Some(storage) = storage {
+                let stored_scalar = storage.stored_scalar.ok_or_else(malformed)?;
+                let crate::values::TerminalScalarValue::Integer {
+                    scalar_type: offset_type,
+                    value: semantic_vocabulary::IntegerValue::Unsigned(byte_offset),
+                } = self.scalar_value(storage.byte_offset)?
+                else {
+                    return Err(malformed());
+                };
+                let StructuralTypeShape::PrimitiveScalar(logical_scalar) = self
+                    .program
+                    .structural_types
+                    .get(&referent_type)
+                    .ok_or_else(malformed)?
+                    .shape
+                else {
+                    return Err(malformed());
+                };
+                if offset_type.is_address()
+                    || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
+                    || !terminal_semantics::reference_storage_source_compatible(
+                        self.program.structural_types.values(),
+                        original_type,
+                        result.structural_type,
+                        Some(stored_scalar),
+                    )
+                {
+                    return Err(malformed());
+                }
+                self.apply_reference_storage_view(
+                    &mut loan,
+                    usize::try_from(byte_offset).map_err(|_| malformed())?,
+                    stored_scalar,
+                    logical_scalar,
+                )?;
+                loan.referent.structural_type = referent_type;
+            }
             loan.access = access;
             Some(loan)
         } else {
+            if let Some(storage) = storage {
+                if storage.stored_scalar.is_some() {
+                    return Err(malformed());
+                }
+                let crate::values::TerminalScalarValue::Integer {
+                    scalar_type: offset_type,
+                    value: semantic_vocabulary::IntegerValue::Unsigned(byte_offset),
+                } = self.scalar_value(storage.byte_offset)?
+                else {
+                    return Err(malformed());
+                };
+                let original_type = terminal_semantics::runtime_structural_path_tip(
+                    self.program.structural_types.values(),
+                    self.live_structural_type(source.place)?,
+                    &source.path,
+                )
+                .ok_or_else(malformed)?
+                .id;
+                if offset_type.is_address()
+                    || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
+                    || !terminal_semantics::reference_storage_source_compatible(
+                        self.program.structural_types.values(),
+                        original_type,
+                        result.structural_type,
+                        None,
+                    )
+                {
+                    return Err(malformed());
+                }
+                let parameter = StructuralParameterDeclaration {
+                    place: source.place,
+                    position: 0,
+                    structural_type: original_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: source.access,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                };
+                let mut loan =
+                    self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?;
+                let byte_length = usize::try_from(
+                    terminal_semantics::reference_storage_size(
+                        self.program.structural_types.values(),
+                        referent_type,
+                    )
+                    .ok_or(
+                        TerminalInterpretError::UnsupportedSemanticVariant(
+                            "reference aggregate has no closed byte geometry",
+                        ),
+                    )?,
+                )
+                .map_err(|_| malformed())?;
+                self.position_reference_storage(
+                    &mut loan,
+                    usize::try_from(byte_offset).map_err(|_| malformed())?,
+                    byte_length,
+                )?;
+                byte_region = Some(ReferenceByteRegion {
+                    endpoint: loan.storage.endpoint,
+                    byte_length,
+                });
+                loan.referent.structural_type = referent_type;
+                region_referent = Some(loan.referent);
+            }
             None
         };
         let referent = match &primitive_loan {
             Some(loan) => loan.referent.clone(),
+            None if region_referent.is_some() => region_referent.ok_or_else(malformed)?,
             None => self
                 .resolve_reference_call_arguments(std::slice::from_ref(source))?
                 .pop()
@@ -214,6 +328,7 @@ impl TerminalExecution {
             ReferenceReferent {
                 view: referent,
                 primitive_loan,
+                byte_region,
             },
         );
         self.structural_values.insert(result.place, carrier);

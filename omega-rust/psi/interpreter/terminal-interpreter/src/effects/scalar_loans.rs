@@ -18,7 +18,7 @@ use crate::custody::resolve_structural_path_type;
 use crate::effects::TerminalEffectRejection;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::primitive_storage::PrimitiveStorage;
+use crate::primitive_storage::{PrimitiveStorage, PrimitiveStorageEndpoint};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{
     ScalarFieldNamespace, StructuralRuntimePlace, TerminalScalarValue, TerminalStructuralValue,
@@ -33,6 +33,7 @@ pub struct TerminalBoundaryScalarBuffer {
     access: StructuralAccess,
     value: TerminalScalarValue,
     restriction: Option<StructuralFieldType>,
+    stored_scalar: Option<ScalarType>,
 }
 
 impl TerminalBoundaryScalarBuffer {
@@ -55,6 +56,9 @@ impl TerminalBoundaryScalarBuffer {
         if !matches!(self.access, StructuralAccess::MutableBorrow)
             || value.scalar_type() != self.value.scalar_type()
             || !terminal_scalar_belongs_to_type(value)
+            || self
+                .stored_scalar
+                .is_some_and(|stored| !crate::primitive_storage::scalar_fits_storage(stored, value))
             || self
                 .restriction
                 .as_ref()
@@ -146,6 +150,7 @@ impl BoundaryScalarLoans {
             access: parameter.access,
             value: original,
             restriction: restriction.clone(),
+            stored_scalar: storage.stored_scalar,
         });
         self.bindings.push(ScalarLoanBinding {
             identity,
@@ -174,6 +179,10 @@ impl BoundaryScalarLoans {
                 || buffer.access != binding.access
                 || buffer.value.scalar_type() != binding.scalar_type
                 || !terminal_scalar_belongs_to_type(buffer.value)
+                || buffer.stored_scalar != binding.storage.stored_scalar
+                || binding.storage.stored_scalar.is_some_and(|stored| {
+                    !crate::primitive_storage::scalar_fits_storage(stored, buffer.value)
+                })
                 || (binding.access == StructuralAccess::SharedBorrow
                     && buffer.value != binding.original)
                 || binding
@@ -230,13 +239,13 @@ impl TerminalExecution {
         &self,
         storage: &PrimitiveStorage,
     ) -> Result<(), TerminalInterpretError> {
-        let target: &StructuralRuntimePlace = match storage {
-            PrimitiveStorage::Scalar(place) => place,
-            PrimitiveStorage::ScalarField(field) => &field.parent,
-            PrimitiveStorage::ArrayElement { array, .. } => &array.referent,
+        let target: &StructuralRuntimePlace = match &storage.endpoint {
+            PrimitiveStorageEndpoint::Scalar(place) => place,
+            PrimitiveStorageEndpoint::ScalarField(field) => &field.parent,
+            PrimitiveStorageEndpoint::ArrayElement { array, .. } => &array.referent,
             // The frame-home resolver already requires unqualified parameters
             // and unqualified, claim-free structural results for array locals.
-            PrimitiveStorage::OwnedArrayElement { .. } => return Ok(()),
+            PrimitiveStorageEndpoint::OwnedArrayElement { .. } => return Ok(()),
         };
         let owns_target = |value: &TerminalStructuralValue| {
             value.opaque_identity == target.opaque_identity && target.path.starts_with(&value.path)
@@ -301,7 +310,7 @@ impl TerminalExecution {
         &self,
         storage: &PrimitiveStorage,
     ) -> Result<Option<StructuralFieldType>, TerminalInterpretError> {
-        let PrimitiveStorage::ScalarField(cell) = storage else {
+        let PrimitiveStorageEndpoint::ScalarField(cell) = &storage.endpoint else {
             return Ok(None);
         };
         if cell.namespace != ScalarFieldNamespace::Member {
@@ -332,7 +341,7 @@ impl TerminalExecution {
             .get(&parent_type.ok_or_else(malformed)?)
             .ok_or_else(malformed)?;
         let fields = match &declaration.shape {
-            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+            StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
                 fields
             }
             _ => return Err(malformed()),

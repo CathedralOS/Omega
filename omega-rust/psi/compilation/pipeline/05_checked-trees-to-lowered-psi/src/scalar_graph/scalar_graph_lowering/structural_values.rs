@@ -633,9 +633,10 @@ impl Preparation<'_> {
         // payloads have separate namespaces. Join each roster to its source
         // symbols before scheduling operands, then share one evaluation path.
         let (kind, common, payload) = match (&node.kind, &declaration.shape) {
-            (CheckedStructuralValueKind::Record { .. }, StructuralTypeShape::Record { fields }) => {
-                (AggregateKind::Record, fields.as_slice(), None)
-            }
+            (
+                CheckedStructuralValueKind::Record { .. },
+                StructuralTypeShape::Record { fields, .. },
+            ) => (AggregateKind::Record, fields.as_slice(), None),
             (CheckedStructuralValueKind::StructuralCase { case, .. }, shape) => {
                 let (common, cases) = match shape {
                     StructuralTypeShape::Sum { cases } => (&[][..], cases),

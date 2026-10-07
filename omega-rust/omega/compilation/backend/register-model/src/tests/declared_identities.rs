@@ -148,6 +148,8 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         load8_indexed: None,
         copy_bytes: None,
         scan_byte_sequence: None,
+        load_encoded_scalar: None,
+        store_encoded_scalar: None,
         compare_byte_sequences: None,
         zero_bytes: None,
         store: Some(instruction_key(34)),

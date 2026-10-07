@@ -6,7 +6,7 @@ use crate::{
 use semantic_vocabulary::{
     BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, IeeeFloatValue, IntegerValue,
     MachineId, ObligationId, OperationId, PlaceId, ProofTerm, ScalarTerm, ServiceId,
-    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
+    ScalarType, StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
     SuspensionCrossingId, ValueId,
 };
 
@@ -187,6 +187,18 @@ pub enum ElementViewRegion {
 /// complement. It is total and generates no overflow obligation; the verifier
 /// reconstructs its exact result-term axiom.
 
+/// Source-selected scalar interpretation over the original captured bytes.
+/// The offset is evaluated at formation, not reloaded at each later use. This
+/// is author geometry, not an Omega-selected ABI or native layout. Access and
+/// lifetime remain the independent reference contract and loan relationships.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReferenceStorageView {
+    pub byte_offset: ValueId,
+    /// A scalar view retains its physical decoding. An aggregate view retains
+    /// the referent's closed authored field geometry instead.
+    pub stored_scalar: Option<ScalarType>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
     /// Establish a reference permission carrier for the exact captured source.
@@ -194,6 +206,10 @@ pub enum OperationKind {
     /// overlapping parent access until the carrier is released or transferred.
     EstablishReference {
         source: StructuralArgument,
+        /// Absence retains the declaration's canonical scalar representation.
+        /// A view retains its exact source-checked physical interpretation;
+        /// forwarding the reference cannot reconstruct this from its referee.
+        storage: Option<ReferenceStorageView>,
     },
     /// End an established reference carrier after all descendants have ended.
     /// This restores parent access without disposing of referent storage.
@@ -981,6 +997,11 @@ impl OperationKind {
             }
         }
         match self {
+            Self::EstablishReference { storage, .. } => {
+                if let Some(storage) = storage {
+                    storage.byte_offset = map(storage.byte_offset);
+                }
+            }
             Self::EstablishByteSequenceConcatenation { left, right, .. } => {
                 left.remap_length(map);
                 right.remap_length(map);
@@ -1146,7 +1167,6 @@ impl OperationKind {
                 }
             }
             Self::SelectImplementation { .. }
-            | Self::EstablishReference { .. }
             | Self::ReleaseReference { .. }
             | Self::PrimitiveScalarRead { .. }
             | Self::MoveStructuralField { .. }

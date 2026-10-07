@@ -42,6 +42,28 @@ pub(super) fn parameter_shape(referent: ValueShape, access: StructuralAccess) ->
     }
 }
 
+pub(super) fn internal_parameter_shape(
+    structural_type: StructuralTypeId,
+    referent: ValueShape,
+    access: StructuralAccess,
+    declarations: &[StructuralTypeDeclaration],
+) -> ValueShape {
+    let scalar = declarations
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .and_then(|declaration| match declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar) => {
+                runtime_abi::ScalarStorageCodec::from_scalar(scalar)
+            }
+            _ => None,
+        });
+    if access != StructuralAccess::Owned && scalar.is_some() {
+        ValueShape::borrowed_scalar_reference()
+    } else {
+        parameter_shape(referent, access)
+    }
+}
+
 pub(super) fn project_static_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -414,7 +436,7 @@ fn byte_sequence_field_geometry(
         project_static_path(root, prefix, slices)?
     };
     let declaration = declarations.get(&parent).ok_or(InvalidStructuralShape)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err(InvalidStructuralShape);
     };
     let mut local_offset = 0_u32;
@@ -422,8 +444,11 @@ fn byte_sequence_field_geometry(
         !field.relevance.is_erased()
             && !matches!(field.field_type, StructuralFieldType::Erased { .. })
     }) {
-        let field_shape = field_shape(&field.field_type, declarations, cache, active)?;
-        local_offset = align(local_offset, u32::from(field_shape.alignment))?;
+        if field.storage.is_some() && field.identity != *identity {
+            continue;
+        }
+        let field_shape = field_storage_shape(field, declarations, cache, active)?;
+        local_offset = field_offset(field, local_offset, field_shape.alignment)?;
         if field.identity == *identity {
             let Some(carrier) = field.field_type.byte_sequence_carrier() else {
                 return Err(InvalidStructuralShape);
@@ -565,7 +590,7 @@ fn collect_scalar_leaves(
             let referent = shape(structural_type, declarations, cache, active)?;
             leaves.push((base_offset, referent.byte_size, false));
         }
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             let mut local_offset = 0_u32;
             for field in fields.iter().filter(|field| {
                 !field.relevance.is_erased()
@@ -786,7 +811,8 @@ fn shape(
         StructuralTypeShape::FusedServiceBinding => ValueShape::integer(0, 1),
         // Independently reconstruct the address payload, including nested
         // record leaves. Pointer bits carry no ownership authority.
-        StructuralTypeShape::Reference { .. } => ValueShape::integer(8, 8),
+        StructuralTypeShape::Reference { referent, .. } => ValueShape::integer(
+            if declarations.get(referent).is_some_and(|declaration| matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar) if runtime_abi::ScalarStorageCodec::from_scalar(scalar).is_some())) { 16 } else { 8 }, 8),
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => ValueShape::integer(16, 8),
@@ -799,7 +825,11 @@ fn shape(
             let bytes = capacity.checked_add(8).ok_or(InvalidStructuralShape)?;
             ValueShape::integer(u32::try_from(bytes).map_err(|_| InvalidStructuralShape)?, 8)
         }
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, storage } => {
+            if let Some(storage) = storage {
+                active.remove(&structural_type);
+                return Ok(ValueShape::integer(u32::try_from(storage.byte_size).map_err(|_| InvalidStructuralShape)?, u16::try_from(storage.byte_alignment).map_err(|_| InvalidStructuralShape)?));
+            }
             let mut byte_size = 0_u32;
             let mut alignment = 1_u16;
             for field in fields.iter().filter(|field| {
@@ -1047,7 +1077,7 @@ fn record_field_step(
     let declaration = indexed
         .get(&structural_type)
         .ok_or(InvalidStructuralShape)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err(InvalidStructuralShape);
     };
     let mut local_offset = 0_u32;
@@ -1055,8 +1085,11 @@ fn record_field_step(
         !field.relevance.is_erased()
             && !matches!(field.field_type, StructuralFieldType::Erased { .. })
     }) {
-        let shape = field_shape(&field.field_type, indexed, cache, active)?;
-        local_offset = align(local_offset, u32::from(shape.alignment))?;
+        if field.storage.is_some() && field.identity != *identity {
+            continue;
+        }
+        let shape = field_storage_shape(field, indexed, cache, active)?;
+        local_offset = field_offset(field, local_offset, shape.alignment)?;
         if field.identity == *identity {
             let field_type = match &field.field_type {
                 StructuralFieldType::Structural(nested) => *nested,
@@ -1076,6 +1109,39 @@ fn record_field_step(
             .ok_or(InvalidStructuralShape)?;
     }
     Err(InvalidStructuralShape)
+}
+
+fn field_storage_shape(
+    field: &terminal_psi::StructuralFieldDeclaration,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<ValueShape, InvalidStructuralShape> {
+    if let Some(stored) = field.storage.and_then(|storage| storage.stored_scalar()) {
+        return Ok(ValueShape::integer(
+            u32::from(
+                runtime_abi::ScalarStorageCodec::from_scalar(stored)
+                    .ok_or(InvalidStructuralShape)?
+                    .byte_size(),
+            ),
+            1,
+        ));
+    }
+    field_shape(&field.field_type, declarations, cache, active)
+}
+
+fn field_offset(
+    field: &terminal_psi::StructuralFieldDeclaration,
+    conventional_offset: u32,
+    alignment: u16,
+) -> Result<u32, InvalidStructuralShape> {
+    match field.storage {
+        Some(storage) => storage
+            .byte_offset()
+            .and_then(|offset| u32::try_from(offset).ok())
+            .ok_or(InvalidStructuralShape),
+        None => align(conventional_offset, u32::from(alignment)),
+    }
 }
 
 fn field_shape(

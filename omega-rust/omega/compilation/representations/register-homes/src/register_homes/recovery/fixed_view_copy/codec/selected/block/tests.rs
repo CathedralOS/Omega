@@ -31,6 +31,70 @@ fn successor() -> SelectedSuccessor {
         fuel: vec![],
     }
 }
+
+#[test]
+fn successor_scalar_reference_preserves_both_storage_interpretations() {
+    use selected_instructions::{
+        LocalStorageSlotId, SelectedAddressBase, SelectedScalarReferenceSource,
+        SelectedStructuralBinding, SelectedStructuralTransport,
+    };
+    use semantic_vocabulary::PlaceId;
+    let mut original = successor();
+    let destination = LocalStorageSlotId::StructuralBlockParameter {
+        block: original.source_target,
+        place: PlaceId::new(31).unwrap(),
+    };
+    original
+        .structural_bindings
+        .push(SelectedStructuralBinding {
+            semantic: abstract_operations::AbstractStructuralBinding {
+                parameter: PlaceId::new(31).unwrap(),
+                argument: terminal_psi::StructuralArgument {
+                    place: PlaceId::new(9).unwrap(),
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                },
+            },
+            transport: SelectedStructuralTransport::Unused,
+        });
+    for (base, source) in [
+        (
+            SelectedAddressBase::Register(VirtualRegisterId(41)),
+            SelectedScalarReferenceSource::Canonical { codec: 257 },
+        ),
+        (
+            SelectedAddressBase::Local(destination),
+            SelectedScalarReferenceSource::Descriptor,
+        ),
+    ] {
+        original.structural_bindings[0].transport = SelectedStructuralTransport::ScalarReference {
+            base,
+            byte_offset: 0,
+            source,
+            destination,
+        };
+        let mut bytes = Vec::new();
+        encode_successor(&mut bytes, &original);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_successor(&mut cursor).unwrap(), original);
+        assert_eq!(cursor.remaining(), 0);
+        for length in 0..bytes.len() {
+            assert!(decode_successor(&mut Cursor::new(&bytes[..length])).is_err());
+        }
+    }
+    original.structural_bindings[0].transport = SelectedStructuralTransport::ScalarReference {
+        base: SelectedAddressBase::Register(VirtualRegisterId(41)),
+        byte_offset: 0,
+        source: SelectedScalarReferenceSource::Canonical { codec: 9 },
+        destination,
+    };
+    let mut invalid = Vec::new();
+    encode_successor(&mut invalid, &original);
+    assert_eq!(
+        decode_successor(&mut Cursor::new(&invalid)),
+        Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
+    );
+}
 #[test]
 fn successor_register_transport_has_exact_canonical_bytes() {
     let original = successor();

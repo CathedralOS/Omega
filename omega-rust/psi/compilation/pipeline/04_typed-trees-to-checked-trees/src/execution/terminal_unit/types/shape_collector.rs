@@ -217,7 +217,10 @@ impl<'program> ShapeCollector<'program> {
         let identity = closed_data_identity(self.program, data, binders);
         let plan = CheckedUnitStructuralTypePlan {
             identity: identity.clone(),
-            shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
+            shape: CheckedUnitStructuralTypeShape::Record {
+                storage: None,
+                fields: Vec::new(),
+            },
         };
         if self
             .types
@@ -863,6 +866,18 @@ impl<'program> ShapeCollector<'program> {
             return Some(identity);
         }
 
+        let program = self.program;
+        let authored_layout = program
+            .plan_laid_layouts
+            .iter()
+            .find(|layout| layout.data_symbol == data.symbol);
+        let record_storage = match authored_layout {
+            Some(layout) => Some(semantic_vocabulary::AuthoredRecordStorage {
+                byte_size: u64::try_from(layout.size).ok()?,
+                byte_alignment: u64::try_from(layout.align).ok()?,
+            }),
+            None => None,
+        };
         let mut fields = Vec::new();
         for member in &members {
             let DataMember::Field(field) = member else {
@@ -870,19 +885,31 @@ impl<'program> ShapeCollector<'program> {
                 return None;
             };
             let bounds = stated(field);
-            let Some(field) =
+            let Some(mut field_plan) =
                 self.structural_field_plan(field, binders, &substitutions, &identity, bounds)
             else {
                 self.in_progress.remove(&identity);
                 return None;
             };
-            fields.push(field);
+            if let Some(layout) = authored_layout {
+                if !field.relevance.is_erased() {
+                    field_plan.storage = Some(authored_field_storage(
+                        layout,
+                        field.symbol,
+                        &field_plan.field_type,
+                    )?);
+                }
+            }
+            fields.push(field_plan);
         }
         self.types.insert(
             identity.clone(),
             CheckedUnitStructuralTypePlan {
                 identity: identity.clone(),
-                shape: CheckedUnitStructuralTypeShape::Record { fields },
+                shape: CheckedUnitStructuralTypeShape::Record {
+                    fields,
+                    storage: record_storage,
+                },
             },
         );
         self.in_progress.remove(&identity);
@@ -1002,6 +1029,7 @@ impl<'program> ShapeCollector<'program> {
             identity: field.path_identity(),
             relevance: field.relevance,
             field_type,
+            storage: None,
         })
     }
 
@@ -1108,7 +1136,7 @@ impl<'program> ShapeCollector<'program> {
                     }
                     CheckedUnitStructuralTypeShape::FusedServiceBinding
                     | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
-                    CheckedUnitStructuralTypeShape::Record { fields } => {
+                    CheckedUnitStructuralTypeShape::Record { fields, .. } => {
                         for field in fields {
                             if let CheckedUnitStructuralFieldType::Structural { type_identity }
                             | CheckedUnitStructuralFieldType::FusedServiceBacked {
@@ -1165,6 +1193,67 @@ impl<'program> ShapeCollector<'program> {
         self.types.retain(|identity, _| retained.contains(identity));
         self.domains
             .retain(|domain| retained.contains(&domain.carrier_type_identity));
+    }
+}
+
+/// Join the admitted plan to the exact synthesized field, not its spelling.
+fn authored_field_storage(
+    layout: &typed_trees::PlanLaidLayout,
+    symbol: SymbolHandle,
+    field_type: &CheckedUnitStructuralFieldType,
+) -> Option<semantic_vocabulary::AuthoredFieldStorage> {
+    use semantic_vocabulary::{AuthoredFieldStorage, IntegerSign, IntegerType, ScalarType};
+    let field_index = layout
+        .field_symbols
+        .iter()
+        .position(|candidate| *candidate == symbol)?;
+    if layout
+        .bit_fields
+        .iter()
+        .any(|field| field.field_index == field_index)
+    {
+        return Some(AuthoredFieldStorage::Fragmented);
+    }
+    let byte_offset = u64::try_from(*layout.offsets.get(field_index)?).ok()?;
+    if let Some(field) = layout
+        .repeated_fields
+        .iter()
+        .find(|field| field.field_index == field_index)
+    {
+        return Some(AuthoredFieldStorage::Repeated {
+            byte_offset,
+            element_stride: u64::try_from(field.element_stride).ok()?,
+        });
+    }
+    if let Some(field) = layout
+        .integer_fields
+        .iter()
+        .find(|field| field.field_index == field_index)
+    {
+        let sign = match field.interpretation {
+            layout_plans::IntegerInterpretation::Signed => IntegerSign::Signed,
+            layout_plans::IntegerInterpretation::Unsigned => IntegerSign::Unsigned,
+        };
+        return Some(AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar: Some(ScalarType::Integer(
+                IntegerType::new(sign, field.stored_width_bits).ok()?,
+            )),
+        });
+    }
+    if matches!(
+        field_type,
+        CheckedUnitStructuralFieldType::Scalar(_)
+            | CheckedUnitStructuralFieldType::Atomic(_)
+            | CheckedUnitStructuralFieldType::BoundedInteger(_)
+            | CheckedUnitStructuralFieldType::RefinedScalar { .. }
+    ) {
+        Some(AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar: None,
+        })
+    } else {
+        Some(AuthoredFieldStorage::Direct { byte_offset })
     }
 }
 

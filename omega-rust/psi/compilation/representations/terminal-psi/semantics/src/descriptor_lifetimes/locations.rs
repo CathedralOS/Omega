@@ -182,7 +182,7 @@ fn fields(
     declaration: &StructuralTypeDeclaration,
 ) -> Option<&[terminal_psi::StructuralFieldDeclaration]> {
     match &declaration.shape {
-        StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+        StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
             Some(fields)
         }
         _ => None,

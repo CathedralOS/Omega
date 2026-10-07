@@ -250,7 +250,7 @@ impl InternalUnitCallCustody<'_> {
                         )
                         && matches!(
                             structural_type.shape,
-                            terminal_psi::StructuralTypeShape::Record { ref fields }
+                            terminal_psi::StructuralTypeShape::Record { ref fields, .. }
                                 if fields.is_empty()
                         )
                 })

@@ -232,7 +232,12 @@ fn incoming_location(
             },
         });
     }
-    if placement.shape.class != calling_conventions::ValueClass::BorrowedReference {
+    let scalar_descriptor =
+        placement.shape.class == calling_conventions::ValueClass::BorrowedScalarReference;
+    if !(placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+        || scalar_descriptor
+            && placement.shape == calling_conventions::ValueShape::borrowed_scalar_reference())
+    {
         return Err(Error::Mismatch("borrowed home has no reference ABI"));
     }
     let location = match placement.locations.as_slice() {
@@ -242,7 +247,7 @@ fn incoming_location(
                 value_byte_offset: 0,
                 byte_size: 8,
             },
-        ] => IndirectPointerLocation::Register(*register),
+        ] if !scalar_descriptor => IndirectPointerLocation::Register(*register),
         [
             ValueLocation::Stack {
                 stack_byte_offset,
@@ -250,7 +255,7 @@ fn incoming_location(
                 byte_size: 8,
                 alignment: 8,
             },
-        ] => IndirectPointerLocation::Stack {
+        ] if !scalar_descriptor => IndirectPointerLocation::Stack {
             stack_byte_offset: *stack_byte_offset,
             alignment: 8,
         },
@@ -261,7 +266,17 @@ fn incoming_location(
                 byte_size,
                 alignment,
             },
-        ] if *byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment => {
+        ] if *byte_size == placement.shape.byte_size
+            && *alignment == placement.shape.alignment
+            && match pointer {
+                IndirectPointerLocation::Register(_) => true,
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset,
+                    alignment: 8,
+                } => stack_byte_offset.is_multiple_of(8),
+                _ => false,
+            } =>
+        {
             *pointer
         }
         _ => {

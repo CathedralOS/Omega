@@ -268,14 +268,17 @@ pub(super) fn validate_operation(
                 psi_operation,
                 result_home,
                 source,
+                storage,
             },
             AbstractOperation::EstablishReference {
                 psi_operation: expected_operation,
                 result,
                 source: expected_source,
+                storage: expected_storage,
             },
         ) if psi_operation == expected_operation
             && source == expected_source
+            && storage == expected_storage
             && *result_home
                 == super::super::aggregate_results::result_home(optimized, result.place, plan)? => {
         }
@@ -361,7 +364,7 @@ pub(super) fn validate_operation(
             && plan.structural_types.contains(structural_type)
             && matches!(
                 &structural_type.shape,
-                terminal_psi::StructuralTypeShape::Record { fields } if fields.is_empty()
+                terminal_psi::StructuralTypeShape::Record { fields, .. } if fields.is_empty()
             )
             && matches!(
                 place.kind,

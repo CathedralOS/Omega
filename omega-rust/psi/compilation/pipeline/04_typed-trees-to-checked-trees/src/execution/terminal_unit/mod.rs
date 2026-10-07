@@ -527,7 +527,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                 })
                                 .collect();
                             match operation {
-                                CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
+                                CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } => {
                                     seeded.push(result.type_identity.as_str());
                                     seeded.push(source.type_identity.as_str());
                                 }
@@ -673,7 +673,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 }
                 _ => {}
             },
-            CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
+            CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } => {
                 // A materialized view and its original scalar backing need not
                 // occur in any signature; both are operation dependencies.
                 retained_type_identities.insert(result.type_identity.as_str());
@@ -1258,7 +1258,7 @@ pub(super) fn scalar_graph_record_shapes(
     shapes.add_type(reference, &[], &[])?;
     if !shapes.domains.is_empty()
         || !shapes.types.values().all(|declaration| {
-            matches!(&declaration.shape, CheckedUnitStructuralTypeShape::Record { fields }
+            matches!(&declaration.shape, CheckedUnitStructuralTypeShape::Record { fields, .. }
             if fields.iter().all(|field| {
                 if field.relevance.is_erased() {
                     matches!(field.field_type, CheckedUnitStructuralFieldType::Erased { .. })

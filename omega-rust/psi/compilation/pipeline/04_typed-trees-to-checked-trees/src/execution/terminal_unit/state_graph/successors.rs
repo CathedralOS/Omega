@@ -131,7 +131,7 @@ fn declared_contains_reference(
             checked_trees::CheckedUnitStructuralTypeShape::FusedServiceBinding
             | checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
             | checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
-            checked_trees::CheckedUnitStructuralTypeShape::Record { fields: items } => {
+            checked_trees::CheckedUnitStructuralTypeShape::Record { fields: items, .. } => {
                 fields(items);
             }
             checked_trees::CheckedUnitStructuralTypeShape::FixedArray {

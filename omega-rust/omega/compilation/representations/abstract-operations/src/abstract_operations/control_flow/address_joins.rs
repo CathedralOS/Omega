@@ -125,7 +125,7 @@ pub fn referent_type<'a>(
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
                     None => match shape {
-                        StructuralTypeShape::Record { fields }
+                        StructuralTypeShape::Record { fields, .. }
                         | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
                         _ => return None,
                     },
@@ -212,7 +212,7 @@ fn is_plain_referent<'a>(
         StructuralTypeShape::FusedServiceBinding => true,
         // Empty records still have a borrowed address carrier. No payload
         // bytes are copied, and the join retains its place and loan custody.
-        StructuralTypeShape::Record { fields } => plain_fields(fields, lookup, active),
+        StructuralTypeShape::Record { fields, .. } => plain_fields(fields, lookup, active),
         StructuralTypeShape::FixedArray { element, .. } => {
             is_plain_referent(*element, lookup, active)
         }

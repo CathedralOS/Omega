@@ -103,7 +103,7 @@ pub(crate) fn structural_crash_route_argument_prefix(
                     &case.fields
                 } else {
                     match &declaration.shape {
-                        StructuralTypeShape::Record { fields }
+                        StructuralTypeShape::Record { fields, .. }
                         | StructuralTypeShape::Mixed { fields, .. } => fields,
                         _ => {
                             return unsupported(

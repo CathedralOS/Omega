@@ -271,6 +271,8 @@ fn selected_keys(
         copy_bytes: Some(crate::AARCH64_COPY_BYTES),
         zero_bytes: Some(crate::AARCH64_ZERO_BYTES),
         scan_byte_sequence: Some(crate::AARCH64_SCAN_BYTE_SEQUENCE),
+        load_encoded_scalar: Some(crate::AARCH64_LOAD_ENCODED_SCALAR),
+        store_encoded_scalar: Some(crate::AARCH64_STORE_ENCODED_SCALAR),
         compare_byte_sequences: Some(crate::AARCH64_COMPARE_BYTE_SEQUENCES),
         save_floating_control: Some(crate::AARCH64_SAVE_FLOATING_CONTROL),
         restore_floating_control: Some(crate::AARCH64_RESTORE_FLOATING_CONTROL),
@@ -399,6 +401,10 @@ fn declaration(
             MachineMemoryEffect::CopyBytesV1
         } else if semantic == MachineSemanticKind::ZeroBytes {
             MachineMemoryEffect::ZeroBytesV1
+        } else if semantic == MachineSemanticKind::LoadEncodedScalar {
+            MachineMemoryEffect::ReadEncodedScalarV1
+        } else if semantic == MachineSemanticKind::StoreEncodedScalar {
+            MachineMemoryEffect::WriteEncodedScalarV1
         } else if semantic == MachineSemanticKind::ScanByteSequence {
             MachineMemoryEffect::ScanByteSequenceV1
         } else if semantic == MachineSemanticKind::CompareByteSequences {
@@ -440,6 +446,8 @@ fn declaration(
                 | MachineSemanticKind::LoadPacked7
                 | MachineSemanticKind::StorePacked
                 | MachineSemanticKind::ScanByteSequence
+                | MachineSemanticKind::LoadEncodedScalar
+                | MachineSemanticKind::StoreEncodedScalar
                 | MachineSemanticKind::CompareByteSequences
         ) {
             MachineTrapBehavior::MayArchitecturalFaultV1
@@ -493,6 +501,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::LoadEncodedScalar => (vec![0, 1], vec![2, 3, 4, 5]),
+        MachineSemanticKind::StoreEncodedScalar => (vec![0, 1, 2], vec![3, 4, 5]),
         MachineSemanticKind::AtomicAccess(form) => {
             return crate::selected_form_encoding::atomic::effects(form);
         }
@@ -607,6 +617,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::CopyBytes
         | MachineSemanticKind::ZeroBytes
         | MachineSemanticKind::ScanByteSequence
+        | MachineSemanticKind::LoadEncodedScalar
+        | MachineSemanticKind::StoreEncodedScalar
         | MachineSemanticKind::CompareByteSequences => (
             vec![],
             vec![],
@@ -730,6 +742,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             MachineSemanticKind::CopyBytes
                 | MachineSemanticKind::ZeroBytes
                 | MachineSemanticKind::ScanByteSequence
+                | MachineSemanticKind::LoadEncodedScalar
+                | MachineSemanticKind::StoreEncodedScalar
                 | MachineSemanticKind::CompareByteSequences
         ) {
             units("nzcv")
@@ -746,6 +760,16 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             MachineEncodedMemoryEffect::ZeroBytesV1 {
                 destination_pointer_operand: 0,
                 count_operand: 1,
+            }
+        } else if semantic == MachineSemanticKind::LoadEncodedScalar {
+            MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            }
+        } else if semantic == MachineSemanticKind::StoreEncodedScalar {
+            MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
             }
         } else if semantic == MachineSemanticKind::ScanByteSequence {
             MachineEncodedMemoryEffect::ScanByteSequenceV1 {
@@ -816,6 +840,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::Store64 => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::CopyBytes => MachineSizeKnowledge::ExactBytes(28),
         MachineSemanticKind::ZeroBytes => MachineSizeKnowledge::ExactBytes(24),
+        MachineSemanticKind::LoadEncodedScalar | MachineSemanticKind::StoreEncodedScalar => {
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 16,
+                maximum_bytes: None,
+            }
+        }
         MachineSemanticKind::ScanByteSequence => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 20,
             maximum_bytes: None,

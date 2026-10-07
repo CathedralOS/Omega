@@ -108,7 +108,7 @@ pub use flow::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
     CheckedNormalCleanupAction, CheckedNormalExitCleanupPlan, CheckedOperandSequence,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedProviderAttachmentRequirementPlan, CheckedReferenceResultSourcePlan,
+    CheckedProviderAttachmentRequirementPlan, CheckedReferenceResultSourcePlan, CheckedReferenceStorage,
     CheckedRepresentationViewStorePlan, CheckedRuntimeIndex, CheckedScalarBinding,
     CheckedScalarBindingDestination, CheckedScalarBindingValue, CheckedScalarBranchDestination,
     CheckedScalarCaseFieldPlan, CheckedScalarGraphPlans, CheckedScalarGuardedExit,

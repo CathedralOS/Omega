@@ -20,6 +20,7 @@ pub(in crate::encoding::recovery) fn value_placement(
             second: eightbyte(reader)?,
         },
         4 => Class::BorrowedReference,
+        5 => Class::BorrowedScalarReference,
         _ => return Err(Error::InvalidTag),
     };
     Ok(PackageReviewBoundaryValuePlacement {

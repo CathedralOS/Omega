@@ -188,7 +188,7 @@ pub(in crate::execution::terminal_unit) fn signature(
     let valid = view_result
         || owned_bytes
         || match &shapes.types.get(&type_identity)?.shape {
-            CheckedUnitStructuralTypeShape::Record { fields } => valid_fields(fields),
+            CheckedUnitStructuralTypeShape::Record { fields, .. } => valid_fields(fields),
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 !cases.is_empty() && cases.iter().all(|case| valid_fields(&case.fields))
             }
@@ -777,7 +777,11 @@ fn shared_reference_result_operation(
         multiplicity: Multiplicity::Affine,
     };
     *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishReference { result, source })
+    Some(CheckedUnitEffectOperationPlan::EstablishReference {
+        result,
+        source,
+        storage: checked_trees::CheckedReferenceStorage::Declared,
+    })
 }
 
 /// The `EstablishReference` producer for one authored `&mut place` return
@@ -860,6 +864,7 @@ fn mutable_reference_result_operation(
     *count = count.checked_add(1)?;
     Some(CheckedUnitEffectOperationPlan::EstablishReference {
         result,
+        storage: checked_trees::CheckedReferenceStorage::Declared,
         source: CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,
@@ -1031,5 +1036,9 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
         multiplicity: Multiplicity::Affine,
     };
     *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishReference { result, source })
+    Some(CheckedUnitEffectOperationPlan::EstablishReference {
+        result,
+        source,
+        storage: checked_trees::CheckedReferenceStorage::Declared,
+    })
 }

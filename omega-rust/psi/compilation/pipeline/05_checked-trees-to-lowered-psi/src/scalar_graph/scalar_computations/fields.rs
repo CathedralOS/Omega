@@ -587,7 +587,7 @@ fn captured_place_subject(
     for (segment_ordinal, segment) in segments.into_iter().enumerate() {
         match segment {
             LoanedPathSegment::Field(identity) => {
-                let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
                     return unsupported("record loan's captured path left its record namespace");
                 };
                 let mut matching = fields.iter().filter(|field| field.identity == identity);

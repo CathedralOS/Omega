@@ -304,6 +304,10 @@ fn redensify(
                     argument,
                     ..
                 }
+                | selected_instructions::SelectedStructuralTransport::ScalarReference {
+                    base: selected_instructions::SelectedAddressBase::Register(argument),
+                    ..
+                }
                 | selected_instructions::SelectedStructuralTransport::Address {
                     base: selected_instructions::SelectedAddressBase::Register(argument),
                     ..
@@ -392,16 +396,17 @@ fn lower_id<Id: Copy + PartialEq>(
             function: function_index,
         });
     }
-    Ok(raw(id).checked_sub(
-        u32::try_from(removed.partition_point(|removed| raw(*removed) < raw(id))).map_err(
-            |_| LiteralFoldError::IdentifierUnderflow {
-                function: function_index,
-            },
-        )?,
-    )
-    .ok_or(LiteralFoldError::IdentifierUnderflow {
-        function: function_index,
-    })?)
+    Ok(raw(id)
+        .checked_sub(
+            u32::try_from(removed.partition_point(|removed| raw(*removed) < raw(id))).map_err(
+                |_| LiteralFoldError::IdentifierUnderflow {
+                    function: function_index,
+                },
+            )?,
+        )
+        .ok_or(LiteralFoldError::IdentifierUnderflow {
+            function: function_index,
+        })?)
 }
 
 /// The dense successor of `id` after the sorted `removed` set leaves: an

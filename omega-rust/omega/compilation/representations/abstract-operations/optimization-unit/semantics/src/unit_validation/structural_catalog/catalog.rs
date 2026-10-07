@@ -66,7 +66,7 @@ pub(super) fn index_structural_types(
             ) => {}
             terminal_psi::StructuralTypeShape::FixedArray { .. } => {}
             terminal_psi::StructuralTypeShape::ElementView { .. } => {}
-            terminal_psi::StructuralTypeShape::Record { fields } => {
+            terminal_psi::StructuralTypeShape::Record { fields, .. } => {
                 validate_structural_fields(
                     declaration.id,
                     None,
@@ -89,7 +89,7 @@ pub(super) fn index_structural_types(
             terminal_psi::StructuralTypeShape::FusedServiceBinding
             | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_) => Vec::new(),
-            terminal_psi::StructuralTypeShape::Record { fields } => fields
+            terminal_psi::StructuralTypeShape::Record { fields, .. } => fields
                 .iter()
                 .filter_map(|field| match field.field_type {
                     terminal_psi::StructuralFieldType::Structural(target) => Some(target),

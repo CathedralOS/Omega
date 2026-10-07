@@ -632,7 +632,7 @@ pub(crate) fn split_affine_frontier_at_projection(
         .get(&current.structural_type)
         .ok_or(malformed())?;
     let selected = match &declaration.shape {
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             let mut selected = None;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                 let terminal_psi::StructuralFieldType::Structural(field_type) = field.field_type
@@ -749,7 +749,7 @@ pub(crate) fn inline_structural_field<'a>(
         terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, carrier)?;
     let fields = match (&declaration.shape, case) {
         (
-            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
+            StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. },
             None,
         ) => fields,
         (
@@ -892,7 +892,7 @@ pub(crate) fn direct_scalar_field_type(
     field: StructuralFieldId,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+    let (StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. }) =
         &declaration.shape
     else {
         return None;

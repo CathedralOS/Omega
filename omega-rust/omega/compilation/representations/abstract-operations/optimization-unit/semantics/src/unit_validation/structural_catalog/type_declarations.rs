@@ -153,7 +153,7 @@ pub(crate) fn validate_structural_type_graph(
             terminal_psi::StructuralTypeShape::FusedServiceBinding => {}
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
-            terminal_psi::StructuralTypeShape::Record { fields } => {
+            terminal_psi::StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
                     if let terminal_psi::StructuralFieldType::Structural(target) = field.field_type
                     {
@@ -224,7 +224,7 @@ pub(super) fn attachment_storage_types(
             }));
         };
         match &declaration.shape {
-            StructuralTypeShape::Record { fields } => retain_fields(fields),
+            StructuralTypeShape::Record { fields, .. } => retain_fields(fields),
             StructuralTypeShape::Mixed { fields, cases } => {
                 retain_fields(fields);
                 for case in cases {

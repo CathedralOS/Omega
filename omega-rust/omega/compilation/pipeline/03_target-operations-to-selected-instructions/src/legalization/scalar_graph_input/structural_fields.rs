@@ -588,7 +588,7 @@ fn runtime_path(
     for (position, segment) in path.iter().enumerate() {
         match segment {
             semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                let terminal_psi::StructuralTypeShape::Record { fields } = &types
+                let terminal_psi::StructuralTypeShape::Record { fields, .. } = &types
                     .iter()
                     .find(|declaration| declaration.id == carrier)?
                     .shape

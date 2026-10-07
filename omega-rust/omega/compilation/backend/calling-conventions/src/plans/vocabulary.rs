@@ -118,6 +118,10 @@ pub enum ValueClass {
     /// and `alignment` describe the referent, while the call placement carries
     /// exactly one pointer and never allocates a caller-side value copy.
     BorrowedReference,
+    /// Internal scalar loan: a pointer to an address-plus-codec descriptor.
+    /// Geometry measures the descriptor, never the scalar's semantic carrier.
+    /// This is not the thin foreign-pointer ABI.
+    BorrowedScalarReference,
     HomogeneousFloatAggregate {
         members: u8,
     },
@@ -138,6 +142,14 @@ pub struct ValueShape {
 }
 
 impl ValueShape {
+    pub const fn borrowed_scalar_reference() -> Self {
+        Self {
+            class: ValueClass::BorrowedScalarReference,
+            byte_size: 16,
+            alignment: 8,
+        }
+    }
+
     pub const fn integer(byte_size: u32, alignment: u16) -> Self {
         Self {
             class: ValueClass::Integer,

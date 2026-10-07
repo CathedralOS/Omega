@@ -997,6 +997,8 @@ pub(crate) fn validate_decoded(
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
+        | SelectedInstructionKind::LoadEncodedScalar
+        | SelectedInstructionKind::StoreEncodedScalar
         | SelectedInstructionKind::CompareByteSequences
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }
@@ -1209,6 +1211,8 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
+        | SelectedInstructionKind::LoadEncodedScalar
+        | SelectedInstructionKind::StoreEncodedScalar
         | SelectedInstructionKind::CompareByteSequences
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }

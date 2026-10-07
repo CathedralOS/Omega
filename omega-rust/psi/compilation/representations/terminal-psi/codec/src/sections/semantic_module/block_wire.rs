@@ -99,8 +99,8 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         }
     }
     match operation.kind.clone() {
-        OperationKind::EstablishReference { source } => {
-            storage_operations::encode_establish_reference(writer, source)?
+        OperationKind::EstablishReference { source, storage } => {
+            storage_operations::encode_establish_reference(writer, source, storage)?
         }
         OperationKind::ReleaseReference { source, path } => {
             storage_operations::encode_release_reference(writer, source, path)?
@@ -768,7 +768,10 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             value_operations::decode_establish_primitive_local(reader)?
         }
         operation_tags::ESTABLISH_REFERENCE => {
-            storage_operations::decode_establish_reference(reader)?
+            storage_operations::decode_establish_reference(reader, false)?
+        }
+        operation_tags::ESTABLISH_STORAGE_VIEW_REFERENCE => {
+            storage_operations::decode_establish_reference(reader, true)?
         }
         operation_tags::RELEASE_REFERENCE => {
             storage_operations::decode_release_reference(reader, false)?

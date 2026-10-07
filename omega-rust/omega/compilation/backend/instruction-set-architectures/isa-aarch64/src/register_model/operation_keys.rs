@@ -76,6 +76,15 @@ pub const AARCH64_COPY_BYTES: RegisterConstraintKey = RegisterConstraintKey {
     variant: 752,
 };
 
+pub const AARCH64_LOAD_ENCODED_SCALAR: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 797,
+};
+pub const AARCH64_STORE_ENCODED_SCALAR: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 798,
+};
+
 pub const AARCH64_SCAN_BYTE_SEQUENCE: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 794,
@@ -421,7 +430,7 @@ pub const AARCH64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey = RegisterCo
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 111] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 113] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -636,6 +645,8 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 111] = 
     AARCH64_FLOAT_RESULT_SATURATING,
     AARCH64_BYTE_LITERAL_IMAGE_ADDRESS,
     AARCH64_SCAN_BYTE_SEQUENCE,
+    AARCH64_LOAD_ENCODED_SCALAR,
+    AARCH64_STORE_ENCODED_SCALAR,
     AARCH64_COMPARE_BYTE_SEQUENCES,
     AARCH64_ZERO_BYTES,
 ];

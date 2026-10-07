@@ -345,7 +345,9 @@ mod cleanup_tests {
             id: structural_type,
             identity: "Leaf".into(),
             shape: StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![StructuralFieldDeclaration {
+                    storage: None,
                     id: StructuralFieldId::new(1).unwrap(),
                     identity: "value".into(),
                     relevance: BindingRelevance::Relevant,

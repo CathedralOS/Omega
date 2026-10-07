@@ -110,7 +110,7 @@ impl ByteSequenceBinding {
             return Err(malformed());
         }
         let Some(StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Record { fields },
+            shape: StructuralTypeShape::Record { fields, .. },
             ..
         }) = structural_types.get(parent_type)
         else {

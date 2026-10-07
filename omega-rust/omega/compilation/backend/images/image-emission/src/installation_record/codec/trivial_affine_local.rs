@@ -32,7 +32,7 @@ pub(crate) fn encode_trivial_affine_local_type(
     bytes: &mut Vec<u8>,
     declaration: &StructuralTypeDeclaration,
 ) -> Result<(), InstallationError> {
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err(InstallationError::InvalidStructuralReturnLocal);
     };
     if !fields.is_empty() {
@@ -103,6 +103,6 @@ pub(crate) fn decode_trivial_affine_local_type(
     Ok(StructuralTypeDeclaration {
         id,
         identity,
-        shape: StructuralTypeShape::Record { fields: Vec::new() },
+        shape: StructuralTypeShape::Record { storage: None, fields: Vec::new() },
     })
 }

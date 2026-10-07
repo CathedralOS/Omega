@@ -448,6 +448,7 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
+        storage: Option<terminal_psi::ReferenceStorageView>,
     },
     /// Close the loan on the carrier at `source`. Referent storage is
     /// unaffected; this row carries custody metadata only.

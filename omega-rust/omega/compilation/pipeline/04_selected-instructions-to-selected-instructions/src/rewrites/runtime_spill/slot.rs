@@ -566,7 +566,12 @@ fn classify(function: &SelectedFunction, slot: LocalStorageSlotId) -> Option<Can
                         destination,
                         ..
                     } => destination == slot,
-                    selected_instructions::SelectedStructuralTransport::Address {
+                    selected_instructions::SelectedStructuralTransport::ScalarReference {
+                        base,
+                        destination,
+                        ..
+                    }
+                    | selected_instructions::SelectedStructuralTransport::Address {
                         base,
                         destination,
                         ..
@@ -626,33 +631,42 @@ fn classify(function: &SelectedFunction, slot: LocalStorageSlotId) -> Option<Can
         // An address that crosses an edge could feed loads this scan never
         // sees; sharing is then unverifiable.
         for successor in super::control(&block.terminator).1.into_iter().flatten() {
-            let escapes =
-                successor
-                    .bindings
+            let escapes = successor
+                .bindings
+                .iter()
+                .any(|binding| match binding.transport {
+                    selected_instructions::SelectedValueTransport::Registers {
+                        argument, ..
+                    } => slot_addresses.contains(&argument),
+                    selected_instructions::SelectedValueTransport::Unused => false,
+                })
+                || successor
+                    .structural_bindings
                     .iter()
                     .any(|binding| match binding.transport {
-                        selected_instructions::SelectedValueTransport::Registers {
-                            argument,
-                            ..
-                        } => slot_addresses.contains(&argument),
-                        selected_instructions::SelectedValueTransport::Unused => false,
-                    }) || successor.structural_bindings.iter().any(|binding| {
-                    match binding.transport {
                         selected_instructions::SelectedStructuralTransport::WholeValue {
                             argument,
                             ..
                         } => slot_addresses.contains(&argument),
-                        selected_instructions::SelectedStructuralTransport::Address {
+                        selected_instructions::SelectedStructuralTransport::ScalarReference {
+                            base: selected_instructions::SelectedAddressBase::Register(argument),
+                            ..
+                        }
+                        | selected_instructions::SelectedStructuralTransport::Address {
                             base: selected_instructions::SelectedAddressBase::Register(argument),
                             ..
                         } => slot_addresses.contains(&argument),
-                        selected_instructions::SelectedStructuralTransport::Address {
+                        selected_instructions::SelectedStructuralTransport::ScalarReference {
+                            base: selected_instructions::SelectedAddressBase::Local(_),
+                            ..
+                        }
+                        | selected_instructions::SelectedStructuralTransport::Address {
                             base: selected_instructions::SelectedAddressBase::Local(_),
                             ..
                         }
                         | selected_instructions::SelectedStructuralTransport::Unused => false,
-                    }
-                }) || successor.structural_case.as_ref().is_some_and(|case| {
+                    })
+                || successor.structural_case.as_ref().is_some_and(|case| {
                     case.payloads.iter().any(|payload| {
                         matches!(
                             payload.transport,

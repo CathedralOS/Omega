@@ -137,13 +137,17 @@ pub(super) fn project(
         } => call_instructions::project_call_structural(
             node, optimized, native, plan, unit, operation, custody,
         )?,
-        AbstractOperation::EstablishReference { result, source, .. } => {
-            LegalizedScalarInstructionKind::EstablishReference {
-                result: result.clone(),
-                source: source.clone(),
-                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
-            }
-        }
+        AbstractOperation::EstablishReference {
+            result,
+            source,
+            storage,
+            ..
+        } => LegalizedScalarInstructionKind::EstablishReference {
+            result: result.clone(),
+            source: source.clone(),
+            storage: *storage,
+            shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
+        },
         AbstractOperation::ReleaseReference { source, path, .. } => {
             LegalizedScalarInstructionKind::ReleaseReference {
                 source: *source,

@@ -146,7 +146,11 @@ pub(super) fn plan(
         }
         return None;
     }
-    if erased_locals.contains(&local.symbol) || is_record_pattern_marker(local) {
+    let reference_capture =
+        super::super::reference_captures::plan(program, machine, state, index, local);
+    if (reference_capture.is_none() && erased_locals.contains(&local.symbol))
+        || is_record_pattern_marker(local)
+    {
         return Some(LocalPlan::Planned);
     }
     // A mutable shared view local owns a descriptor home that its stores
@@ -484,39 +488,12 @@ pub(super) fn plan(
         });
         return Some(LocalPlan::Planned);
     }
-    if let Some(source) = validation::reference_result_custody::primitive_local_source(
-        program, state, index,
-    )
-    .or_else(|| {
-        validation::reference_result_custody::borrowed_initializer_source(
-            program,
-            state,
-            local.initial_value,
-            local.type_reference,
-        )
-    }) {
+    if let Some(capture) = reference_capture {
         local_phase("statement sequence: local data: reference capture");
-        // Structural ingress and local storage already collect their backing
-        // shapes. Scalar ingress has no structural home until it is borrowed,
-        // so collect its declaration here. The checked source names storage,
-        // while the reference below names its view; a recast can differ.
-        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
-            parameter_index,
-        } = source.source
-        {
-            let parameter = program
-                .state_parameters(state)
-                .iter()
-                .filter(|parameter| {
-                    !parameter.is_const
-                        && !parameter.relevance.is_erased()
-                        && program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_some()
-                })
-                .nth(usize::try_from(parameter_index).ok()?)?;
-            shapes.add_type(parameter.type_reference, binders, &[])?;
-        }
+        // A recast's backing is a separate catalog root from its logical
+        // reference type. Enroll the actual projected endpoint even when no
+        // signature otherwise names it (for example a byte inside an array).
+        shapes.add_type(capture.backing_type, binders, &[])?;
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,
@@ -526,7 +503,11 @@ pub(super) fn plan(
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
-        operations.push(CheckedUnitEffectOperationPlan::EstablishReference { result, source });
+        operations.push(CheckedUnitEffectOperationPlan::EstablishReference {
+            result,
+            source: capture.source,
+            storage: capture.storage,
+        });
         return Some(LocalPlan::Planned);
     }
     local_phase("statement sequence: local data: shared place loan");

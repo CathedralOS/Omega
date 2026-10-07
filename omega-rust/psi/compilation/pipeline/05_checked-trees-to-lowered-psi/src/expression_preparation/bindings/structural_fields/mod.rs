@@ -945,7 +945,7 @@ fn resolve_case_primitive(
                 let fields = match case_fields.take() {
                     Some(fields) => fields,
                     None => match &declaration.shape {
-                        StructuralTypeShape::Record { fields }
+                        StructuralTypeShape::Record { fields, .. }
                         | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
                         _ => {
                             return unsupported(

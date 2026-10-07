@@ -241,7 +241,7 @@ pub(crate) fn prepare_argument_path(
                     Some(case) => &case.fields,
                     None => match shape {
                         Some(
-                            StructuralTypeShape::Record { fields }
+                            StructuralTypeShape::Record { fields, .. }
                             | StructuralTypeShape::Mixed { fields, .. },
                         ) => fields,
                         _ => {

@@ -225,6 +225,7 @@ pub enum CheckedUnitEffectOperationPlan {
     EstablishReference {
         result: CheckedUnitStructuralResultBindingPlan,
         source: CheckedUnitStructuralArgumentPlan,
+        storage: super::CheckedReferenceStorage,
     },
     ReleaseReference {
         statement_index: u32,

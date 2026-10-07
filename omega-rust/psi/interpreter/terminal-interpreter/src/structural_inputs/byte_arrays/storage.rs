@@ -10,7 +10,7 @@ use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralTypeId};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum ArrayStorageHome {
     Runtime,
     Frame {
@@ -20,7 +20,7 @@ pub(crate) enum ArrayStorageHome {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ArrayStorage {
     pub(crate) referent: StructuralRuntimePlace,
     pub(crate) home: ArrayStorageHome,

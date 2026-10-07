@@ -20,6 +20,7 @@
 
 #![forbid(unsafe_code)]
 
+mod authored_storage;
 mod bounded_integer_type;
 pub mod byte_predicates;
 mod content;
@@ -34,6 +35,7 @@ pub use ieee_float_comparison_operation::IeeeFloatComparisonOperation;
 pub use qualified_scalar_type::QualifiedScalarType;
 pub use scalar_refinement::{ScalarRefinement, ScalarRefinementError};
 
+pub use authored_storage::{AuthoredFieldStorage, AuthoredRecordStorage};
 pub use bounded_integer_type::BoundedIntegerType;
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 pub use content::{

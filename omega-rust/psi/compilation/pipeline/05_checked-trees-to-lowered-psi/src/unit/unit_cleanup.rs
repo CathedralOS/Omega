@@ -476,7 +476,7 @@ fn finalize_nominal_cleanup_machine(
 
 fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> bool {
     match shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(|field| {
+        CheckedUnitStructuralTypeShape::Record { fields, .. } => fields.iter().all(|field| {
             !field.relevance.is_erased()
                 && matches!(
                     &field.field_type,

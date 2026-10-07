@@ -23,7 +23,7 @@ pub(super) fn checked_provider_attachment_requirements(
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<Vec<CheckedProviderAttachmentRequirementPlan>> {
     let attachment = shapes.types.get(attachment_type_identity)?;
-    let CheckedUnitStructuralTypeShape::Record { fields } = &attachment.shape else {
+    let CheckedUnitStructuralTypeShape::Record { fields, .. } = &attachment.shape else {
         return Some(Vec::new());
     };
     let provider_fields = fields
@@ -278,7 +278,7 @@ fn attachment_record_fields<'a>(
         return &[];
     };
     match &plan.shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => fields.as_slice(),
+        CheckedUnitStructuralTypeShape::Record { fields, .. } => fields.as_slice(),
         _ => &[],
     }
 }
@@ -348,7 +348,7 @@ fn shape_fields(
         &[CheckedUnitStructuralFieldPlan],
         &[checked_trees::CheckedUnitStructuralCasePlan],
     ) = match shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => (fields.as_slice(), &[]),
+        CheckedUnitStructuralTypeShape::Record { fields, .. } => (fields.as_slice(), &[]),
         CheckedUnitStructuralTypeShape::Sum { cases } => (&[], cases.as_slice()),
         CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
             (fields.as_slice(), cases.as_slice())

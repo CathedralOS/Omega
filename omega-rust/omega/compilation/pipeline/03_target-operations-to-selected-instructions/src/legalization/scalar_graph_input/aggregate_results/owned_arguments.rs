@@ -329,7 +329,7 @@ pub(super) fn trivial_affine_local(
                             structural_type: declared, construction: None, ..
                         } if declared == structural_type.id)
                     && matches!(&structural_type.shape,
-                        terminal_psi::StructuralTypeShape::Record { fields } if fields.is_empty()) => {
+                        terminal_psi::StructuralTypeShape::Record { fields, .. } if fields.is_empty()) => {
                     Some((*psi_operation, structural_type.id, (block.id, position)))
                 }
                 _ => None,

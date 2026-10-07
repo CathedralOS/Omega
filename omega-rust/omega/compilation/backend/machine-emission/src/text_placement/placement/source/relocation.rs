@@ -115,6 +115,8 @@ pub(in crate::text_placement::placement) fn prove_none(
                 | MachineAlternativeFamily::CopyBytes
                 | MachineAlternativeFamily::ZeroBytes
                 | MachineAlternativeFamily::ScanByteSequence
+                | MachineAlternativeFamily::LoadEncodedScalar
+                | MachineAlternativeFamily::StoreEncodedScalar
                 | MachineAlternativeFamily::CompareByteSequences
                 | MachineAlternativeFamily::HostedWriteByteI32
                 | MachineAlternativeFamily::SaveFloatingControl

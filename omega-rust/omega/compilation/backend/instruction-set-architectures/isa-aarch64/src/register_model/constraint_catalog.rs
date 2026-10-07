@@ -14,17 +14,17 @@ use crate::register_model::{
     AARCH64_DIVIDE_I64, AARCH64_DIVIDE_U64, AARCH64_FLOAT32_TO_BITS, AARCH64_FLOAT64_TO_BITS,
     AARCH64_FRAME_ADDRESS, AARCH64_HOSTED_EXIT_PROCESS_I32, AARCH64_HOSTED_READ_BYTE,
     AARCH64_HOSTED_WRITE_BYTE_I32, AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_JUMP,
-    AARCH64_LINUX_SYSTEM_CALL, AARCH64_LOAD_PACKED, AARCH64_LOAD8, AARCH64_LOAD8_INDEXED,
-    AARCH64_LOAD16, AARCH64_LOAD32, AARCH64_LOAD64, AARCH64_MATERIALIZE_BOOLEAN,
-    AARCH64_MATERIALIZE_I64, AARCH64_MULTIPLY_I64, AARCH64_REMAINDER_I64, AARCH64_REMAINDER_U64,
-    AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SATURATING_ADD_CLAMPED,
-    AARCH64_SATURATING_ADD_U64, AARCH64_SATURATING_DIVIDE_SIGNED,
+    AARCH64_LINUX_SYSTEM_CALL, AARCH64_LOAD_ENCODED_SCALAR, AARCH64_LOAD_PACKED, AARCH64_LOAD8,
+    AARCH64_LOAD8_INDEXED, AARCH64_LOAD16, AARCH64_LOAD32, AARCH64_LOAD64,
+    AARCH64_MATERIALIZE_BOOLEAN, AARCH64_MATERIALIZE_I64, AARCH64_MULTIPLY_I64,
+    AARCH64_REMAINDER_I64, AARCH64_REMAINDER_U64, AARCH64_REQUIRED_REGISTER_CONSTRAINTS,
+    AARCH64_SATURATING_ADD_CLAMPED, AARCH64_SATURATING_ADD_U64, AARCH64_SATURATING_DIVIDE_SIGNED,
     AARCH64_SATURATING_MULTIPLY_CLAMPED, AARCH64_SATURATING_MULTIPLY_U64,
     AARCH64_SATURATING_SUBTRACT_CLAMPED, AARCH64_SATURATING_SUBTRACT_UNSIGNED,
-    AARCH64_SCAN_BYTE_SEQUENCE, AARCH64_SHIFT_I64, AARCH64_STORE, AARCH64_STORE_PACKED,
-    AARCH64_STORE64, AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE, AARCH64_TRAPPING_BINARY,
-    AARCH64_TRAPPING_CONVERT, AARCH64_TRAPPING_FIXED_PAIR, AARCH64_TRAPPING_SHIFT,
-    AARCH64_ZERO_BYTES, aarch64_aapcs64_normalized_foreign_call_keys,
+    AARCH64_SCAN_BYTE_SEQUENCE, AARCH64_SHIFT_I64, AARCH64_STORE, AARCH64_STORE_ENCODED_SCALAR,
+    AARCH64_STORE_PACKED, AARCH64_STORE64, AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
+    AARCH64_TRAPPING_BINARY, AARCH64_TRAPPING_CONVERT, AARCH64_TRAPPING_FIXED_PAIR,
+    AARCH64_TRAPPING_SHIFT, AARCH64_ZERO_BYTES, aarch64_aapcs64_normalized_foreign_call_keys,
     aarch64_aapcs64_register_call_keys, aarch64_aapcs64_register_unit_call_keys,
     aarch64_darwin_normalized_foreign_call_keys, aarch64_darwin_register_call_keys,
     aarch64_darwin_register_unit_call_keys, aarch64_register_aggregate_call_keys,
@@ -707,6 +707,35 @@ pub fn aarch64_register_constraint_catalog(
         implicit_defs: Vec::new(),
         clobbers: view("nzcv").units.clone(),
     });
+    // Scalar codecs carry the actual byte footprint. Every working home is
+    // early-clobber, so neither input nor another scratch home can alias it.
+    for (key, input_count) in [
+        (AARCH64_LOAD_ENCODED_SCALAR, 2),
+        (AARCH64_STORE_ENCODED_SCALAR, 3),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: (0..6)
+                .map(|operand| {
+                    let mut row = allocatable(
+                        operand,
+                        if operand < input_count {
+                            RegisterOperandAccess::Use
+                        } else {
+                            RegisterOperandAccess::Def
+                        },
+                        GPR64,
+                    );
+                    row.early_clobber = operand >= input_count;
+                    row
+                })
+                .collect(),
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: view("nzcv").units.clone(),
+        });
+    }
     // The scan reads its preserved base/count inputs while the loop cursors
     // are written before any input home is consumed; the verdict operand is
     // the only lasting definition. Flags fall to the compare/branch pairs.

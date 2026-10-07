@@ -29,7 +29,7 @@ fn validate_type(
     let declaration = types.get(current_type)?;
     active.push(current_type.to_owned());
     match &declaration.shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => {
+        CheckedUnitStructuralTypeShape::Record { fields, .. } => {
             for (index, field) in fields.iter().enumerate() {
                 if field.identity.is_empty()
                     || field.relevance.is_erased()
@@ -163,7 +163,7 @@ fn visit(
     let declaration = types.get(current_type)?;
     let mut count = usize::from(nominal_boundary);
     match &declaration.shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => {
+        CheckedUnitStructuralTypeShape::Record { fields, .. } => {
             if fields.iter().enumerate().any(|(index, field)| {
                 field.identity.is_empty()
                     || field.relevance.is_erased()

@@ -224,7 +224,51 @@ fn argument_pointer(
             indices,
         )?
     };
-    let pointer = if let Some(length) = target.fixed_array_length {
+    let pointer = if target.shape.class == calling_conventions::ValueClass::BorrowedScalarReference
+    {
+        if referent
+            || semantic.path.is_empty()
+                && crate::selection::reference_input::borrowed_scalar_source(source, semantic.place)
+                    .is_some()
+        {
+            pointer
+        } else {
+            let declarations = &source
+                .structural
+                .as_ref()
+                .ok_or_else(|| SelectedInstructionError::custody())?
+                .structural_types;
+            let codec =
+                crate::structural_inputs::structural_reference_input::projected_scalar_codec(
+                    target.root_structural_type,
+                    &semantic.path,
+                    declarations,
+                )
+                .and_then(runtime_abi::ScalarStorageCodec::encode)
+                .ok_or_else(|| SelectedInstructionError::custody())?;
+            let codec_register = structural::transport_register(builder, semantic.place, 8)?;
+            builder.emit(
+                SelectedInstructionKind::MaterializeI64 {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(codec)),
+                },
+                builder.constraints.keys.materialize_i64,
+                &[codec_register],
+                structural::provenance(operation),
+            )?;
+            structural::stage_descriptor(
+                builder,
+                operation,
+                selected_instructions::LocalStorageSlotId::StructuralCallArgument {
+                    operation: operation.operation,
+                    argument_index: argument_index
+                        .try_into()
+                        .map_err(|_| SelectedInstructionError::custody())?,
+                },
+                pointer,
+                codec_register,
+            )?
+        }
+    } else if let Some(length) = target.fixed_array_length {
         structural::fixed_array_argument(
             builder,
             operation,

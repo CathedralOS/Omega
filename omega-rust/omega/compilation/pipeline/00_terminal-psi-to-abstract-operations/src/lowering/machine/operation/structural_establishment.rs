@@ -161,7 +161,7 @@ pub(super) fn lower(
                         .expect("every terminator carries an edge"),
                 })?;
             if usize::try_from(ordinal) != Ok(lowered_unit_affine_locals.len())
-                || !matches!(declaration.shape, StructuralTypeShape::Record { ref fields } if fields.is_empty())
+                || !matches!(declaration.shape, StructuralTypeShape::Record { ref fields, .. } if fields.is_empty())
             {
                 return Err(LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,

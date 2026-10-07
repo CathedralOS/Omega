@@ -106,9 +106,21 @@ pub(in crate::selection) fn prepare(
             let mut snapshots = Vec::new();
             let mut transfers = Vec::new();
             let mut descriptors = Vec::new();
+            let mut scalar_references = Vec::new();
             for phase in 0..2 {
                 if phase == 1 {
                     descriptors = super::descriptors::snapshot(
+                        function_index,
+                        &mut function.virtual_registers,
+                        &mut function.memory_accesses,
+                        &mut instructions,
+                        &mut next_instruction,
+                        successor.psi_edge,
+                        &successor.structural_bindings,
+                        constraints,
+                        catalog,
+                    )?;
+                    scalar_references = super::scalar_references::snapshot(
                         function_index,
                         &mut function.virtual_registers,
                         &mut function.memory_accesses,
@@ -180,6 +192,17 @@ pub(in crate::selection) fn prepare(
                 successor.psi_edge,
                 &successor.structural_bindings,
                 &descriptors,
+                constraints,
+                catalog,
+            )?;
+            super::scalar_references::store(
+                function_index,
+                &mut function.virtual_registers,
+                &mut function.memory_accesses,
+                &mut instructions,
+                &mut next_instruction,
+                successor.psi_edge,
+                &scalar_references,
                 constraints,
                 catalog,
             )?;

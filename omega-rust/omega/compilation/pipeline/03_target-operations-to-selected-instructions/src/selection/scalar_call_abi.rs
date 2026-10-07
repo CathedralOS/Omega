@@ -448,11 +448,14 @@ pub(super) fn validate(
                     value_byte_offset: 0,
                     byte_size: 8,
                 },
-            ] if placement.shape.class == calling_conventions::ValueClass::BorrowedReference
-                && matches!(
-                    call.arguments.get(index),
-                    Some(LegalizedScalarArgument::Structural { .. })
-                ) =>
+            ] if matches!(
+                placement.shape.class,
+                calling_conventions::ValueClass::BorrowedReference
+                    | calling_conventions::ValueClass::BorrowedScalarReference
+            ) && matches!(
+                call.arguments.get(index),
+                Some(LegalizedScalarArgument::Structural { .. })
+            ) =>
             {
                 register
             }
@@ -472,8 +475,11 @@ pub(super) fn validate(
                     byte_size,
                     alignment,
                 },
-            ] if placement.shape.class == calling_conventions::ValueClass::BorrowedReference
-                && *byte_size == placement.shape.byte_size
+            ] if matches!(
+                placement.shape.class,
+                calling_conventions::ValueClass::BorrowedReference
+                    | calling_conventions::ValueClass::BorrowedScalarReference
+            ) && *byte_size == placement.shape.byte_size
                 && *alignment == placement.shape.alignment
                 && matches!(
                     call.arguments.get(index),

@@ -68,6 +68,7 @@ pub enum CheckedUnitStructuralTypeShape {
     /// declaration identities rather than source spellings alone.
     Record {
         fields: Vec<CheckedUnitStructuralFieldPlan>,
+        storage: Option<semantic_vocabulary::AuthoredRecordStorage>,
     },
     /// The owning indexed aggregate carrier: its extent is the declaration's
     /// own literal length, so the length is part of the type identity rather
@@ -112,6 +113,7 @@ pub struct CheckedUnitStructuralFieldPlan {
     pub identity: String,
     pub relevance: BindingRelevance,
     pub field_type: CheckedUnitStructuralFieldType,
+    pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

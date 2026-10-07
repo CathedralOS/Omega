@@ -119,7 +119,7 @@ pub(in crate::legalization) fn access(
     if !indices.is_empty() {
         return None;
     }
-    let StructuralTypeShape::Record { fields } = &types
+    let StructuralTypeShape::Record { fields, .. } = &types
         .iter()
         .find(|declaration| declaration.id == carrier)?
         .shape

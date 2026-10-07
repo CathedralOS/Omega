@@ -145,6 +145,8 @@ pub fn x86_64_machine_effect_catalog(
                             | MachineSemanticKind::CopyBytes
                             | MachineSemanticKind::ZeroBytes
                             | MachineSemanticKind::ScanByteSequence
+                            | MachineSemanticKind::LoadEncodedScalar
+                            | MachineSemanticKind::StoreEncodedScalar
                             | MachineSemanticKind::CompareByteSequences
                             | MachineSemanticKind::Store64
                             | MachineSemanticKind::FrameAddress
@@ -324,6 +326,8 @@ fn selected_keys(
         copy_bytes: Some(crate::X86_64_COPY_BYTES),
         zero_bytes: Some(crate::X86_64_ZERO_BYTES),
         scan_byte_sequence: Some(crate::X86_64_SCAN_BYTE_SEQUENCE),
+        load_encoded_scalar: Some(crate::X86_64_LOAD_ENCODED_SCALAR),
+        store_encoded_scalar: Some(crate::X86_64_STORE_ENCODED_SCALAR),
         compare_byte_sequences: Some(crate::X86_64_COMPARE_BYTE_SEQUENCES),
         save_floating_control: Some(crate::X86_64_SAVE_FLOATING_CONTROL),
         restore_floating_control: Some(crate::X86_64_RESTORE_FLOATING_CONTROL),
@@ -745,6 +749,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::CopyBytes
         | MachineSemanticKind::ZeroBytes
         | MachineSemanticKind::ScanByteSequence
+        | MachineSemanticKind::LoadEncodedScalar
+        | MachineSemanticKind::StoreEncodedScalar
         | MachineSemanticKind::CompareByteSequences
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
@@ -1068,6 +1074,8 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::CopyBytes
         | MachineSemanticKind::ZeroBytes
         | MachineSemanticKind::ScanByteSequence
+        | MachineSemanticKind::LoadEncodedScalar
+        | MachineSemanticKind::StoreEncodedScalar
         | MachineSemanticKind::CompareByteSequences
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress

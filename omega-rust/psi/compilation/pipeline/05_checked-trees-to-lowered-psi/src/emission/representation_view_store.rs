@@ -99,7 +99,7 @@ pub(crate) fn emit(
                 return unsupported("representation view store leaf owner is not structural");
             };
             let declaration = declaration_at(structural_types, owner)?;
-            let (StructuralTypeShape::Record { fields }
+            let (StructuralTypeShape::Record { fields, .. }
             | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
             else {
                 return unsupported("representation view store leaf owner is not a record");
@@ -539,7 +539,7 @@ fn walk_carrier_prefix<'a>(
         let declaration = declaration_at(types, owner)?;
         match segment {
             CheckedUnitStructuralPathSegment::Field(identity) => {
-                let (StructuralTypeShape::Record { fields }
+                let (StructuralTypeShape::Record { fields, .. }
                 | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
                 else {
                     return unsupported("representation view store carrier is not a record");

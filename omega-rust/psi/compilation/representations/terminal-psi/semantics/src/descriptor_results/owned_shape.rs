@@ -99,7 +99,7 @@ fn owned_shape<'a>(
             StructuralTypeShape::FusedServiceBinding => false,
             StructuralTypeShape::ElementView { .. } => false,
             StructuralTypeShape::Reference { .. } => false,
-            StructuralTypeShape::Record { fields } => fields.iter().all(&mut field_is_owned),
+            StructuralTypeShape::Record { fields, .. } => fields.iter().all(&mut field_is_owned),
             StructuralTypeShape::Sum { cases } => cases
                 .iter()
                 .flat_map(|case| &case.fields)

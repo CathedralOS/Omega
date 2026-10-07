@@ -19,6 +19,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
     let present = StructuralCaseId::new(21).unwrap();
     let absent = StructuralCaseId::new(22).unwrap();
     let field = |raw, identity: &str, field_type| StructuralFieldDeclaration {
+        storage: None,
         id: StructuralFieldId::new(raw).unwrap(),
         identity: identity.into(),
         relevance: BindingRelevance::Relevant,
@@ -63,6 +64,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
                 id: leaf,
                 identity: "Item".into(),
                 shape: StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![field(32, "value", scalar.clone())],
                 },
             },

@@ -169,7 +169,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     }
     for declaration in &module.structural_types {
         let (fields, cases) = match &declaration.shape {
-            StructuralTypeShape::Record { fields } => (fields.as_slice(), &[][..]),
+            StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), &[][..]),
             StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
             StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases.as_slice()),
             _ => (&[][..], &[][..]),
@@ -184,7 +184,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             }
         }
         match &declaration.shape {
-            StructuralTypeShape::Record { fields }
+            StructuralTypeShape::Record { fields, .. }
                 if !strictly_increasing(fields.iter().map(|field| field.id)) =>
             {
                 return Err(CodecError::NonCanonicalOrder(

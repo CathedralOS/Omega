@@ -374,7 +374,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
     for segment in carrier_path {
         let nested = match segment {
             CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {
-                let StructuralTypeShape::Record { fields } = &field_owner.shape else {
+                let StructuralTypeShape::Record { fields, .. } = &field_owner.shape else {
                     return unsupported("structural scalar store carrier is not a record");
                 };
                 let carriers = fields
@@ -512,7 +512,7 @@ pub(crate) fn lower_window_path<'a>(
         cursor = rest;
         match segment {
             CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {
-                let (StructuralTypeShape::Record { fields }
+                let (StructuralTypeShape::Record { fields, .. }
                 | StructuralTypeShape::Mixed { fields, .. }) = &field_owner.shape
                 else {
                     return unsupported("structural window carrier is not a record");

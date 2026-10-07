@@ -18,6 +18,9 @@ pub(crate) fn encode_value_placement(
             PackageReviewBoundaryValueClass::BorrowedReference => {
                 encoder.tag("borrowed_reference", 4)
             }
+            PackageReviewBoundaryValueClass::BorrowedScalarReference => {
+                encoder.tag("borrowed_scalar_reference", 5)
+            }
             PackageReviewBoundaryValueClass::HomogeneousFloatAggregate { members } => {
                 encoder.tag("homogeneous_float_aggregate", 2);
                 encoder.field("members", |encoder| {

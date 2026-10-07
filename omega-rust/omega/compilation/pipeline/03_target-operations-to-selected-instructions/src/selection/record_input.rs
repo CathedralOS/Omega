@@ -37,7 +37,10 @@ pub(super) fn fields(
     if selected_declarations.next().is_some() {
         return None;
     }
-    let StructuralTypeShape::Record { fields: expected } = &declaration.shape else {
+    let StructuralTypeShape::Record {
+        fields: expected, ..
+    } = &declaration.shape
+    else {
         return None;
     };
     let expected = expected.iter().filter(|field| !field.relevance.is_erased());

@@ -40,7 +40,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 .ok_or(LoweringError::Unsupported(
                     "ordered nominal cleanup attachment shape is absent",
                 ))?;
-        if !matches!(&attachment_shape.shape, CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty())
+        if !matches!(&attachment_shape.shape, CheckedUnitStructuralTypeShape::Record { fields, .. } if fields.is_empty())
         {
             return unsupported("ordered nominal cleanup attachment is not an empty record");
         }

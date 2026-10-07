@@ -8,6 +8,17 @@ use crate::{CheckedScalarExpression, CheckedStorageRoot};
 use language_semantics::CarryPolicy;
 use symbols::SymbolHandle;
 
+/// Physical interpretation retained by one source-checked reference capture.
+/// A view begins at the source's actual projected address. Aggregate views
+/// obtain field encodings from their authored structural catalog; scalar views
+/// carry their codec independently of the callee's logical parameter type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CheckedReferenceStorage {
+    #[default]
+    Declared,
+    View { stored_scalar: Option<semantic_vocabulary::ScalarType> },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitEntryClaimPlan {
     pub claim_identity: language_semantics::PermissionClaimIdentity,

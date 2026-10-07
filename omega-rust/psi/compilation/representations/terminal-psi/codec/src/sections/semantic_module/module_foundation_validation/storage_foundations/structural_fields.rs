@@ -216,7 +216,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         .and_then(|declaration| match &declaration.shape {
             // A mixed shape's common fields are direct fields at one offset
             // in every case; payload fields stay out of reach of this store.
-            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+            StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
                 fields.iter().find_map(|candidate| {
                     (candidate.id == *field && !candidate.relevance.is_erased())
                         .then_some(&candidate.field_type)
@@ -558,7 +558,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             _ => (
                 local.structural_type,
                 match &producer.kind {
-                    OperationKind::EstablishReference { source }
+                    OperationKind::EstablishReference { source, .. }
                     | OperationKind::EstablishElementView { source, .. }
                     | OperationKind::EstablishMutableElementView { source, .. } => source.access,
                     _ => terminal_psi::StructuralAccess::Owned,

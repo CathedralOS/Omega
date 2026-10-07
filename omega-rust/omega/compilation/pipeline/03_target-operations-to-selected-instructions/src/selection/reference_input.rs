@@ -19,6 +19,35 @@ pub(super) struct ReferenceAddress {
     /// A trailing Referent on a reference leaf reads that leaf's stored word.
     /// Otherwise the projected storage address itself is the borrowed value.
     pub(super) load_pointer: bool,
+    /// Scalar descriptor sources preserve the stored codec on reborrow.
+    pub(super) load_codec: bool,
+    pub(super) codec: Option<runtime_abi::ScalarStorageCodec>,
+    pub(super) storage: Option<terminal_psi::ReferenceStorageView>,
+    pub(super) descriptor_offsets: Vec<u32>,
+}
+
+pub(in crate::selection) fn borrowed_scalar_source(
+    function: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<semantic_vocabulary::ScalarType> {
+    let signature = function.structural.as_ref()?;
+    let parameter = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == place)
+        .map(|parameter| &parameter.semantic)
+        .or_else(|| {
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters)
+                .find(|parameter| parameter.place == place)
+        })?;
+    (parameter.access != StructuralAccess::Owned).then_some(())?;
+    crate::structural_inputs::structural_reference_input::scalar_storage_type(
+        parameter.structural_type,
+        &signature.structural_types,
+    )
 }
 
 pub(super) fn establishment(
@@ -28,6 +57,7 @@ pub(super) fn establishment(
     let LegalizedScalarInstructionKind::EstablishReference {
         result,
         source,
+        storage,
         shape,
     } = &row.kind
     else {
@@ -36,7 +66,11 @@ pub(super) fn establishment(
     let signature = function.structural.as_ref()?;
     let declarations = &signature.structural_types;
     if row.result.is_some()
-        || *shape != ValueShape::integer(8, 8)
+        || Some(*shape)
+            != crate::structural_inputs::structural_reference_input::shape(
+                result.structural_type,
+                declarations,
+            )
         || result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
@@ -47,7 +81,7 @@ pub(super) fn establishment(
     {
         return None;
     }
-    let StructuralTypeShape::Reference { access, .. } = declarations
+    let StructuralTypeShape::Reference { access, referent } = declarations
         .iter()
         .find(|declaration| declaration.id == result.structural_type)?
         .shape
@@ -64,29 +98,89 @@ pub(super) fn establishment(
         return None;
     }
     let root = root_type(function, source.place)?;
+    let semantic_scalar = crate::structural_inputs::structural_reference_input::scalar_storage_type(
+        referent,
+        declarations,
+    );
     let (path, through_referent) = match source.path.split_last() {
         Some((StructuralPathSegment::Referent, prefix)) => (prefix, true),
         _ => (source.path.as_slice(), false),
     };
-    let (selected, byte_offset) =
-        crate::structural_inputs::structural_reference_input::project(root, path, declarations)?;
+    let mut projection_root = root;
+    let mut segment_start = 0;
+    let mut descriptor_offsets = Vec::new();
+    for (position, segment) in path.iter().enumerate() {
+        if *segment != StructuralPathSegment::Referent {
+            continue;
+        }
+        let (carrier, offset) = crate::structural_inputs::structural_reference_input::project(
+            projection_root,
+            &path[segment_start..position],
+            declarations,
+        )?;
+        let StructuralTypeShape::Reference { referent, .. } = declarations
+            .iter()
+            .find(|declaration| declaration.id == carrier)?
+            .shape
+        else {
+            return None;
+        };
+        descriptor_offsets.push(offset);
+        projection_root = referent;
+        segment_start = position + 1;
+    }
+    let projection_path = &path[segment_start..];
+    let (selected, byte_offset) = crate::structural_inputs::structural_reference_input::project(
+        projection_root,
+        projection_path,
+        declarations,
+    )?;
     let selected_shape = &declarations
         .iter()
         .find(|declaration| declaration.id == selected)?
         .shape;
-    let (actual, load_pointer) = match selected_shape {
+    let (actual, mut load_pointer) = match selected_shape {
         StructuralTypeShape::Reference { referent, .. } if through_referent => (*referent, true),
         _ => (selected, false),
     };
-    terminal_semantics::reference_source_compatible(
-        declarations.iter(),
-        actual,
-        result.structural_type,
-    )
+    let load_codec = storage.is_none()
+        && semantic_scalar.is_some()
+        && (load_pointer || borrowed_scalar_source(function, source.place).is_some());
+    load_pointer |= load_codec;
+    let codec = match storage {
+        Some(storage) => storage
+            .stored_scalar
+            .and_then(runtime_abi::ScalarStorageCodec::from_scalar),
+        None if !load_codec && semantic_scalar.is_some() => {
+            crate::structural_inputs::structural_reference_input::projected_scalar_codec(
+                projection_root,
+                projection_path,
+                declarations,
+            )
+        }
+        None => None,
+    };
+    (match storage {
+        Some(storage) => terminal_semantics::reference_storage_source_compatible(
+            declarations.iter(),
+            actual,
+            result.structural_type,
+            storage.stored_scalar,
+        ),
+        None => terminal_semantics::reference_source_compatible(
+            declarations.iter(),
+            actual,
+            result.structural_type,
+        ),
+    })
     .then_some(ReferenceAddress {
         place: source.place,
         byte_offset,
         load_pointer,
+        load_codec,
+        codec,
+        storage: *storage,
+        descriptor_offsets,
     })
 }
 
@@ -213,7 +307,17 @@ pub(super) fn borrowed_argument(
         && target.root_structural_type == root
         && target.structural_type == selected
         && target.source_byte_offset == offset
-        && target.shape == ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
+        && target.shape
+            == if crate::structural_inputs::structural_reference_input::scalar_storage_type(
+                selected,
+                declarations,
+            )
+            .is_some()
+            {
+                ValueShape::borrowed_scalar_reference()
+            } else {
+                ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
+            }
         && target.destination.shape == target.shape
         && target.indices.is_empty()
         && target.fixed_array_length.is_none()
@@ -221,12 +325,19 @@ pub(super) fn borrowed_argument(
     .then_some(BorrowedReferenceAddress {
         descriptor_offsets: projection.descriptor_offsets,
         referent_offset: offset,
+        scalar_descriptor:
+            crate::structural_inputs::structural_reference_input::scalar_storage_type(
+                selected,
+                declarations,
+            )
+            .is_some(),
     })
 }
 
 pub(super) struct BorrowedReferenceAddress {
     pub(super) descriptor_offsets: Vec<u32>,
     pub(super) referent_offset: u32,
+    pub(super) scalar_descriptor: bool,
 }
 
 fn carrier_referent(

@@ -62,6 +62,8 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub copy_bytes: Option<RegisterConstraintKey>,
     pub zero_bytes: Option<RegisterConstraintKey>,
     pub scan_byte_sequence: Option<RegisterConstraintKey>,
+    pub load_encoded_scalar: Option<RegisterConstraintKey>,
+    pub store_encoded_scalar: Option<RegisterConstraintKey>,
     pub compare_byte_sequences: Option<RegisterConstraintKey>,
     pub store: Option<RegisterConstraintKey>,
     pub address_offset: Option<RegisterConstraintKey>,

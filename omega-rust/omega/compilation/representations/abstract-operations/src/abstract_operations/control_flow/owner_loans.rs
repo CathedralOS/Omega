@@ -224,7 +224,7 @@ fn view_carrier_shape(
         }
     }
     match &declaration.shape {
-        StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+        StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
             fields.iter().all(|field| {
                 field.relevance.is_erased()
                     && matches!(

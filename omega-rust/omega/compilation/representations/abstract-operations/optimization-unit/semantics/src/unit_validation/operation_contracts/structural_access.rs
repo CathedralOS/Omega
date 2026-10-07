@@ -715,7 +715,7 @@ fn is_material_write_only_type(
         };
         match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(_) => {}
-            StructuralTypeShape::Record { fields } => {
+            StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
                     if field.relevance.is_erased() {
                         return false;

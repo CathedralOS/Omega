@@ -250,6 +250,8 @@ fn family_and_operand_count(
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
+        | SelectedInstructionKind::LoadEncodedScalar
+        | SelectedInstructionKind::StoreEncodedScalar
         | SelectedInstructionKind::CompareByteSequences
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }

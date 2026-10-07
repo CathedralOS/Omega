@@ -110,7 +110,7 @@ pub(super) fn storage_cannot_retain_loan(
     let result = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(_) => true,
         StructuralTypeShape::ByteSequence(carrier) => !carrier.is_borrowed(),
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             fields_cannot_retain_loan(types, fields, established)
         }
         StructuralTypeShape::FixedArray { element, .. } => {

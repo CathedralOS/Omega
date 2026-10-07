@@ -344,7 +344,12 @@ pub(in crate::execution::terminal_unit) fn returned_mutable_view(
         statement_ordinal,
         expression,
     )?;
-    let CheckedUnitEffectOperationPlan::EstablishReference { result, source } = operation else {
+    let CheckedUnitEffectOperationPlan::EstablishReference {
+        result,
+        source,
+        storage,
+    } = operation
+    else {
         return None;
     };
     // The minted `&mut` view ends exactly once at the result, so the binding
@@ -366,7 +371,11 @@ pub(in crate::execution::terminal_unit) fn returned_mutable_view(
                 source: source.clone(),
             }],
         },
-        CheckedUnitEffectOperationPlan::EstablishReference { result, source },
+        CheckedUnitEffectOperationPlan::EstablishReference {
+            result,
+            source,
+            storage,
+        },
     ))
 }
 

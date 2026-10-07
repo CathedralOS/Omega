@@ -435,6 +435,7 @@ fn hash_value_shape(digest: &mut Sha256, shape: calling_conventions::ValueShape)
         calling_conventions::ValueClass::Integer => digest.update([1]),
         calling_conventions::ValueClass::Float => digest.update([2]),
         calling_conventions::ValueClass::BorrowedReference => digest.update([3]),
+        calling_conventions::ValueClass::BorrowedScalarReference => digest.update([6]),
         calling_conventions::ValueClass::HomogeneousFloatAggregate { members } => {
             digest.update([4]);
             digest.update([members]);

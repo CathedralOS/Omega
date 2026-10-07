@@ -35,7 +35,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 .iter()
                 .find(|declaration| declaration.id == parent_type)
                 .is_some_and(|declaration| match &declaration.shape {
-                    StructuralTypeShape::Record { fields } => fields.iter().any(|candidate| {
+                    StructuralTypeShape::Record { fields, .. } => fields.iter().any(|candidate| {
                         candidate.id == *field
                             && !candidate.relevance.is_erased()
                             && candidate.field_type.byte_sequence_carrier() == Some(shared_view)
@@ -137,7 +137,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         .iter()
         .find(|declaration| declaration.id == parent_type)
         .is_some_and(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.iter().any(|candidate| {
+            StructuralTypeShape::Record { fields, .. } => fields.iter().any(|candidate| {
                 candidate.id == *field
                     && !candidate.relevance.is_erased()
                     && matches!(

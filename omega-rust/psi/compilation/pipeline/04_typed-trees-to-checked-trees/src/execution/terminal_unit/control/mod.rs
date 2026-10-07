@@ -12,6 +12,7 @@ mod call_results;
 pub(crate) mod case_observation_alias;
 mod checked_machine;
 mod construction_trace;
+pub(super) mod reference_captures;
 pub(in crate::execution::terminal_unit) mod scalar_arrays;
 pub(super) mod statement_sequence;
 pub(super) mod structural_operands;

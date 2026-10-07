@@ -183,7 +183,7 @@ fn contains_nominal_cleanup(
     }
     let mut result = false;
     match &types.get(&structural_type)?.shape {
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                 if let StructuralFieldType::Structural(child) = field.field_type {
                     result |= contains_nominal_cleanup(types, nominal, cache, active, child)?;
@@ -239,7 +239,7 @@ fn append_cleanup_subjects(
         return Some(());
     }
     match &types.get(&structural_type)?.shape {
-        StructuralTypeShape::Record { fields } => {
+        StructuralTypeShape::Record { fields, .. } => {
             for field in fields
                 .iter()
                 .rev()
@@ -546,7 +546,7 @@ pub(super) fn valid_nominal_cleanup(
 }
 
 pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape) -> bool {
-    let StructuralTypeShape::Record { fields } = shape else {
+    let StructuralTypeShape::Record { fields, .. } = shape else {
         return false;
     };
     fields.iter().all(|field| {

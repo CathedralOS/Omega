@@ -315,6 +315,7 @@ impl StateGraphEmission<'_, '_> {
                                             _ => StructuralAccess::SharedBorrow,
                                         },
                                     },
+                                    None,
                                     &mut self.catalogs.next_place,
                                     operations,
                                 )?;

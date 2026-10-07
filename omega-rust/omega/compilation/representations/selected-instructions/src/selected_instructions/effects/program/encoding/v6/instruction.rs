@@ -35,6 +35,8 @@ pub(super) fn decode_instruction(
         7 => MachineMemoryEffect::ReadFrameStorageV1,
         6 => MachineMemoryEffect::CopyBytesV1,
         10 => MachineMemoryEffect::ScanByteSequenceV1,
+        13 => MachineMemoryEffect::ReadEncodedScalarV1,
+        14 => MachineMemoryEffect::WriteEncodedScalarV1,
         11 => MachineMemoryEffect::CompareByteSequencesV1,
         12 => MachineMemoryEffect::ZeroBytesV1,
         4 => MachineMemoryEffect::WritePointerV1,
@@ -152,6 +154,8 @@ fn decode_kind(
             }
         }
         234 => SelectedInstructionKind::CompareByteSequences,
+        236 => SelectedInstructionKind::LoadEncodedScalar,
+        237 => SelectedInstructionKind::StoreEncodedScalar,
         235 => SelectedInstructionKind::ZeroBytes,
         2 => SelectedInstructionKind::CopyI64,
         26 => SelectedInstructionKind::Float32ToBits,
@@ -524,6 +528,8 @@ fn decode_alternative_for_version(
         59 => MachineAlternativeFamily::CopyBytes,
         233 => MachineAlternativeFamily::ScanByteSequence,
         234 => MachineAlternativeFamily::CompareByteSequences,
+        236 => MachineAlternativeFamily::LoadEncodedScalar,
+        237 => MachineAlternativeFamily::StoreEncodedScalar,
         235 => MachineAlternativeFamily::ZeroBytes,
         2 => MachineAlternativeFamily::CopyI64,
         26 => MachineAlternativeFamily::Float32ToBits,
@@ -713,6 +719,14 @@ fn decode_encoded_effects(
             source_pointer_operand: cursor.u16()?,
             destination_pointer_operand: cursor.u16()?,
             count_operand: cursor.u16()?,
+        },
+        16 => MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
+            pointer_operand: cursor.u16()?,
+            codec_operand: cursor.u16()?,
+        },
+        17 => MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
+            pointer_operand: cursor.u16()?,
+            codec_operand: cursor.u16()?,
         },
         13 => MachineEncodedMemoryEffect::ScanByteSequenceV1 {
             base_pointer_operand: cursor.u16()?,

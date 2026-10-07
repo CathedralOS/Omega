@@ -168,7 +168,7 @@ pub(crate) fn indexed_element_scalar_type(
         let Walked::Declared(record) = walked else {
             return unsupported("indexed field carrier is not a record");
         };
-        let StructuralTypeShape::Record { fields } = &unique_type(types, record)?.shape else {
+        let StructuralTypeShape::Record { fields, .. } = &unique_type(types, record)?.shape else {
             return unsupported("indexed field carrier is not a record");
         };
         let mut matching = fields.iter().filter(|field| field.identity == *identity);
@@ -251,7 +251,7 @@ fn walk_path(
             }
             (
                 CheckedUnitStructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields },
+                StructuralTypeShape::Record { fields, .. },
             ) => {
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let field = matching.next().ok_or(LoweringError::Unsupported(

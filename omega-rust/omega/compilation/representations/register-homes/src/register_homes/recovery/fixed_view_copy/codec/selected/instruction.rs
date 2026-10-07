@@ -167,6 +167,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
         SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
         SelectedInstructionKind::ScanByteSequence { .. } => 233,
+        SelectedInstructionKind::LoadEncodedScalar => 236,
+        SelectedInstructionKind::StoreEncodedScalar => 237,
         SelectedInstructionKind::CompareByteSequences => 234,
         SelectedInstructionKind::ZeroBytes => 235,
         SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
@@ -419,6 +421,8 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
         (SelectedInstructionKind::Load8Indexed, 21),
         (SelectedInstructionKind::CopyBytes, 59),
         (SelectedInstructionKind::ZeroBytes, 235),
+        (SelectedInstructionKind::LoadEncodedScalar, 236),
+        (SelectedInstructionKind::StoreEncodedScalar, 237),
         (SelectedInstructionKind::ByteViewAddress, 22),
     ] {
         let mut bytes = Vec::new();
@@ -550,6 +554,8 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
             },
         },
         234 => SelectedInstructionKind::CompareByteSequences,
+        236 => SelectedInstructionKind::LoadEncodedScalar,
+        237 => SelectedInstructionKind::StoreEncodedScalar,
         235 => SelectedInstructionKind::ZeroBytes,
         14 => SelectedInstructionKind::Jump,
         0 => SelectedInstructionKind::CompareI64Zero,

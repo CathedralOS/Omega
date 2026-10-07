@@ -11,6 +11,18 @@ use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment,
 };
 
+/// Formation's scalar namespace and emission context. Runtime selectors are
+/// evaluated once before the reference owns its captured endpoint; catalog
+/// provenance lowering has no runtime evaluation environment.
+pub(crate) struct ReferenceSourceEvaluation<'scope, 'calls> {
+    pub(crate) values: &'scope [terminal_psi::ValueDeclaration],
+    pub(crate) selectors: &'scope mut dyn Iterator<Item = semantic_vocabulary::ValueId>,
+    pub(crate) calls:
+        &'scope mut crate::emission::operation_emission::calls::CallEmissionContext<'calls>,
+    pub(crate) next_value: &'scope mut u64,
+    pub(crate) operations: &'scope mut crate::emission::operation_emission::buffer::OperationBuffer,
+}
+
 /// Resolve the original source home and typed prefix through the ordinary
 /// argument owner, then retain the reference-source leaf marker. Formation,
 /// access and escape permission remain with reference custody validation.
@@ -22,6 +34,7 @@ pub(crate) fn lower_reference_source(
     structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
     primitive_locals: &[super::super::primitive_locals::PrimitiveLocal],
     structural_locals: &[StructuralLocalBinding],
+    evaluation: Option<ReferenceSourceEvaluation<'_, '_>>,
 ) -> Result<StructuralArgument, LoweringError> {
     if source.access == CheckedStructuralAccess::Owned {
         return unsupported("reference source cannot transfer owned custody");
@@ -34,6 +47,21 @@ pub(crate) fn lower_reference_source(
     if has_leaf_marker {
         prefix.path.pop();
     }
+    let mut empty_selectors = std::iter::empty();
+    let (values, selectors, calls, emission) = match evaluation {
+        Some(evaluation) => (
+            Some(evaluation.values),
+            evaluation.selectors,
+            Some(evaluation.calls),
+            Some((evaluation.next_value, evaluation.operations)),
+        ),
+        None => (
+            None,
+            &mut empty_selectors as &mut dyn Iterator<Item = semantic_vocabulary::ValueId>,
+            None,
+            None,
+        ),
+    };
     let arguments = lower_structural_arguments(
         std::slice::from_ref(&prefix),
         structural_types,
@@ -44,10 +72,10 @@ pub(crate) fn lower_reference_source(
         &[],
         primitive_locals,
         structural_locals,
-        None,
-        &mut std::iter::empty(),
-        None,
-        None,
+        values,
+        selectors,
+        calls,
+        emission,
     )?;
     let [mut argument] = <[StructuralArgument; 1]>::try_from(arguments)
         .map_err(|_| LoweringError::Unsupported("reference source is not one argument"))?;
@@ -78,6 +106,7 @@ pub(crate) fn lower_reference_result_sources(
                 &[],
                 &[],
                 &[],
+                None,
             )?;
             Ok(terminal_psi::StructuralReferenceResultSource {
                 path: super::lower_structural_path(&reference.path)?,

@@ -69,7 +69,7 @@ impl<'a> StructuralTypeLookup<'a> {
             current = match (segment, &declaration.shape) {
                 (
                     StructuralPathSegment::Field(identity),
-                    StructuralTypeShape::Record { fields },
+                    StructuralTypeShape::Record { fields, .. },
                 ) => {
                     let field = fields.iter().find(|field| {
                         field.identity == *identity && !field.relevance.is_erased()

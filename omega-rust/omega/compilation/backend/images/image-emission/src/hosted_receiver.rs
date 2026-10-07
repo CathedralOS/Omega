@@ -996,7 +996,7 @@ fn receiver_layout(
     {
         return Err(invalid());
     }
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err(invalid());
     };
     // Every erased receiver field must rejoin exactly one Fused establishment
@@ -1179,6 +1179,7 @@ fn validate_receiver_fields(
                     };
                     match &nested_declaration.shape {
                         StructuralTypeShape::Record {
+                            storage: None,
                             fields: nested_fields,
                         }
                         | StructuralTypeShape::Mixed {
@@ -1246,7 +1247,7 @@ fn zero_valid_record_storage(
     }
     visiting.push(structural_type);
     let valid = match &declaration.shape {
-        StructuralTypeShape::Record { fields } => fields
+        StructuralTypeShape::Record { fields, .. } => fields
             .iter()
             .all(|field| zero_valid_field(declarations, field, visiting)),
         StructuralTypeShape::FixedArray { element, .. } => {

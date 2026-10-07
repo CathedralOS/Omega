@@ -180,7 +180,7 @@ fn resolve_path<'types>(
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
                     None => match shape {
-                        terminal_psi::StructuralTypeShape::Record { fields }
+                        terminal_psi::StructuralTypeShape::Record { fields, .. }
                         | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => {
                             fields.as_slice()
                         }

@@ -118,8 +118,8 @@ macro_rules! machine_semantic_kinds {
 
         impl MachineSemanticKind {
             #[allow(unused_assignments)]
-            const FIXED: [Self; 121] = {
-                let mut fixed = [Self::Crash; 121];
+            const FIXED: [Self; 123] = {
+                let mut fixed = [Self::Crash; 123];
                 let mut index = 0usize;
                 $( machine_semantic_kinds!(@entry (fixed, index) $kind $variant $(($payload))?); )*
                 fixed
@@ -220,6 +220,8 @@ machine_semantic_kinds! {
         /// pointer; the defined operand is the 0/1 verdict.
         fixed ScanByteSequence
     },
+    { fixed LoadEncodedScalar },
+    { fixed StoreEncodedScalar },
     {
         /// Compare two measured byte spans; the defined operand is the 0/1
         /// verdict, and mismatched counts read no bytes.
@@ -377,6 +379,8 @@ pub enum MachineAlternativeFamily {
     SaturatingMultiply(SaturatingCarrier),
     ImmutableImageAddress,
     ScanByteSequence,
+    LoadEncodedScalar,
+    StoreEncodedScalar,
     CompareByteSequences,
     ZeroBytes,
     TrappingInteger(TrappingForm),
@@ -462,6 +466,8 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::FrameAddress => Self::FrameAddress,
             MachineSemanticKind::ImmutableImageAddress => Self::ImmutableImageAddress,
             MachineSemanticKind::ScanByteSequence => Self::ScanByteSequence,
+            MachineSemanticKind::LoadEncodedScalar => Self::LoadEncodedScalar,
+            MachineSemanticKind::StoreEncodedScalar => Self::StoreEncodedScalar,
             MachineSemanticKind::CompareByteSequences => Self::CompareByteSequences,
             MachineSemanticKind::ZeroBytes => Self::ZeroBytes,
             MachineSemanticKind::CallUnit => Self::CallUnit,
@@ -539,6 +545,10 @@ pub enum MachineMemoryEffect {
     CopyBytesV1,
     /// Reads `count` bytes at the base pointer while evaluating the predicate.
     ScanByteSequenceV1,
+    /// Reads precisely the footprint selected by an admitted scalar storage codec.
+    ReadEncodedScalarV1,
+    /// Writes precisely that footprint in the original backing.
+    WriteEncodedScalarV1,
     /// Reads each span's bytes while comparing them; mismatched counts read
     /// no bytes.
     CompareByteSequencesV1,
@@ -693,6 +703,14 @@ pub enum MachineEncodedMemoryEffect {
     ScanByteSequenceV1 {
         base_pointer_operand: u16,
         count_operand: u16,
+    },
+    ReadEncodedScalarV1 {
+        pointer_operand: u16,
+        codec_operand: u16,
+    },
+    WriteEncodedScalarV1 {
+        pointer_operand: u16,
+        codec_operand: u16,
     },
     /// Reads each span's bytes while comparing them; the four operand homes
     /// double as the compare's live inputs and mismatched counts read none.

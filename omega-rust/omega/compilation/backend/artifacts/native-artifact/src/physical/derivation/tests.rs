@@ -220,6 +220,7 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
                         id: StructuralCaseId::new(2).unwrap(),
                         identity: "Value".into(),
                         fields: vec![StructuralFieldDeclaration {
+                            storage: None,
                             id: StructuralFieldId::new(1).unwrap(),
                             identity: "value".into(),
                             relevance: BindingRelevance::Relevant,

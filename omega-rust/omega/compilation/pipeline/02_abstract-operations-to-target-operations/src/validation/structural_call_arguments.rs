@@ -1891,7 +1891,14 @@ impl Replay<'_> {
         else {
             return Err(psi_operation);
         };
-        if actual.shape != structural_shapes::parameter_shape(referent, actual.access) {
+        if actual.shape
+            != structural_shapes::internal_parameter_shape(
+                actual.structural_type,
+                referent,
+                actual.access,
+                self.declarations,
+            )
+        {
             return Err(psi_operation);
         }
         let Some(destination) = expected_plan.parameters.get(plan_index) else {
@@ -2183,7 +2190,13 @@ impl Replay<'_> {
             && actual.structural_type == selected
             && actual.source_byte_offset == offset
             && structural_shapes::reconstruct(selected, self.declarations).is_ok_and(|shape| {
-                actual.shape == structural_shapes::parameter_shape(shape, actual.access)
+                actual.shape
+                    == structural_shapes::internal_parameter_shape(
+                        selected,
+                        shape,
+                        actual.access,
+                        self.declarations,
+                    )
             })
     }
 

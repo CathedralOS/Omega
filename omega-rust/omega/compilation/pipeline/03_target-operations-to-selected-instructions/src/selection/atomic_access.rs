@@ -46,7 +46,7 @@ pub(super) fn form(
     if !indices.is_empty() {
         return None;
     }
-    let StructuralTypeShape::Record { fields } = &signature
+    let StructuralTypeShape::Record { fields, .. } = &signature
         .structural_types
         .iter()
         .find(|declaration| declaration.id == carrier)?

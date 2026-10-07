@@ -26,10 +26,14 @@ use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 
+mod encoding;
+
+pub(crate) use encoding::scalar_fits_storage;
+
 /// A loan pins its owner's exact activation until it returns. Stack depth is
 /// stable across nested calls; the machine and type prevent namespace rebinding.
 /// This is the same frame-home contract used by borrowed byte-array storage.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PrimitiveStorageHome {
     depth: usize,
     machine: MachineId,
@@ -37,8 +41,8 @@ pub(crate) struct PrimitiveStorageHome {
     structural_type: StructuralTypeId,
 }
 
-#[derive(Clone)]
-pub(crate) enum PrimitiveStorage {
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) enum PrimitiveStorageEndpoint {
     Scalar(StructuralRuntimePlace),
     /// One scalar leaf inside a shared referent's containing record. The key
     /// addresses `structural_scalar_fields` directly: primitive root storage
@@ -52,6 +56,23 @@ pub(crate) enum PrimitiveStorage {
         home: PrimitiveStorageHome,
         index: usize,
     },
+}
+
+/// Encoding is retained with the endpoint, not reconstructed from a later
+/// formal's semantic scalar type. Canonical storage has no explicit codec.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct PrimitiveStorage {
+    pub(crate) endpoint: PrimitiveStorageEndpoint,
+    pub(crate) stored_scalar: Option<ScalarType>,
+}
+
+impl PrimitiveStorage {
+    fn canonical(endpoint: PrimitiveStorageEndpoint) -> Self {
+        Self {
+            endpoint,
+            stored_scalar: None,
+        }
+    }
 }
 
 /// One ordinary primitive loan retains a storage endpoint, not copied data.
@@ -189,15 +210,15 @@ impl TerminalExecution {
                 parameter.access != StructuralAccess::SharedBorrow,
                 &argument.path,
             )?;
-            let (opaque_identity, path) = match &storage {
-                PrimitiveStorage::ArrayElement { array, index } => {
+            let (opaque_identity, path) = match &storage.endpoint {
+                PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                     let mut path = array.referent.path.clone();
                     path.push(StructuralPathSegment::FixedIndex(
                         u64::try_from(*index).map_err(|_| malformed())?,
                     ));
                     (array.referent.opaque_identity, path)
                 }
-                PrimitiveStorage::OwnedArrayElement { .. } => (
+                PrimitiveStorageEndpoint::OwnedArrayElement { .. } => (
                     self.local_structural_identities
                         .allocate_staged(identity_cursor)?,
                     argument.path.clone(),
@@ -222,11 +243,10 @@ impl TerminalExecution {
             if value.structural_type != parameter.structural_type {
                 return Err(malformed());
             }
-            let (storage, scalar_type, shared_view) = self.primitive_view_access(
-                &value,
-                &[],
-                expected,
-                parameter.access == StructuralAccess::SharedBorrow,
+            let (storage, scalar_type, shared_view) = self.primitive_access(
+                argument.place,
+                parameter.access != StructuralAccess::SharedBorrow,
+                &argument.path,
             )?;
             (value, storage, scalar_type, shared_view)
         };
@@ -505,10 +525,10 @@ impl TerminalExecution {
             let index = usize::try_from(offset.checked_add(*index).ok_or_else(malformed)?)
                 .map_err(|_| malformed())?;
             return Ok((
-                PrimitiveStorage::ArrayElement {
+                PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ArrayElement {
                     array: array.clone(),
                     index,
-                },
+                }),
                 scalar_type,
                 shared_view,
             ));
@@ -581,7 +601,10 @@ impl TerminalExecution {
                 return Err(malformed());
             }
             return Ok((
-                PrimitiveStorage::OwnedArrayElement { home, index },
+                PrimitiveStorage::canonical(PrimitiveStorageEndpoint::OwnedArrayElement {
+                    home,
+                    index,
+                }),
                 scalar_type,
                 shared_view,
             ));
@@ -605,6 +628,7 @@ impl TerminalExecution {
         scalar_type: ScalarType,
         shared_view: bool,
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        let backing_view = view;
         let mut projected = view.clone();
         let mut carrier = view.structural_type;
         for (position, segment) in path.iter().enumerate() {
@@ -616,7 +640,7 @@ impl TerminalExecution {
             match (segment, &declaration.shape) {
                 (
                     semantic_vocabulary::CanonicalStructuralPathSegment::Field(identity),
-                    terminal_psi::StructuralTypeShape::Record { fields },
+                    terminal_psi::StructuralTypeShape::Record { fields, .. },
                 ) => {
                     let field = fields
                         .iter()
@@ -630,10 +654,20 @@ impl TerminalExecution {
                         )
                         && field.field_type.scalar_type() == Some(scalar_type)
                     {
+                        let mut leaf = projected.clone();
+                        leaf.path
+                            .push(StructuralPathSegment::Field(field.identity.clone()));
+                        if let Some(storage) =
+                            self.reference_byte_region_access(backing_view, &leaf, scalar_type)?
+                        {
+                            return Ok((storage, scalar_type, shared_view));
+                        }
                         return Ok((
-                            PrimitiveStorage::ScalarField(StructuralScalarRuntimeField::member(
-                                StructuralRuntimePlace::from(&projected),
-                                field.id,
+                            PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ScalarField(
+                                StructuralScalarRuntimeField::member(
+                                    StructuralRuntimePlace::from(&projected),
+                                    field.id,
+                                ),
                             )),
                             scalar_type,
                             shared_view,
@@ -662,6 +696,9 @@ impl TerminalExecution {
         }
         projected.structural_type = carrier;
         let view = &projected;
+        if let Some(storage) = self.reference_byte_region_access(backing_view, view, scalar_type)? {
+            return Ok((storage, scalar_type, shared_view));
+        }
         // A callee's whole primitive parameter can be the caller's projected
         // array element. Resolve that original backing, shared with byte-view
         // loans, instead of installing a second scalar copy. The call's typed
@@ -686,10 +723,10 @@ impl TerminalExecution {
                     return Err(malformed());
                 }
                 return Ok((
-                    PrimitiveStorage::ArrayElement {
+                    PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ArrayElement {
                         array: array.into(),
                         index,
-                    },
+                    }),
                     scalar_type,
                     shared_view,
                 ));
@@ -710,13 +747,15 @@ impl TerminalExecution {
             let field =
                 self.scalar_leaf_field(view, identity, parent_path, scalar_type, shared_view)?;
             return Ok((
-                PrimitiveStorage::ScalarField(field),
+                PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ScalarField(field)),
                 scalar_type,
                 shared_view,
             ));
         }
         Ok((
-            PrimitiveStorage::Scalar(StructuralRuntimePlace::from(view)),
+            PrimitiveStorage::canonical(PrimitiveStorageEndpoint::Scalar(
+                StructuralRuntimePlace::from(view),
+            )),
             scalar_type,
             shared_view,
         ))
@@ -756,7 +795,7 @@ impl TerminalExecution {
             .get(&parent)
             .ok_or_else(malformed)?;
         let fields = match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Record { fields }
+            terminal_psi::StructuralTypeShape::Record { fields, .. }
             | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
             _ => return Err(malformed()),
         };
@@ -857,7 +896,7 @@ impl TerminalExecution {
             .structural_types
             .get(&record.structural_type)
             .ok_or_else(malformed)?;
-        let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
+        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
             return Ok(None);
         };
         let mut matching = fields.iter().filter(|field| field.identity == *identity);
@@ -877,6 +916,14 @@ impl TerminalExecution {
         };
         if field.relevance.is_erased() || declared != scalar_type {
             return Err(malformed());
+        }
+        let mut leaf = record.clone();
+        leaf.path
+            .push(StructuralPathSegment::Field(identity.clone()));
+        if let Some(storage) = self.reference_byte_region_access(&record, &leaf, scalar_type)? {
+            return self
+                .read_primitive_storage(source, storage, scalar_type, scalar_type, false)
+                .map(Some);
         }
         let cell =
             StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&record), field.id);
@@ -940,8 +987,14 @@ impl TerminalExecution {
         expected: ScalarType,
         shared_view: bool,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-        let scalar = match storage {
-            PrimitiveStorage::OwnedArrayElement { home, index } => {
+        if expected != scalar_type {
+            return Err(malformed());
+        }
+        if let Some(stored_scalar) = storage.stored_scalar {
+            return self.read_encoded_primitive(source, &storage.endpoint, stored_scalar, expected);
+        }
+        let scalar = match storage.endpoint {
+            PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
                 let owner_machine = if home.depth == self.call_stack.len() {
                     self.current_machine
                 } else {
@@ -971,14 +1024,14 @@ impl TerminalExecution {
                         source,
                     ))
             }
-            PrimitiveStorage::Scalar(storage) => self
+            PrimitiveStorageEndpoint::Scalar(storage) => self
                 .structural_primitive_storage
                 .get(&storage)
                 .copied()
                 .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                     source,
                 )),
-            PrimitiveStorage::ScalarField(field) => {
+            PrimitiveStorageEndpoint::ScalarField(field) => {
                 self.structural_scalar_fields.get(&field).copied().ok_or(
                     TerminalInterpretError::StructuralScalarFieldMissing {
                         source,
@@ -986,7 +1039,7 @@ impl TerminalExecution {
                     },
                 )
             }
-            PrimitiveStorage::ArrayElement { array, index } => {
+            PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                 let ScalarType::Integer(integer) = scalar_type else {
                     return Err(malformed());
                 };
@@ -1056,8 +1109,16 @@ impl TerminalExecution {
         if scalar.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(scalar) {
             return Err(malformed());
         }
-        match storage {
-            PrimitiveStorage::OwnedArrayElement { home, index } => {
+        if let Some(stored_scalar) = storage.stored_scalar {
+            return self.store_encoded_primitive(
+                destination,
+                &storage.endpoint,
+                stored_scalar,
+                scalar,
+            );
+        }
+        match storage.endpoint {
+            PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
                 let owner_machine = if home.depth == self.call_stack.len() {
                     self.current_machine
                 } else {
@@ -1090,7 +1151,7 @@ impl TerminalExecution {
                 }
                 *stored = scalar;
             }
-            PrimitiveStorage::Scalar(storage) => {
+            PrimitiveStorageEndpoint::Scalar(storage) => {
                 let stored = self.structural_primitive_storage.get_mut(&storage).ok_or(
                     TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
                 )?;
@@ -1099,7 +1160,7 @@ impl TerminalExecution {
                 }
                 *stored = scalar;
             }
-            PrimitiveStorage::ScalarField(field) => {
+            PrimitiveStorageEndpoint::ScalarField(field) => {
                 let stored = self.structural_scalar_fields.get_mut(&field).ok_or(
                     TerminalInterpretError::StructuralScalarFieldMissing {
                         source: destination,
@@ -1111,7 +1172,7 @@ impl TerminalExecution {
                 }
                 *stored = scalar;
             }
-            PrimitiveStorage::ArrayElement { array, index } => {
+            PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                 let TerminalScalarValue::Integer {
                     value: IntegerValue::Unsigned(value),
                     ..

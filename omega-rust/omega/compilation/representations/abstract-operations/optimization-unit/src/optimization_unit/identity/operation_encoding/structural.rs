@@ -277,11 +277,19 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             psi_operation,
             result,
             source,
+            storage,
         } => {
-            bytes.u8(79);
+            bytes.u8(if storage.is_some() { 110 } else { 79 });
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, source);
+            if let Some(storage) = storage {
+                bytes.id(storage.byte_offset);
+                bytes.boolean(storage.stored_scalar.is_some());
+                if let Some(stored_scalar) = storage.stored_scalar {
+                    super::super::carrier_encoding::encode_scalar_type(bytes, stored_scalar);
+                }
+            }
         }
         O::ReleaseReference {
             psi_operation,

@@ -166,6 +166,15 @@ pub struct SelectedStructuralBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedStructuralTransport {
     Unused,
+    /// Bind an internal scalar loan's address and interpretation as one pair.
+    /// A descriptor source supplies both words; canonical storage lends its
+    /// address and supplies an admitted codec without copying backing bytes.
+    ScalarReference {
+        base: SelectedAddressBase,
+        byte_offset: u32,
+        source: SelectedScalarReferenceSource,
+        destination: super::LocalStorageSlotId,
+    },
     /// Snapshot the complete selected value before replacing its destination.
     /// An empty semantic path has offset zero; a projection selects storage
     /// inside the same root pointer without changing that root's identity.
@@ -186,6 +195,12 @@ pub enum SelectedStructuralTransport {
         byte_count: u32,
         destination: super::LocalStorageSlotId,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedScalarReferenceSource {
+    Canonical { codec: u64 },
+    Descriptor,
 }
 
 /// The storage root an address transport offsets from.

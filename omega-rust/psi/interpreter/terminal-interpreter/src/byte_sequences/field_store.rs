@@ -321,7 +321,7 @@ impl TerminalExecution {
             .structural_types
             .get(&parent.structural_type)
             .ok_or_else(malformed)?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
             return Err(malformed());
         };
         let field_declaration = fields

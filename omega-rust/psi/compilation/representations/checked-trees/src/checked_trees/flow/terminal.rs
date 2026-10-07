@@ -79,7 +79,7 @@ pub use scalar_return_plans::{
     CheckedStructuralScalarReturnPlans,
 };
 pub use structural_argument_plans::{
-    CheckedCallScalarArgument, CheckedUnitCallCoordinate, CheckedUnitEntryClaimPlan,
+    CheckedCallScalarArgument, CheckedReferenceStorage, CheckedUnitCallCoordinate, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
 pub use structural_control_plans::{

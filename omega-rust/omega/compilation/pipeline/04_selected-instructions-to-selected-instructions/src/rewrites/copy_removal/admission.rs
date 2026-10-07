@@ -161,7 +161,10 @@ fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId
                     destination,
                     ..
                 } => argument == register || local_slot_mentions(destination, register),
-                SelectedStructuralTransport::Address {
+                SelectedStructuralTransport::ScalarReference {
+                    base, destination, ..
+                }
+                | SelectedStructuralTransport::Address {
                     base, destination, ..
                 } => {
                     local_slot_mentions(destination, register)
@@ -610,7 +613,10 @@ fn lower_successor(
                 *argument = lower_register(*argument, removed_register)?;
                 lower_local_slot(destination, removed_register)?;
             }
-            SelectedStructuralTransport::Address {
+            SelectedStructuralTransport::ScalarReference {
+                base, destination, ..
+            }
+            | SelectedStructuralTransport::Address {
                 base, destination, ..
             } => {
                 match base {

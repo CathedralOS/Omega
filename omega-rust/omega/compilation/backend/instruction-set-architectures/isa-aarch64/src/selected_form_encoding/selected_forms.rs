@@ -5,6 +5,7 @@ use crate::saturating_forms::SaturatingRealization;
 use crate::selected_form_encoding::compare_byte_sequences;
 use crate::selected_form_encoding::copy_bytes;
 use crate::selected_form_encoding::decoding::{decode_words, footprint, validate_decoded};
+use crate::selected_form_encoding::encoded_scalar;
 use crate::selected_form_encoding::float_bits;
 use crate::selected_form_encoding::movn_materialization::append_canonical_materialization;
 use crate::selected_form_encoding::scan_byte_sequence;
@@ -29,6 +30,12 @@ pub fn encode_aarch64_selected_form(
     }
     if kind == SelectedInstructionKind::ZeroBytes {
         return zero_bytes::encode(physical, alternative, operands);
+    }
+    if matches!(
+        kind,
+        SelectedInstructionKind::LoadEncodedScalar | SelectedInstructionKind::StoreEncodedScalar
+    ) {
+        return encoded_scalar::encode(physical, kind, alternative, operands);
     }
     if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
         return scan_byte_sequence::encode(physical, predicate, alternative, operands);
@@ -58,6 +65,12 @@ pub fn validate_aarch64_selected_form_encoding(
     }
     if kind == SelectedInstructionKind::ZeroBytes {
         return zero_bytes::validate(physical, alternative, operands, bytes);
+    }
+    if matches!(
+        kind,
+        SelectedInstructionKind::LoadEncodedScalar | SelectedInstructionKind::StoreEncodedScalar
+    ) {
+        return encoded_scalar::validate(physical, kind, alternative, operands, bytes);
     }
     if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
         return scan_byte_sequence::validate(physical, predicate, alternative, operands, bytes);
@@ -287,6 +300,8 @@ fn family_and_operand_count(
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
+        | SelectedInstructionKind::LoadEncodedScalar
+        | SelectedInstructionKind::StoreEncodedScalar
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
@@ -676,6 +691,8 @@ fn encode_unchecked(
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
+        | SelectedInstructionKind::LoadEncodedScalar
+        | SelectedInstructionKind::StoreEncodedScalar
         | SelectedInstructionKind::CompareByteSequences
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }

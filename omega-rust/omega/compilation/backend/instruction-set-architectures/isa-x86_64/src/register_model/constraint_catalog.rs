@@ -12,14 +12,15 @@ use crate::register_model::{
     X86_64_DIVIDE_I64, X86_64_DIVIDE_U64, X86_64_FLOAT32_TO_BITS, X86_64_FLOAT64_TO_BITS,
     X86_64_FRAME_ADDRESS, X86_64_HOSTED_EXIT_PROCESS_I32, X86_64_HOSTED_READ_BYTE,
     X86_64_HOSTED_WRITE_BYTE_I32, X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_JUMP,
-    X86_64_LINUX_SYSTEM_CALL, X86_64_LOAD8, X86_64_LOAD8_INDEXED, X86_64_LOAD16, X86_64_LOAD32,
-    X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL,
-    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_MULTIPLY_I64,
-    X86_64_REMAINDER_I64, X86_64_REMAINDER_U64, X86_64_REQUIRED_REGISTER_CONSTRAINTS,
-    X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64, X86_64_SATURATING_DIVIDE_SIGNED,
-    X86_64_SATURATING_MULTIPLY_CLAMPED, X86_64_SATURATING_MULTIPLY_U64,
-    X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED,
-    X86_64_SCAN_BYTE_SEQUENCE, X86_64_SHIFT_I64, X86_64_STORE, X86_64_STORE64, X86_64_SUBTRACT_I64,
+    X86_64_LINUX_SYSTEM_CALL, X86_64_LOAD_ENCODED_SCALAR, X86_64_LOAD8, X86_64_LOAD8_INDEXED,
+    X86_64_LOAD16, X86_64_LOAD32, X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN,
+    X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN,
+    X86_64_MICROSOFT_RETURN_UNIT, X86_64_MULTIPLY_I64, X86_64_REMAINDER_I64, X86_64_REMAINDER_U64,
+    X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64,
+    X86_64_SATURATING_DIVIDE_SIGNED, X86_64_SATURATING_MULTIPLY_CLAMPED,
+    X86_64_SATURATING_MULTIPLY_U64, X86_64_SATURATING_SUBTRACT_CLAMPED,
+    X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SCAN_BYTE_SEQUENCE, X86_64_SHIFT_I64, X86_64_STORE,
+    X86_64_STORE_ENCODED_SCALAR, X86_64_STORE64, X86_64_SUBTRACT_I64,
     X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
     X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, X86_64_TRAPPING_BINARY,
     X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR, X86_64_TRAPPING_SHIFT, X86_64_ZERO_BYTES,
@@ -1032,6 +1033,35 @@ pub fn x86_64_register_constraint_catalog(
         implicit_defs: Vec::new(),
         clobbers: view("rflags").units.clone(),
     });
+    // Scalar codecs carry the actual byte footprint. Every working home is
+    // early-clobber, so neither input nor another scratch home can alias it.
+    for (key, input_count) in [
+        (X86_64_LOAD_ENCODED_SCALAR, 2),
+        (X86_64_STORE_ENCODED_SCALAR, 3),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: (0..6)
+                .map(|operand| {
+                    let mut row = allocatable(
+                        operand,
+                        if operand < input_count {
+                            RegisterOperandAccess::Use
+                        } else {
+                            RegisterOperandAccess::Def
+                        },
+                        GPR64,
+                    );
+                    row.early_clobber = operand >= input_count;
+                    row
+                })
+                .collect(),
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: view("rflags").units.clone(),
+        });
+    }
     // The scan reads its preserved base/count inputs while the loop cursors
     // are written before any input home is consumed; the verdict operand is
     // the only lasting definition. Flags fall to the compare/branch pair.

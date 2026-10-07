@@ -37,11 +37,20 @@ pub(crate) fn encode_structural_type(
             writer.u8(8);
             writer.id(*element);
         }
-        StructuralTypeShape::Record { fields } => {
-            writer.u8(1);
+        StructuralTypeShape::Record { fields, storage } => {
+            writer.u8(if storage.is_some() { 10 } else { 1 });
+            if let Some(storage) = storage {
+                writer.u64(storage.byte_size);
+                writer.u64(storage.byte_alignment);
+            }
             writer.len("structural fields", fields.len())?;
             for field in fields {
                 encode_structural_field(writer, field)?;
+            }
+            if storage.is_some() {
+                for field in fields {
+                    encode_authored_field_storage(writer, field.storage);
+                }
             }
         }
         StructuralTypeShape::FixedArray { element, length } => {
@@ -94,8 +103,23 @@ pub(crate) fn decode_structural_type(
         },
         6 => StructuralTypeShape::PrimitiveScalar(decode_scalar_type(reader)?),
         1 => StructuralTypeShape::Record {
+            storage: None,
             fields: decode_counted(reader, decode_structural_field)?,
         },
+        10 => {
+            let storage = semantic_vocabulary::AuthoredRecordStorage {
+                byte_size: reader.u64()?,
+                byte_alignment: reader.u64()?,
+            };
+            let mut fields = decode_counted(reader, decode_structural_field)?;
+            for field in &mut fields {
+                field.storage = decode_authored_field_storage(reader)?;
+            }
+            StructuralTypeShape::Record {
+                fields,
+                storage: Some(storage),
+            }
+        }
         8 => StructuralTypeShape::ElementView {
             element: reader.id("StructuralTypeId")?,
         },
@@ -132,4 +156,133 @@ pub(crate) fn decode_structural_type(
         identity,
         shape,
     })
+}
+
+fn encode_authored_field_storage(
+    writer: &mut Writer,
+    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+) {
+    use semantic_vocabulary::AuthoredFieldStorage;
+    match storage {
+        None => writer.u8(0),
+        Some(AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar,
+        }) => {
+            writer.u8(if stored_scalar.is_some() { 2 } else { 1 });
+            writer.u64(byte_offset);
+            if let Some(scalar) = stored_scalar {
+                encode_scalar_type(writer, scalar);
+            }
+        }
+        Some(AuthoredFieldStorage::Repeated {
+            byte_offset,
+            element_stride,
+        }) => {
+            writer.u8(3);
+            writer.u64(byte_offset);
+            writer.u64(element_stride);
+        }
+        Some(AuthoredFieldStorage::Direct { byte_offset }) => {
+            writer.u8(4);
+            writer.u64(byte_offset);
+        }
+        Some(AuthoredFieldStorage::Fragmented) => writer.u8(5),
+    }
+}
+
+fn decode_authored_field_storage(
+    reader: &mut Reader<'_>,
+) -> Result<Option<semantic_vocabulary::AuthoredFieldStorage>, CodecError> {
+    use semantic_vocabulary::AuthoredFieldStorage;
+    Ok(match reader.u8()? {
+        0 => None,
+        1 => Some(AuthoredFieldStorage::Scalar {
+            byte_offset: reader.u64()?,
+            stored_scalar: None,
+        }),
+        2 => Some(AuthoredFieldStorage::Scalar {
+            byte_offset: reader.u64()?,
+            stored_scalar: Some(decode_scalar_type(reader)?),
+        }),
+        3 => Some(AuthoredFieldStorage::Repeated {
+            byte_offset: reader.u64()?,
+            element_stride: reader.u64()?,
+        }),
+        4 => Some(AuthoredFieldStorage::Direct {
+            byte_offset: reader.u64()?,
+        }),
+        5 => Some(AuthoredFieldStorage::Fragmented),
+        tag => return Err(CodecError::InvalidTag("AuthoredFieldStorage", tag)),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{
+        AuthoredFieldStorage, AuthoredRecordStorage, IntegerSign, IntegerType, ScalarType,
+        StructuralFieldId, StructuralTypeId,
+    };
+    use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
+
+    #[test]
+    fn authored_record_geometry_round_trips_without_widening_its_scalar() {
+        let stored =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("signed byte"));
+        let declaration = StructuralTypeDeclaration {
+            id: StructuralTypeId::new(1).expect("record identity"),
+            identity: "encoded record".into(),
+            shape: StructuralTypeShape::Record {
+                storage: Some(AuthoredRecordStorage {
+                    byte_size: 1,
+                    byte_alignment: 1,
+                }),
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).expect("field identity"),
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Signed, 64).expect("logical integer"),
+                    )),
+                    storage: Some(AuthoredFieldStorage::Scalar {
+                        byte_offset: 0,
+                        stored_scalar: Some(stored),
+                    }),
+                }],
+            },
+        };
+        let mut writer = Writer::default();
+        encode_structural_type(&mut writer, &declaration).expect("encode record");
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_structural_type(&mut reader).expect("decode record"),
+            declaration
+        );
+        assert_eq!(reader.remaining(), 0);
+    }
+
+    #[test]
+    fn authored_field_wire_preserves_absence_stride_and_fragmentation() {
+        for storage in [
+            None,
+            Some(semantic_vocabulary::AuthoredFieldStorage::Repeated {
+                byte_offset: 3,
+                element_stride: 5,
+            }),
+            Some(semantic_vocabulary::AuthoredFieldStorage::Direct { byte_offset: 7 }),
+            Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented),
+        ] {
+            let mut writer = Writer::default();
+            encode_authored_field_storage(&mut writer, storage);
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(
+                decode_authored_field_storage(&mut reader).expect("decode field geometry"),
+                storage
+            );
+            assert_eq!(reader.remaining(), 0);
+        }
+    }
 }

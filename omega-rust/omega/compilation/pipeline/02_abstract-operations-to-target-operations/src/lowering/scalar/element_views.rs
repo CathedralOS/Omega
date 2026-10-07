@@ -327,7 +327,8 @@ fn scalar_leaf_offset(
                     .ok()?;
             (parent, offset)
         };
-        let StructuralTypeShape::Record { fields } = &structural_types.get(&parent)?.shape else {
+        let StructuralTypeShape::Record { fields, .. } = &structural_types.get(&parent)?.shape
+        else {
             return None;
         };
         let field = fields.iter().find(|field| field.identity == *identity)?;

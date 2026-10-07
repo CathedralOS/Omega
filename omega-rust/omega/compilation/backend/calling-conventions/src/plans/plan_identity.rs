@@ -238,6 +238,7 @@ impl Fnv1a {
             ValueClass::Integer => self.u8(0),
             ValueClass::Float => self.u8(1),
             ValueClass::BorrowedReference => self.u8(4),
+            ValueClass::BorrowedScalarReference => self.u8(5),
             ValueClass::HomogeneousFloatAggregate { members } => {
                 self.u8(2);
                 self.u8(members);

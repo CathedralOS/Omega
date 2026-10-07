@@ -666,10 +666,10 @@ pub(super) fn callee_plan(
                         || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(parameter, placement).is_some()))
             || scalar_stack(placement)
             || crate::structural_inputs::structural_reference_input::stack_pointer_offset(placement).is_some()
-            || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+            || matches!(placement.shape.class, calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference)
                 && matches!(placement.locations.as_slice(),
                     [ValueLocation::Register { value_byte_offset: 0, byte_size: 8, .. }])
-            || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+            || matches!(placement.shape.class, calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference)
                 && matches!(
                     placement.locations.as_slice(),
                     [ValueLocation::Indirect {

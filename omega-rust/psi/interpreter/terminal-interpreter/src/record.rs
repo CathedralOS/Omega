@@ -47,6 +47,7 @@ impl TerminalExecution {
             .ok_or_else(malformed)?;
         let StructuralTypeShape::Record {
             fields: declarations,
+            ..
         } = &declaration.shape
         else {
             return Err(malformed());

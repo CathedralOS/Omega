@@ -145,6 +145,7 @@ pub(crate) fn record_establishment_matches(
     }
     let Some(terminal_psi::StructuralTypeDeclaration {
         shape: StructuralTypeShape::Record {
+            storage: None,
             fields: declarations,
         },
         ..
@@ -435,7 +436,7 @@ fn record_type(
             .copied()
             .map(|declaration| &declaration.shape)
         {
-            Some(StructuralTypeShape::Record { fields }) => fields.iter().collect(),
+            Some(StructuralTypeShape::Record { fields, .. }) => fields.iter().collect(),
             Some(StructuralTypeShape::Sum { cases }) => {
                 cases.iter().flat_map(|case| case.fields.iter()).collect()
             }
@@ -523,7 +524,7 @@ pub(crate) fn constructible(
         };
         // Fixed arrays carry every element as a member slot.
         let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
             StructuralTypeShape::Sum { cases } => {
                 cases.iter().flat_map(|case| case.fields.iter()).collect()
             }

@@ -22,7 +22,9 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
         id: StructuralTypeId::new(7).unwrap(),
         identity: "Refined".into(),
         shape: StructuralTypeShape::Record {
+            storage: None,
             fields: vec![StructuralFieldDeclaration {
+                storage: None,
                 id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
                 identity: "enabled".into(),
                 relevance: BindingRelevance::Relevant,
@@ -67,7 +69,10 @@ fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     assert_eq!(cursor.remaining(), 0);
 
     let mut record = declaration.clone();
-    record.shape = StructuralTypeShape::Record { fields: Vec::new() };
+    record.shape = StructuralTypeShape::Record {
+        storage: None,
+        fields: Vec::new(),
+    };
     let mut record_bytes = Vec::new();
     encode_type(&mut record_bytes, &record).unwrap();
     assert_ne!(encoded, record_bytes);

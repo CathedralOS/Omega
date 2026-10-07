@@ -34,9 +34,9 @@ fn address(transport: SelectedStructuralTransport) -> Option<Address> {
             byte_count,
             destination,
         } => Some((base, byte_offset, byte_count, destination)),
-        SelectedStructuralTransport::Unused | SelectedStructuralTransport::WholeValue { .. } => {
-            None
-        }
+        SelectedStructuralTransport::Unused
+        | SelectedStructuralTransport::WholeValue { .. }
+        | SelectedStructuralTransport::ScalarReference { .. } => None,
     }
 }
 

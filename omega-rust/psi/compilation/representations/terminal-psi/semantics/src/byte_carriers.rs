@@ -57,7 +57,7 @@ pub fn byte_carrier_scalar_layout<'types>(
     root: StructuralTypeId,
 ) -> Option<ByteCarrierLayout> {
     let declaration = types.into_iter().find(|item| item.id == root)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return None;
     };
     let mut leaves = Vec::with_capacity(fields.len());

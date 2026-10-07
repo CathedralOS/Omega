@@ -785,6 +785,8 @@ pub(crate) fn encode_unchecked(
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
+        | SelectedInstructionKind::LoadEncodedScalar
+        | SelectedInstructionKind::StoreEncodedScalar
         | SelectedInstructionKind::CompareByteSequences
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }

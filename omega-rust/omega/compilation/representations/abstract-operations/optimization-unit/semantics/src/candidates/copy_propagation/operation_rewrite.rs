@@ -22,6 +22,9 @@ pub(crate) fn rewrite_block_parameter_operation(
     };
     match operation {
         O::EstablishStructuralArray { .. } => {}
+        O::EstablishReference { storage, .. } => {
+            if let Some(view) = storage { replace(&mut view.byte_offset); }
+        }
         O::EstablishScalarArray { elements, .. } => {
             for element in elements {
                 replace(element);
@@ -187,7 +190,6 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
         | O::StructuralScalarFieldRead { .. }
-        | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         // A restoration window's fields are structural places and
         // declarations — custody identity, never scalar uses a block

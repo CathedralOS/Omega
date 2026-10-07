@@ -757,7 +757,7 @@ fn establish_record(
         .get(&result.structural_type)
         .map(|declaration| &declaration.shape)
     {
-        Some(terminal_psi::StructuralTypeShape::Record { fields }) => fields,
+        Some(terminal_psi::StructuralTypeShape::Record { fields, .. }) => fields,
         _ => {
             return Err(invalid(
                 function,

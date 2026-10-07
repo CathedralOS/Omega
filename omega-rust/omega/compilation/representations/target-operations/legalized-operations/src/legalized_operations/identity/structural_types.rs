@@ -245,9 +245,18 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             bytes.push(8);
             bytes.extend_from_slice(&element.get().to_le_bytes());
         }
-        StructuralTypeShape::Record { fields } => {
-            bytes.push(2);
+        StructuralTypeShape::Record { fields, storage } => {
+            bytes.push(if storage.is_some() { 10 } else { 2 });
+            if let Some(storage) = storage {
+                bytes.extend_from_slice(&storage.byte_size.to_le_bytes());
+                bytes.extend_from_slice(&storage.byte_alignment.to_le_bytes());
+            }
             encode_structural_fields(bytes, fields);
+            if storage.is_some() {
+                for field in fields {
+                    encode_authored_field_storage(bytes, field.storage);
+                }
+            }
         }
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.push(3);
@@ -273,6 +282,39 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
                 encode_structural_fields(bytes, &case.fields);
             }
         }
+    }
+}
+
+fn encode_authored_field_storage(
+    bytes: &mut Vec<u8>,
+    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+) {
+    use semantic_vocabulary::AuthoredFieldStorage;
+    match storage {
+        None => bytes.push(0),
+        Some(AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar,
+        }) => {
+            bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            if let Some(scalar) = stored_scalar {
+                encode_scalar_type(bytes, scalar);
+            }
+        }
+        Some(AuthoredFieldStorage::Repeated {
+            byte_offset,
+            element_stride,
+        }) => {
+            bytes.push(3);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.extend_from_slice(&element_stride.to_le_bytes());
+        }
+        Some(AuthoredFieldStorage::Direct { byte_offset }) => {
+            bytes.push(4);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        Some(AuthoredFieldStorage::Fragmented) => bytes.push(5),
     }
 }
 

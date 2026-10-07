@@ -710,7 +710,7 @@ impl TerminalExecution {
             collection.ok_or_else(malformed)?,
             &selected_path,
         )?;
-        let StructuralTypeShape::Record { fields } = &self
+        let StructuralTypeShape::Record { fields, .. } = &self
             .program
             .structural_types
             .get(&parent.structural_type)

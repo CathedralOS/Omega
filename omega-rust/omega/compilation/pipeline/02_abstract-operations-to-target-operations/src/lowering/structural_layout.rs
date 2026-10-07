@@ -69,7 +69,7 @@ fn primitive_access_projection(
         else {
             return None;
         };
-        if shape != ValueShape::integer(8, 8) {
+        if !matches!(shape.byte_size, 8 | 16) || shape.alignment != 8 {
             return None;
         }
         pointer_slots.push(StorageProjection {
@@ -133,7 +133,7 @@ fn contiguous_primitive_projection(
             &mut BTreeSet::new(),
         )
         .ok()?;
-        if let StructuralTypeShape::Record { fields } = &declarations.get(&carrier)?.shape {
+        if let StructuralTypeShape::Record { fields, .. } = &declarations.get(&carrier)?.shape {
             let field = fields
                 .iter()
                 .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
@@ -208,7 +208,7 @@ fn contiguous_primitive_read_projection(
         &mut BTreeSet::new(),
     )
     .ok()?;
-    let StructuralTypeShape::Record { fields } = &declarations.get(&carrier_type)?.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declarations.get(&carrier_type)?.shape else {
         return None;
     };
     let field = fields
@@ -272,7 +272,14 @@ pub(crate) fn structural_shape(
             // stores the referent's address, never its contents; custody is
             // checked separately. Nested reference leaves use the same layout
             // as whole results, so enclosing record offsets remain coherent.
-            StructuralTypeShape::Reference { .. } => Ok(ValueShape::integer(8, 8)),
+            StructuralTypeShape::Reference { referent, .. } => Ok(ValueShape::integer(
+                if scalar_storage_type(*referent, declarations).is_some() {
+                    16
+                } else {
+                    8
+                },
+                8,
+            )),
             StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
                 Ok(ValueShape::integer(1, 1))
             }
@@ -295,7 +302,15 @@ pub(crate) fn structural_shape(
             // A borrowed element view is a base+extent descriptor, the same
             // two-word carrier as `ByteSequence::BorrowedView`.
             StructuralTypeShape::ElementView { .. } => Ok(ValueShape::integer(16, 8)),
-            StructuralTypeShape::Record { fields } => {
+            StructuralTypeShape::Record { fields, storage } => {
+                if let Some(storage) = storage {
+                    return Ok(ValueShape::integer(
+                        u32::try_from(storage.byte_size)
+                            .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
+                        u16::try_from(storage.byte_alignment)
+                            .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
+                    ));
+                }
                 let mut byte_size = 0_u32;
                 let mut alignment = 1_u16;
                 for field in fields {
@@ -369,6 +384,33 @@ pub(crate) fn structural_shape(
     let shape = result?;
     cache.insert(structural_type, shape);
     Ok(shape)
+}
+
+/// Internal scalar loans carry a descriptor; aggregate loans remain thin.
+pub(super) fn internal_parameter_shape(
+    structural_type: StructuralTypeId,
+    referent: ValueShape,
+    access: StructuralAccess,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> ValueShape {
+    if access != StructuralAccess::Owned
+        && scalar_storage_type(structural_type, declarations).is_some()
+    {
+        ValueShape::borrowed_scalar_reference()
+    } else {
+        structural_parameter_shape(referent, access)
+    }
+}
+
+pub(super) fn scalar_storage_type(
+    structural_type: StructuralTypeId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<ScalarType> {
+    let StructuralTypeShape::PrimitiveScalar(scalar) = declarations.get(&structural_type)?.shape
+    else {
+        return None;
+    };
+    runtime_abi::ScalarStorageCodec::from_scalar(scalar).map(|_| scalar)
 }
 
 pub(super) fn structural_parameter_shape(
@@ -460,6 +502,37 @@ fn conventional_sum_layout_from_parts(
         .collect::<Result<Vec<_>, _>>()?;
     calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
         .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))
+}
+
+fn structural_field_storage_shape(
+    field: &terminal_psi::StructuralFieldDeclaration,
+    owner: StructuralTypeId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<ValueShape, LoweringError> {
+    if let Some(stored) = field.storage.and_then(|storage| storage.stored_scalar()) {
+        let codec = runtime_abi::ScalarStorageCodec::from_scalar(stored)
+            .ok_or(LoweringError::UnknownStructuralType(owner))?;
+        return Ok(ValueShape::integer(u32::from(codec.byte_size()), 1));
+    }
+    structural_field_shape(&field.field_type, owner, declarations, cache, active)
+}
+
+fn structural_field_offset(
+    field: &terminal_psi::StructuralFieldDeclaration,
+    conventional_offset: u32,
+    alignment: u16,
+    owner: StructuralTypeId,
+) -> Result<u32, LoweringError> {
+    match field.storage {
+        Some(storage) => storage
+            .byte_offset()
+            .and_then(|offset| u32::try_from(offset).ok())
+            .ok_or(LoweringError::UnknownStructuralType(owner)),
+        None => checked_align_up_u32(conventional_offset, u32::from(alignment))
+            .ok_or(LoweringError::StructuralTypeTooLarge(owner)),
+    }
 }
 
 fn structural_field_shape(
@@ -554,7 +627,7 @@ fn field_path(
             .get(&structural_type)
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
             return Err(LoweringError::UnknownStructuralType(structural_type));
         };
         let mut local_offset = 0_u32;
@@ -563,15 +636,18 @@ fn field_path(
             if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
                 continue;
             }
-            let field_shape = structural_field_shape(
-                &field.field_type,
+            if field.storage.is_some() && field.identity != *identity {
+                continue;
+            }
+            let field_shape = structural_field_storage_shape(
+                field,
                 structural_type,
                 declarations,
                 cache,
                 active,
             )?;
-            local_offset = checked_align_up_u32(local_offset, u32::from(field_shape.alignment))
-                .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+            local_offset =
+                structural_field_offset(field, local_offset, field_shape.alignment, root_type)?;
             if field.identity == *identity {
                 let field_type = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
@@ -645,25 +721,22 @@ fn byte_sequence_field_geometry(
         .get(&parent_type)
         .copied()
         .ok_or(LoweringError::UnknownStructuralType(parent_type))?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Ok(None);
     };
     let mut local_offset = 0_u32;
     for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-        let field_shape = match structural_field_shape(
-            &field.field_type,
-            parent_type,
-            declarations,
-            cache,
-            active,
-        ) {
-            // Erased carriers occupy no storage; the shape helper declines them.
-            Ok(shape) => shape,
-            Err(_) if matches!(field.field_type, StructuralFieldType::Erased { .. }) => continue,
-            Err(error) => return Err(error),
-        };
-        local_offset = checked_align_up_u32(local_offset, u32::from(field_shape.alignment))
-            .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?;
+        let field_shape =
+            match structural_field_storage_shape(field, parent_type, declarations, cache, active) {
+                // Erased carriers occupy no storage; the shape helper declines them.
+                Ok(shape) => shape,
+                Err(_) if matches!(field.field_type, StructuralFieldType::Erased { .. }) => {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+        local_offset =
+            structural_field_offset(field, local_offset, field_shape.alignment, parent_type)?;
         if field.identity == *identity {
             return match field.field_type {
                 StructuralFieldType::ByteSequence(carrier)
@@ -782,7 +855,7 @@ pub(super) fn case_projection(
                 )
             }
             Segment::Field(identity) => {
-                let (StructuralTypeShape::Record { fields }
+                let (StructuralTypeShape::Record { fields, .. }
                 | StructuralTypeShape::Mixed { fields, .. }) = shape
                 else {
                     return Err(invalid());

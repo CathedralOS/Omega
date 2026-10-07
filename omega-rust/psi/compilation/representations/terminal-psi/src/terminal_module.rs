@@ -34,7 +34,7 @@ pub use boundary::{
 pub use control_flow::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion,
     FloatResultPolicy, FloatSaturationRule, MemoryOrdering, Operation, OperationKind,
-    OperationResult, RecordFieldInitializer, RecordFieldValue, ScalarCaseField,
+    OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, ScalarCaseField,
     StructuralCaseSuccessorEdge, StructuralOperationResult, StructuralResultClaimBinding,
     SuccessorEdge, TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember,
     TargetMachineSupply, TerminalBlockNaturalRank, TerminalMachine, TerminalNaturalCycle,

@@ -389,6 +389,7 @@ mod tests {
                                 id: StructuralCaseId::new(2).unwrap(),
                                 identity: "Byte".into(),
                                 fields: vec![terminal_psi::StructuralFieldDeclaration {
+                                    storage: None,
                                     id: StructuralFieldId::new(1).unwrap(),
                                     identity: "payload".into(),
                                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -500,7 +501,7 @@ mod tests {
                         .unwrap()
                         .structural_types
                         .make_mut()[0]
-                        .shape = StructuralTypeShape::Record { fields: vec![] }
+                        .shape = StructuralTypeShape::Record { storage: None, fields: vec![] }
                 }
                 1 => {
                     selected.boundary_settlements.pop();

@@ -105,8 +105,8 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
                 .chain(&function.scalar_structural_parameter_homes)
                 .any(|home| {
                     home.access != terminal_psi::StructuralAccess::Owned
-                        || home.source.shape.class
-                            == calling_conventions::ValueClass::BorrowedReference
+                        || matches!(home.source.shape.class,
+                            calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference)
                         || matches!(
                             home.location,
                             machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
@@ -119,11 +119,11 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
                 .any(|argument| {
                     argument.access != terminal_psi::StructuralAccess::Owned
                         || argument.source.placement().is_none_or(|placement| {
-                            placement.shape.class
-                                == calling_conventions::ValueClass::BorrowedReference
+                            matches!(placement.shape.class,
+                                calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference)
                         })
-                        || argument.destination.shape.class
-                            == calling_conventions::ValueClass::BorrowedReference
+                        || matches!(argument.destination.shape.class,
+                            calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference)
                         || matches!(
                             argument.source_location,
                             machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }

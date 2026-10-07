@@ -69,7 +69,8 @@ pub(in crate::execution::terminal_unit) fn retire_guarded_reference_completion(
         .iter()
         .enumerate()
         .filter_map(|(index, operation)| {
-            let CheckedUnitEffectOperationPlan::EstablishReference { result, source } = operation
+            let CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } =
+                operation
             else {
                 return None;
             };

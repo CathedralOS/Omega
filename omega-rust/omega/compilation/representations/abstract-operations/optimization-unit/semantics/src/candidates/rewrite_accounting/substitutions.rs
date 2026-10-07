@@ -14,6 +14,9 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
     };
     match operation {
         O::EstablishStructuralArray { .. } => {}
+        O::EstablishReference { storage, .. } => {
+            if let Some(view) = storage { replace(&mut view.byte_offset); }
+        }
         O::EstablishScalarArray { elements, .. } => {
             for element in elements {
                 replace(element);
@@ -158,7 +161,6 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
         | O::StructuralScalarFieldRead { .. }
-        | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         // A restoration window's fields are structural places and
         // declarations — custody identity, never scalar uses a value
@@ -169,6 +171,70 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
+    use terminal_psi::{
+        ReferenceStorageView, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralOperationResult,
+    };
+
+    #[test]
+    fn scalar_substitution_remaps_captured_offset_without_changing_backing() {
+        let offset = ValueId::new(1).unwrap();
+        let replacement = ValueId::new(2).unwrap();
+        let mut operation = O::EstablishReference {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: StructuralOperationResult {
+                place: PlaceId::new(2).unwrap(),
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: vec![],
+                projected_qualifications: vec![],
+                qualification_establishments: vec![],
+                claims: vec![],
+            },
+            source: StructuralArgument {
+                place: PlaceId::new(1).unwrap(),
+                path: vec![],
+                access: StructuralAccess::MutableBorrow,
+            },
+            storage: Some(ReferenceStorageView {
+                byte_offset: offset,
+                stored_scalar: Some(semantic_vocabulary::ScalarType::Boolean),
+            }),
+        };
+        let original = operation.clone();
+        rewrite_scalar_value_uses(&mut operation, offset, replacement);
+        let O::EstablishReference {
+            storage: Some(storage),
+            source,
+            result,
+            ..
+        } = &operation
+        else {
+            panic!("reference operation lost");
+        };
+        assert_eq!(storage.byte_offset, replacement);
+        let O::EstablishReference {
+            source: original_source,
+            result: original_result,
+            storage: original_storage,
+            ..
+        } = original
+        else {
+            panic!("reference operation lost");
+        };
+        assert_eq!(source, &original_source);
+        assert_eq!(result, &original_result);
+        assert_eq!(
+            storage.stored_scalar,
+            original_storage.unwrap().stored_scalar
+        );
     }
 }
 

@@ -24,7 +24,7 @@ pub(super) fn validate_provider_attachment_requirements(
     called_boundaries: &[symbols::SymbolHandle],
 ) -> Result<(), LoweringError> {
     let fields = match &attachment.shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => fields.as_slice(),
+        CheckedUnitStructuralTypeShape::Record { fields, .. } => fields.as_slice(),
         _ => &[],
     };
     let provider_fields = fields
@@ -112,7 +112,7 @@ pub(crate) fn lower_provider_attachment_places(
     next_place: &mut u64,
 ) -> Result<Vec<StructuralPlaceDeclaration>, LoweringError> {
     let fields = match &declaration.shape {
-        StructuralTypeShape::Record { fields } => Some(fields.as_slice()),
+        StructuralTypeShape::Record { fields, .. } => Some(fields.as_slice()),
         _ => None,
     };
     if !requirements.is_empty() && fields.is_none() {

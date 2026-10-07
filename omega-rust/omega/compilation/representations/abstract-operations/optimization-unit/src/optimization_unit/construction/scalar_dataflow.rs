@@ -143,6 +143,9 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             .collect(),
         O::EstablishStructuralArray { .. } => Vec::new(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
+        O::EstablishReference { storage, .. } => {
+            storage.iter().map(|view| view.byte_offset).collect()
+        }
         O::ByteSequenceRead { index, length, .. }
         | O::StructuralByteSequenceFieldRead { index, length, .. } => vec![*index, *length],
         O::ElementViewRead { index, length, .. } => vec![*index, *length],

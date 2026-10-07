@@ -112,8 +112,11 @@ pub(super) fn scalar_custody_facts(
                                     | StructuralMultiplicity::Unrestricted
                             )
                             && parameter.projected_qualifications.is_empty()
-                            && parameter.shape.class
-                                != calling_conventions::ValueClass::BorrowedReference
+                            && !matches!(
+                                parameter.shape.class,
+                                calling_conventions::ValueClass::BorrowedReference
+                                    | calling_conventions::ValueClass::BorrowedScalarReference
+                            )
                     })
             });
     let graph_structural_roster = graph_structural::function_is_exact(function, record.target);

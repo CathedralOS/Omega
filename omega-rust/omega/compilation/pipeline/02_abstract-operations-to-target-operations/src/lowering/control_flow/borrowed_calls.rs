@@ -128,9 +128,11 @@ pub(super) fn argument(
             || home
                 .operation_result()
                 .is_some_and(|(_, result)| !result.qualification_establishments.is_empty())
-            || crate::lowering::structural_layout::structural_parameter_shape(
+            || crate::lowering::structural_layout::internal_parameter_shape(
+                projected_type,
                 projected_shape,
                 declaration.access,
+                types,
             ) != destination.shape
             || projected_shape
                 .byte_size
@@ -292,9 +294,11 @@ pub(super) fn storage_argument(
     if !allowed
         || selected != declaration.structural_type
         || destination.shape
-            != crate::lowering::structural_layout::structural_parameter_shape(
+            != crate::lowering::structural_layout::internal_parameter_shape(
+                selected,
                 referent,
                 declaration.access,
+                types,
             )
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

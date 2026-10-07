@@ -13,6 +13,7 @@ optimization-unit-semantics = { path = "../../representations/abstract-operation
 optimization-core = { path = "../../../foundation/optimization-core" }
 abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
 calling-conventions = { path = "../../backend/calling-conventions" }
+runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 target = { path = "../../backend/target" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 installation-evidence = { path = "../../backend/runtime/installation-evidence" }
@@ -24,4 +25,3 @@ terminal-psi = { path = "../../../../psi/compilation/representations/terminal-ps
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
-

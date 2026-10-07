@@ -424,6 +424,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         operations.push(CheckedUnitEffectOperationPlan::EstablishReference {
             result: binding.clone(),
             source: reference.source.clone(),
+            storage: checked_trees::CheckedReferenceStorage::Declared,
         });
         result.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: binding.binding_ordinal,

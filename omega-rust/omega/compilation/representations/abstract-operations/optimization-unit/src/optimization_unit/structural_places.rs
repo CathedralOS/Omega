@@ -245,7 +245,7 @@ pub fn descended_field_matching(
     matching: impl Fn(&StructuralFieldDeclaration) -> bool,
 ) -> Option<(StructuralFieldId, StructuralTypeId)> {
     let fields = match shape(unit, current)? {
-        StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+        StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
             fields
         }
         _ => return None,
@@ -275,7 +275,7 @@ pub fn canonicalize_ordinary_path(
         match segment {
             StructuralPathSegment::Field(identity) => {
                 let fields = match shape(unit, current)? {
-                    StructuralTypeShape::Record { fields }
+                    StructuralTypeShape::Record { fields, .. }
                     | StructuralTypeShape::Mixed { fields, .. } => fields,
                     _ => return None,
                 };
@@ -383,7 +383,7 @@ impl<'a> Position<'a> {
         match (self, segment) {
             (Self::Type(current), CanonicalStructuralPathSegment::Field(identity)) => {
                 let fields = match shape(unit, current)? {
-                    StructuralTypeShape::Record { fields }
+                    StructuralTypeShape::Record { fields, .. }
                     | StructuralTypeShape::Mixed { fields, .. } => fields,
                     _ => return None,
                 };
@@ -437,7 +437,7 @@ impl<'a> Position<'a> {
     ) -> Option<&'a StructuralFieldDeclaration> {
         let fields = match self {
             Self::Type(current) => match shape(unit, current)? {
-                StructuralTypeShape::Record { fields }
+                StructuralTypeShape::Record { fields, .. }
                 | StructuralTypeShape::Mixed { fields, .. } => fields,
                 _ => return None,
             },
@@ -729,7 +729,7 @@ pub fn descended_type(
         StructuralPathSegment::Case(_) | StructuralPathSegment::FixedByteRange { .. } => None,
         StructuralPathSegment::Field(identity) => {
             let fields = match shape {
-                StructuralTypeShape::Record { fields }
+                StructuralTypeShape::Record { fields, .. }
                 | StructuralTypeShape::Mixed { fields, .. } => fields,
                 _ => return None,
             };

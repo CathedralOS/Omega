@@ -329,9 +329,11 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. } => {
                 self.establish_structural_local(operation)
             }
-            CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
-                self.establish_reference(result, source)
-            }
+            CheckedUnitEffectOperationPlan::EstablishReference {
+                result,
+                source,
+                storage,
+            } => self.establish_reference(result, source, *storage),
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
                 self.release_reference(operation)
             }
@@ -349,6 +351,7 @@ impl OperationFrame<'_, '_> {
         &mut self,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
+        storage: checked_trees::CheckedReferenceStorage,
     ) -> Result<(), LoweringError> {
         self.results
             .require_next(result, "reference result binding is not dense")?;
@@ -376,6 +379,14 @@ impl OperationFrame<'_, '_> {
                 )?;
                 let mut locals = self.evaluation.structural_locals.clone();
                 locals.extend(primitive_home);
+                let mut selectors = parameters::mint_runtime_index_selectors(
+                    std::slice::from_ref(source),
+                    &self.evaluation.structural_fields,
+                    self.values,
+                    self.next_value,
+                    self.operations,
+                )?
+                .into_iter();
                 parameters::lower_reference_source(
                     source,
                     self.structural_types.declarations(),
@@ -384,11 +395,50 @@ impl OperationFrame<'_, '_> {
                     &earlier,
                     self.primitive_locals,
                     &locals,
+                    Some(parameters::ReferenceSourceEvaluation {
+                        values: self.values,
+                        selectors: &mut selectors,
+                        calls: self.calls,
+                        next_value: self.next_value,
+                        operations: self.operations,
+                    }),
                 )?
             };
+        let storage = match storage {
+            checked_trees::CheckedReferenceStorage::Declared => None,
+            checked_trees::CheckedReferenceStorage::View { stored_scalar } => {
+                // The source path already captures the actual byte endpoint.
+                // Publish its offset now, never replay the initializer later.
+                let byte_offset =
+                    crate::terminal_identities::value_id(allocate_dense(self.next_value)?);
+                let scalar_type =
+                    crate::unit::terminal_scalar_type(crate::unit::PrimitiveType::U64)?;
+                let value = ValueDeclaration {
+                    id: byte_offset,
+                    scalar_type,
+                    qualifications: Default::default(),
+                };
+                self.values.push(value.clone());
+                let id = self.operations.allocate();
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: terminal_psi::OperationResult::Scalar(value.clone()),
+                    kind: OperationKind::IntegerConstant {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(0),
+                    },
+                });
+                Some(terminal_psi::ReferenceStorageView {
+                    byte_offset,
+                    stored_scalar,
+                })
+            }
+        };
         let declaration = reference_results::emit(
             result,
             argument,
+            storage,
             self.type_ids,
             self.next_place,
             self.operations,

@@ -267,7 +267,7 @@ pub(crate) fn validate_structural_root_operations(
                                 structural_types, structural_type, storage_path,
                             ).and_then(|parent| structural_types.get(&parent))
                             .is_some_and(|declaration| match &declaration.shape {
-                                terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().any(|candidate|
+                                terminal_psi::StructuralTypeShape::Record { fields, .. } => fields.iter().any(|candidate|
                                     candidate.id == *field && !candidate.relevance.is_erased()
                                     // A shared view field is observed through
                                     // its stored descriptor, like a whole view.
@@ -523,6 +523,7 @@ pub(crate) fn validate_structural_root_operations(
                     psi_operation,
                     result,
                     source,
+                    storage,
                 } => {
                     // Whole-carrier establishment: the result is an affine
                     // reference over a primitive referent and the source must
@@ -570,11 +571,14 @@ pub(crate) fn validate_structural_root_operations(
                             source,
                         )
                         .is_some_and(|actual| {
-                            terminal_semantics::reference_source_compatible(
-                                structural_types.values().copied(),
-                                actual,
-                                result.structural_type,
-                            )
+                            match storage {
+                                Some(storage) => terminal_semantics::reference_storage_source_compatible(
+                                    structural_types.values().copied(), actual, result.structural_type, storage.stored_scalar,
+                                ),
+                                None => terminal_semantics::reference_source_compatible(
+                                    structural_types.values().copied(), actual, result.structural_type,
+                                ),
+                            }
                         })
                         && crate::unit_validation::references::leaf_access_within(
                             structural_types,
@@ -1027,7 +1031,7 @@ fn direct_relevant_scalar_field(
     allow_refined_scalar: bool,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let (terminal_psi::StructuralTypeShape::Record { fields }
+    let (terminal_psi::StructuralTypeShape::Record { fields, .. }
     | terminal_psi::StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
     else {
         return None;

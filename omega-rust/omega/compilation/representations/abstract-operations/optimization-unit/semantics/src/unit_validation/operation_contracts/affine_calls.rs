@@ -120,7 +120,7 @@ fn finite_owned_shape(
         return false;
     };
     let valid = match &declaration.shape {
-        terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
+        terminal_psi::StructuralTypeShape::Record { fields, .. } => fields.iter().all(|field| {
             !field.relevance.is_erased()
                 && match field.field_type {
                     terminal_psi::StructuralFieldType::Structural(child) => {

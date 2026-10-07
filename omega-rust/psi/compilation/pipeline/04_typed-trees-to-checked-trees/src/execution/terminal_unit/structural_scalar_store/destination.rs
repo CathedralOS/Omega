@@ -147,16 +147,10 @@ pub(super) fn resolve<'a>(
         let Some((declared, local)) = program.state_local_declaration(state, symbol) else {
             return false;
         };
-        validation::reference_result_custody::primitive_local_source(program, state, declared)
-            .or_else(|| {
-                validation::reference_result_custody::borrowed_initializer_source(
-                    program,
-                    state,
-                    local.initial_value,
-                    local.type_reference,
-                )
-            })
-            .is_some()
+        crate::execution::terminal_unit::control::reference_captures::plan(
+            program, machine, state, declared, local,
+        )
+        .is_some()
     };
     let aliases =
         super::super::receiver_aliases::aliases(program, facts, machine, state).unwrap_or_default();

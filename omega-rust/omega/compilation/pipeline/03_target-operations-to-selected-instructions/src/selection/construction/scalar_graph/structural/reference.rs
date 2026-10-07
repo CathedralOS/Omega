@@ -30,7 +30,54 @@ pub(super) fn establish(
     {
         return Err(invalid());
     }
-    let input = place_pointer(builder, row, address.place, address.byte_offset)?;
+    let mut input = place_pointer(builder, row, address.place, 0)?;
+    for offset in address.descriptor_offsets {
+        let loaded = transport_register(builder, result.place, offset)?;
+        memory(
+            builder,
+            row,
+            address.place,
+            offset,
+            8,
+            SelectedMemoryAccessRole::ReadPlace,
+        )?;
+        builder.emit(
+            SelectedInstructionKind::Load64 {
+                byte_offset: offset,
+            },
+            builder.constraints.keys.load64.ok_or(invalid())?,
+            &[input, loaded],
+            provenance(row),
+        )?;
+        input = loaded;
+    }
+    if address.byte_offset != 0 {
+        let projected = transport_register(builder, result.place, address.byte_offset)?;
+        builder.emit(
+            SelectedInstructionKind::AddressOffset {
+                byte_offset: address.byte_offset,
+            },
+            builder.constraints.keys.address_offset.ok_or(invalid())?,
+            &[input, projected],
+            provenance(row),
+        )?;
+        input = projected;
+    }
+    if let Some(storage) = address.storage {
+        let (_, offset, _, scalar) = builder.resolve(storage.byte_offset).ok_or(invalid())?;
+        if !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64)
+        {
+            return Err(invalid());
+        }
+        let projected = transport_register(builder, result.place, 0)?;
+        builder.emit(
+            SelectedInstructionKind::ByteViewAddress,
+            builder.constraints.keys.add_i64,
+            &[input, offset, projected],
+            provenance(row),
+        )?;
+        input = projected;
+    }
     let value = if address.load_pointer {
         let value = transport_register(builder, result.place, 0)?;
         memory(
@@ -51,6 +98,40 @@ pub(super) fn establish(
     } else {
         input
     };
+    let codec = if address.load_codec {
+        let codec = transport_register(builder, result.place, 8)?;
+        memory(
+            builder,
+            row,
+            address.place,
+            address.byte_offset.checked_add(8).ok_or(invalid())?,
+            8,
+            SelectedMemoryAccessRole::ReadPlace,
+        )?;
+        builder.emit(
+            SelectedInstructionKind::Load64 { byte_offset: 8 },
+            builder.constraints.keys.load64.ok_or(invalid())?,
+            &[input, codec],
+            provenance(row),
+        )?;
+        Some(codec)
+    } else if let Some(codec) = address.codec {
+        let register = transport_register(builder, result.place, 8)?;
+        builder.emit(
+            SelectedInstructionKind::MaterializeI64 {
+                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                    codec.encode().ok_or(invalid())?,
+                )),
+            },
+            builder.constraints.keys.materialize_i64,
+            &[register],
+            provenance(row),
+        )?;
+        Some(register)
+    } else {
+        None
+    };
+    let byte_size = if codec.is_some() { 16 } else { 8 };
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: result.place,
@@ -60,10 +141,29 @@ pub(super) fn establish(
         .local_slots
         .push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: 8,
+            byte_size,
             alignment: 8,
         });
-    let home = super::local_storage::address(builder, row, slot, 0, 8, true)?;
+    let home = super::local_storage::address(builder, row, slot, 0, byte_size, true)?;
+    if let Some(codec) = codec {
+        memory(
+            builder,
+            row,
+            result.place,
+            8,
+            8,
+            SelectedMemoryAccessRole::WritePlace,
+        )?;
+        builder.emit(
+            SelectedInstructionKind::Store {
+                byte_offset: 8,
+                byte_size: 8,
+            },
+            builder.constraints.keys.store.ok_or(invalid())?,
+            &[home, codec],
+            provenance(row),
+        )?;
+    }
     memory(
         builder,
         row,
@@ -121,7 +221,8 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
     // Keep ordinary call ownership/provenance admission before loading payload.
     let mut pointer = super::place_pointer(builder, row, place, 0)?;
-    for offset in address.descriptor_offsets {
+    let descriptor_count = address.descriptor_offsets.len();
+    for (position, offset) in address.descriptor_offsets.into_iter().enumerate() {
         let home = transport_register(builder, place, offset)?;
         builder.emit(
             if offset == 0 {
@@ -139,6 +240,12 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
             &[pointer, home],
             provenance(row),
         )?;
+        if address.scalar_descriptor && position + 1 == descriptor_count {
+            if address.referent_offset != 0 {
+                return Err(invalid());
+            }
+            return Ok(home);
+        }
         pointer = transport_register(builder, place, offset)?;
         memory(
             builder,

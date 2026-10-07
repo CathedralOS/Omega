@@ -13,6 +13,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
     let root = StructuralTypeId::new(1).unwrap();
     let service = StructuralTypeId::new(2).unwrap();
     let field = StructuralFieldDeclaration {
+        storage: None,
         id: StructuralFieldId::new(1).unwrap(),
         identity: "console".into(),
         relevance: BindingRelevance::Relevant,
@@ -23,6 +24,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
             id: root,
             identity: "Main".into(),
             shape: StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![field.clone()],
             },
         },
@@ -88,6 +90,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
     let root = StructuralTypeId::new(1).unwrap();
     let child = StructuralTypeId::new(2).unwrap();
     let field = |field_type| StructuralFieldDeclaration {
+        storage: None,
         id: StructuralFieldId::new(1).unwrap(),
         identity: "bytes".into(),
         relevance: BindingRelevance::Relevant,
@@ -106,6 +109,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![field(StructuralFieldType::Structural(child))],
                 },
             },
@@ -113,6 +117,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
                 id: child,
                 identity: "inner".into(),
                 shape: StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![field(StructuralFieldType::ByteSequence(carrier))],
                 },
             },
@@ -149,6 +154,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
     let root = StructuralTypeId::new(1).unwrap();
     let child = StructuralTypeId::new(2).unwrap();
     let field = |field_type| StructuralFieldDeclaration {
+        storage: None,
         id: StructuralFieldId::new(1).unwrap(),
         identity: "value".into(),
         relevance: BindingRelevance::Relevant,
@@ -159,6 +165,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
             id: root,
             identity: "outer".into(),
             shape: StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![field(StructuralFieldType::Structural(child))],
             },
         },
@@ -166,6 +173,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
             id: child,
             identity: "inner".into(),
             shape: StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![field(StructuralFieldType::Scalar(ScalarType::Boolean))],
             },
         },
@@ -178,6 +186,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
     for required in [false, true] {
         let mut refined = declarations.clone();
         refined[1].shape = StructuralTypeShape::Record {
+            storage: None,
             fields: vec![field(StructuralFieldType::RefinedScalar(
                 semantic_vocabulary::ScalarRefinement::new(
                     ScalarType::Boolean,
@@ -218,6 +227,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
     ] {
         let mut changed = declarations.clone();
         changed[1].shape = StructuralTypeShape::Record {
+            storage: None,
             fields: vec![field(field_type)],
         };
         assert!(!zero_valid_record_storage(&changed, root, &mut Vec::new()));
@@ -244,6 +254,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
     let root = StructuralTypeId::new(1).unwrap();
     let sum = StructuralTypeId::new(2).unwrap();
     let field = |field_type| StructuralFieldDeclaration {
+        storage: None,
         id: StructuralFieldId::new(1).unwrap(),
         identity: "value".into(),
         relevance: BindingRelevance::Relevant,
@@ -276,6 +287,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![field(StructuralFieldType::Structural(sum))],
                 },
             },
@@ -312,6 +324,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
             },
         ))],
         vec![StructuralFieldDeclaration {
+            storage: None,
             relevance: BindingRelevance::Erased,
             ..field(StructuralFieldType::Scalar(ScalarType::Boolean))
         }],
@@ -356,6 +369,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     let leaf = StructuralTypeId::new(6).unwrap();
     let mixed = StructuralTypeId::new(4).unwrap();
     let field = |field_type| StructuralFieldDeclaration {
+        storage: None,
         id: StructuralFieldId::new(1).unwrap(),
         identity: "value".into(),
         relevance: BindingRelevance::Relevant,
@@ -367,6 +381,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         (
             2,
             StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![field(StructuralFieldType::Scalar(ScalarType::Integer(
                     IntegerType::new(IntegerSign::Signed, 32).unwrap(),
                 )))],
@@ -392,6 +407,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![field(StructuralFieldType::Structural(array))],
                 },
             },
@@ -431,6 +447,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             access: Some(terminal_psi::StructuralAccess::SharedBorrow),
         }),
         StructuralTypeShape::Record {
+            storage: None,
             fields: vec![field(StructuralFieldType::BoundedInteger(
                 BoundedIntegerType::new(
                     IntegerType::new(IntegerSign::Signed, 32).unwrap(),
@@ -450,6 +467,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![field(StructuralFieldType::Structural(array))],
                 },
             },
@@ -476,6 +494,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             id: root,
             identity: "outer".into(),
             shape: StructuralTypeShape::Record {
+                storage: None,
                 fields: vec![field(StructuralFieldType::Structural(array))],
             },
         },
@@ -518,6 +537,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
+                    storage: None,
                     fields: vec![field(StructuralFieldType::Structural(mixed))],
                 },
             },
@@ -546,6 +566,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         ),
         (
             vec![StructuralFieldDeclaration {
+                storage: None,
                 relevance: BindingRelevance::Erased,
                 ..field(StructuralFieldType::Scalar(ScalarType::Boolean))
             }],

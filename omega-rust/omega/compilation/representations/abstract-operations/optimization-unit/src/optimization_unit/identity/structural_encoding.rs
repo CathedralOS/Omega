@@ -407,9 +407,18 @@ pub(super) fn encode_structural_type(
             bytes.u8(8);
             bytes.id(*element);
         }
-        StructuralTypeShape::Record { fields } => {
-            bytes.u8(2);
+        StructuralTypeShape::Record { fields, storage } => {
+            bytes.u8(if storage.is_some() { 10 } else { 2 });
+            if let Some(storage) = storage {
+                bytes.u64(storage.byte_size);
+                bytes.u64(storage.byte_alignment);
+            }
             bytes.slice(fields, encode_structural_field);
+            if storage.is_some() {
+                for field in fields {
+                    encode_authored_field_storage(bytes, field.storage);
+                }
+            }
         }
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.u8(3);
@@ -435,6 +444,39 @@ pub(super) fn encode_structural_type(
                 bytes.slice(&case.fields, encode_structural_field);
             }
         }
+    }
+}
+
+fn encode_authored_field_storage(
+    bytes: &mut CanonicalBytes,
+    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+) {
+    use semantic_vocabulary::AuthoredFieldStorage;
+    match storage {
+        None => bytes.u8(0),
+        Some(AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar,
+        }) => {
+            bytes.u8(if stored_scalar.is_some() { 2 } else { 1 });
+            bytes.u64(byte_offset);
+            if let Some(scalar) = stored_scalar {
+                encode_scalar_type(bytes, scalar);
+            }
+        }
+        Some(AuthoredFieldStorage::Repeated {
+            byte_offset,
+            element_stride,
+        }) => {
+            bytes.u8(3);
+            bytes.u64(byte_offset);
+            bytes.u64(element_stride);
+        }
+        Some(AuthoredFieldStorage::Direct { byte_offset }) => {
+            bytes.u8(4);
+            bytes.u64(byte_offset);
+        }
+        Some(AuthoredFieldStorage::Fragmented) => bytes.u8(5),
     }
 }
 

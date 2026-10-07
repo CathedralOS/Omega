@@ -430,8 +430,12 @@ pub(super) fn reference_call_argument(
             &mut active,
         )?;
     if selected != declaration.structural_type
-        || crate::lowering::structural_layout::structural_parameter_shape(shape, declaration.access)
-            != destination.shape
+        || crate::lowering::structural_layout::internal_parameter_shape(
+            selected,
+            shape,
+            declaration.access,
+            types,
+        ) != destination.shape
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -470,7 +474,7 @@ pub(super) fn contains_reference(types: &StructuralTypeLookup<'_>, root: Structu
         };
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::Record { fields } => push_fields(fields),
+            StructuralTypeShape::Record { fields, .. } => push_fields(fields),
             StructuralTypeShape::Sum { cases } => {
                 for case in cases {
                     push_fields(&case.fields);
@@ -519,7 +523,7 @@ pub(super) fn leaf_paths(
                 }
                 output.push(path);
             }
-            StructuralTypeShape::Record { fields } => {
+            StructuralTypeShape::Record { fields, .. } => {
                 for field in fields.iter().rev() {
                     if let StructuralFieldType::Structural(child) = field.field_type {
                         if !contains_reference(types, child) {
@@ -648,6 +652,14 @@ pub(super) fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if *segment == StructuralPathSegment::Referent {
+            let StructuralTypeShape::Reference { referent, .. } = &types.get(&current)?.shape
+            else {
+                return None;
+            };
+            current = *referent;
+            continue;
+        }
         if let StructuralPathSegment::FixedIndex(index) = segment {
             let declaration = types.get(&current)?;
             let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
@@ -664,7 +676,7 @@ pub(super) fn leaf_type(
         };
         let declaration = types.get(&current)?;
         let fields = match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields,
+            StructuralTypeShape::Record { fields, .. } => fields,
             StructuralTypeShape::Mixed { fields, .. } => fields,
             _ => return None,
         };
@@ -794,9 +806,38 @@ pub(super) fn reference_source_type(
     ) {
         return None;
     }
-    if let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() {
-        let carrier = source_contract(function, live, source.place)?.0;
-        return leaf_referent(types, carrier, fields);
+    if source.path.contains(&StructuralPathSegment::Referent) {
+        let mut current = source_contract(function, live, source.place)?.0;
+        let mut start = 0;
+        for (position, segment) in source.path.iter().enumerate() {
+            if *segment != StructuralPathSegment::Referent {
+                continue;
+            }
+            current = leaf_type(types, current, &source.path[start..position])?;
+            let StructuralTypeShape::Reference { referent, access } = &types.get(&current)?.shape
+            else {
+                // Preserve the existing terminal spelling for a direct leaf.
+                return (position + 1 == source.path.len()).then_some(current);
+            };
+            let compatible = match source.access {
+                StructuralAccess::SharedBorrow => matches!(
+                    access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                ),
+                StructuralAccess::MutableBorrow => *access == StructuralAccess::MutableBorrow,
+                StructuralAccess::WriteOnlyBorrow => matches!(
+                    access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                ),
+                StructuralAccess::Owned => false,
+            };
+            if !compatible {
+                return None;
+            }
+            current = *referent;
+            start = position + 1;
+        }
+        return leaf_type(types, current, &source.path[start..]);
     }
     direct_storage_type(function, live, types, source)
 }
@@ -837,9 +878,6 @@ fn storage_projection_type(
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
     let carrier = source_contract(function, live, source.place)?.0;
-    if let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() {
-        return leaf_referent(types, carrier, fields);
-    }
     optimization_unit_semantics::structural_projection_type(
         types.values().copied(),
         carrier,
@@ -889,7 +927,13 @@ fn normalized_direct_source(
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
 ) -> Result<(ReferenceRoot, Option<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
-    if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
+    if let Some(crossing) = source
+        .path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let carrier_path = &source.path[..crossing];
+        let suffix = &source.path[crossing + 1..];
         let Some(leaf) = live.references.get(&(source.place, carrier_path.to_vec())) else {
             // The member leaf of a carrier never held as a live reference
             // borrows that carrier's own storage; only a non-reference member
@@ -901,7 +945,8 @@ fn normalized_direct_source(
                     .get(&leaf)
                     .and_then(|declaration| match declaration.shape {
                         StructuralTypeShape::Reference { .. } => None,
-                        _ => Some(()),
+                        _ if suffix.is_empty() => Some(()),
+                        _ => None,
                     })
             }) {
                 Some(()) => {
@@ -924,6 +969,12 @@ fn normalized_direct_source(
                 None => Err(LoweringError::unsupported_control_flow(function.machine)),
             };
         };
+        // The runtime source stays the retained carrier. Custody is inherited
+        // from that carrier, while typed descendants select its live backing;
+        // an initializer or a guessed origin never supplies the address.
+        if leaf_type(types, leaf.referent, suffix).is_none() {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
         if live.references.iter().any(|((carrier, path), child)| {
             child.parent.as_ref() == Some(&leaf.identity)
                 && !shared_source_compatible(function, live, types, carrier, path, source.access)
@@ -1524,6 +1575,7 @@ pub(super) fn establish(
         psi_operation,
         result,
         source,
+        storage,
     } = operation
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1547,12 +1599,18 @@ pub(super) fn establish(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    if !reference_source_type(function, live, types, source).is_some_and(|actual| {
-        terminal_semantics::reference_source_compatible(
+    if !reference_source_type(function, live, types, source).is_some_and(|actual| match storage {
+        Some(storage) => terminal_semantics::reference_storage_source_compatible(
             types.values().copied(),
             actual,
             result.structural_type,
-        )
+            storage.stored_scalar,
+        ),
+        None => terminal_semantics::reference_source_compatible(
+            types.values().copied(),
+            actual,
+            result.structural_type,
+        ),
     }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -1578,6 +1636,7 @@ pub(super) fn establish(
         psi_operation: *psi_operation,
         result_home,
         source: source.clone(),
+        storage: *storage,
     });
     provenance.operations.push(*psi_operation);
     Ok(())
@@ -2071,7 +2130,7 @@ fn constructible_record(types: &StructuralTypeLookup<'_>, root: StructuralTypeId
             _ => {}
         }
         let Some(terminal_psi::StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Record { fields },
+            shape: StructuralTypeShape::Record { fields, .. },
             ..
         }) = types.get(&current).copied()
         else {

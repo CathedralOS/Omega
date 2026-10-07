@@ -109,7 +109,7 @@ pub(super) fn validate(
                             &source.path,
                         )
                         .ok_or_else(invalid)?;
-                        let StructuralTypeShape::Record { fields } =
+                        let StructuralTypeShape::Record { fields, .. } =
                             &types.get(&parent).ok_or_else(invalid)?.shape
                         else {
                             return Err(invalid());

@@ -188,17 +188,19 @@ fn active_result_loan(
 pub(super) fn emit(
     result: &CheckedUnitStructuralResultBindingPlan,
     source: StructuralArgument,
+    storage: Option<terminal_psi::ReferenceStorageView>,
     types: &[(String, StructuralTypeId)],
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let structural_type = lookup_type_id(types, &result.type_identity)?;
-    emit_carrier(structural_type, source, next_place, operations)
+    emit_carrier(structural_type, source, storage, next_place, operations)
 }
 
 pub(super) fn emit_carrier(
     structural_type: StructuralTypeId,
     source: StructuralArgument,
+    storage: Option<terminal_psi::ReferenceStorageView>,
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -213,7 +215,7 @@ pub(super) fn emit_carrier(
             structural_type,
             StructuralMultiplicity::Affine,
         ),
-        kind: OperationKind::EstablishReference { source },
+        kind: OperationKind::EstablishReference { source, storage },
     });
     Ok(StructuralPlaceDeclaration {
         id: place,

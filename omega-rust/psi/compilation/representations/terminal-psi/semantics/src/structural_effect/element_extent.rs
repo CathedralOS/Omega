@@ -112,7 +112,7 @@ pub fn element_view_leaf(
     };
     let parent = crate::runtime_structural_path_tip(types.iter(), element, prefix)?;
     match (last, &parent.shape) {
-        (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+        (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields, .. }) => {
             let field = fields
                 .iter()
                 .find(|field| field.identity == *identity && !field.relevance.is_erased())?;

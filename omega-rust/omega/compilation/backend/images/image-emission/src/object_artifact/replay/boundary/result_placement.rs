@@ -112,6 +112,7 @@ pub(crate) fn test_byte_read_declaration(
                     id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
                     identity: "Byte".into(),
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        storage: None,
                         id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
                         identity: "value".into(),
                         relevance: terminal_psi::BindingRelevance::Relevant,

@@ -151,7 +151,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         let attachment_shape = shapes.types.get(attachment_type_identity)?;
         if !matches!(
             &attachment_shape.shape,
-            CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
+            CheckedUnitStructuralTypeShape::Record { fields, .. } if fields.is_empty()
         ) {
             return None;
         }

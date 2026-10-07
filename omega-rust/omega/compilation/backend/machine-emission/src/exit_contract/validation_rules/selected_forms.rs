@@ -353,6 +353,30 @@ pub(in crate::exit_contract) fn validate_non_return(
                 && effects.external_operand_writes == [2]
         }
         (
+            SelectedInstructionKind::LoadEncodedScalar,
+            MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            },
+            None,
+        ) => {
+            effects.external_operand_reads == [0, 1]
+                && effects.external_operand_writes == [2, 3, 4, 5]
+                && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        }
+        (
+            SelectedInstructionKind::StoreEncodedScalar,
+            MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            },
+            None,
+        ) => {
+            effects.external_operand_reads == [0, 1, 2]
+                && effects.external_operand_writes == [3, 4, 5]
+                && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        }
+        (
             SelectedInstructionKind::ScanByteSequence { .. },
             MachineEncodedMemoryEffect::ScanByteSequenceV1 {
                 base_pointer_operand: 0,
@@ -545,6 +569,8 @@ pub(in crate::exit_contract) fn validate_non_return(
             SelectedInstructionKind::CopyBytes
                 | SelectedInstructionKind::ZeroBytes
                 | SelectedInstructionKind::ScanByteSequence { .. }
+                | SelectedInstructionKind::LoadEncodedScalar
+                | SelectedInstructionKind::StoreEncodedScalar
                 | SelectedInstructionKind::CompareByteSequences
                 | SelectedInstructionKind::FloatResultPolicy { .. }
                 | SelectedInstructionKind::AtomicAccess { .. }
