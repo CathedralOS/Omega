@@ -220,49 +220,14 @@ pub(super) fn value_origins(
         aliases,
         stored,
     )?;
-    let (state, _, index) = caller_aliases::caller_statement_owner(
-        program,
-        machine,
-        caller_aliases::CallerWriteSite::Expression(expression),
-    )?;
     if results::call_expression(program, expression).is_some() {
         // Declaration resolution already crossed the actual's stored boundary.
         // Replaying capture here would load the resulting backing slot again.
         return Some(declared);
     }
-    let origins = {
-        let isolated = program.statement_table.statements(state.statement_nodes)[..index]
-            .iter()
-            .filter_map(|statement| match statement {
-                StatementNode::LocalData(local)
-                    if type_is_caller_isolated_local(program, local.type_reference)
-                        && !type_reference_is_reference(program, local.type_reference) =>
-                {
-                    Some(local.name.as_str().to_owned())
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let mut diagnostics = Vec::new();
-        let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
-        if !diagnostics.is_empty() {
-            return None;
-        }
-        stable_alias_initializer_origins(
-            program,
-            machine,
-            &machine_symbols,
-            inference,
-            expression,
-            program.state_parameters(state),
-            &isolated,
-            aliases,
-            &[],
-            symbols,
-            true,
-            stored,
-        )?
-    };
+    let (origins, state, index) = caller_isolated_initializer_origins(
+        program, machine, expression, inference, aliases, symbols, stored,
+    )?;
     let mut captured = Vec::new();
     for origin in origins {
         for origin in captured_value_origins(program, expression, &origin, aliases, stored) {
@@ -298,15 +263,18 @@ pub(super) fn backing_origin(
 
 /// Preserve a reference producer's complete backing set, including coarse
 /// collection coordinates. Exact-value consumers use `value_origins` instead.
-pub(super) fn backing_origins(
-    program: &TypedTrees,
+/// The caller's isolated locals joined through `MachineSymbols` and the
+/// stable alias-initializer origins for an expression write site — the
+/// shared walk every captured-value scan starts from.
+fn caller_isolated_initializer_origins<'program>(
+    program: &'program TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
-    symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     aliases: &[(String, FramePlaceOrigin)],
+    symbols: &TopLevelSymbols<'_>,
     stored: &[StoredLocalOrigins],
-) -> Option<Vec<FramePlaceOrigin>> {
+) -> Option<(Vec<FramePlaceOrigin>, &'program State, usize)> {
     let (state, _, index) = caller_aliases::caller_statement_owner(
         program,
         machine,
@@ -329,7 +297,7 @@ pub(super) fn backing_origins(
     if !diagnostics.is_empty() {
         return None;
     }
-    let origins = stable_alias_initializer_origins(
+    stable_alias_initializer_origins(
         program,
         machine,
         &machine_symbols,
@@ -342,6 +310,21 @@ pub(super) fn backing_origins(
         symbols,
         true,
         stored,
+    )
+    .map(|origins| (origins, state, index))
+}
+
+pub(super) fn backing_origins(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<FramePlaceOrigin>> {
+    let (origins, state, index) = caller_isolated_initializer_origins(
+        program, machine, expression, inference, aliases, symbols, stored,
     )?;
     let mut captured = Vec::new();
     for origin in origins {
