@@ -2,7 +2,7 @@
 //! replay: a rostered place's declared structural type and establishing
 //! producer.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, StructuralCopyPath};
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, EdgeId, IntegerType, IntegerValue, OperationId,
     PlaceId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind,
@@ -1010,4 +1010,141 @@ pub fn scalar_value_definition(
         )
         .copied()
         .find(|definition| definition.value == value)
+}
+
+/// The case roster of `type_id`'s declared shape, or `None` when the type
+/// is absent or its shape is not `Sum`/`Mixed`.
+pub fn roster_cases(
+    unit: &PsiOptimizationUnit,
+    type_id: StructuralTypeId,
+) -> Option<&[StructuralCaseDeclaration]> {
+    match &unit
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|entry| entry.id == type_id)?
+        .shape
+    {
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+            Some(cases.as_slice())
+        }
+        _ => None,
+    }
+}
+
+/// The first declared case of `type_id`'s roster — the case a zeroed tag's
+/// ordinal-zero bits select — or `None` when the shape is not a
+/// `Sum`/`Mixed` or declares no case at all.
+pub fn roster_first_case(
+    unit: &PsiOptimizationUnit,
+    type_id: StructuralTypeId,
+) -> Option<StructuralCaseId> {
+    let cases = roster_cases(unit, type_id)?;
+    cases.first().map(|case| case.id)
+}
+
+/// The one case of `type_id`'s closed roster, or `None` when its shape is
+/// not a `Sum`/`Mixed` or names more than one case.
+pub fn roster_sole_case(
+    unit: &PsiOptimizationUnit,
+    type_id: StructuralTypeId,
+) -> Option<StructuralCaseId> {
+    let cases = roster_cases(unit, type_id)?;
+    let [sole] = cases else {
+        return None;
+    };
+    Some(sole.id)
+}
+
+/// The one case of the closed roster the `path` resolves to under the
+/// place's declared structural type, or `None` when the path fails to
+/// descend — a `Field` name absent from a `Record`/`Mixed` common-field
+/// roster, a `FixedIndex` on a non-array, a `Referent` crossing on a
+/// non-reference — or when the resolved end type is not a `Sum`/`Mixed`
+/// roster of exactly one case.
+pub fn sole_case_at_path(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    declaration: &StructuralPlaceDeclaration,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralCaseId> {
+    resolved_sole_case(unit, declared_structural_type(function, declaration)?, path)
+}
+
+/// The one case of a declared closed roster, or `None` when the place's
+/// declared type is not a sum shape or names more than one case.
+pub fn sole_case(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    declaration: &StructuralPlaceDeclaration,
+) -> Option<StructuralCaseId> {
+    sole_case_at_path(unit, function, declaration, &[])
+}
+
+/// The sole case of the closed roster at `path`'s end under `root`, or
+/// `None` when the path fails to descend or the end type is not a sole-case
+/// `Sum`/`Mixed` roster.
+pub fn resolved_sole_case(
+    unit: &PsiOptimizationUnit,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralCaseId> {
+    let mut current = root;
+    for segment in path {
+        current = descended_type(unit, current, segment)?;
+    }
+    roster_sole_case(unit, current)
+}
+
+/// A field descent's shared child step: the producer's structural child,
+/// its rostered declaration, the declared-type equality check, and the
+/// cycle guard; returns the child place and its establishment for the next
+/// step.
+pub fn descended_field_child(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+    field: StructuralFieldId,
+    next: StructuralTypeId,
+    visiting: &mut BTreeSet<PlaceId>,
+) -> Option<(PlaceId, Establishment)> {
+    let child = structural_child(function, producer, place, field)?;
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|candidate| candidate.id == child)?;
+    if declared_structural_type(function, declaration) != Some(next) || !visiting.insert(child) {
+        return None;
+    }
+    Some((child, establishment_producer(function, declaration)))
+}
+
+/// The `StructuralLeafCopy` that produces `place` — its source place and
+/// spelled projection — or `None` when `place` is not that copy's operation
+/// result.
+pub fn leaf_copy_source<'a>(
+    function: &'a PsiOptimizationFunction,
+    place: PlaceId,
+) -> Option<(PlaceId, &'a StructuralCopyPath)> {
+    let StructuralPlaceKind::OperationResult { producer, .. } = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)?
+        .kind
+    else {
+        return None;
+    };
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::StructuralLeafCopy {
+                psi_operation,
+                result,
+                source,
+                path,
+            } if *psi_operation == producer && result.place == place => Some((*source, path)),
+            _ => None,
+        })
 }

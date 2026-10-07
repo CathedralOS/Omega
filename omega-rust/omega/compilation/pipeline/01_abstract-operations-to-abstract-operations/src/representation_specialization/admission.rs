@@ -14,7 +14,8 @@ use super::{
 use abstract_operations::StructuralCopyPath;
 use optimization_unit::{
     Establishment, canonicalize_ordinary_path, declared_structural_type, descended_field,
-    descended_field_id, descended_type, establishment_producer, shape, structural_child,
+    descended_field_child, descended_field_id, establishment_producer, leaf_copy_source,
+    resolved_sole_case, roster_first_case, shape, sole_case,
 };
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use std::collections::BTreeSet;
@@ -221,19 +222,16 @@ fn established_case_at(
                 else {
                     return None;
                 };
-                let child = structural_child(function, operation, place, identity)?;
-                let child_declaration = function
-                    .structural_places
-                    .iter()
-                    .find(|candidate| candidate.id == child)?;
-                if declared_structural_type(function, child_declaration) != Some(next) {
-                    return None;
-                }
-                if !visiting.insert(child) {
-                    return None;
-                }
+                let (child, child_producer) = descended_field_child(
+                    function,
+                    operation,
+                    place,
+                    identity,
+                    next,
+                    &mut visiting,
+                )?;
                 place = child;
-                producer = establishment_producer(function, child_declaration);
+                producer = child_producer;
                 declared = Some(next);
                 segments.drain(..2);
             }
@@ -257,19 +255,10 @@ fn established_case_at(
                     }
                     _ => return None,
                 };
-                let child = structural_child(function, operation, place, field)?;
-                let child_declaration = function
-                    .structural_places
-                    .iter()
-                    .find(|candidate| candidate.id == child)?;
-                if declared_structural_type(function, child_declaration) != Some(next) {
-                    return None;
-                }
-                if !visiting.insert(child) {
-                    return None;
-                }
+                let (child, child_producer) =
+                    descended_field_child(function, operation, place, field, next, &mut visiting)?;
                 place = child;
-                producer = establishment_producer(function, child_declaration);
+                producer = child_producer;
                 declared = Some(next);
                 segments.drain(..1);
             }
@@ -290,12 +279,18 @@ fn established_case_at(
                 // the reached roster, a non-structural field carrier, and
                 // every segment with no canonical step leave the copy
                 // uncrossed.
-                if let Some((source, copied)) = leaf_copy_projection(unit, function, place) {
+                if let Some((source, spelled)) = leaf_copy_source(function, place) {
                     let source_declaration = function
                         .structural_places
                         .iter()
                         .find(|candidate| candidate.id == source)?;
                     let source_type = declared_structural_type(function, source_declaration)?;
+                    let copied = match spelled {
+                        StructuralCopyPath::Case(path) => path.clone(),
+                        StructuralCopyPath::Ordinary(path) => {
+                            canonicalize_ordinary_path(unit, source_type, path)?
+                        }
+                    };
                     let mut position = Position::Type(source_type);
                     for segment in &copied {
                         position = position.descend(unit, PathStep::Canonical(*segment))?;
@@ -409,57 +404,6 @@ impl<'a> Position<'a> {
                 _ => None,
             },
             (Self::CasePayload(_), _) => None,
-        }
-    }
-}
-
-/// The source place and canonical projection of the `StructuralLeafCopy`
-/// that produces `place`, or `None` when `place` is not that copy's
-/// operation result or the copy's projection cannot be spelled in the
-/// canonical vocabulary. A `Case` projection already carries verifier
-/// handles. An `Ordinary` projection spells source-level field identities,
-/// so each `Field` step resolves against the reached `Record`/`Mixed`
-/// roster to the field's verifier `StructuralFieldId` — the same name,
-/// non-erased membership, and `Structural` carrier the unit's own leaf-copy
-/// path resolution admits — and each `FixedIndex` keeps its in-bounds array
-/// step. A name absent from the roster, a non-structural field carrier, and
-/// every segment with no canonical step — `Case`, `RuntimeIndex`,
-/// `Referent`, `FixedByteRange` — leave the copy uncrossed.
-pub(crate) fn leaf_copy_projection(
-    unit: &PsiOptimizationUnit,
-    function: &PsiOptimizationFunction,
-    place: PlaceId,
-) -> Option<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
-    let StructuralPlaceKind::OperationResult { producer, .. } = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?
-        .kind
-    else {
-        return None;
-    };
-    let (source, path) = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::StructuralLeafCopy {
-                psi_operation,
-                result,
-                source,
-                path,
-            } if *psi_operation == producer && result.place == place => Some((*source, path)),
-            _ => None,
-        })?;
-    match path {
-        StructuralCopyPath::Case(path) => Some((source, path.clone())),
-        StructuralCopyPath::Ordinary(path) => {
-            let source_declaration = function
-                .structural_places
-                .iter()
-                .find(|declaration| declaration.id == source)?;
-            let source_type = declared_structural_type(function, source_declaration)?;
-            canonicalize_ordinary_path(unit, source_type, path).map(|canonical| (source, canonical))
         }
     }
 }
@@ -600,86 +544,4 @@ fn argument_rewrites_place(argument: &StructuralArgument, place: PlaceId) -> boo
                 argument.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ))
-}
-
-/// The one case of the closed roster the `path` resolves to under the
-/// place's declared structural type, or `None` when the path fails to
-/// descend — a `Field` name absent from a `Record`/`Mixed` common-field
-/// roster, a `FixedIndex` on a non-array, a `Referent` crossing on a
-/// non-reference — or when the resolved end type is not a `Sum`/`Mixed`
-/// roster of exactly one case.
-fn sole_case_at_path(
-    unit: &PsiOptimizationUnit,
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-    path: &[StructuralPathSegment],
-) -> Option<StructuralCaseId> {
-    resolved_sole_case(unit, declared_structural_type(function, declaration)?, path)
-}
-
-/// The one case of a declared closed roster, or `None` when the place's
-/// declared type is not a sum shape or names more than one case.
-fn sole_case(
-    unit: &PsiOptimizationUnit,
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-) -> Option<StructuralCaseId> {
-    sole_case_at_path(unit, function, declaration, &[])
-}
-
-/// The sole case of the closed roster at `path`'s end under `root`, or
-/// `None` when the path fails to descend or the end type is not a sole-case
-/// `Sum`/`Mixed` roster.
-fn resolved_sole_case(
-    unit: &PsiOptimizationUnit,
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<StructuralCaseId> {
-    let mut current = root;
-    for segment in path {
-        current = descended_type(unit, current, segment)?;
-    }
-    roster_sole_case(unit, current)
-}
-
-/// The first declared case of `type_id`'s roster — the case a zeroed tag's
-/// ordinal-zero bits select — or `None` when the shape is not a
-/// `Sum`/`Mixed` or declares no case at all.
-fn roster_first_case(
-    unit: &PsiOptimizationUnit,
-    type_id: StructuralTypeId,
-) -> Option<StructuralCaseId> {
-    let cases = match &unit
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)?
-        .shape
-    {
-        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
-        _ => return None,
-    };
-    cases.first().map(|case| case.id)
-}
-
-/// The one case of `type_id`'s closed roster, or `None` when its shape is
-/// not a `Sum`/`Mixed` or names more than one case.
-fn roster_sole_case(
-    unit: &PsiOptimizationUnit,
-    type_id: StructuralTypeId,
-) -> Option<StructuralCaseId> {
-    let cases = match &unit
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)?
-        .shape
-    {
-        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
-        _ => return None,
-    };
-    let [sole] = cases.as_slice() else {
-        return None;
-    };
-    Some(sole.id)
 }

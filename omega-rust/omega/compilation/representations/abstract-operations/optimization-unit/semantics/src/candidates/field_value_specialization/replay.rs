@@ -27,7 +27,6 @@ use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
-use crate::candidates::structural_copies::leaf_copy_source;
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
 };
@@ -43,9 +42,10 @@ use optimization_unit::{
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RootProducer,
     ScalarSubstitution, ValueDefinition, ValueDefinitionSite, bound_value,
     canonicalize_ordinary_path, case_field_initializer, constant_definition,
-    declared_structural_type, field_evidence, function_analysis, matches_constant_kind,
-    matches_observed_kind, observed_field_declaration, recompute_psi_optimization_unit_identity,
-    record_initializer, root_producer, structural_child, zeroed_fold,
+    declared_structural_type, field_evidence, function_analysis, leaf_copy_source,
+    matches_constant_kind, matches_observed_kind, observed_field_declaration,
+    recompute_psi_optimization_unit_identity, record_initializer, root_producer, structural_child,
+    zeroed_fold,
 };
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, ScalarType, StructuralFieldId,

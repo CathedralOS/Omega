@@ -20,7 +20,6 @@
 
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
-use crate::candidates::structural_copies::leaf_copy_source;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::StructuralCopyPath;
@@ -29,13 +28,14 @@ use optimization_unit::{
     Establishment, FoldedCaseMembershipRow, OptimizationFact, OptimizationNode,
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
-    canonicalize_ordinary_path, declared_structural_type, descended_field, descended_field_id,
-    descended_type, establishment_producer, recompute_psi_optimization_unit_identity, shape,
-    structural_child,
+    canonicalize_ordinary_path, declared_structural_type, descended_field, descended_field_child,
+    descended_field_id, establishment_producer, leaf_copy_source,
+    recompute_psi_optimization_unit_identity, resolved_sole_case, roster_first_case, shape,
+    sole_case, sole_case_at_path,
 };
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, MachineId, OperationId, PlaceId, ScalarType,
-    StructuralCaseId, StructuralFieldId, StructuralTypeId,
+    StructuralCaseId, StructuralTypeId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -366,70 +366,6 @@ fn established_case_at(
             _ => return None,
         }
     }
-}
-
-/// The one case of the closed roster the `path` resolves to under the
-/// place's declared structural type, or `None` when the path fails to
-/// descend — a `Field` name absent from a `Record`/`Mixed` common-field
-/// roster, a `FixedIndex` on a non-array, a `Referent` crossing on a
-/// non-reference — or when the resolved end type is not a `Sum`/`Mixed`
-/// roster of exactly one case.
-fn sole_case_at_path(
-    unit: &PsiOptimizationUnit,
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-    path: &[StructuralPathSegment],
-) -> Option<StructuralCaseId> {
-    resolved_sole_case(unit, declared_structural_type(function, declaration)?, path)
-}
-
-/// The one case of a declared closed roster, or `None` when the place's
-/// declared type is not a sum shape or names more than one case.
-fn sole_case(
-    unit: &PsiOptimizationUnit,
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-) -> Option<StructuralCaseId> {
-    sole_case_at_path(unit, function, declaration, &[])
-}
-
-/// The sole case of the closed roster at `path`'s end under `root`, or
-/// `None` when the path fails to descend or the end type is not a sole-case
-/// `Sum`/`Mixed` roster.
-fn resolved_sole_case(
-    unit: &PsiOptimizationUnit,
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<StructuralCaseId> {
-    let mut current = root;
-    for segment in path {
-        current = descended_type(unit, current, segment)?;
-    }
-    roster_sole_case(unit, current)
-}
-
-/// The first declared case of `type_id`'s roster — the case a zeroed tag's
-/// ordinal-zero bits select — or `None` when the shape is not a
-/// `Sum`/`Mixed` or declares no case at all.
-fn roster_first_case(
-    unit: &PsiOptimizationUnit,
-    type_id: StructuralTypeId,
-) -> Option<StructuralCaseId> {
-    let cases = roster_cases(unit, type_id)?;
-    cases.first().map(|case| case.id)
-}
-
-/// The one case of `type_id`'s closed roster, or `None` when its shape is
-/// not a `Sum`/`Mixed` or names more than one case.
-fn roster_sole_case(
-    unit: &PsiOptimizationUnit,
-    type_id: StructuralTypeId,
-) -> Option<StructuralCaseId> {
-    let cases = roster_cases(unit, type_id)?;
-    let [sole] = cases else {
-        return None;
-    };
-    Some(sole.id)
 }
 
 /// The admissibility of one node under `evidence`: a `StructuralCaseMembership`
@@ -797,47 +733,4 @@ pub(super) fn validate(
         ),
         provenance: expected_provenance,
     })
-}
-
-/// A field descent's shared child step: the producer's structural child,
-/// its rostered declaration, the declared-type equality check, and the
-/// cycle guard; returns the child place and its establishment for the next
-/// step.
-fn descended_field_child(
-    function: &PsiOptimizationFunction,
-    producer: OperationId,
-    place: PlaceId,
-    field: StructuralFieldId,
-    next: StructuralTypeId,
-    visiting: &mut BTreeSet<PlaceId>,
-) -> Option<(PlaceId, Establishment)> {
-    let child = structural_child(function, producer, place, field)?;
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|candidate| candidate.id == child)?;
-    if declared_structural_type(function, declaration) != Some(next) || !visiting.insert(child) {
-        return None;
-    }
-    Some((child, establishment_producer(function, declaration)))
-}
-
-/// The case roster of `type_id`'s declared shape, or `None` when the type
-/// is absent or its shape is not `Sum`/`Mixed`.
-fn roster_cases(
-    unit: &PsiOptimizationUnit,
-    type_id: StructuralTypeId,
-) -> Option<&[StructuralCaseDeclaration]> {
-    match &unit
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)?
-        .shape
-    {
-        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-            Some(cases.as_slice())
-        }
-        _ => None,
-    }
 }

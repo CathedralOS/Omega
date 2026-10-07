@@ -11,13 +11,15 @@ use super::{
     FieldValueResolution, FieldValueRow, NodeLocation, O, OperationId, PlaceId,
     PsiOptimizationFunction, PsiOptimizationUnit, ScalarType,
 };
-use crate::representation_specialization::admission::{bound_place, leaf_copy_projection};
+use crate::representation_specialization::admission::bound_place;
+use abstract_operations::StructuralCopyPath;
 use optimization_unit::{
     EstablishmentScalar, FieldEvidence, ForwardedFieldValue, FunctionAnalysis, ObservedFieldKind,
     OptimizationBlock, OptimizationNode, Position, ProvenFieldValue, RootProducer, ValueDefinition,
-    ValueDefinitionSite, bound_value, case_field_initializer, constant_definition,
-    declared_structural_type, matches_constant_kind, matches_observed_kind,
-    observed_field_declaration, record_initializer, root_producer, structural_child, zeroed_fold,
+    ValueDefinitionSite, bound_value, canonicalize_ordinary_path, case_field_initializer,
+    constant_definition, declared_structural_type, leaf_copy_source, matches_constant_kind,
+    matches_observed_kind, observed_field_declaration, record_initializer, root_producer,
+    structural_child, zeroed_fold,
 };
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, StructuralFieldId, StructuralTypeId, ValueId,
@@ -301,12 +303,18 @@ fn establishment_scalar(
                 // each to its roster's verifier handle — and the source's
                 // own chain decides the proof; a source that establishes a
                 // different case declines at the `Case` step.
-                if let Some((source, copied)) = leaf_copy_projection(unit, function, place) {
+                if let Some((source, spelled)) = leaf_copy_source(function, place) {
                     let declaration = function
                         .structural_places
                         .iter()
                         .find(|declaration| declaration.id == source)?;
                     let source_type = declared_structural_type(function, declaration)?;
+                    let copied = match spelled {
+                        StructuralCopyPath::Case(path) => path.clone(),
+                        StructuralCopyPath::Ordinary(path) => {
+                            canonicalize_ordinary_path(unit, source_type, path)?
+                        }
+                    };
                     let mut position = Position::Type(source_type);
                     for segment in &copied {
                         position = position.descend(unit, segment)?;
