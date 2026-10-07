@@ -17,7 +17,7 @@
 //! `exact_self_field`: the same declaration-exact field identity, reached
 //! through whichever root the declaration actually binds.
 
-use super::{exact_attached_field, exact_self_field};
+use super::{exact_self_field, single_member_receiver_field};
 use language_core::{SELF_RECEIVER, place_field, place_label};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -77,29 +77,9 @@ pub fn exact_attached_storage_field<'program>(
     if root.name == SELF_RECEIVER {
         return None;
     }
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if member.case_variant.is_some() {
-        return None;
-    }
-    let ExpressionNode::Name(receiver) = program.expression_table.expression(member.receiver)
-    else {
-        return None;
-    };
-    if receiver.symbol != root.symbol
-        || receiver.head_symbol != root.symbol
-        || !matches!(program.expression_table.name_path_members(receiver.members),
-            [only] if only.as_str() == root.name)
-    {
-        return None;
-    }
-    exact_attached_field(
-        program,
-        machine,
-        member.member_symbol,
-        member.member.as_str(),
-    )
+    single_member_receiver_field(program, machine, expression, root.symbol, |only| {
+        only.as_str() == root.name
+    })
 }
 
 /// Whether `expression` names a place reached from this machine's attached

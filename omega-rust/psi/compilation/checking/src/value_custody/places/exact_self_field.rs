@@ -11,14 +11,17 @@ use typed_trees::machine::Machine;
 /// Another receiver of the same type is not the same storage. An absent field
 /// symbol may resolve uniquely within that declaration, but a conflicting
 /// retained symbol cannot be replaced by a same-spelled field.
-pub fn exact_self_field<'program>(
+/// A one-member `receiver.field` place resolved against an exact receiver
+/// symbol: the receiver path must name `receiver_symbol` spelled as exactly
+/// one member satisfying `member_matches` — `self` for the machine's own
+/// storage, the storage root's name for a parameter-carried root.
+pub fn single_member_receiver_field<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
+    receiver_symbol: SymbolHandle,
+    member_matches: impl Fn(&typed_trees::name::Identifier) -> bool,
 ) -> Option<&'program DataField> {
-    if !machine.symbol.is_valid() || !machine.attached_data_symbol.is_valid() {
-        return None;
-    }
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -29,10 +32,10 @@ pub fn exact_self_field<'program>(
     else {
         return None;
     };
-    if receiver.symbol != machine.symbol
-        || receiver.head_symbol != machine.symbol
+    if receiver.symbol != receiver_symbol
+        || receiver.head_symbol != receiver_symbol
         || !matches!(program.expression_table.name_path_members(receiver.members),
-            [only] if only.is_self_receiver())
+            [only] if member_matches(only))
     {
         return None;
     }
@@ -41,6 +44,23 @@ pub fn exact_self_field<'program>(
         machine,
         member.member_symbol,
         member.member.as_str(),
+    )
+}
+
+pub fn exact_self_field<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<&'program DataField> {
+    if !machine.symbol.is_valid() || !machine.attached_data_symbol.is_valid() {
+        return None;
+    }
+    single_member_receiver_field(
+        program,
+        machine,
+        expression,
+        machine.symbol,
+        typed_trees::name::Identifier::is_self_receiver,
     )
 }
 
