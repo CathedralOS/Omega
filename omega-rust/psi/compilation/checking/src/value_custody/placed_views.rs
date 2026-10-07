@@ -281,12 +281,9 @@ fn placed_view_field_for_statement_call<'program>(
     &'program typed_trees::typed_trees::PlacedFieldPlan,
 )> {
     placed_view_field_for_call_target(program, call.target_symbol).or_else(|| {
-        let receiver = program
-            .statement_table
-            .name_path_members(call.receiver)
-            .iter()
-            .map(|member| member.as_str().to_owned())
-            .collect::<Vec<_>>();
+        let receiver =
+
+            crate::program_scope::call_targets::call_receiver_member_names(program, call);
         let type_reference = crate::value_custody::places::declared_member_path_type(
             program,
             machine,

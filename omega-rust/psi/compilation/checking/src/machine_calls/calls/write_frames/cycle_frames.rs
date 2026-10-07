@@ -379,12 +379,9 @@ fn build_cycle_frame_equation<'program>(
                 }
             }
             StatementNode::Call(call) => {
-                let receiver_members = program
-                    .statement_table
-                    .name_path_members(call.receiver)
-                    .iter()
-                    .map(|member| member.as_str().to_owned())
-                    .collect::<Vec<_>>();
+                let receiver_members =
+
+                    crate::program_scope::call_targets::call_receiver_member_names(program, call);
                 let arguments = program.statement_table.expression_handles(call.arguments);
                 // Synthesized wire codecs frame from their borrowed arguments;
                 // the type-name receiver never reaches the ownership floor.

@@ -2,6 +2,7 @@
 
 use super::{CALL_ARGUMENT_DESTINATIONS_SLOT, CONFORMANCE_SLOT_CARRIERS_SLOT, program_key};
 use std::collections::HashMap;
+use typed_trees::statement::TableCall;
 use typed_trees::types::TypeReferenceHandle;
 
 /// The conformance slot-carrier index — (trait symbol, bound requirement
@@ -131,4 +132,19 @@ pub(crate) fn unique_state_by_symbol<'p>(
         return None;
     };
     Some(state)
+}
+
+/// A call's receiver spelled as member-name strings: the statement table's
+/// name-path members owned outright for the signature selectors that compare
+/// them against authored path spellings.
+pub(crate) fn call_receiver_member_names(
+    program: &typed_trees::TypedTrees,
+    call: &TableCall,
+) -> Vec<String> {
+    program
+        .statement_table
+        .name_path_members(call.receiver)
+        .iter()
+        .map(|member| member.as_str().to_owned())
+        .collect()
 }

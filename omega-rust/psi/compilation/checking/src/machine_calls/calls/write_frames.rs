@@ -120,12 +120,9 @@ fn known_call_written_paths(
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
-    let receiver_members = program
-        .statement_table
-        .name_path_members(call.receiver)
-        .iter()
-        .map(|member| member.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let receiver_members =
+
+        crate::program_scope::call_targets::call_receiver_member_names(program, call);
     known_call_written_paths_for_parts_with_origins(
         program,
         call.target_symbol,

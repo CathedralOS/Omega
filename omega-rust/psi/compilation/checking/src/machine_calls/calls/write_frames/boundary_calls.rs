@@ -102,12 +102,9 @@ pub(crate) fn boundary_trait_signature<'program>(
     current_machine: &Machine,
     call: &TableCall,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
-    let receiver_members = program
-        .statement_table
-        .name_path_members(call.receiver)
-        .iter()
-        .map(|member| member.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let receiver_members =
+
+        crate::program_scope::call_targets::call_receiver_member_names(program, call);
     boundary_trait_signature_for_parts(
         program,
         current_machine,
@@ -133,12 +130,9 @@ pub(crate) fn boundary_trait_call_signature<'program>(
     current_machine: &Machine,
     call: &TableCall,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
-    let receiver_members = program
-        .statement_table
-        .name_path_members(call.receiver)
-        .iter()
-        .map(|member| member.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let receiver_members =
+
+        crate::program_scope::call_targets::call_receiver_member_names(program, call);
     boundary_trait_signature_and_receiver_inner(
         program,
         current_machine,

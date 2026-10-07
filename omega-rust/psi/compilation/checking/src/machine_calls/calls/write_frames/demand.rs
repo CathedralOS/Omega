@@ -659,13 +659,10 @@ impl<'program> CallFrameResolver<'program> {
                                 inference,
                             );
                         }
-                        let receiver = self
-                            .program
-                            .statement_table
-                            .name_path_members(call.receiver)
-                            .iter()
-                            .map(|member| member.as_str().to_owned())
-                            .collect::<Vec<_>>();
+                        let receiver = crate::program_scope::call_targets::call_receiver_member_names(
+                            self.program,
+                            call,
+                        );
                         if receiver.first().is_some_and(|root| {
                             prefix.divergent.iter().any(|(name, _)| name == root)
                         }) {
@@ -1334,12 +1331,9 @@ pub(crate) fn conservative_call_written_paths(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<String>> {
-    let receiver_members = program
-        .statement_table
-        .name_path_members(call.receiver)
-        .iter()
-        .map(|member| member.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let receiver_members =
+
+        crate::program_scope::call_targets::call_receiver_member_names(program, call);
     syntactic_call_written_paths(
         program,
         current_machine,
