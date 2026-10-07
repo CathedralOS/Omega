@@ -6,7 +6,10 @@
 //! selector call or a call routed through the requirement, proves only the
 //! requirement's `requires` and assumes its `ensures`. So the member may
 //! demand no premise the requirement lacks, and must guarantee every
-//! conclusion the requirement states. Laws, the result-free equalities and
+//! conclusion the requirement states. A machine that also declares the exact
+//! edge `satisfies Trait::requirement` already owes the requirement's whole
+//! contract through that edge, as an inherited obligation, so its conclusions
+//! need no restatement. Laws, the result-free equalities and
 //! proposition applications, keep their own entailment judgment in
 //! `law_conformance`; this rule covers every other expression and membership
 //! conjunct by exact correspondence. A requirement conclusion must reappear
@@ -60,9 +63,14 @@ pub(crate) fn check_contract_refinement(
     let required = Conjuncts::collect(program, required_contracts.iter(), required_parameters);
     let member = Conjuncts::collect(program, member_contracts, member_parameters);
     let requirement_name = format!("{}::{}", trait_definition.name, requirement.name);
+    let owes_through_edge = program
+        .machine_trait_conformances(machine)
+        .iter()
+        .any(|edge| edge.requirement_symbol == requirement.symbol);
 
     for conclusion in &required.ensures {
-        if conclusion.law_checked
+        if owes_through_edge
+            || conclusion.law_checked
             || member
                 .ensures
                 .iter()
@@ -73,7 +81,7 @@ pub(crate) fn check_contract_refinement(
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` realizes `{requirement_name}` but does not guarantee its `ensures {}`; callers of the requirement assume it, so state it as the member's own `ensures`",
             machine.name,
-            render(program, conclusion.expression, required_parameters, member_parameters),
+            render(program, conclusion, required_parameters, member_parameters),
         )));
     }
     if required.proposition_premises || required.laws_only {
@@ -90,7 +98,7 @@ pub(crate) fn check_contract_refinement(
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` realizes `{requirement_name}` but requires `{}`, which the requirement does not require; callers of the requirement prove only its own `requires`",
             machine.name,
-            render(program, premise.expression, member_parameters, member_parameters),
+            render(program, premise, member_parameters, member_parameters),
         )));
     }
 }
@@ -108,6 +116,8 @@ struct Conjuncts {
 
 struct Conjunct {
     expression: ExpressionHandle,
+    /// The domain a membership conjunct names, spelled after its value.
+    membership_domain: Option<symbols::SymbolHandle>,
     key: String,
     /// A result-free equality the law judgment already enforces.
     law_checked: bool,
@@ -164,6 +174,7 @@ impl Conjuncts {
                         split_conjuncts(program, *expression, &mut split);
                         target.extend(split.into_iter().map(|expression| Conjunct {
                             expression,
+                            membership_domain: None,
                             key: program.render_proof_expression(
                                 expression,
                                 ProofSubstitutions::ByParameter(&placeholders),
@@ -173,6 +184,7 @@ impl Conjuncts {
                     }
                     ProofFact::Membership(membership) => target.push(Conjunct {
                         expression: membership.value,
+                        membership_domain: Some(membership.domain_symbol),
                         key: format!(
                             "{} in {:?}",
                             program.render_proof_expression(
@@ -239,7 +251,7 @@ fn is_law_conjunct(program: &TypedTrees, expression: ExpressionHandle) -> bool {
 /// Spell a conjunct in the member's formal names.
 fn render(
     program: &TypedTrees,
-    expression: ExpressionHandle,
+    conjunct: &Conjunct,
     authored: &[StateParameter],
     member: &[StateParameter],
 ) -> String {
@@ -254,5 +266,10 @@ fn render(
             )
         })
         .collect::<Vec<_>>();
-    program.render_proof_expression(expression, ProofSubstitutions::ByParameter(&names))
+    let value = program
+        .render_proof_expression(conjunct.expression, ProofSubstitutions::ByParameter(&names));
+    match conjunct.membership_domain {
+        Some(domain) => format!("{value} in {}", program.symbols.display_path(domain, "::")),
+        None => value,
+    }
 }
