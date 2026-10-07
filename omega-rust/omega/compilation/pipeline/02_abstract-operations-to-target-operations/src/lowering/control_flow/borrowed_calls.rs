@@ -333,12 +333,11 @@ pub(super) fn address_join_window_argument(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     let (block, parameter) = address_join_parameter(function, argument.place)
         .filter(|_| live.address_joins.contains(&argument.place))
-        .ok_or_else(unsupported)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if !super::transfers::is_address_join(parameter, types) {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
@@ -364,7 +363,7 @@ pub(super) fn address_join_window_argument(
         &mut shape_cache,
         &mut active,
     )?
-    .ok_or_else(unsupported)
+    .ok_or(LoweringError::unsupported_control_flow(function.machine))
 }
 
 /// The block that binds `place` and its structural declaration.
@@ -410,7 +409,6 @@ pub(super) fn byte_argument(
     // own home. A scalar or unit result changes no custody. Resolve local
     // backing before a projected parameter lookup: geometry does not determine
     // whether the source storage is an incoming parameter or a local result.
-    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     // A home that is no whole plain array (a mutable view's affine custody
@@ -441,7 +439,7 @@ pub(super) fn byte_argument(
                 .iter()
                 .find(|root| root.place == argument.place),
         ) else {
-            return Err(unsupported());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         };
         return crate::lowering::unit::roster_arguments::fixed_array_view_argument(
             argument,
@@ -456,7 +454,7 @@ pub(super) fn byte_argument(
             &mut shape_cache,
             &mut active,
         )?
-        .ok_or_else(unsupported);
+        .ok_or(LoweringError::unsupported_control_flow(function.machine));
     }
     // A descriptor view carries pointer and extent; a bounded view over a
     // fixed array (`&[u8; N]`) carries only the pointer, its extent static.
@@ -489,7 +487,7 @@ pub(super) fn byte_argument(
                 .and_then(|home| home.operation_result())
                 != Some((producer, result))
         {
-            return Err(unsupported());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         (
             result.structural_type,
@@ -522,7 +520,7 @@ pub(super) fn byte_argument(
                 || !(access == argument.access
                     || access == StructuralAccess::MutableBorrow && shared)
             {
-                return Err(unsupported());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             TargetStructuralArgumentSource::EstablishedElementView {
                 psi_operation: *producer,
@@ -544,7 +542,7 @@ pub(super) fn byte_argument(
                 &mut Vec::new(),
             )?;
             if access != argument.access && !(access == StructuralAccess::MutableBorrow && shared) {
-                return Err(unsupported());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             TargetStructuralArgumentSource::EstablishedByteView {
                 psi_operation: *producer,

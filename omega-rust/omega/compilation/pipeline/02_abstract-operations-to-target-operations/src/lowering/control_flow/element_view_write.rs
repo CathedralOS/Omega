@@ -21,7 +21,6 @@ pub(super) fn lower(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::ElementViewWrite {
         path,
         psi_operation,
@@ -32,10 +31,10 @@ pub(super) fn lower(
         obligation,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     if live.lengths.get(length) != Some(destination) {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let values = observations::scalar_values(live, &prepared.scalar_parameters)?;
     let (view, view_structural_type) =
@@ -54,27 +53,30 @@ pub(super) fn lower(
         )?;
     let StructuralTypeShape::ElementView { element } = &structural_types
         .get(&view_structural_type)
-        .ok_or_else(invalid)?
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?
         .shape
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let Some(element_scalar) = terminal_semantics::element_view_leaf_scalar(
         structural_types.catalog().as_slice(),
         *element,
         path,
     ) else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     // Resolve the authored leaf value from the common dominating scalar roster.
-    let index_value = *live.integers.get(index).ok_or_else(invalid)?;
+    let index_value = *live
+        .integers
+        .get(index)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let element_value = super::scalar_sources::source(*value, function, live)?;
     if index_value.scalar_type().sign() != IntegerSign::Unsigned
         || index_value.scalar_type().bits() != 64
         || index_value.scalar_type().is_address()
         || element_scalar != element_value.scalar_type()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::ElementViewWrite {
         path: path.clone(),

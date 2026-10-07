@@ -27,8 +27,9 @@ pub(super) fn lower(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
-    let location = event.location().ok_or_else(invalid)?;
+    let location = event
+        .location()
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let (access, result) = match event {
         AbstractAtomicEvent::Load {
             ordering, result, ..
@@ -96,16 +97,16 @@ pub(super) fn lower(
             Some(*observed),
         ),
         AbstractAtomicEvent::CompareExchangeOnce { .. } | AbstractAtomicEvent::Fence { .. } => {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     };
     let parameter = function
         .arrival_parameter(location.root)
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if !access.ordering_is_legal()
         || access.observes_resident() && parameter.access == StructuralAccess::WriteOnlyBorrow
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (carrier, _, prefix, indices) = crate::lowering::structural_layout::runtime_projection(
         parameter.structural_type,
@@ -116,23 +117,26 @@ pub(super) fn lower(
     )?;
     // Atomic location identity currently admits static projections only.
     if !indices.is_empty() {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let StructuralTypeShape::Record { fields } = &types.get(&carrier).ok_or_else(invalid)?.shape
+    let StructuralTypeShape::Record { fields } = &types
+        .get(&carrier)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?
+        .shape
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let field = fields
         .iter()
         .find(|field| field.id == location.field && !field.relevance.is_erased())
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let StructuralFieldType::Atomic(ScalarType::Integer(integer)) = field.field_type else {
         // A bounded field additionally owes a range proof; an atomic event
         // cannot invent that proof by erasing the field's restriction.
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     if !matches!(integer.bits(), 8 | 16 | 32 | 64) {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let scalar_type = ScalarType::Integer(integer);
     let offset = crate::lowering::structural_layout::direct_integer_field_offset(
@@ -141,9 +145,11 @@ pub(super) fn lower(
         integer,
         types,
     )?;
-    let field_byte_offset = prefix.checked_add(offset).ok_or_else(invalid)?;
+    let field_byte_offset = prefix
+        .checked_add(offset)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if field_byte_offset % u32::from(integer.bits() / 8) != 0 {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let operands = access
         .operands()

@@ -167,7 +167,6 @@ pub(super) fn replace_view_descriptor(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::StructuralByteViewFieldStore {
         psi_operation,
         destination,
@@ -177,7 +176,7 @@ pub(super) fn replace_view_descriptor(
         ..
     } = operation
     else {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let shared_view = terminal_psi::ByteSequenceCarrier::BorrowedView {
         access: Some(StructuralAccess::SharedBorrow),
@@ -200,7 +199,7 @@ pub(super) fn replace_view_descriptor(
             let home = live
                 .structural_homes
                 .get(destination)
-                .ok_or_else(unsupported)?;
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             // Declared byte qualifications are content invariants the store
             // already proved; they grant or withhold no storage authority.
             if !path.is_empty()
@@ -216,7 +215,7 @@ pub(super) fn replace_view_descriptor(
                     ))
                 )
             {
-                return Err(unsupported());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             terminal_psi::StructuralArgument {
                 place: *destination,
@@ -236,7 +235,7 @@ pub(super) fn replace_view_descriptor(
                 .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
         })
     {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let indices = super::primitive_storage::field_indices(
         function,

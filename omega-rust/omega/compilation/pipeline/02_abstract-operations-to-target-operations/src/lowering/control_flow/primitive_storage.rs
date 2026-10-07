@@ -69,7 +69,6 @@ pub(super) fn readable_byte_field(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
-    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     // Observations need not share the narrower store grammar. The semantic
     // check below constrains newly admitted deep paths to fixed storage before
     // the general projection resolver computes their physical extent.
@@ -79,11 +78,11 @@ pub(super) fn readable_byte_field(
             .iter()
             .any(|claim| claim.input == source)
     {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (structural_type, access) = field_root(function, types, prepared, live, source)?;
     if !terminal_psi::is_structural_scalar_store_path(path) {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let carrier = crate::lowering::structural_layout::runtime_projection(
         structural_type,
@@ -93,13 +92,17 @@ pub(super) fn readable_byte_field(
         &mut BTreeSet::new(),
     )?
     .0;
-    let StructuralTypeShape::Record { fields } =
-        &types.get(&carrier).ok_or_else(unsupported)?.shape
+    let StructuralTypeShape::Record { fields } = &types
+        .get(&carrier)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?
+        .shape
     else {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let mut matching = fields.iter().filter(|candidate| candidate.id == field);
-    let selected = matching.next().ok_or_else(unsupported)?;
+    let selected = matching
+        .next()
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     // A shared view field is observed through its stored descriptor: the
     // length is the descriptor's extent word and bytes live behind its
     // pointer. Neither observation creates a borrow of that backing.
@@ -127,7 +130,7 @@ pub(super) fn readable_byte_field(
                 })
         ))
     {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(terminal_psi::StructuralArgument {
         place: source,
@@ -145,7 +148,6 @@ pub(super) fn field_root(
     live: &LiveDefinitions,
     place: semantic_vocabulary::PlaceId,
 ) -> Result<(StructuralTypeId, StructuralAccess), LoweringError> {
-    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     let structural_type = live
         .views
         .get(&place)
@@ -160,7 +162,7 @@ pub(super) fn field_root(
                 .arrival_parameter(place)
                 .map(|parameter| parameter.structural_type)
         })
-        .ok_or_else(unsupported)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if matches!(
         types
             .get(&structural_type)
@@ -184,7 +186,7 @@ pub(super) fn field_root(
                 &mut Vec::new(),
             )?;
         if resolved_type != structural_type {
-            return Err(unsupported());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         return Ok((structural_type, access));
     }
@@ -198,13 +200,15 @@ pub(super) fn field_root(
         if (!home.qualifications().is_empty() && !descriptor_home)
             || !home.projected_qualifications().is_empty()
         {
-            return Err(unsupported());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         return Ok((structural_type, StructuralAccess::Owned));
     }
-    let parameter = function.arrival_parameter(place).ok_or_else(unsupported)?;
+    let parameter = function
+        .arrival_parameter(place)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if !parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty() {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok((structural_type, parameter.access))
 }

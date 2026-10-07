@@ -23,7 +23,6 @@ pub(super) fn lower(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::EstablishByteSequenceConcatenation {
         psi_operation,
         result,
@@ -32,7 +31,7 @@ pub(super) fn lower(
         capacity_obligation,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     if result.multiplicity != StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
@@ -47,7 +46,7 @@ pub(super) fn lower(
                 )
             })
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     for operand in [left, right] {
         let (source, length, whole_source) = match operand {
@@ -63,7 +62,7 @@ pub(super) fn lower(
                             function, types, live, *source,
                         ))
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 (*source, *length, true)
             }
@@ -91,7 +90,7 @@ pub(super) fn lower(
                             && measured_field == field && result.value == *length)
                     })
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 (source.place, *length, false)
             }
@@ -99,15 +98,15 @@ pub(super) fn lower(
         if source == result.place
             || (whole_source && super::references::check_root_access(live, source))
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let scalar = live
             .integers
             .get(&length)
-            .ok_or_else(invalid)?
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?
             .scalar_type();
         if scalar.sign() != IntegerSign::Unsigned || scalar.bits() != 64 || scalar.is_address() {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
     let home = super::aggregate_results::home(*psi_operation, result, types)?;
@@ -117,7 +116,7 @@ pub(super) fn lower(
             .insert(result.place, (*psi_operation, result.structural_type))
             .is_some()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::EstablishByteSequenceConcatenation {
         psi_operation: *psi_operation,

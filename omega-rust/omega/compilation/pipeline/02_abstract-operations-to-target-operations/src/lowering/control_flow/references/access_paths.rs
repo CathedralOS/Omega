@@ -25,24 +25,26 @@ pub(super) fn call_reference_custody(
     types: &StructuralTypeLookup<'_>,
     argument: &StructuralArgument,
 ) -> Result<AccessReferenceCustody, LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let mut current = source_contract(function, live, argument.place)
         .map(|(contract, _)| contract)
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     for segment in &argument.path {
         current = match segment {
             StructuralPathSegment::Referent => {
-                let StructuralTypeShape::Reference { referent, .. } =
-                    types.get(&current).ok_or_else(invalid)?.shape
+                let StructuralTypeShape::Reference { referent, .. } = types
+                    .get(&current)
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?
+                    .shape
                 else {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 };
                 referent
             }
             StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => {
-                leaf_type(types, current, std::slice::from_ref(segment)).ok_or_else(invalid)?
+                leaf_type(types, current, std::slice::from_ref(segment))
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?
             }
-            _ => return Err(invalid()),
+            _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
         };
     }
     access_reference_custody(function, live, types, argument)
@@ -54,9 +56,8 @@ pub(super) fn access_reference_custody(
     types: &StructuralTypeLookup<'_>,
     argument: &StructuralArgument,
 ) -> Result<AccessReferenceCustody, LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     if argument.access == StructuralAccess::Owned {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let source_access = function
         .arrival_parameter(argument.place)
@@ -71,17 +72,17 @@ pub(super) fn access_reference_custody(
         || source_access == StructuralAccess::SharedBorrow
             && argument.access != StructuralAccess::SharedBorrow
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut current = source_contract(function, live, argument.place)
         .map(|(contract, _)| contract)
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let mut cursors = vec![(argument.place, Vec::new(), Vec::new())];
     let cursor_budget = live
         .references
         .len()
         .checked_mul(argument.path.len())
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let mut dependencies = Vec::new();
     let mut prefix_start = 0;
     for (position, segment) in argument.path.iter().enumerate() {
@@ -94,12 +95,14 @@ pub(super) fn access_reference_custody(
             current,
             prefix,
         )
-        .ok_or_else(invalid)?
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?
         .id;
-        let StructuralTypeShape::Reference { referent, access } =
-            types.get(&reference_type).ok_or_else(invalid)?.shape
+        let StructuralTypeShape::Reference { referent, access } = types
+            .get(&reference_type)
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?
+            .shape
         else {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         };
         let further_crossing =
             argument.path[position + 1..].contains(&StructuralPathSegment::Referent);
@@ -111,7 +114,7 @@ pub(super) fn access_reference_custody(
                 ))
             || further_crossing && access == StructuralAccess::WriteOnlyBorrow
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let mut origins = Vec::new();
         let mut next_cursors = Vec::new();
@@ -119,7 +122,7 @@ pub(super) fn access_reference_custody(
             selected_path.extend_from_slice(prefix);
             let root_type = source_contract(function, live, place)
                 .map(|(contract, _)| contract)
-                .ok_or_else(invalid)?;
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let candidates = descriptor_candidates(
                 function,
                 types,
@@ -127,19 +130,19 @@ pub(super) fn access_reference_custody(
                 &selected_path,
                 live.references.len(),
             )
-            .ok_or_else(invalid)?;
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             for path in candidates {
                 if source_contract(function, live, place)
                     .map(|(contract, _)| contract)
                     .and_then(|contract| leaf_type(types, contract, &path))
                     != Some(reference_type)
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let leaf = live
                     .references
                     .get(&(place, path.clone()))
-                    .ok_or_else(invalid)?;
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 if leaf.referent != referent
                     || live.references.iter().any(|((carrier, path), child)| {
                         child.parent.as_ref() == Some(&leaf.identity)
@@ -153,7 +156,7 @@ pub(super) fn access_reference_custody(
                             )
                     })
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 // A descriptor is stored data too. Direct access cannot bypass
                 // a live enclosing loan; traversing that exact ancestor is the
@@ -187,7 +190,7 @@ pub(super) fn access_reference_custody(
                             })
                     })
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 dependencies.push(ReferenceRoot::Ingress(place, path));
                 origins.push(leaf.root.clone());
@@ -202,12 +205,14 @@ pub(super) fn access_reference_custody(
                             .and_then(|contract| leaf_type(types, contract, &path))
                             != Some(referent)
                         {
-                            return Err(invalid());
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
                         }
                         let cursor = (place, path, ancestors.clone());
                         if !next_cursors.contains(&cursor) {
                             if next_cursors.len() >= cursor_budget {
-                                return Err(invalid());
+                                return Err(LoweringError::unsupported_control_flow(
+                                    function.machine,
+                                ));
                             }
                             next_cursors.push(cursor);
                         }
@@ -220,7 +225,7 @@ pub(super) fn access_reference_custody(
             // geometry. Custody never invents a primitive structural type for
             // an inline field or drops an earlier runtime selector.
             if origins.is_empty() {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             return Ok(AccessReferenceCustody {
                 origins,
@@ -231,7 +236,7 @@ pub(super) fn access_reference_custody(
         current = referent;
         prefix_start = position + 1;
     }
-    Err(invalid())
+    Err(LoweringError::unsupported_control_flow(function.machine))
 }
 
 /// Enumerate exact stored descriptors from the declared fixed array extents.

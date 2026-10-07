@@ -45,7 +45,6 @@ pub(super) fn move_field(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::MoveStructuralField {
         psi_operation,
         result,
@@ -54,21 +53,22 @@ pub(super) fn move_field(
         field,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let referent = window_referent(function, live, types, source, path)?;
     if !window_root(function, prepared, live, source)
         || !root_window_loan(source, path, *field)
         || super::references::contains_reference(types, result.structural_type)
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (geometry_type, geometry_path) = referent
         .as_ref()
         .map_or((source.structural_type(), path.as_slice()), |referent| {
             (referent.referent, referent.path.as_slice())
         });
-    let mut path = field_path(types, geometry_type, geometry_path, *field).ok_or_else(invalid)?;
+    let mut path = field_path(types, geometry_type, geometry_path, *field)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if referent.is_some() {
         path.insert(0, StructuralPathSegment::Referent);
     }
@@ -95,7 +95,6 @@ pub(super) fn store_field(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::StoreStructuralField {
         psi_operation,
         destination,
@@ -104,7 +103,7 @@ pub(super) fn store_field(
         value,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let referent = window_referent(function, live, types, destination, path)?;
     if !window_root(function, prepared, live, destination)
@@ -112,13 +111,14 @@ pub(super) fn store_field(
         || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (geometry_type, geometry_path) = referent.as_ref().map_or(
         (destination.structural_type(), path.as_slice()),
         |referent| (referent.referent, referent.path.as_slice()),
     );
-    let full_path = field_path(types, geometry_type, geometry_path, *field).ok_or_else(invalid)?;
+    let full_path = field_path(types, geometry_type, geometry_path, *field)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let (field_type, shape, byte_offset, indices) =
         crate::lowering::structural_layout::runtime_projection(
             geometry_type,
@@ -143,7 +143,7 @@ pub(super) fn store_field(
             || !home.projected_qualifications().is_empty()
             || home.layout.shape() != shape
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         home.multiplicity()
     } else {
@@ -154,26 +154,26 @@ pub(super) fn store_field(
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == value.place)
-            .ok_or_else(invalid)?;
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let parameter = prepared
             .parameters
             .iter()
             .find(|parameter| parameter.place == value.place)
-            .ok_or_else(invalid)?;
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if declaration.access != StructuralAccess::Owned
             || declaration.structural_type != field_type
             || !declaration.qualifications.is_empty()
             || !declaration.projected_qualifications.is_empty()
             || parameter.shape != shape
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         declaration.multiplicity
     };
     if super::references::contains_reference(types, field_type)
         || multiplicity == StructuralMultiplicity::Linear
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // The store consumes an affine value as record construction consumes a
     // field operand; an unrestricted value's home stays readable.
@@ -205,15 +205,14 @@ pub(super) fn window_referent(
     if !matches!(path.first(), Some(StructuralPathSegment::Referent)) {
         return Ok(None);
     }
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } = root else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let referent =
         super::references::writable_referent_destination(function, live, types, result.place, path)
-            .ok_or_else(invalid)?;
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if referent.producer != *producer || referent.result != *result {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(Some(referent))
 }

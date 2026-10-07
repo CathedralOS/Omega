@@ -283,12 +283,11 @@ pub(super) fn reference_call_argument(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let crossing = argument
         .path
         .iter()
         .position(|segment| *segment == StructuralPathSegment::Referent)
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let prefix = &argument.path[..crossing];
     let suffix = &argument.path[crossing + 1..];
     if prefix.iter().chain(suffix).any(|segment| {
@@ -299,7 +298,7 @@ pub(super) fn reference_call_argument(
                 | StructuralPathSegment::Referent
         )
     }) {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     if argument.access == StructuralAccess::Owned
         || argument.access != declaration.access
@@ -307,18 +306,18 @@ pub(super) fn reference_call_argument(
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let leaf = live
         .references
         .get(&(argument.place, prefix.to_vec()))
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if live
         .references
         .values()
         .any(|child| child.parent.as_ref() == Some(&leaf.identity))
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (root_type, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
         if home.has_claims()
@@ -329,7 +328,7 @@ pub(super) fn reference_call_argument(
                 .operation_result()
                 .is_some_and(|(_, result)| !result.qualification_establishments.is_empty())
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let source = match &home.origin {
             target_operations::TargetStructuralHomeOrigin::OperationResult {
@@ -351,20 +350,23 @@ pub(super) fn reference_call_argument(
             .parameters
             .iter()
             .find(|parameter| parameter.place == argument.place)
-            .ok_or_else(invalid)?;
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if parameter.access == StructuralAccess::WriteOnlyBorrow {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         (
             parameter.structural_type,
             parameter.placement.clone().into(),
         )
     };
-    let reference_type = leaf_type(types, root_type, prefix).ok_or_else(invalid)?;
-    let StructuralTypeShape::Reference { referent, access } =
-        types.get(&reference_type).ok_or_else(invalid)?.shape
+    let reference_type = leaf_type(types, root_type, prefix)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let StructuralTypeShape::Reference { referent, access } = types
+        .get(&reference_type)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?
+        .shape
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     if referent != leaf.referent
         || !(access == argument.access
@@ -374,7 +376,7 @@ pub(super) fn reference_call_argument(
                     StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
                 ))
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut shapes = BTreeMap::new();
     let mut active = BTreeSet::new();
@@ -386,7 +388,7 @@ pub(super) fn reference_call_argument(
         .position(|segment| *segment == StructuralPathSegment::Referent)
     {
         if granted_access == StructuralAccess::WriteOnlyBorrow {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let (carrier, _, _) =
             crate::lowering::structural_layout::resolve_structural_projection_path(
@@ -399,9 +401,12 @@ pub(super) fn reference_call_argument(
         let StructuralTypeShape::Reference {
             referent: next,
             access,
-        } = types.get(&carrier).ok_or_else(invalid)?.shape
+        } = types
+            .get(&carrier)
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?
+            .shape
         else {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         };
         if !(access == argument.access
             || access == StructuralAccess::MutableBorrow
@@ -410,7 +415,7 @@ pub(super) fn reference_call_argument(
                     StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
                 ))
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         referent = next;
         granted_access = access;
@@ -428,7 +433,7 @@ pub(super) fn reference_call_argument(
         || crate::lowering::structural_layout::structural_parameter_shape(shape, declaration.access)
             != destination.shape
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralArgument {
         place: argument.place,
@@ -854,12 +859,12 @@ fn normalized_source(
     let Some(origins) = live.borrowed_reference_sources.get(&source.place) else {
         return normalized_direct_source(function, live, types, source);
     };
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let origins = origins
         .as_ref()
         .filter(|origins| !origins.is_empty())
-        .ok_or_else(invalid)?;
-    let expected = storage_projection_type(function, live, types, source).ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let expected = storage_projection_type(function, live, types, source)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let mut candidates = Vec::with_capacity(origins.len());
     for origin in origins {
         let mut resolved = origin.clone();
@@ -871,7 +876,7 @@ fn normalized_source(
         if !storage_projection_type(function, live, types, &resolved).is_some_and(|actual| {
             terminal_semantics::borrowed_referent_matches(types.values().copied(), actual, expected)
         }) {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         candidates.push(normalized_direct_source(function, live, types, &resolved)?);
     }
@@ -1659,12 +1664,13 @@ pub(super) fn discard_subtree(
     let Some((contract, _)) = source_contract(function, live, source) else {
         return Ok(false);
     };
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
-    let selected = leaf_type(types, contract, prefix).ok_or_else(invalid)?;
+    let selected = leaf_type(types, contract, prefix)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if !contains_reference(types, selected) {
         return Ok(false);
     }
-    let paths = leaf_paths(types, selected, live.references.len()).ok_or_else(invalid)?;
+    let paths = leaf_paths(types, selected, live.references.len())
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let mut released = BTreeSet::new();
     let mut released_paths = BTreeSet::new();
     for path in paths.iter().rev() {
@@ -1673,11 +1679,11 @@ pub(super) fn discard_subtree(
         let leaf = live
             .references
             .get(&(source, selected_path.clone()))
-            .ok_or_else(invalid)?;
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if live.references.values().any(|child| {
             child.parent.as_ref() == Some(&leaf.identity) && !released.contains(&child.identity)
         }) {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         released.insert(leaf.identity.clone());
         released_paths.insert(selected_path);
@@ -1685,7 +1691,7 @@ pub(super) fn discard_subtree(
     if live.references.keys().any(|(carrier, path)| {
         *carrier == source && path.starts_with(prefix) && !released_paths.contains(path)
     }) {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     live.references
         .retain(|(carrier, path), _| *carrier != source || !released_paths.contains(path));
@@ -1917,9 +1923,10 @@ fn combine_alternatives(
     function: &AbstractFunction,
     candidates: Vec<ReferenceCustody>,
 ) -> Result<ReferenceCustody, LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let mut candidates = candidates.into_iter();
-    let mut leaf = candidates.next().ok_or_else(invalid)?;
+    let mut leaf = candidates
+        .next()
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let mut origins = vec![(leaf.root.clone(), leaf.parent.clone())];
     for candidate in candidates {
         if leaf.identity != candidate.identity
@@ -1927,7 +1934,7 @@ fn combine_alternatives(
             || leaf.operation != candidate.operation
             || leaf.referent != candidate.referent
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         origins.push((candidate.root, candidate.parent));
     }
@@ -1939,9 +1946,10 @@ fn combine_candidate_origins(
     function: &AbstractFunction,
     candidates: Vec<(ReferenceRoot, Option<(PlaceId, Vec<StructuralPathSegment>)>)>,
 ) -> Result<(ReferenceRoot, Option<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let mut candidates = candidates.into_iter();
-    let (root, parent) = candidates.next().ok_or_else(invalid)?;
+    let (root, parent) = candidates
+        .next()
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if candidates.len() == 0 {
         return Ok((root, parent));
     }
@@ -1949,17 +1957,19 @@ fn combine_candidate_origins(
     let mut paths = Vec::new();
     for (root, parent) in std::iter::once((root, parent)).chain(candidates) {
         if parent.is_some() || root.place() != place {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         match root {
             ReferenceRoot::Ingress(_, path) => paths.push(path),
             ReferenceRoot::Alternatives(_, candidates) => paths.extend(candidates),
-            ReferenceRoot::Place(_) => return Err(invalid()),
+            ReferenceRoot::Place(_) => {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
         }
     }
     paths.sort();
     if paths.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok((ReferenceRoot::Alternatives(place, paths), None))
 }

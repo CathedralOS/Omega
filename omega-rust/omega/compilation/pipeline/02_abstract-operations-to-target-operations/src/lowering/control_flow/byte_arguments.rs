@@ -50,7 +50,6 @@ pub(super) fn shared_owner_view(
     {
         return Ok(None);
     }
-    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     let (root_type, access, multiplicity, projected, source) =
         if let Some(home) = live.structural_homes.get(&argument.place) {
             let source = match &home.origin {
@@ -90,7 +89,7 @@ pub(super) fn shared_owner_view(
                             .iter()
                             .any(|parameter| parameter == arrival)
                     })
-                    .ok_or_else(unsupported)?;
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 TargetStructuralArgumentSource::BlockParameter {
                     block: block.block,
                     place: arrival.place,
@@ -141,7 +140,7 @@ pub(super) fn shared_owner_view(
                     .is_some_and(|(_, result)| !result.qualification_establishments.is_empty())
         })
     {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let root_shape = crate::lowering::structural_layout::structural_shape(
         root_type,
@@ -163,7 +162,7 @@ pub(super) fn shared_owner_view(
             .and_then(|end| end.checked_add(capacity))
             .is_none_or(|end| end > u64::from(root_shape.byte_size))
     {
-        return Err(unsupported());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(Some(TargetStructuralArgument {
         place: argument.place,

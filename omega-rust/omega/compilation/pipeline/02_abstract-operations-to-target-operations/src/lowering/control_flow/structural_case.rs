@@ -22,7 +22,6 @@ pub(super) fn observe(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::StructuralCaseMembership {
         psi_operation,
         result,
@@ -31,14 +30,14 @@ pub(super) fn observe(
         case,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let identity = live
         .structural_observation_type(function, *source)
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let (tag_byte_offset, case_tag, runs) = case_projection(identity, path, *case, types)?;
     if result.scalar_type != ScalarType::Boolean {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // Each runtime element scales its selector's exact dominating source by
     // the array stride; its bound is the path segment's verified obligation.
@@ -89,7 +88,6 @@ fn case_source(
     structural_types: &StructuralTypeLookup<'_>,
     source: PlaceId,
 ) -> Result<TargetStructuralCaseSource, LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     if let Some(home) = live.structural_homes.get(&source) {
         return Ok(TargetStructuralCaseSource::Home(home.clone()));
     }
@@ -108,7 +106,7 @@ fn case_source(
             || !parameter.projected_qualifications.is_empty()
             || !function.entry_claims.is_empty()
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let layout = crate::lowering::structural_layout::structural_sum_layout(
             parameter.structural_type,
@@ -121,12 +119,13 @@ fn case_source(
             layout: TargetStructuralHomeLayout::Sum(layout),
         });
     }
-    let parameter = parameter_root(prepared, source).ok_or_else(invalid)?;
+    let parameter = parameter_root(prepared, source)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let declaration = function
         .structural_parameters
         .iter()
         .find(|declaration| declaration.place == source)
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let borrowed = matches!(
         declaration.access,
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -141,7 +140,7 @@ fn case_source(
         || parameter.structural_type != declaration.structural_type
         || !parameter.projected_qualifications.is_empty()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let layout = crate::lowering::structural_layout::structural_sum_layout(
         parameter.structural_type,
@@ -153,7 +152,7 @@ fn case_source(
         // The parameter's shape is the pointer carrier, not the referent's;
         // the sum layout describes the referent the dispatch reads through it.
         if parameter.shape.class != calling_conventions::ValueClass::BorrowedReference {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         return Ok(TargetStructuralCaseSource::BorrowedParameter {
             parameter: parameter.clone(),
@@ -161,7 +160,7 @@ fn case_source(
         });
     }
     if layout.shape != parameter.shape {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralCaseSource::Parameter {
         parameter: parameter.clone(),
@@ -227,14 +226,13 @@ pub(super) fn lower(
     structural_types: &StructuralTypeLookup<'_>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::StructuralCase { source, cases } = operation else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let home = case_source(function, prepared, live, structural_types, *source)?;
     let declaration = structural_types
         .get(&home.structural_type())
-        .ok_or_else(invalid)?;
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let (StructuralTypeShape::Sum {
         cases: declared_cases,
     }
@@ -243,11 +241,14 @@ pub(super) fn lower(
         ..
     }) = &declaration.shape
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let layout = home.layout().sum().ok_or_else(invalid)?;
+    let layout = home
+        .layout()
+        .sum()
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if cases.len() != declared_cases.len() || cases.len() != layout.cases.len() {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut lowered = Vec::with_capacity(cases.len());
     let mut reference_exits = Vec::with_capacity(cases.len());
@@ -256,12 +257,12 @@ pub(super) fn lower(
             .block_entries
             .iter()
             .find(|block| block.block == case.target)
-            .ok_or_else(invalid)?;
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if case.case != declared.id
             || !target.structural_parameters.is_empty()
             || case.payloads.len() != target.parameters.len()
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         // A case edge disposes of what it leaves behind by the same rule as
         // every other edge: a plain affine home, or an owned affine arrival
@@ -276,7 +277,7 @@ pub(super) fn lower(
             structural_types,
             &case.cleanup_actions,
         )? {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         reference_exits.push(edge_live.reference_edge_exit(case.target));
         let fields = declared
@@ -285,27 +286,27 @@ pub(super) fn lower(
             .filter(|field| !field.relevance.is_erased())
             .collect::<Vec<_>>();
         if fields.len() != layout.cases[case_ordinal].fields.len() {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let mut payloads = Vec::with_capacity(case.payloads.len());
         for (payload, parameter) in case.payloads.iter().zip(&target.parameters) {
             let field_ordinal = fields
                 .iter()
                 .position(|field| field.id == payload.field)
-                .ok_or_else(invalid)?;
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let field = fields[field_ordinal];
             let ScalarType::Integer(integer_type) = payload.scalar_type else {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             };
             let shape = crate::lowering::scalar_abi::fixed_native_integer_shape(integer_type)
-                .ok_or_else(invalid)?;
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let field_layout = layout.cases[case_ordinal].fields[field_ordinal];
             if field.field_type.scalar_type() != Some(payload.scalar_type)
                 || field_layout.shape != shape
                 || parameter.value != payload.parameter
                 || parameter.scalar_type != payload.scalar_type
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             payloads.push(TargetControlCasePayload {
                 field: payload.field,
@@ -320,7 +321,8 @@ pub(super) fn lower(
         lowered.push(TargetControlCaseSuccessor {
             psi_edge: case.psi_edge,
             case: case.case,
-            case_tag: i32::try_from(case_ordinal).map_err(|_| invalid())?,
+            case_tag: i32::try_from(case_ordinal)
+                .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
             target: case.target,
             payloads,
             cleanup_actions: case.cleanup_actions.clone(),

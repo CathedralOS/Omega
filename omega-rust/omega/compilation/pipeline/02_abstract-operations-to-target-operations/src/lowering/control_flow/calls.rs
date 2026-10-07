@@ -76,7 +76,6 @@ pub(super) fn lower_call(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     // The scalar-only `Call` is a scalar-result call without structural
     // operands; it borrows the same result vocabulary.
     let published_result;
@@ -130,7 +129,7 @@ pub(super) fn lower_call(
             };
             (call, CallContract::PublishedScalar)
         }
-        _ => return Err(unsupported()),
+        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
     let (declaration, callee_function) = match call.target {
         AbstractCallTarget::Machine(machine) => {
@@ -149,7 +148,7 @@ pub(super) fn lower_call(
                 .interface(interface)
                 .and_then(|interface| interface.slots.get(slot as usize))
                 .filter(|requirement| requirement.slot == slot)
-                .ok_or_else(unsupported)?;
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let operand = super::scalar_sources::source(selector, function, live)?;
             if !matches!(operand.scalar_type(), semantic_vocabulary::ScalarType::Integer(integer)
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64)
@@ -163,7 +162,7 @@ pub(super) fn lower_call(
         CallContract::PublishedScalar => (
             published_scalar_contract(
                 &call,
-                callee_function.ok_or_else(unsupported)?,
+                callee_function.ok_or(LoweringError::unsupported_control_flow(function.machine))?,
                 target,
                 scalar_abis,
             )?
@@ -198,7 +197,8 @@ pub(super) fn lower_call(
         )
         .zip(&signature.parameters)
         .map(|((argument, declaration), destination)| {
-            let declaration = declaration.ok_or_else(unsupported)?;
+            let declaration =
+                declaration.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             structural_argument(
                 argument,
                 &declaration,
@@ -270,7 +270,6 @@ fn land_result(
     types: &StructuralTypeLookup<'_>,
     live: &mut LiveDefinitions,
 ) -> Result<TargetCallResult, LoweringError> {
-    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
     Ok(match call.result {
         AbstractStructuralCallResult::Unit => TargetCallResult::Unit,
         AbstractStructuralCallResult::Scalar(result) => {
@@ -292,12 +291,14 @@ fn land_result(
             returned_claim_transfers,
             ..
         } => {
-            let callee_function = callee_function.ok_or_else(unsupported)?;
-            let result_home = structural_home.ok_or_else(unsupported)?;
+            let callee_function =
+                callee_function.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+            let result_home =
+                structural_home.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let callee_result = callee_function
                 .result
                 .structural()
-                .ok_or_else(unsupported)?;
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             // Arguments committed: the declared result roster lands as live
             // custody.
             let reference_results = super::references::call_results(
@@ -318,7 +319,7 @@ fn land_result(
                 .insert(result.place, result_home.clone())
                 .is_some()
             {
-                return Err(unsupported());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if (bounded_owned_byte_result(result.structural_type, types)
                 || terminal_semantics::descriptor_results::is_shared_descriptor(
@@ -330,7 +331,7 @@ fn land_result(
                     .insert(result.place, (call.psi_operation, result.structural_type))
                     .is_some()
             {
-                return Err(unsupported());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             TargetCallResult::Structural {
                 result: result.clone(),
@@ -530,16 +531,18 @@ fn structural_result_home(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeRequirement, LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractStructuralCallResult::Structural {
         result,
         returned_claim_transfers,
         selected_evidence,
     } = call.result
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let callee_result = callee_function.result.structural().ok_or_else(invalid)?;
+    let callee_result = callee_function
+        .result
+        .structural()
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let result_home = super::aggregate_results::home(call.psi_operation, result, types)?;
     if callee_result.structural_type != result.structural_type
         || callee_result.multiplicity != result.multiplicity
@@ -553,7 +556,7 @@ fn structural_result_home(
         || !returned_claim_transfers.is_empty()
         || !selected_evidence.is_empty()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(result_home)
 }
@@ -829,11 +832,10 @@ pub(super) fn lower_cleanup_calls(
             let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
                 continue;
             };
-            let invalid = || LoweringError::unsupported_control_flow(function.machine);
             let callee = functions
                 .get(&cleanup.cleanup_machine)
                 .copied()
-                .ok_or_else(invalid)?;
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             if callee.attachment != Some(cleanup.structural_type)
                 || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
                 || callee.result != AbstractFunctionResult::Unit
@@ -841,7 +843,7 @@ pub(super) fn lower_cleanup_calls(
                 || callee.structural_parameters.len() > 1
                 || !cleanup.requirement_obligations.is_empty()
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let signature = prepare_function_signature(callee, target, types)?;
             let mut arguments = Vec::new();
@@ -858,7 +860,7 @@ pub(super) fn lower_cleanup_calls(
                         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
                     )
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let argument = StructuralArgument {
                     place: cleanup.place,
@@ -881,12 +883,14 @@ pub(super) fn lower_cleanup_calls(
                 || signature.parameters.len() != callee.structural_parameters.len()
                 || (callee.structural_parameters.is_empty() && cleanup.cleanup_receiver.is_some())
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             operations.push(TargetUnitOperation::CleanupCall {
                 owner: target_operations::CallSiteOwner::CleanupAction {
                     edge,
-                    action_ordinal: ordinal.try_into().map_err(|_| invalid())?,
+                    action_ordinal: ordinal
+                        .try_into()
+                        .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
                 },
                 callee: cleanup.cleanup_machine,
                 call_plan: signature.call_plan,

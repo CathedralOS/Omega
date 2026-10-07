@@ -60,14 +60,13 @@ pub(super) fn establish(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::EstablishScalarArray {
         psi_operation,
         result,
         elements,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let (scalar_type, count, _) = shape(result.structural_type, types)?;
     if u64::try_from(elements.len()).ok() != Some(count)
@@ -76,7 +75,7 @@ pub(super) fn establish(
                 .is_ok_and(|source| source.scalar_type() == scalar_type)
         })
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     if live
@@ -84,7 +83,7 @@ pub(super) fn establish(
         .insert(result.place, result_home.clone())
         .is_some()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::EstablishScalarArray {
         psi_operation: *psi_operation,

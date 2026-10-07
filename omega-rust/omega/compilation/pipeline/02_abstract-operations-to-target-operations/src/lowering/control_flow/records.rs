@@ -18,7 +18,6 @@ pub(super) fn establish(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let (psi_operation, result, fields, result_case, elements) = match operation {
         AbstractOperation::EstablishRecord {
             psi_operation,
@@ -42,12 +41,12 @@ pub(super) fn establish(
             result,
             elements,
         } => (psi_operation, result, &[][..], None, Some(elements)),
-        _ => return Err(invalid()),
+        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     let shape = &types
         .get(&result.structural_type)
-        .ok_or_else(invalid)?
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?
         .shape;
     // A mixed case binds its runtime common fields in declaration order, then
     // the selected payload: the same roster Terminal verification checked.
@@ -61,7 +60,7 @@ pub(super) fn establish(
         (StructuralTypeShape::Sum { cases }, Some(result_case)) => cases
             .iter()
             .find(|case| case.id == result_case)
-            .ok_or_else(invalid)?
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?
             .fields
             .iter()
             .filter(|field| !field.relevance.is_erased())
@@ -79,7 +78,7 @@ pub(super) fn establish(
                 cases
                     .iter()
                     .find(|case| case.id == result_case)
-                    .ok_or_else(invalid)?
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?
                     .fields
                     .iter()
                     .filter(|field| !field.relevance.is_erased()),
@@ -91,7 +90,7 @@ pub(super) fn establish(
         {
             Vec::new()
         }
-        _ => return Err(invalid()),
+        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
     if declarations.len() != fields.len() || live.structural_homes.contains_key(&result.place) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -114,7 +113,7 @@ pub(super) fn establish(
         .zip(declarations.iter().copied())
         .map(|(field, declaration)| {
             if field.field != declaration.id || declaration.relevance.is_erased() {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             Ok((
                 &declaration.field_type,
@@ -129,7 +128,9 @@ pub(super) fn establish(
                 .enumerate()
                 .map(|(index, argument)| {
                     Ok((
-                        element_type.as_ref().ok_or_else(invalid)?,
+                        element_type
+                            .as_ref()
+                            .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
                         terminal_psi::StructuralPathSegment::FixedIndex(index as u64),
                         Input::Element(argument),
                     ))
@@ -200,12 +201,12 @@ pub(super) fn establish(
                     _ if byte_carrier.is_some() => {
                         let nested = live
                             .structural_observation_type(function, argument.place)
-                            .ok_or_else(invalid)?;
+                            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                         if !types.get(&nested).is_some_and(|declaration| {
                             Some(&declaration.shape)
                                 == byte_carrier.map(StructuralTypeShape::ByteSequence).as_ref()
                         }) {
-                            return Err(invalid());
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
                         }
                         nested
                     }
@@ -214,7 +215,7 @@ pub(super) fn establish(
                     _ if descriptor_member => {
                         let nested = live
                             .structural_observation_type(function, argument.place)
-                            .ok_or_else(invalid)?;
+                            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                         if !types.get(&nested).is_some_and(|declaration| {
                             matches!(
                                 declaration.shape,
@@ -225,17 +226,17 @@ pub(super) fn establish(
                                 )
                             )
                         }) {
-                            return Err(invalid());
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
                         }
                         nested
                     }
-                    _ => return Err(invalid()),
+                    _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
                 };
                 let reference_bearing = super::references::contains_reference(types, nested);
                 // Reference relocation currently describes record field paths;
                 // a case-qualified carrier needs its own custody contract.
                 if result_case.is_some() && reference_bearing {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 // A sum, mixed, or fixed-array member rides as one completed
                 // value the way a record member does.
@@ -270,7 +271,7 @@ pub(super) fn establish(
                             | terminal_psi::StructuralPathSegment::FixedIndex(_)
                     )
                 }) {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let multiplicity = if descriptor_member && argument.path.is_empty() {
                     // Relocating a descriptor never moves the referent: the
@@ -417,14 +418,13 @@ pub(super) fn establish_trivial_affine_local(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::EstablishTrivialAffineLocal {
         psi_operation,
         place,
         structural_type,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     if !matches!(
         place.kind,
@@ -441,7 +441,7 @@ pub(super) fn establish_trivial_affine_local(
             .insert(place.id, (*psi_operation, structural_type.id))
             .is_some()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::EstablishTrivialAffineLocal {
         psi_operation: *psi_operation,
@@ -463,15 +463,15 @@ pub(super) fn establish_structural_local(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::EstablishStructuralLocal {
         psi_operation,
         result,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let result_home = established_result_home(live, psi_operation, result, types, invalid)?;
+    let result_home =
+        established_result_home(live, psi_operation, result, types, function.machine)?;
     // A declared descriptor local's home is read as a shared view once its
     // whole-slot store installs a descriptor; verification proved that store
     // reaches every read.
@@ -483,7 +483,7 @@ pub(super) fn establish_structural_local(
         .insert(result.place, (*psi_operation, result.structural_type))
         .is_some()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::EstablishStructuralLocal {
         psi_operation: *psi_operation,
@@ -503,15 +503,15 @@ pub(super) fn establish_zeroed_structural(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::EstablishZeroedStructural {
         psi_operation,
         result,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let result_home = established_result_home(live, psi_operation, result, types, invalid)?;
+    let result_home =
+        established_result_home(live, psi_operation, result, types, function.machine)?;
     operations.push(TargetUnitOperation::EstablishZeroedStructural {
         psi_operation: *psi_operation,
         result_home,
@@ -520,25 +520,22 @@ pub(super) fn establish_zeroed_structural(
     Ok(())
 }
 
-/// The establishment's aggregate home, registered as live; `invalid` when
-/// the place already holds one.
-fn established_result_home<Invalid>(
+/// The establishment's aggregate home, registered as live; refused for
+/// `machine` when the place already holds one.
+fn established_result_home(
     live: &mut LiveDefinitions,
     psi_operation: &semantic_vocabulary::OperationId,
     result: &terminal_psi::StructuralOperationResult,
     types: &StructuralTypeLookup<'_>,
-    invalid: Invalid,
-) -> Result<target_operations::TargetStructuralHomeRequirement, LoweringError>
-where
-    Invalid: Fn() -> LoweringError,
-{
+    machine: semantic_vocabulary::MachineId,
+) -> Result<target_operations::TargetStructuralHomeRequirement, LoweringError> {
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     if live
         .structural_homes
         .insert(result.place, result_home.clone())
         .is_some()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(machine));
     }
     Ok(result_home)
 }
