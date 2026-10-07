@@ -234,6 +234,35 @@ impl CodecDirection {
     }
 }
 
+/// One schema field's value-data lookup, emitting the direction's
+/// missing-field diagnostic on absence.
+fn value_field_or_missing<'program>(
+    program: &'program TypedTrees,
+    schema: &WireSchema,
+    value_data: &'program typed_trees::data::DataDefinition,
+    field: &WireField,
+    direction: CodecDirection,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<&'program typed_trees::data::DataField> {
+    let value_field = crate::program_scope::data_definitions::data_field_named(
+        program,
+        value_data,
+        field.name.clone(),
+    );
+    if value_field.is_none() {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::{}` value type `{}` has no field `{}` to {} (schema field {})",
+            schema.name,
+            direction.verb(),
+            value_data.name,
+            field.name,
+            direction.missing_field_phrase(),
+            field.number
+        )));
+    }
+    value_field
+}
+
 /// The codec calls' shared value-argument walk: reject a case-bearing value
 /// type (the schema field set only spells scalar FIELD members), then every
 /// schema field must exist in the value data with the schema's primitive
@@ -284,20 +313,9 @@ pub(super) fn validate_value_argument_fields(
             return;
         }
         for (field, schema_primitive) in current_fields {
-            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
-                program,
-                value_data,
-                field.name.clone(),
-            ) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::{}` value type `{}` has no field `{}` to {} (schema field {})",
-                    schema.name,
-                    direction.verb(),
-                    value_data.name,
-                    field.name,
-                    direction.missing_field_phrase(),
-                    field.number
-                )));
+            let Some(value_field) =
+                value_field_or_missing(program, schema, value_data, field, direction, diagnostics)
+            else {
                 continue;
             };
             if program.primitive_type_reference(value_field.type_reference)
@@ -317,20 +335,9 @@ pub(super) fn validate_value_argument_fields(
             scalar_check(program, field, value_field, schema, value_data, diagnostics);
         }
         for field in byte_slice_fields {
-            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
-                program,
-                value_data,
-                field.name.clone(),
-            ) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::{}` value type `{}` has no field `{}` to {} (schema field {})",
-                    schema.name,
-                    direction.verb(),
-                    value_data.name,
-                    field.name,
-                    direction.missing_field_phrase(),
-                    field.number
-                )));
+            let Some(value_field) =
+                value_field_or_missing(program, schema, value_data, field, direction, diagnostics)
+            else {
                 continue;
             };
             if !program.is_borrowed_byte_slice(value_field.type_reference) {
