@@ -114,9 +114,16 @@ pub(crate) fn reference_source(
 ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
     let root = super::scalar_graph_input::primitive_locals::read_root_type(optimized, source.place)
         .ok_or(LegalizationError::custody())?;
+    // Formation's final marker is interpreted by the endpoint: it loads an
+    // actual Reference shell, but creates no crossing at an ordinary leaf.
+    // Both endpoints retain the same selectors before that final marker.
+    let path = match source.path.split_last() {
+        Some((terminal_psi::StructuralPathSegment::Referent, prefix)) => prefix,
+        _ => source.path.as_slice(),
+    };
     let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
         root,
-        &source.path,
+        path,
         &unit.structural_types,
     )
     .ok_or(LegalizationError::custody())?;

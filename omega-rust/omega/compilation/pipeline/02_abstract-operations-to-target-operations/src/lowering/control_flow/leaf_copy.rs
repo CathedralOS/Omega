@@ -82,11 +82,9 @@ pub(super) fn copy_extent(
             if matches!(path.first(), Some(StructuralPathSegment::Referent)) =>
         {
             Some(
-                super::references::writable_referent_destination(
-                    function, live, types, source, path,
-                )
-                .filter(|referent| referent.result.structural_type == root_type)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
+                super::references::writable_referent_destination(live, types, source, path)
+                    .filter(|referent| referent.result.structural_type == root_type)
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
             )
         }
         _ => None,

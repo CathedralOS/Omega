@@ -15,6 +15,8 @@ use terminal_psi::{
 
 pub(super) struct ReferenceAddress {
     pub(super) place: PlaceId,
+    /// A projection selects the root's storage payload, not its whole carrier.
+    pub(super) projects_root_storage: bool,
     pub(super) byte_offset: u32,
     /// A trailing Referent on a reference leaf reads that leaf's stored word.
     /// Otherwise the projected storage address itself is the borrowed value.
@@ -194,6 +196,7 @@ pub(super) fn establishment(
     })
     .then_some(ReferenceAddress {
         place: source.place,
+        projects_root_storage: !path.is_empty(),
         byte_offset,
         load_pointer,
         load_codec,

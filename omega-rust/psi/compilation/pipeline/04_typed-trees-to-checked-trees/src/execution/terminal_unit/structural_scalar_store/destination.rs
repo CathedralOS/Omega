@@ -494,7 +494,23 @@ impl<'a> Destination<'a> {
         &self,
         program: &'a dyn ::validation::CheckingInput,
     ) -> Option<StorageProjection<'a>> {
-        self.walk(program, &self.full_segments(program)?)
+        let mut projection = self.walk(program, &self.full_segments(program)?)?;
+        // Primitive operations name the entire path from the stored root.
+        // A retained loan's root owns its reference descriptor, regardless of
+        // whether its referent is a scalar, record or fixed array. Slice loans
+        // instead own an element-view descriptor with no pointer-slot crossing.
+        let root_type = validation::unwrapped_type_reference(program, self.root_type)?;
+        if self.view_loan
+            && !matches!(
+                program.type_reference_table.type_reference(root_type),
+                TypeReferenceNode::Slice { .. }
+            )
+        {
+            projection
+                .path
+                .insert(0, CheckedUnitStructuralPathSegment::Referent);
+        }
+        Some(projection)
     }
 
     fn walk(
@@ -510,11 +526,6 @@ impl<'a> Destination<'a> {
             return None;
         }
         let mut path = Vec::with_capacity(segments.len());
-        // Primitive storage operations carry the entire access path. Field
-        // operations resolve their root crossing with the field declaration.
-        if self.view_loan && program.primitive_type_reference(self.root_type).is_some() {
-            path.push(CheckedUnitStructuralPathSegment::Referent);
-        }
         let mut carrier_type = self.root_type;
         let mut owner = self.root_owner;
         let mut ends_at_field = false;

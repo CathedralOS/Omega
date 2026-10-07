@@ -263,7 +263,6 @@ pub(super) fn project_structural_scalar_field_store(
     };
     let kind = {
         let (destination, path) = scalar_graph_input::structural_fields::scalar_store_destination(
-            optimized,
             destination,
             path,
             &unit.structural_types,

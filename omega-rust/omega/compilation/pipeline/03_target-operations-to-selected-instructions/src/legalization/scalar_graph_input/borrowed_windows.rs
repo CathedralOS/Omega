@@ -57,7 +57,6 @@ pub(in crate::legalization) fn extent(
         };
         let referent = super::reference_custody::writable_referent_destination(
             custody,
-            function,
             &plan.structural_types,
             root.place(),
             path,

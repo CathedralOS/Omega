@@ -4,7 +4,7 @@
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::{direct_scalar_field_type, remove_affine_root, resolve_structural_arguments};
+use crate::custody::{remove_affine_root, resolve_structural_arguments};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -736,25 +736,40 @@ impl TerminalExecution {
             })
             .ok_or(malformed())?;
         let source = self.scalar_value(value)?;
-        let parent = resolve_structural_arguments(
-            &self.program.structural_types,
-            &self.structural_values,
-            &[StructuralArgument {
-                place: destination,
-                path: path.clone(),
-                access,
-            }],
-        )?
-        .pop()
-        .ok_or(malformed())?;
-        if direct_scalar_field_type(
-            &self.program.structural_types,
-            parent.structural_type,
-            field,
-        ) != Some(source.scalar_type())
+        // Owning a reference carrier permits a write through its mutable
+        // loan, not ownership of the referent. Cross retained descriptors at
+        // the requested write authority before selecting the scalar endpoint.
+        let projection_access = match access {
+            StructuralAccess::Owned => StructuralAccess::MutableBorrow,
+            access => access,
+        };
+        let parent = self.resolve_live_projection(destination, path, projection_access)?;
+        let declaration = self
+            .program
+            .structural_types
+            .get(&parent.structural_type)
+            .ok_or_else(malformed)?;
+        let (StructuralTypeShape::Record { fields, .. }
+        | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
+        else {
+            return Err(malformed());
+        };
+        let mut matching = fields.iter().filter(|candidate| candidate.id == field);
+        let (Some(member), None) = (matching.next(), matching.next()) else {
+            return Err(malformed());
+        };
+        if member.relevance.is_erased()
+            || member.field_type.scalar_type() != Some(source.scalar_type())
             || !terminal_scalar_belongs_to_type(source)
         {
             return Err(malformed());
+        }
+        let mut leaf = parent.clone();
+        leaf.path
+            .push(StructuralPathSegment::Field(member.identity.clone()));
+        if let Some((storage, scalar_type)) = self.reference_byte_region_access(&parent, &leaf)? {
+            self.store_primitive_storage(destination, storage, scalar_type, source)?;
+            return Ok(OperationFlow::Advance);
         }
         // The store's path names no `Case` step: it writes a record field or a
         // mixed shape's common field, never a payload cell.

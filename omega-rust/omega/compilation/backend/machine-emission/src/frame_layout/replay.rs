@@ -118,7 +118,7 @@ pub(super) fn validate_layout(
         {
             if local.byte_size == 0
                 || !local.alignment.is_power_of_two()
-                || local.alignment > 8
+                || local.alignment > call_site.stack_alignment_bytes
                 || source.local_storage_slots[..index]
                     .iter()
                     .any(|earlier| earlier.id == local.id)
@@ -303,7 +303,14 @@ pub(super) fn validate_layout(
             FrameContinuationCustody::CallerActivationStack {
                 return_address_size_bytes,
             } => {
+                let locals_need_aligned_activation =
+                    source.local_storage_slots.iter().any(|slot| {
+                        !call_site
+                            .entry_residue_bytes
+                            .is_multiple_of(u64::from(slot.alignment))
+                    });
                 let (alignment, residue) = if calls
+                    || locals_need_aligned_activation
                     || (required.abi == FrameAbiPreservationConvention::MicrosoftX64 && area != 0)
                 {
                     (

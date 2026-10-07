@@ -2,7 +2,6 @@ use super::{AbstractOperation, PsiOptimizationFunction, ScalarType};
 use optimization_unit_semantics::byte_field_root;
 
 pub(in crate::legalization) fn scalar_store_destination(
-    function: &PsiOptimizationFunction,
     destination: &abstract_operations::StructuralScalarStoreDestination,
     path: &[terminal_psi::StructuralPathSegment],
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -24,7 +23,6 @@ pub(in crate::legalization) fn scalar_store_destination(
     }
     let resolved = super::reference_custody::writable_referent_destination(
         custody,
-        function,
         types,
         result.place,
         path,
@@ -158,7 +156,6 @@ pub(in crate::legalization) fn replacement(
     } else {
         let resolved = super::reference_custody::writable_referent_destination(
             custody,
-            function,
             types,
             *destination,
             path,
@@ -227,13 +224,9 @@ pub(in crate::legalization) fn view_replacement(
             terminal_psi::StructuralAccess::Owned,
             path.clone(),
         )
-    } else if let Some(resolved) = super::reference_custody::writable_referent_destination(
-        custody,
-        function,
-        types,
-        *destination,
-        path,
-    ) {
+    } else if let Some(resolved) =
+        super::reference_custody::writable_referent_destination(custody, types, *destination, path)
+    {
         (
             resolved.referent,
             terminal_psi::StructuralAccess::MutableBorrow,

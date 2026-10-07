@@ -155,7 +155,6 @@ pub(in crate::legalization) struct WritableReferentDestination {
 
 fn materialized_mutable_record_projection(
     custody: &Custody,
-    function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
     carrier: PlaceId,
     path: &[StructuralPathSegment],
@@ -200,26 +199,8 @@ fn materialized_mutable_record_projection(
     {
         return None;
     }
-    let root = leaf.root.place();
-    // Reconstruct every candidate origin from its declared storage contract,
-    // including fresh local owners. The producer's chosen physical home is
-    // not evidence of access, qualification or claim eligibility.
-    let paths = leaf.root.paths();
-    if paths.is_empty()
-        || paths.iter().any(|path| {
-            direct_storage_type(
-                function,
-                types,
-                &StructuralArgument {
-                    place: root,
-                    path: path.clone(),
-                    access: StructuralAccess::WriteOnlyBorrow,
-                },
-            ) != Some(*referent)
-        })
-    {
-        return None;
-    }
+    // The retained formation has already authenticated backing and view
+    // interpretation. Origin type equality would erase byte-backed views.
     Some(WritableReferentDestination {
         producer,
         result: leaf.result.clone(),
@@ -230,12 +211,11 @@ fn materialized_mutable_record_projection(
 
 pub(in crate::legalization) fn writable_referent_destination(
     custody: &Custody,
-    function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
     carrier: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Option<WritableReferentDestination> {
-    materialized_mutable_record_projection(custody, function, types, carrier, path)
+    materialized_mutable_record_projection(custody, types, carrier, path)
 }
 
 #[track_caller]
@@ -505,6 +485,23 @@ fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if matches!(
+            segment,
+            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
+        ) && matches!(
+            types
+                .iter()
+                .find(|declaration| declaration.id == current)?
+                .shape,
+            StructuralTypeShape::ByteSequence(_)
+        ) {
+            current = terminal_semantics::primitive_projection_declaration(
+                types.iter(),
+                current,
+                std::slice::from_ref(segment),
+            )?;
+            continue;
+        }
         if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
             current = match &types
                 .iter()

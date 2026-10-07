@@ -120,6 +120,12 @@ pub fn structural_projection_type<'types>(
         path,
         loaned_storage_shape,
     )
+    .or_else(|| {
+        // An inline byte element has no structural child declaration. Its
+        // loan names the same unique scalar endpoint as primitive accesses;
+        // type resolution grants neither bounds nor backing authority.
+        terminal_semantics::primitive_projection_declaration(declarations, structural_type, path)
+    })
 }
 
 /// The standalone shape of the storage a loan of this leaf field addresses.

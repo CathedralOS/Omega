@@ -197,8 +197,8 @@ fn validate_receiver_fields(
                     };
                     match &nested_declaration.shape {
                         StructuralTypeShape::Record {
-                            storage: None,
                             fields: nested_fields,
+                            ..
                         }
                         | StructuralTypeShape::Mixed {
                             fields: nested_fields,

@@ -874,7 +874,6 @@ pub(super) fn validate_operation(
         ) => {
             let (expected_destination, expected_path) =
                 super::super::structural_fields::scalar_store_destination(
-                    optimized,
                     expected_destination,
                     expected_path,
                     &unit.structural_types,

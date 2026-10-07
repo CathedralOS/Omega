@@ -396,6 +396,20 @@ fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if matches!(
+            segment,
+            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
+        ) && matches!(
+            lookup(declarations, current)?.shape,
+            StructuralTypeShape::ByteSequence(_)
+        ) {
+            current = terminal_semantics::primitive_projection_declaration(
+                declarations.iter(),
+                current,
+                std::slice::from_ref(segment),
+            )?;
+            continue;
+        }
         if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
             current = match &lookup(declarations, current)?.shape {
                 StructuralTypeShape::FixedArray { element, .. }
@@ -1060,7 +1074,7 @@ fn combine_roots(roots: Vec<Root>) -> Option<Root> {
 
 /// The custody effect of one authored or resolved provider call: owned
 /// carriers move, the declared result leaf roster lands as live custody, and
-/// a non-reference-only result establishes its durable home. A Unit result
+/// a materialized result establishes its durable home. A Unit result
 /// moves arguments only.
 #[allow(clippy::too_many_arguments)]
 fn apply_call(
@@ -1095,12 +1109,7 @@ fn apply_call(
         custody.leaves.insert(key, leaf);
     }
     expected.insert(psi_operation, roster);
-    // A bare reference result is custody only: no physical result home is
-    // established for a `Reference`-shaped carrier.
-    if !matches!(
-        lookup(declarations, result.structural_type).map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::Reference { .. })
-    ) && custody
+    if custody
         .homes
         .insert(result.place, (result.structural_type, result.multiplicity))
         .is_some()
@@ -1464,6 +1473,9 @@ fn apply(
                     multiplicity: result.multiplicity,
                 },
             );
+            custody
+                .homes
+                .insert(result.place, (result.structural_type, result.multiplicity));
         }
         AbstractOperation::ReleaseReference { source, path, .. } => {
             custody.leaves.remove(&(*source, path.clone()))?;

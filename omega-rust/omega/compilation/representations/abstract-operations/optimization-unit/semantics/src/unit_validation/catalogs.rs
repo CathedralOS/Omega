@@ -714,8 +714,8 @@ fn validate_structural_field_range_authority(
                 let Some(terminal_psi::StructuralTypeDeclaration {
                     shape:
                         StructuralTypeShape::Record {
-                            storage: None,
                             fields: declarations,
+                            ..
                         },
                     ..
                 }) = types.get(&result.structural_type).copied()

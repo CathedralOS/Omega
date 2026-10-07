@@ -184,7 +184,6 @@ pub(in crate::lowering) struct WritableReferentDestination {
 }
 
 fn materialized_mutable_record_projection(
-    function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     carrier: PlaceId,
@@ -225,31 +224,9 @@ fn materialized_mutable_record_projection(
     {
         return None;
     }
-    let root = leaf.root.place();
-    // The materialized loan may point into an arrival or an activation-local
-    // owner. Validate each possible origin through the same storage contract
-    // used when lending it; its physical residence does not grant authority.
-    let exact_origin = |path: &[StructuralPathSegment]| {
-        direct_storage_type(
-            function,
-            live,
-            types,
-            &StructuralArgument {
-                place: root,
-                path: path.to_vec(),
-                access: StructuralAccess::WriteOnlyBorrow,
-            },
-        ) == Some(*referent)
-    };
-    if !match &leaf.root {
-        ReferenceRoot::Place(_) => exact_origin(&[]),
-        ReferenceRoot::Ingress(_, path) => exact_origin(path),
-        ReferenceRoot::Alternatives(_, paths) => {
-            !paths.is_empty() && paths.iter().all(|path| exact_origin(path))
-        }
-    } || live.structural_homes.get(&carrier)?.operation_result()
-        != Some((producer, &leaf.result))
-    {
+    // Formation authenticated backing and view interpretation. A store uses
+    // this live carrier's authority; backing need not have its semantic type.
+    if live.structural_homes.get(&carrier)?.operation_result() != Some((producer, &leaf.result)) {
         return None;
     }
     Some(WritableReferentDestination {
@@ -261,13 +238,12 @@ fn materialized_mutable_record_projection(
 }
 
 pub(super) fn writable_referent_destination(
-    function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     carrier: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Option<WritableReferentDestination> {
-    materialized_mutable_record_projection(function, live, types, carrier, path)
+    materialized_mutable_record_projection(live, types, carrier, path)
 }
 
 /// Borrow through the live carrier's address word, regardless of which
@@ -652,6 +628,20 @@ pub(super) fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if matches!(
+            segment,
+            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
+        ) && matches!(
+            types.get(&current)?.shape,
+            StructuralTypeShape::ByteSequence(_)
+        ) {
+            current = terminal_semantics::primitive_projection_declaration(
+                types.values().copied(),
+                current,
+                std::slice::from_ref(segment),
+            )?;
+            continue;
+        }
         if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
             current = match &types.get(&current)?.shape {
                 StructuralTypeShape::FixedArray { element, .. }
@@ -1619,7 +1609,8 @@ pub(super) fn establish(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    if !reference_source_type(function, live, types, source).is_some_and(|actual| match storage {
+    let actual = reference_source_type(function, live, types, source);
+    if !actual.is_some_and(|actual| match storage {
         Some(storage) => terminal_semantics::reference_storage_source_compatible(
             types.values().copied(),
             actual,

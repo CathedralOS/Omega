@@ -146,8 +146,8 @@ pub(crate) fn record_establishment_matches(
     let Some(terminal_psi::StructuralTypeDeclaration {
         shape:
             StructuralTypeShape::Record {
-                storage: None,
                 fields: declarations,
+                ..
             },
         ..
     }) = types.get(&result.structural_type).copied()

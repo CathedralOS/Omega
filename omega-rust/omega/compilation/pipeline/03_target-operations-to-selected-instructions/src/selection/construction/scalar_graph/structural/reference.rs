@@ -30,7 +30,25 @@ pub(super) fn establish(
     {
         return Err(invalid());
     }
-    let mut input = place_pointer(builder, row, address.place, 0)?;
+    // Element projections borrow retained backing storage. A view's carrier
+    // home is only appropriate when borrowing the whole descriptor itself.
+    let projected_base = if address.projects_root_storage {
+        super::runtime_address::projection_base(
+            source,
+            builder,
+            row,
+            address.place,
+            address.byte_offset,
+        )?
+    } else {
+        None
+    };
+    let mut input = match projected_base {
+        Some(pointer) => pointer,
+        // Inline ABI fragments have no registered address until this loan
+        // requests their home; view payload resolution above never declines.
+        None => place_pointer(builder, row, address.place, 0)?,
+    };
     for (offset, indices) in address.descriptor_offsets {
         input = super::runtime_address::scale(
             builder,

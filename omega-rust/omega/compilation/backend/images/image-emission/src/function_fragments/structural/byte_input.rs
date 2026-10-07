@@ -501,7 +501,10 @@ mod tests {
                         .unwrap()
                         .structural_types
                         .make_mut()[0]
-                        .shape = StructuralTypeShape::Record { storage: None, fields: vec![] }
+                        .shape = StructuralTypeShape::Record {
+                        storage: None,
+                        fields: vec![],
+                    }
                 }
                 1 => {
                     selected.boundary_settlements.pop();

@@ -600,7 +600,15 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         }
                     }
                     checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                        Some(view_local_observation(view_locals, symbol, path)?)
+                        let (_, structural_type) =
+                            structural_fields.observation_source(*root, structural_locals)?;
+                        match ViewCarrier::of(structural_type, structural_fields.declarations()) {
+                            Some(_) => Some(view_local_observation(view_locals, symbol, path)?),
+                            // A retained reference to a fixed collection is not
+                            // a live-extent sequence descriptor. Its declaration
+                            // supplies the explicit Referent projection below.
+                            None => None,
+                        }
                     }
                     checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
                         if let Some(local) = view_locals.iter().find(|local| local.symbol == symbol)
@@ -661,16 +669,12 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     }
                 })
                 .collect::<Vec<_>>();
-            // Views publish descriptor homes in the view registry; ordinary
-            // storage publishes homes in the field registry. Both supply the
-            // same declaration-driven projection walk, not different paths.
-            let (source, structural_type) = match *root {
-                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                    let local = view_locals::resolve(view_locals, symbol)?;
-                    (local.place, local.structural_type)
-                }
-                _ => structural_fields.observation_source(*root, structural_locals)?,
-            };
+            // Every established root shares the storage roster. The sequence
+            // registry above selects live-extent observations only; record and
+            // fixed-array references retain their stored descriptor and let
+            // this declaration walk expose each pointer crossing.
+            let (source, structural_type) =
+                structural_fields.observation_source(*root, structural_locals)?;
             let (source, path, explicit_path, scalar_type) =
                 crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(
                     structural_fields, source, structural_type, path, &geometry)?;

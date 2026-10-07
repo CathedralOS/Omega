@@ -72,13 +72,28 @@ pub(in crate::execution::terminal_unit) fn plan(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let (backing_type, path) = calls::projected_borrowed_path(
+    let (backing_type, mut path) = calls::projected_borrowed_path(
         program,
         machine.symbol,
         state.symbol,
         statement_index,
         &place,
     )?;
+    // Call projections end at their selected carrier. Reference formation
+    // instead names the storage it lends: cross every stored reference shell
+    // at that leaf. An ordinary storage endpoint needs no additional crossing.
+    // Stage05 preserves this ending marker independently of ordinary argument
+    // projections; omitting it would borrow a descriptor rather than its referent.
+    let mut endpoint = backing_type;
+    let mut crossings = 0;
+    while let Some(shell) = validation::reference_shell(program, endpoint) {
+        crossings += 1;
+        endpoint = shell.referee;
+    }
+    path.extend(std::iter::repeat_n(
+        checked_trees::CheckedUnitStructuralPathSegment::Referent,
+        crossings,
+    ));
     if !is_view
         && base_type_identity(program, backing_type, &[])?
             != base_type_identity(program, referent, &[])?

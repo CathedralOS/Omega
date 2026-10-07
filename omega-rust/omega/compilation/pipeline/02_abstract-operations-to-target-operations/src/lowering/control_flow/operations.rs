@@ -101,7 +101,6 @@ pub(super) fn lower_operation(
         } => (
             Some(destination.place()),
             super::references::writable_referent_destination(
-                function,
                 live,
                 structural_types,
                 destination.place(),
@@ -593,7 +592,6 @@ pub(super) fn lower_operation(
                 AbstractOperation::StructuralScalarFieldStore {
                     destination, path, ..
                 } => super::references::writable_referent_destination(
-                    function,
                     live,
                     structural_types,
                     destination.place(),

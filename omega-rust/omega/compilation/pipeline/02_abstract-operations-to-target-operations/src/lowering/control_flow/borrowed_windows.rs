@@ -209,7 +209,7 @@ pub(super) fn window_referent(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let referent =
-        super::references::writable_referent_destination(function, live, types, result.place, path)
+        super::references::writable_referent_destination(live, types, result.place, path)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if referent.producer != *producer || referent.result != *result {
         return Err(LoweringError::unsupported_control_flow(function.machine));

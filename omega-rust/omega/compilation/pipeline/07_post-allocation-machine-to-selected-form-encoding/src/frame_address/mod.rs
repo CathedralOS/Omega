@@ -53,7 +53,9 @@ pub(super) fn validate_frame_root(
                 || placed.alignment_bytes != local.alignment
                 || local.byte_size == 0
                 || !local.alignment.is_power_of_two()
-                || local.alignment > 8
+                // Frame admission binds this limit to the target's declared
+                // ABI, including aligned locals in otherwise leaf functions.
+                || local.alignment > row.abi_stack_alignment_bytes
                 || !placed
                     .frame_offset_bytes
                     .is_multiple_of(u64::from(local.alignment))

@@ -265,13 +265,8 @@ fn writable_byte_field(
     field: semantic_vocabulary::StructuralFieldId,
     carrier_admitted: impl Fn(terminal_psi::ByteSequenceCarrier) -> bool,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
-    let reference_destination = super::references::writable_referent_destination(
-        function,
-        live,
-        structural_types,
-        destination,
-        path,
-    );
+    let reference_destination =
+        super::references::writable_referent_destination(live, structural_types, destination, path);
     if reference_destination.is_none()
         && super::references::check_projected_access(
             function,

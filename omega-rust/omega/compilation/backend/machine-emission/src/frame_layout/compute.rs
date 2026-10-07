@@ -152,6 +152,8 @@ fn function_layout(
     callee_save_area_bytes: u64,
     mut callee_save_slots: Vec<CalleeSaveFrameSlot>,
 ) -> Result<FunctionTargetFrameLayout, TargetFrameLayoutError> {
+    let call_site = call_site_stack_contract(environment, abi)
+        .ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
     let shadow_bytes = if contains_call && abi == FrameAbiPreservationConvention::MicrosoftX64 {
         32
     } else {
@@ -184,7 +186,7 @@ fn function_layout(
     for (index, slot) in local_storage.iter().enumerate() {
         if slot.byte_size == 0
             || !slot.alignment.is_power_of_two()
-            || slot.alignment > 8
+            || slot.alignment > call_site.stack_alignment_bytes
             || local_storage[..index]
                 .iter()
                 .any(|earlier| earlier.id == slot.id)
@@ -241,8 +243,14 @@ fn function_layout(
     // the architecture's call sequence leaves pushed at callee entry, so a
     // frame whose body executes calls commits an extent carrying exactly that
     // residue.
-    let call_site = call_site_stack_contract(environment, abi)
-        .ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
+    // A leaf can still need an aligned activation: x64 entry carries the
+    // return-address residue, so a 16-byte local cannot use an eight-byte
+    // rounded frame. The declared ABI bounds supported local alignment.
+    let locals_need_aligned_activation = local_storage.iter().any(|slot| {
+        !call_site
+            .entry_residue_bytes
+            .is_multiple_of(u64::from(slot.alignment))
+    });
     // The frame's unwind policy is the declared matrix row, never a private
     // (architecture, convention) match: the pair's row pins the preservation
     // convention it selects, the physical view the stack pointer lives in,
@@ -269,6 +277,7 @@ fn function_layout(
             // Once storage is allocated its body keeps the ABI alignment.
             // Outgoing ABI storage precedes all preservation storage.
             let frame_size = if contains_call
+                || locals_need_aligned_activation
                 || (unwind.abi == FrameAbiPreservationConvention::MicrosoftX64
                     && used_area_bytes != 0)
             {

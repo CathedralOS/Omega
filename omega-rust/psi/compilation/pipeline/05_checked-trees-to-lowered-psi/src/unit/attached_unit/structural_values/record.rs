@@ -77,8 +77,8 @@ impl emission::Emission<'_, '_, '_> {
             .find(|item| item.id == self.structural_type)
             .ok_or(LoweringError::Unsupported("record structural type missing"))?;
         let StructuralTypeShape::Record {
-            storage: None,
             fields: shape_fields,
+            ..
         } = &shape.shape
         else {
             return unsupported("record construction has a nonrecord shape");

@@ -292,8 +292,8 @@ fn collect_determined_evidence_fields(
                     return None;
                 }
                 let (StructuralTypeShape::Record {
-                    storage: None,
                     fields: nested_fields,
+                    ..
                 }
                 | StructuralTypeShape::Mixed {
                     fields: nested_fields,

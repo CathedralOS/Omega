@@ -103,6 +103,9 @@ pub(crate) fn decode_trivial_affine_local_type(
     Ok(StructuralTypeDeclaration {
         id,
         identity,
-        shape: StructuralTypeShape::Record { storage: None, fields: Vec::new() },
+        shape: StructuralTypeShape::Record {
+            storage: None,
+            fields: Vec::new(),
+        },
     })
 }
