@@ -785,6 +785,46 @@ pub(crate) fn binary_operator_spelling(operator: BinaryOperator) -> Option<Opera
 /// domain-owned candidate defers to the binding-site selection pass
 /// (`select_pending_domain_operator_meanings`), which reads declarations,
 /// mints, and signature `requires` but never flow facts.
+
+/// Candidate count and arena span for a resolved spelling candidate set.
+fn checked_candidate_span(
+    program: &TypedTrees,
+    candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
+    candidates: &[SpelledOperator<'_>],
+) -> (usize, arena::HandleSpan<CheckedOperatorCandidateFact>) {
+    (
+        candidates.len(),
+        candidate_facts.insert_many(
+            candidates
+                .iter()
+                .map(|candidate| checked_candidate(program, candidate)),
+        ),
+    )
+}
+
+/// One operator use record; both use-fact builders mint the same shape.
+fn operator_use_record(
+    expression: ExpressionHandle,
+    origin: CheckedValueOrigin,
+    spelling: OperatorSpelling,
+    selected_operator_symbol: SymbolHandle,
+    candidates: arena::HandleSpan<CheckedOperatorCandidateFact>,
+    candidate_count: usize,
+    status: CheckedOperatorResolutionStatus,
+) -> CheckedOperatorUseFact {
+    CheckedOperatorUseFact {
+        expression,
+        origin,
+        occurrence: Default::default(),
+        spelling,
+        policy_adapter: CheckedArithmeticPolicyAdapter::None,
+        selected_operator_symbol,
+        candidates,
+        candidate_count,
+        status,
+    }
+}
+
 fn binary_operator_use_fact(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -816,12 +856,8 @@ fn binary_operator_use_fact(
         return None;
     }
 
-    let candidate_count = candidates.len();
-    let candidate_span = candidate_facts.insert_many(
-        candidates
-            .iter()
-            .map(|candidate| checked_candidate(program, candidate)),
-    );
+    let (candidate_count, candidate_span) =
+        checked_candidate_span(program, candidate_facts, &candidates);
     let (status, selected_operator_symbol) = if candidates
         .iter()
         .any(|candidate| candidate.domain.is_some())
@@ -933,12 +969,8 @@ fn operator_use_fact(
     } else {
         resolve_spelling_for_operands(program, spelling, operand_types, use_site)
     };
-    let candidate_count = candidates.len();
-    let candidate_span = candidate_facts.insert_many(
-        candidates
-            .iter()
-            .map(|candidate| checked_candidate(program, candidate)),
-    );
+    let (candidate_count, candidate_span) =
+        checked_candidate_span(program, candidate_facts, &candidates);
     let (status, selected_operator_symbol) = if candidates
         .iter()
         .any(|candidate| candidate.domain.is_some())
@@ -993,17 +1025,15 @@ fn operator_use_fact(
         )
     };
 
-    CheckedOperatorUseFact {
+    operator_use_record(
         expression,
         origin,
-        occurrence: Default::default(),
         spelling,
-        policy_adapter: CheckedArithmeticPolicyAdapter::None,
         selected_operator_symbol,
-        candidates: candidate_span,
+        candidate_span,
         candidate_count,
         status,
-    }
+    )
 }
 
 fn origin_machine_symbol(origin: CheckedValueOrigin) -> Option<SymbolHandle> {
@@ -1065,17 +1095,15 @@ fn trait_operator_use_fact(
         )
     };
 
-    CheckedOperatorUseFact {
+    operator_use_record(
         expression,
         origin,
-        occurrence: Default::default(),
         spelling,
-        policy_adapter: CheckedArithmeticPolicyAdapter::None,
         selected_operator_symbol,
-        candidates: candidate_span,
+        candidate_span,
         candidate_count,
         status,
-    }
+    )
 }
 
 fn arithmetic_policy_adapter(
