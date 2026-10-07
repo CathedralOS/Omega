@@ -191,22 +191,8 @@ pub(super) fn derive_direct_lift_precondition_implication(
             expected_theorem,
             &application_schema.arguments,
         );
-        let public_expression_hypotheses = public
-            .dependent
-            .iter()
-            .map(|location| {
-                let ProofFact::Expression(expression) = precondition_fact_at(
-                    program,
-                    public_machine.contracts,
-                    public_state.contracts,
-                    *location,
-                )?
-                else {
-                    return None;
-                };
-                Some(*expression)
-            })
-            .collect::<Option<Vec<_>>>();
+        let public_expression_hypotheses =
+            public_expression_hypotheses(program, public_machine, public_state, &public.dependent);
 
         for (representative_position, representative_location) in
             representative_partition.dependent.iter().enumerate()
@@ -268,6 +254,32 @@ pub(super) fn derive_direct_lift_precondition_implication(
     Ok(DirectLiftPreconditionImplication { rows })
 }
 
+/// The public machine's expression facts over `locations`, collected as
+/// hypotheses for the arithmetic-implication fallback when no exact public
+/// precondition matches the representative fact.
+fn public_expression_hypotheses(
+    program: &TypedTrees,
+    public_machine: &Machine,
+    public_state: &State,
+    locations: &[RepresentativeContractFactLocation],
+) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
+    locations
+        .iter()
+        .map(|location| {
+            let ProofFact::Expression(expression) = precondition_fact_at(
+                program,
+                public_machine.contracts,
+                public_state.contracts,
+                *location,
+            )?
+            else {
+                return None;
+            };
+            Some(*expression)
+        })
+        .collect::<Option<Vec<_>>>()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn derive_fixed_representative_call_preconditions(
     program: &TypedTrees,
@@ -283,22 +295,8 @@ pub(super) fn derive_fixed_representative_call_preconditions(
     let (public_values, representative_values) =
         proof_value_substitutions(runtime, |position| format!("$runtime_parameter_{position}"));
     let arithmetic_bindings = arithmetic_bindings_for_runtime(program, representative, runtime);
-    let public_expression_hypotheses = public
-        .fixed
-        .iter()
-        .map(|location| {
-            let ProofFact::Expression(expression) = precondition_fact_at(
-                program,
-                public_machine.contracts,
-                public_state.contracts,
-                *location,
-            )?
-            else {
-                return None;
-            };
-            Some(*expression)
-        })
-        .collect::<Option<Vec<_>>>();
+    let public_expression_hypotheses =
+        public_expression_hypotheses(program, public_machine, public_state, &public.fixed);
     let mut rows = Vec::with_capacity(representative_partition.fixed.len());
     for (representative_position, representative_location) in
         representative_partition.fixed.iter().enumerate()
