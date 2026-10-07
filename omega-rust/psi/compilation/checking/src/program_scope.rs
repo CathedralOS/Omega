@@ -92,6 +92,57 @@ type CallArgumentDestinationsSlot = Option<
     )>,
 >;
 
+/// Per-scoped-program `Rc` map held by a slot — the table built for the
+/// program currently under check.
+type ScopedProgramMapSlot<V> =
+    Option<Option<(ProgramKey, std::rc::Rc<HashMap<symbols::SymbolHandle, V>>)>>;
+
+/// One scoped-program `Rc`-map memo's read/write cycle: the slot holds the
+/// table built for the program currently under check — `build` runs once on
+/// a miss and its result is written back; a foreign program's entry is left
+/// alone. Identity and fingerprint keying live in `program_key`.
+fn scoped_program_map<V: 'static>(
+    program: &typed_trees::TypedTrees,
+    slot: &'static std::thread::LocalKey<std::cell::RefCell<ScopedProgramMapSlot<V>>>,
+    build: impl FnOnce(&typed_trees::TypedTrees) -> HashMap<symbols::SymbolHandle, V>,
+) -> std::rc::Rc<HashMap<symbols::SymbolHandle, V>> {
+    enum SlotState<V> {
+        NoScope,
+        Hit(std::rc::Rc<HashMap<symbols::SymbolHandle, V>>),
+        Miss,
+        ForeignProgram,
+    }
+    let key = program_key(program);
+    let state = slot.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if *owner == key {
+                    SlotState::Hit(std::rc::Rc::clone(map))
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(map) = state {
+        return map;
+    }
+    let map = std::rc::Rc::new(build(program));
+    if matches!(state, SlotState::Miss) {
+        slot.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                *scope = Some((key, map.clone()));
+            }
+        });
+    }
+    map
+}
+
 thread_local! {
     /// Outer `None`: no scope is open — calls compute without memoizing.
     /// `Some(None)`: scope open, not yet computed. `Some(Some(_))`: the plan

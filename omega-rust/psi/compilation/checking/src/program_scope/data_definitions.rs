@@ -1,7 +1,9 @@
 //! Declaration lookups delegated to the `TypedTrees`-owned indexes, plus the
 //! per-scope `Rc` tables claim-frontier walks hold by reference.
 
-use super::{DATA_DEF_POSITIONS_SLOT, TYPE_PARAMETER_MULTIPLICITY_SLOT, program_key};
+use super::{
+    DATA_DEF_POSITIONS_SLOT, TYPE_PARAMETER_MULTIPLICITY_SLOT, scoped_program_map,
+};
 use std::collections::HashMap;
 
 /// The declaration-table answer for a symbol: absent, exactly one
@@ -126,48 +128,14 @@ impl DataFieldIndex {
 pub(crate) fn memoized_data_definition_positions(
     program: &typed_trees::TypedTrees,
 ) -> std::rc::Rc<HashMap<symbols::SymbolHandle, usize>> {
-    enum SlotState {
-        NoScope,
-        Hit(std::rc::Rc<HashMap<symbols::SymbolHandle, usize>>),
-        Miss,
-        ForeignProgram,
-    }
-    let key = program_key(program);
-    let state = DATA_DEF_POSITIONS_SLOT.with(|cell| {
-        let cell = cell.borrow();
-        match cell.as_ref() {
-            None => SlotState::NoScope,
-            Some(None) => SlotState::Miss,
-            Some(Some((owner, map))) => {
-                if *owner == key {
-                    SlotState::Hit(std::rc::Rc::clone(map))
-                } else {
-                    SlotState::ForeignProgram
-                }
-            }
-        }
-    });
-    if let SlotState::Hit(map) = state {
-        return map;
-    }
-    let map = std::rc::Rc::new(
+    scoped_program_map(program, &DATA_DEF_POSITIONS_SLOT, |program| {
         program
             .data_definitions()
             .iter()
             .enumerate()
             .map(|(index, definition)| (definition.symbol, index))
-            .collect::<HashMap<symbols::SymbolHandle, usize>>(),
-    );
-    if matches!(state, SlotState::Miss) {
-        DATA_DEF_POSITIONS_SLOT.with(|cell| {
-            if let Ok(mut slot) = cell.try_borrow_mut()
-                && let Some(scope) = &mut *slot
-            {
-                *scope = Some((key, map.clone()));
-            }
-        });
-    }
-    map
+            .collect()
+    })
 }
 
 /// The symbol -> (multiplicity, kind) table over the type-parameter
@@ -185,41 +153,7 @@ pub(crate) fn memoized_type_parameter_multiplicities(
         ),
     >,
 > {
-    enum SlotState {
-        NoScope,
-        Hit(
-            std::rc::Rc<
-                HashMap<
-                    symbols::SymbolHandle,
-                    (
-                        language_semantics::Multiplicity,
-                        typed_trees::data::TypeParameterKind,
-                    ),
-                >,
-            >,
-        ),
-        Miss,
-        ForeignProgram,
-    }
-    let key = program_key(program);
-    let state = TYPE_PARAMETER_MULTIPLICITY_SLOT.with(|cell| {
-        let cell = cell.borrow();
-        match cell.as_ref() {
-            None => SlotState::NoScope,
-            Some(None) => SlotState::Miss,
-            Some(Some((owner, map))) => {
-                if *owner == key {
-                    SlotState::Hit(std::rc::Rc::clone(map))
-                } else {
-                    SlotState::ForeignProgram
-                }
-            }
-        }
-    });
-    if let SlotState::Hit(map) = state {
-        return map;
-    }
-    let map = std::rc::Rc::new(
+    scoped_program_map(program, &TYPE_PARAMETER_MULTIPLICITY_SLOT, |program| {
         program
             .data_type_parameters
             .iter()
@@ -230,24 +164,8 @@ pub(crate) fn memoized_type_parameter_multiplicities(
                     (parameter.bounds.multiplicity, parameter.kind.clone()),
                 )
             })
-            .collect::<HashMap<
-                symbols::SymbolHandle,
-                (
-                    language_semantics::Multiplicity,
-                    typed_trees::data::TypeParameterKind,
-                ),
-            >>(),
-    );
-    if matches!(state, SlotState::Miss) {
-        TYPE_PARAMETER_MULTIPLICITY_SLOT.with(|cell| {
-            if let Ok(mut slot) = cell.try_borrow_mut()
-                && let Some(scope) = &mut *slot
-            {
-                *scope = Some((key, map.clone()));
-            }
-        });
-    }
-    map
+            .collect()
+    })
 }
 
 /// The named field of `definition`, when it declares one.
