@@ -200,8 +200,6 @@ version = "0.1.0"
 dependencies = [
  "diagnostics",
  "filesystem-authority",
- "optimization-core",
- "platform-custody",
  "sha2",
 ]
 

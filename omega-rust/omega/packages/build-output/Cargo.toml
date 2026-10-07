@@ -11,8 +11,4 @@ path = "src/lib.rs"
 [dependencies]
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-platform-custody = { path = "../../foundation/platform-custody" }
 sha2 = "0.10.9"
-
-[dev-dependencies]
-optimization-core = { path = "../../foundation/optimization-core", features = ["test-support"] }

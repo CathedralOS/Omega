@@ -189,6 +189,40 @@ impl RealFs {
             .map(super::preparation::PreparedFilesystemPath::Native)
     }
 
+    /// Generated-source handoff consumes a sealed regular staging file, not
+    /// merely an existing pathname. Enforce this at the untrusted operation;
+    /// output capture does not replay the invocation's descriptor namespace.
+    pub(in crate::interpreter::evaluator) fn require_sealed_rooted_file(
+        &self,
+        root: FilesystemGrantRootIdentity,
+        relative: &[u8],
+    ) -> EvalResult<()> {
+        use crate::interpreter::evaluator::halts::filesystem_sponsor_halt;
+        let sponsor = self.sponsor.as_ref().ok_or_else(|| {
+            super::super::Halt::Trap("generated source requires sponsored output custody".into())
+        })?;
+        let path = self
+            .rooted_path_bytes(root, relative)
+            .and_then(|bytes| real_path(&bytes))
+            .ok_or_else(|| {
+                super::super::Halt::Trap("generated source names no physical output root".into())
+            })?;
+        let bound = match sponsor.bind_path(&path) {
+            Ok(bound) => bound,
+            Err(error) => return filesystem_sponsor_halt(error),
+        };
+        if let Err(error) = sponsor.require_sealed(&bound) {
+            return filesystem_sponsor_halt(error);
+        }
+        match sponsor.entry(&bound) {
+            Ok(Some(crate::FilesystemSponsorEntry::Object { .. })) => Ok(()),
+            Ok(_) => Err(super::super::Halt::Trap(
+                "generated source must name a sealed regular file".into(),
+            )),
+            Err(error) => filesystem_sponsor_halt(error),
+        }
+    }
+
     pub(in crate::interpreter::evaluator) fn call_uses_captured_input(
         &self,
         call: &PreparedFilesystemCall,

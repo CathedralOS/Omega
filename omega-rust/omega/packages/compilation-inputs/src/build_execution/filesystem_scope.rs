@@ -133,13 +133,6 @@ fn resolved_write_fence(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| overlap_key(path))
 }
 
-/// Whether two roots name overlapping host directories under any spelling.
-fn roots_overlap(left: &Path, right: &Path) -> bool {
-    let left = overlap_key(left);
-    let right = overlap_key(right);
-    left.starts_with(&right) || right.starts_with(&left)
-}
-
 impl BuildMachineFilesystemScope {
     /// Establish the physical write fence before granting captured or host access.
     pub fn establish_filesystem_access(

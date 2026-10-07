@@ -4,7 +4,7 @@
 //! errors and revokes eligibility immediately; final-owner drop retries cleanup.
 //! This is filesystem lifecycle evidence, not grant or acceptance policy.
 
-use super::{FilesystemSponsor, normalize_absolute};
+use super::{FilesystemSponsor, FilesystemSponsorLimits, normalize_absolute};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -50,7 +50,10 @@ impl FilesystemSponsor {
     /// Create, rather than adopt, one private bounded staging session.
     /// Unix permissions exclude other users; Windows uses the caller's
     /// existing inherited-directory isolation premise.
-    pub fn create_private(path: impl AsRef<Path>) -> io::Result<Self> {
+    pub fn create_private(
+        path: impl AsRef<Path>,
+        limits: FilesystemSponsorLimits,
+    ) -> io::Result<Self> {
         let path = path.as_ref();
         let name = path.file_name().ok_or_else(|| {
             io::Error::new(
@@ -86,7 +89,7 @@ impl FilesystemSponsor {
                 "private staging escaped its canonical parent",
             ));
         }
-        let mut sponsor = Self::new(&canonical).map_err(io::Error::other)?;
+        let mut sponsor = Self::with_limits(&canonical, limits).map_err(io::Error::other)?;
         sponsor.private_staging = Some(owner);
         Ok(sponsor)
     }

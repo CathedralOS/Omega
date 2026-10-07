@@ -319,16 +319,14 @@ fn run_closure_pass(
                     }
                 })?
             };
-            if let Err(error) = pass.compile_occurrence(&PackageOccurrence {
+            pass.compile_occurrence(&PackageOccurrence {
                 key: &key,
                 scope: &scope,
                 custody,
                 position,
                 purpose,
                 checked_target,
-            }) {
-                return Err(error);
-            }
+            })?;
         }
     }
     pass.finish()

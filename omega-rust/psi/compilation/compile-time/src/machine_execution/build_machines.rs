@@ -17,7 +17,9 @@ pub use checked_interpreter::{
     FilesystemGrantRoot as BuildMachineFilesystemGrantRoot,
     FilesystemGrantRootIdentity as BuildMachineFilesystemGrantRootIdentity,
     FilesystemMetadataLayout as BuildMachineFilesystemMetadataLayout,
-    FilesystemSponsor as BuildMachineFilesystemSponsor, FsGrants as BuildMachineFilesystemGrants,
+    FilesystemSponsor as BuildMachineFilesystemSponsor,
+    FilesystemSponsorLimits as BuildMachineFilesystemSponsorLimits,
+    FsGrants as BuildMachineFilesystemGrants,
 };
 
 /// Explicit execution authority supplied by build orchestration.

@@ -200,4 +200,3 @@ pub(crate) fn generated_wire_codec_source(
         Some(emitted)
     }
 }
-

@@ -82,7 +82,10 @@ impl PackageBuildSession {
                 ".omega-package-build-{}-{sequence}",
                 std::process::id()
             ));
-            match FilesystemSponsor::create_private(&root) {
+            match FilesystemSponsor::create_private(
+                &root,
+                filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
+            ) {
                 Ok(filesystem_sponsor) => {
                     let canonical_root = filesystem_sponsor.session_root().map_err(|error| {
                         CompileResolvedPackageReviewsError::BuildStagingSponsor {

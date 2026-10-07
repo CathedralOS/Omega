@@ -1001,6 +1001,94 @@ fn check_fail_fixture(
     if let Some(rollback) = rollback {
         request.optimization_rollback = rollback.clone();
     }
+    // Authored host policy, not a source recognizer or production mode. Small
+    // sponsor ceilings exercise the real request boundary without allocating
+    // hundreds of megabytes or executing the default fuel allowance.
+    let fixture_root = root_path.parent().expect("fixture has a source directory");
+    match fs::read_to_string(fixture_root.join("build_resource_limits.txt")) {
+        Ok(contents) => {
+            let limits: [u64; 4] = contents
+                .split_whitespace()
+                .map(str::parse)
+                .collect::<Result<Vec<_>, _>>()
+                .ok()
+                .and_then(|values| values.try_into().ok())
+                .filter(|values: &[u64; 4]| values.iter().all(|value| *value != 0))
+                .ok_or_else(|| vec![diagnostics::Diagnostic::error(
+                    "build_resource_limits.txt requires four positive integers: fuel, entries, total bytes, object extent",
+                )])?;
+            let evaluation_limits = build_time_evaluation::BuildEvaluationSponsorLimits::new(
+                limits[0],
+                u64::MAX,
+                u64::MAX,
+                u64::MAX,
+                u64::MAX,
+                u64::MAX,
+                u64::MAX,
+                u64::MAX,
+            )
+            .expect("positive authored fuel and resource ceilings");
+            request.evaluation_sponsor = Some(build_time_evaluation::BuildEvaluationSponsor::new(
+                evaluation_limits,
+            ));
+            fs::create_dir_all(build_dir.parent().expect("fixture staging has a parent"))
+                .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?;
+            let sponsor = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
+                &build_dir,
+                build_time_evaluation::BuildMachineFilesystemSponsorLimits {
+                    maximum_entries: limits[1],
+                    maximum_total_logical_bytes: limits[2],
+                    maximum_object_extent: limits[3],
+                },
+            )
+            .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?;
+            let output_root = sponsor
+                .session_root()
+                .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?
+                .join("output");
+            // Corrupt-host controls start with a concrete hard-link alias.
+            // No alias operation is exposed by the default Omega Build facet;
+            // capture must reject the actual tree, not replay a sponsor model.
+            match fs::read_to_string(fixture_root.join("build_output_alias.txt")) {
+                Ok(contents) => {
+                    let names = contents
+                        .split_whitespace()
+                        .map(PathBuf::from)
+                        .collect::<Vec<_>>();
+                    if names.len() != 2
+                        || names.iter().any(|name| {
+                            !name.components().all(|component| {
+                                matches!(component, std::path::Component::Normal(_))
+                            })
+                        })
+                    {
+                        return Err(vec![diagnostics::Diagnostic::error(
+                            "build_output_alias.txt requires two relative non-traversing filenames",
+                        )]);
+                    }
+                    fs::create_dir(&output_root)
+                        .and_then(|()| fs::write(output_root.join(&names[0]), b"untrusted alias"))
+                        .and_then(|()| {
+                            fs::hard_link(output_root.join(&names[0]), output_root.join(&names[1]))
+                        })
+                        .map_err(|error| {
+                            vec![diagnostics::Diagnostic::error(format!(
+                                "cannot prepare authored Build alias control: {error}",
+                            ))]
+                        })?;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
+            }
+            request.build_dir = Some(output_root);
+            request.filesystem_sponsor = Some(sponsor);
+            request.build_snapshot.get_or_insert_with(|| {
+                package_compilation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
+            });
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
+    }
     let mut result = compile_to_checked(request).map(|_| ());
     for output in absent_outputs {
         if build_dir.join(&output).try_exists().map_err(|error| {

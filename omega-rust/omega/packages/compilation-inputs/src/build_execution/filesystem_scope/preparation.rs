@@ -88,7 +88,10 @@ pub fn prepare_filesystem_scope(
                     std::process::id(),
                     NEXT_PRIVATE_OUTPUT.fetch_add(1, Ordering::Relaxed),
                 ));
-                match BuildMachineFilesystemSponsor::create_private(&root) {
+                match BuildMachineFilesystemSponsor::create_private(
+                    &root,
+                    build_time_evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+                ) {
                     Ok(sponsor) => break sponsor,
                     Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
                     Err(error) => {

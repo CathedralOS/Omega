@@ -309,6 +309,11 @@ impl<'program> Evaluator<'program> {
                 "generated-source handoff path belongs to a different build root".to_owned(),
             ));
         }
+        validate_build_relative_path(&relative_path)?;
+        self.real_fs
+            .as_ref()
+            .ok_or_else(|| Halt::Trap("generated source requires scoped output custody".into()))?
+            .require_sealed_rooted_file(output_root, &relative_path)?;
         let scoped_real_output = self
             .real_fs
             .as_ref()

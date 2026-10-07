@@ -1068,7 +1068,7 @@ impl<'program> Evaluator<'program> {
                 path: PreparedFilesystemPath::Native(a.path_like_bytes()?),
             },
             FilesystemHostOperation::RemoveDirName => PreparedFilesystemCall::RemoveDirName {
-                path: a.path_like_bytes()?,
+                path: PreparedFilesystemPath::Native(a.path_like_bytes()?),
             },
             FilesystemHostOperation::ReadMetadata => {
                 let path = a.path()?;

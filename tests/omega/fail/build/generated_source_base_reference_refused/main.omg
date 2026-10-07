@@ -1,0 +1,12 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    transition ANSWER == 73 {
+        true -> correct(main)
+        _ -> incorrect(main)
+    }
+    state correct(main: &mut Main) { main.console.exit_process(73); }
+    state incorrect(main: &mut Main) { main.console.exit_process(74); }
+}
