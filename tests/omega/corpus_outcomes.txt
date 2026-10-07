@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.46, "load1_start": 3.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 2.79, "load1_start": 2.79, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1856,6 +1856,14 @@ fail/traits/evidence_binder_subject_retired rejected 3ms expected @65c3b89f46f4+
 	tests/omega/fail/traits/evidence_binder_subject_retired/main.omg:8:28: a conformance has no data subject; write the evidence binder as `Order satisfies Trait<Data>`
 fail/traits/evidence_binder_wrong_trait_arguments rejected 49ms expected @65c3b89f46f4+wt
 	generic machine `apply` cannot bind `Operations` to conformance `GaugeIncrement`: expected a complete `Incrementable` implementation with the instantiated trait arguments
+fail/traits/exact_application_keeps_invocation_binders rejected 322ms expected @b5a9b4a9eef4+wt
+	machine `identity` does not satisfy trait `Identity` machine `identity`: expected 0 callable generic parameter(s), got 1
+	machine `identity` does not satisfy trait `Marker` machine `identity`: expected 0 callable generic parameter(s), got 1
+fail/traits/exact_application_keeps_parameter_types rejected 324ms expected @b5a9b4a9eef4+wt
+	machine `identity` state `entry` does not satisfy trait `Identity` machine `identity` parameter `value`: expected `Element`, got `i32`
+	machine `identity` state `entry` does not satisfy trait `Identity` machine `identity`: expected return `Element`, got `i32`
+fail/traits/exact_application_keeps_universal_properties rejected 323ms expected @b5a9b4a9eef4+wt
+	machine `select` does not satisfy trait `Select` machine `select`: callable generic parameter 0 demands stronger type properties
 fail/traits/exact_requirement_edge_wrong_data_rejected rejected 385ms expected @e3131e3bcd65+wt
 	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
 	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
@@ -2201,6 +2209,7 @@ pass/calls/requires_carrier_ceiling_vacuous checked 3103ms check-target:macos_ar
 pass/calls/requires_operand_flip_discharge checked 3157ms check-target:macos_arm64 @527c7c316c6f+wt
 pass/calls/retained_receiver_argument_order_exit checked 886ms check-target:macos_arm64 @bd26d3a01ac1+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/runtime_anonymous_result_local_namespace_exit checked 1571ms check-target:macos_arm64 @b5a9b4a9eef4+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_authored_numeric_guard_result_exit checked 1936ms check-target:macos_arm64 @6979b7c65a9e+wt
 pass/calls/runtime_authored_numeric_names_exit checked 1936ms check-target:macos_arm64 @6979b7c65a9e+wt
@@ -3469,6 +3478,7 @@ pass/traits/runtime_dyn_requirement_contract_exit checked 2818ms check-target:ma
 pass/traits/runtime_dyn_selector_record_field_exit checked 909ms check-target:macos_arm64 @fc55f70a381c
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 921ms check-target:macos_arm64 @fc55f70a381c
 pass/traits/runtime_exact_requirement_edge_exit checked 2044ms check-target:macos_arm64 @e3131e3bcd65+wt
+pass/traits/runtime_generic_exact_application_exit checked 1674ms check-target:macos_arm64 @b5a9b4a9eef4+wt
 pass/traits/runtime_inherited_trait_default_exit checked 3274ms check-target:macos_arm64 @c4e45d3dda38+wt
 pass/traits/runtime_named_implementation_selection_exit checked 1127ms check-target:macos_arm64 @65c3b89f46f4+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms check-target:macos_arm64 @2d8ed253669f

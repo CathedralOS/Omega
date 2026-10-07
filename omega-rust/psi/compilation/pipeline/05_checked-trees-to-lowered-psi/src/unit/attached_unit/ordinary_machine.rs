@@ -305,6 +305,15 @@ pub(super) fn emit(
     let primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
     let structural_result_places = Vec::<(Option<StructuralPlaceDeclaration>, bool)>::new();
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+    // Keep authored locals separate from anonymous operation results from the
+    // first statement onward, just as composed states do. Rebuilding bindings
+    // from the growing SSA roster would make a preceding field-store result
+    // occupy the next source local's ordinal.
+    evaluation.scalar_bindings = Some(
+        crate::expression_preparation::bindings::ScalarBindings::new(
+            scalar_parameters.iter().map(|value| value.scalar_type),
+        ),
+    );
     evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
     evaluation.machine = Some(terminal_machine);
     evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();

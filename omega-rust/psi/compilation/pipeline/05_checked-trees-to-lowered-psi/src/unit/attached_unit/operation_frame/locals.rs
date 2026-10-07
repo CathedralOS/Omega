@@ -22,10 +22,9 @@ use crate::unit::{
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 
 impl OperationFrame<'_, '_> {
-    /// Bind one scalar local. A composed state names it in its own scalar
-    /// namespace at its dense position; without that namespace the source
-    /// bindings are the dense prefix of formals followed by locals in ordinal
-    /// order, so the ordinal must name the next position.
+    /// Bind one scalar local in the same source namespace ordinary bodies and
+    /// composed states share. Anonymous operation results occupy dense value
+    /// slots but never shift this local's authored ordinal.
     pub(super) fn establish_scalar_local(
         &mut self,
         result: &checked_trees::CheckedUnitScalarResultBindingPlan,

@@ -2059,11 +2059,6 @@ crash and native exit behavior.
     surface. `core/numeric_unsigned_narrowing_policies` still uses
     `(70000u32 as u16 in Saturating) as u16` to clamp its source; migrate that
     invalid fixture premise to a named conversion as the integer route is repaired.
-    `float/float_to_int_trapping_nan_traps` uses an explicitly named Trapping
-    conversion but stage 05 rejects its result erasure with `scalar graph integer
-    guard parameter type does not match`; this also reproduces with that legal
-    source on the unchanged `8794607` compiler. Finish the ordinary scalar binding
-    transport rather than restoring a policy-conversion cast fallback.
     Run `float/named_integer_conversion_source_proofs_exit` (78) on
     Linux/Windows; those matching-host results remain unverified.
     `float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` need native
@@ -3200,6 +3195,9 @@ deletions, which the commit lists.
   `float/runtime_named_policy_conversion_composition_exit` and
   `expressions/runtime_numeric_cast_exit` (70) constrain explicitly named
   truncation/clamping across calls and state transfers.
+  `calls/runtime_anonymous_result_local_namespace_exit` (70) and
+  `float/float_to_int_trapping_nan_traps` (trap) constrain authored local
+  identity after anonymous operation results in ordinary bodies.
   `collections/runtime_finite_element_view_call_write_exit` (0) constrains
   finite-result stores, captured indices and ordinary float carriers;
   `float/finite_constructor_requires_operand_proof` must reject an unqualified

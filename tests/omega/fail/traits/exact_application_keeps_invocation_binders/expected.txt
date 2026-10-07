@@ -1,0 +1,1 @@
+expected 0 callable generic parameter(s), got 1

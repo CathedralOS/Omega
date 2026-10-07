@@ -7,6 +7,8 @@
 //! bind from its explicit application, never from a subject position or the
 //! realization's namespace.
 
+mod callable_parameters;
+
 use crate::value_custody::type_references::{type_reference_label, type_references_match};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -154,7 +156,54 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let actual_parameters = authored_satisfier_parameters(program, machine, state);
+    // Satisfaction quantifies over the source family, not one demanded
+    // specialization. Private instances retain their original edge unchanged;
+    // its arguments still name the original binders. Compare all signature
+    // axes in that same environment rather than mixing concrete parameters
+    // with an open application. Ordinary checking still judges each concrete
+    // body, and its operational ceiling is checked below.
+    let (callable_machine, callable_state) = if program.machine_type_parameters(machine).is_empty()
+        && !program.machine_trait_conformances(machine).is_empty()
+    {
+        let mut applications = program
+            .machine_specializations
+            .iter()
+            .filter(|application| application.instance == machine.symbol);
+        if let Some(application) = applications.next() {
+            let template = program.machines().iter().find(|template| {
+                template.symbol == application.template
+                    && template.symbol != machine.symbol
+                    && template.type_parameters == application.template_parameters
+                    && !program.machine_type_parameters(template).is_empty()
+                    && program.machine_trait_conformances(template)
+                        == program.machine_trait_conformances(machine)
+            });
+            let source_state = template.and_then(|template| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .position(|candidate| candidate.symbol == state.symbol)
+                    .and_then(|ordinal| program.machine_states(template).get(ordinal))
+            });
+            let Some((template, source_state)) = template
+                .zip(source_state)
+                .filter(|_| applications.next().is_none())
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` generic satisfaction lost its exact original family and application",
+                    machine.name,
+                )));
+                return;
+            };
+            (template, source_state)
+        } else {
+            (machine, state)
+        }
+    } else {
+        (machine, state)
+    };
+    let actual_parameters =
+        authored_satisfier_parameters(program, callable_machine, callable_state);
     let required_parameters = program.state_signature_parameters(requirement);
     if let Err(diagnostic) = satisfier_parameter_correspondence(
         &format!("machine `{}` state `{}`", machine.name, state.name),
@@ -171,66 +220,16 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
 
     let trait_type_parameters = program.trait_type_parameters(trait_definition);
     let requirement_type_parameters = program.state_signature_type_parameters(requirement);
-    // A private application still carries its authored satisfaction edge, but
-    // it does not declare a new universally quantified provider. The original
-    // family remains live and receives ordinary universal refinement checking.
-    // Rejoin only that exact family telescope here; keep checking this concrete
-    // state's signature, laws, and effect ceilings below.
-    let callable_machine = if !requirement_type_parameters.is_empty()
-        && program.machine_type_parameters(machine).is_empty()
-        && program
-            .machine_trait_conformances(machine)
-            .iter()
-            .any(|edge| edge.requirement_symbol == requirement.symbol)
-    {
-        let mut applications = program
-            .machine_specializations
-            .iter()
-            .filter(|application| application.instance == machine.symbol);
-        if let Some(application) = applications.next() {
-            let template = program.machines().iter().find(|template| {
-                template.symbol == application.template
-                    && template.symbol != machine.symbol
-                    && template.type_parameters == application.template_parameters
-                    && !program.machine_type_parameters(template).is_empty()
-                    && program.machine_trait_conformances(template)
-                        == program.machine_trait_conformances(machine)
-            });
-            let Some(template) = template.filter(|_| applications.next().is_none()) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` generic satisfaction lost its exact original family and application",
-                    machine.name,
-                )));
-                return;
-            };
-            template
-        } else {
-            machine
-        }
-    } else {
-        machine
-    };
-    // A machine authored inline in a generic conformance closes over that
-    // conformance name's telescope. Those captured parameters specialize the
-    // row realization, but they are not callable parameters of the trait
-    // requirement itself.
-    let captured_parameter_symbols = program
-        .conformances()
-        .iter()
-        .filter(|conformance| {
-            conformance.rows.iter().any(|row| {
-                row.realization_machine == machine.symbol && row.source.owns_realization()
-            })
-        })
-        .flat_map(|conformance| program.conformance_type_parameters(conformance))
-        .map(|parameter| parameter.symbol)
-        .collect::<Vec<_>>();
-    let actual_type_parameters = program
-        .machine_type_parameters(callable_machine)
-        .iter()
-        .filter(|parameter| !captured_parameter_symbols.contains(&parameter.symbol))
-        .cloned()
-        .collect::<Vec<_>>();
+    // Fixed application arguments and an inline implementation's environment
+    // are not fresh invocation binders. All remaining binders still undergo
+    // ordinary universal kind, property and contract refinement below.
+    let actual_type_parameters = callable_parameters::invocation_parameters(
+        program,
+        machine,
+        callable_machine,
+        trait_definition.symbol,
+        requirement.symbol,
+    );
     let indexed_law_telescope_groups = indexed_law_callable_telescope_groups(
         program,
         trait_definition,
@@ -407,7 +406,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                 actual.type_reference,
                 required.type_reference,
                 &trait_definition.lifetime_parameters,
-                machine,
+                callable_machine,
                 trait_lifetime_arguments,
             ) {
                 diagnostics.push(Diagnostic::error(format!(
@@ -424,7 +423,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
 
     if !type_references_match_with_trait_bindings(
         program,
-        state.return_type,
+        callable_state.return_type,
         requirement.return_type,
         &required_generic_types,
         &mut type_bindings,
@@ -436,16 +435,16 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
             trait_definition.name,
             requirement.name,
             type_reference_label(program, requirement.return_type),
-            type_reference_label(program, state.return_type)
+            type_reference_label(program, callable_state.return_type)
         )));
     }
     if let Some(trait_lifetime_arguments) = trait_lifetime_arguments
         && !type_reference_lifetimes_match_requirement_application(
             program,
-            state.return_type,
+            callable_state.return_type,
             requirement.return_type,
             &trait_definition.lifetime_parameters,
-            machine,
+            callable_machine,
             trait_lifetime_arguments,
         )
     {
