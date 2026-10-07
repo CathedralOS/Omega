@@ -8,14 +8,13 @@
 //! checked proposition vocabulary and lowers applications, `contracts.rs`,
 //! `contract_entailment.rs`, `float_meaning.rs` and `obligations.rs` carry
 //! contracts, entailment, float meaning and obligation lowering.
+//! Mathematical declaration elaboration belongs to the independent proof
+//! package; this owner only transfers its completed records into `ProofFacts`.
 
 mod contract_entailment;
 mod contracts;
 mod evidence_forwarding;
-mod fixed_core_vocabulary;
 mod float_meaning;
-mod mathematical_declarations;
-mod mathematical_signature;
 mod obligations;
 mod outcome_arms;
 mod proof_output_calls;
@@ -27,10 +26,7 @@ pub(crate) use contracts::machine_parameter_evidence_signatures;
 pub(crate) use evidence_forwarding::{
     bind_evidence_forwarding_facts, bind_evidence_projection_facts,
 };
-pub(crate) use fixed_core_vocabulary::{FixedCore, FixedCoreVocabulary};
 pub(crate) use float_meaning::bind_float_meaning_projection_facts;
-use mathematical_declarations::build_checked_mathematical_declarations;
-use mathematical_signature::check_mathematical_signature;
 pub(crate) use outcome_arms::{bind_outcome_specific_arm_facts, exact_outcome_case_test};
 pub(crate) use proof_output_calls::bind_proof_output_call_facts;
 pub(crate) use proposition_vocabulary::lower_checked_proposition_application;
@@ -51,42 +47,12 @@ use contracts::{
 };
 use obligations::lower_proof_obligation;
 
-/// A program's mathematical `let`/`boundary let` declarations as checked
-/// records plus the kernel signature that re-decides them. `signature` is
-/// `Some` exactly when the program carries declarations: the lowering
-/// admission gate and the artifact publisher rely on that pairing, and a
-/// declaration-free program never pays for an empty signature section.
-#[derive(Default)]
-pub(crate) struct CheckedMathematics {
-    declarations: Vec<checked_trees::CheckedMathematicalDeclaration>,
-    signature: Option<checked_trees::CheckedMathematicalSignature>,
-}
-
-/// Elaborate every mathematical declaration into its checked record and its
-/// kernel term, and check the kernel signature once. A declaration that fails
-/// either elaboration fails with its own diagnostic. The Terminal-side
-/// consumer refuses the records with a named diagnostic until the evidence
-/// encoding lands (PROOF-CONTRACT-MIGRATION).
-pub(crate) fn check_mathematical_declarations(
-    program: &dyn ::validation::CheckingInput,
-) -> Result<CheckedMathematics, Vec<diagnostics::Diagnostic>> {
-    if program.mathematical_definitions().is_empty() {
-        return Ok(CheckedMathematics::default());
-    }
-    let declarations = build_checked_mathematical_declarations(program)?;
-    let signature = check_mathematical_signature(program)?.into_checked_evidence();
-    Ok(CheckedMathematics {
-        declarations,
-        signature: Some(signature),
-    })
-}
-
 pub(crate) fn build_proof_facts_with_operators(
     program: &dyn ::validation::CheckingInput,
     proof_plan: &proof::obligations::ProofPlan,
     borrow: &BorrowFacts,
     operators: &CheckedOperatorFacts,
-    mathematics: CheckedMathematics,
+    mathematics: proof::mathematical_declarations::CheckedMathematics,
 ) -> Result<ProofFacts, Vec<diagnostics::Diagnostic>> {
     let mut obligations = arena::Arena::with_capacity(proof_plan.obligations.len());
     let mut contract_facts = arena::Arena::with_capacity(estimated_contract_fact_capacity(program));
@@ -269,7 +235,7 @@ pub(crate) fn build_proof_facts_with_operators(
     let contract_exits =
         build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
     let proposition_vocabulary = build_checked_proposition_vocabulary(program);
-    let CheckedMathematics {
+    let proof::mathematical_declarations::CheckedMathematics {
         declarations: mathematical_declarations,
         signature: mathematical_signature,
     } = mathematics;

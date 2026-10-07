@@ -15,7 +15,7 @@ use typed_trees::TypedTrees;
 /// form is passed separately; this record is not another program representation.
 pub struct TypedPreparation {
     pub(crate) static_machine_selections: validation::ValidatedStaticMachineSelections,
-    pub(crate) mathematics: crate::proof::CheckedMathematics,
+    pub(crate) mathematics: proof::mathematical_declarations::CheckedMathematics,
     pub(crate) opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
 }
 
@@ -57,7 +57,7 @@ pub fn prepare_typed_trees(
     // records and a kernel signature the kernel re-decides. Check them first,
     // so a declaration that fails either elaboration fails with its own
     // diagnostic, and carry the result to the proof facts.
-    let mathematics = crate::proof::check_mathematical_declarations(&program)?;
+    let mathematics = proof::mathematical_declarations::check_mathematical_declarations(&program)?;
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
     // concrete machine here. Validation permits unused template bodies but the

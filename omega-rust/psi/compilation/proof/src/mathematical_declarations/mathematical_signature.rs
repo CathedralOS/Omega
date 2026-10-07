@@ -114,7 +114,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use numerics::bignum::BigInt;
 
-use crate::proof::{FixedCore, FixedCoreVocabulary};
+use super::{FixedCore, FixedCoreVocabulary};
 use proof_admission::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
     TermArena, TermHandle, check_signature, infer_sort,

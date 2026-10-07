@@ -39,7 +39,7 @@ use typed_trees::mathematical::{
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use crate::proof::{FixedCore, FixedCoreVocabulary};
+use super::{FixedCore, FixedCoreVocabulary};
 
 /// Build the checked mathematical-declaration surface for a typed program.
 ///

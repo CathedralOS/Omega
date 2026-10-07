@@ -18,7 +18,8 @@
 //! immutable result, builds the facts a checked machine publishes, analyses
 //! its flow and values, and plans its execution:
 //!
-//! 1. `proof` elaborates mathematical declarations and signatures.
+//! 1. The independent `proof` package elaborates mathematical declarations
+//!    and signatures before executable checking.
 //! 2. `lookup` resolves projected receiver calls to their exact owners.
 //! 3. `authored_selections` binds what the source selected before
 //!    specialization can rewrite it.

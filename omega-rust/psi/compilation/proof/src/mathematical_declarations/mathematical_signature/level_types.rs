@@ -2,7 +2,7 @@
 //! mathematical types, type references, and named types become binder
 //! entries and term domains inside the signature under construction.
 
-use crate::proof::FixedCore;
+use crate::mathematical_declarations::FixedCore;
 use proof_admission::{Level, Term, TermHandle};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;

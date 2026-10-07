@@ -11,11 +11,15 @@
 //! lemma vocabulary and `boundary` names boundary-facing proof contracts.
 //! `proof_surface` separately inventories declared syntax for reporting; it is
 //! not the input to typed-program obligation construction.
+//! `mathematical_declarations` separately elaborates authored mathematical
+//! records and their checked kernel signature for typed preparation. Its
+//! result feeds checked-fact assembly without a dependency on a pipeline stage.
 
 pub mod boundary;
 pub mod checker;
 pub mod derivation_store;
 pub mod lemmas;
+pub mod mathematical_declarations;
 pub mod obligations;
 mod proof_surface;
 #[cfg(test)]

@@ -132,7 +132,7 @@ pub(crate) fn build_check_facts(
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
     static_machine_selections: validation::ValidatedStaticMachineSelections,
-    mathematics: crate::proof::CheckedMathematics,
+    mathematics: proof::mathematical_declarations::CheckedMathematics,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(CheckFacts, validation::PreparedEffectScope), Vec<diagnostics::Diagnostic>> {
     // One resolver serves this immutable fact-construction window, including
