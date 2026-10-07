@@ -273,20 +273,24 @@ pub fn generic_machine_template_report_fingerprint(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
 ) -> Option<u64> {
-    let machine_index = program
-        .machines()
-        .iter()
-        .position(|machine| machine.symbol == machine_symbol)?;
-    if program
-        .machine_type_parameters(&program.machines()[machine_index])
-        .is_empty()
-    {
-        return None;
-    }
+    let machine_index = generic_machine_index(program, machine_symbol)?;
     let operational = validation::infer_operational_may(program);
     let service_reaches = validation::infer_service_reaches(program, &operational);
     let bytes = canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()?;
     Some(fnv1a_report_fingerprint(&bytes))
+}
+
+/// Index of `machine_symbol` when the machine declares type parameters —
+/// a parameterless machine carries no template to commit.
+fn generic_machine_index(program: &TypedTrees, machine_symbol: SymbolHandle) -> Option<usize> {
+    let machine_index = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == machine_symbol)?;
+    (!program
+        .machine_type_parameters(&program.machines()[machine_index])
+        .is_empty())
+    .then_some(machine_index)
 }
 
 /// Domain-separated strong commitment to the exact canonical universal
@@ -295,16 +299,7 @@ pub fn generic_machine_template_commitment(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
 ) -> Option<typed_trees::typed_trees::MachineTemplateCommitment> {
-    let machine_index = program
-        .machines()
-        .iter()
-        .position(|machine| machine.symbol == machine_symbol)?;
-    if program
-        .machine_type_parameters(&program.machines()[machine_index])
-        .is_empty()
-    {
-        return None;
-    }
+    let machine_index = generic_machine_index(program, machine_symbol)?;
     let operational = validation::infer_operational_may(program);
     let service_reaches = validation::infer_service_reaches(program, &operational);
     let bytes = canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()?;
