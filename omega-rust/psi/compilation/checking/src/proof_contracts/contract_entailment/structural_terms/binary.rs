@@ -3,7 +3,6 @@
 //! reassociation. The original declaration supplies operator and carrier facts.
 
 use super::StructuralTerm;
-use language_core::OperatorSpelling;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -34,27 +33,12 @@ pub(crate) fn binary_term_in_scope(
     let expected = scope.map(|(_, _, expected)| expected);
     let references = [binary.left, binary.right]
         .map(|operand| crate::expression_result_type_reference(program, machine, state, operand));
-    let spelling = match binary.operator {
-        BinaryOperator::Equal => Some(OperatorSpelling::Equal),
-        BinaryOperator::NotEqual => Some(OperatorSpelling::NotEqual),
-        BinaryOperator::Less => Some(OperatorSpelling::Less),
-        BinaryOperator::LessOrEqual => Some(OperatorSpelling::LessEqual),
-        BinaryOperator::Greater => Some(OperatorSpelling::Greater),
-        BinaryOperator::GreaterOrEqual => Some(OperatorSpelling::GreaterEqual),
-        BinaryOperator::Add => Some(OperatorSpelling::Add),
-        BinaryOperator::Subtract => Some(OperatorSpelling::Subtract),
-        BinaryOperator::Multiply => Some(OperatorSpelling::Multiply),
-        BinaryOperator::Divide => Some(OperatorSpelling::Divide),
-        BinaryOperator::Modulo => Some(OperatorSpelling::Modulo),
-        BinaryOperator::CaseMembership => return None,
-        BinaryOperator::And
-        | BinaryOperator::Or
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => None,
-    };
+    if binary.operator == BinaryOperator::CaseMembership {
+        return None;
+    }
+    let spelling = crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
+        binary.operator,
+    );
     if let Some(spelling) = spelling
         && !typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,

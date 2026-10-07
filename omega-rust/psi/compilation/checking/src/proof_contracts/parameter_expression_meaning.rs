@@ -36,28 +36,10 @@ pub fn has_builtin_parameter_bound_expression_meaning(
         pending.push((expression, true));
         match program.expression_table.expression(expression) {
             ExpressionNode::Binary(binary) => {
-                let spelling = match binary.operator {
-                    BinaryOperator::Equal => Some(OperatorSpelling::Equal),
-                    BinaryOperator::NotEqual => Some(OperatorSpelling::NotEqual),
-                    BinaryOperator::Less => Some(OperatorSpelling::Less),
-                    BinaryOperator::LessOrEqual => Some(OperatorSpelling::LessEqual),
-                    BinaryOperator::Greater => Some(OperatorSpelling::Greater),
-                    BinaryOperator::GreaterOrEqual => Some(OperatorSpelling::GreaterEqual),
-                    BinaryOperator::Add => Some(OperatorSpelling::Add),
-                    BinaryOperator::Subtract => Some(OperatorSpelling::Subtract),
-                    BinaryOperator::Multiply => Some(OperatorSpelling::Multiply),
-                    BinaryOperator::Divide => Some(OperatorSpelling::Divide),
-                    BinaryOperator::Modulo => Some(OperatorSpelling::Modulo),
-                    BinaryOperator::CaseMembership => return false,
-                    // These nodes have no overloadable operator spelling.
-                    BinaryOperator::And
-                    | BinaryOperator::Or
-                    | BinaryOperator::BitwiseAnd
-                    | BinaryOperator::BitwiseOr
-                    | BinaryOperator::BitwiseXor
-                    | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight => None,
-                };
+                if binary.operator == BinaryOperator::CaseMembership {
+                    return false;
+                }
+                let spelling = spelled_binary_operator(binary.operator);
                 if let Some(spelling) = spelling {
                     let operands = [binary.left, binary.right].map(|operand| {
                         crate::parameter_expression_result_type_reference(
@@ -89,4 +71,32 @@ pub fn has_builtin_parameter_bound_expression_meaning(
         }
     }
     true
+}
+
+/// The spelling an authored binary operator supplies to overloadable
+/// meaning; membership and the non-overloadable operators have none.
+pub(crate) fn spelled_binary_operator(
+    operator: BinaryOperator,
+) -> Option<OperatorSpelling> {
+    match operator {
+        BinaryOperator::Equal => Some(OperatorSpelling::Equal),
+        BinaryOperator::NotEqual => Some(OperatorSpelling::NotEqual),
+        BinaryOperator::Less => Some(OperatorSpelling::Less),
+        BinaryOperator::LessOrEqual => Some(OperatorSpelling::LessEqual),
+        BinaryOperator::Greater => Some(OperatorSpelling::Greater),
+        BinaryOperator::GreaterOrEqual => Some(OperatorSpelling::GreaterEqual),
+        BinaryOperator::Add => Some(OperatorSpelling::Add),
+        BinaryOperator::Subtract => Some(OperatorSpelling::Subtract),
+        BinaryOperator::Multiply => Some(OperatorSpelling::Multiply),
+        BinaryOperator::Divide => Some(OperatorSpelling::Divide),
+        BinaryOperator::Modulo => Some(OperatorSpelling::Modulo),
+        BinaryOperator::CaseMembership
+        | BinaryOperator::And
+        | BinaryOperator::Or
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => None,
+    }
 }
