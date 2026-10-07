@@ -198,29 +198,11 @@ fn copy_expression_identifier_path_to_statement_table(
     syntax_trees: &mut SyntaxTrees,
     path: HandleSpan<syntax_trees::identifier::Identifier>,
 ) -> HandleSpan<syntax_trees::identifier::Identifier> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
-
-    let member_count = syntax_trees.expressions.identifier_path_members(path).len();
-
-    for index in 0..member_count {
-        let member = syntax_trees.expressions.identifier_path_members(path)[index].clone();
-        let handle = syntax_trees
-            .statements
-            .append_identifier_path_member(member);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("statement identifier path span count overflow");
-    }
-
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
+    crate::bodies::copy_identifier_path_to_statement_table(
+        syntax_trees,
+        path,
+        "statement identifier path span count overflow",
+    )
 }
 
 fn append_statement_identifier_path_member(
