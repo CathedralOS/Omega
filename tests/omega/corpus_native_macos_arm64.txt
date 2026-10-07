@@ -447,6 +447,7 @@ pass/collections/element_view_whole_write built 1023ms exit:181 @2c44d70118d1+wt
 pass/collections/element_view_write_transition built 615ms exit:181 @48008365d839
 pass/collections/empty_record_array_borrow_exit built 4957ms exit:0 @9beb2be72f2d+wt
 pass/collections/indexed_row_array_literal_store built 1410ms exit:7 @bed5f45e9185+wt
+pass/collections/integer_index_every_width checked 379ms @ada91cf0bd16+wt
 pass/collections/mutable_slice_view_edge_release built 594ms exit:181 @48008365d839
 pass/collections/mutable_slice_view_establishment built 821ms exit:181 @48008365d839
 pass/collections/named_transition_completion built 1491ms exit:181 @48008365d839
@@ -745,9 +746,9 @@ pass/drops/runtime_local_nominal_cleanup_exit built 2602ms exit:0 stdout:match @
 pass/drops/runtime_local_nominal_return_exit built 2535ms exit:0 stdout:match @9beb2be72f2d+wt
 pass/drops/runtime_mixed_temporary_effects_continuation_exit built 3583ms exit:0 @e28fa01a1e73+wt
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit built 1780ms exit:0 @8611f9d5adf1+wt
+pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit built 1752ms exit:0 @ac7aca8a5050+wt
 pass/drops/runtime_nested_cleanup_postcondition_exit rejected 3360ms @693920652f41
 	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentCleanupMismatch { machine: MachineId(1), block: BlockId(13) }))
-pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit built 1752ms exit:0 @ac7aca8a5050+wt
 pass/drops/runtime_nested_nominal_producer_loans_exit built 1503ms exit:0 @f0ed096e2456+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit built 1714ms exit:0 @c8b4e81e49fe
 pass/drops/runtime_nominal_cleanup_compound_contract_exit built 1717ms exit:0 @4cc11cbadf31+wt
