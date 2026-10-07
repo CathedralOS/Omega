@@ -19,29 +19,7 @@ pub(crate) fn declared_member_path_type(
     members: &[String],
 ) -> Option<TypeReferenceHandle> {
     match members {
-        [name] => {
-            if let Some(state) = current_state {
-                for statement in program.statement_table.statements(state.statement_nodes) {
-                    if let typed_trees::statement::StatementNode::LocalData(local) = statement
-                        && local.name.as_str() == name
-                    {
-                        return local
-                            .type_reference
-                            .is_valid()
-                            .then_some(local.type_reference);
-                    }
-                }
-                for parameter in program.state_parameters(state) {
-                    if parameter.name.as_str() == name {
-                        return parameter
-                            .type_reference
-                            .is_valid()
-                            .then_some(parameter.type_reference);
-                    }
-                }
-            }
-            None
-        }
+        [name] => local_or_parameter_type(program, current_state, name),
         [root, field_name] if is_self_receiver(root) => {
             let data = super::machine_attached_data(program, current_machine)?;
             let field = program
