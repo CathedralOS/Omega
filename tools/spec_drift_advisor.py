@@ -31,6 +31,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import typesafe_key
 import urllib.request
 
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
@@ -163,21 +164,6 @@ def evidence_for(root, claim):
     return "; ".join(parts) if parts else "(no checkable anchors found)"
 
 
-def jev_key():
-    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
-    if key:
-        return key
-    for path in (Path("build/typesafe.env.txt"),
-                 Path.home() / ".config" / "typesafe" / "typesafe.env.txt"):
-        if path.is_file():
-            keys = [line.partition("=")[2].strip().strip("\"'")
-                    for line in path.read_text(encoding="utf-8-sig").splitlines()
-                    if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
-            if len(keys) == 1:
-                return keys[0]
-    return ""
-
-
 def jev_verdict(source, claim, evidence, key):
     request = {"model": MODEL,
                "state": {"document": source, "claim": claim,
@@ -235,7 +221,7 @@ def main():
             print(f"  = {path}\n      {context[:160]}")
     if os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
         return 0
-    key = jev_key()
+    key = typesafe_key.find_key(None)
     if not key:
         print("semantic pass unavailable: no TYPESAFE_API_KEY",
               file=sys.stderr)

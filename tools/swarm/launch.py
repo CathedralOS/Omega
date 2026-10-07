@@ -46,6 +46,7 @@ import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import claims
 import corpus_scoreboard
+import typesafe_key
 
 DEFAULT_BASE_URL = "https://api.devin.ai/v3"
 BOARDS = ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md")
@@ -460,21 +461,6 @@ SCALE_CRATE_LIMIT = 4
 JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 
 
-def jev_key():
-    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
-    if key:
-        return key
-    for path in (Path("build/typesafe.env.txt"),
-                 Path.home() / ".config" / "typesafe" / "typesafe.env.txt"):
-        if path.is_file():
-            keys = [line.partition("=")[2].strip().strip("\"'")
-                    for line in path.read_text(encoding="utf-8-sig").splitlines()
-                    if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
-            if len(keys) == 1:
-                return keys[0]
-    return ""
-
-
 def jev_fence_verdict(item_name, item_text, owning_paths):
     """Advisory estimate check: does owning_paths cover the item's likely edit
     surface? None when unavailable/suppressed; the caller treats None as
@@ -482,7 +468,7 @@ def jev_fence_verdict(item_name, item_text, owning_paths):
     strict toward under_fenced, which is the safe direction here."""
     if os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
         return None
-    key = jev_key()
+    key = typesafe_key.find_key(None)
     if not key:
         return None
     request = {"model": "jev-1.13.0",
