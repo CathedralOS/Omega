@@ -235,17 +235,7 @@ pub(crate) fn machine_snapshot(
         conformance_bounds: machine
             .conformance_bounds
             .iter()
-            .map(|bound| GenericConformanceBoundSnapshot {
-                binder: bound.binder_name.to_string(),
-                binder_symbol: bound.binder.arena_index(),
-                trait_name: bound.trait_name.to_string(),
-                trait_symbol: bound.trait_symbol.arena_index(),
-                arguments: program
-                    .child_type_references(bound.arguments)
-                    .iter()
-                    .map(|argument| type_reference_snapshot(program, argument))
-                    .collect(),
-            })
+            .map(|bound| conformance_bound_snapshot(program, bound))
             .collect(),
         supply: machine_supply_snapshot(machine.supply_mode),
         body_is_present: machine.body_is_present,
@@ -362,17 +352,7 @@ pub(crate) fn trait_definition_snapshot(
         conformance_bounds: trait_definition
             .conformance_bounds
             .iter()
-            .map(|bound| GenericConformanceBoundSnapshot {
-                binder: bound.binder_name.to_string(),
-                binder_symbol: bound.binder.arena_index(),
-                trait_name: bound.trait_name.to_string(),
-                trait_symbol: bound.trait_symbol.arena_index(),
-                arguments: program
-                    .child_type_references(bound.arguments)
-                    .iter()
-                    .map(|argument| type_reference_snapshot(program, argument))
-                    .collect(),
-            })
+            .map(|bound| conformance_bound_snapshot(program, bound))
             .collect(),
         requires: program
             .trait_requirements(trait_definition.requires)
@@ -589,5 +569,22 @@ pub(crate) fn state_parameter_snapshot(
         type_reference: type_reference_snapshot(program, &parameter.type_reference),
         is_mutable: parameter.is_mutable,
         relevance: super::declaration_snapshots::snapshot_binding_relevance(parameter.relevance),
+    }
+}
+
+fn conformance_bound_snapshot(
+    program: &SymbolResolvedTrees,
+    bound: &crate::machine::GenericConformanceBound,
+) -> GenericConformanceBoundSnapshot {
+    GenericConformanceBoundSnapshot {
+        binder: bound.binder_name.to_string(),
+        binder_symbol: bound.binder.arena_index(),
+        trait_name: bound.trait_name.to_string(),
+        trait_symbol: bound.trait_symbol.arena_index(),
+        arguments: program
+            .child_type_references(bound.arguments)
+            .iter()
+            .map(|argument| type_reference_snapshot(program, argument))
+            .collect(),
     }
 }
