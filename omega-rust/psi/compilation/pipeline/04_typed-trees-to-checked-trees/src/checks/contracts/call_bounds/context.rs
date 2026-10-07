@@ -17,6 +17,27 @@ use validation::{
 
 mod arguments;
 
+/// Every surviving fact across the context roster, minus the call's own
+/// requires/ensures — those are the obligation, not the premise.
+fn roster_premise_facts<'f>(
+    semantic: &'f facts::FactPlan,
+    contexts: &'f [facts::FactContextHandle],
+) -> impl Iterator<Item = &'f facts::Fact> + 'f {
+    contexts
+        .iter()
+        .flat_map(|context| {
+            semantic
+                .context_view(semantic.contexts.get(*context))
+                .facts()
+        })
+        .filter(|fact| {
+            !matches!(
+                fact.origin,
+                facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
+            )
+        })
+}
+
 pub(in crate::checks::contracts) fn proves(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -164,20 +185,7 @@ fn prove(
     if explicit_parameters.clone().count() != arguments.len() {
         return None;
     }
-    let arithmetic_hypotheses = contexts
-        .iter()
-        .flat_map(|context| {
-            facts
-                .semantic
-                .context_view(facts.semantic.contexts.get(*context))
-                .facts()
-        })
-        .filter(|fact| {
-            !matches!(
-                fact.origin,
-                facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
-            )
-        })
+    let arithmetic_hypotheses = roster_premise_facts(&facts.semantic, contexts)
         .filter_map(|fact| match fact.payload {
             facts::FactPayload::ContractBooleanExpression {
                 kind: facts::ContractFactKind::Requires,
@@ -283,20 +291,7 @@ fn prove(
     }
     // This exact call-entry roster contains simultaneously active overlays,
     // not alternative arrival paths. Their surviving facts are joint premises.
-    let hypotheses = contexts
-        .iter()
-        .flat_map(|context| {
-            facts
-                .semantic
-                .context_view(facts.semantic.contexts.get(*context))
-                .facts()
-        })
-        .filter(|fact| {
-            !matches!(
-                fact.origin,
-                facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
-            )
-        })
+    let hypotheses = roster_premise_facts(&facts.semantic, contexts)
         .filter_map(|fact| {
             // Call substitution lives separately from the authored expression.
             // This adapter only consumes declaration-shaped caller facts.
