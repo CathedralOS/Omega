@@ -687,9 +687,19 @@ impl<'program> CallFrameResolver<'program> {
                             inference,
                             Some(&argument_origins),
                         );
-                        known
-                        .or_else(|| {
-                            known_boundary_call_written_paths_for_parts(
+                        let probe_paths = |paths: for<'site> fn(
+                            &'site TypedTrees,
+                            &Machine,
+                            &MachineSymbols<'_>,
+                            &TopLevelSymbols<'_>,
+                            &[String],
+                            &str,
+                            CallerWriteSite<'site>,
+                            &[ExpressionHandle],
+                            &mut FrameInference,
+                        ) -> Option<Vec<String>>,
+                                         inference: &mut FrameInference| {
+                            paths(
                                 self.program,
                                 current_machine,
                                 &machine_symbols,
@@ -700,17 +710,14 @@ impl<'program> CallFrameResolver<'program> {
                                 arguments,
                                 inference,
                             )
+                        };
+                        known
+                        .or_else(|| {
+                            probe_paths(known_boundary_call_written_paths_for_parts, inference)
                         })
                         .or_else(|| {
-                            super::boundary_calls::known_requirement_call_written_paths_for_parts(
-                                self.program,
-                                current_machine,
-                                &machine_symbols,
-                                &self.symbols,
-                                &receiver,
-                                call.target.as_str(),
-                                CallerWriteSite::Call(call),
-                                arguments,
+                            probe_paths(
+                                super::boundary_calls::known_requirement_call_written_paths_for_parts,
                                 inference,
                             )
                         })
