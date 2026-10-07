@@ -466,23 +466,18 @@ pub(in crate::execution) fn build_call_operation(
             facts,
             machine.symbol,
             state.symbol,
-            CheckedUnitCallParts {
+            super::structural_result_call::structural_custody_parts(
                 coordinate,
                 source_site,
-                target: call_target,
-                route: CheckedUnitCallRoute::Module {
-                    contract_commitment: Some(target_contract.commitment),
-                    erased_scalar_arguments,
-                    erased_proof_arguments,
-                },
+                call_target,
+                target_contract.commitment,
+                erased_scalar_arguments,
+                erased_proof_arguments,
                 scalar_arguments,
                 structural_arguments,
-                result: CheckedUnitCallResult::Structural {
-                    binding: (*result).clone(),
-                    discard_result_on_return: false,
-                },
-                transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
-            },
+                (*result).clone(),
+                false,
+            ),
         );
     }
     phase("call operation: claim transfers");

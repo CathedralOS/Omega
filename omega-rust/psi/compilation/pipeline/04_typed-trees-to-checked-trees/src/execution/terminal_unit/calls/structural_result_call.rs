@@ -298,24 +298,18 @@ pub(super) fn build(
             facts,
             machine.symbol,
             state.symbol,
-            CheckedUnitCallParts {
+            structural_custody_parts(
                 coordinate,
                 source_site,
-                target: call_target,
-                route: CheckedUnitCallRoute::Module {
-                    contract_commitment: Some(target_contract.commitment),
-                    erased_scalar_arguments,
-                    erased_proof_arguments,
-                },
+                call_target,
+                target_contract.commitment,
+                erased_scalar_arguments,
+                erased_proof_arguments,
                 scalar_arguments,
                 structural_arguments,
-                result: CheckedUnitCallResult::Structural {
-                    binding: result.clone(),
-                    discard_result_on_return: result.multiplicity == Multiplicity::Affine
-                        && !reference_loan.is_valid(),
-                },
-                transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
-            },
+                result.clone(),
+                result.multiplicity == Multiplicity::Affine && !reference_loan.is_valid(),
+            ),
         );
     }
     phase("call operation: claim-free affine result");
@@ -383,6 +377,39 @@ pub(super) fn build(
 /// Admit one ordinary structural call and record its custody: the checker's
 /// single judgment over the exact call and ownership facts. Lowering reads
 /// the recorded custody; a call the judgment refuses is not planned.
+
+/// The Module-route structural-custody call parts both admissible sites build.
+pub(super) fn structural_custody_parts(
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    source_site: Option<checked_trees::NominalMachineUseSite>,
+    target: checked_trees::CheckedUnitCallTarget,
+    commitment: checked_trees::MachineContractCommitment,
+    erased_scalar_arguments: Vec<checked_trees::CheckedCallScalarArgument>,
+    erased_proof_arguments: Vec<checked_trees::CheckedProofTerm>,
+    scalar_arguments: Vec<checked_trees::CheckedCallScalarArgument>,
+    structural_arguments: Vec<checked_trees::CheckedUnitStructuralArgumentPlan>,
+    binding: checked_trees::CheckedUnitStructuralResultBindingPlan,
+    discard_result_on_return: bool,
+) -> checked_trees::CheckedUnitCallParts {
+    checked_trees::CheckedUnitCallParts {
+        coordinate,
+        source_site,
+        target,
+        route: CheckedUnitCallRoute::Module {
+            contract_commitment: Some(commitment),
+            erased_scalar_arguments,
+            erased_proof_arguments,
+        },
+        scalar_arguments,
+        structural_arguments,
+        result: CheckedUnitCallResult::Structural {
+            binding,
+            discard_result_on_return,
+        },
+        transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
+    }
+}
+
 pub(super) fn with_structural_custody(
     program: &TypedTrees,
     facts: &CheckFacts,
