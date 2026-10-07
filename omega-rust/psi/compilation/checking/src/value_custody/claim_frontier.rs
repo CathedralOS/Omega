@@ -330,12 +330,9 @@ fn append_data_linear_claim_frontier(
     for member in program.data_members(definition) {
         match member {
             typed_trees::data::DataMember::Field(field) => {
-                path.push(facts::PlaceSegment::Field {
-                    symbol: field.symbol,
-                });
-                append_linear_claim_frontier(
+                append_field_claim_frontier(
                     program,
-                    field.type_reference,
+                    field,
                     substitutions,
                     path,
                     visiting,
@@ -343,19 +340,15 @@ fn append_data_linear_claim_frontier(
                     parameters_by_symbol,
                     claims,
                 );
-                path.pop();
             }
             typed_trees::data::DataMember::Variant(variant) => {
                 path.push(facts::PlaceSegment::Case {
                     variant: variant.symbol,
                 });
                 for field in program.data_payload_fields(variant) {
-                    path.push(facts::PlaceSegment::Field {
-                        symbol: field.symbol,
-                    });
-                    append_linear_claim_frontier(
+                    append_field_claim_frontier(
                         program,
-                        field.type_reference,
+                        field,
                         substitutions,
                         path,
                         visiting,
@@ -363,13 +356,43 @@ fn append_data_linear_claim_frontier(
                         parameters_by_symbol,
                         claims,
                     );
-                    path.pop();
                 }
                 path.pop();
             }
         }
     }
     visiting.pop();
+}
+
+/// Descend into `field`'s declared type under the current path prefix.
+#[allow(clippy::too_many_arguments)]
+fn append_field_claim_frontier(
+    program: &TypedTrees,
+    field: &typed_trees::data::DataField,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    path: &mut Vec<facts::PlaceSegment>,
+    visiting: &mut Vec<SymbolHandle>,
+    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
+    parameters_by_symbol: &std::collections::HashMap<
+        SymbolHandle,
+        (Multiplicity, typed_trees::data::TypeParameterKind),
+    >,
+    claims: &mut Vec<ClaimFrontierClaim>,
+) {
+    path.push(facts::PlaceSegment::Field {
+        symbol: field.symbol,
+    });
+    append_linear_claim_frontier(
+        program,
+        field.type_reference,
+        substitutions,
+        path,
+        visiting,
+        data_definitions_by_symbol,
+        parameters_by_symbol,
+        claims,
+    );
+    path.pop();
 }
 
 fn push_claim(
