@@ -1,6 +1,7 @@
 use super::BoundedProcessChild;
 use crate::{BoundedProcessLimits, BoundedProcessPrepared};
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
@@ -139,14 +140,7 @@ fn unfinished_execution_cannot_finish() {
 
 #[test]
 fn dropping_execution_kills_descendants_remaining_in_the_process_group() {
-    let test_root =
-        std::env::temp_dir().join(format!("omega-bounded-tree-cleanup-{}", std::process::id()));
-    std::fs::create_dir_all(&test_root).expect("create cleanup root");
-    let test_root = test_root.canonicalize().expect("canonical cleanup root");
-    let marker = test_root.join("escaped-descendant");
-    let shell = Path::new("/bin/sh")
-        .canonicalize()
-        .expect("canonical shell executable");
+    let (test_root, marker, shell) = cleanup_probe_tree("omega-bounded-tree-cleanup");
     let mut prepared = prepared(&shell);
     prepared
         .args([
@@ -199,16 +193,8 @@ fn terminate_closes_a_group_whose_primary_already_exited() {
 #[cfg(unix)]
 #[test]
 fn terminate_still_kills_descendants_after_the_primary_exited() {
-    let test_root = std::env::temp_dir().join(format!(
-        "omega-bounded-exited-primary-cleanup-{}",
-        std::process::id()
-    ));
-    std::fs::create_dir_all(&test_root).expect("create cleanup root");
-    let test_root = test_root.canonicalize().expect("canonical cleanup root");
-    let marker = test_root.join("escaped-descendant");
-    let shell = Path::new("/bin/sh")
-        .canonicalize()
-        .expect("canonical shell executable");
+    let (test_root, marker, shell) =
+        cleanup_probe_tree("omega-bounded-exited-primary-cleanup");
     let mut prepared = prepared(&shell);
     prepared
         .args([
@@ -237,4 +223,18 @@ fn terminate_still_kills_descendants_after_the_primary_exited() {
         "descendant survived process-group cleanup after the primary exited"
     );
     std::fs::remove_dir_all(test_root).expect("remove cleanup root");
+}
+
+/// A cleanup probe spawns `/bin/sh` in a canonical scratch root and expects an
+/// `escaped-descendant` marker path there. `root_name` prefixes the
+/// pid-scoped directory so parallel probes never share a root.
+fn cleanup_probe_tree(root_name: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let test_root = std::env::temp_dir().join(format!("{root_name}-{}", std::process::id()));
+    std::fs::create_dir_all(&test_root).expect("create cleanup root");
+    let test_root = test_root.canonicalize().expect("canonical cleanup root");
+    let marker = test_root.join("escaped-descendant");
+    let shell = Path::new("/bin/sh")
+        .canonicalize()
+        .expect("canonical shell executable");
+    (test_root, marker, shell)
 }
