@@ -89,10 +89,6 @@ machine Parser::parse_data(
 
     state data_name(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> data_name_loaded(parser, input) }
-    }
-
-    state data_name_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> retain_data_name(parser, input,
@@ -107,6 +103,7 @@ machine Parser::parse_data(
             _ -> expected_data_name(parser, token.start, token.end)
         }
     }
+
 
     state data_name_keyword(parser: &mut Parser, input: &TokenStream,
         keyword: KeywordKind,
@@ -137,10 +134,6 @@ machine Parser::parse_data(
 
     state data_body(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> data_body_loaded(parser, input) }
-    }
-
-    state data_body_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation } -> data_body_punctuation(parser, input,
@@ -151,6 +144,7 @@ machine Parser::parse_data(
             _ -> expected_data_body(parser, token.start, token.end)
         }
     }
+
 
     state data_body_punctuation(parser: &mut Parser, input: &TokenStream,
         punctuation: PunctuationKind,
@@ -176,10 +170,6 @@ machine Parser::parse_data(
 
     state data_property(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> data_property_loaded(parser, input) }
-    }
-
-    state data_property_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Keyword { keyword: KeywordKind::Copy } -> retain_copy_property(parser, input)
@@ -189,6 +179,7 @@ machine Parser::parse_data(
             )
         }
     }
+
 
     // The property chain is shared between a data item's own multiplicity
     // and a generic parameter's bounds; `data_property_generic` selects the
@@ -237,10 +228,6 @@ machine Parser::parse_data(
 
     state data_property_end(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> data_property_end_loaded(parser, input) }
-    }
-
-    state data_property_end_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property(parser, input)
@@ -250,6 +237,7 @@ machine Parser::parse_data(
             )
         }
     }
+
 
     state data_property_trailing_comma(parser: &mut Parser, input: &TokenStream) {
                 Parser::advance(parser, input);
@@ -261,10 +249,6 @@ machine Parser::parse_data(
 
     state data_property_trailing_end(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> data_property_trailing_end_loaded(parser, input) }
-    }
-
-    state data_property_trailing_end_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property(parser, input)
@@ -281,6 +265,7 @@ machine Parser::parse_data(
             )
         }
     }
+
 
     state second_copy_property(
         parser: &mut Parser,
@@ -383,10 +368,6 @@ machine Parser::parse_data(
 
     state data_member(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> data_member_loaded(parser, input) }
-    }
-
-    state data_member_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::RightBrace } -> retain_data(parser, input,
@@ -399,6 +380,7 @@ machine Parser::parse_data(
             _ -> field_capacity(parser, input)
         }
     }
+
 
     // `case` is contextual. `case Name;` is an alternative, while
     // `case: Type;` remains an ordinary field named `case`.
@@ -419,10 +401,6 @@ machine Parser::parse_data(
 
     state case_marker_tail(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> case_marker_tail_loaded(parser, input) }
-    }
-
-    state case_marker_tail_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Colon } -> contextual_case_field_capacity(parser, input)
@@ -440,6 +418,7 @@ machine Parser::parse_data(
             )
         }
     }
+
 
     state contextual_case_field_capacity(parser: &mut Parser, input: &TokenStream) {
         transition parser.output.field_count < 1024 {
@@ -516,10 +495,6 @@ machine Parser::parse_data(
 
     state case_end(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> case_end_loaded(parser, input) }
-    }
-
-    state case_end_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> retain_case(parser, input,
@@ -532,6 +507,7 @@ machine Parser::parse_data(
         }
     }
 
+
     state begin_case_payload(parser: &mut Parser, input: &TokenStream) {
                 Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
@@ -542,10 +518,6 @@ machine Parser::parse_data(
 
     state case_payload_item_or_end(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> case_payload_item_or_end_loaded(parser, input) }
-    }
-
-    state case_payload_item_or_end_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::RightParen } -> finish_case_payload(parser, input)
@@ -558,6 +530,7 @@ machine Parser::parse_data(
             _ -> expected_case_payload_field(parser, token.start, token.end)
         }
     }
+
 
     state payload_field_name_keyword(parser: &mut Parser, input: &TokenStream,
         keyword: KeywordKind,
@@ -601,16 +574,13 @@ machine Parser::parse_data(
 
     state payload_field_colon(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> payload_field_colon_loaded(parser, input) }
-    }
-
-    state payload_field_colon_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Colon } -> payload_field_type_start(parser, input)
             _ -> expected_payload_field_colon(parser, token.start, token.end)
         }
     }
+
 
     state payload_field_type_start(parser: &mut Parser, input: &TokenStream) {
                 Parser::advance(parser, input);
@@ -622,10 +592,6 @@ machine Parser::parse_data(
 
     state payload_field_type(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> payload_field_type_loaded(parser, input) }
-    }
-
-    state payload_field_type_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> payload_type_reference_capacity(parser, input, token.start, token.end)
@@ -637,6 +603,7 @@ machine Parser::parse_data(
             _ -> expected_payload_field_type(parser, token.start, token.end)
         }
     }
+
 
     state payload_field_type_keyword(parser: &mut Parser, input: &TokenStream,
         keyword: KeywordKind,
@@ -682,10 +649,6 @@ machine Parser::parse_data(
 
     state payload_field_end(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> payload_field_end_loaded(parser, input) }
-    }
-
-    state payload_field_end_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Comma } -> retain_payload_type_reference(parser, input,
@@ -700,6 +663,7 @@ machine Parser::parse_data(
             _ -> expected_payload_separator_or_end(parser, token.start, token.end)
         }
     }
+
 
     state payload_field_close(parser: &mut Parser, input: &TokenStream) {
         transition parser.type_qualified {
@@ -934,10 +898,6 @@ machine Parser::parse_data(
 
     state field_colon(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> field_colon_loaded(parser, input) }
-    }
-
-    state field_colon_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Colon } -> field_type_start(parser, input)
@@ -946,6 +906,7 @@ machine Parser::parse_data(
             )
         }
     }
+
 
     state field_type_start(parser: &mut Parser, input: &TokenStream) {
                 Parser::advance(parser, input);
@@ -957,10 +918,6 @@ machine Parser::parse_data(
 
     state field_type(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> field_type_loaded(parser, input) }
-    }
-
-    state field_type_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> type_reference_capacity(parser, input,
@@ -975,6 +932,7 @@ machine Parser::parse_data(
             _ -> expected_field_type(parser, token.start, token.end)
         }
     }
+
 
     state field_type_keyword(parser: &mut Parser, input: &TokenStream,
         keyword: KeywordKind,
@@ -1020,10 +978,6 @@ machine Parser::parse_data(
 
     state field_end(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> field_end_loaded(parser, input) }
-    }
-
-    state field_end_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> retain_type_reference(parser, input,
@@ -1038,6 +992,7 @@ machine Parser::parse_data(
             )
         }
     }
+
 
     // `in` is a contextual word: the qualifier marker arrives as an ordinary
     // identifier, and only its decoded bytes distinguish it from a stray name
@@ -1129,10 +1084,6 @@ machine Parser::parse_data(
 
     state type_domain(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> type_domain_loaded(parser, input) }
-    }
-
-    state type_domain_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> retain_type_domain(parser, input, token.start, token.end)
@@ -1144,6 +1095,7 @@ machine Parser::parse_data(
             _ -> expected_type_domain(parser, token.start, token.end)
         }
     }
+
 
     state type_domain_keyword(parser: &mut Parser, input: &TokenStream,
         keyword: KeywordKind,
@@ -1391,10 +1343,6 @@ machine Parser::parse_data(
 
     state generic_lifetime_name(parser: &mut Parser, input: &TokenStream, param_start: u64 in Trapping) {
         Parser::load_current(parser, input);
-        transition { _ -> generic_lifetime_name_loaded(parser, input, param_start) }
-    }
-
-    state generic_lifetime_name_loaded(parser: &mut Parser, input: &TokenStream, param_start: u64 in Trapping) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> retain_generic_name(parser, input,
@@ -1409,6 +1357,7 @@ machine Parser::parse_data(
         }
     }
 
+
     // `machine M` is a static machine binder. Brackets after it are rejected by
     // the generic separator just as the real grammar rejects them (a machine
     // parameter takes its contract in a `where` clause, not property brackets).
@@ -1422,10 +1371,6 @@ machine Parser::parse_data(
 
     state generic_machine_name(parser: &mut Parser, input: &TokenStream, param_start: u64 in Trapping) {
         Parser::load_current(parser, input);
-        transition { _ -> generic_machine_name_loaded(parser, input, param_start) }
-    }
-
-    state generic_machine_name_loaded(parser: &mut Parser, input: &TokenStream, param_start: u64 in Trapping) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> retain_generic_name(parser, input,
@@ -1439,6 +1384,7 @@ machine Parser::parse_data(
             _ -> expected_generic_name(parser, token.start, token.end)
         }
     }
+
 
     // An identifier at parameter position is either the contextual `const`
     // opener or an ordinary name that becomes a type parameter or — when a
@@ -1529,15 +1475,6 @@ machine Parser::parse_data(
         param_start: u64 in Trapping
     ) {
         Parser::load_current(parser, input);
-        transition { _ -> generic_binder_name_loaded(parser, input, kind, param_start) }
-    }
-
-    state generic_binder_name_loaded(
-        parser: &mut Parser,
-        input: &TokenStream,
-        kind: GenericParameterKind,
-        param_start: u64 in Trapping
-    ) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> retain_generic_name(parser, input,
@@ -1551,6 +1488,7 @@ machine Parser::parse_data(
             _ -> expected_generic_name(parser, token.start, token.end)
         }
     }
+
 
     // Bare `name` at parameter position: record it, then let the following
     // token pick between a type parameter and a `name: Ty` value binder.
@@ -1711,23 +1649,19 @@ machine Parser::parse_data(
 
     state generic_after_dup_load(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> generic_after_dup_loaded(parser, input) }
-    }
-
-    state generic_after_dup_at_end(parser: &mut Parser, input: &TokenStream) {
-        transition parser.generic_pending_kind {
-            GenericParameterKind::Const -> expected_generic_colon_at_end(parser)
-            _ -> expected_generic_end_at_end(parser)
-        }
-    }
-
-    state generic_after_dup_loaded(parser: &mut Parser, input: &TokenStream) {
         transition parser.generic_pending_kind {
             GenericParameterKind::Lifetime -> generic_separator_loaded(parser, input)
             GenericParameterKind::Machine -> generic_separator_loaded(parser, input)
             GenericParameterKind::Const -> generic_const_colon(parser, input)
             GenericParameterKind::Type -> generic_type_tail(parser, input)
             GenericParameterKind::Value -> generic_separator_loaded(parser, input)
+        }
+    }
+
+    state generic_after_dup_at_end(parser: &mut Parser, input: &TokenStream) {
+        transition parser.generic_pending_kind {
+            GenericParameterKind::Const -> expected_generic_colon_at_end(parser)
+            _ -> expected_generic_end_at_end(parser)
         }
     }
 
@@ -1765,10 +1699,6 @@ machine Parser::parse_data(
 
     state generic_binder_type(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> generic_binder_type_loaded(parser, input) }
-    }
-
-    state generic_binder_type_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Identifier -> generic_type_name(parser, input,
@@ -1783,6 +1713,7 @@ machine Parser::parse_data(
             _ -> expected_generic_type(parser, token.start, token.end)
         }
     }
+
 
     state generic_type_keyword(parser: &mut Parser, input: &TokenStream,
         keyword: KeywordKind,
@@ -1816,10 +1747,6 @@ machine Parser::parse_data(
 
     state generic_type_end(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> generic_type_end_loaded(parser, input) }
-    }
-
-    state generic_type_end_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Comma } -> generic_binder_typeref(parser, input)
@@ -1832,6 +1759,7 @@ machine Parser::parse_data(
             _ -> expected_generic_end(parser, token.start, token.end)
         }
     }
+
 
     // Property bounds after a type, const, or value parameter reuse the data
     // property chain; `data_property_generic` steers its scratch and exit back
@@ -1944,10 +1872,6 @@ machine Parser::parse_data(
 
     state generic_separator(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
-        transition { _ -> generic_separator_loaded(parser, input) }
-    }
-
-    state generic_separator_loaded(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::Comma } -> generic_parameter_next(parser, input)
@@ -1955,6 +1879,7 @@ machine Parser::parse_data(
             _ -> expected_generic_end(parser, token.start, token.end)
         }
     }
+
 
     state generic_parameter_next(parser: &mut Parser, input: &TokenStream) {
                 Parser::advance(parser, input);
