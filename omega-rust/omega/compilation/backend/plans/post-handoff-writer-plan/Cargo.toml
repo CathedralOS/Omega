@@ -11,3 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
+
+[dev-dependencies]
+layout-plans = { path = "../../../../../psi/foundation/layout-plans", features = ["test-support"] }

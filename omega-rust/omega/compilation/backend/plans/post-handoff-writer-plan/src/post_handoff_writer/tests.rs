@@ -1,3 +1,5 @@
+use layout_plans::test_support::split_layout;
+
 use super::{
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource,
     PostHandoffWriterStep, derive_post_handoff_writer, post_handoff_writer_context_byte_len,
@@ -13,50 +15,6 @@ fn entry() -> RelocationTarget {
     RelocationTarget::Entry(
         EntryStubId::from_normalized_identity(0x55aa).expect("nonzero identity"),
     )
-}
-
-fn split_layout() -> LayoutPlanReport {
-    LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
-            LayoutFieldEntryReport {
-                field: "address".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
-                    container: 0,
-                    container_width: 16,
-                    destination_lsb: 0,
-                    source_lsb: 0,
-                    width: 16,
-                },
-            },
-            LayoutFieldEntryReport {
-                field: "address".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
-                    container: 2,
-                    container_width: 16,
-                    destination_lsb: 0,
-                    source_lsb: 16,
-                    width: 16,
-                },
-            },
-            LayoutFieldEntryReport {
-                field: "address".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
-                    container: 8,
-                    container_width: 64,
-                    destination_lsb: 0,
-                    source_lsb: 32,
-                    width: 32,
-                },
-            },
-        ],
-        offsets: None,
-        size: Some(16),
-        align: 1,
-    }
 }
 
 fn post_handoff_context() -> MaterializationContext {

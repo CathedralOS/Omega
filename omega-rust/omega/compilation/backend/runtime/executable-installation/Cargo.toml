@@ -18,3 +18,4 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
+layout-plans = { path = "../../../../../psi/foundation/layout-plans", features = ["test-support"] }
