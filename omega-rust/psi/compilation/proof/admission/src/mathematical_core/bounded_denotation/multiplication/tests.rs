@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use super::super::Elaboration;
 use super::Law;
+use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
@@ -94,10 +95,7 @@ fn fixture(
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness: IntegerAffineWitness {
                 root,
                 target: ScalarTerm::exact_integer_multiply(integer, left, right).unwrap(),

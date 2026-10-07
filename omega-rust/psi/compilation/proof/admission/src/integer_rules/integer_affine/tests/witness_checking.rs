@@ -3,6 +3,7 @@ use crate::integer_rules::integer_affine::{
     IntegerAffineWitness, IntegerAffineWitnessError, check_integer_affine_witness,
     integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
+use crate::proof::assumption_proof;
 use crate::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::Proposition;
@@ -39,10 +40,7 @@ fn direct_literal_remainder_maps_and_certifies_without_invented_definitions() {
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness,
         },
     };
@@ -165,10 +163,7 @@ fn wrapping_remainder_retains_landed_divisor_and_carrier_specific_bounds() {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::IntegerAffineBound {
-                root_bound: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                root_bound: Box::new(assumption_proof(premise.clone(), 0)),
                 witness: witness.clone(),
             },
         };
@@ -236,10 +231,7 @@ fn wrapping_remainder_retains_landed_divisor_and_carrier_specific_bounds() {
     let mut proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness: signed_witness,
         },
     };

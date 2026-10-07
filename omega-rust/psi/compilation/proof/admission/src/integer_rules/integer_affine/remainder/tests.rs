@@ -1,4 +1,5 @@
 use super::*;
+use crate::proof::assumption_proof;
 use crate::{
     ProofNode, ProofRule, accept_certificate, check_certificate, check_integer_affine_witness,
 };
@@ -29,10 +30,7 @@ fn proof(witness: IntegerAffineWitness, premise: Proposition) -> ProofNode {
     ProofNode {
         conclusion: Proposition::LessThan(witness.target.clone(), witness.root.clone()),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise,
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise, 0)),
             witness,
         },
     }

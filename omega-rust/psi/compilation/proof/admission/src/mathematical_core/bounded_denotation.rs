@@ -2942,6 +2942,7 @@ impl<'a> Elaboration<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::proof::assumption_proof;
     use std::collections::BTreeSet;
 
     use semantic_vocabulary::{
@@ -3005,10 +3006,7 @@ mod tests {
             (y_id, unsigned64_type()),
         ])
         .expect("context");
-        let proof = ProofNode {
-            conclusion: bound.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        };
+        let proof = assumption_proof(bound.clone(), 0);
         let denoted = verify_bounded_certificate(
             &context,
             &bound,
@@ -3131,14 +3129,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::EqualityTransitivity {
-                left_equals_middle: Box::new(ProofNode {
-                    conclusion: first.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                middle_equals_right: Box::new(ProofNode {
-                    conclusion: second.clone(),
-                    rule: ProofRule::Assumption { index: 1 },
-                }),
+                left_equals_middle: Box::new(assumption_proof(first.clone(), 0)),
+                middle_equals_right: Box::new(assumption_proof(second.clone(), 1)),
             },
         };
         let denoted = verify_bounded_certificate(
@@ -3171,10 +3163,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: flipped.clone(),
             rule: ProofRule::EqualitySymmetry {
-                equality: Box::new(ProofNode {
-                    conclusion: source.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                equality: Box::new(assumption_proof(source.clone(), 0)),
             },
         };
         let denoted =
@@ -3213,10 +3202,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: weakened.clone(),
             rule: ProofRule::IntegerOrderWeakening {
-                relation: Box::new(ProofNode {
-                    conclusion: strict.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                relation: Box::new(assumption_proof(strict.clone(), 0)),
             },
         };
         let denoted = verify_bounded_certificate(
@@ -3263,10 +3249,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: weakened.clone(),
             rule: ProofRule::IntegerOrderWeakening {
-                relation: Box::new(ProofNode {
-                    conclusion: weakened.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                relation: Box::new(assumption_proof(weakened.clone(), 0)),
             },
         };
         assert!(matches!(
@@ -3300,14 +3283,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::EqualityTransitivity {
-                left_equals_middle: Box::new(ProofNode {
-                    conclusion: first.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                middle_equals_right: Box::new(ProofNode {
-                    conclusion: second.clone(),
-                    rule: ProofRule::Assumption { index: 1 },
-                }),
+                left_equals_middle: Box::new(assumption_proof(first.clone(), 0)),
+                middle_equals_right: Box::new(assumption_proof(second.clone(), 1)),
             },
         };
         let denoted = verify_bounded_certificate(
@@ -3348,14 +3325,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::EqualityTransitivity {
-                left_equals_middle: Box::new(ProofNode {
-                    conclusion: first.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                middle_equals_right: Box::new(ProofNode {
-                    conclusion: second.clone(),
-                    rule: ProofRule::Assumption { index: 1 },
-                }),
+                left_equals_middle: Box::new(assumption_proof(first.clone(), 0)),
+                middle_equals_right: Box::new(assumption_proof(second.clone(), 1)),
             },
         };
         let denoted = verify_bounded_certificate(
@@ -3396,10 +3367,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::PredicateDenotation {
-                premise: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                premise: Box::new(assumption_proof(premise.clone(), 0)),
             },
         };
         let denoted = verify_bounded_certificate(
@@ -3427,14 +3395,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::ValueEqualityTransport {
-                premise: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                equalities: vec![ProofNode {
-                    conclusion: equation.clone(),
-                    rule: ProofRule::Assumption { index: 1 },
-                }],
+                premise: Box::new(assumption_proof(premise.clone(), 0)),
+                equalities: vec![assumption_proof(equation.clone(), 1)],
             },
         };
         let denoted = verify_bounded_certificate(
@@ -3482,14 +3444,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::IntegerOrderSubstitution {
-                relation: Box::new(ProofNode {
-                    conclusion: relation.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                equality: Box::new(ProofNode {
-                    conclusion: equality.clone(),
-                    rule: ProofRule::Assumption { index: 1 },
-                }),
+                relation: Box::new(assumption_proof(relation.clone(), 0)),
+                equality: Box::new(assumption_proof(equality.clone(), 1)),
                 endpoint: 0,
             },
         };
@@ -3519,20 +3475,17 @@ mod tests {
         let proof = ProofNode {
             conclusion: wrong.clone(),
             rule: ProofRule::IntegerOrderSubstitution {
-                relation: Box::new(ProofNode {
-                    conclusion: Proposition::LessOrEqual(
+                relation: Box::new(assumption_proof(
+                    Proposition::LessOrEqual(
                         ScalarTerm::value(x_id, unsigned64_type()),
                         ScalarTerm::value(y_id, unsigned64_type()),
                     ),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                equality: Box::new(ProofNode {
-                    conclusion: Proposition::Equal(
-                        ScalarTerm::value(x_id, unsigned64_type()),
-                        z.clone(),
-                    ),
-                    rule: ProofRule::Assumption { index: 1 },
-                }),
+                    0,
+                )),
+                equality: Box::new(assumption_proof(
+                    Proposition::Equal(ScalarTerm::value(x_id, unsigned64_type()), z.clone()),
+                    1,
+                )),
                 endpoint: 0,
             },
         };
@@ -3660,10 +3613,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: disjunction.clone(),
             rule: ProofRule::DisjunctionIntroduction {
-                disjunct: Box::new(ProofNode {
-                    conclusion: p.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                disjunct: Box::new(assumption_proof(p.clone(), 0)),
                 index: 0,
             },
         };
@@ -3701,10 +3651,7 @@ mod tests {
             let proof = ProofNode {
                 conclusion: disjunction.clone(),
                 rule: ProofRule::DisjunctionIntroduction {
-                    disjunct: Box::new(ProofNode {
-                        conclusion: selected.clone(),
-                        rule: ProofRule::Assumption { index: 0 },
-                    }),
+                    disjunct: Box::new(assumption_proof(selected.clone(), 0)),
                     index,
                 },
             };
@@ -3729,10 +3676,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: Proposition::Truth,
             rule: ProofRule::DisjunctionElimination {
-                disjunction: Box::new(ProofNode {
-                    conclusion: disjunction.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                disjunction: Box::new(assumption_proof(disjunction.clone(), 0)),
                 branches: vec![truth_node(), truth_node()],
             },
         };
@@ -3756,10 +3700,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: Proposition::Truth,
             rule: ProofRule::DisjunctionElimination {
-                disjunction: Box::new(ProofNode {
-                    conclusion: disjunction.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                disjunction: Box::new(assumption_proof(disjunction.clone(), 0)),
                 branches: vec![truth_node(), truth_node(), truth_node()],
             },
         };
@@ -3805,10 +3746,7 @@ mod tests {
                 body: Box::new(ProofNode {
                     conclusion: p.clone(),
                     rule: ProofRule::ImplicationElimination {
-                        implication: Box::new(ProofNode {
-                            conclusion: implication,
-                            rule: ProofRule::Assumption { index: 0 },
-                        }),
+                        implication: Box::new(assumption_proof(implication, 0)),
                         premise: Box::new(ProofNode {
                             conclusion: p.clone(),
                             rule: ProofRule::SemanticAxiom { index: 0 },
@@ -3857,10 +3795,7 @@ mod tests {
         let swapped = Proposition::LessOrEqual(y, ScalarTerm::value(x_id, unsigned64_type()));
 
         // A citation past the roster is an unknown assumption.
-        let proof = ProofNode {
-            conclusion: bound.clone(),
-            rule: ProofRule::Assumption { index: 1 },
-        };
+        let proof = assumption_proof(bound.clone(), 1);
         assert!(matches!(
             denote_bounded_certificate(&context, &bound, std::slice::from_ref(&bound), &[], &proof),
             Err(BoundedDenotationError::Certificate(
@@ -3869,10 +3804,7 @@ mod tests {
         ));
 
         // A citation whose conclusion is not the retained premise mismatches.
-        let proof = ProofNode {
-            conclusion: swapped.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        };
+        let proof = assumption_proof(swapped.clone(), 0);
         assert!(matches!(
             denote_bounded_certificate(
                 &context,
@@ -3887,10 +3819,7 @@ mod tests {
         ));
 
         // A proof of the obligation's sibling does not discharge it.
-        let proof = ProofNode {
-            conclusion: bound.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        };
+        let proof = assumption_proof(bound.clone(), 0);
         assert!(matches!(
             denote_bounded_certificate(
                 &context,
@@ -3924,10 +3853,7 @@ mod tests {
         ));
 
         // A kernel-tampered term rejects: the variable is unbound.
-        let proof = ProofNode {
-            conclusion: bound.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        };
+        let proof = assumption_proof(bound.clone(), 0);
         let mut denoted =
             denote_bounded_certificate(&context, &bound, std::slice::from_ref(&bound), &[], &proof)
                 .expect("denotation succeeds before tampering");
@@ -3957,10 +3883,7 @@ mod tests {
         .expect("context");
         let fixed = Proposition::Equal(x, y);
         let lifted = crate::lift_fixed_integer_relation(&fixed).expect("lifts");
-        let proof = ProofNode {
-            conclusion: lifted.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        };
+        let proof = assumption_proof(lifted.clone(), 0);
         assert_eq!(
             crate::check_certificate(&context, &lifted, std::slice::from_ref(&fixed), &[], &proof),
             Ok(()),
@@ -3990,10 +3913,7 @@ mod tests {
     fn the_closure_names_every_judgment_premise() {
         let p = atom(1);
         let q = atom(2);
-        let proof = ProofNode {
-            conclusion: p.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        };
+        let proof = assumption_proof(p.clone(), 0);
         let denoted = verify_bounded_certificate(
             &PropositionContext::default(),
             &p,
@@ -4319,13 +4239,7 @@ mod tests {
                 Vec::new(),
             )
         } else {
-            (
-                ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                },
-                vec![premise.clone()],
-            )
+            (assumption_proof(premise.clone(), 0), vec![premise.clone()])
         };
         let proof = ProofNode {
             conclusion: goal.clone(),
@@ -4501,10 +4415,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::PredicateDenotation {
-                premise: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                premise: Box::new(assumption_proof(premise.clone(), 0)),
             },
         };
         let machine_parameters = BTreeSet::new();

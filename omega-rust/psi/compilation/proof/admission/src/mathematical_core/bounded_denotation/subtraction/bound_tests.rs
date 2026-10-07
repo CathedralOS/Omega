@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use super::super::Elaboration;
+use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
@@ -40,10 +41,7 @@ fn check(left: ScalarTerm, right: ScalarTerm) {
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness: IntegerAffineWitness {
                 root: right.clone(),
                 target: ScalarTerm::exact_integer_subtract(integer, left.clone(), right.clone())
@@ -157,10 +155,7 @@ fn correlated_subtract_lower_uses_the_add_cancel_law() {
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness: IntegerAffineWitness {
                 root,
                 target: ScalarTerm::exact_integer_subtract(integer, left.clone(), right.clone())
@@ -285,10 +280,7 @@ fn correlated_subtract_upper_through_cited_definitions() {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::IntegerAffineBound {
-                root_bound: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                root_bound: Box::new(assumption_proof(premise.clone(), 0)),
                 witness: IntegerAffineWitness {
                     root: value(3),
                     target: ScalarTerm::exact_integer_subtract(integer, value(1), addend.clone())
@@ -347,10 +339,7 @@ fn correlated_subtract_closed_goal_decides_by_numeral_laws() {
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness: IntegerAffineWitness {
                 root,
                 target: ScalarTerm::exact_integer_subtract(integer, left, right).unwrap(),
@@ -391,14 +380,8 @@ fn subtraction_identity_transport_accepts_existing_leaf_math_citations() {
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::EqualityTransitivity {
-            left_equals_middle: Box::new(ProofNode {
-                conclusion: first.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
-            middle_equals_right: Box::new(ProofNode {
-                conclusion: second,
-                rule: ProofRule::Assumption { index: 1 },
-            }),
+            left_equals_middle: Box::new(assumption_proof(first.clone(), 0)),
+            middle_equals_right: Box::new(assumption_proof(second, 1)),
         },
     };
     let context = PropositionContext::from_value_types(
@@ -434,10 +417,7 @@ fn open_subtraction_preserves_previously_skipped_numeric_resource_refusals() {
         Box::new(large.clone()),
     );
     let goal = Proposition::IntegerMathEqual(open.clone(), open);
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::Assumption { index: 0 },
-    };
+    let proof = assumption_proof(goal.clone(), 0);
     verify_bounded_certificate(
         &context,
         &goal,
@@ -448,10 +428,7 @@ fn open_subtraction_preserves_previously_skipped_numeric_resource_refusals() {
     )
     .unwrap();
     let closed_goal = Proposition::IntegerMathEqual(large.clone(), large);
-    let closed_proof = ProofNode {
-        conclusion: closed_goal.clone(),
-        rule: ProofRule::Assumption { index: 0 },
-    };
+    let closed_proof = assumption_proof(closed_goal.clone(), 0);
     assert!(
         verify_bounded_certificate(
             &context,
@@ -501,10 +478,7 @@ fn direct_subtract_proof(
     ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness: IntegerAffineWitness {
                 root: left.clone(),
                 target: ScalarTerm::exact_integer_subtract(integer, left, right).unwrap(),
@@ -718,14 +692,8 @@ fn exact_subtract_definition_proof(
     ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerExactSubtractDefinitionBound {
-            left_bound: Box::new(ProofNode {
-                conclusion: left_premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
-            right_bound: Box::new(ProofNode {
-                conclusion: right_premise.clone(),
-                rule: ProofRule::Assumption { index: 1 },
-            }),
+            left_bound: Box::new(assumption_proof(left_premise.clone(), 0)),
+            right_bound: Box::new(assumption_proof(right_premise.clone(), 1)),
             definition_axiom: 0,
         },
     }

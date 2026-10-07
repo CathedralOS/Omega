@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use super::super::Elaboration;
+use crate::proof::assumption_proof;
 use crate::{
     Budget, ProofNode, ProofRule, Term, check_certificate, verify_bounded_certificate,
     verify_mathematical_certificate,
@@ -40,10 +41,7 @@ fn translated(
         ProofNode {
             conclusion,
             rule: ProofRule::IntegerMathOrderTranslation {
-                relation: Box::new(ProofNode {
-                    conclusion: premise,
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                relation: Box::new(assumption_proof(premise, 0)),
                 addend,
             },
         },
@@ -167,14 +165,8 @@ fn mathematical_order_substitution_rejoins_only_exact_finite_rings() {
         let proof = ProofNode {
             conclusion,
             rule: ProofRule::IntegerOrderSubstitution {
-                relation: Box::new(ProofNode {
-                    conclusion: relation.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                equality: Box::new(ProofNode {
-                    conclusion: equality.clone(),
-                    rule: ProofRule::Assumption { index: 1 },
-                }),
+                relation: Box::new(assumption_proof(relation.clone(), 0)),
+                equality: Box::new(assumption_proof(equality.clone(), 1)),
                 endpoint: 0,
             },
         };
@@ -226,10 +218,7 @@ fn mathematical_order_translation_rejects_a_hidden_deep_addend_without_cloning_i
         // payload must not be traversed or cloned to decide that mismatch.
         conclusion: premise.clone(),
         rule: ProofRule::IntegerMathOrderTranslation {
-            relation: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            relation: Box::new(assumption_proof(premise.clone(), 0)),
             addend,
         },
     };

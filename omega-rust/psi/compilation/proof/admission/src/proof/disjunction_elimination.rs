@@ -2,17 +2,11 @@ use super::{
     CertificateAcceptance, ProofError, ProofNode, ProofRule, Proposition, PropositionContext,
     accept_certificate,
 };
+use crate::proof::assumption_proof;
 use semantic_vocabulary::PropositionId;
 
 fn atom(index: u64) -> Proposition {
     Proposition::Atom(PropositionId::new(index).expect("nonzero atom"))
-}
-
-fn assumption(conclusion: Proposition, index: usize) -> ProofNode {
-    ProofNode {
-        conclusion,
-        rule: ProofRule::Assumption { index },
-    }
 }
 
 fn fixture() -> (Vec<Proposition>, ProofNode) {
@@ -33,15 +27,15 @@ fn fixture() -> (Vec<Proposition>, ProofNode) {
         .map(|(index, premise)| ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::ImplicationElimination {
-                implication: Box::new(assumption(implications[index].clone(), index + 1)),
-                premise: Box::new(assumption(premise, 3)),
+                implication: Box::new(assumption_proof(implications[index].clone(), index + 1)),
+                premise: Box::new(assumption_proof(premise, 3)),
             },
         })
         .collect();
     let proof = ProofNode {
         conclusion: goal,
         rule: ProofRule::DisjunctionElimination {
-            disjunction: Box::new(assumption(disjunction.clone(), 0)),
+            disjunction: Box::new(assumption_proof(disjunction.clone(), 0)),
             branches,
         },
     };
@@ -86,7 +80,7 @@ fn elimination_requires_every_branch_and_the_common_conclusion() {
     let ProofRule::DisjunctionElimination { branches, .. } = &mut wrong_conclusion.rule else {
         unreachable!()
     };
-    branches[0] = assumption(atom(1), 3);
+    branches[0] = assumption_proof(atom(1), 3);
     assert_eq!(
         check(&assumptions, &wrong_conclusion),
         Err(ProofError::DisjunctionBranchConclusionMismatch)
@@ -96,7 +90,7 @@ fn elimination_requires_every_branch_and_the_common_conclusion() {
     let ProofRule::DisjunctionElimination { disjunction, .. } = &mut wrong_premise.rule else {
         unreachable!()
     };
-    **disjunction = assumption(assumptions[1].clone(), 1);
+    **disjunction = assumption_proof(assumptions[1].clone(), 1);
     assert_eq!(
         check(&assumptions, &wrong_premise),
         Err(ProofError::RulePremiseMismatch("disjunction elimination"))

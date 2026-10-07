@@ -3,6 +3,7 @@
 use super::{
     IntegerCastChainWitness, IntegerCastChainWitnessError, check_integer_cast_chain_witness,
 };
+use crate::proof::assumption_proof;
 use crate::{MathematicalCoreDecision, ProofNode, ProofRule, accept_certificate};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, PropositionError,
@@ -98,10 +99,7 @@ fn expression_root_transports_only_independently_proved_endpoints() {
         let proof = ProofNode {
             conclusion: conclusion.clone(),
             rule: ProofRule::IntegerCastBound {
-                root_bound: Box::new(ProofNode {
-                    conclusion: root_bound.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                root_bound: Box::new(assumption_proof(root_bound.clone(), 0)),
                 witness: fixture.witness(),
             },
         };

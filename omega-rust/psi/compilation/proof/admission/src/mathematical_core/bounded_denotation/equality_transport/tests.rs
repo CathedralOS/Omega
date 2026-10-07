@@ -1,4 +1,5 @@
 use super::super::Elaboration;
+use crate::proof::assumption_proof;
 use crate::{Budget, ProofNode, ProofRule, verify_mathematical_certificate};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
@@ -32,10 +33,7 @@ fn check(premise: Proposition, goal: Proposition, equations: &[(u64, u64)]) {
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::ValueEqualityTransport {
-            premise: Box::new(ProofNode {
-                conclusion: premise,
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            premise: Box::new(assumption_proof(premise, 0)),
             equalities: axioms
                 .iter()
                 .enumerate()
@@ -121,10 +119,7 @@ fn nested_identity_requiring_unlicensed_reversal_rejects() {
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::ValueEqualityTransport {
-            premise: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            premise: Box::new(assumption_proof(premise.clone(), 0)),
             equalities: axioms
                 .iter()
                 .enumerate()

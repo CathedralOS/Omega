@@ -788,6 +788,7 @@ enum AtomRewrite {
 mod tests {
     use super::super::verify_bounded_certificate;
     use super::{Denotation, ScalarTerm, Term};
+    use crate::proof::assumption_proof;
     use crate::{
         Budget, MathematicalCertificate, ProofNode, ProofRule, certificate_assumption_closure,
         verify_mathematical_certificate,
@@ -974,10 +975,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::PredicateDenotation {
-                premise: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                premise: Box::new(assumption_proof(premise.clone(), 0)),
             },
         };
         let denoted = verify_bounded_certificate(
@@ -1020,10 +1018,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::PredicateDenotation {
-                premise: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                premise: Box::new(assumption_proof(premise.clone(), 0)),
             },
         };
         let denoted = verify_bounded_certificate(
@@ -1063,10 +1058,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::PredicateDenotation {
-                premise: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                premise: Box::new(assumption_proof(premise.clone(), 0)),
             },
         };
         let denoted = verify_bounded_certificate(
@@ -1110,10 +1102,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::PredicateDenotation {
-                premise: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                premise: Box::new(assumption_proof(premise.clone(), 0)),
             },
         };
         let denoted = verify_bounded_certificate(
@@ -1155,14 +1144,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::ValueEqualityTransport {
-                premise: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                equalities: vec![ProofNode {
-                    conclusion: equation.clone(),
-                    rule: ProofRule::Assumption { index: 1 },
-                }],
+                premise: Box::new(assumption_proof(premise.clone(), 0)),
+                equalities: vec![assumption_proof(equation.clone(), 1)],
             },
         };
         let denoted = verify_bounded_certificate(

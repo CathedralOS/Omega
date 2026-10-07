@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use super::Elaboration;
+use crate::proof::assumption_proof;
 use crate::{
     AcceptedProofRule, Budget, ProofNode, ProofRule, Term, accept_certificate, check_certificate,
     verify_bounded_certificate, verify_mathematical_certificate,
@@ -30,14 +31,8 @@ fn proof(left: ScalarTerm, right: ScalarTerm) -> (Vec<Proposition>, ProofNode) {
     let result = ProofNode {
         conclusion: Proposition::Equal(left, right),
         rule: ProofRule::IntegerOrderAntisymmetry {
-            forward: Box::new(ProofNode {
-                conclusion: forward.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
-            backward: Box::new(ProofNode {
-                conclusion: backward.clone(),
-                rule: ProofRule::Assumption { index: 1 },
-            }),
+            forward: Box::new(assumption_proof(forward.clone(), 0)),
+            backward: Box::new(assumption_proof(backward.clone(), 1)),
         },
     };
     (vec![forward, backward], result)

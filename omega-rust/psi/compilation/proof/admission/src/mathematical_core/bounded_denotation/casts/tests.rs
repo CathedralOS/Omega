@@ -1,4 +1,5 @@
 use super::super::Elaboration;
+use crate::proof::assumption_proof;
 use crate::{
     Budget, IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule,
     verify_bounded_certificate,
@@ -68,10 +69,7 @@ fn cast_bound_transports_through_one_exact_cast_edge() {
     let proof = ProofNode {
         conclusion: conclusion.clone(),
         rule: ProofRule::IntegerCastBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: root_bound.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(root_bound.clone(), 0)),
             witness: IntegerCastChainWitness {
                 root: root.clone(),
                 target: target.clone(),
@@ -134,10 +132,7 @@ fn cast_bound_walks_a_multi_edge_word_in_either_direction() {
         let proof = ProofNode {
             conclusion: conclusion.clone(),
             rule: ProofRule::IntegerCastBound {
-                root_bound: Box::new(ProofNode {
-                    conclusion: root_bound.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                root_bound: Box::new(assumption_proof(root_bound.clone(), 0)),
                 witness: IntegerCastChainWitness {
                     root: root.clone(),
                     target: target.clone(),
@@ -255,10 +250,7 @@ fn live_cast_endpoint_preserves_strictness_and_derives_without_rule_axioms() {
             let proof = ProofNode {
                 conclusion: goal.clone(),
                 rule: ProofRule::IntegerCastBound {
-                    root_bound: Box::new(ProofNode {
-                        conclusion: assumption.clone(),
-                        rule: ProofRule::Assumption { index: 0 },
-                    }),
+                    root_bound: Box::new(assumption_proof(assumption.clone(), 0)),
                     witness: IntegerCastChainWitness {
                         root: root.clone(),
                         target: target.clone(),

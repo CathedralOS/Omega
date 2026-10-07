@@ -6,6 +6,7 @@ use semantic_vocabulary::{
 
 use super::super::{Elaboration, MathTermKey};
 use super::{Constructor, IntegerValue, Law, Proposition, ScalarTerm, Term};
+use crate::proof::assumption_proof;
 use crate::{
     Budget, PrimitiveJudgment, ProofNode, ProofRule, certificate_assumption_closure,
     verify_bounded_certificate, verify_mathematical_certificate,
@@ -37,10 +38,7 @@ fn fixture(
     let proof = ProofNode {
         conclusion,
         rule: ProofRule::IntegerOrderDiscreteness {
-            relation: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            relation: Box::new(assumption_proof(premise.clone(), 0)),
         },
     };
     (

@@ -518,6 +518,7 @@ mod order_substitution_tests;
 
 #[cfg(test)]
 mod tests {
+    use crate::proof::assumption_proof;
     use semantic_vocabulary::{IntegerMathTerm, IntegerValue, ScalarTerm};
 
     use super::{
@@ -653,10 +654,7 @@ mod tests {
             semantic_vocabulary::ScalarType::Integer(integer_type),
         )])
         .expect("context");
-        let proof = ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        };
+        let proof = assumption_proof(goal.clone(), 0);
         assert!(check_certificate(&context, &goal, &[assumption], &[], &proof).is_ok());
 
         let wrong = Proposition::IntegerMathLessOrEqual(
@@ -666,10 +664,7 @@ mod tests {
                 value: value_id,
             },
         );
-        let tampered = ProofNode {
-            conclusion: wrong.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        };
+        let tampered = assumption_proof(wrong.clone(), 0);
         assert!(
             check_certificate(
                 &context,
@@ -696,10 +691,7 @@ mod tests {
         let branch = |proposition: Proposition, assumption: usize, index: usize| ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::DisjunctionIntroduction {
-                disjunct: Box::new(ProofNode {
-                    conclusion: proposition,
-                    rule: ProofRule::Assumption { index: assumption },
-                }),
+                disjunct: Box::new(assumption_proof(proposition, assumption)),
                 index,
             },
         };
@@ -766,10 +758,7 @@ mod tests {
                 &ProofNode {
                     conclusion: non_disjunction.clone(),
                     rule: ProofRule::DisjunctionIntroduction {
-                        disjunct: Box::new(ProofNode {
-                            conclusion: left,
-                            rule: ProofRule::Assumption { index: 0 },
-                        }),
+                        disjunct: Box::new(assumption_proof(left, 0)),
                         index: 0,
                     },
                 },
@@ -867,10 +856,7 @@ mod tests {
         let proof = |second: Proposition, conclusion: Proposition| ProofNode {
             conclusion,
             rule: ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: Box::new(ProofNode {
-                    conclusion: first.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                left_less_or_equal_middle: Box::new(assumption_proof(first.clone(), 0)),
                 middle_less_or_equal_right: Box::new(ProofNode {
                     conclusion: second,
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -1010,10 +996,7 @@ mod tests {
                     conclusion: negative_literal,
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
                 }),
-                equality: Box::new(ProofNode {
-                    conclusion: reverse_negative_equality.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                equality: Box::new(assumption_proof(reverse_negative_equality.clone(), 0)),
                 endpoint: 0,
             },
         };
@@ -1209,10 +1192,7 @@ mod tests {
             |definition_axioms: Vec<usize>, literal_axioms, conclusion: Proposition| ProofNode {
                 conclusion,
                 rule: ProofRule::IntegerAffineBound {
-                    root_bound: Box::new(ProofNode {
-                        conclusion: root_bound.clone(),
-                        rule: ProofRule::Assumption { index: 0 },
-                    }),
+                    root_bound: Box::new(assumption_proof(root_bound.clone(), 0)),
                     witness: IntegerAffineWitness {
                         root: root.clone(),
                         target: target.clone(),
@@ -1355,10 +1335,7 @@ mod tests {
         let proof = |definition_axioms, conclusion: Proposition| ProofNode {
             conclusion,
             rule: ProofRule::IntegerCastBound {
-                root_bound: Box::new(ProofNode {
-                    conclusion: root_bound.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                root_bound: Box::new(assumption_proof(root_bound.clone(), 0)),
                 witness: IntegerCastChainWitness {
                     root: root.clone(),
                     target: target.clone(),
@@ -1460,10 +1437,7 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::ImplicationIntroduction {
-                body: Box::new(ProofNode {
-                    conclusion: proposition,
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                body: Box::new(assumption_proof(proposition, 0)),
             },
         };
         let accepted = accept_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
@@ -1482,10 +1456,7 @@ mod tests {
     fn accepted_trust_closure_binds_the_exact_cited_premise() {
         let cited = Proposition::Atom(PropositionId::new(1).expect("cited atom"));
         let replacement = Proposition::Atom(PropositionId::new(2).expect("replacement atom"));
-        let proof = ProofNode {
-            conclusion: cited.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        };
+        let proof = assumption_proof(cited.clone(), 0);
         let accepted = accept_certificate(
             &PropositionContext::default(),
             &cited,
@@ -1524,10 +1495,7 @@ mod tests {
         let branch = |proposition: &Proposition| ProofNode {
             conclusion: implication(proposition),
             rule: ProofRule::ImplicationIntroduction {
-                body: Box::new(ProofNode {
-                    conclusion: proposition.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
+                body: Box::new(assumption_proof(proposition.clone(), 0)),
             },
         };
         let goal = Proposition::Conjunction(vec![implication(&first), implication(&second)]);
@@ -1818,5 +1786,15 @@ mod tests {
                 IntegerCorrelatedForbiddenRootConversionError::ConclusionMismatch,
             ))
         );
+    }
+}
+
+/// Build a leaf assumption `ProofNode` for tests: the cited premise as its own
+/// conclusion.
+#[cfg(test)]
+pub(crate) fn assumption_proof(conclusion: Proposition, index: usize) -> ProofNode {
+    ProofNode {
+        conclusion,
+        rule: ProofRule::Assumption { index },
     }
 }

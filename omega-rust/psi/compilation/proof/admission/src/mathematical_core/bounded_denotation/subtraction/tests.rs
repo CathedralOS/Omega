@@ -6,6 +6,7 @@ use semantic_vocabulary::{
 };
 
 use super::super::Elaboration;
+use crate::proof::assumption_proof;
 use crate::{
     Budget, ProofNode, ProofRule, Term, verify_bounded_certificate, verify_mathematical_certificate,
 };
@@ -30,14 +31,8 @@ fn fixture(
     let proof = ProofNode {
         conclusion: Proposition::LessThan(result, left),
         rule: ProofRule::IntegerSubtractOrder {
-            difference: Box::new(ProofNode {
-                conclusion: difference,
-                rule: ProofRule::Assumption { index: 0 },
-            }),
-            positive: Box::new(ProofNode {
-                conclusion: positive,
-                rule: ProofRule::Assumption { index: 1 },
-            }),
+            difference: Box::new(assumption_proof(difference, 0)),
+            positive: Box::new(assumption_proof(positive, 1)),
         },
     };
     let context = PropositionContext::from_value_types(

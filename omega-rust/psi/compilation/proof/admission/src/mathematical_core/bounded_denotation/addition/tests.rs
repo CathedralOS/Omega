@@ -1,4 +1,5 @@
 use super::super::Elaboration;
+use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
@@ -38,10 +39,7 @@ fn open_addition_preserves_previously_skipped_numeric_resource_refusals() {
         Box::new(large.clone()),
     );
     let goal = Proposition::IntegerMathEqual(open.clone(), open);
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::Assumption { index: 0 },
-    };
+    let proof = assumption_proof(goal.clone(), 0);
     verify_bounded_certificate(
         &context,
         &goal,
@@ -52,10 +50,7 @@ fn open_addition_preserves_previously_skipped_numeric_resource_refusals() {
     )
     .unwrap();
     let closed_goal = Proposition::IntegerMathEqual(large.clone(), large);
-    let closed_proof = ProofNode {
-        conclusion: closed_goal.clone(),
-        rule: ProofRule::Assumption { index: 0 },
-    };
+    let closed_proof = assumption_proof(closed_goal.clone(), 0);
     assert!(
         verify_bounded_certificate(
             &context,
@@ -128,10 +123,7 @@ fn correlated_add_bounds_transport_ssa_roots_and_carrier_endpoints() {
             let proof = ProofNode {
                 conclusion: goal.clone(),
                 rule: ProofRule::IntegerAffineBound {
-                    root_bound: Box::new(ProofNode {
-                        conclusion: premise.clone(),
-                        rule: ProofRule::Assumption { index: 0 },
-                    }),
+                    root_bound: Box::new(assumption_proof(premise.clone(), 0)),
                     witness: IntegerAffineWitness {
                         root: value(3),
                         target: ScalarTerm::exact_integer_add(integer, left.clone(), value(2))
@@ -194,10 +186,7 @@ fn closed_addend_rule_axioms(
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness: IntegerAffineWitness {
                 root,
                 target: ScalarTerm::exact_integer_add(integer, left, right).unwrap(),
@@ -300,10 +289,7 @@ fn open_sum_over_closed_difference_uses_the_numeral_equation() {
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness: IntegerAffineWitness {
                 root,
                 target: ScalarTerm::exact_integer_add(integer, left, right).unwrap(),
@@ -435,14 +421,8 @@ fn exact_add_definition_proof(
     ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerExactAddDefinitionBound {
-            left_bound: Box::new(ProofNode {
-                conclusion: left_premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
-            right_bound: Box::new(ProofNode {
-                conclusion: right_premise.clone(),
-                rule: ProofRule::Assumption { index: 1 },
-            }),
+            left_bound: Box::new(assumption_proof(left_premise.clone(), 0)),
+            right_bound: Box::new(assumption_proof(right_premise.clone(), 1)),
             definition_axiom,
         },
     }
@@ -743,10 +723,7 @@ fn direct_add_proof(
     ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            root_bound: Box::new(assumption_proof(premise.clone(), 0)),
             witness: IntegerAffineWitness {
                 root: left.clone(),
                 target: ScalarTerm::exact_integer_add(integer, left, right).unwrap(),

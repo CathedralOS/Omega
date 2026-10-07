@@ -1,3 +1,4 @@
+use crate::proof::assumption_proof;
 use crate::{ProofNode, ProofRule, check_certificate, lift_fixed_integer_relation};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
@@ -29,10 +30,7 @@ fn fixture(
     let proof = ProofNode {
         conclusion: order(1, 3, true),
         rule: ProofRule::IntegerStrictOrderTransitivity {
-            left_to_middle: Box::new(ProofNode {
-                conclusion: premises[0].clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
+            left_to_middle: Box::new(assumption_proof(premises[0].clone(), 0)),
             middle_to_right: Box::new(ProofNode {
                 conclusion: premises[1].clone(),
                 rule: ProofRule::SemanticAxiom { index: 0 },
@@ -165,14 +163,8 @@ fn order_composition_preserves_scalar_carriers_without_arithmetic_conversion() {
         let proof = ProofNode {
             conclusion: Proposition::LessThan(value(1), value(3)),
             rule: ProofRule::IntegerStrictOrderTransitivity {
-                left_to_middle: Box::new(ProofNode {
-                    conclusion: premises[0].clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                middle_to_right: Box::new(ProofNode {
-                    conclusion: premises[1].clone(),
-                    rule: ProofRule::Assumption { index: 1 },
-                }),
+                left_to_middle: Box::new(assumption_proof(premises[0].clone(), 0)),
+                middle_to_right: Box::new(assumption_proof(premises[1].clone(), 1)),
             },
         };
         check_certificate(&context, &proof.conclusion, &premises, &[], &proof).unwrap();
