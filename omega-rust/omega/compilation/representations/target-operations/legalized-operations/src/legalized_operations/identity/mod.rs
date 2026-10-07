@@ -20,3 +20,4 @@ pub fn legalized_operation_plan_identity(
 mod ordinary_calls;
 mod read_byte;
 pub use read_byte::encode_hosted_read_byte_identity;
+pub use scalar::encode_register;

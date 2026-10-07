@@ -8,6 +8,7 @@ use calling_conventions::{
 use crate::FixedViewCopyDecodeError;
 
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{Cursor, length};
+use legalized_operations::encode_register;
 
 #[cfg(test)]
 #[test]
@@ -73,7 +74,7 @@ pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     }
     length(bytes, plan.ordinary_clobbers.as_slice().len());
     for register in plan.ordinary_clobbers.as_slice() {
-        encode_machine_register(bytes, *register);
+        encode_register(bytes, *register);
     }
     bytes.extend_from_slice(&plan.stack_alignment.to_le_bytes());
     bytes.extend_from_slice(&plan.shadow_bytes.to_le_bytes());
@@ -84,7 +85,7 @@ pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
             immediate,
         } => {
             bytes.push(2);
-            encode_machine_register(bytes, number_register);
+            encode_register(bytes, number_register);
             bytes.extend_from_slice(&immediate.to_le_bytes());
         }
         EntryControl::InterruptReturn => bytes.push(3),
@@ -219,7 +220,7 @@ pub(super) fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) 
                 byte_size,
             } => {
                 bytes.push(1);
-                encode_machine_register(bytes, register);
+                encode_register(bytes, register);
                 bytes.extend_from_slice(&value_byte_offset.to_le_bytes());
                 bytes.extend_from_slice(&byte_size.to_le_bytes());
             }
@@ -296,7 +297,7 @@ fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPointerLocation
     match pointer {
         IndirectPointerLocation::Register(register) => {
             bytes.push(1);
-            encode_machine_register(bytes, register);
+            encode_register(bytes, register);
         }
         IndirectPointerLocation::Stack {
             stack_byte_offset,
@@ -381,32 +382,6 @@ fn decode_eightbyte_class(
         2 => Ok(SystemVEightbyteClass::Sse),
         tag => Err(FixedViewCopyDecodeError::UnknownSystemVEightbyteClass(tag)),
     }
-}
-
-fn encode_machine_register(bytes: &mut Vec<u8>, register: MachineRegister) {
-    let (tag, payload) = match register {
-        MachineRegister::X86Rax => (0, 0),
-        MachineRegister::X86Rcx => (1, 0),
-        MachineRegister::X86Rdx => (2, 0),
-        MachineRegister::X86Rbx => (3, 0),
-        MachineRegister::X86Rsp => (4, 0),
-        MachineRegister::X86Rbp => (5, 0),
-        MachineRegister::X86Rsi => (6, 0),
-        MachineRegister::X86Rdi => (7, 0),
-        MachineRegister::X86R8 => (8, 0),
-        MachineRegister::X86R9 => (9, 0),
-        MachineRegister::X86R10 => (10, 0),
-        MachineRegister::X86R11 => (11, 0),
-        MachineRegister::X86R12 => (12, 0),
-        MachineRegister::X86R13 => (13, 0),
-        MachineRegister::X86R14 => (14, 0),
-        MachineRegister::X86R15 => (15, 0),
-        MachineRegister::X86Xmm(index) => (16, index),
-        MachineRegister::Aarch64X(index) => (17, index),
-        MachineRegister::Aarch64V(index) => (18, index),
-    };
-    bytes.push(tag);
-    bytes.push(payload);
 }
 
 fn decode_machine_register(

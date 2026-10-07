@@ -16,7 +16,7 @@ pub(super) fn encode_integer(bytes: &mut Vec<u8>, value: IntegerValue) {
     }
 }
 
-pub(super) fn encode_register(bytes: &mut Vec<u8>, register: MachineRegister) {
+pub fn encode_register(bytes: &mut Vec<u8>, register: MachineRegister) {
     let (tag, payload) = match register {
         MachineRegister::X86Rax => (0, 0),
         MachineRegister::X86Rcx => (1, 0),
