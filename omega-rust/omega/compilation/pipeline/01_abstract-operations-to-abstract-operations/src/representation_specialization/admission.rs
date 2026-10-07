@@ -13,8 +13,8 @@ use super::{
 };
 use abstract_operations::StructuralCopyPath;
 use optimization_unit::{
-    canonicalize_ordinary_path, declared_structural_type, descended_field, descended_field_id,
-    shape, structural_child,
+    Establishment, canonicalize_ordinary_path, declared_structural_type, descended_field,
+    descended_field_id, establishment_producer, shape, structural_child,
 };
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use std::collections::BTreeSet;
@@ -123,60 +123,6 @@ fn proof_basis(
         return Some((case, Some(producer)));
     }
     sole_case(unit, function, declaration).map(|case| (case, None))
-}
-
-/// The establishing operation a place's producer or uniform binding
-/// resolves to, when it is one this family's proofs can draw on: `Record`
-/// for an `EstablishRecord`, `Variant` for an `EstablishCase`
-/// carrying its `result_case`, `Zeroed` for an `EstablishZeroedStructural`
-/// whose all-zero storage selects each admissible sum's first declared
-/// case, `None` for every other producer or place kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Establishment {
-    None,
-    Record(OperationId),
-    Variant(OperationId, StructuralCaseId),
-    Zeroed(OperationId),
-}
-
-/// The establishing producer `declaration`'s operation-result kind names,
-/// or `Establishment::None` when the place is not an operation result or
-/// its producer is not an `EstablishRecord`/`EstablishCase`/
-/// `EstablishZeroedStructural` in `function`.
-fn establishment_producer(
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-) -> Establishment {
-    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
-        return Establishment::None;
-    };
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
-        match &node.operation {
-            O::EstablishRecord {
-                psi_operation,
-                result,
-                ..
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return Establishment::Record(producer);
-            }
-            O::EstablishCase {
-                psi_operation,
-                result,
-                result_case,
-                ..
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return Establishment::Variant(producer, *result_case);
-            }
-            O::EstablishZeroedStructural {
-                psi_operation,
-                result,
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return Establishment::Zeroed(producer);
-            }
-            _ => {}
-        }
-    }
-    Establishment::None
 }
 
 /// One unresolved path segment inside `established_case_at`: either a

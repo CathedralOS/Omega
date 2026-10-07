@@ -45,7 +45,7 @@ pub(crate) fn plan(
     place: PlaceId,
 ) -> Option<FieldValueSpecializationRewrite> {
     let evidence = optimization_unit::field_evidence(function, place)?;
-    let analysis = admission::function_analysis(function);
+    let analysis = optimization_unit::function_analysis(function);
     let mut reads = Vec::new();
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {

@@ -4,15 +4,19 @@
 
 use abstract_operations::AbstractOperation as O;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, OperationId, PlaceId, StructuralCaseId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId,
+    BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, ScalarType, StructuralCaseId,
+    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    RecordFieldValue, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeShape,
+    RecordFieldValue, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
 };
 
-use super::{PsiOptimizationFunction, PsiOptimizationUnit};
+use super::{
+    FieldValueResolution, FoldedFieldValue, PsiOptimizationFunction, PsiOptimizationUnit,
+    ValueDefinition,
+};
 
 /// The establishing operation the place's operation-result producer resolves
 /// to, when it is one this family's proofs can draw on: `Record` for an
@@ -296,4 +300,453 @@ pub fn canonicalize_ordinary_path(
         }
     }
     Some(canonical)
+}
+
+/// The scalar kind a resolved observation must carry: the Boolean or integer
+/// type of its `StructuralScalarFieldRead` result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObservedFieldKind {
+    Boolean,
+    Integer,
+}
+
+impl ObservedFieldKind {
+    /// `None` for a result type no field read observes.
+    pub fn of(scalar_type: ScalarType) -> Option<Self> {
+        match scalar_type {
+            ScalarType::Boolean => Some(Self::Boolean),
+            ScalarType::Integer(_) => Some(Self::Integer),
+            ScalarType::IeeeFloat(_) => None,
+        }
+    }
+}
+
+pub struct FunctionAnalysis {
+    pub definitions: BTreeMap<ValueId, ValueDefinition>,
+    pub dominators: BTreeMap<BlockId, BTreeSet<BlockId>>,
+}
+
+pub fn function_analysis(function: &PsiOptimizationFunction) -> FunctionAnalysis {
+    let mut predecessors: BTreeMap<BlockId, BTreeSet<BlockId>> = function
+        .blocks
+        .iter()
+        .map(|block| (block.id, BTreeSet::new()))
+        .collect();
+    let mut definitions: BTreeMap<ValueId, ValueDefinition> = BTreeMap::new();
+    for parameter in &function.parameters {
+        definitions.insert(parameter.value, *parameter);
+    }
+    for block in &function.blocks {
+        for parameter in &block.parameters {
+            definitions.insert(parameter.value, *parameter);
+        }
+        for node in &block.nodes {
+            for definition in &node.definitions {
+                definitions.insert(definition.value, *definition);
+            }
+            for edge in &node.successors {
+                predecessors
+                    .get_mut(&edge.target)
+                    .expect("validated successor target")
+                    .insert(block.id);
+            }
+        }
+    }
+    FunctionAnalysis {
+        definitions,
+        dominators: dominators(
+            function.entry,
+            function.blocks.iter().map(|block| block.id),
+            &predecessors,
+        ),
+    }
+}
+
+/// One structural position a canonical path resolves to: either a declared
+/// structural type or one case's payload-field roster.
+#[derive(Debug, Clone, Copy)]
+pub enum Position<'a> {
+    Type(StructuralTypeId),
+    CasePayload(&'a StructuralCaseDeclaration),
+}
+
+impl<'a> Position<'a> {
+    /// The position one canonical segment descends to, or `None` when the
+    /// segment does not apply to this position's shape.
+    pub fn descend(
+        self,
+        unit: &'a PsiOptimizationUnit,
+        segment: &CanonicalStructuralPathSegment,
+    ) -> Option<Position<'a>> {
+        match (self, segment) {
+            (Self::Type(current), CanonicalStructuralPathSegment::Field(identity)) => {
+                let fields = match shape(unit, current)? {
+                    StructuralTypeShape::Record { fields }
+                    | StructuralTypeShape::Mixed { fields, .. } => fields,
+                    _ => return None,
+                };
+                match fields
+                    .iter()
+                    .find(|field| field.id == *identity)?
+                    .field_type
+                {
+                    StructuralFieldType::Structural(next) => Some(Self::Type(next)),
+                    _ => None,
+                }
+            }
+            (Self::Type(current), CanonicalStructuralPathSegment::FixedIndex(_)) => {
+                match shape(unit, current)? {
+                    StructuralTypeShape::FixedArray { element, .. } => Some(Self::Type(*element)),
+                    _ => None,
+                }
+            }
+            (Self::Type(current), CanonicalStructuralPathSegment::Case(identity)) => {
+                let cases = match shape(unit, current)? {
+                    StructuralTypeShape::Sum { cases }
+                    | StructuralTypeShape::Mixed { cases, .. } => cases,
+                    _ => return None,
+                };
+                cases
+                    .iter()
+                    .find(|case| case.id == *identity)
+                    .map(Self::CasePayload)
+            }
+            (Self::CasePayload(case), CanonicalStructuralPathSegment::Field(identity)) => {
+                match case
+                    .fields
+                    .iter()
+                    .find(|field| field.id == *identity)?
+                    .field_type
+                {
+                    StructuralFieldType::Structural(next) => Some(Self::Type(next)),
+                    _ => None,
+                }
+            }
+            (Self::CasePayload(_), _) => None,
+        }
+    }
+
+    /// The declaration `field` names inside this position's field roster, or
+    /// `None` when the position carries no roster or no such field.
+    pub fn field_declaration(
+        self,
+        unit: &'a PsiOptimizationUnit,
+        field: StructuralFieldId,
+    ) -> Option<&'a StructuralFieldDeclaration> {
+        let fields = match self {
+            Self::Type(current) => match shape(unit, current)? {
+                StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                _ => return None,
+            },
+            Self::CasePayload(case) => &case.fields,
+        };
+        fields.iter().find(|declaration| declaration.id == field)
+    }
+}
+
+/// What an establishment chain proves about the observed field: either the
+/// scalar initializer operand the terminal producer stores — which the
+/// caller folds or forwards — or the literal zero an
+/// `EstablishZeroedStructural` fixes without naming any operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EstablishmentScalar {
+    Initializer(OperationId, ValueId),
+    Zeroed(OperationId),
+}
+
+/// The proven stored value of one field observation plus the witness it was
+/// proven under: `Some(producer)` for an establishment basis — whether the
+/// initializer folds to a literal or forwards as a substitution — `None` for
+/// a declared singleton bound.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProvenFieldValue {
+    pub producer: Option<OperationId>,
+    pub resolution: FieldValueResolution,
+}
+
+/// The `ValueId` the `EstablishRecord` producer stores into `field`, or
+/// `None` when the producer node is absent, is not an `EstablishRecord` on
+/// this place, or the initializer is not a scalar.
+pub fn record_initializer(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+    field: StructuralFieldId,
+) -> Option<ValueId> {
+    establishment_fields(function, producer, place)?
+        .iter()
+        .find(|initializer| initializer.field == field)
+        .and_then(|initializer| match &initializer.value {
+            RecordFieldValue::Scalar { value, .. } => Some(*value),
+            _ => None,
+        })
+}
+
+/// The `ValueId` the `EstablishCase` producer stores into `field`, or
+/// `None` when the producer node is absent, is not an `EstablishCase`
+/// on this place, or the case field is absent.
+pub fn case_field_initializer(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+    field: StructuralFieldId,
+) -> Option<ValueId> {
+    establishment_fields(function, producer, place)?
+        .iter()
+        .find(|initializer| initializer.field == field)
+        .and_then(|initializer| match initializer.value {
+            terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(value),
+            terminal_psi::RecordFieldValue::Structural(_) => None,
+        })
+}
+
+/// The declared field the observation resolves to: the `path` descends from
+/// the place's declared root type to a structural position, and `field`
+/// selects one scalar declaration inside it. `None` when the root carries no
+/// type, a segment does not apply — a `Field` name absent from a
+/// `Record`/`Mixed` common-field or case-payload roster, a `FixedIndex` on a
+/// non-array, a `Case` on a non-sum — or the path ends on a position with no
+/// field roster.
+pub fn observed_field_declaration<'a>(
+    unit: &'a PsiOptimizationUnit,
+    evidence: &FieldEvidence<'_>,
+    path: &[CanonicalStructuralPathSegment],
+    field: StructuralFieldId,
+) -> Option<&'a StructuralFieldDeclaration> {
+    let mut position = Position::Type(evidence.root_type?);
+    for segment in path {
+        position = position.descend(unit, segment)?;
+    }
+    position.field_declaration(unit, field)
+}
+
+/// Whether the resolved field declaration's scalar carrier matches the
+/// observation kind — a Boolean read needs a `Boolean` field carrier, an
+/// integer read needs an `Integer` carrier (plain or bounded). `Erased`,
+/// structural, byte-sequence, and float fields never match.
+pub fn matches_observed_kind(
+    declaration: &StructuralFieldDeclaration,
+    kind: ObservedFieldKind,
+) -> bool {
+    matches!(
+        (kind, declaration.field_type.scalar_type()),
+        (ObservedFieldKind::Boolean, Some(ScalarType::Boolean))
+            | (ObservedFieldKind::Integer, Some(ScalarType::Integer(_)))
+    )
+}
+
+/// The declared-bound basis: the field's declared `BoundedInteger` bound
+/// closes over exactly one value, so every inhabitant holds it. `None` for a
+/// non-singleton bound, a non-bounded carrier, or a Boolean observation.
+pub fn bound_value(
+    declaration: &StructuralFieldDeclaration,
+    kind: ObservedFieldKind,
+) -> Option<ProvenFieldValue> {
+    if kind != ObservedFieldKind::Integer {
+        return None;
+    }
+    let StructuralFieldType::BoundedInteger(bound) = declaration.field_type else {
+        return None;
+    };
+    (bound.minimum() == bound.maximum()).then_some(ProvenFieldValue {
+        producer: None,
+        resolution: FieldValueResolution::Constant(FoldedFieldValue::Integer(bound.minimum())),
+    })
+}
+
+/// The literal zero a zeroed establishment stores in `declaration`: `false`
+/// for a Boolean carrier, all-zero bits for an integer carrier of either
+/// sign. `None` when the observed kind does not match the declaration's
+/// scalar — the caller already checked this, so the `None` is defensive.
+pub fn zeroed_fold(
+    declaration: &StructuralFieldDeclaration,
+    kind: ObservedFieldKind,
+) -> Option<FoldedFieldValue> {
+    match (kind, declaration.field_type.scalar_type()) {
+        (ObservedFieldKind::Boolean, Some(ScalarType::Boolean)) => {
+            Some(FoldedFieldValue::Boolean(false))
+        }
+        (ObservedFieldKind::Integer, Some(ScalarType::Integer(integer_type))) => {
+            Some(FoldedFieldValue::Integer(
+                if integer_type.sign() == semantic_vocabulary::IntegerSign::Signed {
+                    semantic_vocabulary::IntegerValue::Signed(0)
+                } else {
+                    semantic_vocabulary::IntegerValue::Unsigned(0)
+                },
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// The `FoldedFieldValue` `value` resolves to inside `function`: a
+/// `BooleanConstant`/`IntegerConstant` defines it directly, or a block
+/// parameter every incoming edge binds to the same argument resolves
+/// transitively — the linear chains the front end emits route each
+/// initializer through block parameters rather than spelling the constant at
+/// the use site. A non-constant definition, a parameter bound to divergent
+/// arguments on different edges, an edge that fails to bind it, or a cycle
+/// in the chain yields `None`.
+pub fn constant_definition(
+    function: &PsiOptimizationFunction,
+    value: ValueId,
+) -> Option<FoldedFieldValue> {
+    let mut current = value;
+    let mut visiting = std::collections::BTreeSet::new();
+    loop {
+        if !visiting.insert(current) {
+            return None;
+        }
+        if let Some(node) = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .find(|node| {
+                node.definitions
+                    .iter()
+                    .any(|definition| definition.value == current)
+            })
+        {
+            return match &node.operation {
+                O::BooleanConstant {
+                    value: constant, ..
+                } => Some(FoldedFieldValue::Boolean(*constant)),
+                O::IntegerConstant {
+                    value: constant, ..
+                } => Some(FoldedFieldValue::Integer(*constant)),
+                _ => None,
+            };
+        }
+        let owner = function.blocks.iter().find(|block| {
+            block
+                .parameters
+                .iter()
+                .any(|parameter| parameter.value == current)
+        })?;
+        let mut argument = None;
+        for edge in function
+            .blocks
+            .iter()
+            .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+            .filter(|edge| edge.target == owner.id)
+        {
+            let binding = edge
+                .bindings
+                .iter()
+                .find(|binding| binding.parameter == current)?;
+            match argument {
+                None => argument = Some(binding.argument),
+                Some(seen) if seen != binding.argument => return None,
+                _ => {}
+            }
+        }
+        current = argument?;
+    }
+}
+
+/// Whether a proven constant matches the observation kind — a Boolean read
+/// folds only to `Boolean`, an integer read only to `Integer`.
+pub fn matches_constant_kind(value: FoldedFieldValue, kind: ObservedFieldKind) -> bool {
+    matches!(
+        (value, kind),
+        (FoldedFieldValue::Boolean(_), ObservedFieldKind::Boolean)
+            | (FoldedFieldValue::Integer(_), ObservedFieldKind::Integer)
+    )
+}
+
+/// The establishing operation a place's producer or uniform binding
+/// resolves to, when it is one this family's proofs can draw on: `Record`
+/// for an `EstablishRecord`, `Variant` for an `EstablishCase`
+/// carrying its `result_case`, `Zeroed` for an `EstablishZeroedStructural`
+/// whose all-zero storage selects each admissible sum's first declared
+/// case, `None` for every other producer or place kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Establishment {
+    None,
+    Record(OperationId),
+    Variant(OperationId, StructuralCaseId),
+    Zeroed(OperationId),
+}
+
+/// The establishing producer `declaration`'s operation-result kind names,
+/// or `Establishment::None` when the place is not an operation result or
+/// its producer is not an `EstablishRecord`/`EstablishCase`/
+/// `EstablishZeroedStructural` in `function`.
+pub fn establishment_producer(
+    function: &PsiOptimizationFunction,
+    declaration: &StructuralPlaceDeclaration,
+) -> Establishment {
+    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+        return Establishment::None;
+    };
+    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+        match &node.operation {
+            O::EstablishRecord {
+                psi_operation,
+                result,
+                ..
+            } if *psi_operation == producer && result.place == declaration.id => {
+                return Establishment::Record(producer);
+            }
+            O::EstablishCase {
+                psi_operation,
+                result,
+                result_case,
+                ..
+            } if *psi_operation == producer && result.place == declaration.id => {
+                return Establishment::Variant(producer, *result_case);
+            }
+            O::EstablishZeroedStructural {
+                psi_operation,
+                result,
+            } if *psi_operation == producer && result.place == declaration.id => {
+                return Establishment::Zeroed(producer);
+            }
+            _ => {}
+        }
+    }
+    Establishment::None
+}
+
+pub fn dominators(
+    entry: BlockId,
+    block_ids: impl Iterator<Item = BlockId>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+) -> BTreeMap<BlockId, BTreeSet<BlockId>> {
+    let all = block_ids.collect::<BTreeSet<_>>();
+    let mut result = all
+        .iter()
+        .copied()
+        .map(|block| {
+            let initial = if block == entry {
+                [entry].into_iter().collect()
+            } else {
+                all.clone()
+            };
+            (block, initial)
+        })
+        .collect::<BTreeMap<_, _>>();
+    loop {
+        let mut changed = false;
+        for block in all.iter().copied().filter(|block| *block != entry) {
+            let incoming = predecessors.get(&block).expect("all blocks indexed");
+            let mut next = if let Some(first) = incoming.first() {
+                result[first].clone()
+            } else {
+                BTreeSet::new()
+            };
+            for predecessor in incoming.iter().skip(1) {
+                next = next.intersection(&result[predecessor]).copied().collect();
+            }
+            next.insert(block);
+            if result[&block] != next {
+                result.insert(block, next);
+                changed = true;
+            }
+        }
+        if !changed {
+            return result;
+        }
+    }
 }

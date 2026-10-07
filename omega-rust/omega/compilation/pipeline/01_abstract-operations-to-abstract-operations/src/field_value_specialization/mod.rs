@@ -89,9 +89,9 @@
 //! than trust. There is no second proposal or application route.
 
 use optimization_unit::{
-    FieldValueResolution, FieldValueRow, FieldValueSpecializationRewrite, FoldedFieldValue,
-    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiRealizationSite,
+    FieldValueResolution, FieldValueRow, FieldValueSpecializationRewrite, NodeLocation,
+    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiRealizationSite,
 };
 use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 

@@ -26,17 +26,90 @@ use abstract_operations::AbstractOperation as O;
 use abstract_operations::StructuralCopyPath;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    FoldedCaseMembershipRow, OptimizationFact, OptimizationNode, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, canonicalize_ordinary_path,
-    declared_structural_type, descended_field, descended_field_id,
-    recompute_psi_optimization_unit_identity, shape, structural_child,
+    Establishment, FoldedCaseMembershipRow, OptimizationFact, OptimizationNode,
+    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    canonicalize_ordinary_path, declared_structural_type, descended_field, descended_field_id,
+    establishment_producer, recompute_psi_optimization_unit_identity, shape, structural_child,
 };
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, MachineId, OperationId, PlaceId, ScalarType,
-    StructuralCaseId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+    StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+enum Position<'a> {
+    Type(StructuralTypeId),
+    CasePayload(&'a StructuralCaseDeclaration),
+}
+
+impl<'a> Position<'a> {
+    /// The position one unresolved step descends to, or `None` when the
+    /// step does not apply to this position's shape. Ordinary `Referent`
+    /// and `FixedByteRange` steps decline: both leave the place's own
+    /// storage, which no establishment chain here crosses. An ordinary
+    /// `Field` on a case-payload roster declines for the opposite reason:
+    /// a validated copy projection always leaves the namespace with its
+    /// canonical `Field`, so the mixture never spells from source.
+    fn descend(self, unit: &'a PsiOptimizationUnit, step: PathStep<'_>) -> Option<Position<'a>> {
+        match (self, step) {
+            (Self::Type(current), PathStep::Ordinary(segment)) => match segment {
+                StructuralPathSegment::Field(identity) => {
+                    descended_field(unit, current, identity).map(|(_, next)| Self::Type(next))
+                }
+                StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::RuntimeIndex { .. } => match shape(unit, current)? {
+                    StructuralTypeShape::FixedArray { element, .. } => Some(Self::Type(*element)),
+                    _ => None,
+                },
+                // Borrowed case paths retain runtime membership evidence; this
+                // optional establishment fold does not consume that evidence.
+                StructuralPathSegment::Case(_)
+                | StructuralPathSegment::Referent
+                | StructuralPathSegment::FixedByteRange { .. } => None,
+            },
+            (
+                Self::Type(current),
+                PathStep::Canonical(CanonicalStructuralPathSegment::Field(identity)),
+            ) => descended_field_id(unit, current, identity).map(|(_, next)| Self::Type(next)),
+            (
+                Self::Type(current),
+                PathStep::Canonical(CanonicalStructuralPathSegment::FixedIndex(_)),
+            ) => match shape(unit, current)? {
+                StructuralTypeShape::FixedArray { element, .. } => Some(Self::Type(*element)),
+                _ => None,
+            },
+            (
+                Self::Type(current),
+                PathStep::Canonical(CanonicalStructuralPathSegment::Case(identity)),
+            ) => {
+                let cases = match shape(unit, current)? {
+                    StructuralTypeShape::Sum { cases }
+                    | StructuralTypeShape::Mixed { cases, .. } => cases,
+                    _ => return None,
+                };
+                cases
+                    .iter()
+                    .find(|case| case.id == identity)
+                    .map(Self::CasePayload)
+            }
+            (
+                Self::CasePayload(case),
+                PathStep::Canonical(CanonicalStructuralPathSegment::Field(identity)),
+            ) => match case
+                .fields
+                .iter()
+                .find(|field| field.id == identity)?
+                .field_type
+            {
+                StructuralFieldType::Structural(next) => Some(Self::Type(next)),
+                _ => None,
+            },
+            (Self::CasePayload(_), _) => None,
+        }
+    }
+}
+
 use terminal_psi::{
     StructuralCaseDeclaration, StructuralFieldType, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeShape,
@@ -86,60 +159,6 @@ fn proof_basis(
         return Some((case, Some(producer)));
     }
     sole_case(unit, function, declaration).map(|case| (case, None))
-}
-
-/// The establishing operation a place's producer or uniform binding
-/// resolves to, when it is one this family's proofs can draw on: `Record`
-/// for an `EstablishRecord`, `Variant` for an `EstablishCase`
-/// carrying its `result_case`, `Zeroed` for an `EstablishZeroedStructural`
-/// whose all-zero storage selects each admissible sum's first declared
-/// case, `None` for every other producer or place kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Establishment {
-    None,
-    Record(OperationId),
-    Variant(OperationId, StructuralCaseId),
-    Zeroed(OperationId),
-}
-
-/// The establishing producer `declaration`'s operation-result kind names,
-/// or `Establishment::None` when the place is not an operation result or
-/// its producer is not an `EstablishRecord`/`EstablishCase`/
-/// `EstablishZeroedStructural` in `function`.
-fn establishment_producer(
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-) -> Establishment {
-    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
-        return Establishment::None;
-    };
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
-        match &node.operation {
-            O::EstablishRecord {
-                psi_operation,
-                result,
-                ..
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return Establishment::Record(producer);
-            }
-            O::EstablishCase {
-                psi_operation,
-                result,
-                result_case,
-                ..
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return Establishment::Variant(producer, *result_case);
-            }
-            O::EstablishZeroedStructural {
-                psi_operation,
-                result,
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return Establishment::Zeroed(producer);
-            }
-            _ => {}
-        }
-    }
-    Establishment::None
 }
 
 /// One unresolved path segment inside `established_case_at`: either a
@@ -344,84 +363,6 @@ fn established_case_at(
                 declared = bound_type;
             }
             _ => return None,
-        }
-    }
-}
-
-/// One structural position an unresolved path reaches inside
-/// `established_case_at`: either a declared structural type or one case's
-/// payload-field roster. The roster position exists only between a `Case`
-/// step and the payload `Field` that leaves it; a path cannot end there
-/// because a payload namespace is no type — nothing proves a case of it.
-#[derive(Debug, Clone, Copy)]
-enum Position<'a> {
-    Type(StructuralTypeId),
-    CasePayload(&'a StructuralCaseDeclaration),
-}
-
-impl<'a> Position<'a> {
-    /// The position one unresolved step descends to, or `None` when the
-    /// step does not apply to this position's shape. Ordinary `Referent`
-    /// and `FixedByteRange` steps decline: both leave the place's own
-    /// storage, which no establishment chain here crosses. An ordinary
-    /// `Field` on a case-payload roster declines for the opposite reason:
-    /// a validated copy projection always leaves the namespace with its
-    /// canonical `Field`, so the mixture never spells from source.
-    fn descend(self, unit: &'a PsiOptimizationUnit, step: PathStep<'_>) -> Option<Position<'a>> {
-        match (self, step) {
-            (Self::Type(current), PathStep::Ordinary(segment)) => match segment {
-                StructuralPathSegment::Field(identity) => {
-                    descended_field(unit, current, identity).map(|(_, next)| Self::Type(next))
-                }
-                StructuralPathSegment::FixedIndex(_)
-                | StructuralPathSegment::RuntimeIndex { .. } => match shape(unit, current)? {
-                    StructuralTypeShape::FixedArray { element, .. } => Some(Self::Type(*element)),
-                    _ => None,
-                },
-                // Borrowed case paths retain runtime membership evidence; this
-                // optional establishment fold does not consume that evidence.
-                StructuralPathSegment::Case(_)
-                | StructuralPathSegment::Referent
-                | StructuralPathSegment::FixedByteRange { .. } => None,
-            },
-            (
-                Self::Type(current),
-                PathStep::Canonical(CanonicalStructuralPathSegment::Field(identity)),
-            ) => descended_field_id(unit, current, identity).map(|(_, next)| Self::Type(next)),
-            (
-                Self::Type(current),
-                PathStep::Canonical(CanonicalStructuralPathSegment::FixedIndex(_)),
-            ) => match shape(unit, current)? {
-                StructuralTypeShape::FixedArray { element, .. } => Some(Self::Type(*element)),
-                _ => None,
-            },
-            (
-                Self::Type(current),
-                PathStep::Canonical(CanonicalStructuralPathSegment::Case(identity)),
-            ) => {
-                let cases = match shape(unit, current)? {
-                    StructuralTypeShape::Sum { cases }
-                    | StructuralTypeShape::Mixed { cases, .. } => cases,
-                    _ => return None,
-                };
-                cases
-                    .iter()
-                    .find(|case| case.id == identity)
-                    .map(Self::CasePayload)
-            }
-            (
-                Self::CasePayload(case),
-                PathStep::Canonical(CanonicalStructuralPathSegment::Field(identity)),
-            ) => match case
-                .fields
-                .iter()
-                .find(|field| field.id == identity)?
-                .field_type
-            {
-                StructuralFieldType::Structural(next) => Some(Self::Type(next)),
-                _ => None,
-            },
-            (Self::CasePayload(_), _) => None,
         }
     }
 }

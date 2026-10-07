@@ -14,8 +14,9 @@ mod places;
 mod provenance;
 mod values;
 
-pub(crate) use control_flow::{dominators, is_terminator};
+pub(crate) use control_flow::is_terminator;
 pub(crate) use edges::{expected_edges, successors_match_operation};
+pub(crate) use optimization_unit::dominators;
 pub(crate) use ownership::expected_ownership;
 pub(crate) use places::{function_has_claim, reconstruct_declared_places};
 pub(crate) use provenance::{expected_provenance, provenance_matches_operation};
