@@ -151,18 +151,14 @@ pub(super) fn lower(
             result.place,
             &mut Vec::new(),
         )?;
-        if live
-            .views
-            .insert(result.place, (*psi_operation, result.structural_type))
-            .is_some()
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        let home = super::aggregate_results::home(*psi_operation, result, structural_types)?;
-        if live.structural_homes.insert(result.place, home).is_some() {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        provenance.operations.push(*psi_operation);
+        record_view_result(
+            live,
+            function.machine,
+            structural_types,
+            provenance,
+            *psi_operation,
+            result,
+        )?;
         operations.push(TargetUnitOperation::ByteSequenceSubslice {
             result: result.clone(),
             view,
@@ -189,18 +185,14 @@ pub(super) fn lower(
             result.place,
             &mut Vec::new(),
         )?;
-        if live
-            .views
-            .insert(result.place, (*psi_operation, result.structural_type))
-            .is_some()
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        let home = super::aggregate_results::home(*psi_operation, result, structural_types)?;
-        if live.structural_homes.insert(result.place, home).is_some() {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        provenance.operations.push(*psi_operation);
+        record_view_result(
+            live,
+            function.machine,
+            structural_types,
+            provenance,
+            *psi_operation,
+            result,
+        )?;
         operations.push(TargetUnitOperation::ElementViewSubslice {
             result: result.clone(),
             view,
@@ -794,4 +786,29 @@ fn removed_scalar_expression(
         .remove(&result_value)
         .ok_or_else(|| LoweringError::unsupported_control_flow(machine))?
         .into_expression(result_value)
+}
+
+/// The view `result`'s place records: the live view, its structural home, and
+/// the provenance operation.
+fn record_view_result(
+    live: &mut LiveDefinitions,
+    machine: semantic_vocabulary::MachineId,
+    structural_types: &StructuralTypeLookup<'_>,
+    provenance: &mut TerminalPsiProvenance,
+    psi_operation: semantic_vocabulary::OperationId,
+    result: &terminal_psi::StructuralOperationResult,
+) -> Result<(), LoweringError> {
+    if live
+        .views
+        .insert(result.place, (psi_operation, result.structural_type))
+        .is_some()
+    {
+        return Err(LoweringError::unsupported_control_flow(machine));
+    }
+    let home = super::aggregate_results::home(psi_operation, result, structural_types)?;
+    if live.structural_homes.insert(result.place, home).is_some() {
+        return Err(LoweringError::unsupported_control_flow(machine));
+    }
+    provenance.operations.push(psi_operation);
+    Ok(())
 }
