@@ -136,7 +136,7 @@ pub fn capture(
                                 .min(MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES)
                         ))
                     })?;
-                StagedOutputEntryKind::File(capture_file(&path, &metadata, extent)?)
+                StagedOutputEntryKind::File(capture_file(&path, &relative_path, &metadata, extent)?)
             } else {
                 return Err(diagnostics(format!(
                     "build staged-output entry `{}` is not a regular file or directory",
@@ -154,37 +154,39 @@ pub fn capture(
 
 fn capture_file(
     path: &Path,
+    relative_path: &[u8],
     path_metadata: &std::fs::Metadata,
     expected_extent: u64,
 ) -> Result<CapturedFileContent, Vec<Diagnostic>> {
+    let relative_path = String::from_utf8_lossy(relative_path);
     let mut file = std::fs::File::open(path).map_err(|error| {
         diagnostics(format!(
             "cannot open build staged-output file `{}`: {error}",
-            path.display()
+            relative_path
         ))
     })?;
     let before = file.metadata().map_err(|error| {
         diagnostics(format!(
             "cannot inspect opened build staged-output file `{}`: {error}",
-            path.display()
+            relative_path
         ))
     })?;
     if !same_file_observation(path_metadata, &before) || before.len() != expected_extent {
         return Err(diagnostics(format!(
             "build staged-output file `{}` changed before content capture",
-            path.display()
+            relative_path
         )));
     }
     if !has_single_link(&before) {
         return Err(diagnostics(format!(
             "build staged-output file `{}` is a hard-link alias or lacks link-count custody",
-            path.display()
+            relative_path
         )));
     }
     let capacity = usize::try_from(expected_extent).map_err(|_| {
         diagnostics(format!(
             "build staged-output file `{}` is too large for this compiler host",
-            path.display()
+            relative_path
         ))
     })?;
     let mut bytes = Vec::with_capacity(capacity);
@@ -194,7 +196,7 @@ fn capture_file(
         let count = file.read(&mut buffer).map_err(|error| {
             diagnostics(format!(
                 "cannot read build staged-output file `{}`: {error}",
-                path.display()
+                relative_path
             ))
         })?;
         if count == 0 {
@@ -207,7 +209,7 @@ fn capture_file(
             .ok_or_else(|| {
                 diagnostics(format!(
                     "build staged-output file `{}` grew during capture",
-                    path.display()
+                    relative_path
                 ))
             })?;
         digest.update(&buffer[..count]);
@@ -217,7 +219,7 @@ fn capture_file(
     let after = file.metadata().map_err(|error| {
         diagnostics(format!(
             "cannot inspect captured build staged-output file `{}`: {error}",
-            path.display()
+            relative_path
         ))
     })?;
     if bytes.len() != capacity
@@ -226,7 +228,7 @@ fn capture_file(
     {
         return Err(diagnostics(format!(
             "build staged-output file `{}` changed during content capture",
-            path.display()
+            relative_path
         )));
     }
     Ok(CapturedFileContent {
