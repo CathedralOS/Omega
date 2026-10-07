@@ -1,5 +1,7 @@
 //! Canonical identity of the complete fragment program, including zero-code rows.
 
+use crate::machine_code::identity_encoding::{encode_call_owner, encode_invocation_site};
+
 use super::{
     FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
     FunctionFragmentEmissionPlan, FunctionFragmentInternalMachineFixup,
@@ -252,25 +254,7 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
                     hasher.update(slot.to_le_bytes());
                 }
             }
-            match *owner {
-                target_operations::CallSiteOwner::Operation(operation) => {
-                    hasher.update([0]);
-                    hasher.update(operation.get().to_le_bytes());
-                }
-                target_operations::CallSiteOwner::ExternalCompletion(edge) => {
-                    hasher.update([2]);
-
-                    hasher.update(edge.get().to_le_bytes());
-                }
-                target_operations::CallSiteOwner::CleanupAction {
-                    edge,
-                    action_ordinal,
-                } => {
-                    hasher.update([1]);
-                    hasher.update(edge.get().to_le_bytes());
-                    hasher.update(action_ordinal.to_le_bytes());
-                }
-            }
+            encode_call_owner(hasher, *owner);
         }
         FunctionFragmentControlProvenance::NormalizedForeignCall {
             invocation_site,
@@ -278,16 +262,7 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
             ordinal,
         } => {
             hasher.update([6]);
-            match invocation_site {
-                semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
-                    hasher.update([0]);
-                    hasher.update(operation.get().to_le_bytes());
-                }
-                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
-                    hasher.update([1]);
-                    hasher.update(edge.get().to_le_bytes());
-                }
-            }
+            encode_invocation_site(hasher, *invocation_site);
             hasher.update(boundary.get().to_le_bytes());
             hasher.update(ordinal.to_le_bytes());
         }

@@ -1,8 +1,8 @@
 //! Canonical version-9 exit-record identity; no producer or admission dependency.
 
+use crate::machine_code::identity_encoding::encode_exit_target;
 use register_model::RegisterUnitId;
 use sha2::{Digest, Sha256};
-use target::{Architecture, NativeTarget, ObjectFormat};
 
 use super::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
@@ -51,7 +51,7 @@ pub fn whole_function_exit_contract_identity(
             hasher.update(materialization.bytes());
         }
     }
-    encode_target(&mut hasher, contract.target);
+    encode_exit_target(&mut hasher, contract.target);
     hasher.update([exit_policy_tag(contract.policy)]);
     match contract.frame {
         WholeFunctionFrameDisposition::FramelessV1 => hasher.update([1]),
@@ -158,20 +158,6 @@ pub fn whole_function_exit_contract_identity(
         }
     }
     WholeFunctionExitContractIdentity::from_bytes(hasher.finalize().into())
-}
-
-fn encode_target(hasher: &mut Sha256, target: NativeTarget) {
-    hasher.update([match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    }]);
-    hasher.update([match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    }]);
-    hasher.update((target.pointer_size as u64).to_le_bytes());
-    hasher.update((target.pointer_alignment as u64).to_le_bytes());
 }
 
 pub fn exit_policy_tag(policy: WholeFunctionExitPolicy) -> u8 {

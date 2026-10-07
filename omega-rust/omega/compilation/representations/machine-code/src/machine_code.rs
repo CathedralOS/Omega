@@ -11,6 +11,7 @@ pub mod control_flow;
 pub mod encoding;
 pub mod fragments;
 pub mod functions;
+mod identity_encoding;
 pub mod implementation_tables;
 pub mod instructions;
 pub mod layout;

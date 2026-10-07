@@ -1,11 +1,15 @@
 use super::{
-    InternalMachineCallResolutionKind, InternalMachineCallResolutionState, NativeTarget,
+    InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
     NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
     RelocationFreeTextSectionPlacement, TerminalRelocationFreeTextSectionIdentity,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
 };
+use crate::machine_code::identity_encoding::{
+    encode_call_owner, encode_exit_target, encode_invocation_site,
+};
 use sha2::{Digest, Sha256};
-use target::{Architecture, ObjectFormat};
+#[cfg(test)]
+use target::NativeTarget;
 
 const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v12";
 
@@ -19,7 +23,7 @@ pub fn relocation_free_text_section_identity(
     hasher.update(section.psi.program_fingerprint.as_bytes());
     hasher.update(section.fuel_schedule.marker().to_le_bytes());
     hasher.update(section.selected.bytes());
-    encode_target(&mut hasher, section.target);
+    encode_exit_target(&mut hasher, section.target);
     hasher.update(section.semantic_entry.get().to_le_bytes());
     hasher.update(section.semantic_entry_offset.to_le_bytes());
     hasher.update([match section.policy {
@@ -65,25 +69,7 @@ pub fn relocation_free_text_section_identity(
         hasher.update(resolution.caller.get().to_le_bytes());
         hasher.update(resolution.block.0.to_le_bytes());
         hasher.update(resolution.instruction.0.to_le_bytes());
-        match resolution.owner {
-            target_operations::CallSiteOwner::Operation(operation) => {
-                hasher.update([0]);
-                hasher.update(operation.get().to_le_bytes());
-            }
-            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
-                hasher.update([2]);
-
-                hasher.update(edge.get().to_le_bytes());
-            }
-            target_operations::CallSiteOwner::CleanupAction {
-                edge,
-                action_ordinal,
-            } => {
-                hasher.update([1]);
-                hasher.update(edge.get().to_le_bytes());
-                hasher.update(action_ordinal.to_le_bytes());
-            }
-        }
+        encode_call_owner(&mut hasher, resolution.owner);
         hasher.update(resolution.callee.get().to_le_bytes());
         hasher.update(resolution.call_function_offset.to_le_bytes());
         hasher.update(resolution.call_section_offset.to_le_bytes());
@@ -111,16 +97,7 @@ pub fn relocation_free_text_section_identity(
         hasher.update(resolution.caller.get().to_le_bytes());
         hasher.update(resolution.block.0.to_le_bytes());
         hasher.update(resolution.instruction.0.to_le_bytes());
-        match resolution.invocation_site {
-            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
-                hasher.update([0]);
-                hasher.update(operation.get().to_le_bytes());
-            }
-            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
-                hasher.update([1]);
-                hasher.update(edge.get().to_le_bytes());
-            }
-        }
+        encode_invocation_site(&mut hasher, resolution.invocation_site);
         hasher.update(resolution.boundary.get().to_le_bytes());
         hasher.update(resolution.ordinal.to_le_bytes());
         hasher.update(resolution.call_function_offset.to_le_bytes());
@@ -161,20 +138,6 @@ pub fn relocation_free_text_section_identity(
         TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     }]);
     TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(&hasher.finalize())
-}
-
-fn encode_target(hasher: &mut Sha256, target: NativeTarget) {
-    hasher.update([match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    }]);
-    hasher.update([match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    }]);
-    hasher.update((target.pointer_size as u64).to_le_bytes());
-    hasher.update((target.pointer_alignment as u64).to_le_bytes());
 }
 
 fn encode_bytes(hasher: &mut Sha256, bytes: &[u8]) {
