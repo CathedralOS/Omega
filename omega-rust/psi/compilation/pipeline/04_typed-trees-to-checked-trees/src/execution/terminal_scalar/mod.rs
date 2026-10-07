@@ -117,6 +117,7 @@ use typed_trees::{
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
 };
 
+mod computation_walk;
 mod constructions;
 mod guarded_exits;
 mod owned_parameters;

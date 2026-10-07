@@ -2,8 +2,8 @@
 
 use checked_trees::{
     CheckedScalarBinding, CheckedScalarBindingDestination, CheckedScalarBindingValue,
-    CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedScalarExpressionPlans,
-    CheckedScalarExpressionRole, CheckedScalarPrimitiveLocalPlan, CheckedStructuralAccess,
+    CheckedScalarComputationPlans, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
+    CheckedScalarPrimitiveLocalPlan, CheckedStructuralAccess,
     CheckedUnitStructuralArgumentSourcePlan,
 };
 use symbols::SymbolHandle;
@@ -20,11 +20,7 @@ pub(in crate::execution) fn collect(
     let mut locals = Vec::new();
     // Failed or folded computation construction can leave orphan arena nodes.
     // Only retained roots can demand storage in this source state.
-    for (_, root) in computations
-        .roots
-        .iter()
-        .filter(|(_, root)| root.state == state.symbol)
-    {
+    for root in super::computation_walk::state_computation_roots(computations, state.symbol) {
         if root.machine != machine.symbol
             || computations
                 .root_at(state.symbol, root.statement_ordinal, root.role)
@@ -32,130 +28,35 @@ pub(in crate::execution) fn collect(
         {
             return None;
         }
-        let mut pending = vec![root.root];
-        let mut visited = Vec::new();
-        while let Some(handle) = pending.pop() {
-            if !computations.nodes.is_valid(handle) {
-                return None;
-            }
-            if visited.contains(&handle) {
-                continue;
-            }
-            visited.push(handle);
-            match &computations.nodes.get(handle).kind {
-                CheckedScalarComputationKind::CaseMembership {
-                    subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
-                    ..
-                } => {}
-                CheckedScalarComputationKind::CaseMembership {
-                    subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
-                    ..
-                } => {
-                    pending.extend(
-                        computations
-                            .case_fields
-                            .span(subject.fields)?
-                            .iter()
-                            .map(|field| field.value),
-                    );
+        super::computation_walk::walk_computation(computations, root, |pending, kind, root| {
+            super::computation_walk::expand_call_operands(computations, kind, pending, |argument| {
+                let CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
+                    argument.source
+                else {
+                    return Some(());
+                };
+                if !argument.path.is_empty() || argument.access == CheckedStructuralAccess::Owned {
+                    return None;
                 }
-                CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
-                    pending.extend([*left, *right])
+                let local = local_plan(
+                    program,
+                    machine,
+                    state,
+                    expressions,
+                    computations,
+                    bindings,
+                    symbol,
+                    root.statement_ordinal,
+                )?;
+                if local.type_identity != argument.type_identity {
+                    return None;
                 }
-                CheckedScalarComputationKind::Qualification { operand, .. }
-                | CheckedScalarComputationKind::AuthoredCast { operand, .. }
-                | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
-                    pending.push(*operand)
+                if !locals.contains(&local) {
+                    locals.push(local);
                 }
-                CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                    pending.push(*subject);
-                    for arm in computations.dispatch_arms.span(*arms)? {
-                        if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
-                            arm.pattern
-                        {
-                            pending.push(pattern);
-                        }
-                        pending.push(arm.value);
-                    }
-                }
-                CheckedScalarComputationKind::Value(_)
-                | CheckedScalarComputationKind::StructuralField { .. }
-                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
-                | CheckedScalarComputationKind::ByteSequencePredicate { .. } => {}
-                CheckedScalarComputationKind::Call {
-                    callee,
-                    arguments,
-                    structural_arguments,
-                    ..
-                } => {
-                    pending.extend(callee.selector());
-                    pending.extend_from_slice(computations.operands.span(*arguments)?);
-                    for argument in computations
-                        .structural_arguments
-                        .span(*structural_arguments)?
-                    {
-                        let argument = match argument {
-                            checked_trees::CheckedScalarComputationStructuralArgument::Case(
-                                subject,
-                            ) => {
-                                pending.extend(
-                                    computations
-                                        .case_fields
-                                        .span(subject.fields)?
-                                        .iter()
-                                        .map(|field| field.value),
-                                );
-                                continue;
-                            }
-                            checked_trees::CheckedScalarComputationStructuralArgument::Place(
-                                argument,
-                            ) => argument,
-                        };
-                        // Selectors and range endpoints evaluate before the receiving
-                        // call regardless of whether this actual borrows or transfers.
-                        pending.extend(argument.computation_operands());
-                        let CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
-                            argument.source
-                        else {
-                            continue;
-                        };
-                        if !argument.path.is_empty()
-                            || argument.access == CheckedStructuralAccess::Owned
-                        {
-                            return None;
-                        }
-                        let local = local_plan(
-                            program,
-                            machine,
-                            state,
-                            expressions,
-                            computations,
-                            bindings,
-                            symbol,
-                            root.statement_ordinal,
-                        )?;
-                        if local.type_identity != argument.type_identity {
-                            return None;
-                        }
-                        if !locals.contains(&local) {
-                            locals.push(local);
-                        }
-                    }
-                }
-                CheckedScalarComputationKind::Select {
-                    condition,
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    pending.extend([*condition, *when_true, *when_false]);
-                }
-                CheckedScalarComputationKind::Apply { operands, .. } => {
-                    pending.extend_from_slice(computations.operands.span(*operands)?);
-                }
-            }
-        }
+                Some(())
+            })
+        })?;
     }
     // A statement call requires the same real referent as a computation call.
     // The completed Unit operation and receiving source replay independently

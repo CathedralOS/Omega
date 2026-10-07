@@ -29,134 +29,42 @@ pub(super) fn validate(
         return Some(());
     }
     let mut expected_transfers = Vec::new();
-    let mut visited = Vec::new();
-    for (_, root) in computations
-        .roots
-        .iter()
-        .filter(|(_, root)| root.state == state.symbol)
-    {
+    for root in super::computation_walk::state_computation_roots(computations, state.symbol) {
         if root.machine != machine {
             return None;
         }
-        let mut pending = vec![root.root];
-        while let Some(handle) = pending.pop() {
-            if visited.contains(&handle) {
-                continue;
-            }
-            if !computations.nodes.is_valid(handle) {
+        super::computation_walk::walk_computation(computations, root, |pending, kind, root| {
+            let CheckedScalarComputationKind::Call {
+                source_call,
+                callee,
+                call_ordinal,
+                ..
+            } = kind
+            else {
+                return Some(());
+            };
+            if !control.calls.is_valid(*source_call) {
                 return None;
             }
-            visited.push(handle);
-            match &computations.nodes.get(handle).kind {
-                CheckedScalarComputationKind::CaseMembership {
-                    subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
-                    ..
-                } => {}
-                CheckedScalarComputationKind::CaseMembership {
-                    subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
-                    ..
-                } => {
-                    pending.extend(
-                        computations
-                            .case_fields
-                            .span(subject.fields)?
-                            .iter()
-                            .map(|field| field.value),
-                    );
+            let call = control.calls.get(*source_call);
+            let retained = control.call_at(
+                state.symbol,
+                usize::try_from(root.statement_ordinal).ok()?,
+                usize::try_from(*call_ordinal).ok()?,
+            )?;
+            if !std::ptr::eq(call, retained)
+                || control.is_retired(state.symbol, call)
+                || validation::exact_external_leaf_boundary_requirement(program, call.target_symbol)
+                    .map_or(call.target_symbol, |(requirement, _)| requirement)
+                    != callee.called_signature()
+            {
+                return None;
+            }
+            super::computation_walk::expand_call_operands(computations, kind, pending, |argument| {
+                if argument.access != CheckedStructuralAccess::Owned {
+                    return Some(());
                 }
-                CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
-                    pending.extend([*left, *right])
-                }
-                CheckedScalarComputationKind::Qualification { operand, .. }
-                | CheckedScalarComputationKind::AuthoredCast { operand, .. }
-                | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
-                    pending.push(*operand)
-                }
-                CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                    pending.push(*subject);
-                    for arm in computations.dispatch_arms.span(*arms)? {
-                        if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
-                            arm.pattern
-                        {
-                            pending.push(pattern);
-                        }
-                        pending.push(arm.value);
-                    }
-                }
-                CheckedScalarComputationKind::Value(_)
-                | CheckedScalarComputationKind::StructuralField { .. }
-                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
-                | CheckedScalarComputationKind::ByteSequencePredicate { .. } => {}
-                CheckedScalarComputationKind::Select {
-                    condition,
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    pending.extend([*condition, *when_true, *when_false]);
-                }
-                CheckedScalarComputationKind::Apply { operands, .. } => {
-                    pending.extend_from_slice(computations.operands.span(*operands)?)
-                }
-                CheckedScalarComputationKind::Call {
-                    source_call,
-                    callee,
-                    arguments,
-                    structural_arguments,
-                    call_ordinal,
-                    ..
-                } => {
-                    if !control.calls.is_valid(*source_call) {
-                        return None;
-                    }
-                    let call = control.calls.get(*source_call);
-                    let retained = control.call_at(
-                        state.symbol,
-                        usize::try_from(root.statement_ordinal).ok()?,
-                        usize::try_from(*call_ordinal).ok()?,
-                    )?;
-                    if !std::ptr::eq(call, retained)
-                        || control.is_retired(state.symbol, call)
-                        || validation::exact_external_leaf_boundary_requirement(
-                            program,
-                            call.target_symbol,
-                        )
-                        .map_or(call.target_symbol, |(requirement, _)| requirement)
-                            != callee.called_signature()
-                    {
-                        return None;
-                    }
-                    pending.extend(callee.selector());
-                    pending.extend_from_slice(computations.operands.span(*arguments)?);
-                    for argument in computations
-                        .structural_arguments
-                        .span(*structural_arguments)?
-                    {
-                        let argument = match argument {
-                            checked_trees::CheckedScalarComputationStructuralArgument::Case(
-                                subject,
-                            ) => {
-                                pending.extend(
-                                    computations
-                                        .case_fields
-                                        .span(subject.fields)?
-                                        .iter()
-                                        .map(|field| field.value),
-                                );
-                                continue;
-                            }
-                            checked_trees::CheckedScalarComputationStructuralArgument::Place(
-                                argument,
-                            ) => argument,
-                        };
-                        // Selectors and range endpoints evaluate before the receiving
-                        // call regardless of whether this actual borrows or transfers.
-                        pending.extend(argument.computation_operands());
-                        if argument.access != CheckedStructuralAccess::Owned {
-                            continue;
-                        }
-                        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                             expression,
                         } = argument.source
                         {
@@ -182,38 +90,36 @@ pub(super) fn validate(
                             // roots. Any embedded affine parameter transfer
                             // must still match the event ledger below; this
                             // classification grants no missing move receipt.
-                            continue;
+                            return Some(());
                         }
-                        let parameter =
-                            parameters.get(argument.source_parameter_index()? as usize)?;
-                        if parameter.access != CheckedStructuralAccess::Owned
-                            || parameter.type_identity != argument.type_identity
-                            || !argument.path.is_empty()
-                        {
-                            return None;
-                        }
-                        if parameter.multiplicity != Multiplicity::Affine {
-                            continue;
-                        }
-                        let source = program
-                            .state_parameters(state)
-                            .get(parameter.position as usize)?;
-                        let transfer = (
-                            PermissionEventSource::Call {
-                                statement_index: usize::try_from(root.statement_ordinal).ok()?,
-                                call_ordinal: usize::try_from(*call_ordinal).ok()?,
-                                target_symbol: call.target_symbol,
-                            },
-                            facts::PlaceRoot::Symbol(source.symbol),
-                        );
-                        if expected_transfers.contains(&transfer) {
-                            return None;
-                        }
-                        expected_transfers.push(transfer);
-                    }
+                let parameter = parameters.get(argument.source_parameter_index()? as usize)?;
+                if parameter.access != CheckedStructuralAccess::Owned
+                    || parameter.type_identity != argument.type_identity
+                    || !argument.path.is_empty()
+                {
+                    return None;
                 }
-            }
-        }
+                if parameter.multiplicity != Multiplicity::Affine {
+                    return Some(());
+                }
+                let source = program
+                    .state_parameters(state)
+                    .get(parameter.position as usize)?;
+                let transfer = (
+                    PermissionEventSource::Call {
+                        statement_index: usize::try_from(root.statement_ordinal).ok()?,
+                        call_ordinal: usize::try_from(*call_ordinal).ok()?,
+                        target_symbol: call.target_symbol,
+                    },
+                    facts::PlaceRoot::Symbol(source.symbol),
+                );
+                if expected_transfers.contains(&transfer) {
+                    return None;
+                }
+                expected_transfers.push(transfer);
+                Some(())
+            })
+        })?;
     }
     for transfer in transition_transfers {
         if expected_transfers.contains(transfer) {
