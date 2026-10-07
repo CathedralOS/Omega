@@ -1,4 +1,5 @@
 use crate::name::Identifier;
+use crate::typed_trees::remapped;
 use arena::{Arena, Handle, HandleSpan};
 use source::SourceSpan;
 use symbols::SymbolHandle;
@@ -611,13 +612,6 @@ impl Default for StatementTable {
     fn default() -> Self {
         Self::new()
     }
-}
-
-fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> SymbolHandle {
-    symbols
-        .iter()
-        .find_map(|(source, target)| (*source == symbol).then_some(*target))
-        .unwrap_or(symbol)
 }
 
 /// The part of a statement an expression root fills

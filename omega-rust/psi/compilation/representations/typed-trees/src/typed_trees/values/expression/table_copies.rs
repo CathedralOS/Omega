@@ -9,6 +9,7 @@
 //! appends the same rows whichever table it reads.
 
 use crate::name::Identifier;
+use crate::typed_trees::remapped;
 use crate::typed_trees::values::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern, TableAtomicExpression,
     TableBinaryExpression, TableBorrowExpression, TableCallExpression, TableCastExpression,
@@ -820,11 +821,4 @@ impl ExpressionTable {
             symbol: SymbolHandle::invalid(),
         })
     }
-}
-
-fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> SymbolHandle {
-    symbols
-        .iter()
-        .find_map(|(source, target)| (*source == symbol).then_some(*target))
-        .unwrap_or(symbol)
 }

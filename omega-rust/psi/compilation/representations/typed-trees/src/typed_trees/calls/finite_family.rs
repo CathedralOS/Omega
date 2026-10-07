@@ -10,6 +10,7 @@
 //! tuples, opaque predicates, ranges, or mere finite carrier ranges never
 //! enumerate.
 
+use crate::typed_trees::escape;
 use crate::TypedTrees;
 
 /// One canonical value in a finite-family tuple. `identity` is the string a
@@ -329,16 +330,6 @@ pub fn integer_const_identity(value: i128) -> String {
 /// The canonical const identity for one non-integer canonical value:
 /// `named(canonical-const(type(T),encoding(E)))`.
 pub fn canonical_const_identity(type_name: &str, encoding: &str) -> String {
-    fn escape(value: &str) -> String {
-        let mut out = String::with_capacity(value.len());
-        for character in value.chars() {
-            if matches!(character, '\\' | '(' | ')' | ',') {
-                out.push('\\');
-            }
-            out.push(character);
-        }
-        out
-    }
     format!(
         "named(canonical-const(type({}),encoding({})))",
         escape(type_name),

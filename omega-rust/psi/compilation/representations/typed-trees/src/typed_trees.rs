@@ -46,7 +46,7 @@ use crate::{
 use arena::{Arena, Handle, HandleSpan, OwnedIndex};
 use diagnostics::PhaseSnapshot;
 use std::ops::{Deref, DerefMut};
-use symbols::SymbolTable;
+use symbols::{SymbolHandle, SymbolTable};
 
 /// A process-unique tag for one `TypedTrees` instance.
 ///
@@ -584,16 +584,6 @@ fn static_const_argument_spelling(
 /// spellings, `named(canonical-const(type(T),encoding(E)))` for canonical
 /// atoms. The escaping rules mirror `type_identity`'s atom/compound leaves.
 fn static_const_identity_from_spelling(spelling: &str) -> String {
-    fn escape(value: &str) -> String {
-        let mut out = String::with_capacity(value.len());
-        for character in value.chars() {
-            if matches!(character, '\\' | '(' | ')' | ',') {
-                out.push('\\');
-            }
-            out.push(character);
-        }
-        out
-    }
     if let Some(value) = language_semantics::const_value::CanonicalConstValue::from_atom(spelling) {
         return format!(
             "named(canonical-const(type({}),encoding({})))",
@@ -627,4 +617,31 @@ impl DerefMut for TypedTrees {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.tables
     }
+}
+
+
+/// Symbol-remap lookup shared by the typed-tree copy paths: symbols map
+/// through the pair table, unmapped symbols stay themselves.
+pub(crate) fn remapped(
+    symbol: SymbolHandle,
+    symbols: &[(SymbolHandle, SymbolHandle)],
+) -> SymbolHandle {
+    symbols
+        .iter()
+        .find_map(|(source, target)| (*source == symbol).then_some(*target))
+        .unwrap_or(symbol)
+}
+
+
+/// Escape `\`, `(`, `)` and `,` with `\` for the normalized type-identity
+/// spelling format shared by const-identity and call-family identity code.
+pub(crate) fn escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(character, '\\' | '(' | ')' | ',') {
+            out.push('\\');
+        }
+        out.push(character);
+    }
+    out
 }

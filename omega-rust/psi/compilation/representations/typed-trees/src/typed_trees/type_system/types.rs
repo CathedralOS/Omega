@@ -3,6 +3,7 @@ use std::fmt;
 use symbols::SymbolHandle;
 
 use crate::name::Identifier;
+use crate::typed_trees::remapped;
 
 mod display;
 
@@ -1250,13 +1251,6 @@ impl Default for TypeReferenceTable {
     fn default() -> Self {
         Self::new()
     }
-}
-
-fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> SymbolHandle {
-    symbols
-        .iter()
-        .find_map(|(source, target)| (*source == symbol).then_some(*target))
-        .unwrap_or(symbol)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
