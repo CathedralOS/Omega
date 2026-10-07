@@ -7,7 +7,7 @@ use super::super::{
     Multiplicity, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
     Terminator, ValueDeclaration, allocate_dense, argument_evaluation, edge_id, lookup_type_id,
-    lower_structural_path,
+    lower_structural_path, obligation_id,
     operation_frame::{
         allocate_structural_result, block_parameter_declaration, operation_result_declaration,
         structural_parameter_declaration,
@@ -1870,6 +1870,34 @@ impl Emission<'_, '_, '_> {
         self.evaluation.operation_start = self.operations.len();
         self.operations.byte_lengths.clear();
         self.operations.field_byte_lengths.clear();
+    }
+
+    /// Push an evaluated scalar onto the SSA roster, request the declared
+    /// field's range-evidence obligation when its type requires one, and
+    /// return the terminal initializer value. The verifier reconstructs the
+    /// declared range against the final SSA initializer; the identity
+    /// requests that proof — it is not an assertion construction is valid.
+    /// `positions` records the saved-value remap for private control flow.
+    pub(super) fn scalar_field_value(
+        &mut self,
+        field_type: &terminal_psi::StructuralFieldType,
+        evaluated: ValueDeclaration,
+        positions: &mut Vec<(usize, usize)>,
+        field_index: usize,
+    ) -> Result<terminal_psi::RecordFieldValue, LoweringError> {
+        positions.push((field_index, self.values.len()));
+        self.values.push(evaluated);
+        let range_obligation = if terminal_semantics::scalar_field_requires_evidence(field_type) {
+            Some(obligation_id(allocate_dense(
+                &mut self.calls.next_obligation_identity,
+            )?))
+        } else {
+            None
+        };
+        Ok(terminal_psi::RecordFieldValue::Scalar {
+            value: evaluated.id,
+            range_obligation,
+        })
     }
 
     /// Bookkeep a root selection continuation: install the join block's

@@ -159,23 +159,12 @@ impl emission::Emission<'_, '_, '_> {
                             "case operand requires its exact scalar carrier and range evidence",
                         );
                     }
-                    scalar_positions.push((initialized.len(), self.values.len()));
-                    self.values.push(evaluated);
-                    // The verifier reconstructs the declared range against the
-                    // final SSA initializer. This identity requests that proof;
-                    // it is not an assertion that construction is valid.
-                    let range_obligation =
-                        if terminal_semantics::scalar_field_requires_evidence(&target.field_type) {
-                            Some(obligation_id(allocate_dense(
-                                &mut self.calls.next_obligation_identity,
-                            )?))
-                        } else {
-                            None
-                        };
-                    terminal_psi::RecordFieldValue::Scalar {
-                        value: evaluated.id,
-                        range_obligation,
-                    }
+                    self.scalar_field_value(
+                        &target.field_type,
+                        evaluated,
+                        &mut scalar_positions,
+                        initialized.len(),
+                    )?
                 }
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
                     let StructuralFieldType::Structural(child_type) = target.field_type else {

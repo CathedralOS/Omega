@@ -6,8 +6,7 @@ use super::super::super::StructuralFieldType;
 use super::super::{
     CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult, PlaceId,
     ScalarType, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense, obligation_id,
-    place_id, unsupported,
+    StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense, place_id, unsupported,
 };
 use super::emission;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
@@ -142,23 +141,12 @@ impl emission::Emission<'_, '_, '_> {
                             "record operand requires its exact scalar carrier and range evidence",
                         );
                     }
-                    scalar_positions.push((initialized.len(), self.values.len()));
-                    self.values.push(evaluated);
-                    // The verifier reconstructs the declared range against the
-                    // final SSA initializer. This identity requests that proof;
-                    // it is not an assertion that construction is valid.
-                    let range_obligation =
-                        if terminal_semantics::scalar_field_requires_evidence(&target.field_type) {
-                            Some(obligation_id(allocate_dense(
-                                &mut self.calls.next_obligation_identity,
-                            )?))
-                        } else {
-                            None
-                        };
-                    terminal_psi::RecordFieldValue::Scalar {
-                        value: evaluated.id,
-                        range_obligation,
-                    }
+                    self.scalar_field_value(
+                        &target.field_type,
+                        evaluated,
+                        &mut scalar_positions,
+                        initialized.len(),
+                    )?
                 }
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
                     if let Some(scalar_type) = target.field_type.scalar_type() {
@@ -183,25 +171,16 @@ impl emission::Emission<'_, '_, '_> {
                             self.next_value,
                             self.operations,
                         );
-                        scalar_positions.push((initialized.len(), self.values.len()));
-                        self.values.push(ValueDeclaration {
-                            qualifications: Default::default(),
-                            id: zero,
-                            scalar_type,
-                        });
-                        let range_obligation = if terminal_semantics::scalar_field_requires_evidence(
+                        self.scalar_field_value(
                             &target.field_type,
-                        ) {
-                            Some(obligation_id(allocate_dense(
-                                &mut self.calls.next_obligation_identity,
-                            )?))
-                        } else {
-                            None
-                        };
-                        terminal_psi::RecordFieldValue::Scalar {
-                            value: zero,
-                            range_obligation,
-                        }
+                            ValueDeclaration {
+                                qualifications: Default::default(),
+                                id: zero,
+                                scalar_type,
+                            },
+                            &mut scalar_positions,
+                            initialized.len(),
+                        )?
                     } else {
                         let child_type = super::field_carrier::resolve(
                             self.checked,
