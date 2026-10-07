@@ -201,30 +201,10 @@ pub(crate) fn nested_sum_fields_match(
     right: &[ValidatedConstRecordSumFieldMaterialization],
 ) -> bool {
     left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            field_occurrence_matches(
-                &left.field,
-                left.field_identity,
-                &right.field,
-                right.field_identity,
-            ) && left.nested_sum.schema_name() == right.nested_sum.schema_name()
-                && left.nested_sum.value() == right.nested_sum.value()
-                && left.nested_sum.selected_case_identity()
-                    == right.nested_sum.selected_case_identity()
-                && left.nested_sum.selected_case_ordinal()
-                    == right.nested_sum.selected_case_ordinal()
-                && left.nested_sum.bytes() == right.nested_sum.bytes()
-                && conventional_sum_layout_reports_match_for_replay(
-                    left.nested_sum.layout(),
-                    right.nested_sum.layout(),
-                )
-                && left
-                    .nested_sum
-                    .non_authoritative_materialization_report_fingerprint()
-                    == right
-                        .nested_sum
-                        .non_authoritative_materialization_report_fingerprint()
-        })
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| sum_field_materialization_match(left, right))
 }
 
 /// Collect one declared literal array's innermost element values in packed
@@ -270,4 +250,33 @@ pub(crate) fn field_occurrence_matches(
         (None, None) => left_name == right_name,
         (Some(_), None) | (None, Some(_)) => false,
     }
+}
+
+/// Exact replay equality for one retained sum-field materialization: field
+/// occurrence, selected case, bytes, layout report, and the
+/// non-authoritative fingerprint coordinate.
+pub(crate) fn sum_field_materialization_match(
+    left: &ValidatedConstRecordSumFieldMaterialization,
+    right: &ValidatedConstRecordSumFieldMaterialization,
+) -> bool {
+    field_occurrence_matches(
+        &left.field,
+        left.field_identity,
+        &right.field,
+        right.field_identity,
+    ) && left.nested_sum.schema_name() == right.nested_sum.schema_name()
+        && left.nested_sum.value() == right.nested_sum.value()
+        && left.nested_sum.selected_case_identity() == right.nested_sum.selected_case_identity()
+        && left.nested_sum.selected_case_ordinal() == right.nested_sum.selected_case_ordinal()
+        && left.nested_sum.bytes() == right.nested_sum.bytes()
+        && conventional_sum_layout_reports_match_for_replay(
+            left.nested_sum.layout(),
+            right.nested_sum.layout(),
+        )
+        && left
+            .nested_sum
+            .non_authoritative_materialization_report_fingerprint()
+            == right
+                .nested_sum
+                .non_authoritative_materialization_report_fingerprint()
 }

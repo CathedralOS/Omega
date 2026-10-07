@@ -98,28 +98,9 @@ pub(super) fn child_materializations_match_for_replay(
             ValidatedConstRecordSumChildMaterialization::Sum(left),
             ValidatedConstRecordSumChildMaterialization::Sum(right),
         ) => {
-            field_occurrence_matches(
-                &left.field,
-                left.field_identity,
-                &right.field,
-                right.field_identity,
-            ) && left.nested_sum.schema_name() == right.nested_sum.schema_name()
-                && left.nested_sum.value() == right.nested_sum.value()
-                && left.nested_sum.selected_case_identity()
-                    == right.nested_sum.selected_case_identity()
-                && left.nested_sum.selected_case_ordinal()
-                    == right.nested_sum.selected_case_ordinal()
-                && left.nested_sum.bytes() == right.nested_sum.bytes()
-                && conventional_sum_layout_reports_match_for_replay(
-                    left.nested_sum.layout(),
-                    right.nested_sum.layout(),
-                )
-                && left
-                    .nested_sum
-                    .non_authoritative_materialization_report_fingerprint()
-                    == right
-                        .nested_sum
-                        .non_authoritative_materialization_report_fingerprint()
+            crate::layouts::materialization::const_record_with_sum_materializable::sum_field_materialization_match(
+                left, right,
+            )
         }
         (
             ValidatedConstRecordSumChildMaterialization::SumArray(left),
