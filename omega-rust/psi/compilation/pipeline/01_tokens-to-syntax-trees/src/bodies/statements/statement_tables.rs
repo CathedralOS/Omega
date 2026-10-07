@@ -2,7 +2,7 @@
 //! table.
 
 use crate::diagnostics::parse_error::ParseError;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
@@ -149,7 +149,11 @@ pub(crate) fn expression_handle_to_statement_call(
         receiver,
         target,
         machine_arguments: call.machine_arguments,
-        arguments: copy_expression_handles_to_statement_table(syntax_trees, call.arguments),
+        arguments: crate::bodies::copy_expression_handles_to_statement_table(
+            syntax_trees,
+            call.arguments,
+            "statement call argument span count overflow",
+        ),
         evidence_arguments: call.evidence_arguments,
         operational_acknowledgement: call.operational_acknowledgement,
         discards_result: false,
@@ -164,97 +168,14 @@ fn split_expression_call_handle(
     syntax_trees::identifier::Identifier,
 )> {
     let receiver = if call.receiver.is_valid() {
-        expression_handle_to_identifier_path_span(syntax_trees, call.receiver)?
+        crate::bodies::copy_expression_to_statement_identifier_path(
+            syntax_trees,
+            call.receiver,
+            "statement identifier path span count overflow",
+        )?
     } else {
         HandleSpan::empty()
     };
 
     Some((receiver, call.target.clone()))
-}
-
-fn expression_handle_to_identifier_path_span(
-    syntax_trees: &mut SyntaxTrees,
-    expression: ExpressionHandle,
-) -> Option<HandleSpan<syntax_trees::identifier::Identifier>> {
-    match syntax_trees.expressions.expression(expression).clone() {
-        ExpressionNode::Name(path) => Some(copy_expression_identifier_path_to_statement_table(
-            syntax_trees,
-            path,
-        )),
-        ExpressionNode::Member(member) => {
-            let receiver =
-                expression_handle_to_identifier_path_span(syntax_trees, member.receiver)?;
-            Some(append_statement_identifier_path_member(
-                syntax_trees,
-                receiver,
-                member.member,
-            ))
-        }
-        _ => None,
-    }
-}
-
-fn copy_expression_identifier_path_to_statement_table(
-    syntax_trees: &mut SyntaxTrees,
-    path: HandleSpan<syntax_trees::identifier::Identifier>,
-) -> HandleSpan<syntax_trees::identifier::Identifier> {
-    crate::bodies::copy_identifier_path_to_statement_table(
-        syntax_trees,
-        path,
-        "statement identifier path span count overflow",
-    )
-}
-
-fn append_statement_identifier_path_member(
-    syntax_trees: &mut SyntaxTrees,
-    path: HandleSpan<syntax_trees::identifier::Identifier>,
-    member: syntax_trees::identifier::Identifier,
-) -> HandleSpan<syntax_trees::identifier::Identifier> {
-    let handle = syntax_trees
-        .statements
-        .append_identifier_path_member(member);
-
-    if path.is_empty() {
-        HandleSpan::from_parts(handle, 1)
-    } else {
-        HandleSpan::from_parts(
-            path.start(),
-            path.count()
-                .checked_add(1)
-                .expect("statement identifier path span count overflow"),
-        )
-    }
-}
-
-fn copy_expression_handles_to_statement_table(
-    syntax_trees: &mut SyntaxTrees,
-    arguments: HandleSpan<ExpressionHandle>,
-) -> HandleSpan<ExpressionHandle> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
-
-    let arguments = syntax_trees
-        .tables
-        .expressions
-        .expression_handles(arguments)
-        .to_vec();
-
-    for argument in arguments {
-        let handle = syntax_trees
-            .tables
-            .statements
-            .append_expression_handle(argument);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("statement call argument span count overflow");
-    }
-
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
 }
