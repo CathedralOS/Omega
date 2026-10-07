@@ -227,6 +227,57 @@ pub(crate) fn enforce_declared_return_range(
     }
 }
 
+/// The shared return-range tail: analyze the return value retaining
+/// decisions, then on a clean value re-resolve its stored carrier and add
+/// the narrowing store obligation. Returns the analyzed interval.
+#[allow(clippy::too_many_arguments)]
+fn analyzed_return_interval_and_narrowing(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    return_expression: ExpressionHandle,
+    environment: &ValueEnvironment,
+    return_primitive: Option<PrimitiveType>,
+    return_domain: ArithmeticDomain,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    decisions: &mut super::ArithmeticDecisions,
+) -> Interval {
+    let before = diagnostics.len();
+    let (interval, source, source_domain) = super::validate_value_range_retaining_decisions(
+        program,
+        machine,
+        Some(state),
+        return_expression,
+        environment,
+        return_primitive,
+        return_domain,
+        owner,
+        diagnostics,
+        decisions,
+    );
+    if diagnostics.len() == before {
+        let (source, source_domain) = stored_value_carrier(
+            program,
+            machine,
+            Some(state),
+            return_expression,
+            source,
+            source_domain,
+        );
+        check_narrowing_assignment(
+            return_primitive,
+            return_domain,
+            interval,
+            source,
+            source_domain,
+            owner,
+            diagnostics,
+        );
+    }
+    interval
+}
+
 /// S4: analyze a transition VALUE-return expression and enforce its declared
 /// return range. Gated on the return type carrying a range constraint -- only
 /// then is the (otherwise un-validated) transition-value return analyzed, so
@@ -270,11 +321,10 @@ pub(crate) fn validate_return_value_range(
         // narrowing store obligation too. A value proven within `[a..=b]` already
         // fits the type, so the narrowing check adds no rejection here; it is
         // present only for uniformity with the unconstrained branch.
-        let before = diagnostics.len();
-        let (interval, source, source_domain) = super::validate_value_range_retaining_decisions(
+        let interval = analyzed_return_interval_and_narrowing(
             program,
             machine,
-            Some(state),
+            state,
             return_expression,
             environment,
             return_primitive,
@@ -283,25 +333,6 @@ pub(crate) fn validate_return_value_range(
             diagnostics,
             decisions,
         );
-        if diagnostics.len() == before {
-            let (source, source_domain) = stored_value_carrier(
-                program,
-                machine,
-                Some(state),
-                return_expression,
-                source,
-                source_domain,
-            );
-            check_narrowing_assignment(
-                return_primitive,
-                return_domain,
-                interval,
-                source,
-                source_domain,
-                owner,
-                diagnostics,
-            );
-        }
         enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
         return;
     }
@@ -311,11 +342,10 @@ pub(crate) fn validate_return_value_range(
     // On a clean value, add the narrowing store obligation too -- a value that fits
     // its source type but not the return type (`-> i8 { _ -> (300) }`) is a silent
     // truncation.
-    let before = diagnostics.len();
-    let (interval, source, source_domain) = super::validate_value_range_retaining_decisions(
+    analyzed_return_interval_and_narrowing(
         program,
         machine,
-        Some(state),
+        state,
         return_expression,
         environment,
         return_primitive,
@@ -324,25 +354,6 @@ pub(crate) fn validate_return_value_range(
         diagnostics,
         decisions,
     );
-    if diagnostics.len() == before {
-        let (source, source_domain) = stored_value_carrier(
-            program,
-            machine,
-            Some(state),
-            return_expression,
-            source,
-            source_domain,
-        );
-        check_narrowing_assignment(
-            return_primitive,
-            return_domain,
-            interval,
-            source,
-            source_domain,
-            owner,
-            diagnostics,
-        );
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
