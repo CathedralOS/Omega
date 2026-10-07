@@ -230,6 +230,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         } => values.extend([*start, *end, *length]),
         O::ElementViewRead { index, length, .. } => values.extend([*index, *length]),
         O::IntegerConstant { .. }
+        | O::SelectImplementation { .. }
         | O::BooleanConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::IntegerStructuralField { .. }
@@ -345,6 +346,19 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             if !crash_continuations.is_empty() {
                 return false;
             }
+            values.extend(arguments);
+        }
+        // The selector is an operand: the dispatched table row is live data.
+        O::CallDynamic {
+            selector,
+            arguments,
+            crash_continuations,
+            ..
+        } => {
+            if !crash_continuations.is_empty() {
+                return false;
+            }
+            values.push(*selector);
             values.extend(arguments);
         }
         O::CallStructural { .. } => return false,

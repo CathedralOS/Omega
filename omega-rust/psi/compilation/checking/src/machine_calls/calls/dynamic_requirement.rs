@@ -13,8 +13,8 @@
 //! unfittable envelope) rejects here, at the call that would need it.
 
 use super::{
-    Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle,
-    TypedTrees, ValueEnvironment, WritableRoots,
+    Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle, TypedTrees,
+    ValueEnvironment, WritableRoots,
 };
 use typed_trees::machine::GenericConformanceBound;
 use typed_trees::signature::StateSignature;
@@ -22,16 +22,18 @@ use typed_trees::trait_definition::TraitDefinition;
 
 /// One requirement selected through a `dyn Trait<Args>` selector, with the
 /// requirement's declaring-trait arguments the selector's application implies.
-pub(super) struct DynamicSelectorCall<'program> {
-    pub(super) signature: &'program StateSignature,
-    pub(super) trait_definition: &'program TraitDefinition,
-    pub(super) bound: GenericConformanceBound,
+pub(crate) struct DynamicSelectorCall<'program> {
+    /// The selector operand's `dyn Trait<Args>` type.
+    pub(crate) selector_type: TypeReferenceHandle,
+    pub(crate) signature: &'program StateSignature,
+    pub(crate) trait_definition: &'program TraitDefinition,
+    pub(crate) bound: GenericConformanceBound,
 }
 
 /// Recognize `Trait::member(selector, ...)`: `receiver` names a trait and the
 /// first operand is a selector. `Ok(None)` leaves every other call to its own
 /// route; a recognized call that cannot dispatch is an error.
-pub(super) fn dynamic_selector_call<'program>(
+pub(crate) fn dynamic_selector_call<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
     state: Option<&State>,
@@ -42,13 +44,19 @@ pub(super) fn dynamic_selector_call<'program>(
     let Some(&selector) = arguments.first() else {
         return Ok(None);
     };
+    // Stage 04 retargets a selector call to its instantiated slot; the slot
+    // names the requirement the call was checked against.
+    let target = program
+        .dynamic_slot_by_symbol(target)
+        .map_or(target, |slot| slot.requirement);
     if !receiver.is_valid() || program.symbols.get(receiver).kind != symbols::SymbolKind::Trait {
         return Ok(None);
     }
-    let Some((selector_trait, selector_arguments)) = selector_type(program, machine, state, selector)
-        .and_then(|selector_type| {
-            crate::declarations::traits::dynamic_selector_application(program, selector_type)
-        })
+    let Some(selector_type) = selector_type(program, machine, state, selector) else {
+        return Ok(None);
+    };
+    let Some((selector_trait, selector_arguments)) =
+        crate::declarations::traits::dynamic_selector_application(program, selector_type)
     else {
         return Ok(None);
     };
@@ -90,15 +98,16 @@ pub(super) fn dynamic_selector_call<'program>(
             declaring.name
         ));
     };
-    if let Some(reason) =
-        crate::declarations::traits::dynamic_requirement_ineligibility(program, declaring, signature)
-    {
+    if let Some(reason) = crate::declarations::traits::dynamic_requirement_ineligibility(
+        program, declaring, signature,
+    ) {
         return Err(format!(
             "requirement `{}::{}` is absent from `dyn {}`: {reason}",
             declaring.name, signature.name, selector_definition.name
         ));
     }
     Ok(Some(DynamicSelectorCall {
+        selector_type,
         signature,
         trait_definition: declaring,
         bound: GenericConformanceBound {
@@ -191,7 +200,7 @@ fn validate_family_tuple(
 
 /// The trait an expression call's receiver names (`Trait` in
 /// `Trait::member(...)`), or the invalid symbol.
-pub(super) fn expression_trait_receiver(
+pub(crate) fn expression_trait_receiver(
     program: &TypedTrees,
     receiver: ExpressionHandle,
 ) -> symbols::SymbolHandle {

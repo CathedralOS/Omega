@@ -341,30 +341,34 @@ helper that passes does not close an item.
   implementations under [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md).
   The implementation selector and every data argument have distinct identities;
   no argument is an erased subject and no caller requires an attachment.
-  - Current frontier: the data-attached route is deleted below checking
-    (stage 04 dispatch plans, stage 05 composed dynamic units, stage 07
-    rejoin, the Terminal `CallDynamic*`/descriptor catalog, interpreter
-    descriptors, Omega descriptor lowering, adapters and image replay).
-    `dyn Trait<Args>` parses with trait arguments and types as an
-    unrestricted one-word selector; `Impl as dyn Trait<Args>` must name a
-    closed implementation of exactly that application; `Trait::member(selector,
-    data...)` checks the operands after the selector through the evidence-call
-    path (`checking/src/machine_calls/calls/dynamic_requirement.rs`), including
-    the finite-family roster. Data-place conversions, receiver-style selector
-    calls, mismatched applications and `dyn Data::Implementation` reject. The
-    rewritten customers (`pass/traits/runtime_dyn_*`, `dyn_finite_family_dispatch`)
-    check; the runtime ones stop at stage 04 because a dynamic call has no
-    unit plan yet.
-  - Next: stage 04 plans a dynamic call against the requirement's instantiated
-    signature (requirements are `StateSignature`s, not states; a bodyless
-    requirement-dispatch machine per selected application and requirement is
-    the intended callee), with a dynamic call route carrying the selector as a
-    scalar operand. `Impl as dyn Trait<Args>` lowers to a selection scalar.
-    Terminal gains an interface/table catalog, a `SelectImplementation`
-    operation and a dynamic callee on the ordinary call operations; the
-    interpreter dispatches through the table. Zero-data calls, several data
-    arguments, owned results, rebinding, joins, storage and forwarding then use
-    ordinary value flow and call machinery.
+  - Current frontier: Psi produces runtime selection end to end. Checking
+    instantiates each reached requirement under its selector application into
+    a slot (`monomorphization/dynamic_slots.rs`; `TypedTrees::dynamic_slots`)
+    and retargets each selector call to it, selector first, so every
+    operand/borrow/frame analysis sees a concrete bodyless callee. Stage 04
+    plans Unit-route (`CheckedUnitCallRoute::Dynamic`) and computation-route
+    (`CheckedScalarCallee::Dynamic`) calls plus a `CheckedDynamicSlotPlan`
+    per slot; stage 05 emits `SelectImplementation`/`CallDynamic`, roots each
+    selected implementation's rows in the closure and assembles the module's
+    interface/table catalog from the slot plans. All six `pass/traits/runtime_dyn_*`
+    customers reach Terminal and stop only at Omega native lowering
+    (`UnsupportedDynamicDispatch`), owned by the native item below.
+  - Next: a requirement with `requires`/`ensures`, a suspending requirement, a
+    structural result through a selector, a selector call inside a staged
+    argument group and a finite-family selector call (which keeps its
+    requirement target, unslotted) each decline at planning; a requirement
+    with published crash routes keeps no crash-refinement row because its
+    operands lead with the selector. Termination treats a selector call as an
+    edge to every implementation selected for its slot, so a recursion cycle
+    through runtime selection rejects (`fail/traits/dyn_selector_reentry_unranked`)
+    until a ranking crosses a dispatch edge. Requirement contracts at a
+    selector call are not yet paired with the slot's operands by checking.
+    Inside `Loop satisfies Walk<Node> { machine walk(...) }`, a selector call
+    `Walk::walk(again, subject)` reaches checking with `Loop::walk` as its
+    target (stage 02 resolves the trait receiver's requirement; a later pass
+    rebinds it), so it reports "`Walk` declares no requirement named `walk`"
+    plus non-tail self-recursion. Package review does not yet consume the new records, and
+    `source/psi/` has no producer parity.
   - Own Psi dynamic checking/facts and stages 04/05/07, Terminal selection/call
     representation and codec, the interpreter, and corresponding `source/psi/`
     producers. Preserve exact rows, contracts, finite families, proof actuals

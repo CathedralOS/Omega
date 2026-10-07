@@ -165,6 +165,11 @@ pub(crate) fn call_target_parameters(
     program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
 ) -> Option<&[typed_trees::signature::StateParameter]> {
+    // A selector call's slot pairs the selector operand and the
+    // instantiated requirement formals with the call's operands.
+    if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {
+        return Some(&slot.parameters);
+    }
     if target_state_symbol.is_valid()
         && let Some(machine) = crate::lookup::machine_by_symbol(program, target_state_symbol)
     {

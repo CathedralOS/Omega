@@ -23,7 +23,7 @@ use super::{
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, PermissionEventSource,
-    StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
+    StatementNode, SymbolHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
@@ -1873,7 +1873,7 @@ fn consume_result(
     // boundary structural result is not such a copy.
     let unrestricted_copy = match &*producer {
         CheckedUnitEffectOperationPlan::Call(call) => {
-            !call.is_boundary()
+            call.is_module()
                 && call
                     .structural_result()
                     .is_some_and(|result| result.multiplicity == Multiplicity::Unrestricted)

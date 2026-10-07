@@ -156,11 +156,11 @@ pub use declarations::operators::{
     validate_closed_operator_application, validate_named_operator_application,
 };
 pub use declarations::traits::{
-    DynamicImplementationSelection, collect_dynamic_implementation_selections,
-    compose_forwarded_trait_arguments,
-    generic_bound_operator_requirement, resolve_closed_requirement_application,
-    resolve_dynamic_call_targets, resolve_selected_dynamic_call_targets,
-    revalidate_top_level_requirement_realization,
+    DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
+    collect_dynamic_slot_demands, compose_forwarded_trait_arguments, dynamic_call_demand,
+    dynamic_expression_call_demand, generic_bound_operator_requirement,
+    resolve_closed_requirement_application, resolve_dynamic_call_targets,
+    resolve_selected_dynamic_call_targets, revalidate_top_level_requirement_realization,
 };
 pub use machine_calls::effect_inference::{
     declared_machine_invocations, declared_signature_invocations,
@@ -253,7 +253,7 @@ pub use value_custody::type_references::normalize_open_index_expressions;
 pub use value_custody::type_references::{
     closed_float_range_endpoint, closed_integer_range_bound, closed_integer_range_maximum,
     closed_scalar_result_range, declared_integer_range, ieee_float_range_ordered,
-    is_arithmetic_policy_only_integer, unrestricted_builtin_primitive,
+    is_arithmetic_policy_only_integer, is_plain_scalar_storage, unrestricted_builtin_primitive,
 };
 
 pub use proof_contracts::arithmetic_domains::arrival_integer_expression_bounds;

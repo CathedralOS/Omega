@@ -38,8 +38,7 @@ pub(super) fn coordinate(
     // A scalar graph retains only ordinary Unit calls.
     match operation.call() {
         Some(call)
-            if !call.is_boundary()
-                && *call.result() == checked_trees::CheckedUnitCallResult::Unit =>
+            if call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit =>
         {
             Ok(call.coordinate)
         }
@@ -112,7 +111,7 @@ pub(super) fn prepare(
     let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
         .call()
         .filter(|call| {
-            !call.is_boundary()
+            call.is_module()
                 && !matches!(
                     call.result(),
                     checked_trees::CheckedUnitCallResult::Scalar(_)

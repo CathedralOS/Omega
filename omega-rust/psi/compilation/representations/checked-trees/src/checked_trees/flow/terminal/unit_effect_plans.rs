@@ -42,6 +42,8 @@ pub struct CheckedUnitEffectPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
+    /// The call shape of every instantiated selector-call slot.
+    pub dynamic_slots: Vec<crate::CheckedDynamicSlotPlan>,
     pub machines: Vec<CheckedUnitEffectMachinePlan>,
     /// Multi-state Unit machines whose exact control and effect rows were
     /// admitted as one atomic executable plan.

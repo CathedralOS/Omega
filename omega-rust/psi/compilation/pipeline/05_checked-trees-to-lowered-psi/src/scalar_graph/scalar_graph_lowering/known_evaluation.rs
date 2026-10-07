@@ -105,6 +105,7 @@ pub(crate) fn evaluate_known_scalar_graph(
                 }
                 LoweredScalarBinding::DirectCall(_)
                 | LoweredScalarBinding::BoundaryCall(_)
+                | LoweredScalarBinding::DynamicCall(_)
                 | LoweredScalarBinding::StoredValue { .. }
                 | LoweredScalarBinding::SelectedComparison { .. } => None,
             };
@@ -229,6 +230,7 @@ pub(crate) fn evaluate_direct_expression(
             Some(KnownDirectScalar::Integer(*value))
         }
         LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::ImplementationSelection { .. }
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }

@@ -118,7 +118,10 @@ fn typed_value_kind(
             PrimitiveType::U16 => FloatSemanticValueKind::Integer(IntegerCarrier::U16),
             PrimitiveType::U32 => FloatSemanticValueKind::Integer(IntegerCarrier::U32),
             PrimitiveType::U64 => FloatSemanticValueKind::Integer(IntegerCarrier::U64),
-            PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Addr => return None,
+            PrimitiveType::F32
+            | PrimitiveType::F64
+            | PrimitiveType::Addr
+            | PrimitiveType::Selector => return None,
         });
     }
     if super::is_exact_toolchain_float_meaning_type(program, type_reference) {

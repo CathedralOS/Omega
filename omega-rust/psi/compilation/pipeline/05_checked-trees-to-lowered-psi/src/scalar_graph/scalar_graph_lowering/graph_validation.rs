@@ -48,6 +48,9 @@ fn scalar_binding_contains_short_circuit(binding: &LoweredScalarBinding) -> bool
             .arguments
             .iter()
             .any(direct_expression_contains_short_circuit),
+        LoweredScalarBinding::DynamicCall(call) => std::iter::once(&call.selector)
+            .chain(&call.arguments)
+            .any(direct_expression_contains_short_circuit),
         LoweredScalarBinding::StoredValue { value, .. } => {
             direct_expression_contains_short_circuit(value)
         }

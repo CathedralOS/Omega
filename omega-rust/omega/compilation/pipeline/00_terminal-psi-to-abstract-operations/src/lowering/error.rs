@@ -5,6 +5,9 @@ pub enum LoweringError {
     /// Native publication must retain executable reference loan custody before
     /// admitting carrier establishment or release.
     UnsupportedReferenceCustody(semantic_vocabulary::OperationId),
+    /// Native realization has no implementation-table selection or indirect
+    /// dynamic call yet (RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY).
+    UnsupportedDynamicDispatch(semantic_vocabulary::OperationId),
     InvalidPrimitiveLocalEstablishment(semantic_vocabulary::OperationId),
     InvalidPrimitiveScalarRead(semantic_vocabulary::OperationId),
     InvalidStructuralCaseMembership(semantic_vocabulary::OperationId),

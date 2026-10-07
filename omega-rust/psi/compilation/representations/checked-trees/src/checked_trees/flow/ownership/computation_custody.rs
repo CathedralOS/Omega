@@ -133,21 +133,20 @@ impl CallTransfers<'_> {
         let plans = &self.values.scalar_computations;
         match &plans.nodes.get(root).kind {
             CheckedScalarComputationKind::Call {
-                arguments,
-                structural_arguments,
-                ..
-            }
-            | CheckedScalarComputationKind::BoundaryCall {
+                callee,
                 arguments,
                 structural_arguments,
                 ..
             } => {
-                plans
-                    .operands
-                    .span_or_empty(*arguments)
-                    .iter()
-                    .map(|argument| self.computation(*argument))
-                    .sum::<usize>()
+                callee
+                    .selector()
+                    .map_or(0, |selector| self.computation(selector))
+                    + plans
+                        .operands
+                        .span_or_empty(*arguments)
+                        .iter()
+                        .map(|argument| self.computation(*argument))
+                        .sum::<usize>()
                     + plans
                         .structural_arguments
                         .span_or_empty(*structural_arguments)

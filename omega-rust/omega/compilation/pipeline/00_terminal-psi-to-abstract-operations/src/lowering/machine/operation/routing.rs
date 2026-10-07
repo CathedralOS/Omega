@@ -25,6 +25,9 @@ pub(super) fn lower(
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::SelectImplementation { .. } | OperationKind::CallDynamic { .. } => {
+            Err(LoweringError::UnsupportedDynamicDispatch(operation.id))
+        }
         OperationKind::EstablishReference { source } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedReferenceCustody(operation.id));

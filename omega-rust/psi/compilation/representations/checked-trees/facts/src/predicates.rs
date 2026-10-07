@@ -134,6 +134,14 @@ pub enum CheckedScalarExpression {
     IeeeFloatLiteral {
         value: semantic_vocabulary::IeeeFloatValue,
     },
+    /// `Implementation as dyn Trait<Args>`: a selector naming the
+    /// implementation's table for the interface `interface_identity` names
+    /// (the normalized selector type). It is a constant: evaluating it reads
+    /// no data.
+    ImplementationSelection {
+        implementation: symbols::SymbolHandle,
+        interface_identity: String,
+    },
     IntegerBinary {
         kind: CheckedIntegerBinaryKind,
         primitive_type: typed_trees::types::PrimitiveType,
@@ -242,7 +250,8 @@ impl CheckedScalarExpression {
             | Self::Local { .. }
             | Self::StructuralParameterField { .. }
             | Self::IntegerLiteral { .. }
-            | Self::IeeeFloatLiteral { .. } => false,
+            | Self::IeeeFloatLiteral { .. }
+            | Self::ImplementationSelection { .. } => false,
         }
     }
 
@@ -283,6 +292,7 @@ impl CheckedScalarExpression {
                 semantic_vocabulary::IeeeFloatValue::Binary64(_) => PrimitiveType::F64,
             }),
             Self::Boolean(_) => Some(PrimitiveType::Bool),
+            Self::ImplementationSelection { .. } => Some(PrimitiveType::Selector),
         }
     }
 }

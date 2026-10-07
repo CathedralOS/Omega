@@ -318,9 +318,11 @@ evidence are complete.
 `FINITE-GENERIC-DISPATCH` implements the
 [explicit family contract](../../../../wiki/spec/language/generics.md#finite-specialization-boundary)
 and [dynamic rows](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
-No dynamic dispatch lowering exists below checking until the
-named-implementation selector route lands, so tuple expansion, runtime family
-selection, and indexed result custody are all unimplemented. Explicit source disjunctions, not
+Runtime selection lowers through instantiated selector slots
+(`04_typed-trees-to-checked-trees/src/monomorphization/dynamic_slots.rs`), but a
+finite-family selector call keeps its requirement target and declines, so tuple
+expansion, runtime family selection, and indexed result custody are all
+unimplemented. Explicit source disjunctions, not
 integer ranges or current callers, define the roster. Keep const rejection,
 target coverage, and table completeness; no general reflection, implicit boxing,
 or runtime-dependent inline storage is part of this work.

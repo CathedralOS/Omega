@@ -273,7 +273,7 @@ fn is_view_element_copy(
 /// keeps the copy declined.
 fn plain_or_policy_scalar_field(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { .. } => true,
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
         TypeReferenceNode::Constrained {
             base_type,
             constraints,

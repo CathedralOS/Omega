@@ -291,6 +291,7 @@ fn shared_integer_runtime_inputs(
         }
         CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
+        | CheckedScalarExpression::ImplementationSelection { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::ErasedParameter { .. }

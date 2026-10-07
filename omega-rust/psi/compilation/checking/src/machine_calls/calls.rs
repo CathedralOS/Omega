@@ -27,7 +27,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod argument_bounds;
 mod call_gates;
-mod dynamic_requirement;
+pub(crate) mod dynamic_requirement;
 mod expression_scanning;
 mod generic_bounds;
 mod generic_requirement;

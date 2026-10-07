@@ -474,7 +474,9 @@ pub(crate) fn primitive_range(primitive: PrimitiveType) -> Option<(BigInt, BigIn
         PrimitiveType::U16 => (0, i128::from(u16::MAX)),
         PrimitiveType::U32 => (0, i128::from(u32::MAX)),
         PrimitiveType::U64 | PrimitiveType::Addr => (0, i128::from(u64::MAX)),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => return None,
+        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+            return None;
+        }
     };
     Some((BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
 }

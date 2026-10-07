@@ -973,25 +973,14 @@ impl<'a> Expansion<'a> {
             }
             CheckedScalarComputationKind::Call {
                 source_call,
-                target_machine,
-                target_state,
-                call_ordinal,
-                arguments,
-                structural_arguments,
-                temporary_cleanups,
-            }
-            | CheckedScalarComputationKind::BoundaryCall {
-                source_call,
-                target_machine,
-                target_state,
+                callee,
                 call_ordinal,
                 arguments,
                 structural_arguments,
                 temporary_cleanups,
             } => self.call(
                 source_call,
-                target_machine,
-                target_state,
+                &callee,
                 call_ordinal,
                 arguments,
                 structural_arguments,

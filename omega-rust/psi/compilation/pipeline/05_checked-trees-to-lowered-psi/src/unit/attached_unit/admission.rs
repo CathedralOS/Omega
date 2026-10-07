@@ -96,10 +96,13 @@ fn retain_nested_boundary_applications<'a>(
     }
     for node in crate::expression_preparation::computation_graph::reachable_nodes(checked, &roots)?
     {
-        let checked_trees::CheckedScalarComputationKind::BoundaryCall {
+        let checked_trees::CheckedScalarComputationKind::Call {
             source_call,
-            target_machine,
-            target_state,
+            callee:
+                checked_trees::CheckedScalarCallee::Boundary {
+                    machine: target_machine,
+                    state: target_state,
+                },
             ..
         } = computations.nodes.get(node).kind
         else {

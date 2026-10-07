@@ -416,6 +416,9 @@ pub(super) fn emit(
                 machine.partition_compositions,
                 terminal_machine,
                 identity_base,
+                std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+                    checked,
+                )),
                 catalog.machine_ids,
                 catalog.requirement_counts,
                 catalog.cleanup_receivers,

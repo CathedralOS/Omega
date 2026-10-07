@@ -568,7 +568,12 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             .expect("validated scalar requirements have canonical encodings")
     });
     scalar_requirements.dedup();
-    let mut operations = OperationBuffer::new(operation_identity_base);
+    let mut operations = OperationBuffer::new(
+        operation_identity_base,
+        std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+            checked,
+        )),
+    );
     let mut scalar_values = Vec::with_capacity(
         scalar_parameter_count
             .checked_add(plan.bindings.len())

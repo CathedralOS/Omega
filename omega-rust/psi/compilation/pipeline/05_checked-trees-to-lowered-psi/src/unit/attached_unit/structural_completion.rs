@@ -176,7 +176,7 @@ pub(super) fn validate(
                     // An ordinary structural call.
                     CheckedUnitEffectOperationPlan::Call(call)
                         if let Some(candidate) = call.structural_result()
-                            && !call.is_boundary()
+                            && call.is_module()
                             && candidate.binding_ordinal == binding_ordinal =>
                     {
                         Some((candidate, call.coordinate.call_ordinal == 0))

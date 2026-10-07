@@ -153,7 +153,10 @@ pub(super) fn admit(
                         (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(_)) => {
                             "state graph: operation custody: scalar call"
                         }
-                        (CheckedUnitCallRoute::Module { .. }, _) => call_custody_refusal(
+                        (
+                            CheckedUnitCallRoute::Module { .. } | CheckedUnitCallRoute::Dynamic { .. },
+                            _,
+                        ) => call_custody_refusal(
                             &call.structural_arguments,
                             &operations[..operation_index],
                         ),

@@ -349,7 +349,7 @@ pub fn canonical_const_identity(type_name: &str, encoding: &str) -> String {
 fn primitive_integer_range(primitive: crate::types::PrimitiveType) -> Option<(i128, i128)> {
     use crate::types::PrimitiveType::*;
     match primitive {
-        Bool | F32 | F64 => None,
+        Bool | F32 | F64 | Selector => None,
         I8 => Some((i128::from(i8::MIN), i128::from(i8::MAX))),
         I16 => Some((i128::from(i16::MIN), i128::from(i16::MAX))),
         I32 => Some((i128::from(i32::MIN), i128::from(i32::MAX))),

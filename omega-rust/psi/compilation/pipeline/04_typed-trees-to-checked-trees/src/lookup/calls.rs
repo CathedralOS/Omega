@@ -181,6 +181,11 @@ pub(crate) fn resolve_state_call_target(
     {
         return requirement.symbol;
     }
+    // A selector call's trait receiver is a namespace, not storage; its slot
+    // is the callable the call graph keeps (see `instantiate_dynamic_slots`).
+    if program.dynamic_slot_by_symbol(target_symbol).is_some() {
+        return target_symbol;
+    }
     // A legacy boundary operator is a callable requirement, not a machine
     // state. Keep its declaration identity in the ordinary call graph; the
     // provider remains an Omega-side choice after Terminal publication.

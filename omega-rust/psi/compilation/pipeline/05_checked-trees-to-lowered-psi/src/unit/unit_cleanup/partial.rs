@@ -43,7 +43,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         .any(|operation| {
             // Only an ordinary Unit call projects an owned parameter here.
             let Some(call) = operation.call().filter(|call| {
-                !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
             }) else {
                 return false;
             };
@@ -112,7 +112,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     for operation in projected_calls {
         // Each projected move is an ordinary Unit call.
         let Some(call) = operation.call().filter(|call| {
-            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+            call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
         }) else {
             return unsupported("partial affine Unit cleanup operation sequence drifted");
         };

@@ -419,6 +419,8 @@ impl Lowerer<'_> {
             wire_encode_obligations: _,
             wire_schema_plans: _,
             machine_specializations: _,
+            // Checking instantiates selector slots after specialization.
+            dynamic_slots: _,
             // Family records are produced after all typed bodies settle.
             target_machine_families: _,
             boundary_calling_plans: _,

@@ -1629,15 +1629,7 @@ fn collect(
         CheckedScalarComputationKind::Call {
             source_call,
             call_ordinal,
-            target_state,
-            arguments,
-            structural_arguments,
-            ..
-        }
-        | CheckedScalarComputationKind::BoundaryCall {
-            source_call,
-            call_ordinal,
-            target_state,
+            callee,
             arguments,
             structural_arguments,
             ..
@@ -1653,7 +1645,7 @@ fn collect(
                 || call.statement_index != statement
                 || validation::exact_external_leaf_boundary_requirement(program, call.target_symbol)
                     .map_or(call.target_symbol, |(requirement, _)| requirement)
-                    != *target_state
+                    != callee.called_signature()
                 || !call.authored_expression.is_valid()
                 || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
                 || facts.flow.control.is_retired(state, call)
@@ -1661,13 +1653,18 @@ fn collect(
                 return None;
             }
             consumed.push(*source_call);
-            for operand in plans.operands.span(*arguments)? {
+            // A runtime implementation selector evaluates before every data operand.
+            for operand in callee
+                .selector()
+                .into_iter()
+                .chain(plans.operands.span(*arguments)?.iter().copied())
+            {
                 collect(
                     program,
                     facts,
                     state,
                     statement,
-                    *operand,
+                    operand,
                     calls,
                     minimum_call_ordinal,
                     active,

@@ -391,6 +391,14 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         CheckedScalarExpression::IeeeFloatLiteral { value } => {
             Ok(LoweredDirectExpression::IeeeFloatLiteral { value: *value })
         }
+        CheckedScalarExpression::ImplementationSelection {
+            implementation,
+            interface_identity,
+        } => Ok(LoweredDirectExpression::ImplementationSelection {
+            implementation: *implementation,
+            interface_identity: interface_identity.clone(),
+            scalar_type: crate::emission::scalar_types::selector_scalar_type(),
+        }),
         CheckedScalarExpression::IntegerBinary {
             kind,
             primitive_type,

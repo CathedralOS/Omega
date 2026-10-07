@@ -31,7 +31,10 @@ pub fn scalar_type_refinement_predicates(
         }
         active.push(current);
         let (base_type, constraints) = match program.type_reference_table.type_reference(current) {
-            TypeReferenceNode::Named { .. } => return Some(predicates),
+            // A selector's trait application refines nothing about its word.
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::DynamicTrait { .. } => {
+                return Some(predicates);
+            }
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,

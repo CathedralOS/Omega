@@ -206,6 +206,8 @@ operation_semantic_rows! {
     CallStructural => ("algebra:call:call-structural", CallComposition, None),
     CallStructuralWithScalarArguments => ("algebra:call:call-structural-with-scalar-arguments", CallComposition, None),
     BoundaryCall => ("algebra:call:boundary-call", CallComposition, None),
+    SelectImplementation => ("schema:operation:select-implementation", LeafDenotation, None),
+    CallDynamic => ("algebra:call:call-dynamic", CallComposition, None),
     PortWrite => ("schema:operation:port-write", LeafDenotation, None),
     IntegerConstant => ("schema:operation:integer-constant", LeafDenotation,
         goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::IntegerLiteral, Denotation::IntegerConstant)),

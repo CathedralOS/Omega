@@ -674,6 +674,22 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
+    // A selector call targets its instantiated slot: the requirement with its
+    // trait arguments substituted and the selector as operand 0. That roster
+    // is the complete write contract of every implementation it can reach.
+    if let Some((_, target_symbol)) = call_site_symbols(program, site)
+        && let Some(slot) = program.dynamic_slot_by_symbol(target_symbol)
+    {
+        return signature_parameters_written_paths(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            &slot.parameters,
+            arguments,
+            inference,
+        );
+    }
     let signature =
         requirement_signature_for_site(program, current_machine, receiver, target, site)?;
     let parameters = program.state_signature_parameters(signature);

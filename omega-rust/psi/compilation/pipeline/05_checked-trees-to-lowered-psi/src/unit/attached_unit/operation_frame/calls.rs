@@ -86,6 +86,7 @@ impl OperationFrame<'_, '_> {
                 self.boundary_structural_call(operation, &inputs)?;
                 Ok(None)
             }
+            (CheckedUnitCallRoute::Dynamic { .. }, _) => self.dynamic_call(operation, &inputs),
         }
     }
 
@@ -97,7 +98,7 @@ impl OperationFrame<'_, '_> {
     /// authored read would resolve to it. A discarded result keeps its typed
     /// operation result without occupying a source position; a staged result
     /// goes back to the route.
-    fn bind_scalar_result(
+    pub(super) fn bind_scalar_result(
         &mut self,
         coordinate: checked_trees::CheckedUnitCallCoordinate,
         value: ValueDeclaration,
@@ -337,7 +338,7 @@ impl OperationFrame<'_, '_> {
         // An ordinary call with a Unit or structural result.
         let Some(call) = operation
             .call()
-            .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
+            .filter(|call| call.is_module() && call.scalar_result().is_none())
         else {
             return unsupported("internal Unit call custody drifted before emission");
         };
@@ -419,7 +420,7 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let Some((call, result)) = operation
             .call()
-            .filter(|call| !call.is_boundary())
+            .filter(|call| call.is_module())
             .and_then(|call| Some((call, call.structural_result()?)))
         else {
             return unsupported("claim-free structural call custody drifted before emission");
@@ -658,7 +659,7 @@ impl OperationFrame<'_, '_> {
         let checked = self.checked;
         let Some((call, result)) = operation
             .call()
-            .filter(|call| !call.is_boundary())
+            .filter(|call| call.is_module())
             .and_then(|call| Some((call, call.scalar_result()?)))
         else {
             return unsupported("Unit scalar call custody drifted before emission");

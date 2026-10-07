@@ -55,6 +55,7 @@ pub(super) fn extend_runtime_adjacency(
     proof_only: &ProofOnlyClassification,
     adjacency: &mut [Vec<usize>],
 ) {
+    let dispatched = dispatched_implementations(program);
     for (index, machine) in program.machines().iter().enumerate() {
         if proof_only.is_proof_machine(program, machine) {
             continue;
@@ -68,7 +69,14 @@ pub(super) fn extend_runtime_adjacency(
             }
         }
         for target in targets {
-            if let Some(callee) = target_machine(program, target)
+            if let Some((_, implementations)) = dispatched.iter().find(|(slot, _)| *slot == target)
+            {
+                // A selector call reaches whichever implementation is
+                // selected, including the caller itself; a dispatch
+                // self-edge is kept because the direct self-call judgment
+                // never sees it.
+                adjacency[index].extend(implementations.iter().copied());
+            } else if let Some(callee) = target_machine(program, target)
                 && callee != index
             {
                 adjacency[index].push(callee);
@@ -77,6 +85,49 @@ pub(super) fn extend_runtime_adjacency(
         adjacency[index].sort_unstable();
         adjacency[index].dedup();
     }
+}
+
+/// Every implementation machine a selector call through each slot can
+/// enter: the rows, for the slot's requirement, of every implementation
+/// selected for the slot's interface. A selector names its table at runtime,
+/// so termination must treat the call as an edge to each of them.
+fn dispatched_implementations(program: &TypedTrees) -> Vec<(SymbolHandle, Vec<usize>)> {
+    if program.dynamic_slots.is_empty() {
+        return Vec::new();
+    }
+    let selections = crate::collect_dynamic_implementation_selections(program).unwrap_or_default();
+    program
+        .dynamic_slots
+        .iter()
+        .map(|slot| {
+            let mut implementations = selections
+                .iter()
+                .filter(|selection| {
+                    program
+                        .normalized_type_identity(selection.selector_type)
+                        .as_str()
+                        == slot.interface_identity
+                })
+                .filter_map(|selection| {
+                    program
+                        .conformances()
+                        .iter()
+                        .find(|conformance| conformance.symbol == selection.implementation)
+                })
+                .flat_map(|conformance| {
+                    program
+                        .closed_conformance_rows(conformance)
+                        .unwrap_or_default()
+                        .iter()
+                        .filter(|row| row.requirement == slot.requirement)
+                        .filter_map(|row| target_machine(program, row.realization_machine))
+                })
+                .collect::<Vec<_>>();
+            implementations.sort_unstable();
+            implementations.dedup();
+            (slot.symbol, implementations)
+        })
+        .collect()
 }
 
 pub(super) fn admitted_components(

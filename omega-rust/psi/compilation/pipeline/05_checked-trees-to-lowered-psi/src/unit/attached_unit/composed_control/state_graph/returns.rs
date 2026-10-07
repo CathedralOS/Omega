@@ -37,16 +37,9 @@ pub(super) fn signature_matches(
         // as a normal-return guarantee (`callable::scalar_guarantees`).
         CheckedControlResultPlan::Scalar { primitive_type } => {
             checked.primitive_type_reference(source.return_type) == Some(*primitive_type)
-                && (matches!(
-                    checked
-                        .type_reference_table
-                        .type_reference(source.return_type),
-                    checked_trees::types::TypeReferenceNode::Named { .. }
-                ) || validation::is_arithmetic_policy_only_integer(
-                    &checked.typed,
-                    source.return_type,
-                ) || validation::closed_scalar_result_range(&checked.typed, source.return_type)
-                    .is_some())
+                && (validation::is_plain_scalar_storage(&checked.typed, source.return_type)
+                    || validation::closed_scalar_result_range(&checked.typed, source.return_type)
+                        .is_some())
         }
         CheckedControlResultPlan::Structural(result) => {
             // A borrowed `&[T]` view result names the peeled slice carrier in

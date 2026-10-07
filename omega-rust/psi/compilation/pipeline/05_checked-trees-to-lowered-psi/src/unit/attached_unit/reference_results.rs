@@ -17,7 +17,7 @@ fn ordinary_structural_result(
     &checked_trees::CheckedUnitStructuralResultBindingPlan,
     &checked_trees::CheckedStructuralCallCustodyPlan,
 )> {
-    let call = operation.call().filter(|call| !call.is_boundary())?;
+    let call = operation.call().filter(|call| call.is_module())?;
     Some((call.structural_result()?, call.structural_custody()?))
 }
 

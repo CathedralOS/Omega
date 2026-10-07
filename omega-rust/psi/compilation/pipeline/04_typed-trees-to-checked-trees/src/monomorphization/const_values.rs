@@ -136,7 +136,9 @@ fn integer_value(
         PrimitiveType::U32 => LandedIntegerType::U32,
         PrimitiveType::U64 => LandedIntegerType::U64,
         PrimitiveType::Addr => LandedIntegerType::Addr,
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => return None,
+        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+            return None;
+        }
     };
     Some(ExpressionNode::Integer(
         literal.with_landing(IntegerLanding {

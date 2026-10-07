@@ -296,6 +296,12 @@ pub(crate) fn contract_target_from_state_symbol(
         return None;
     }
 
+    // A selector call targets its instantiated slot; the requirement it
+    // instantiates owns the call's contract, as for any requirement call.
+    if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {
+        return Some((slot.declaring_trait, slot.requirement));
+    }
+
     // Named calls may carry the machine symbol rather than its entry-state
     // symbol. Resolve both forms to the same exact invocation contract.
     if let Some(machine) = crate::lookup::machine_by_symbol(program, target_state_symbol) {

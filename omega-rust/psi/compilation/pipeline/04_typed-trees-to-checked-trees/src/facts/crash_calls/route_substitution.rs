@@ -411,7 +411,8 @@ fn scalar_evidence_is_crash_lane_lowerable(
         | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
-        | CheckedScalarExpression::IeeeFloatLiteral { .. } => true,
+        | CheckedScalarExpression::IeeeFloatLiteral { .. }
+        | CheckedScalarExpression::ImplementationSelection { .. } => true,
     }
 }
 
@@ -769,6 +770,7 @@ fn substitute_checked_scalar_expression(
         CheckedScalarExpression::IeeeFloatLiteral { value } => {
             CheckedScalarExpression::IeeeFloatLiteral { value: *value }
         }
+        CheckedScalarExpression::ImplementationSelection { .. } => expression.clone(),
         CheckedScalarExpression::IntegerBinary {
             kind,
             primitive_type,

@@ -61,7 +61,7 @@ fn operand_contract(
 fn ordinary_unit_call(operation: &CheckedUnitEffectOperationPlan) -> Option<&CheckedUnitCallPlan> {
     operation
         .call()
-        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
+        .filter(|call| call.is_module() && *call.result() == CheckedUnitCallResult::Unit)
 }
 
 /// Whether a call's result can retain no loan of its operands:
@@ -125,7 +125,7 @@ fn validate_linear_result_consumer(
     let (state, operations) = (caller.state, caller.operations);
     let Some((consumer, consumer_result, custody)) = operation
         .call()
-        .filter(|call| !call.is_boundary())
+        .filter(|call| call.is_module())
         .and_then(|call| Some((call, call.structural_result()?, call.structural_custody()?)))
     else {
         return unsupported("linear result operand requires an ordinary structural call");
@@ -1037,7 +1037,7 @@ pub(crate) fn validate_usage(
                 .checked_sub(1)
                 .and_then(|previous| operations.get(previous))
                 .and_then(CheckedUnitEffectOperationPlan::call)
-                .filter(|call| !call.is_boundary() && call.coordinate == *coordinate)
+                .filter(|call| call.is_module() && call.coordinate == *coordinate)
                 .is_some_and(|call| {
                     call.structural_arguments
                         .iter()
@@ -1305,7 +1305,7 @@ pub(crate) fn validate_consumer(
     // structural calls are, not by recognizing the caller's storage
     // spelling. The loan's release is checked by validate_usage.
     let loan_is_accounted = loan_free_call(checked, operation)
-        || (!call.is_boundary()
+        || (call.is_module()
             && call
                 .structural_custody()
                 .is_some_and(|custody| custody.reference_loan.is_valid()));
@@ -1490,7 +1490,7 @@ pub(crate) fn validate_consumer(
         if linear_result_move
             && operation
                 .call()
-                .is_some_and(|call| !call.is_boundary() && call.structural_result().is_some())
+                .is_some_and(|call| call.is_module() && call.structural_result().is_some())
         {
             validate_linear_result_consumer(checked, caller, operation, index, parameter)?;
         }

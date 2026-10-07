@@ -41,12 +41,7 @@ pub(in crate::execution::terminal_unit) fn signature(
         // a closed integer range is a normal-return guarantee the machine
         // contract publishes and its exits prove. Any other refinement (a
         // domain) owes a guarantee this route cannot state.
-        let unrefined = matches!(
-            program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. }
-        );
-        return (unrefined
-            || validation::is_arithmetic_policy_only_integer(program, reference)
+        return (validation::is_plain_scalar_storage(program, reference)
             || validation::closed_scalar_result_range(program, reference).is_some())
         .then_some(CheckedControlResultPlan::Scalar { primitive_type });
     }

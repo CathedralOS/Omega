@@ -213,6 +213,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         facts,
         &mut shapes,
     ));
+    let dynamic_slots = control::build_dynamic_slot_plans(program, &mut shapes);
     let boundary_symbols = boundary_machines
         .iter()
         .map(|plan| plan.machine)
@@ -503,6 +504,12 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 )
                 .chain(plan.result.structural_identity())
         })
+        .chain(dynamic_slots.iter().flat_map(|plan| {
+            plan.structural_parameters
+                .iter()
+                .map(|parameter| parameter.type_identity.as_str())
+                .chain(plan.result.structural_identity())
+        }))
         .chain(candidates.iter().flat_map(|plan| {
             plan.attachment_type_identity
                 .iter()
@@ -880,6 +887,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             shapes.domains
         },
         boundary_machines,
+        dynamic_slots,
         machines: candidates,
         composed_machines,
         gaps,

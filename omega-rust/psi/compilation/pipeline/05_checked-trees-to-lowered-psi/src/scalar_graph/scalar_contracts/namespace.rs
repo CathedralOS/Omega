@@ -91,7 +91,8 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         CheckedScalarExpression::Boolean(predicate) => validate(predicate),
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
-        | CheckedScalarExpression::IeeeFloatLiteral { .. } => Ok(()),
+        | CheckedScalarExpression::IeeeFloatLiteral { .. }
+        | CheckedScalarExpression::ImplementationSelection { .. } => Ok(()),
         // A whole-view extent reads the parameter's own view descriptor — an
         // entry observation the closed namespace admits once the lowering
         // names the retained place. A nested byte-field extent still fails

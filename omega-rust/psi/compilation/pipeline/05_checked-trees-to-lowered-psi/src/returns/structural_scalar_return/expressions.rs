@@ -114,6 +114,7 @@ pub(super) fn is_branch_free_structural_integer_expression(
         // resolved against the retained parameter roster.
         LoweredDirectExpression::ByteSequenceLength { .. } => true,
         LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::ImplementationSelection { .. }
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }

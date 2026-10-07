@@ -20,6 +20,7 @@ mod affine_cleanup_plans;
 mod atomic_plans;
 mod boundary_machine_plans;
 mod composed_unit_control_plans;
+mod dynamic_slot_plans;
 mod result_binding_plans;
 mod return_plans;
 mod scalar_graph_plans;
@@ -57,6 +58,7 @@ pub use composed_unit_control_plans::{
     CheckedNaturalRankMeasure, CheckedScalarCaseFieldPlan, CheckedScalarReturnPlan,
     CheckedStateNaturalRank, CheckedStructuralCaseReturnPlan,
 };
+pub use dynamic_slot_plans::CheckedDynamicSlotPlan;
 pub use result_binding_plans::{
     CheckedByteSequenceStoreDestination, CheckedByteSequenceStorePlan, CheckedByteSequenceValue,
     CheckedByteSequenceValuePlan, CheckedByteSequenceWritePlan, CheckedElementViewWritePlan,

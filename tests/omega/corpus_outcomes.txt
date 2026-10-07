@@ -1771,6 +1771,8 @@ fail/traits/dyn_selector_from_data_place rejected 410ms expected @7f068b5c82b8
 	`item as dyn Shape<Item>` converts a value to `dyn Shape`; a selector is constructed from a named implementation (`Implementation as dyn Shape<...>`) and the data is passed to each call
 fail/traits/dyn_selector_receiver_call rejected 254ms expected @7f068b5c82b8
 	a `dyn Shape` selector is a dispatch operand, not a receiver; call `Shape::code(selector, ...)`
+fail/traits/dyn_selector_reentry_unranked rejected 267ms expected @8ca28fbfc657
+	machine call cycle: `Loop::walk`, `rewalk` -- a member lacks a supported exact ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/traits/dyn_selector_wrong_application rejected 317ms expected @7f068b5c82b8
 	`Primary` implements `Shape<Item>`, not `dyn Shape<Other>`; a selector names exactly the trait application its implementation satisfies
 fail/traits/equatable_field_not_equatable rejected 17ms expected @e3131e3bcd65+wt
@@ -3372,18 +3374,18 @@ pass/traits/generic_trait_parent_binds_requirement checked 267ms @474542aa7f86
 pass/traits/nominal_generic_reference_forwarding_exit checked 13052ms check-target:macos_arm64 @f3a79ef091a9
 pass/traits/nominal_machine_binder_static_dispatch checked 675ms check-target:macos_arm64 @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit checked 3090ms check-target:macos_arm64 @2d8ed253669f
-pass/traits/runtime_dyn_data_argument_counts_exit incomplete 1124ms check-target:macos_arm64 @47d3b5bbd8c+wt
-	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
-pass/traits/runtime_dyn_joined_selector_exit incomplete 1199ms check-target:macos_arm64 @47d3b5bbd8c+wt
-	`Main::main` has no executable body: this compiler does not lower a state of it yet (state graph: state signature: parameter signature: structural parameter type)
-pass/traits/runtime_dyn_local_selection_exit incomplete 1056ms check-target:macos_arm64 @47d3b5bbd8c+wt
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data: structural call binding)
-pass/traits/runtime_dyn_rebound_selector_forwarded_exit incomplete 1139ms check-target:macos_arm64 @47d3b5bbd8c+wt
-	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
-pass/traits/runtime_dyn_selector_record_field_exit incomplete 871ms check-target:macos_arm64 @47d3b5bbd8c+wt
-	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
-pass/traits/runtime_dyn_two_impl_dispatch_exit incomplete 635ms check-target:macos_arm64 @47d3b5bbd8c+wt
-	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
+pass/traits/runtime_dyn_data_argument_counts_exit rejected 1373ms check-target:macos_arm64 @8ca28fbfc657
+	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(5)))
+pass/traits/runtime_dyn_joined_selector_exit rejected 1536ms check-target:macos_arm64 @8ca28fbfc657
+	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(8)))
+pass/traits/runtime_dyn_local_selection_exit rejected 1564ms check-target:macos_arm64 @8ca28fbfc657
+	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(1)))
+pass/traits/runtime_dyn_rebound_selector_forwarded_exit rejected 1586ms check-target:macos_arm64 @8ca28fbfc657
+	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(3)))
+pass/traits/runtime_dyn_selector_record_field_exit rejected 1454ms check-target:macos_arm64 @8ca28fbfc657
+	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(3)))
+pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1470ms check-target:macos_arm64 @8ca28fbfc657
+	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(3)))
 pass/traits/runtime_exact_requirement_edge_exit checked 2044ms check-target:macos_arm64 @e3131e3bcd65+wt
 pass/traits/runtime_inherited_trait_default_exit checked 3274ms check-target:macos_arm64 @c4e45d3dda38+wt
 pass/traits/runtime_named_implementation_selection_exit checked 1127ms check-target:macos_arm64 @65c3b89f46f4+wt

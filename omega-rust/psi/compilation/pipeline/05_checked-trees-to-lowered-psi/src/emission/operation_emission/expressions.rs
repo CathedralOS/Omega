@@ -195,6 +195,13 @@ pub(crate) enum LoweredDirectExpression {
     IeeeFloatLiteral {
         value: IeeeFloatValue,
     },
+    /// `Impl as dyn Trait<Args>`: the selector naming that implementation's
+    /// table for the interface. The selector is an opaque `u64` word.
+    ImplementationSelection {
+        implementation: symbols::SymbolHandle,
+        interface_identity: String,
+        scalar_type: ScalarType,
+    },
     IntegerBinary {
         kind: LoweredIntegerBinaryKind,
         scalar_type: ScalarType,
@@ -293,6 +300,7 @@ impl LoweredDirectExpression {
             | Self::ElementViewRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }
+            | Self::ImplementationSelection { scalar_type, .. }
             | Self::IntegerBinary { scalar_type, .. }
             | Self::SaturatingShiftLeft { scalar_type, .. }
             | Self::IntegerBitwiseNot { scalar_type, .. }
@@ -571,6 +579,25 @@ pub(crate) fn emit_direct_expression(
             next_value_identity,
             operations,
         ),
+        LoweredDirectExpression::ImplementationSelection {
+            implementation,
+            interface_identity,
+            scalar_type,
+        } => {
+            // Checking records a selection for every `Impl as dyn
+            // Trait<Args>` it admits, and the index is built from exactly
+            // those records, so the table always exists.
+            let table = operations
+                .dynamic_dispatch
+                .table(interface_identity, *implementation)
+                .expect("checking records every admitted implementation selection");
+            emit_scalar_leaf(
+                OperationKind::SelectImplementation { table },
+                *scalar_type,
+                next_value_identity,
+                operations,
+            )
+        }
         LoweredDirectExpression::ByteSequenceLength { source, .. } => {
             emit_byte_length(*source, next_value_identity, operations)
         }

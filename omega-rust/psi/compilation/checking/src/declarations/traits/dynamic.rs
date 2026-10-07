@@ -113,7 +113,9 @@ fn collect_selections_in(
         symbol: target_trait,
         name: trait_name,
         arguments,
-    } = program.type_reference_table.type_reference(cast.target_type)
+    } = program
+        .type_reference_table
+        .type_reference(cast.target_type)
     else {
         return;
     };
@@ -146,25 +148,23 @@ fn collect_selections_in(
         )));
         return;
     }
-    let selector_arguments = program.type_reference_table.type_reference_handles(*arguments);
+    let selector_arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
     let implementation_arguments = program
         .type_reference_table
         .type_reference_handles(conformance.arguments);
     let same_application = conformance.trait_symbol == *target_trait
         && selector_arguments.len() == implementation_arguments.len()
-        && selector_arguments
-            .iter()
-            .zip(implementation_arguments)
-            .all(|(selector, implementation)| {
+        && selector_arguments.iter().zip(implementation_arguments).all(
+            |(selector, implementation)| {
                 program.normalized_type_identity(*selector)
                     == program.normalized_type_identity(*implementation)
-            });
+            },
+        );
     if !same_application {
-        let display = |handle: TypeReferenceHandle| {
-            program
-                .type_reference_table
-                .display_name(handle)
-        };
+        let display =
+            |handle: TypeReferenceHandle| program.type_reference_table.display_name(handle);
         let implemented = format!(
             "{}<{}>",
             conformance.trait_name,
@@ -195,6 +195,181 @@ fn collect_selections_in(
         selector_type: cast.target_type,
         target_trait: *target_trait,
     });
+}
+
+/// One requirement a dynamic caller reaches through one selector
+/// application: what stage 04 instantiates into a
+/// [`typed_trees::dynamic_traits::DynamicSlotSignature`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicSlotDemand {
+    /// The `dyn Trait<Args>` selector type.
+    pub selector_type: TypeReferenceHandle,
+    pub declaring_trait: symbols::SymbolHandle,
+    pub requirement: symbols::SymbolHandle,
+    /// The declaring trait's arguments under the selector's application; an
+    /// inherited requirement's declaring trait receives the arguments its
+    /// inheritance edge composes.
+    pub trait_arguments: Vec<TypeReferenceHandle>,
+}
+
+/// Every requirement the program's selections and selector calls reach.
+///
+/// A selection demands its implementation's complete row map, because every
+/// row is a table slot whether or not a call names it. A call demands the
+/// requirement it invokes, which covers a helper that only forwards a
+/// selector it was given. Demands are unique by selector type identity and
+/// requirement. Collection diagnostics are returned unchanged; call checking
+/// reports a malformed selector call.
+pub fn collect_dynamic_slot_demands(
+    program: &TypedTrees,
+) -> Result<Vec<DynamicSlotDemand>, Vec<Diagnostic>> {
+    let mut demands: Vec<(String, DynamicSlotDemand)> = Vec::new();
+    let mut push = |demand: DynamicSlotDemand| {
+        let identity = program
+            .normalized_type_identity(demand.selector_type)
+            .into_string();
+        if !demands.iter().any(|(existing, known)| {
+            *existing == identity && known.requirement == demand.requirement
+        }) {
+            demands.push((identity, demand));
+        }
+    };
+    for selection in collect_dynamic_implementation_selections(program)? {
+        let Some(implementation) = program
+            .conformances()
+            .iter()
+            .find(|conformance| conformance.symbol == selection.implementation)
+        else {
+            continue;
+        };
+        let Some((selector_trait, selector_arguments)) =
+            dynamic_selector_application(program, selection.selector_type)
+        else {
+            continue;
+        };
+        let Some(selector_definition) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == selector_trait)
+        else {
+            continue;
+        };
+        for row in program
+            .closed_conformance_rows(implementation)
+            .unwrap_or_default()
+        {
+            let Some(trait_arguments) = super::arguments_for_declaring_trait(
+                program,
+                selector_definition,
+                selector_arguments,
+                row.declaring_trait,
+                &mut Vec::new(),
+            ) else {
+                continue;
+            };
+            push(DynamicSlotDemand {
+                selector_type: selection.selector_type,
+                declaring_trait: row.declaring_trait,
+                requirement: row.requirement,
+                trait_arguments,
+            });
+        }
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut visited = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::Call(call) = statement
+                    && let Some(demand) = dynamic_call_demand(
+                        program,
+                        machine,
+                        state,
+                        call.receiver_symbol,
+                        call.target_symbol,
+                        program.statement_table.expression_handles(call.arguments),
+                    )
+                {
+                    push(demand);
+                }
+                for root in crate::machine_calls::calls::statement_value_expression_roots(
+                    program, statement,
+                ) {
+                    collect_call_demands_in(program, machine, state, root, &mut visited, &mut push);
+                }
+            }
+        }
+    }
+    Ok(demands.into_iter().map(|(_, demand)| demand).collect())
+}
+
+fn collect_call_demands_in(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    visited: &mut Vec<ExpressionHandle>,
+    push: &mut impl FnMut(DynamicSlotDemand),
+) {
+    if !expression.is_valid() || visited.contains(&expression) {
+        return;
+    }
+    visited.push(expression);
+    let node = program.expression_table.expression(expression);
+    crate::expression_traversal::children(program, node, |child| {
+        collect_call_demands_in(program, machine, state, child, visited, push)
+    });
+    if let ExpressionNode::Call(call) = node
+        && let Some(demand) = dynamic_expression_call_demand(program, machine, state, call)
+    {
+        push(demand);
+    }
+}
+
+/// [`dynamic_call_demand`] for an expression-position call.
+pub fn dynamic_expression_call_demand(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<DynamicSlotDemand> {
+    dynamic_call_demand(
+        program,
+        machine,
+        state,
+        crate::machine_calls::calls::dynamic_requirement::expression_trait_receiver(
+            program,
+            call.receiver,
+        ),
+        call.target_symbol,
+        program.expression_table.expression_handles(call.arguments),
+    )
+}
+
+/// The slot one call reaches when it is `Trait::member(selector, ...)`.
+/// Any other call, or a selector call checking rejects, demands nothing.
+pub fn dynamic_call_demand(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    receiver: symbols::SymbolHandle,
+    target: symbols::SymbolHandle,
+    arguments: &[ExpressionHandle],
+) -> Option<DynamicSlotDemand> {
+    let call = crate::machine_calls::calls::dynamic_requirement::dynamic_selector_call(
+        program,
+        machine,
+        Some(state),
+        receiver,
+        target,
+        arguments,
+    )
+    .ok()??;
+    Some(DynamicSlotDemand {
+        selector_type: call.selector_type,
+        declaring_trait: call.trait_definition.symbol,
+        requirement: call.signature.symbol,
+        trait_arguments: call.bound.arguments,
+    })
 }
 
 /// Why `requirement` cannot be called through `dyn Trait`: its signature or
@@ -243,7 +418,9 @@ pub(crate) fn dynamic_selector_application(
             symbol, arguments, ..
         } => Some((
             *symbol,
-            program.type_reference_table.type_reference_handles(*arguments),
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments),
         )),
         _ => None,
     }
@@ -584,4 +761,3 @@ fn collect_dynamic_requirements_named<'program>(
         collect_dynamic_requirements_named(program, parent_trait, target, visited, matches);
     }
 }
-

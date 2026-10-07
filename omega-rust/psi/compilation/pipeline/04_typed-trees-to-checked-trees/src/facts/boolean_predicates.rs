@@ -842,7 +842,9 @@ pub(crate) fn map_scalar(
         | Scalar::IntegerSaturatingCast { operand, .. }
         | Scalar::IntegerTrappingCast { operand, .. }
         | Scalar::RepresentationView { operand, .. } => map_scalar(operand, map)?,
-        Scalar::IntegerLiteral { .. } | Scalar::IeeeFloatLiteral { .. } => {}
+        Scalar::IntegerLiteral { .. }
+        | Scalar::IeeeFloatLiteral { .. }
+        | Scalar::ImplementationSelection { .. } => {}
         Scalar::StructuralParameterByteLength { .. }
         | Scalar::ErasedParameter { .. }
         | Scalar::StructuralParameterIndexedRead { .. } => return None,

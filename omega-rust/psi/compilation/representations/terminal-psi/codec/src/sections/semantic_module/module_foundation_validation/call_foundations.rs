@@ -61,6 +61,72 @@ pub(super) fn validate_call_unit(
     Ok(())
 }
 
+/// A selector call names one interface slot. Its result and operand arity
+/// follow the slot's call shape; its structural operands present against
+/// the formals of every row the module realizes, which the catalog requires
+/// to match that shape exactly.
+pub(super) fn validate_call_dynamic(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::CallDynamic {
+        interface,
+        slot,
+        arguments,
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &operation.kind
+    else {
+        unreachable!("dispatched validate_call_dynamic")
+    };
+    let Some(shape) = module
+        .dynamic_dispatch
+        .interface(*interface)
+        .and_then(|interface| interface.slots.get(usize::try_from(*slot).ok()?))
+    else {
+        return malformed("dynamic call names an unknown interface slot");
+    };
+    let result_matches = match (&operation.result, shape.result) {
+        (OperationResult::Unit, None) => true,
+        (OperationResult::Scalar(result), Some(expected)) => result.scalar_type == expected,
+        _ => false,
+    };
+    if !result_matches
+        || arguments.len() != shape.scalar_parameters.len()
+        || structural_arguments.len() != shape.structural_parameters.len()
+    {
+        return malformed("dynamic call disagrees with its slot's call shape");
+    }
+    for row in module
+        .dynamic_dispatch
+        .tables
+        .iter()
+        .filter(|table| table.interface == *interface)
+        .filter_map(|table| table.rows.get(*slot as usize).copied().flatten())
+    {
+        let Some(callee) = module.machines.iter().find(|candidate| candidate.id == row) else {
+            return malformed("dynamic table row references an unknown machine");
+        };
+        validate_structural_arguments(
+            module,
+            machine,
+            structural_arguments,
+            &callee.structural_parameters,
+            StructuralArgumentPresentation::Ordinary,
+        )?;
+    }
+    validate_claim_indices(
+        machine,
+        structural_arguments,
+        claim_transfers
+            .iter()
+            .map(|transfer| (transfer.claim, transfer.argument_index)),
+    )?;
+    Ok(())
+}
+
 pub(super) fn validate_call_structural_scalar(
     module: &TerminalModule,
     machine: &TerminalMachine,

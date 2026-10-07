@@ -155,6 +155,7 @@ pub fn structural_scalar_field(
             | PrimitiveType::U64
             | PrimitiveType::F32
             | PrimitiveType::F64
+            | PrimitiveType::Selector
     ) {
         return None;
     }
@@ -735,6 +736,13 @@ fn realized_scalar_carrier(
             }
         }
         reference = *base_type;
+    }
+    // A selector stores one plain word; no bound can restrict it.
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::DynamicTrait { .. }
+    ) {
+        return (!bounded).then_some(PrimitiveType::Selector);
     }
     let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;
     (!bounded

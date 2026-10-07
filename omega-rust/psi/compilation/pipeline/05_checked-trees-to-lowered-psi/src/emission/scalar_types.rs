@@ -18,7 +18,9 @@ pub(crate) fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType
         PrimitiveType::U8 => (IntegerSign::Unsigned, 8),
         PrimitiveType::U16 => (IntegerSign::Unsigned, 16),
         PrimitiveType::U32 => (IntegerSign::Unsigned, 32),
-        PrimitiveType::U64 => (IntegerSign::Unsigned, 64),
+        // A selector is one opaque word naming an implementation table; no
+        // Terminal operation other than a dynamic call inspects it.
+        PrimitiveType::U64 | PrimitiveType::Selector => (IntegerSign::Unsigned, 64),
         PrimitiveType::Addr => unreachable!("address carrier handled above"),
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
             return unsupported("only primitive integers are supported");
@@ -27,6 +29,13 @@ pub(crate) fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType
     IntegerType::new(sign, bits)
         .map(ScalarType::Integer)
         .map_err(|_| LoweringError::InvalidPsiIntegerType)
+}
+
+/// The Terminal carrier of a `dyn Trait<Args>` selector.
+pub(crate) fn selector_scalar_type() -> ScalarType {
+    ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is a valid integer type"),
+    )
 }
 
 pub(crate) fn terminal_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringError> {

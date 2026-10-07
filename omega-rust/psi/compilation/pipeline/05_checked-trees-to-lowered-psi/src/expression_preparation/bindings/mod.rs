@@ -1237,6 +1237,7 @@ impl ScalarBindings {
             CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::StructuralParameterByteLength { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
+            | CheckedScalarExpression::ImplementationSelection { .. }
             | CheckedScalarExpression::ErasedParameter { .. }
             | CheckedScalarExpression::StructuralParameterField { .. } => {}
         }

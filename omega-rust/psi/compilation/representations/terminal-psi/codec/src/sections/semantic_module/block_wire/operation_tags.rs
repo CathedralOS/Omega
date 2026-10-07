@@ -217,3 +217,8 @@ pub(super) const ESTABLISH_STRUCTURAL_ARRAY: u8 = 107;
 
 /// Reference release at a nonempty owned descriptor path.
 pub(super) const PROJECTED_RELEASE_REFERENCE: u8 = 108;
+
+/// `OperationKind::SelectImplementation`.
+pub(super) const SELECT_IMPLEMENTATION: u8 = 109;
+/// `OperationKind::CallDynamic`.
+pub(super) const CALL_DYNAMIC: u8 = 110;

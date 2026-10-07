@@ -22,6 +22,21 @@ pub(super) fn structural_parameters(
         }
         return Ok(&boundary.structural_parameters);
     }
+    // A selector call's slot plan carries the call shape every
+    // implementation realizes.
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_slots
+        .iter()
+        .find(|plan| plan.slot == machine)
+    {
+        if machine != state {
+            return unsupported("computed selector call names two slot coordinates");
+        }
+        return Ok(&plan.structural_parameters);
+    }
     let target =
         crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
             checked, machine,

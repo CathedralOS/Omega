@@ -18,6 +18,7 @@ mod recursive_component_wire;
 
 mod closed_conformance_wire;
 mod declaration_wire;
+mod dynamic_dispatch_wire;
 mod evidence_wire;
 mod float_meaning_wire;
 mod operation_crash_contract_wire;
@@ -108,6 +109,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for candidate in &module.provider_candidates {
         encode_provider_candidate(&mut writer, candidate)?;
     }
+    dynamic_dispatch_wire::encode_dynamic_dispatch(&mut writer, &module.dynamic_dispatch)?;
     writer.len(
         "float-meaning projections",
         module.float_meaning_projections.len(),
@@ -218,6 +220,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
+    let dynamic_dispatch = dynamic_dispatch_wire::decode_dynamic_dispatch(reader)?;
     let float_meaning_projections =
         decode_counted(reader, float_meaning_wire::decode_float_meaning_projection)?;
     let float_meaning_equalities =
@@ -277,6 +280,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         reborrow_restored_call_uses,
         boundary_machines,
         provider_candidates,
+        dynamic_dispatch,
         float_meaning_projections,
         float_meaning_equalities,
         proposition_declarations,

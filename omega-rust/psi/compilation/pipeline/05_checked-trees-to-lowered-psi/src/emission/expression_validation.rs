@@ -100,6 +100,7 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::ImplementationSelection { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. } => Ok(()),
         LoweredDirectExpression::IndexedPrimitiveRead {

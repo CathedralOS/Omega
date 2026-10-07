@@ -150,6 +150,61 @@ fn boundary_scalar_requires(
 /// Project the narrow static boundary-trait surface used by checked-adapter
 /// dispatch. A trait requirement is not an attached machine and therefore
 /// contributes no provider value or structural attachment.
+/// The call shape of every instantiated selector-call slot
+/// (`monomorphization::dynamic_slots`). Every implementation a selector can
+/// reach is a checked body, so the slot's concrete formals take an ordinary
+/// checked callee's parameter classification, not a foreign boundary
+/// presentation; a formal or result the planners cannot present leaves the
+/// slot unplanned, and calls naming it decline at their own plan.
+pub(crate) fn build_dynamic_slot_plans(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+) -> Vec<checked_trees::CheckedDynamicSlotPlan> {
+    let mut plans = Vec::new();
+    for slot in &program.dynamic_slots {
+        let Some(definition) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == slot.declaring_trait)
+        else {
+            continue;
+        };
+        let Some(requirement) = program
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|signature| signature.symbol == slot.requirement)
+        else {
+            continue;
+        };
+        let Some(result) = boundary_result_plan(program, shapes, slot.return_type, &[], &[]) else {
+            continue;
+        };
+        let Some((structural_parameters, scalar_parameters)) =
+            crate::execution::terminal_unit::calls::parameter_signatures(
+                program,
+                shapes,
+                &slot.parameters,
+                &[],
+                &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
+            )
+        else {
+            continue;
+        };
+        plans.push(checked_trees::CheckedDynamicSlotPlan {
+            slot: slot.symbol,
+            interface_identity: slot.interface_identity.clone(),
+            declaring_trait: slot.declaring_trait,
+            requirement: slot.requirement,
+            requirement_identity: program
+                .trait_requirement_callable_identity_text(definition, requirement),
+            structural_parameters,
+            scalar_parameters,
+            result,
+        });
+    }
+    plans
+}
+
 pub(crate) fn build_static_boundary_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,

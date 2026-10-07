@@ -651,6 +651,23 @@ pub(crate) fn lower_scalar_expression(
         )),
         ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
             let target_type = program.primitive_type_reference(cast.target_type)?;
+            // `Implementation as dyn Trait<Args>`: checking admitted the exact
+            // named implementation; the selector names its table.
+            if target_type == PrimitiveType::Selector {
+                let ExpressionNode::Name(name) = program.expression_table.expression(cast.value)
+                else {
+                    return None;
+                };
+                return Some((
+                    CheckedScalarExpression::ImplementationSelection {
+                        implementation: name.symbol,
+                        interface_identity: program
+                            .normalized_type_identity(cast.target_type)
+                            .into_string(),
+                    },
+                    ArithmeticDomain::Exact,
+                ));
+            }
             if matches!(target_type, PrimitiveType::F32 | PrimitiveType::F64)
                 && cast.domain == ArithmeticDomain::Exact
             {
@@ -1026,7 +1043,9 @@ fn land_anonymous_zero(
         PrimitiveType::U32 => LandedIntegerType::U32,
         PrimitiveType::U64 => LandedIntegerType::U64,
         PrimitiveType::Addr => LandedIntegerType::Addr,
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => return None,
+        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+            return None;
+        }
     };
     Some(CheckedScalarExpression::IntegerLiteral {
         literal: literal.with_landing(IntegerLanding {
@@ -1074,7 +1093,11 @@ pub(crate) fn landed_for_primitive(primitive_type: PrimitiveType) -> Option<Land
         PrimitiveType::U16 => LandedIntegerType::U16,
         PrimitiveType::U32 => LandedIntegerType::U32,
         PrimitiveType::U64 => LandedIntegerType::U64,
-        PrimitiveType::Addr | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+        PrimitiveType::Addr
+        | PrimitiveType::Selector
+        | PrimitiveType::Bool
+        | PrimitiveType::F32
+        | PrimitiveType::F64 => {
             return None;
         }
     })
@@ -1236,7 +1259,7 @@ fn scalar_byte_width(primitive_type: PrimitiveType) -> Option<u32> {
         PrimitiveType::U16 | PrimitiveType::I16 => 2,
         PrimitiveType::U32 | PrimitiveType::I32 | PrimitiveType::F32 => 4,
         PrimitiveType::U64 | PrimitiveType::I64 | PrimitiveType::F64 => 8,
-        PrimitiveType::Addr => return None,
+        PrimitiveType::Addr | PrimitiveType::Selector => return None,
     })
 }
 

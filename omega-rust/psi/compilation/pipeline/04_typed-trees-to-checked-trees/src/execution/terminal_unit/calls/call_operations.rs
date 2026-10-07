@@ -199,6 +199,26 @@ pub(in crate::execution) fn build_call_operation(
         );
     }
 
+    if let Some(slot) = program.dynamic_slot_by_symbol(call.target_symbol) {
+        return super::dynamic_call::build(
+            program,
+            facts,
+            scalar_callees,
+            machine,
+            state,
+            caller_parameters,
+            caller_trivial_affine_locals,
+            entry_claims,
+            call,
+            allow_field_path_projection,
+            expected_call_result.as_ref(),
+            caller_structural_results,
+            trace,
+            coordinate,
+            &call_site,
+            slot,
+        );
+    }
     phase("call operation: target state");
     // Source custody can name a machine head or an exact stored state. A
     // machine invokes its entry; an explicitly selected state keeps its own
@@ -325,8 +345,7 @@ pub(in crate::execution) fn build_call_operation(
         state,
         caller_parameters,
         caller_trivial_affine_locals,
-        target_machine,
-        target_state,
+        super::CallTarget::declared(program, target_machine, target_state),
         &call_site,
         call.statement_index,
         allow_field_path_projection,

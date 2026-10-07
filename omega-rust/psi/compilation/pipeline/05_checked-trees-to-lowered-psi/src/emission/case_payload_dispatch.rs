@@ -615,7 +615,8 @@ pub(crate) fn substitute_direct(
         | Direct::ErasedParameter { .. }
         | Direct::Local { .. }
         | Direct::IntegerLiteral { .. }
-        | Direct::IeeeFloatLiteral { .. }) => expression,
+        | Direct::IeeeFloatLiteral { .. }
+        | Direct::ImplementationSelection { .. }) => expression,
     }
 }
 
@@ -813,7 +814,8 @@ fn collect_direct_case_reads(
         | Direct::ErasedParameter { .. }
         | Direct::Local { .. }
         | Direct::IntegerLiteral { .. }
-        | Direct::IeeeFloatLiteral { .. } => {}
+        | Direct::IeeeFloatLiteral { .. }
+        | Direct::ImplementationSelection { .. } => {}
     }
 }
 

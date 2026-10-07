@@ -91,6 +91,7 @@ mod atomic_access;
 mod boundary_calls;
 mod byte_operands;
 mod calls;
+mod dynamic_calls;
 pub(super) use calls::CallInputs;
 
 /// One lowered boundary declaration a call can name.

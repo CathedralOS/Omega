@@ -202,7 +202,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 // Only an ordinary structural call produces a value operand.
                 let (_, discard_result_on_return) = operation
                     .call_mut()
-                    .filter(|call| !call.is_boundary())?
+                    .filter(|call| call.is_module())?
                     .structural_result_mut()?;
                 *discard_result_on_return = false;
                 let mut preparation = preparation.split_off(predecessor_count);

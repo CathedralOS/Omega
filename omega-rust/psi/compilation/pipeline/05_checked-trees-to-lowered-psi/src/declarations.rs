@@ -44,7 +44,7 @@ pub(crate) fn state_declaration(
 
 /// The parameters, result and owner of one callee, by the symbol a call
 /// spells: a machine head or entry state, a boundary operator, a callable
-/// machine parameter, or a boundary requirement.
+/// machine parameter, a boundary requirement, or a selector call's slot.
 pub(crate) struct TargetSignature<'source> {
     pub parameters: &'source [StateParameter],
     pub return_type: TypeReferenceHandle,
@@ -86,6 +86,18 @@ pub(crate) fn target_signature(
     let program = &checked.typed;
     if !source_target.is_valid() {
         return unsupported("call names no live callee");
+    }
+    // A selector call's slot: the selector operand, then the requirement's
+    // instantiated formals.
+    if let Some(slot) = program.dynamic_slot_by_symbol(source_target) {
+        return Ok(TargetSignature {
+            parameters: &slot.parameters,
+            return_type: slot.return_type,
+            boundary: false,
+            machine: slot.symbol,
+            state: slot.symbol,
+            parameter_coordinates: ParameterCoordinates::Authored,
+        });
     }
     // A bodyless external leaf's call source is its exact boundary
     // requirement; the leaf declares no body to supply one.

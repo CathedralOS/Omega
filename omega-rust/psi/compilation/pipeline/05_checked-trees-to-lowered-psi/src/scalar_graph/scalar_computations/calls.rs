@@ -32,6 +32,9 @@ enum Operand {
     /// call reads it through a shared borrow.
     ByteLiteral(literals::Slot),
     Scalar(Argument),
+    /// A selector call's dispatch operand: evaluated first, then named by the
+    /// call as its selector rather than passed as an argument.
+    DispatchSelector(Argument),
     Selector {
         structural_ordinal: usize,
         value: Argument,
@@ -107,6 +110,7 @@ pub(crate) fn consume_pure_call_arguments(
         return unsupported("scalar computation has no live root");
     }
     let CheckedScalarComputationKind::Call {
+        callee: checked_trees::CheckedScalarCallee::Body { .. },
         call_ordinal,
         arguments,
         structural_arguments,
@@ -182,8 +186,11 @@ pub(crate) fn lower_inline_call(
         return unsupported("scalar computation has no live root");
     }
     let CheckedScalarComputationKind::Call {
-        target_machine,
-        target_state,
+        callee:
+            checked_trees::CheckedScalarCallee::Body {
+                machine: target_machine,
+                state: target_state,
+            },
         call_ordinal,
         arguments,
         structural_arguments,
@@ -275,8 +282,7 @@ impl Expansion<'_> {
     pub(super) fn call(
         &mut self,
         source_call: Handle<checked_trees::FlowCallFact>,
-        target_machine: symbols::SymbolHandle,
-        target_state: symbols::SymbolHandle,
+        callee: &checked_trees::CheckedScalarCallee,
         call_ordinal: u32,
         arguments: HandleSpan<Computation>,
         structural: HandleSpan<CheckedScalarComputationStructuralArgument>,
@@ -292,6 +298,11 @@ impl Expansion<'_> {
             return unsupported("scalar computation lost its exact checked invocation");
         }
         let source = control.calls.get(source_call);
+        // A static callee names its machine and entry; a selector call names
+        // its instantiated slot for both coordinates.
+        let (target_machine, target_state) = callee
+            .static_target()
+            .unwrap_or((callee.called_signature(), callee.called_signature()));
         let state = control
             .states
             .iter()
@@ -312,7 +323,7 @@ impl Expansion<'_> {
                 source.target_symbol,
             )
             .map_or(source.target_symbol, |(requirement, _)| requirement)
-                != target_state
+                != callee.called_signature()
         {
             return unsupported("scalar computation invocation coordinate disagrees");
         }
@@ -364,6 +375,13 @@ impl Expansion<'_> {
             // (contracts.md#explicit-erased-bindings); the typed relevance
             // decides that, not the operand roster being validated.
             if source_parameter.relevance.is_erased() {
+                continue;
+            }
+            // A slot's operand 0 is the selector, kept apart from the data.
+            if position == 0
+                && let Some(selector) = callee.selector()
+            {
+                operands.push(Operand::DispatchSelector(Argument::Computation(selector)));
                 continue;
             }
             if let Some(parameter) = parameters.get(structural_ordinal)
@@ -494,6 +512,7 @@ impl Expansion<'_> {
         }
         let mut prefixes = vec![input_types.to_vec()];
         let mut scalar_actuals = Vec::new();
+        let mut selector_actual = None;
         for operand in &operands {
             let mut prefix = prefixes
                 .last()
@@ -505,6 +524,11 @@ impl Expansion<'_> {
                 Operand::Scalar(argument) => {
                     let value_type = self.argument_type(argument, site, input_types)?;
                     scalar_actuals.push(parameter(prefix.len(), value_type));
+                    prefix.push(value_type);
+                }
+                Operand::DispatchSelector(argument) => {
+                    let value_type = self.argument_type(argument, site, input_types)?;
+                    selector_actual = Some(parameter(prefix.len(), value_type));
                     prefix.push(value_type);
                 }
                 Operand::Selector {
@@ -528,7 +552,40 @@ impl Expansion<'_> {
             statement_index: source.statement_index,
             call_ordinal: source.call_ordinal,
         };
-        let call = if signature.boundary {
+        let call = if let checked_trees::CheckedScalarCallee::Dynamic {
+            slot,
+            interface_identity,
+            ..
+        } = callee
+        {
+            let requirement_identity = self
+                .checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .dynamic_slots
+                .iter()
+                .find(|plan| plan.slot == *slot)
+                .map(|plan| plan.requirement_identity.clone())
+                .ok_or(LoweringError::Unsupported(
+                    "selector call names a slot with no checked call shape",
+                ))?;
+            LoweredScalarBinding::DynamicCall(
+                crate::emission::operation_emission::dynamic_calls::LoweredDynamicCallBinding {
+                    source_coordinate: coordinate,
+                    source_expression: source.authored_expression,
+                    slot: *slot,
+                    interface_identity: interface_identity.clone(),
+                    requirement_identity,
+                    result_type,
+                    selector: selector_actual.ok_or(LoweringError::Unsupported(
+                        "selector call lost its dispatch operand",
+                    ))?,
+                    arguments: scalar_actuals,
+                    structural_arguments,
+                },
+            )
+        } else if signature.boundary {
             LoweredScalarBinding::BoundaryCall(crate::emission::operation_emission::boundary_calls::LoweredBoundaryCallBinding {
                 source_coordinate: coordinate,
                 source_expression: source.authored_expression,
@@ -604,6 +661,7 @@ impl Expansion<'_> {
             let prefix = &prefixes[ordinal];
             continuation = match operand {
                 Operand::Scalar(argument)
+                | Operand::DispatchSelector(argument)
                 | Operand::Selector {
                     value: argument, ..
                 } => self.argument(argument, prefix, continuation, site, active)?,

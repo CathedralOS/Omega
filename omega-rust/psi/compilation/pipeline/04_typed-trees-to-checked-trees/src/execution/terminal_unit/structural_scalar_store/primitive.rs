@@ -43,12 +43,7 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
             .expression_table
             .expression_is_valid(local.initial_value)
             && crate::values::zeroed_scalar_local_initializer(program, local).is_none())
-        || !(matches!(
-            program
-                .type_reference_table
-                .type_reference(local.type_reference),
-            TypeReferenceNode::Named { .. }
-        ) || validation::is_arithmetic_policy_only_integer(program, local.type_reference))
+        || !validation::is_plain_scalar_storage(program, local.type_reference)
         || program
             .primitive_type_reference(local.type_reference)
             .is_none()
@@ -541,7 +536,8 @@ fn scalar_expression_needs_no_bindings(
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
-        | CheckedScalarExpression::IeeeFloatLiteral { .. } => true,
+        | CheckedScalarExpression::IeeeFloatLiteral { .. }
+        | CheckedScalarExpression::ImplementationSelection { .. } => true,
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             scalar_expression_needs_no_bindings(left) && scalar_expression_needs_no_bindings(right)
         }

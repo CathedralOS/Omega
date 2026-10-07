@@ -624,6 +624,9 @@ pub(crate) fn call_target_return_type(
     if let Some(state) = crate::semantic::calls::find_state(program, target_state_symbol) {
         return Some(state.return_type);
     }
+    if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {
+        return Some(slot.return_type);
+    }
     if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
         return Some(signature.return_type);
     }

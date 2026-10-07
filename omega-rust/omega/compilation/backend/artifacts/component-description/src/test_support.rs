@@ -45,6 +45,7 @@ pub fn bare_module() -> TerminalModule {
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        dynamic_dispatch: Default::default(),
         float_meaning_projections: Vec::new(),
         float_meaning_equalities: Vec::new(),
         proposition_declarations: Vec::new(),

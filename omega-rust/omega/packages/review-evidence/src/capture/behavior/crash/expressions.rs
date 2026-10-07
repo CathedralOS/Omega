@@ -154,6 +154,8 @@ fn project_scalar_expression(
     Some(match expression {
         CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => return None,
+        // A selector has no public crash-predicate vocabulary.
+        CheckedScalarExpression::ImplementationSelection { .. } => return None,
         CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
             PackageReviewScalarExpression::StructuralParameterByteLength {
                 parameter_position: root.parameter()?,
@@ -419,6 +421,7 @@ const fn project_primitive_type(
         PrimitiveType::U32 => PackageReviewPrimitiveType::U32,
         PrimitiveType::U64 => PackageReviewPrimitiveType::U64,
         PrimitiveType::Addr => PackageReviewPrimitiveType::Addr,
+        PrimitiveType::Selector => PackageReviewPrimitiveType::Selector,
     }
 }
 

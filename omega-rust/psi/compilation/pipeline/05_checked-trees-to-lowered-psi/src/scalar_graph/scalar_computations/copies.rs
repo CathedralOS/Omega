@@ -34,20 +34,12 @@ pub(crate) fn prepare(
         .collect::<Vec<_>>();
     let mut slots: Vec<Slot> = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
-        let (CheckedScalarComputationKind::Call {
+        let CheckedScalarComputationKind::Call {
             source_call,
-            target_machine,
-            target_state,
+            ref callee,
             structural_arguments,
             ..
-        }
-        | CheckedScalarComputationKind::BoundaryCall {
-            source_call,
-            target_machine,
-            target_state,
-            structural_arguments,
-            ..
-        }) = plans.nodes.get(handle).kind
+        } = plans.nodes.get(handle).kind
         else {
             continue;
         };
@@ -64,6 +56,9 @@ pub(crate) fn prepare(
         }) {
             continue;
         }
+        let Some((target_machine, target_state)) = callee.static_target() else {
+            return unsupported("dynamic scalar call awaits its emission route");
+        };
         let parameters =
             super::call_signature::structural_parameters(checked, target_machine, target_state)?;
         if parameters.len() != arguments.len() {

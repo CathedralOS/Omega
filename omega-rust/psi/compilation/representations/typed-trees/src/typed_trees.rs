@@ -137,6 +137,10 @@ pub struct TypedTrees {
     /// before checked lowering. The template keeps its declaration symbol;
     /// this record is the cache/audit identity of the concrete argument tuple.
     pub machine_specializations: Vec<MachineSpecialization>,
+    /// Requirements instantiated under the `dyn Trait<Args>` applications
+    /// that select or call them. Checking appends one record per
+    /// (selector application, requirement) after specialization converges.
+    pub dynamic_slots: Vec<crate::dynamic_traits::DynamicSlotSignature>,
     /// Product-scope target-machine families: one record per authored
     /// contract name implemented under target heads, keying each target's
     /// body. Typing produces it from resolved family handles before the
@@ -435,6 +439,7 @@ impl TypedTrees {
             wire_encode_obligations: Arena::new(),
             wire_schema_plans: Vec::new(),
             machine_specializations: Vec::new(),
+            dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
             boundary_calling_plans: Vec::new(),
             boundary_completion_declarations: Arena::default(),

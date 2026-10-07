@@ -187,6 +187,7 @@ pub(crate) fn is_branch_free_structural_integer_expression(
                 && *position < scalar_parameters.saturating_add(available_locals)
         }
         CheckedScalarExpression::IeeeFloatLiteral { .. }
+        | CheckedScalarExpression::ImplementationSelection { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::Boolean(_) => false,
     }

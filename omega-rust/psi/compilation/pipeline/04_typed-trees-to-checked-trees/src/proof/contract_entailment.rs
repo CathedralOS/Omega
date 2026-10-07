@@ -220,7 +220,7 @@ fn scalar_type(primitive: PrimitiveType) -> Option<ScalarType> {
         PrimitiveType::U32 => (IntegerSign::Unsigned, 32),
         PrimitiveType::U64 => (IntegerSign::Unsigned, 64),
         PrimitiveType::Addr => return IntegerType::address(64).ok().map(ScalarType::Integer),
-        PrimitiveType::F32 | PrimitiveType::F64 => return None,
+        PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Selector => return None,
     };
     IntegerType::new(sign, bits).ok().map(ScalarType::Integer)
 }

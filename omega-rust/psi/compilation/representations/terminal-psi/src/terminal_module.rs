@@ -25,8 +25,10 @@ pub use boundary::{
     ClosedReachParameter, ClosedReachSchema, ContentConservationGuarantee,
     InstallationReachDependency, ProgramLocalRootIntroductionSchema, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
-    ServiceDeclaration, StructuralDomainRequirement, TerminalRootServiceReach,
-    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
+    ServiceDeclaration, StructuralDomainRequirement, TerminalDynamicDispatchCatalog,
+    TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
+    TerminalDynamicTable, TerminalRootServiceReach, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint,
     program_local_root_introduction_compatibility_report_identity,
 };
 pub use control_flow::{
@@ -139,6 +141,8 @@ pub struct TerminalModule {
     /// retained Unit boundary requirement. This is a semantic catalog, not a
     /// selection: installation policy remains outside terminal-Psi identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
+    /// Interfaces and implementation tables runtime selectors name.
+    pub dynamic_dispatch: TerminalDynamicDispatchCatalog,
     /// Source-handle-free proof-only float projections. These rows are
     /// semantic-module evidence, never executable operations or runtime values.
     pub float_meaning_projections: Vec<crate::FloatMeaningProjection>,
@@ -208,6 +212,7 @@ impl TerminalModule {
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
+            dynamic_dispatch: TerminalDynamicDispatchCatalog::default(),
             float_meaning_projections: Vec::new(),
             float_meaning_equalities: Vec::new(),
             proposition_declarations: Vec::new(),

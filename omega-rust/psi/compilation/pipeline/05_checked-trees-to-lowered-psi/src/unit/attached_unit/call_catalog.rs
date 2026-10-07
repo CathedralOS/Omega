@@ -29,6 +29,8 @@ pub(super) fn discover(
     scalar_entry: bool,
 ) -> Result<CheckedCallCatalog, LoweringError> {
     let mut retained_roots = unit_roots.to_vec();
+    // Scalar implementations a selection made in the closure can dispatch to.
+    let mut dispatched_scalar_roots = Vec::new();
     loop {
         let closure = match retained_roots.split_first() {
             Some((root, additional)) => {
@@ -77,6 +79,18 @@ pub(super) fn discover(
             ordinary_scalar_roots.push(entry);
             structural_scalar_roots.push(entry);
         }
+        for root in &dispatched_scalar_roots {
+            if !ordinary_scalar_roots.contains(root) {
+                ordinary_scalar_roots.push(*root);
+            }
+            if !CheckedScalarCallee::find_for_unit_call(checked, *root)?
+                .structural_parameters()
+                .is_empty()
+                && !structural_scalar_roots.contains(root)
+            {
+                structural_scalar_roots.push(*root);
+            }
+        }
         for machine_symbol in &closure {
             let computed_structural_roots =
                 crate::expression_preparation::computation_graph::structural_call_targets(
@@ -103,7 +117,7 @@ pub(super) fn discover(
                 // An ordinary scalar call roots its scalar callee.
                 if let Some(call) = operation
                     .call()
-                    .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
+                    .filter(|call| call.is_module() && call.scalar_result().is_some())
                 {
                     let target_machine = call.target.machine;
                     if !ordinary_scalar_roots.contains(&target_machine) {
@@ -142,7 +156,7 @@ pub(super) fn discover(
             {
                 if let Some(call) = operation
                     .call()
-                    .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
+                    .filter(|call| call.is_module() && call.scalar_result().is_none())
                 {
                     let target = call.target.machine;
                     if !closure.contains(&target) && !new_roots.contains(&target) {
@@ -184,7 +198,7 @@ pub(super) fn discover(
                     // Non-scalar call results belong to ordinary operation bodies.
                     let Some(call) = operation
                         .call()
-                        .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
+                        .filter(|call| call.is_module() && call.scalar_result().is_none())
                     else {
                         return unsupported("scalar graph retained an unsupported Unit effect");
                     };
@@ -203,7 +217,34 @@ pub(super) fn discover(
                 new_roots.push(*source);
             }
         }
-        if !new_roots.is_empty() {
+        // A selection's table rows are reachable only through dispatch, never
+        // through a call edge: every implementation a closure body selects
+        // joins the closure, so the dispatch catalog can name each row.
+        let mut dispatched = false;
+        for source in closure.iter().chain(&scalar_closure) {
+            for selection in checked
+                .facts
+                .dynamic_conformances
+                .selections
+                .iter()
+                .filter(|selection| selection.machine == *source)
+            {
+                for row in &selection.rows {
+                    let realization = row.realization_machine;
+                    if UnitBody::contains(plans, realization) {
+                        if !closure.contains(&realization) && !new_roots.contains(&realization) {
+                            new_roots.push(realization);
+                        }
+                    } else if !scalar_closure.contains(&realization)
+                        && !dispatched_scalar_roots.contains(&realization)
+                    {
+                        dispatched_scalar_roots.push(realization);
+                        dispatched = true;
+                    }
+                }
+            }
+        }
+        if !new_roots.is_empty() || dispatched {
             retained_roots.extend(new_roots);
             continue;
         }

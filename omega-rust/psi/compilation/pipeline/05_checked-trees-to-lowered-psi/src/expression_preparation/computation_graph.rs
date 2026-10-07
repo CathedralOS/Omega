@@ -36,7 +36,11 @@ fn collect_call_targets(
     let mut targets = Vec::new();
     for handle in reachable_nodes(checked, &roots)? {
         if let CheckedScalarComputationKind::Call {
-            target_machine,
+            callee:
+                checked_trees::CheckedScalarCallee::Body {
+                    machine: target_machine,
+                    ..
+                },
             structural_arguments,
             ..
         } = plans.nodes.get(handle).kind
@@ -55,7 +59,7 @@ fn collect_call_targets(
     for operation in value_call_operations(checked, machine)? {
         if let Some(call) = operation
             .call()
-            .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
+            .filter(|call| call.is_module() && call.scalar_result().is_some())
         {
             if !structural_only
                 || !call.structural_arguments.is_empty()
@@ -212,12 +216,7 @@ fn collect_reachable_nodes(
             }
             CheckedScalarComputationKind::Call {
                 source_call,
-                arguments,
-                structural_arguments,
-                ..
-            }
-            | CheckedScalarComputationKind::BoundaryCall {
-                source_call,
+                callee,
                 arguments,
                 structural_arguments,
                 ..
@@ -246,6 +245,7 @@ fn collect_reachable_nodes(
                         pending.extend(fields(checked, subject)?.iter().map(|field| field.value));
                     }
                 }
+                pending.extend(callee.selector());
                 pending.extend(plans.operands.span(*arguments).ok_or(
                     LoweringError::Unsupported("scalar computation closure has invalid arguments"),
                 )?);

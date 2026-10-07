@@ -89,7 +89,9 @@ pub(super) fn semantic_integer_format(ty: PrimitiveType) -> Option<SemanticInteg
         PrimitiveType::U16 => Some(SemanticIntegerFormat::U16),
         PrimitiveType::U32 => Some(SemanticIntegerFormat::U32),
         PrimitiveType::U64 | PrimitiveType::Addr => Some(SemanticIntegerFormat::U64),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => None,
+        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+            None
+        }
     }
 }
 
@@ -205,7 +207,9 @@ pub(super) fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
         // u64 is still represented by the same bit pattern in i64).
         PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => raw,
         // Non-integer primitives do not reach this path.
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => raw,
+        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+            raw
+        }
     }
 }
 
@@ -217,7 +221,9 @@ pub(super) fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
         PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
         PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
         PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Addr => Some(8),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => None,
+        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+            None
+        }
     }
 }
 

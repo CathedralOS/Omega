@@ -919,11 +919,18 @@ impl Evaluation {
         let Some(call) = operation.call() else {
             return Ok(None);
         };
-        let (coordinate, arguments, _) = (
-            call.coordinate,
-            call.scalar_arguments.as_slice(),
-            call.is_boundary(),
-        );
+        // A selector call's selector is its first operand, ahead of the data
+        // arguments. Staged per-ordinal evaluation numbers the data arguments
+        // only, so it does not yet carry a selector.
+        let operands = call
+            .scalar_operands()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        if argument_ordinal.is_some() && call.dynamic_selector().is_some() {
+            return unsupported("a staged argument group cannot yet carry a selector call");
+        }
+        let (coordinate, arguments) = (call.coordinate, operands.as_slice());
         let (arguments, argument_ordinal_start) = match argument_ordinal {
             Some(ordinal) => {
                 let argument = arguments.get(ordinal).ok_or(LoweringError::Unsupported(

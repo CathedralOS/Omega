@@ -386,6 +386,9 @@ pub(crate) fn type_atoms(
                 }
                 break;
             }
+            // A selector is a bare scalar carrier; its trait application
+            // names no semantic atom.
+            TypeReferenceNode::DynamicTrait { .. } => break,
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,

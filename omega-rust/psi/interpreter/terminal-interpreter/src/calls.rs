@@ -102,6 +102,95 @@ impl TerminalExecution {
         Ok(OperationFlow::Redispatch)
     }
 
+    /// A selector is the selected table's catalog index, carried as the
+    /// operation's declared unsigned integer. No other operation reads it.
+    pub(crate) fn execute_select_implementation(
+        &mut self,
+        operation: &terminal_psi::Operation,
+        table: u32,
+        program: &std::sync::Arc<crate::program::AdmittedTerminalProgram>,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let result = operation.result.scalar().ok_or(malformed())?;
+        let semantic_vocabulary::ScalarType::Integer(scalar_type) = result.scalar_type else {
+            return Err(malformed());
+        };
+        if program.catalogs.dynamic_dispatch.table(table).is_none() {
+            return Err(malformed());
+        }
+        self.values.insert(
+            result.id,
+            crate::values::TerminalScalarValue::Integer {
+                scalar_type,
+                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(table)),
+            },
+        );
+        Ok(OperationFlow::Advance)
+    }
+
+    /// Resolve the selector's table row for the interface slot, then enter
+    /// that machine exactly as a direct call with the same arguments would.
+    pub(crate) fn execute_call_dynamic(
+        &mut self,
+        operation: &terminal_psi::Operation,
+        program: &std::sync::Arc<crate::program::AdmittedTerminalProgram>,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::CallDynamic {
+            selector,
+            interface,
+            slot,
+            ref arguments,
+            ref structural_arguments,
+            ref claim_transfers,
+            ..
+        } = operation.kind
+        else {
+            unreachable!("dispatched execute_call_dynamic")
+        };
+        let Some(crate::values::TerminalScalarValue::Integer {
+            value: semantic_vocabulary::IntegerValue::Unsigned(table),
+            ..
+        }) = self.values.get(&selector).copied()
+        else {
+            return Err(TerminalInterpretError::VerifiedValueMissing(selector));
+        };
+        let catalog = &program.catalogs.dynamic_dispatch;
+        let table = u32::try_from(table).map_err(|_| malformed())?;
+        if catalog.table(table).map(|table| table.interface) != Some(interface) {
+            return Err(malformed());
+        }
+        let callee = catalog.row(table, slot).ok_or(malformed())?;
+        let scalar_arguments = arguments
+            .iter()
+            .map(|argument| {
+                self.values
+                    .get(argument)
+                    .copied()
+                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let prepared_arguments =
+            self.prepare_structural_call_arguments(callee, structural_arguments)?;
+        match operation.result {
+            terminal_psi::OperationResult::Unit => self.begin_unit_call(
+                callee,
+                &scalar_arguments,
+                structural_arguments,
+                prepared_arguments,
+                claim_transfers,
+            )?,
+            terminal_psi::OperationResult::Scalar(result) => self.begin_structural_scalar_call(
+                callee,
+                result,
+                &scalar_arguments,
+                structural_arguments,
+                prepared_arguments,
+                claim_transfers,
+            )?,
+            terminal_psi::OperationResult::Structural(_) => return Err(malformed()),
+        }
+        Ok(OperationFlow::Redispatch)
+    }
+
     pub(crate) fn execute_call_structural(
         &mut self,
         operation: &terminal_psi::Operation,

@@ -1001,7 +1001,12 @@ fn establish_call_literals(
             .ok_or(LoweringError::Unsupported(
                 "terminal operation identity starts at one",
             ))?;
-    let mut operations = OperationBuffer::new(operation_identity_base);
+    let mut operations = OperationBuffer::new(
+        operation_identity_base,
+        std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+            checked,
+        )),
+    );
     let mut private_places = literal_arguments
         .iter()
         .map(|(argument, target_machine, argument_index)| {

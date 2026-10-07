@@ -283,6 +283,10 @@ impl OperationKind {
             | Self::BoundaryCall {
                 structural_arguments,
                 ..
+            }
+            | Self::CallDynamic {
+                structural_arguments,
+                ..
             } => {
                 for argument in structural_arguments {
                     argument.place = map(argument.place, argument.access);
@@ -307,6 +311,7 @@ impl OperationKind {
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::Call { .. }
+            | Self::SelectImplementation { .. }
             | Self::PortWrite { .. }
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }
@@ -452,6 +457,10 @@ impl OperationKind {
             | Self::BoundaryCall {
                 structural_arguments,
                 ..
+            }
+            | Self::CallDynamic {
+                structural_arguments,
+                ..
             } => projections.extend(structural_arguments.iter().map(argument_projection)),
             // No name-spelled projection. Listed exhaustively so a new
             // operation must declare here whether its paths may carry a
@@ -474,6 +483,7 @@ impl OperationKind {
             | Self::ElementViewSubslice { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::Call { .. }
+            | Self::SelectImplementation { .. }
             | Self::PortWrite { .. }
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }
@@ -589,6 +599,10 @@ impl OperationKind {
                 ..
             }
             | Self::BoundaryCall {
+                structural_arguments,
+                ..
+            }
+            | Self::CallDynamic {
                 structural_arguments,
                 ..
             } => paths.extend(

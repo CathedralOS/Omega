@@ -48,9 +48,10 @@ fn value_type(
         | CheckedScalarComputationKind::AuthoredCast { result_type, .. } => {
             qualifications.value_type(checked, *result_type)?
         }
-        CheckedScalarComputationKind::Call { target_state, .. } => {
-            qualifications.scalar_state_types(checked, *target_state)?.1
-        }
+        CheckedScalarComputationKind::Call {
+            callee: checked_trees::CheckedScalarCallee::Body { state, .. },
+            ..
+        } => qualifications.scalar_state_types(checked, *state)?.1,
         CheckedScalarComputationKind::Value(expression) => bindings
             .expression(&checked.facts.proven_scalar_indexes, expression)?
             .value_type(source_types)?,
@@ -71,8 +72,9 @@ fn value_type(
             }
             terminal_scalar_type(node.primitive_type)?.into()
         }
+        // A boundary or dynamic callee publishes the node's bare carrier.
         CheckedScalarComputationKind::Apply { .. }
-        | CheckedScalarComputationKind::BoundaryCall { .. }
+        | CheckedScalarComputationKind::Call { .. }
         | CheckedScalarComputationKind::StructuralField { .. }
         | CheckedScalarComputationKind::SelectedComparison { .. } => {
             terminal_scalar_type(node.primitive_type)?.into()

@@ -56,6 +56,8 @@ mod body_cloning;
 mod const_arguments;
 mod dynamic_families;
 pub(crate) use dynamic_families::generate_dynamic_family_specializations;
+mod dynamic_slots;
+pub(crate) use dynamic_slots::instantiate_dynamic_slots;
 mod const_values;
 mod range_arguments;
 mod result_locals;

@@ -7,6 +7,7 @@ pub(crate) mod boolean;
 pub(crate) mod boundary_calls;
 pub(crate) mod buffer;
 pub(crate) mod calls;
+pub(crate) mod dynamic_calls;
 pub(crate) mod expressions;
 pub(crate) mod integer;
 pub(crate) mod place_declarations;
@@ -46,6 +47,8 @@ pub(crate) enum LoweredScalarBinding {
     DirectCall(LoweredDirectCallBinding),
     /// One nested boundary application whose operands are already complete.
     BoundaryCall(boundary_calls::LoweredBoundaryCallBinding),
+    /// One selector call whose selector and data operands are complete.
+    DynamicCall(dynamic_calls::LoweredDynamicCallBinding),
     /// Retain the evaluated RHS while committing its separate Unit store effect.
     StoredValue {
         value: LoweredDirectExpression,
@@ -66,6 +69,7 @@ impl LoweredScalarBinding {
             } => expression.value_type(parameters),
             Self::DirectCall(call) => Ok(call.result_type),
             Self::BoundaryCall(call) => Ok(call.result_type),
+            Self::DynamicCall(call) => Ok(call.result_type),
         }
     }
     pub(crate) const fn scalar_type(&self) -> ScalarType {
@@ -74,6 +78,7 @@ impl LoweredScalarBinding {
             Self::Expression(expression) => expression.scalar_type(),
             Self::DirectCall(call) => call.result_type.scalar_type,
             Self::BoundaryCall(call) => call.result_type.scalar_type,
+            Self::DynamicCall(call) => call.result_type.scalar_type,
             Self::StoredValue { value, .. } => value.scalar_type(),
         }
     }
@@ -271,6 +276,13 @@ pub(crate) fn emit_scalar_binding(
             call_emission,
         ),
         LoweredScalarBinding::BoundaryCall(call) => boundary_calls::emit_boundary_call_binding(
+            call,
+            parameters,
+            next_value_identity,
+            operations,
+            call_emission,
+        ),
+        LoweredScalarBinding::DynamicCall(call) => dynamic_calls::emit_dynamic_call_binding(
             call,
             parameters,
             next_value_identity,

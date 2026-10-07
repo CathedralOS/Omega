@@ -24,10 +24,6 @@ pub(crate) fn type_roots(
             Computation::Call {
                 structural_arguments,
                 ..
-            }
-            | Computation::BoundaryCall {
-                structural_arguments,
-                ..
             } => {
                 for argument in plans
                     .structural_arguments

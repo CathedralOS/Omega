@@ -278,7 +278,7 @@ pub(super) fn validate_unit_operation_sequence(
                     let Some(result) = call
                         .operation()
                         .call()
-                        .filter(|planned| !planned.is_boundary())
+                        .filter(|planned| planned.is_module())
                         .and_then(CheckedUnitCallPlan::structural_result)
                     else {
                         return unsupported("structural operand lost its call operation");
@@ -362,6 +362,14 @@ pub(super) fn validate_unit_operation_sequence(
                             );
                         }
                         structural_calls::validate_usage(checked, machine, &result_uses, result)?;
+                    }
+                    (
+                        CheckedUnitCallRoute::Dynamic { .. },
+                        CheckedUnitCallResult::Structural { .. },
+                    ) => {
+                        return unsupported(
+                            "a selector call's structural result is not yet planned",
+                        );
                     }
                     (
                         CheckedUnitCallRoute::Boundary,
@@ -466,7 +474,7 @@ pub(super) fn validate_unit_operation_sequence(
                         .checked_sub(1)
                         .and_then(|previous| machine.operations.get(previous))
                         .and_then(CheckedUnitEffectOperationPlan::call)
-                        .filter(|call| !call.is_boundary())
+                        .filter(|call| call.is_module())
                         .is_some_and(|call| {
                             call.coordinate.statement_index == store.statement_index
                                 && call.coordinate.call_ordinal == 0

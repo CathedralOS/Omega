@@ -188,6 +188,17 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
         (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
             scalar_call(checked, caller, operation)
         }
+        // A selector call enters no closure body: the dispatch catalog owns
+        // its selected implementations' rows. Its source occurrence is still
+        // the exact retained flow call.
+        (CheckedUnitCallRoute::Dynamic { .. }, _) => retain_exact_flow_call(
+            checked,
+            caller.machine,
+            caller.state,
+            planned.coordinate,
+            planned.target.state,
+        )
+        .map(|_| ()),
         // The three boundary calls differ only in the result their boundary
         // must declare.
         (CheckedUnitCallRoute::Boundary, _) => {
@@ -235,7 +246,7 @@ fn unit_target<'a>(
     // An ordinary call with a Unit or structural result.
     let Some(call) = operation
         .call()
-        .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
+        .filter(|call| call.is_module() && call.scalar_result().is_none())
     else {
         return unsupported("Unit call admission requires a Unit or structural call");
     };
@@ -267,7 +278,7 @@ fn scalar_call(
 ) -> Result<(), LoweringError> {
     let Some((call, result)) = operation
         .call()
-        .filter(|call| !call.is_boundary())
+        .filter(|call| call.is_module())
         .and_then(|call| Some((call, call.scalar_result()?)))
     else {
         return unsupported("scalar call admission requires a scalar call");

@@ -28,7 +28,63 @@ pub enum DynamicNonSignatureIneligibility {
     UnfittableEnvelope,
 }
 
+/// One requirement as a `dyn Trait<Args>` caller reaches it: the
+/// requirement's signature with the declaring trait's parameters replaced by
+/// the arguments that selector application implies.
+///
+/// Every implementation selected for this interface realizes exactly this
+/// shape (conformance checking compares them), so lowering plans a dynamic
+/// call's operands and result against it rather than against one
+/// representative implementation.
+///
+/// A selector call `Trait::member(selector, data...)` targets `symbol`, the
+/// slot, not the generic requirement. `parameters` mirrors the authored
+/// operand list: position 0 is the selector, which dispatch consumes and no
+/// implementation receives, and the requirement's instantiated formals
+/// follow. Every analysis that pairs a call's operands with its target's
+/// formals therefore sees a concrete roster of the right arity, exactly as it
+/// does for a bodyless declaration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicSlotSignature {
+    /// The slot a selector call targets.
+    pub symbol: SymbolHandle,
+    /// Normalized identity of the selector type (`dyn Shape<Item>`).
+    pub interface_identity: String,
+    pub declaring_trait: SymbolHandle,
+    /// The exact requirement this slot instantiates.
+    pub requirement: SymbolHandle,
+    pub parameters: Vec<crate::signature::StateParameter>,
+    pub return_type: TypeReferenceHandle,
+}
+
+impl DynamicSlotSignature {
+    /// The requirement's instantiated formals, after the selector operand.
+    pub fn data_parameters(&self) -> &[crate::signature::StateParameter] {
+        self.parameters.get(1..).unwrap_or_default()
+    }
+}
+
 impl TypedTrees {
+    /// The instantiated signature of `requirement` under the selector type
+    /// whose normalized identity is `interface_identity`.
+    pub fn dynamic_slot(
+        &self,
+        interface_identity: &str,
+        requirement: SymbolHandle,
+    ) -> Option<&DynamicSlotSignature> {
+        self.dynamic_slots.iter().find(|slot| {
+            slot.requirement == requirement && slot.interface_identity == interface_identity
+        })
+    }
+
+    /// The slot a selector call targets, by the slot's own symbol.
+    pub fn dynamic_slot_by_symbol(&self, symbol: SymbolHandle) -> Option<&DynamicSlotSignature> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        self.dynamic_slots.iter().find(|slot| slot.symbol == symbol)
+    }
+
     /// Derive the signature-only portion of one requirement's local dynamic
     /// eligibility. Contract privacy, lifetime projection, and operational
     /// envelope fitting are separate later judgments performed by
@@ -444,7 +500,10 @@ fn collect_type_reference_symbols(
             symbol, arguments, ..
         } => {
             symbols.push(*symbol);
-            for argument in program.type_reference_table.type_reference_handles(*arguments) {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
                 collect_type_reference_symbols(program, *argument, symbols);
             }
         }

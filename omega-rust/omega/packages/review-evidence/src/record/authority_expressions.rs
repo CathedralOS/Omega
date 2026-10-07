@@ -16,6 +16,8 @@ pub enum PackageReviewPrimitiveType {
     U32,
     U64,
     Addr,
+    /// An implementation selector's opaque runtime word.
+    Selector,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

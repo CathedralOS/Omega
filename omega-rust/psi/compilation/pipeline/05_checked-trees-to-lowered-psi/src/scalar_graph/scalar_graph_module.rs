@@ -89,6 +89,7 @@ pub(crate) fn build_scalar_graph_module(
     partition_compositions: LoweredContentPartitionCompositions,
     terminal_machine: MachineId,
     identity_base: u64,
+    dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
     literal_places: &[crate::scalar_graph::scalar_computations::literals::Slot],
@@ -106,6 +107,7 @@ pub(crate) fn build_scalar_graph_module(
         partition_compositions,
         terminal_machine,
         identity_base,
+        dynamic_dispatch,
         machine_ids,
         requirement_counts,
         &[],
@@ -134,6 +136,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     partition_compositions: LoweredContentPartitionCompositions,
     terminal_machine: MachineId,
     identity_base: u64,
+    dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
     cleanup_receivers: &[(symbols::SymbolHandle, semantic_vocabulary::PlaceId)],
@@ -250,7 +253,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         );
     }
 
-    let all_operations = OperationBuffer::new(identity_base);
+    let all_operations = OperationBuffer::new(identity_base, dynamic_dispatch);
     let call_obligation_base = identity_base
         .checked_add(TERMINAL_MACHINE_IDENTITY_STRIDE / 2)
         .expect("call obligation range fits the machine identity namespace");

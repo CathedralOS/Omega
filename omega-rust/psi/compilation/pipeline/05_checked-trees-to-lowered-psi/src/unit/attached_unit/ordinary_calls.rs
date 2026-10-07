@@ -95,7 +95,7 @@ pub(super) fn prepare(
     // keeps its claim transfers in its custody record.
     let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
         .call()
-        .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
+        .filter(|call| call.is_module() && call.scalar_result().is_none())
         .and_then(|call| {
             Some((
                 call,
@@ -307,7 +307,7 @@ pub(super) fn emit_structural(
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let Some((call, result, custody)) = operation
         .call()
-        .filter(|call| !call.is_boundary())
+        .filter(|call| call.is_module())
         .and_then(|call| Some((call, call.structural_result()?, call.structural_custody()?)))
     else {
         return unsupported("structural call emission requires an owned result call");

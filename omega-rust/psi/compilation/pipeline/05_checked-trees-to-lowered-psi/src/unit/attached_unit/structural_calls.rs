@@ -30,7 +30,7 @@ fn ordinary_structural_call(
     &checked_trees::CheckedUnitStructuralResultBindingPlan,
     &checked_trees::CheckedStructuralCallCustodyPlan,
 )> {
-    let call = operation.call().filter(|call| !call.is_boundary())?;
+    let call = operation.call().filter(|call| call.is_module())?;
     Some((call, call.structural_result()?, call.structural_custody()?))
 }
 
@@ -42,7 +42,7 @@ pub(super) fn validate_body_result(
     expected: checked_trees::CheckedControlResultPlan,
 ) -> Result<(), LoweringError> {
     let unit_call = operation.call().is_some_and(|call| {
-        !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+        call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
     });
     match ordinary_structural_call(operation) {
         None if unit_call && expected == checked_trees::CheckedControlResultPlan::Unit => Ok(()),

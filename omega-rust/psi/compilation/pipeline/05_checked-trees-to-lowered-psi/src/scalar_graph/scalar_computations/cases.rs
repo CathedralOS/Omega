@@ -288,10 +288,6 @@ fn constructions<'a>(
         CheckedScalarComputationKind::Call {
             structural_arguments,
             ..
-        }
-        | CheckedScalarComputationKind::BoundaryCall {
-            structural_arguments,
-            ..
         } => Ok(checked
             .facts
             .values

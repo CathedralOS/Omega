@@ -128,6 +128,74 @@ pub(super) fn decode_call_unit(reader: &mut Reader<'_>) -> Result<OperationKind,
     })
 }
 
+pub(super) fn encode_select_implementation(writer: &mut Writer, table: u32) {
+    writer.u8(operation_tags::SELECT_IMPLEMENTATION);
+    writer.u32(table);
+}
+
+pub(super) fn decode_select_implementation(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::SelectImplementation {
+        table: reader.u32()?,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn encode_call_dynamic(
+    writer: &mut Writer,
+    selector: ValueId,
+    interface: u32,
+    slot: u32,
+    arguments: Vec<ValueId>,
+    erased_arguments: Vec<ScalarTerm>,
+    erased_proof_arguments: Vec<ProofTerm>,
+    structural_arguments: Vec<StructuralArgument>,
+    claim_transfers: Vec<ClaimTransfer>,
+    requirement_obligations: Vec<ObligationId>,
+    crash_continuations: Vec<CrashRouteBucket>,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::CALL_DYNAMIC);
+    writer.id(selector);
+    writer.u32(interface);
+    writer.u32(slot);
+    writer.len("dynamic-call scalar arguments", arguments.len())?;
+    for argument in arguments {
+        writer.id(argument);
+    }
+    encode_scalar_terms(writer, &erased_arguments)?;
+    encode_proof_terms(writer, &erased_proof_arguments)?;
+    encode_structural_arguments(writer, &structural_arguments)?;
+    writer.len("dynamic-call claim transfers", claim_transfers.len())?;
+    for transfer in claim_transfers {
+        writer.id(transfer.claim);
+        writer.u32(transfer.argument_index);
+    }
+    encode_obligation_ids(writer, &requirement_obligations)?;
+    encode_crash_routes(writer, &crash_continuations)?;
+    Ok(())
+}
+
+pub(super) fn decode_call_dynamic(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::CallDynamic {
+        selector: reader.id("ValueId")?,
+        interface: reader.u32()?,
+        slot: reader.u32()?,
+        arguments: decode_ids(reader, "ValueId")?,
+        erased_arguments: decode_scalar_terms(reader)?,
+        erased_proof_arguments: decode_proof_terms(reader)?,
+        structural_arguments: decode_structural_arguments(reader)?,
+        claim_transfers: decode_counted(reader, |reader| {
+            Ok(ClaimTransfer {
+                claim: reader.id("ClaimId")?,
+                argument_index: reader.u32()?,
+            })
+        })?,
+        requirement_obligations: decode_ids(reader, "ObligationId")?,
+        crash_continuations: decode_crash_routes(reader)?,
+    })
+}
+
 pub(super) fn encode_call_structural_scalar(
     writer: &mut Writer,
     callee: MachineId,

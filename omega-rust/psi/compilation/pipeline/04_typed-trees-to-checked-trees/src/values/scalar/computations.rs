@@ -41,6 +41,7 @@ mod byte_comparisons;
 mod call_arguments;
 mod cases;
 mod dispatch;
+mod dynamic_calls;
 mod enum_equality;
 mod integers;
 mod normal_return;
@@ -1261,6 +1262,13 @@ impl Builder<'_, '_> {
                 ) {
                     return self.boundary_operator_call(expression, &call, operator, expected_type);
                 }
+                if self
+                    .program
+                    .dynamic_slot_by_symbol(call.target_symbol)
+                    .is_some()
+                {
+                    return self.dynamic_call(expression, &call, expected_type);
+                }
                 if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
                     return None;
                 }
@@ -1348,8 +1356,10 @@ impl Builder<'_, '_> {
                 Some(self.insert(
                     expected_type,
                     CheckedScalarComputationKind::Call {
-                        target_machine: target_machine.symbol,
-                        target_state: target_state.symbol,
+                        callee: checked_trees::CheckedScalarCallee::Body {
+                            machine: target_machine.symbol,
+                            state: target_state.symbol,
+                        },
                         source_call,
                         call_ordinal,
                         arguments,

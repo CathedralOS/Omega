@@ -35,8 +35,7 @@ pub(crate) fn structural_call_arguments(
     caller_state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
+    callee: super::CallTarget<'_>,
     call_site: &crate::semantic::calls::CallSite<'_>,
     statement_index: usize,
     allow_field_path_projection: bool,
@@ -44,7 +43,7 @@ pub(crate) fn structural_call_arguments(
     trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
-    let target_parameters = program.state_parameters(target_state);
+    let target_parameters = callee.parameters;
     // Erased borrow carriers name their captured referent's storage: the
     // checked alias roster substitutes that referent for the authored root
     // while the authored spelling still joins the borrow-access evidence.
@@ -110,7 +109,7 @@ pub(crate) fn structural_call_arguments(
                     segments: Vec::new(),
                 }
             } else {
-                if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                if callee.supply_mode == MachineSupplyMode::CheckedBody
                     && let Some(literal) =
                         byte_sequence_literal_argument(program, target.type_reference, expression)
                 {
@@ -120,7 +119,7 @@ pub(crate) fn structural_call_arguments(
                 // A shared range is one evaluated descriptor operation. Failure
                 // to establish its custody or endpoint evidence cannot fall back
                 // to presenting the source as a fixed byte-window loan.
-                if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                if callee.supply_mode == MachineSupplyMode::CheckedBody
                     && validation::subslice_expression(program, expression).is_some()
                 {
                     let subslice = view_subslice::admit(
@@ -191,8 +190,7 @@ pub(crate) fn structural_call_arguments(
                         facts,
                         caller_machine.symbol,
                         caller_state,
-                        target_machine,
-                        target_state,
+                        callee,
                         call,
                         call_site,
                         &authored_place,
@@ -223,17 +221,17 @@ pub(crate) fn structural_call_arguments(
             // Result operands retain the same exact source, formal and
             // custody contract whether this call has a body or a selected
             // provider. The shared result planner below owns that admission.
-            if !target_machine.supply_mode.is_boundary_declaration()
-                && (target_machine.supply_mode != MachineSupplyMode::CheckedBody
-                    || (!is_unit(program, target_state.return_type)
+            if !callee.supply_mode.is_boundary_declaration()
+                && (callee.supply_mode != MachineSupplyMode::CheckedBody
+                    || (!is_unit(program, callee.return_type)
                         && !validation::is_closed_primitive_array_type(
                             program,
-                            target_state.return_type,
+                            callee.return_type,
                         )
                         && crate::execution::terminal_unit::control::checked_structural_result_type(
                             program,
                             &mut ShapeCollector::new(program),
-                            target_state.return_type,
+                            callee.return_type,
                             &[],
                         )
                         .is_none()
@@ -242,7 +240,7 @@ pub(crate) fn structural_call_arguments(
                         // producer or the callee's ordinary body; without a
                         // catalog this pass keeps the registered rows only.
                         && !program
-                            .primitive_type_reference(target_state.return_type)
+                            .primitive_type_reference(callee.return_type)
                             .is_some_and(|_| scalar_callees.is_some())))
             {
                 return None;
@@ -259,8 +257,7 @@ pub(crate) fn structural_call_arguments(
                 result,
                 target,
                 &target_identity,
-                allow_field_path_projection
-                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody,
+                allow_field_path_projection && callee.supply_mode == MachineSupplyMode::CheckedBody,
             )?);
             continue;
         }
@@ -403,15 +400,13 @@ pub(crate) fn structural_call_arguments(
         // Bodyless nominal requirements use the same boundary presentation
         // as trait requirements. The declared supply owns this distinction;
         // placing a call in a selected arm does not change its argument ABI.
-        let path = if target_machine.supply_mode.is_boundary_declaration()
-            && !target_machine.body_is_present
-        {
+        let path = if callee.supply_mode.is_boundary_declaration() && !callee.body_is_present {
             boundary_parameter_path(argument, custody, &[])
         } else {
             ordinary_parameter_path(
                 argument,
                 custody,
-                target_machine.supply_mode,
+                callee.supply_mode,
                 allow_field_path_projection,
             )
         }?;
@@ -419,7 +414,7 @@ pub(crate) fn structural_call_arguments(
         if path.is_empty()
             && !argument.whole_parameter_is_admitted(
                 source,
-                target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                callee.supply_mode == MachineSupplyMode::CheckedBody
                     && custody.lends_unrestricted_borrow(),
                 &[],
             )
@@ -572,8 +567,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     facts: &CheckFacts,
     machine: SymbolHandle,
     caller_state: &typed_trees::state::State,
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
+    callee: super::CallTarget<'_>,
     call: &checked_trees::FlowCallFact,
     call_site: &crate::semantic::calls::CallSite<'_>,
     authored_place: &crate::flow::CanonicalPlace,
@@ -585,13 +579,17 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
         return None;
     }
 
-    let target_parameters = program.state_parameters(target_state);
-    if target_machine.supply_mode != MachineSupplyMode::CheckedBody
-        || !program
-            .statement_table
-            .statements(target_state.statement_nodes)
-            .is_empty()
-        || !is_unit(program, target_state.return_type)
+    let target_parameters = callee.parameters;
+    // The cohort's observation is an empty checked body; a callee without an
+    // inspectable declaration cannot be shown to be one.
+    if callee.supply_mode != MachineSupplyMode::CheckedBody
+        || callee.declaration.is_none_or(|(_, state)| {
+            !program
+                .statement_table
+                .statements(state.statement_nodes)
+                .is_empty()
+        })
+        || !is_unit(program, callee.return_type)
         || !matches!(target_parameters.len(), 2 | 3)
         || target_parameters.iter().any(|parameter| {
             structural_access_for_type_reference(program, parameter.type_reference)

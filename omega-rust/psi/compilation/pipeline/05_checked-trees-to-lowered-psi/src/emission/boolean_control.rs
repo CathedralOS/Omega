@@ -998,6 +998,7 @@ pub(crate) fn build_scalar_conditional_target(
             | LoweredDirectExpression::ElementViewLength { .. }
             | LoweredDirectExpression::ElementViewRead { .. }
             | LoweredDirectExpression::IeeeFloatLiteral { .. }
+            | LoweredDirectExpression::ImplementationSelection { .. }
             | LoweredDirectExpression::IntegerBinary { .. }
             | LoweredDirectExpression::SaturatingShiftLeft { .. }
             | LoweredDirectExpression::IntegerBitwiseNot { .. }

@@ -101,18 +101,10 @@ pub(super) fn validate(
                 }
                 CheckedScalarComputationKind::Call {
                     source_call,
+                    callee,
                     arguments,
                     structural_arguments,
                     call_ordinal,
-                    target_state,
-                    ..
-                }
-                | CheckedScalarComputationKind::BoundaryCall {
-                    source_call,
-                    arguments,
-                    structural_arguments,
-                    call_ordinal,
-                    target_state,
                     ..
                 } => {
                     if !control.calls.is_valid(*source_call) {
@@ -131,10 +123,11 @@ pub(super) fn validate(
                             call.target_symbol,
                         )
                         .map_or(call.target_symbol, |(requirement, _)| requirement)
-                            != *target_state
+                            != callee.called_signature()
                     {
                         return None;
                     }
+                    pending.extend(callee.selector());
                     pending.extend_from_slice(computations.operands.span(*arguments)?);
                     for argument in computations
                         .structural_arguments

@@ -504,6 +504,12 @@ impl TerminalExecution {
                         self.execute_port_write(operation, handler)?
                     }
                     OperationKind::Call { .. } => self.execute_call(operation, &program)?,
+                    OperationKind::SelectImplementation { table } => {
+                        self.execute_select_implementation(operation, table, &program)?
+                    }
+                    OperationKind::CallDynamic { .. } => {
+                        self.execute_call_dynamic(operation, &program)?
+                    }
                     OperationKind::WriteOnlyPrimitiveStore {
                         destination,
                         value,

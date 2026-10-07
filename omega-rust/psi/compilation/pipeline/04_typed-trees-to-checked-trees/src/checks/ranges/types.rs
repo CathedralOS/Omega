@@ -50,7 +50,11 @@ pub(in crate::checks) fn expression_integer_carrier_maximum(
         PrimitiveType::I16 => u64::try_from(i16::MAX).ok(),
         PrimitiveType::I32 => u64::try_from(i32::MAX).ok(),
         PrimitiveType::I64 => u64::try_from(i64::MAX).ok(),
-        PrimitiveType::Bool | PrimitiveType::Addr | PrimitiveType::F32 | PrimitiveType::F64 => None,
+        PrimitiveType::Bool
+        | PrimitiveType::Selector
+        | PrimitiveType::Addr
+        | PrimitiveType::F32
+        | PrimitiveType::F64 => None,
     }
 }
 
@@ -74,7 +78,11 @@ pub(in crate::checks) fn expression_integer_carrier_minimum(
         PrimitiveType::I16 => Some(BigInt::from_i64(i64::from(i16::MIN))),
         PrimitiveType::I32 => Some(BigInt::from_i64(i64::from(i32::MIN))),
         PrimitiveType::I64 => Some(BigInt::from_i64(i64::MIN)),
-        PrimitiveType::Bool | PrimitiveType::Addr | PrimitiveType::F32 | PrimitiveType::F64 => None,
+        PrimitiveType::Bool
+        | PrimitiveType::Selector
+        | PrimitiveType::Addr
+        | PrimitiveType::F32
+        | PrimitiveType::F64 => None,
     }
 }
 

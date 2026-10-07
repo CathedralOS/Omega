@@ -485,7 +485,7 @@ impl CompilerNumericType {
             PrimitiveType::U64 => Some(Self::U64),
             PrimitiveType::F32 => Some(Self::F32),
             PrimitiveType::F64 => Some(Self::F64),
-            PrimitiveType::Bool | PrimitiveType::Addr => None,
+            PrimitiveType::Bool | PrimitiveType::Addr | PrimitiveType::Selector => None,
         }
     }
 

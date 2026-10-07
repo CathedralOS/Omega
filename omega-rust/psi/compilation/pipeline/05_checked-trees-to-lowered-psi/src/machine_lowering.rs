@@ -272,6 +272,11 @@ fn lower_terminal_selection(
         &source_machines,
         &mut lowered.semantic_module,
     )?;
+    crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(
+        checked,
+        &source_machines,
+        &mut lowered.semantic_module,
+    )?;
     retain_float_meanings(checked, &projection_sources, &mut lowered)?;
     lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;
     // Proof-only quotient correspondence rows join module identity before

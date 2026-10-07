@@ -163,6 +163,9 @@ pub(crate) fn lowered_direct_scalar_term(
         LoweredDirectExpression::StructuralField { .. } => {
             return unsupported("runtime field read requires an occurrence-bound crash predicate");
         }
+        LoweredDirectExpression::ImplementationSelection { .. } => {
+            return unsupported("an implementation selector is not a crash predicate term");
+        }
         LoweredDirectExpression::ByteSequenceLength {
             source,
             scalar_type,

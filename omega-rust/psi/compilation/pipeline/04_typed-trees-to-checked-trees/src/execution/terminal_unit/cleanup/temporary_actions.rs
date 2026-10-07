@@ -203,12 +203,6 @@ pub(crate) fn finalize_scalar_actions(program: &TypedTrees, facts: &mut CheckFac
                 structural_arguments,
                 temporary_cleanups,
                 ..
-            }
-            | checked_trees::CheckedScalarComputationKind::BoundaryCall {
-                source_call,
-                structural_arguments,
-                temporary_cleanups,
-                ..
             } => (source_call, structural_arguments, temporary_cleanups),
             _ => continue,
         };

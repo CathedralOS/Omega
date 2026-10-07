@@ -33,11 +33,11 @@ pub use facts::{
 
 mod computations;
 pub use computations::{
-    CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputation,
-    CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,
-    CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
-    CheckedScalarComputationTemporaryCleanup, CheckedScalarDispatchArm,
-    CheckedScalarDispatchPattern,
+    CheckedScalarCallee, CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
+    CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
+    CheckedScalarComputationPlans, CheckedScalarComputationRoot,
+    CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
+    CheckedScalarDispatchArm, CheckedScalarDispatchPattern,
 };
 mod proof_terms;
 pub use proof_terms::{

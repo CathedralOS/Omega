@@ -386,7 +386,7 @@ pub(super) fn lower_unit_structural_types_including(
                 // Any other ordinary structural call is a claim-free
                 // realization owned by its structural return catalog.
                 CheckedUnitEffectOperationPlan::Call(call)
-                    if !call.is_boundary() && call.structural_result().is_some() =>
+                    if call.is_module() && call.structural_result().is_some() =>
                 {
                     let realization_machine = &call.target.machine;
                     let realization_state = &call.target.state;

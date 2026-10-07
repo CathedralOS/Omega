@@ -58,9 +58,6 @@ pub(crate) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
-    if selects_dynamic_implementation(checked) {
-        return unsupported("dynamic dispatch awaits the named-implementation selector route");
-    }
     // A result-bearing plan owns both its result and the cleanup after it, so
     // the return family is tried before the Unit-only cleanup plans below.
     if let Some(plan) = select_return_plan(checked, selection)? {
@@ -152,10 +149,6 @@ pub(crate) fn lower_selected_machine(
 /// lowered such selections is deleted, so every selection now stops at this
 /// one refusal until the named-implementation selector route lands. Product
 /// pruning retains only the selections of reachable machines.
-fn selects_dynamic_implementation(checked: &CheckedTrees) -> bool {
-    !checked.facts.dynamic_conformances.selections.is_empty()
-}
-
 /// The one checked return plan `selection` lowers, if any. Every result kind
 /// shares this admission: the selection's signature is the one the plan's
 /// attachment implies — attached when the plan retains its owner, either

@@ -49,7 +49,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
             .iter()
             .filter_map(|operation| operation.call())
             .filter(|call| {
-                !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
             })
         {
             let targets = plans

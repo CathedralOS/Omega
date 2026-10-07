@@ -180,7 +180,7 @@ fn eligible(
     // Only an ordinary Unit call joins a scalar graph.
     let Some(call) = operation
         .call()
-        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
+        .filter(|call| call.is_module() && *call.result() == CheckedUnitCallResult::Unit)
     else {
         return false;
     };

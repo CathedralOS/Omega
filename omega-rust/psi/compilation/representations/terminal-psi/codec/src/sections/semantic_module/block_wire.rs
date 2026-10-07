@@ -416,6 +416,33 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             requirement_obligations,
             crash_continuations,
         )?,
+        OperationKind::SelectImplementation { table } => {
+            call_operations::encode_select_implementation(writer, table)
+        }
+        OperationKind::CallDynamic {
+            selector,
+            interface,
+            slot,
+            arguments,
+            erased_arguments,
+            erased_proof_arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => call_operations::encode_call_dynamic(
+            writer,
+            selector,
+            interface,
+            slot,
+            arguments,
+            erased_arguments,
+            erased_proof_arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        )?,
         OperationKind::CallUnit {
             callee,
             arguments,
@@ -943,6 +970,10 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::CALL => call_operations::decode_call(reader)?,
         operation_tags::CALL_UNIT => call_operations::decode_call_unit(reader)?,
+        operation_tags::SELECT_IMPLEMENTATION => {
+            call_operations::decode_select_implementation(reader)?
+        }
+        operation_tags::CALL_DYNAMIC => call_operations::decode_call_dynamic(reader)?,
         operation_tags::BOUNDARY_CALL => call_operations::decode_boundary_call(reader)?,
         operation_tags::PORT_WRITE => call_operations::decode_port_write(reader)?,
         operation_tags::ESTABLISH_ZEROED_STRUCTURAL => {

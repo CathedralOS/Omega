@@ -86,7 +86,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     if operations.iter().any(|operation| {
         operation
             .call()
-            .is_some_and(|call| !call.is_boundary() && call.structural_result().is_some())
+            .is_some_and(|call| call.is_module() && call.structural_result().is_some())
     }) {
         for plan in &facts.flow.terminal_structural_returns.structural_types {
             if shapes

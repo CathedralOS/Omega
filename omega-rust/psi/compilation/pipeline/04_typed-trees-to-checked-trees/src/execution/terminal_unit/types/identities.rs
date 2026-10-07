@@ -280,6 +280,7 @@ pub(in crate::execution::terminal_unit) fn scalar_type(
                 }
                 return PrimitiveType::from_name(name.as_str());
             }
+            TypeReferenceNode::DynamicTrait { .. } => return Some(PrimitiveType::Selector),
             _ => return None,
         }
     }

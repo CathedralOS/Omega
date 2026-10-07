@@ -634,6 +634,7 @@ pub(crate) fn lower_unit_closure(
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines,
             provider_candidates,
+            dynamic_dispatch: Default::default(),
             float_meaning_projections: Vec::new(),
             float_meaning_equalities: Vec::new(),
             proposition_declarations: Vec::new(),
@@ -723,7 +724,7 @@ impl RealizationRoots {
                 let target = operation
                     .call()
                     .filter(|call| {
-                        !call.is_boundary()
+                        call.is_module()
                             && call.structural_result().is_some()
                             && !UnitBody::contains(plans, call.target.machine)
                     })

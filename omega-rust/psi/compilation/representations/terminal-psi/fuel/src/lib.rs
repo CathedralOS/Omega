@@ -65,6 +65,8 @@ impl TerminalFuelSchedule {
             | OperationKind::CallStructuralScalar { .. }
             | OperationKind::CallStructural { .. }
             | OperationKind::CallStructuralWithScalarArguments { .. }
+            | OperationKind::SelectImplementation { .. }
+            | OperationKind::CallDynamic { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::EstablishPrimitiveLocal { .. }
             | OperationKind::PrimitiveScalarRead { .. }

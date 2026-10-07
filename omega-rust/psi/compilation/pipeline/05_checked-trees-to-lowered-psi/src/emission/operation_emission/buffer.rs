@@ -181,11 +181,18 @@ pub(crate) struct OperationBuffer {
         ValueId,
     )>,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
+    /// The module's selector interfaces and tables, by identity.
+    pub(crate) dynamic_dispatch:
+        std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 impl OperationBuffer {
-    pub(crate) fn new(identity_base: u64) -> Self {
+    pub(crate) fn new(
+        identity_base: u64,
+        dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
+    ) -> Self {
         Self {
+            dynamic_dispatch,
             structural_values: Vec::new(),
             scalar_block_invariants: Vec::new(),
             next_identity: identity_base

@@ -496,7 +496,8 @@ fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128
         | PrimitiveType::I16
         | PrimitiveType::I32
         | PrimitiveType::I64
-        | PrimitiveType::Addr => None,
+        | PrimitiveType::Addr
+        | PrimitiveType::Selector => None,
     }
 }
 

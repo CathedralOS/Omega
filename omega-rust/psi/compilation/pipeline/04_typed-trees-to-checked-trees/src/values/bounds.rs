@@ -234,7 +234,8 @@ fn integer(
         }
         Expression::IntegerBitwiseNot { .. }
         | Expression::Boolean(_)
-        | Expression::IeeeFloatLiteral { .. } => return None,
+        | Expression::IeeeFloatLiteral { .. }
+        | Expression::ImplementationSelection { .. } => return None,
     };
     contains(&primitive_range(primitive)?, &bounds).then_some((primitive, bounds))
 }

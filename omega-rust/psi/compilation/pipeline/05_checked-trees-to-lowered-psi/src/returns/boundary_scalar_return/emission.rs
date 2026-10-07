@@ -134,7 +134,12 @@ pub(crate) fn emit_boundary_scalar_return(
             "result-bearing boundary scalar argument count disagrees with its declaration",
         );
     }
-    let mut operations = OperationBuffer::new(identities.identity_base);
+    let mut operations = OperationBuffer::new(
+        identities.identity_base,
+        std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+            checked,
+        )),
+    );
     let mut next_value_identity = first_identity;
     let scalar_parameters = plan
         .scalar_parameters

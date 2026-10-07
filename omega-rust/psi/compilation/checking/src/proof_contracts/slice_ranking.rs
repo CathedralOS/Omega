@@ -212,7 +212,9 @@ fn bound_symbol_floor(program: &TypedTrees, symbol: SymbolHandle) -> Option<i64>
         PrimitiveType::I16 => i16::MIN as i64,
         PrimitiveType::I32 => i32::MIN as i64,
         PrimitiveType::I64 => i64::MIN,
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => return None,
+        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+            return None;
+        }
     };
     let declared = crate::proof_contracts::arithmetic_domains::enforced_declared_range(
         program,

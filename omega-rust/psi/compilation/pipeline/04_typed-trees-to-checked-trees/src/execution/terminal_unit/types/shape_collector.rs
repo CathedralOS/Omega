@@ -297,11 +297,15 @@ impl<'program> ShapeCollector<'program> {
             }
             _ => type_reference,
         };
-        matches!(types.type_reference(reference), TypeReferenceNode::Named { name, .. }
-            if !name.as_str().starts_with("Atomic")
-                && self.program.primitive_type_reference(reference).is_some()
-                && crate::checks::type_multiplicity(self.program, type_reference)
-                    == Multiplicity::Unrestricted)
+        // A selector is one unrestricted, non-atomic opaque word.
+        matches!(
+            types.type_reference(reference),
+            TypeReferenceNode::DynamicTrait { .. }
+        ) || matches!(types.type_reference(reference), TypeReferenceNode::Named { name, .. }
+                if !name.as_str().starts_with("Atomic")
+                    && self.program.primitive_type_reference(reference).is_some()
+                    && crate::checks::type_multiplicity(self.program, type_reference)
+                        == Multiplicity::Unrestricted)
     }
 
     /// A reference type whose shell loans its referent: `parts`' `&mut

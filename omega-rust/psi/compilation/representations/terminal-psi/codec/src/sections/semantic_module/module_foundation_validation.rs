@@ -492,6 +492,9 @@ fn validate_operation_foundation(
         OperationKind::CallUnit { .. } => {
             call_foundations::validate_call_unit(module, machine, operation)?
         }
+        OperationKind::CallDynamic { .. } => {
+            call_foundations::validate_call_dynamic(module, machine, operation)?
+        }
         OperationKind::CallStructuralScalar { .. } => {
             call_foundations::validate_call_structural_scalar(module, machine, operation)?
         }

@@ -57,15 +57,7 @@ fn declaration(
     if matches.next().is_some()
         || !symbol.is_valid()
         || !local.is_mutable
-        || !(matches!(
-            checked
-                .type_reference_table
-                .type_reference(local.type_reference),
-            checked_trees::types::TypeReferenceNode::Named { .. }
-        ) || validation::is_arithmetic_policy_only_integer(
-            &checked.typed,
-            local.type_reference,
-        ))
+        || !validation::is_plain_scalar_storage(&checked.typed, local.type_reference)
         || checked
             .primitive_type_reference(local.type_reference)
             .is_none()

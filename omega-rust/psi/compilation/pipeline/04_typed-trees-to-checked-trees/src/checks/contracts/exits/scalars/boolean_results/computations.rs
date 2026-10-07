@@ -169,8 +169,11 @@ impl ExitScalars<'_, '_> {
             }
             Computation::Call {
                 source_call,
-                target_machine,
-                target_state,
+                callee:
+                    checked_trees::CheckedScalarCallee::Body {
+                        machine: target_machine,
+                        state: target_state,
+                    },
                 call_ordinal,
                 arguments,
                 structural_arguments,

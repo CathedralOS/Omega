@@ -745,12 +745,6 @@ fn computation_contains_trapping_operation(
                 }
                 pending.extend(plans.operands.span_or_empty(*operands).iter().copied());
             }
-            // The call keeps its own provider contract. Result-policy Trap
-            // sites are collected from checked selections by trapping_sites;
-            // this computation walk still owns traps in evaluated operands.
-            Kind::BoundaryCall { arguments, .. } => {
-                pending.extend(plans.operands.span_or_empty(*arguments).iter().copied());
-            }
             Kind::ByteSequenceLiteralComparison { subject, .. }
             | Kind::ByteSequencePredicate { subject, .. } => {
                 if push_place(subject, &mut pending) {
@@ -788,11 +782,19 @@ fn computation_contains_trapping_operation(
                 }
             }
             Kind::Call {
+                callee,
                 arguments,
                 structural_arguments,
                 ..
             } => {
+                pending.extend(callee.selector());
                 pending.extend(plans.operands.span_or_empty(*arguments).iter().copied());
+                // A boundary call keeps its own provider contract. Result-policy
+                // Trap sites are collected from checked selections by
+                // trapping_sites; this walk owns traps in its scalar operands.
+                if matches!(callee, checked_trees::CheckedScalarCallee::Boundary { .. }) {
+                    continue;
+                }
                 for structural in plans
                     .structural_arguments
                     .span_or_empty(*structural_arguments)

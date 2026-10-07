@@ -152,6 +152,7 @@ fn shared_integer_runtime_parameters(
             shared_integer_runtime_parameters(operand)
         }
         LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::ImplementationSelection { .. }
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }

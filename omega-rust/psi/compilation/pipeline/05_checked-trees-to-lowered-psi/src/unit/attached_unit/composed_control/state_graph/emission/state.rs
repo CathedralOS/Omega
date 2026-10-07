@@ -80,7 +80,12 @@ impl StateGraphEmission<'_, '_> {
                 parameter
             })
             .collect::<Vec<_>>();
-        let mut operations = OperationBuffer::new(self.catalogs.next_operation - 1);
+        let mut operations = OperationBuffer::new(
+            self.catalogs.next_operation - 1,
+            std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+                checked,
+            )),
+        );
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
             shared_qualifications: self
                 .catalogs

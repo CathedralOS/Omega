@@ -328,11 +328,11 @@ fn check_program(
     // and before both engines fork off it -- every downstream read (native
     // and interpreter) then rounds once from the spelling.
     validation::land_float_literal_destinations(&mut program);
-    // Calls through a typed `dyn Trait` receiver cannot be resolved during the
-    // earlier symbol pass because local declared types are not available there.
-    // Bind their declaring-trait requirement now so the ordinary result-
-    // overload pass below starts in the correct trait family rather than from
-    // an ambient same-named machine.
+    // Calls through a `Binding<R>` service receiver cannot be resolved during
+    // the earlier symbol pass because local declared types are not available
+    // there. Bind their declaring-trait requirement now so the ordinary
+    // result-overload pass below starts in the correct trait family rather
+    // than from an ambient same-named machine.
     validation::resolve_dynamic_call_targets(&mut program)?;
     // Concrete substitutions may make previously open field types selectable.
     crate::lookup::resolve_projected_receiver_calls(&mut program)?;
@@ -360,6 +360,10 @@ fn check_program(
     // fallback or permission to reinterpret a typed argument.
     validation::land_float_literal_destinations(&mut program);
     default_domain_zero::refine_default_domain_zero(&mut program);
+    // Every selection and selector call is now final: instantiate each
+    // reached requirement under its selector application and retarget the
+    // calls to those slots before validation judges the call edges.
+    crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
     // The program is now frozen for checking: specialization and every
     // call-identity rebinding above mutate it, so the plan memo scope can only
     // open here — the first of the consumers below computes the program-pure

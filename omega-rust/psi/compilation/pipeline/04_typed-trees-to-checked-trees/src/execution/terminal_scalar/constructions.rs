@@ -273,15 +273,12 @@ pub(super) fn retain_shapes(
                 }
             }
             CheckedScalarComputationKind::Call {
-                arguments,
-                structural_arguments,
-                ..
-            }
-            | CheckedScalarComputationKind::BoundaryCall {
+                callee,
                 arguments,
                 structural_arguments,
                 ..
             } => {
+                pending.extend(callee.selector());
                 pending.extend(plans.operands.span(*arguments)?);
                 for argument in plans.structural_arguments.span(*structural_arguments)? {
                     if let Some(place) = argument.as_place() {

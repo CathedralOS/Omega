@@ -410,6 +410,7 @@ impl ExitScalars<'_, '_> {
             }
             let CheckedScalarComputationKind::Call {
                 source_call,
+                callee: checked_trees::CheckedScalarCallee::Body { .. },
                 arguments,
                 ..
             } = &node.kind

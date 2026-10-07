@@ -44,7 +44,10 @@ representation receipts and invocation-owned admission authority. It accepts no
 runtime provider choices. [Operator candidates](src/monomorphization/operator_candidates.rs)
 derive from authored conformance edges; [finite families](src/monomorphization/dynamic_families.rs)
 materialize every checked boundary candidate's complete declared roster, alongside
-local dynamic selections. There is no second semantic-to-checked route, and
+local dynamic selections. [Dynamic slots](src/monomorphization/dynamic_slots.rs)
+instantiate each requirement a selector reaches and retarget its calls, so
+selector calls plan through the ordinary call routes against a concrete
+signature. There is no second semantic-to-checked route, and
 standalone programs and package builds share the settled checkpoint.
 Semantic validation returns both operational and service-reach
 analyses; behavior checking and fact construction consume those exact results

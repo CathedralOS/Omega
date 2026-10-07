@@ -47,7 +47,6 @@ impl CheckedScalarComputationStructuralArgument {
             Self::Case(_) => None,
         }
     }
-
 }
 
 /// One admitted temporary owner retired after its consuming call returns.
@@ -222,10 +221,13 @@ pub enum CheckedScalarComputationKind {
         subject: CheckedScalarComputationHandle,
         arms: HandleSpan<CheckedScalarDispatchArm>,
     },
+    /// One scalar invocation. Every callee kind owns the same ordered mixed
+    /// operands and normal temporary retirement; the callee names which
+    /// executable runs and, for a boundary, retains its separate contract and
+    /// provider identity.
     Call {
         source_call: Handle<crate::FlowCallFact>,
-        target_machine: SymbolHandle,
-        target_state: SymbolHandle,
+        callee: CheckedScalarCallee,
         /// Authored occurrence identity, not its position in execution order.
         call_ordinal: u32,
         /// Dense scalar operands. The exact callee signature interleaves these
@@ -234,20 +236,6 @@ pub enum CheckedScalarComputationKind {
         structural_arguments: HandleSpan<CheckedScalarComputationStructuralArgument>,
         /// Checked owner retirement on this invocation's normal continuation.
         /// Borrowed access alone does not authorize an owned temporary's drop.
-        temporary_cleanups: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
-    },
-    /// A boundary invocation owns the same ordered mixed operands and normal
-    /// temporary retirement as a checked-body call. The target retains its
-    /// separate boundary contract and provider identity.
-    BoundaryCall {
-        source_call: Handle<crate::FlowCallFact>,
-        target_machine: SymbolHandle,
-        target_state: SymbolHandle,
-        /// Authored occurrence identity, not its position in execution order.
-        call_ordinal: u32,
-        /// Dense scalar operands in authored formal-position order.
-        arguments: HandleSpan<CheckedScalarComputationHandle>,
-        structural_arguments: HandleSpan<CheckedScalarComputationStructuralArgument>,
         temporary_cleanups: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
     },
     Select {
@@ -266,6 +254,70 @@ pub enum CheckedScalarComputationKind {
         expression: CheckedScalarExpression,
         operands: HandleSpan<CheckedScalarComputationHandle>,
     },
+}
+
+/// Which executable one scalar invocation enters. Operand order, custody and
+/// temporary retirement are independent of the callee kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarCallee {
+    /// A checked body in this program.
+    Body {
+        machine: SymbolHandle,
+        state: SymbolHandle,
+    },
+    /// A bodyless boundary declaration, legacy boundary operator, or external
+    /// leaf's satisfied requirement: the declaration owns the contract and an
+    /// installed provider supplies the body. An operator or requirement names
+    /// one symbol for both coordinates.
+    Boundary {
+        machine: SymbolHandle,
+        state: SymbolHandle,
+    },
+    /// A requirement invoked through a runtime implementation selector
+    /// (`Trait::member(selector, data...)`). `selector` is evaluated before
+    /// the data operands and is never one of the call's `arguments`.
+    Dynamic {
+        selector: CheckedScalarComputationHandle,
+        /// The instantiated slot the call targets: the requirement under the
+        /// selector's trait application, with the selector as its first
+        /// operand.
+        slot: SymbolHandle,
+        /// The exact requirement the slot instantiates.
+        requirement: SymbolHandle,
+        /// Normalized identity of the selector's `dyn Trait<Args>` type.
+        interface_identity: String,
+    },
+}
+
+impl CheckedScalarCallee {
+    /// The statically named machine and state of a body or boundary callee.
+    /// A dynamic callee selects its executable at runtime and names none.
+    pub fn static_target(&self) -> Option<(SymbolHandle, SymbolHandle)> {
+        match self {
+            Self::Body { machine, state } | Self::Boundary { machine, state } => {
+                Some((*machine, *state))
+            }
+            Self::Dynamic { .. } => None,
+        }
+    }
+
+    /// The signature the authored call resolves to: a static callee's state,
+    /// or the slot a dynamic call targets. Validation compares it with the
+    /// retained call fact's resolved target.
+    pub fn called_signature(&self) -> SymbolHandle {
+        match self {
+            Self::Body { state, .. } | Self::Boundary { state, .. } => *state,
+            Self::Dynamic { slot, .. } => *slot,
+        }
+    }
+
+    /// The runtime implementation selector, evaluated before every data operand.
+    pub fn selector(&self) -> Option<CheckedScalarComputationHandle> {
+        match self {
+            Self::Dynamic { selector, .. } => Some(*selector),
+            Self::Body { .. } | Self::Boundary { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

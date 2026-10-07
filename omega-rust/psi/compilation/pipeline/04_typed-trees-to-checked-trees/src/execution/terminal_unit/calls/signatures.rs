@@ -405,9 +405,31 @@ fn scalar_and_structural_parameters(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
+    parameter_signatures(
+        program,
+        shapes,
+        program.state_parameters(state),
+        binders,
+        trace,
+    )
+}
+
+/// Classify a checked callee's formals into its scalar and structural
+/// lanes. A typed state and a selector call's instantiated slot present
+/// their formals to callers identically.
+pub(crate) fn parameter_signatures(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    parameters: &[StateParameter],
+    binders: &[(SymbolHandle, String)],
+    trace: &LocalConstructionTrace,
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
     let mut structural_parameters = Vec::new();
     let mut scalar_parameters = Vec::new();
-    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+    for (position, parameter) in parameters.iter().enumerate() {
         trace.phase("state graph: state signature: parameter signature: erased parameter");
         if strips_erased_parameter(parameter)? {
             continue;

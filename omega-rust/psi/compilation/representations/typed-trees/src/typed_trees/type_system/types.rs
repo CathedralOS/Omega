@@ -483,6 +483,155 @@ impl TypeReferenceTable {
     /// Replace a fixed-array type reference's length with a concrete literal
     /// (the comptime const-eval substitution). Panics if `handle` is not a
     /// fixed-array node -- callers obtain handles from `fixed_array_lengths`.
+    /// The type `handle` denotes after replacing each binder in
+    /// `substitutions` by its argument type.
+    ///
+    /// Only rows whose subtree names a binder are rebuilt; every other row,
+    /// including the arguments themselves, is shared, so the authored
+    /// declaration is never rewritten. A binder inside a domain argument, a
+    /// fixed-array length or a const expression has no structural
+    /// substitution here and is refused rather than left generic.
+    pub fn instantiate(
+        &mut self,
+        handle: TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Result<TypeReferenceHandle, &'static str> {
+        if !handle.is_valid() {
+            return Ok(handle);
+        }
+        let rebuilt = match self.type_reference(handle).clone() {
+            TypeReferenceNode::Named { symbol, .. } => {
+                return Ok(substitutions
+                    .iter()
+                    .find(|(binder, _)| *binder == symbol)
+                    .map_or(handle, |(_, argument)| *argument));
+            }
+            TypeReferenceNode::Reference {
+                referee,
+                access,
+                lifetime,
+            } => {
+                let instantiated = self.instantiate(referee, substitutions)?;
+                (instantiated != referee).then_some(TypeReferenceNode::Reference {
+                    referee: instantiated,
+                    access,
+                    lifetime,
+                })
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let mentions_binder = self.constraints(constraints).iter().any(|constraint| {
+                    matches!(constraint, TypeConstraintNode::Domain(domain)
+                    if domain.arguments.iter().any(|argument| {
+                        self.names_any_binder(*argument, substitutions)
+                    }))
+                });
+                if mentions_binder {
+                    return Err("a trait parameter inside a domain argument has no instantiation");
+                }
+                let instantiated = self.instantiate(base_type, substitutions)?;
+                (instantiated != base_type).then_some(TypeReferenceNode::Constrained {
+                    base_type: instantiated,
+                    constraints,
+                })
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                if let FixedArrayLength::ConstParameter { symbol, .. } = &length
+                    && substitutions.iter().any(|(binder, _)| binder == symbol)
+                {
+                    return Err("a trait parameter as an array length has no instantiation");
+                }
+                let instantiated = self.instantiate(element_type, substitutions)?;
+                (instantiated != element_type).then_some(TypeReferenceNode::FixedArray {
+                    element_type: instantiated,
+                    length,
+                })
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                let instantiated = self.instantiate(element_type, substitutions)?;
+                (instantiated != element_type).then_some(TypeReferenceNode::Slice {
+                    element_type: instantiated,
+                })
+            }
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                lifetime_arguments,
+                arguments,
+            } => self
+                .instantiate_arguments(arguments, substitutions)?
+                .map(|arguments| TypeReferenceNode::Generic {
+                    base_symbol,
+                    base_name,
+                    lifetime_arguments,
+                    arguments,
+                }),
+            TypeReferenceNode::DynamicTrait {
+                symbol,
+                name,
+                arguments,
+            } => self
+                .instantiate_arguments(arguments, substitutions)?
+                .map(|arguments| TypeReferenceNode::DynamicTrait {
+                    symbol,
+                    name,
+                    arguments,
+                }),
+            TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => None,
+        };
+        Ok(rebuilt.map_or(handle, |node| self.insert(node)))
+    }
+
+    /// A rebuilt argument span when any argument changed.
+    fn instantiate_arguments(
+        &mut self,
+        arguments: HandleSpan<TypeReferenceHandle>,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Result<Option<HandleSpan<TypeReferenceHandle>>, &'static str> {
+        let original = self.type_reference_handles(arguments).to_vec();
+        let mut instantiated = Vec::with_capacity(original.len());
+        for argument in &original {
+            instantiated.push(self.instantiate(*argument, substitutions)?);
+        }
+        Ok((instantiated != original).then(|| self.insert_type_reference_handles(instantiated)))
+    }
+
+    fn names_any_binder(
+        &self,
+        handle: TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> bool {
+        if !handle.is_valid() {
+            return false;
+        }
+        match self.type_reference(handle) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                substitutions.iter().any(|(binder, _)| binder == symbol)
+            }
+            TypeReferenceNode::Reference { referee, .. } => {
+                self.names_any_binder(*referee, substitutions)
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                self.names_any_binder(*base_type, substitutions)
+            }
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => {
+                self.names_any_binder(*element_type, substitutions)
+            }
+            TypeReferenceNode::Generic { arguments, .. }
+            | TypeReferenceNode::DynamicTrait { arguments, .. } => self
+                .type_reference_handles(*arguments)
+                .iter()
+                .any(|argument| self.names_any_binder(*argument, substitutions)),
+            TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => false,
+        }
+    }
+
     pub fn set_fixed_array_length(&mut self, handle: TypeReferenceHandle, value: usize) {
         let TypeReferenceNode::FixedArray { length, .. } = self.type_references.get_mut(handle)
         else {
@@ -1002,8 +1151,9 @@ impl TypeReferenceTable {
                     TypeReferenceNode::Named { .. }
                 )
                 .then_some(symbol);
-                let TypeReferenceNode::Named { symbol: current, .. } =
-                    self.type_references.get_mut(type_reference)
+                let TypeReferenceNode::Named {
+                    symbol: current, ..
+                } = self.type_references.get_mut(type_reference)
                 else {
                     unreachable!();
                 };
@@ -1206,11 +1356,11 @@ impl TypeReferenceNode {
             TypeReferenceNode::Reference { .. } => None,
             TypeReferenceNode::Constrained { base_type, .. } => table.primitive_type(*base_type),
             TypeReferenceNode::Named { name, .. } => PrimitiveType::from_name(name),
+            TypeReferenceNode::DynamicTrait { .. } => Some(PrimitiveType::Selector),
             TypeReferenceNode::FixedArray { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Unit => None,
         }
     }
@@ -1404,6 +1554,11 @@ pub enum PrimitiveType {
     /// wiki/spec/language/counts_and_addresses.md). Naive
     /// pointer-width for now -- rides the 8-byte unsigned path.
     Addr,
+    /// The runtime carrier of a `dyn Trait<Args>` selector: one opaque
+    /// pointer-width word naming an implementation table. It is never
+    /// spelled, takes no literals, ranges or operators, and only
+    /// conversions from a named implementation produce it.
+    Selector,
 }
 
 impl PrimitiveType {
@@ -1457,6 +1612,7 @@ impl PrimitiveType {
             Self::U32 => "u32",
             Self::U64 => "u64",
             Self::Addr => "addr",
+            Self::Selector => "selector",
         }
     }
 
@@ -1486,7 +1642,7 @@ impl PrimitiveType {
     pub fn is_signed_integer(self) -> bool {
         !matches!(
             self,
-            Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Addr
+            Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Addr | Self::Selector
         )
     }
 
@@ -1497,7 +1653,7 @@ impl PrimitiveType {
             Self::Bool | Self::I8 | Self::U8 => Some(1),
             Self::I16 | Self::U16 => Some(2),
             Self::F32 | Self::I32 | Self::U32 => Some(4),
-            Self::F64 | Self::I64 | Self::U64 | Self::Addr => Some(8),
+            Self::F64 | Self::I64 | Self::U64 | Self::Addr | Self::Selector => Some(8),
         }
     }
 
@@ -1520,5 +1676,79 @@ impl PrimitiveType {
 
     pub fn accepts_finite_constraint(self) -> bool {
         matches!(self, Self::F32 | Self::F64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FixedArrayLength, TypeReferenceNode, TypeReferenceTable};
+    use crate::name::Identifier;
+    use language_core::ReferenceAccess;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn instantiation_rebuilds_only_rows_that_name_a_binder() {
+        let mut builder = SymbolTableBuilder::default();
+        let binder = builder.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("T"));
+        let item = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("Item"));
+        let other = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("Other"));
+        let mut table = TypeReferenceTable::new();
+        let formal = table.insert(TypeReferenceNode::Named {
+            symbol: binder,
+            name: Identifier::from("T"),
+        });
+        let authored = TypeReferenceNode::Reference {
+            referee: formal,
+            access: ReferenceAccess::Shared,
+            lifetime: None,
+        };
+        let borrowed = table.insert(authored.clone());
+        let unrelated = table.insert(TypeReferenceNode::Named {
+            symbol: other,
+            name: Identifier::from("Other"),
+        });
+        let actual = table.insert(TypeReferenceNode::Named {
+            symbol: item,
+            name: Identifier::from("Item"),
+        });
+        let substitutions = [(binder, actual)];
+
+        let instantiated = table
+            .instantiate(borrowed, &substitutions)
+            .expect("a reference to the binder instantiates");
+        assert_ne!(instantiated, borrowed);
+        assert_eq!(
+            table.type_reference(instantiated),
+            &TypeReferenceNode::Reference {
+                referee: actual,
+                access: ReferenceAccess::Shared,
+                lifetime: None,
+            }
+        );
+        // The authored declaration keeps its generic row.
+        assert_eq!(table.type_reference(borrowed), &authored);
+        // A row naming no binder, and the bare binder itself, are shared.
+        assert_eq!(table.instantiate(unrelated, &substitutions), Ok(unrelated));
+        assert_eq!(table.instantiate(formal, &substitutions), Ok(actual));
+    }
+
+    #[test]
+    fn instantiation_refuses_a_binder_spelling_an_array_length() {
+        let mut builder = SymbolTableBuilder::default();
+        let binder = builder.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("N"));
+        let element = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("Item"));
+        let mut table = TypeReferenceTable::new();
+        let element = table.insert(TypeReferenceNode::Named {
+            symbol: element,
+            name: Identifier::from("Item"),
+        });
+        let array = table.insert(TypeReferenceNode::FixedArray {
+            element_type: element,
+            length: FixedArrayLength::ConstParameter {
+                symbol: binder,
+                name: Identifier::from("N"),
+            },
+        });
+        assert!(table.instantiate(array, &[(binder, element)]).is_err());
     }
 }

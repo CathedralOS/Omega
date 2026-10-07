@@ -49,7 +49,8 @@ pub(crate) use conformance::{
 };
 pub(crate) use data_conformance::{arguments_for_declaring_trait, validate_conformances};
 pub use dynamic::{
-    DynamicImplementationSelection, collect_dynamic_implementation_selections,
+    DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
+    collect_dynamic_slot_demands, dynamic_call_demand, dynamic_expression_call_demand,
     resolve_dynamic_call_targets, resolve_selected_dynamic_call_targets,
 };
 pub(crate) use dynamic::{

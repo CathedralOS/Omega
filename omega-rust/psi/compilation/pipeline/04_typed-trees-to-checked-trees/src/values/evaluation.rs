@@ -212,9 +212,9 @@ fn integer(
             }
             Some((target, source.exact_cast_value_to(target, value)?))
         }
-        CheckedScalarExpression::IeeeFloatLiteral { .. } | CheckedScalarExpression::Boolean(_) => {
-            None
-        }
+        CheckedScalarExpression::IeeeFloatLiteral { .. }
+        | CheckedScalarExpression::ImplementationSelection { .. }
+        | CheckedScalarExpression::Boolean(_) => None,
     }
 }
 
@@ -381,7 +381,11 @@ pub(crate) fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
         PrimitiveType::U16 => (IntegerSign::Unsigned, 16),
         PrimitiveType::U32 => (IntegerSign::Unsigned, 32),
         PrimitiveType::U64 => (IntegerSign::Unsigned, 64),
-        PrimitiveType::Addr | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
+        PrimitiveType::Addr
+        | PrimitiveType::Selector
+        | PrimitiveType::Bool
+        | PrimitiveType::F32
+        | PrimitiveType::F64 => {
             return None;
         }
     };

@@ -177,22 +177,24 @@ Knowing the latest selection is not permission to devirtualize its call.
 
 ## Call and forwarding roles
 
-| Role | Unit call representation |
-| --- | --- |
-| Direct local selection | `CallUnit` with its exact direct-dispatch row. |
-| Rebound descriptor | `CallDynamicUnit` with descriptor ordinal and exact selected requirement row. |
-| Forwarded descriptor parameter | `CallDynamicParameterUnit` with the helper's parameter slot and requirement row. |
+`Impl as dyn Trait<Args>` produces a selector with `SelectImplementation`,
+naming that implementation's table. Every dynamic call is one `CallDynamic`
+naming its interface slot: the selector is the dispatch operand, and the
+slot's call shape governs the ordinary arguments and the result. Where the
+selector came from (a local selection, a rebinding, a join, a stored field or
+a forwarded parameter) is ordinary value flow of one scalar word, not a
+separate call representation. An outer call that forwards a selector and the
+helper's dynamic call remain two independently identified operations.
 
-Dynamic scalar calls retain the corresponding scalar result type and identity.
-Unit calls retain obligations and crash continuations but have `OperationResult::Unit`:
-no invented value ID or result home. Scalar results use an exactly typed durable
-home through the ordinary caller and helper; Boolean results do not become
-integer-shaped placeholders.
+The slot's call shape is the requirement instantiated under the selector's
+trait application. Checking plans each dynamic call against that shape with
+the selector as its first operand, so argument custody, borrows and write
+frames treat the call like any call to a bodyless checked callee. Every row
+of every table realizes the shape exactly.
 
-Owner-local selections, rebound descriptors, and inbound parameters are distinct
-argument sources. Forwarding preserves that role rather than relabeling all
-sources as descriptors. An outer descriptor call and its helper's parameter-slot
-call remain two independently identified operations.
+Unit calls have `OperationResult::Unit`: no invented value ID or result home.
+Scalar results bind an exactly typed value through the ordinary caller;
+Boolean results do not become integer-shaped placeholders.
 
 ## Native tables and replay
 

@@ -266,10 +266,12 @@ impl Builder<'_, '_> {
             self.call_operands(source_call, operands, parameters)?;
         Some(self.insert(
             expected_type,
-            CheckedScalarComputationKind::BoundaryCall {
+            CheckedScalarComputationKind::Call {
                 source_call,
-                target_machine,
-                target_state,
+                callee: checked_trees::CheckedScalarCallee::Boundary {
+                    machine: target_machine,
+                    state: target_state,
+                },
                 call_ordinal,
                 arguments,
                 structural_arguments,

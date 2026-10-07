@@ -664,7 +664,7 @@ fn lower_unit_proof_output_runtime_call(
     for operation in &plan.operations {
         // Only ordinary Unit calls carry runtime proof outputs.
         let Some(call) = operation.call().filter(|call| {
-            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+            call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
         }) else {
             continue;
         };

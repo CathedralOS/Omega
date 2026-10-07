@@ -101,12 +101,7 @@ pub(crate) fn zeroed_scalar_local_initializer(
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
     if !local.is_mutable
         || local.initial_value.is_valid()
-        || !(matches!(
-            program
-                .type_reference_table
-                .type_reference(local.type_reference),
-            typed_trees::types::TypeReferenceNode::Named { .. }
-        ) || validation::is_arithmetic_policy_only_integer(program, local.type_reference))
+        || !validation::is_plain_scalar_storage(program, local.type_reference)
     {
         return None;
     }
@@ -136,6 +131,8 @@ pub(crate) fn zeroed_scalar_local_initializer(
         PrimitiveType::U32 => LandedIntegerType::U32,
         PrimitiveType::U64 => LandedIntegerType::U64,
         PrimitiveType::Addr => LandedIntegerType::Addr,
+        // A selector has no zero value: only a named implementation makes one.
+        PrimitiveType::Selector => return None,
     };
     Some(CheckedScalarExpression::IntegerLiteral {
         literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")

@@ -2060,7 +2060,7 @@ impl Emission<'_, '_, '_> {
                 let Some(result) = call
                     .operation()
                     .call()
-                    .filter(|planned| !planned.is_boundary())
+                    .filter(|planned| planned.is_module())
                     .and_then(checked_trees::CheckedUnitCallPlan::structural_result)
                 else {
                     return unsupported(

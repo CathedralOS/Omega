@@ -96,6 +96,7 @@ use crate::unit::unit_cleanup::{
 
 pub(crate) mod attached_unit;
 pub(crate) mod crash_interface;
+pub(crate) mod dynamic_dispatch;
 pub(crate) use crash_interface::effective_crash_routes;
 pub(crate) mod runtime_requirements;
 pub(crate) mod structural_unit_control;

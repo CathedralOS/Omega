@@ -402,8 +402,20 @@ pub(crate) fn validate_machine_call_cycles(
     );
 
     for members in strongly_connected_components(&edges) {
-        // The existing self-call judgment owns single-machine recursion.
-        if members.len() < 2 {
+        // The existing self-call judgment owns direct single-machine
+        // recursion. A runtime self-edge here can only come from a selector
+        // call that may dispatch back into its own implementation, which no
+        // ranking yet carries across the dispatch edge.
+        if let [member] = members.as_slice() {
+            if edges[*member].contains(member)
+                && !proof_only.is_proof_machine(program, &machines[*member])
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine call cycle: `{}` can re-enter itself through a selector call; \
+                     termination across runtime implementation selection is not yet ranked",
+                    machines[*member].name
+                )));
+            }
             continue;
         }
         let names = members

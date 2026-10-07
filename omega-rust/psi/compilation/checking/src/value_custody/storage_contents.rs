@@ -422,6 +422,14 @@ fn resolve(
         {
             Some(ContentType::Provider)
         }
+        // A selector is one plain word naming an implementation table: it
+        // owns and borrows nothing. Local tables never cross a component
+        // seam, so it has no marshaled form.
+        TypeReferenceNode::DynamicTrait { .. }
+            if requirement != ContentsRequirement::SeamMarshal =>
+        {
+            Some(ContentType::Scalar(PrimitiveType::Selector))
+        }
         TypeReferenceNode::Slice { element_type }
             if matches!(
                 requirement,

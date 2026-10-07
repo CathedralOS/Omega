@@ -231,7 +231,8 @@ impl EntryOperands<'_> {
             | CheckedScalarExpression::ErasedParameter { .. }
             | CheckedScalarExpression::StructuralParameterField { .. }
             | CheckedScalarExpression::IntegerLiteral { .. }
-            | CheckedScalarExpression::IeeeFloatLiteral { .. } => {}
+            | CheckedScalarExpression::IeeeFloatLiteral { .. }
+            | CheckedScalarExpression::ImplementationSelection { .. } => {}
         }
         Some(())
     }

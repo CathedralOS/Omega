@@ -91,10 +91,6 @@ pub(crate) fn computation_cleanups(
         let retained = match plans.nodes.get(identity).kind {
             checked_trees::CheckedScalarComputationKind::Call {
                 temporary_cleanups, ..
-            }
-            | checked_trees::CheckedScalarComputationKind::BoundaryCall {
-                temporary_cleanups,
-                ..
             } => temporary_cleanups,
             _ => continue,
         };

@@ -226,7 +226,7 @@ pub(super) fn available_target(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<AvailableScalarTarget> {
     // Only an ordinary scalar call resolves a scalar target.
-    let planned = operation.call().filter(|call| !call.is_boundary())?;
+    let planned = operation.call().filter(|call| call.is_module())?;
     let result = planned.scalar_result()?;
     let target_machine = &planned.target.machine;
     let target_state = &planned.target.state;

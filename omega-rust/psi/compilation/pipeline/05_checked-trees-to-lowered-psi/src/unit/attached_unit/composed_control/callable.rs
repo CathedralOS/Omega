@@ -94,6 +94,9 @@ pub(in crate::unit::attached_unit) fn emit(
             shared.machine_ids.to_vec(),
             shared.scalar_requirement_counts.to_vec(),
             *counters.call_obligation,
+            std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+                checked,
+            )),
         )
         .with_callable_namespace(
             shared.boundary_parameters,

@@ -53,7 +53,8 @@ pub use float_ranges::{closed_float_range_endpoint, ieee_float_range_ordered};
 mod integer_ranges;
 pub use integer_ranges::{
     closed_integer_range_bound, closed_integer_range_maximum, closed_scalar_result_range,
-    declared_integer_range, is_arithmetic_policy_only_integer, unrestricted_builtin_primitive,
+    declared_integer_range, is_arithmetic_policy_only_integer, is_plain_scalar_storage,
+    unrestricted_builtin_primitive,
 };
 pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 
@@ -878,7 +879,9 @@ fn validate_type_reference_handle_with_context(
             // A selector names one exact trait application: every trait
             // parameter is bound, so each requirement's call shape is concrete.
             let parameter_count = program.trait_type_parameters(trait_definition).len();
-            let arguments = program.type_reference_table.type_reference_handles(*arguments);
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
             if arguments.len() != parameter_count {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses `dyn {name}` with {} argument(s); `{name}` declares {parameter_count} trait parameter(s)",

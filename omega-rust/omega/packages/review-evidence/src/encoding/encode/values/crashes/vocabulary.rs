@@ -24,6 +24,7 @@ pub(crate) fn encode_primitive_type(
             PackageReviewPrimitiveType::U32 => 9,
             PackageReviewPrimitiveType::U64 => 10,
             PackageReviewPrimitiveType::Addr => 11,
+            PackageReviewPrimitiveType::Selector => 12,
         },
     );
 }
@@ -88,6 +89,7 @@ pub(super) const fn primitive_type_name(
         PackageReviewPrimitiveType::U32 => "u32",
         PackageReviewPrimitiveType::U64 => "u64",
         PackageReviewPrimitiveType::Addr => "addr",
+        PackageReviewPrimitiveType::Selector => "selector",
     }
 }
 

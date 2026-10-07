@@ -109,6 +109,8 @@ impl AdmittedTerminalProgram {
         catalogs.placed_view_inputs = std::mem::take(&mut module.placed_view_inputs);
         catalogs.structural_types = std::mem::take(&mut module.structural_types);
         catalogs.structural_domains = std::mem::take(&mut module.structural_domains);
+        // Selectors name tables of this catalog; dynamic calls read it.
+        catalogs.dynamic_dispatch = std::mem::take(&mut module.dynamic_dispatch);
         Ok(Self {
             identity: terminal_psi,
             catalogs,

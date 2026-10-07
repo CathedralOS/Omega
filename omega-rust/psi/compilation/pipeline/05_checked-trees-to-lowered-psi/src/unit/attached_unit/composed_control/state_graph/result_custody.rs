@@ -216,7 +216,7 @@ fn retired_in_body(
                 ..
             } => Some(result),
             CheckedUnitEffectOperationPlan::Call(call)
-                if !call.is_boundary() && call.coordinate.call_ordinal != 0 =>
+                if call.is_module() && call.coordinate.call_ordinal != 0 =>
             {
                 call.structural_result()
                     .filter(|result| result.multiplicity == Multiplicity::Unrestricted)

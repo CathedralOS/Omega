@@ -58,7 +58,7 @@ pub(super) fn validate<'a>(
             // A scalar callee joins an ordinary body's closure before
             // admission; a composed catalog selects it from the call.
             CheckedUnitEffectOperationPlan::Call(call)
-                if !call.is_boundary() && call.scalar_result().is_some() =>
+                if call.is_module() && call.scalar_result().is_some() =>
             {
                 let target_machine = &call.target.machine;
                 if !scalar_closure.contains(target_machine)

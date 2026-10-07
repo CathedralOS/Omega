@@ -573,7 +573,12 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         })
         .map(|place| place.map(TerminalAffineCleanupAction::DiscardRoot))
         .collect::<Result<Vec<_>, _>>()?;
-    let mut operations = OperationBuffer::new(identity_base);
+    let mut operations = OperationBuffer::new(
+        identity_base,
+        std::sync::Arc::new(crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(
+            checked,
+        )),
+    );
     let mut next_value = identity_base
         .checked_add(1)
         .ok_or(LoweringError::Unsupported(

@@ -29,6 +29,7 @@ pub(crate) struct EmbeddedScalarCalls {
     /// A standalone helper catalog has no such closure and keeps it empty.
     boundaries: Vec<crate::unit::attached_unit::BoundaryParameters>,
     prepared: Vec<PreparedScalarMachine>,
+    dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 impl EmbeddedScalarCalls {
@@ -36,6 +37,7 @@ impl EmbeddedScalarCalls {
         machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
         requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
         next_call_obligation: u64,
+        dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     ) -> Self {
         Self {
             claim_bindings: Vec::new(),
@@ -45,6 +47,7 @@ impl EmbeddedScalarCalls {
             next_call_obligation,
             boundaries: Vec::new(),
             prepared: Vec::new(),
+            dynamic_dispatch,
         }
     }
 
@@ -124,6 +127,7 @@ impl EmbeddedScalarCalls {
                 machine.partition_compositions,
                 terminal_machine,
                 identity_base,
+                self.dynamic_dispatch.clone(),
                 &self.machine_ids,
                 &self.requirement_counts,
                 &machine.literal_places,
@@ -283,6 +287,9 @@ impl EmbeddedScalarCalls {
             prepared,
             next_call_obligation: TERMINAL_UNIT_CALL_OBLIGATION_BASE,
             boundaries: Vec::new(),
+            dynamic_dispatch: std::sync::Arc::new(
+                crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(checked),
+            ),
         };
         selected.reserve_machine_prefix(reserved_prefix)?;
         Ok(selected)
@@ -297,10 +304,13 @@ pub(crate) fn computation_targets(
     let mut targets = Vec::new();
     for handle in crate::expression_preparation::computation_graph::reachable_nodes(checked, roots)?
     {
-        if let CheckedScalarComputationKind::Call { target_machine, .. } = nodes.get(handle).kind
-            && !targets.contains(&target_machine)
+        if let CheckedScalarComputationKind::Call {
+            callee: checked_trees::CheckedScalarCallee::Body { machine, .. },
+            ..
+        } = nodes.get(handle).kind
+            && !targets.contains(&machine)
         {
-            targets.push(target_machine);
+            targets.push(machine);
         }
     }
     Ok(targets)

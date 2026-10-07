@@ -281,6 +281,16 @@ pub(super) fn attach_checked_crash_calls(
                 else {
                     continue;
                 };
+                // A selector call's operands lead with its selector, which the
+                // requirement's formals omit; published routes would substitute
+                // misaligned actuals, so such a call keeps no refinement row.
+                if program
+                    .dynamic_slot_by_symbol(call_flow.target_symbol)
+                    .is_some()
+                    && !capsule.published_buckets().is_empty()
+                {
+                    continue;
+                }
                 let parameters = program.state_signature_parameters(signature);
                 (
                     parameters,

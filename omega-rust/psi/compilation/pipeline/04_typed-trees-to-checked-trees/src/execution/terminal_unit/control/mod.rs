@@ -19,7 +19,9 @@ pub(super) mod structural_operands;
 mod structural_unit_machine;
 
 pub(super) use crate::semantic::calls::terminal_callable_target;
-pub(crate) use boundary_machine::{build_boundary_machine, build_static_boundary_requirements};
+pub(crate) use boundary_machine::{
+    build_boundary_machine, build_dynamic_slot_plans, build_static_boundary_requirements,
+};
 pub(super) use call_occurrences::{
     call_owns_statement_computations, outer_calls, outer_calls_before_traced, terminal_named_call,
 };
@@ -38,8 +40,7 @@ use super::{
     CheckedStructuralUnitControlPlans, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, MachineSupplyMode, Multiplicity,
-    PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees,
+    PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 

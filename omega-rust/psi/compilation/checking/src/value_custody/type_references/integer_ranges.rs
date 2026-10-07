@@ -14,6 +14,20 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// An arithmetic-policy-only integer result changes future operation meaning,
 /// not the set of representable payloads. It owes no extra range predicate.
 /// Other qualifications must retain their own result obligations.
+/// Whether a scalar's storage carries no qualification that owes its own
+/// evidence: a bare named type, a runtime selector (`dyn Trait<Args>`, one
+/// opaque word), or an integer qualified only by an arithmetic policy, which
+/// changes later operations rather than the stored payload.
+pub fn is_plain_scalar_storage(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    program
+        .type_reference_table
+        .contains_type_reference(reference)
+        && (matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::DynamicTrait { .. }
+        ) || is_arithmetic_policy_only_integer(program, reference))
+}
+
 pub fn is_arithmetic_policy_only_integer(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -77,6 +91,8 @@ pub fn unrestricted_builtin_primitive(
             .symbols
             .builtin_type_atom(*symbol)
             .is_some_and(|atom| atom.symbol_name() == name.as_str()),
+        // A selector is one unrestricted opaque word.
+        TypeReferenceNode::DynamicTrait { .. } => true,
         _ => is_arithmetic_policy_only_integer(program, reference),
     };
     unrestricted

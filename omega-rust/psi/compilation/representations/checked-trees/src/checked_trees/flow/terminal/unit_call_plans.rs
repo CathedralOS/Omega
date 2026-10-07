@@ -1,11 +1,12 @@
-//! One ordinary or boundary call from a Unit-effect body.
+//! One ordinary, boundary or dynamic call from a Unit-effect body.
 //!
 //! A call has three independent axes. Its route reaches an ordinary checked
-//! machine in this module or a bodyless boundary. Its result binds nothing, a
-//! primitive in the dense scalar namespace, or a whole value in the structural
-//! namespace. Its transfers carry existing claims through completion. Only six
-//! (route, result, transfers) combinations exist, and `CheckedUnitCallPlan::new`
-//! admits exactly those six:
+//! machine in this module, a bodyless boundary, or whichever implementation a
+//! runtime selector names. Its result binds nothing, a primitive in the dense
+//! scalar namespace, or a whole value in the structural namespace. Its
+//! transfers carry existing claims through completion. Only eight (route,
+//! result, transfers) combinations exist, and `CheckedUnitCallPlan::new`
+//! admits exactly those eight:
 //!
 //! | route    | result     | transfers            | contract commitment | source site  |
 //! |----------|------------|----------------------|---------------------|--------------|
@@ -15,6 +16,12 @@
 //! | boundary | Unit       | `CompletionReceipts` | absent              | retained     |
 //! | boundary | scalar     | `CompletionReceipts` | absent              | retained     |
 //! | boundary | structural | `CompletionReceipts` | absent              | retained     |
+//! | dynamic  | Unit       | `Claims`             | absent              | not retained |
+//! | dynamic  | scalar     | `Claims`             | absent              | not retained |
+//!
+//! A dynamic call's target is its instantiated slot; no single machine's
+//! contract commitment describes every implementation it can reach, and a
+//! structural result through a selector is not yet planned.
 //!
 //! The route, result, transfers and source site are private so that no later
 //! edit can separate them. Each has an accessor, and the parts a pass edits
@@ -67,6 +74,17 @@ pub enum CheckedUnitCallRoute {
     /// A bodyless boundary declaration. It owns no erased lane and no
     /// contract commitment.
     Boundary,
+    /// The implementation a runtime selector names
+    /// (`Trait::member(selector, data...)`). The selector is the dispatch
+    /// operand, kept apart from the data arguments every implementation
+    /// receives; the target names the call's instantiated slot.
+    Dynamic {
+        selector: CheckedCallScalarArgument,
+        /// Normalized identity of the selector's `dyn Trait<Args>` type.
+        interface_identity: String,
+        /// The exact requirement the slot instantiates.
+        requirement: SymbolHandle,
+    },
 }
 
 /// What a call binds for the operations after it.
@@ -179,6 +197,11 @@ impl CheckedUnitCallPlan {
                 Transfers::StructuralCustody(_),
             ) => contract_commitment.is_some(),
             (CheckedUnitCallRoute::Boundary, _, Transfers::CompletionReceipts(_)) => true,
+            (
+                CheckedUnitCallRoute::Dynamic { .. },
+                Result::Unit | Result::Scalar(_),
+                Transfers::Claims(_),
+            ) => source_site.is_none(),
             _ => false,
         };
         admitted.then_some(Self {
@@ -211,6 +234,13 @@ impl CheckedUnitCallPlan {
     /// checked machine.
     pub fn is_boundary(&self) -> bool {
         matches!(self.route, CheckedUnitCallRoute::Boundary)
+    }
+
+    /// Whether the call enters an ordinary checked machine this module
+    /// compiles: neither a bodyless boundary nor a runtime-selected
+    /// implementation.
+    pub fn is_module(&self) -> bool {
+        matches!(self.route, CheckedUnitCallRoute::Module { .. })
     }
 
     pub fn route(&self) -> &CheckedUnitCallRoute {
@@ -247,31 +277,49 @@ impl CheckedUnitCallPlan {
                 contract_commitment,
                 ..
             } => *contract_commitment,
-            CheckedUnitCallRoute::Boundary => None,
+            CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
     }
 
     /// Proof-only erased actuals in the target's erased-formal order; `None`
-    /// for a boundary call, which retains no erased lane.
+    /// for a boundary or dynamic call, which retains no erased lane.
     pub fn erased_scalar_arguments(&self) -> Option<&[CheckedCallScalarArgument]> {
         match &self.route {
             CheckedUnitCallRoute::Module {
                 erased_scalar_arguments,
                 ..
             } => Some(erased_scalar_arguments),
-            CheckedUnitCallRoute::Boundary => None,
+            CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
     }
 
     /// Erased proof-only actuals in the target's erased-proof roster order;
-    /// `None` for a boundary call.
+    /// `None` for a boundary or dynamic call.
     pub fn erased_proof_arguments(&self) -> Option<&[CheckedProofTerm]> {
         match &self.route {
             CheckedUnitCallRoute::Module {
                 erased_proof_arguments,
                 ..
             } => Some(erased_proof_arguments),
-            CheckedUnitCallRoute::Boundary => None,
+            CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
+        }
+    }
+
+    /// Every runtime scalar operand in evaluation order: a dynamic call's
+    /// selector, authored first, then the scalar arguments.
+    pub fn scalar_operands(&self) -> Vec<&CheckedCallScalarArgument> {
+        self.dynamic_selector()
+            .into_iter()
+            .chain(&self.scalar_arguments)
+            .collect()
+    }
+
+    /// A dynamic call's selector operand; `None` for a call whose target is
+    /// fixed.
+    pub fn dynamic_selector(&self) -> Option<&CheckedCallScalarArgument> {
+        match &self.route {
+            CheckedUnitCallRoute::Dynamic { selector, .. } => Some(selector),
+            _ => None,
         }
     }
 

@@ -124,7 +124,7 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
                 // An ordinary scalar call names a scalar callee.
                 if let Some(call) = operation
                     .call()
-                    .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
+                    .filter(|call| call.is_module() && call.scalar_result().is_some())
                 {
                     let target_machine = call.target.machine;
                     if !computed.contains(&target_machine) {

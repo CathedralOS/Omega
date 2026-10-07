@@ -588,6 +588,31 @@ pub enum OperationKind {
     EstablishRecord {
         fields: Vec<crate::RecordFieldInitializer>,
     },
+    /// Produce a selector naming one table of the module's dynamic-dispatch
+    /// catalog. The scalar result is an opaque pointer-sized word: no
+    /// operation other than `CallDynamic` inspects it, and it owns no data.
+    SelectImplementation {
+        table: u32,
+    },
+    /// Invoke one interface slot through a selector. The selected table's row
+    /// for `slot` receives the ordinary arguments exactly as a direct call to
+    /// that machine would; the interface slot owns the call shape. The
+    /// selector is the dispatch operand and never one of the arguments.
+    CallDynamic {
+        selector: ValueId,
+        interface: u32,
+        slot: u32,
+        arguments: Vec<ValueId>,
+        /// Proof-only actuals for the slot's erased scalar formals, in roster
+        /// order, verified against the caller's namespace.
+        erased_arguments: Vec<ScalarTerm>,
+        /// Proof-only actuals for the slot's erased proof formals.
+        erased_proof_arguments: Vec<ProofTerm>,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// Invoke one in-module machine with positional scalar arguments. Each
     /// callee `requires` clause has the obligation identity at the same index;
     /// successful return binds the operation result. `crash_continuations`
@@ -1111,7 +1136,18 @@ impl OperationKind {
                     *argument = map(*argument);
                 }
             }
-            Self::EstablishReference { .. }
+            Self::CallDynamic {
+                selector,
+                arguments,
+                ..
+            } => {
+                *selector = map(*selector);
+                for argument in arguments {
+                    *argument = map(*argument);
+                }
+            }
+            Self::SelectImplementation { .. }
+            | Self::EstablishReference { .. }
             | Self::ReleaseReference { .. }
             | Self::PrimitiveScalarRead { .. }
             | Self::MoveStructuralField { .. }

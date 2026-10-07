@@ -84,15 +84,12 @@ pub(in crate::execution) fn collect(
                 | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
                 | CheckedScalarComputationKind::ByteSequencePredicate { .. } => {}
                 CheckedScalarComputationKind::Call {
-                    arguments,
-                    structural_arguments,
-                    ..
-                }
-                | CheckedScalarComputationKind::BoundaryCall {
+                    callee,
                     arguments,
                     structural_arguments,
                     ..
                 } => {
+                    pending.extend(callee.selector());
                     pending.extend_from_slice(computations.operands.span(*arguments)?);
                     for argument in computations
                         .structural_arguments

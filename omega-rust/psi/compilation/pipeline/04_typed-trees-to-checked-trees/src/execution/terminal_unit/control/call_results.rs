@@ -32,7 +32,9 @@ pub(crate) fn bind_scalar_call_result(
     }
     match &mut parts.route {
         CheckedUnitCallRoute::Boundary if !allow_boundary => return None,
-        CheckedUnitCallRoute::Boundary => {}
+        // A selector call's result is the slot's instantiated result; no
+        // single implementation's commitment describes it.
+        CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => {}
         CheckedUnitCallRoute::Module {
             contract_commitment,
             ..

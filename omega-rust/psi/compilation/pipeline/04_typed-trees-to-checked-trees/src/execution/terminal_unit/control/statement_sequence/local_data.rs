@@ -22,9 +22,8 @@ use super::{
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
     LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
-    TypeReferenceNode, TypedTrees, checked_structural_result_type, consume_value_places,
-    is_record_pattern_marker, retain_selected_sources, scalar_computation_local_at,
-    structural_operands,
+    TypedTrees, checked_structural_result_type, consume_value_places, is_record_pattern_marker,
+    retain_selected_sources, scalar_computation_local_at, structural_operands,
 };
 use crate::execution::terminal_unit::types::parameter_qualifications;
 
@@ -648,13 +647,7 @@ pub(super) fn plan(
             local_phase("statement sequence: local data: mutable primitive local: storage type");
             // Arithmetic policy qualifies operations, not storage. Preserve the
             // exact type below; other qualifications still need their own evidence.
-            if !matches!(
-                program
-                    .type_reference_table
-                    .type_reference(local.type_reference),
-                TypeReferenceNode::Named { .. }
-            ) && !validation::is_arithmetic_policy_only_integer(program, local.type_reference)
-            {
+            if !validation::is_plain_scalar_storage(program, local.type_reference) {
                 return None;
             }
             // A call or ordered selection initializes storage through its

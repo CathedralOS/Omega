@@ -41,10 +41,6 @@ pub(crate) fn prepare(
                 CheckedScalarComputationKind::Call {
                     structural_arguments,
                     ..
-                }
-                | CheckedScalarComputationKind::BoundaryCall {
-                    structural_arguments,
-                    ..
                 } => plans
                     .structural_arguments
                     .span(*structural_arguments)
