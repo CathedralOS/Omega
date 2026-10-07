@@ -408,21 +408,18 @@ pub(crate) fn prove_ranking_range_call(
             )?
         };
         let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
-        let expressions = installation_expressions(
+        install_call_field_coordinates(
             program,
             &caller,
             source,
+            entry,
+            caller_site,
+            at_entry,
+            &mut engine,
+            &mut coordinates,
             vec![subject],
             guards,
             arguments,
-        );
-        coordinates.install(
-            program,
-            source,
-            entry,
-            (!at_entry).then_some(caller_site.entry_parameters),
-            &mut engine,
-            &expressions,
         )?;
         Some(coordinates)
     } else {
@@ -439,21 +436,18 @@ pub(crate) fn prove_ranking_range_call(
             (!at_entry).then_some(caller_site.entry_parameters),
             &subjects,
         )?;
-        let expressions = installation_expressions(
+        install_call_field_coordinates(
             program,
             &caller,
             source,
+            entry,
+            caller_site,
+            at_entry,
+            &mut engine,
+            &mut coordinates,
             subjects.clone(),
             guards,
             arguments,
-        );
-        coordinates.install(
-            program,
-            source,
-            entry,
-            (!at_entry).then_some(caller_site.entry_parameters),
-            &mut engine,
-            &expressions,
         )?;
         Some(coordinates)
     };
@@ -1657,6 +1651,32 @@ fn member_call_range(
 /// caller's machine coordinates — the shared surface under the subject-wide
 /// and `.len`-spelled reads.
 #[allow(clippy::too_many_arguments)]
+
+fn install_call_field_coordinates<'program>(
+    program: &'program TypedTrees,
+    caller: &RankingRangeCallMember<'_>,
+    source: &State,
+    entry: &State,
+    caller_site: &RankingRangeCallSite<'_>,
+    at_entry: bool,
+    engine: &mut Engine<'_>,
+    coordinates: &mut field_coordinates::FieldCoordinates<'program>,
+    subjects: Vec<ExpressionHandle>,
+    guards: &[(ExpressionHandle, bool)],
+    arguments: &[ExpressionHandle],
+) -> Option<()> {
+    let expressions =
+        installation_expressions(program, caller, source, subjects, guards, arguments);
+    coordinates.install(
+        program,
+        source,
+        entry,
+        (!at_entry).then_some(caller_site.entry_parameters),
+        engine,
+        &expressions,
+    )
+}
+
 fn install_call_slice_coordinates<'program>(
     program: &'program TypedTrees,
     caller: &RankingRangeCallMember<'_>,
