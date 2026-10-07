@@ -875,57 +875,15 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
     member_name: &str,
 ) -> Option<SymbolHandle> {
     if let Some(data) = data_definition_by_symbol(program, type_symbol) {
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
-                    return Some(field.symbol);
-                }
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
-                    return Some(variant.symbol);
-                }
-                typed_trees::data::DataMember::Variant(variant) => {
-                    if let Some(field) = program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find(|field| field.name.as_str() == member_name)
-                    {
-                        return Some(field.symbol);
-                    }
-                }
-                _ => {}
-            }
+        if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+            return Some(symbol);
         }
     }
 
     if let Some(machine) = machine_by_symbol(program, type_symbol) {
         if let Some(data) = program.attached_data_definition(machine) {
-            for member in program.data_members(data) {
-                match member {
-                    typed_trees::data::DataMember::Field(field)
-                        if field.name.as_str() == member_name =>
-                    {
-                        return Some(field.symbol);
-                    }
-                    typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == member_name =>
-                    {
-                        return Some(variant.symbol);
-                    }
-                    typed_trees::data::DataMember::Variant(variant) => {
-                        if let Some(field) = program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .find(|field| field.name.as_str() == member_name)
-                        {
-                            return Some(field.symbol);
-                        }
-                    }
-                    _ => {}
-                }
+            if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+                return Some(symbol);
             }
         }
         for owned in program.machine_owned_data(machine) {
@@ -960,4 +918,36 @@ pub(crate) fn symbol_type_symbol(
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     symbol_type_position(program, symbol).map(|position| position_leaf_symbol(program, position))
+}
+
+/// Member or payload field a name resolves to inside a data definition —
+/// fields and variants share the namespace.
+fn data_member_symbol_by_name(
+    program: &typed_trees::TypedTrees,
+    data: &typed_trees::data::DataDefinition,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    for member in program.data_members(data) {
+        match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == member_name => {
+                return Some(field.symbol);
+            }
+            typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == member_name =>
+            {
+                return Some(variant.symbol);
+            }
+            typed_trees::data::DataMember::Variant(variant) => {
+                if let Some(field) = program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.name.as_str() == member_name)
+                {
+                    return Some(field.symbol);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
