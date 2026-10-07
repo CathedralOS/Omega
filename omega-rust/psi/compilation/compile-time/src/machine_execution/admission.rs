@@ -591,11 +591,27 @@ impl BuildTimeAdmissionPlan {
         machine_name: &str,
         arguments: Vec<BuildTimeValue>,
     ) -> Result<BuildTimeValue, String> {
+        self.evaluate_const_evaluable_machine_for_invocation_opt(
+            program,
+            machine_name,
+            arguments,
+            None,
+        )
+    }
+
+    fn evaluate_const_evaluable_machine_for_invocation_opt(
+        &self,
+        program: &TypedTrees,
+        machine_name: &str,
+        arguments: Vec<BuildTimeValue>,
+        custody: Option<BuildTimeInvocationCustody>,
+    ) -> Result<BuildTimeValue, String> {
         let machine = program
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-        let discharge = self.zero_argument_invocation_discharge(program, machine, &arguments, None);
-        self.require_floor(program, machine, None, discharge)?;
+        let discharge =
+            self.zero_argument_invocation_discharge(program, machine, &arguments, custody);
+        self.require_floor(program, machine, custody, discharge)?;
         let value = checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest {
@@ -618,25 +634,12 @@ impl BuildTimeAdmissionPlan {
         arguments: Vec<BuildTimeValue>,
         custody: BuildTimeInvocationCustody,
     ) -> Result<BuildTimeValue, String> {
-        let machine = program
-            .realized_machine_named(machine_name)
-            .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-        let discharge =
-            self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
-        self.require_floor(program, machine, Some(custody), discharge)?;
-        let value = checked_interpreter::evaluate_build_time_machine(
+        self.evaluate_const_evaluable_machine_for_invocation_opt(
             program,
-            BuildMachineEvaluationRequest {
-                product_entry_compatibility: None,
-                operators: &self.selected_operators,
-                ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
-            },
+            machine_name,
+            arguments,
+            Some(custody),
         )
-        .map(BuildTimeOperationEvaluation::into_measured)?
-        .into_parts()
-        .0;
-        require_const_evaluable_result(program, machine, &value)?;
-        Ok(value)
     }
 
     pub fn evaluate_const_evaluable_machine_symbol_for_invocation(
