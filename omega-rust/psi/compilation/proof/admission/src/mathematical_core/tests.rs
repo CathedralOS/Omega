@@ -14,7 +14,7 @@ use crate::mathematical_core::{
     quotient_scheme,
 };
 
-fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
+pub(crate) fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
 }
 
