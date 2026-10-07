@@ -61,31 +61,38 @@ pub use machine_conformance::{
 pub(crate) use signature_matching::validate_machine_state_satisfies_trait_signature_with_arguments;
 pub(crate) use trait_applications::validate_trait_application_obligations;
 
+/// The payload-erased family of a declaration-site type parameter kind.
+/// Pair predicates compare families first, then apply their own admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TypeParameterKindFamily {
+    Type,
+    Const,
+    Value,
+    Machine,
+    Proposition,
+}
+
+fn type_parameter_kind_family(
+    kind: &typed_trees::data::TypeParameterKind,
+) -> TypeParameterKindFamily {
+    match kind {
+        typed_trees::data::TypeParameterKind::Type => TypeParameterKindFamily::Type,
+        typed_trees::data::TypeParameterKind::Const { .. } => TypeParameterKindFamily::Const,
+        typed_trees::data::TypeParameterKind::Value { .. } => TypeParameterKindFamily::Value,
+        typed_trees::data::TypeParameterKind::Machine { .. } => TypeParameterKindFamily::Machine,
+        typed_trees::data::TypeParameterKind::Proposition { .. } => {
+            TypeParameterKindFamily::Proposition
+        }
+    }
+}
+
 /// Two declaration-site type parameters pair on the same declared kind,
 /// including static `Machine` and `Proposition` parameters.
 pub(super) fn type_parameter_kinds_identical(
     required: &typed_trees::data::TypeParameterKind,
     actual: &typed_trees::data::TypeParameterKind,
 ) -> bool {
-    matches!(
-        (required, actual),
-        (
-            typed_trees::data::TypeParameterKind::Type,
-            typed_trees::data::TypeParameterKind::Type
-        ) | (
-            typed_trees::data::TypeParameterKind::Const { .. },
-            typed_trees::data::TypeParameterKind::Const { .. }
-        ) | (
-            typed_trees::data::TypeParameterKind::Value { .. },
-            typed_trees::data::TypeParameterKind::Value { .. }
-        ) | (
-            typed_trees::data::TypeParameterKind::Machine { .. },
-            typed_trees::data::TypeParameterKind::Machine { .. }
-        ) | (
-            typed_trees::data::TypeParameterKind::Proposition { .. },
-            typed_trees::data::TypeParameterKind::Proposition { .. }
-        )
-    )
+    type_parameter_kind_family(required) == type_parameter_kind_family(actual)
 }
 
 /// The kind pairs a callable's generic parameters accept: `Proposition`
@@ -94,22 +101,8 @@ pub(super) fn type_parameter_kinds_callable(
     required: &typed_trees::data::TypeParameterKind,
     actual: &typed_trees::data::TypeParameterKind,
 ) -> bool {
-    matches!(
-        (required, actual),
-        (
-            typed_trees::data::TypeParameterKind::Type,
-            typed_trees::data::TypeParameterKind::Type
-        ) | (
-            typed_trees::data::TypeParameterKind::Const { .. },
-            typed_trees::data::TypeParameterKind::Const { .. }
-        ) | (
-            typed_trees::data::TypeParameterKind::Value { .. },
-            typed_trees::data::TypeParameterKind::Value { .. }
-        ) | (
-            typed_trees::data::TypeParameterKind::Machine { .. },
-            typed_trees::data::TypeParameterKind::Machine { .. }
-        )
-    )
+    let family = type_parameter_kind_family(required);
+    family == type_parameter_kind_family(actual) && family != TypeParameterKindFamily::Proposition
 }
 
 /// The kind pairs that form a trait type binding: `Type`, `Const`, and
@@ -118,19 +111,14 @@ pub(super) fn type_parameter_kinds_bindable(
     required: &typed_trees::data::TypeParameterKind,
     actual: &typed_trees::data::TypeParameterKind,
 ) -> bool {
-    matches!(
-        (required, actual),
-        (
-            typed_trees::data::TypeParameterKind::Type,
-            typed_trees::data::TypeParameterKind::Type
-        ) | (
-            typed_trees::data::TypeParameterKind::Const { .. },
-            typed_trees::data::TypeParameterKind::Const { .. }
-        ) | (
-            typed_trees::data::TypeParameterKind::Value { .. },
-            typed_trees::data::TypeParameterKind::Value { .. }
+    let family = type_parameter_kind_family(required);
+    family == type_parameter_kind_family(actual)
+        && matches!(
+            family,
+            TypeParameterKindFamily::Type
+                | TypeParameterKindFamily::Const
+                | TypeParameterKindFamily::Value
         )
-    )
 }
 
 /// The (required, actual) parameter pairs that may form trait type
