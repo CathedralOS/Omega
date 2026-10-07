@@ -165,32 +165,24 @@ fn collect_stable_consequences(
                 BinaryOperator::Equal | BinaryOperator::NotEqual
             ) =>
         {
-            let operand_and_literal = match (
-                program.expression_table.expression(binary.left),
-                program.expression_table.expression(binary.right),
-            ) {
-                (ExpressionNode::Boolean(literal), _) => Some((binary.right, *literal)),
-                (_, ExpressionNode::Boolean(literal)) => Some((binary.left, *literal)),
-                _ => None,
-            };
-            if let Some((operand, literal)) = operand_and_literal {
-                let equality_is_negated = if binary.operator == BinaryOperator::Equal {
-                    negated
-                } else {
-                    !negated
-                };
-                collect_stable_consequences(
-                    program,
-                    machine,
-                    state,
-                    evaluated_at,
-                    operand,
-                    equality_is_negated == literal,
-                    parameter_names,
-                    content_conservation,
-                    output,
-                );
-            }
+            super::for_each_boolean_literal_operand(
+                program,
+                binary,
+                negated,
+                |operand, polarity| {
+                    collect_stable_consequences(
+                        program,
+                        machine,
+                        state,
+                        evaluated_at,
+                        operand,
+                        polarity,
+                        parameter_names,
+                        content_conservation,
+                        output,
+                    );
+                },
+            );
         }
         _ => {}
     }

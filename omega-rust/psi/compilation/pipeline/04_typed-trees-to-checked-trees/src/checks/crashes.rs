@@ -586,7 +586,7 @@ fn call_route_guard_covers(
 /// `x == true`/`x == false`/`x != true`/`x != false` normalizes to the exact
 /// polarity of `x` the edge establishes, including a negated/fallthrough
 /// relation; `apply` receives the compared operand and its polarity.
-fn for_each_boolean_literal_operand(
+pub(super) fn for_each_boolean_literal_operand(
     program: &TypedTrees,
     binary: &typed_trees::expression::TableBinaryExpression,
     negated: bool,
