@@ -1013,6 +1013,41 @@ fn walk_state_write_prefix_inner(
                         inference,
                     )
                 } else {
+                    let deduped_paths = |
+                        paths: for<'site> fn(
+                            &TypedTrees,
+                            &Machine,
+                            &MachineSymbols<'site>,
+                            &TopLevelSymbols<'site>,
+                            &[String],
+                            &str,
+                            CallerWriteSite<'site>,
+                            &[checked_trees::expression::ExpressionHandle],
+                            &mut FrameInference,
+                        ) -> Option<Vec<String>>,
+                        inference: &mut FrameInference,
+                    | {
+                        if has_divergent_receiver {
+                            return None;
+                        }
+                        (!arguments.iter().any(|argument| {
+                            expression_is_effectful_indexed_place(program, *argument)
+                        }))
+                        .then(|| {
+                            paths(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                symbols,
+                                receiver_members,
+                                nested_call.target.as_str(),
+                                CallerWriteSite::Call(nested_call),
+                                arguments,
+                                inference,
+                            )
+                        })
+                        .flatten()
+                    };
                     let argument_types = super::call_targets::call_argument_types(
                         program,
                         machine,
@@ -1048,50 +1083,8 @@ fn walk_state_write_prefix_inner(
                         inference,
                         Some(&argument_origins),
                     )
-                    .or_else(|| {
-                        if has_divergent_receiver {
-                            return None;
-                        }
-                        (!arguments.iter().any(|argument| {
-                            expression_is_effectful_indexed_place(program, *argument)
-                        }))
-                        .then(|| {
-                            known_boundary_call_written_paths_for_parts(
-                                program,
-                                machine,
-                                &machine_symbols,
-                                symbols,
-                                receiver_members,
-                                nested_call.target.as_str(),
-                                CallerWriteSite::Call(nested_call),
-                                arguments,
-                                inference,
-                            )
-                        })
-                        .flatten()
-                    })
-                    .or_else(|| {
-                        if has_divergent_receiver {
-                            return None;
-                        }
-                        (!arguments.iter().any(|argument| {
-                            expression_is_effectful_indexed_place(program, *argument)
-                        }))
-                        .then(|| {
-                            known_requirement_call_written_paths_for_parts(
-                                program,
-                                machine,
-                                &machine_symbols,
-                                symbols,
-                                receiver_members,
-                                nested_call.target.as_str(),
-                                CallerWriteSite::Call(nested_call),
-                                arguments,
-                                inference,
-                            )
-                        })
-                        .flatten()
-                    })
+                    .or_else(|| deduped_paths(known_boundary_call_written_paths_for_parts, inference))
+                    .or_else(|| deduped_paths(known_requirement_call_written_paths_for_parts, inference))
                     .or_else(|| {
                         if has_divergent_receiver || has_divergent_actual {
                             return None;
