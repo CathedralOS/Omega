@@ -411,6 +411,12 @@ fn validate(
         // statement validation borrows that batch and mutates only its clone.
         let mut incoming_environments = None;
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
+            crate::value_custody::reference_local_establishment::validate(
+                program,
+                machine,
+                state,
+                &mut diagnostics,
+            );
             // A state that DECLARES a return type but has an EMPTY body can
             // never produce the value -- callers would silently bind 0 (ZII),
             // and native/interp diverge on what that zero reads as. GENERIC

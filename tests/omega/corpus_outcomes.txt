@@ -366,12 +366,12 @@ fail/borrows/stored_reference_shared_cohort_live_source_write rejected 399ms exp
 	statement 5 mutates `main.cell.value` while local borrow `message` is still active (borrowed at statement 2; its last use is at statement 6)
 fail/borrows/view_local_backing_write_while_stored rejected 349ms expected @42ea16c25de8+wt
 	statement 2 mutates `main.buffer[0]` while local borrow `out_line` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/view_local_forward_before_store rejected 4614ms expected @7adc5f2420e5+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(1), place: PlaceId(6) }))
-fail/borrows/view_local_lend_before_store rejected 4604ms expected @7adc5f2420e5+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ByteSequenceViewNotEstablished { operation: OperationId(2), place: PlaceId(4) }))
-fail/borrows/view_local_read_before_store rejected 2040ms expected @42ea16c25de8+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ByteSequenceViewNotEstablished { operation: OperationId(2), place: PlaceId(4) }))
+fail/borrows/view_local_forward_before_store rejected 904ms expected @47d3b5bbd8c+wt
+	machine `Main::main` state `main` uses reference local `view` before a store establishes it; a reference declared without an initializer holds no descriptor until it is assigned
+fail/borrows/view_local_lend_before_store rejected 833ms expected @47d3b5bbd8c+wt
+	machine `Main::main` state `main` uses reference local `view` before a store establishes it; a reference declared without an initializer holds no descriptor until it is assigned
+fail/borrows/view_local_read_before_store rejected 889ms expected @47d3b5bbd8c+wt
+	machine `Main::main` state `main` uses reference local `out_line` before a store establishes it; a reference declared without an initializer holds no descriptor until it is assigned
 fail/borrows/view_local_store_while_lent rejected 1073ms expected @7adc5f2420e5+wt
 	statement 2 mutates `view` while local borrow `kept` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/whole_mut_receiver_read_under_argument_loan rejected 380ms expected @cbe9ad8ebf41+wt

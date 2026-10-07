@@ -1,1 +1,1 @@
-InvalidStructuralSuccessorArgument
+before a store establishes it

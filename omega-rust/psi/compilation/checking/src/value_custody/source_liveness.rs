@@ -54,7 +54,7 @@ pub fn statement_uses_symbol(
     }
 }
 
-fn expression_uses_symbol(
+pub(crate) fn expression_uses_symbol(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
