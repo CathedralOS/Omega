@@ -797,27 +797,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .expect("structural equality requires program context");
         let context = || format!("structural equality of `{}`", visiting[0]);
         match field_equality(program, context, data, field)? {
-            FieldEquality::Direct => {
-                let left_value = self.operand_field_value(field, case_variant, left)?;
-                let right_value = self.operand_field_value(field, case_variant, right)?;
-                Ok(self
-                    .target()
-                    .insert(typed::expression::ExpressionNode::Binary(
-                        typed::expression::TableBinaryExpression {
-                            left: left_value,
-                            operator: typed::expression::BinaryOperator::Equal,
-                            right: right_value,
-                        },
-                    )))
-            }
             // A `String` field compares by CONTENT (length AND bytes) through
             // the backend's value-position text-equals operand, which reads
             // two stored {ptr, len} descriptor PLACES. A literal operand's
             // field value has no stored descriptor at this point, so it stays
             // rejected with a bindable workaround.
-            FieldEquality::Text => {
-                if matches!(left, Operand::Literal { .. })
-                    || matches!(right, Operand::Literal { .. })
+            equality @ (FieldEquality::Direct | FieldEquality::Text) => {
+                if matches!(equality, FieldEquality::Text)
+                    && (matches!(left, Operand::Literal { .. })
+                        || matches!(right, Operand::Literal { .. }))
                 {
                     return Err(Diagnostic::error(format!(
                         "cannot synthesize structural `==` for `String` field `{}` of `{}` against a constructed literal: text content equality compares stored values -- bind the literal to a value first",
