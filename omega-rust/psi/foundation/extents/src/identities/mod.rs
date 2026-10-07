@@ -7,62 +7,6 @@ use std::collections::BTreeSet;
 
 use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AddressSpaceId(u64);
-
-impl AddressSpaceId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "address-space")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExtentProvenanceId(u64);
-
-impl ExtentProvenanceId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "extent-provenance")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MappingEraId(u64);
-
-impl MappingEraId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "mapping-era")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExtentLineageId(u64);
-
-impl ExtentLineageId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "extent-lineage")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
 macro_rules! normalized_extent_identity {
     ($name:ident, $label:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -80,6 +24,11 @@ macro_rules! normalized_extent_identity {
         }
     };
 }
+
+normalized_extent_identity!(AddressSpaceId, "address-space");
+normalized_extent_identity!(ExtentProvenanceId, "extent-provenance");
+normalized_extent_identity!(MappingEraId, "mapping-era");
+normalized_extent_identity!(ExtentLineageId, "extent-lineage");
 
 normalized_extent_identity!(ExtentIssuanceId, "extent-issuance");
 
@@ -158,20 +107,7 @@ impl ExtentContentInterpretation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExtentRightId(u64);
-
-impl ExtentRightId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
-        nonzero_identity(identity, "extent-right")?;
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
+normalized_extent_identity!(ExtentRightId, "extent-right");
 /// An open, normalized set of grant-established rights.
 ///
 /// The compiler does not bless a READ/WRITE/EXECUTE enumeration here. Target
