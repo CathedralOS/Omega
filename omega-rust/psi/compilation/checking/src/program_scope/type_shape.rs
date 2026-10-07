@@ -3,10 +3,45 @@
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 /// Whether `reference` carries a slice base under any reference or
 /// constrained shells.
+
+/// `Some(primitive)` when the type reference names a fixed integer primitive
+/// in the Exact domain — the shared peel the bound walks apply before they
+/// read an interval. `allow_addr` admits `Addr` as the pointer-width
+/// unsigned member of the set.
+pub(crate) fn exact_integer_primitive(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    allow_addr: bool,
+) -> Option<PrimitiveType> {
+    let primitive = program
+        .type_reference_table
+        .primitive_type(type_reference)?;
+    let fixed = matches!(
+        primitive,
+        PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    ) || (allow_addr && primitive == PrimitiveType::Addr);
+    if !fixed
+        || program.arithmetic_domain_for_type_reference(type_reference)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    Some(primitive)
+}
+
 pub(crate) fn has_slice_base(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
     let mut visited = Vec::new();
     while reference.is_valid() && !visited.contains(&reference) {

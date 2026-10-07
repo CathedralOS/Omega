@@ -318,25 +318,7 @@ fn exact_integer_type_primitive(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    let primitive = program
-        .type_reference_table
-        .primitive_type(type_reference)?;
-    if !matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) || program.arithmetic_domain_for_type_reference(type_reference)
-        != numerics::arithmetic::ArithmeticDomain::Exact
-    {
-        return None;
-    }
-    Some(primitive)
+    crate::program_scope::type_shape::exact_integer_primitive(program, type_reference, false)
 }
 
 fn collect_bound_terms(
