@@ -80,6 +80,7 @@ pub data ResolveDiagnosticCode [copy] {
     case DuplicateParameter;
     case DuplicateState;
     case DuplicateMachine;
+    case DuplicateGenericParameter;
 }
 
 pub data ResolveDiagnostic [copy] {

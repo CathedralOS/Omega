@@ -62,6 +62,8 @@ pub data DataCase [copy] {
     name: IdentifierSpan;
     first_payload_field: u64 in Trapping;
     payload_field_count: u64 in Trapping;
+    first_clause: u64 in Trapping;
+    clause_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -91,14 +93,10 @@ pub data GenericParameterKind [copy] {
 }
 
 // One declared generic parameter on a `data` header: `'a`, `T`,
-// `const N: Ty`, `u: Ty`, or `machine M`. `name_decoded_*` are the name's
-// range inside TokenStream::decoded, retained so later parameters can compare
-// spellings for the duplicate-declaration rejection without re-reading source.
+// `const N: Ty`, `u: Ty`, or `machine M`, with its property bounds.
 pub data GenericParameter [copy] {
     kind: GenericParameterKind;
     name: IdentifierSpan;
-    name_decoded_start: u64 in Trapping;
-    name_decoded_length: u64 in Trapping;
     has_type_reference: bool;
     type_reference: u64 in Trapping;
     bounds: DataMultiplicity;
@@ -115,6 +113,8 @@ pub data DataItem [copy] {
     field_count: u64 in Trapping;
     first_case: u64 in Trapping;
     case_count: u64 in Trapping;
+    first_clause: u64 in Trapping;
+    clause_count: u64 in Trapping;
     multiplicity: DataMultiplicity;
     is_public: bool;
     source_span: SourceSpan;
@@ -382,7 +382,6 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedDataGenericParameterEnd;
     case DataGenericParameterCapacityExceeded;
     case DataGenericLifetimeOrdering;
-    case DuplicateDataGenericParameter;
     case ExpectedMachineName;
     case ExpectedMachineParameterOrEnd;
     case ExpectedMachineParameter;

@@ -168,7 +168,6 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedDataGenericParameterEnd -> parse_diagnostic(parser_harness, output, 36)
             ParseDiagnosticCode::DataGenericParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 37)
             ParseDiagnosticCode::DataGenericLifetimeOrdering -> parse_diagnostic(parser_harness, output, 38)
-            ParseDiagnosticCode::DuplicateDataGenericParameter -> parse_diagnostic(parser_harness, output, 39)
             ParseDiagnosticCode::ExpectedMachineName -> parse_diagnostic(parser_harness, output, 40)
             ParseDiagnosticCode::ExpectedMachineParameterOrEnd -> parse_diagnostic(parser_harness, output, 41)
             ParseDiagnosticCode::ExpectedMachineParameter -> parse_diagnostic(parser_harness, output, 42)
@@ -422,6 +421,8 @@ machine ParserHarness::write_parse_observation(
         ParserHarness::write_source_span(parser_harness, item.source_span);
         ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
         ParserHarness::write_u64(parser_harness, item.generic_parameter_count as u64 in Trapping);
+        ParserHarness::write_u64(parser_harness, item.first_clause);
+        ParserHarness::write_u64(parser_harness, item.clause_count);
         let next: u64 = index + 1;
         transition next < output.data_count {
             true -> parse_data_bound(parser_harness, output, next)
@@ -553,6 +554,8 @@ machine ParserHarness::write_parse_observation(
         ParserHarness::write_source_span(parser_harness, data_case.source_span);
         ParserHarness::write_u64(parser_harness, data_case.first_payload_field);
         ParserHarness::write_u64(parser_harness, data_case.payload_field_count as u64 in Trapping);
+        ParserHarness::write_u64(parser_harness, data_case.first_clause);
+        ParserHarness::write_u64(parser_harness, data_case.clause_count);
         let next: u64 = index + 1;
         transition next < output.case_count {
             true -> parse_case_bound(parser_harness, output, next)

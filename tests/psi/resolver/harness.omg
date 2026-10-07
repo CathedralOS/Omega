@@ -158,6 +158,7 @@ crashes Trap
             ResolveDiagnosticCode::DuplicateParameter -> diagnostic_tag(resolver_harness, output, 9)
             ResolveDiagnosticCode::DuplicateState -> diagnostic_tag(resolver_harness, output, 10)
             ResolveDiagnosticCode::DuplicateMachine -> diagnostic_tag(resolver_harness, output, 11)
+            ResolveDiagnosticCode::DuplicateGenericParameter -> diagnostic_tag(resolver_harness, output, 12)
         }
     }
 

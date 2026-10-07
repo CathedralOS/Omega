@@ -99,6 +99,8 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
         )
         for _ in range(reader.u64())
     )
@@ -132,6 +134,8 @@ def decode(payload: bytes) -> Observation:
     )
     cases = tuple(
         (
+            reader.u64(),
+            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -373,6 +377,12 @@ def run(program: str, source: bytes) -> tuple[int, bytes]:
     return completed.returncode, completed.stdout
 
 
+def with_clause_range(rows: tuple[tuple, ...], width: int) -> tuple[tuple, ...]:
+    """Rows spelled before data and cases owned clauses own an empty range
+    at the table start."""
+    return tuple(row if len(row) == width else row + (0, 0) for row in rows)
+
+
 def type_rows(rows: tuple[tuple[int, ...], ...]) -> tuple[tuple[int, ...], ...]:
     """Complete rows spelled in the single-level shorthand: kind 1 named,
     2 qualified or 3 reference, the name, source and domain spans, then an
@@ -439,11 +449,11 @@ def accepted(
         roots,
         uses,
         members,
-        data_items,
+        with_clause_range(data_items, 18),
         data_members,
         fields,
         payload_fields,
-        cases,
+        with_clause_range(cases, 10),
         type_rows(type_references),
         generic_parameters,
         machines,
@@ -990,7 +1000,6 @@ def main() -> None:
         ("qualified-domain-union", b"data X { field: T in A | B; }", 14, (23, 24), 1),
         ("missing-payload-qualified-domain", b"data X { case A(v: T in ); }", 31, (24, 25)),
         ("empty-generic-list", b"data X<> {}", 32, (7, 8)),
-        ("unterminated-generic-list", b"data X<T", 36, (8, 8)),
         ("generic-lifetime-after-runtime", b"data X<T 'a> {}", 38, (9, 10)),
         ("const-binder-missing-name", b"data X<const> {}", 33, (12, 13)),
         ("const-binder-missing-colon", b"data X<const N u64> {}", 34, (15, 18)),
@@ -1016,7 +1025,7 @@ def main() -> None:
     # exactly as the capacity cases below keep every completed one.
     retained_generic_rejections = (
         ("generic-parameter-missing-after-comma", b"data X<T,", 32, (9, 9)),
-        ("duplicate-generic-parameter", b"data Dup<T, T> {}", 39, (12, 13)),
+        ("unterminated-generic-list", b"data X<T", 36, (8, 8)),
         ("proposition-binder-not-admitted", b"data X<prop R> {}", 36, (12, 13)),
         ("generic-lifetime-bounds-rejected", b"data X<'a [copy]> {}", 36, (10, 11)),
     )
@@ -1756,6 +1765,23 @@ def main() -> None:
         ("machine-where", b"machine f() where 1 {}", 105, (12, 17), {}),
     )
     for name, source, diagnostic, span, counts in admission_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    # Data and case `where` facts share the clause table with machines.
+    source = b"data D where a <= 4, b > 0, { a: u64; b: u64; case C(x: u8) where x < 9; }"
+    status, payload = run(program, source)
+    assert status == 0, f"data-where: status {status}"
+    actual = decode(payload)
+    assert [row[0] for row in actual.clauses] == [8, 8, 8], f"data-where:\n{actual.clauses}"
+    assert actual.data_items[0][16:18] == (0, 2), f"data-where:\n{actual.data_items}"
+    assert actual.cases[0][8:10] == (2, 1), f"data-where:\n{actual.cases}"
+    where_rejections = (
+        ("where-fact", b"data D where {}", 95, (13, 14), {}),
+        ("where-separator", b"data D where a b {}", 11, (15, 16), {"member_count": 1, "expression_count": 1}),
+        ("data-requires", b"data D requires a {}", 105, (7, 15), {}),
+        ("case-where-fact", b"data D { case C where ; }", 95, (22, 23), {}),
+    )
+    for name, source, diagnostic, span, counts in where_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
     # Every keyword but `self` is a name in an expression, as in every other

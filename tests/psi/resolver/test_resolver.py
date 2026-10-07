@@ -20,6 +20,7 @@ UNKNOWN_DOMAIN = 8
 DUPLICATE_PARAMETER = 9
 DUPLICATE_STATE = 10
 DUPLICATE_MACHINE = 11
+DUPLICATE_GENERIC_PARAMETER = 12
 
 BUILTIN = 1
 DATA = 2
@@ -536,6 +537,17 @@ def main() -> None:
         DUPLICATE_MACHINE,
         b"f(",
         2,
+        length=1,
+    )
+
+    # Generic parameters of every kind share one namespace per declaration.
+    rejected(program, "duplicate-generic-parameter", b"data Dup<T, T> {}", DUPLICATE_GENERIC_PARAMETER, b"T", 2)
+    rejected(
+        program,
+        "duplicate-lifetime-and-type-parameter",
+        b"data Dup<'a, a> {}",
+        DUPLICATE_GENERIC_PARAMETER,
+        b"a>",
         length=1,
     )
 

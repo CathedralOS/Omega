@@ -161,7 +161,38 @@ crashes Trap
 
     state data_members(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
         let item: DataItem = SyntaxTrees::data_item(syntax, data_index);
-        transition { _ -> member(resolver, source_unit, syntax, data_index, item, 0) }
+        transition { _ -> generic(resolver, source_unit, syntax, data_index, item, 0) }
+    }
+
+    // Generic parameters of every kind share one namespace.
+    state generic(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        transition offset < item.generic_parameter_count {
+            true -> generic_named(resolver, source_unit, syntax, data_index, item, offset)
+            _ -> member(resolver, source_unit, syntax, data_index, item, 0)
+        }
+    }
+
+    state generic_named(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, item.first_generic_parameter + offset);
+        transition { _ -> generic_prior(resolver, source_unit, syntax, data_index, item, offset, parameter.name, 0) }
+    }
+
+    state generic_prior(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+        transition prior < offset {
+            true -> generic_compare(resolver, source_unit, syntax, data_index, item, offset, name, prior)
+            _ -> generic(resolver, source_unit, syntax, data_index, item, offset + 1)
+        }
+    }
+
+    state generic_compare(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+        let prior_parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, item.first_generic_parameter + prior);
+        let equal: bool = SourceUnit::spans_equal(source_unit, name.source_span.span,
+            prior_parameter.name.source_span.span
+        );
+        transition equal {
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateGenericParameter, name)
+            _ -> generic_prior(resolver, source_unit, syntax, data_index, item, offset, name, prior + 1)
+        }
     }
 
     state member(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
