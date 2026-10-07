@@ -211,6 +211,7 @@ fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
 /// substitution, not initializer replay: expression analysis reads the
 /// caller's already established environment at this call site. Receivers,
 /// static dispatch and mutable parameters retain their dedicated owners.
+/// A selector call's leading selector pairs with no formal of the contract.
 fn exact_ordinary_actual_intervals(
     walk: &ExpressionWalk,
     call: &TableCallExpression,
@@ -218,20 +219,14 @@ fn exact_ordinary_actual_intervals(
     if !call.selects_only_nominal_route() {
         return None;
     }
-    let (callee, entry) =
-        crate::machine_calls::calls::machine_state_by_symbol(walk.program, call.target_symbol)?;
-    if walk.program.machine_states(callee).first()?.symbol != entry.symbol {
-        return None;
-    }
-    let parameters = walk
-        .program
-        .state_parameters(entry)
-        .iter()
-        .collect::<Vec<_>>();
+    let callee =
+        crate::machine_calls::calls::callee_entry_contract(walk.program, call.target_symbol)?;
+    let parameters = callee.parameters.iter().collect::<Vec<_>>();
     let arguments = walk
         .program
         .expression_table
-        .expression_handles(call.arguments);
+        .expression_handles(call.arguments)
+        .get(callee.leading_operands..)?;
     if parameters.len() != arguments.len() {
         return None;
     }

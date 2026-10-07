@@ -275,7 +275,65 @@ pub(crate) fn resolved_call_result_type(
     if let Some((_, state)) = machine_state_by_symbol(program, call.target_symbol) {
         return state.return_type.is_valid().then_some(state.return_type);
     }
+    // A selector call's slot carries the requirement's result instantiated
+    // under the selector's trait arguments.
+    if let Some(slot) = program.dynamic_slot_by_symbol(call.target_symbol) {
+        return slot.return_type.is_valid().then_some(slot.return_type);
+    }
     requirement_call_result_type(program, call.target_symbol)
+}
+
+/// The authored contract a call's operands answer to: a machine's entry
+/// signature, or the trait requirement a selector call's slot instantiates.
+/// The requirement's own formals stay the contract's names; the slot's
+/// leading selector is an operand no formal names.
+pub(crate) struct CalleeContract<'program> {
+    /// Owner of the reserved `result` binder in `contracts`.
+    pub(crate) callable: symbols::SymbolHandle,
+    pub(crate) return_type: TypeReferenceHandle,
+    pub(crate) parameters: &'program [typed_trees::signature::StateParameter],
+    pub(crate) contracts: &'program [typed_trees::signature::SignatureContract],
+    /// Call operands before the first formal: a selector call's selector.
+    pub(crate) leading_operands: usize,
+}
+
+/// The contract a call to `target` enters through, or `None` when the target
+/// is not a machine entry or selector slot. A call to a later state is a jump
+/// inside its machine and owes no entry contract here.
+pub(crate) fn callee_entry_contract(
+    program: &TypedTrees,
+    target: symbols::SymbolHandle,
+) -> Option<CalleeContract<'_>> {
+    if let Some((machine, state)) = machine_state_by_symbol(program, target) {
+        if program.machine_states(machine).first()?.symbol != state.symbol {
+            return None;
+        }
+        return Some(CalleeContract {
+            callable: machine.symbol,
+            return_type: state.return_type,
+            parameters: program.state_parameters(state),
+            contracts: program.machine_contracts(machine),
+            leading_operands: 0,
+        });
+    }
+    let slot = program.dynamic_slot_by_symbol(target)?;
+    let requirement = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == slot.declaring_trait)
+        .and_then(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|signature| signature.symbol == slot.requirement)
+        })?;
+    Some(CalleeContract {
+        callable: requirement.symbol,
+        return_type: requirement.return_type,
+        parameters: program.state_signature_parameters(requirement),
+        contracts: program.state_signature_contracts(requirement),
+        leading_operands: 1,
+    })
 }
 
 /// A boundary or requirement call targets the trait's declared signature

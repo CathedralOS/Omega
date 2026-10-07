@@ -1,9 +1,9 @@
 //! Modular result bounds from exact, builtin normal-return contract facts.
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine, ProofFact,
-    SignatureContractKind, State, TypeReferenceHandle, TypedTrees, ValueEnvironment,
-    guard_narrowing, range_constraint_interval,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Interval, ProofFact, SignatureContractKind,
+    TypeReferenceHandle, TypedTrees, ValueEnvironment, guard_narrowing, range_constraint_interval,
 };
+use crate::machine_calls::calls::CalleeContract;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     literal_interval, primitive_range,
 };
@@ -12,15 +12,14 @@ use symbols::SymbolHandle;
 
 pub(super) fn normal_return_interval(
     program: &TypedTrees,
-    machine: &Machine,
-    entry: &State,
+    callee: &CalleeContract<'_>,
     declared: Interval,
     actuals: &[(SymbolHandle, Interval)],
 ) -> Interval {
     // Only gated builtin preconditions may refine a formal used in a result
     // relation. The ordinary source guard environment is not selection evidence.
     let mut environment = ValueEnvironment::new();
-    for parameter in program.state_parameters(entry) {
+    for parameter in callee.parameters {
         if parameter.is_mutable || parameter.is_const {
             continue;
         }
@@ -36,8 +35,8 @@ pub(super) fn normal_return_interval(
         {
             interval = interval.intersect(*actual);
         }
-        for contract in program
-            .machine_contracts(machine)
+        for contract in callee
+            .contracts
             .iter()
             .filter(|contract| contract.kind == SignatureContractKind::Requires)
         {
@@ -45,8 +44,7 @@ pub(super) fn normal_return_interval(
                 if let ProofFact::Expression(expression) = fact {
                     interval = interval.intersect(project(
                         program,
-                        machine,
-                        entry,
+                        callee,
                         &environment,
                         *expression,
                         Some(parameter),
@@ -56,8 +54,8 @@ pub(super) fn normal_return_interval(
         }
         environment.set(parameter.name.as_str().to_owned(), interval);
     }
-    program
-        .machine_contracts(machine)
+    callee
+        .contracts
         .iter()
         .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
@@ -66,21 +64,13 @@ pub(super) fn normal_return_interval(
             _ => None,
         })
         .fold(declared, |interval, expression| {
-            interval.intersect(project(
-                program,
-                machine,
-                entry,
-                &environment,
-                expression,
-                None,
-            ))
+            interval.intersect(project(program, callee, &environment, expression, None))
         })
 }
 
 fn project(
     program: &TypedTrees,
-    machine: &Machine,
-    entry: &State,
+    callee: &CalleeContract<'_>,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
     formal: Option<&typed_trees::signature::StateParameter>,
@@ -90,8 +80,8 @@ fn project(
     };
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         // These two selective connectives have no declared operator spelling.
-        let left = project(program, machine, entry, environment, binary.left, formal);
-        let right = project(program, machine, entry, environment, binary.right, formal);
+        let left = project(program, callee, environment, binary.left, formal);
+        let right = project(program, callee, environment, binary.right, formal);
         return if binary.operator == BinaryOperator::And {
             left.intersect(right)
         } else {
@@ -104,7 +94,7 @@ fn project(
             if parameter.symbol.is_valid() && path.symbol == parameter.symbol && path.head_symbol == parameter.symbol)
         } else {
             crate::reserved_result_owner(program, expression).is_some_and(|(owner, return_type)| {
-                owner == machine.symbol && return_type == entry.return_type
+                owner == callee.callable && return_type == callee.return_type
             })
         }
     };
@@ -116,11 +106,11 @@ fn project(
         return Interval::UNBOUNDED;
     };
     let Some((operand, operand_type)) =
-        operand_interval(program, entry, environment, other, formal.is_none())
+        operand_interval(program, callee, environment, other, formal.is_none())
     else {
         return Interval::UNBOUNDED;
     };
-    let subject_type = formal.map_or(entry.return_type, |parameter| parameter.type_reference);
+    let subject_type = formal.map_or(callee.return_type, |parameter| parameter.type_reference);
     let operand_types = if subject_on_left {
         [Some(subject_type), operand_type]
     } else {
@@ -128,7 +118,7 @@ fn project(
     };
     if !builtin(
         program,
-        machine,
+        callee.callable,
         expression,
         binary.operator,
         &operand_types,
@@ -140,7 +130,7 @@ fn project(
 
 fn operand_interval(
     program: &TypedTrees,
-    entry: &State,
+    callee: &CalleeContract<'_>,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
     allow_formals: bool,
@@ -166,7 +156,7 @@ fn operand_interval(
             return None;
         }
         let (interval, source_type) =
-            operand_interval(program, entry, environment, cast.value, allow_formals)?;
+            operand_interval(program, callee, environment, cast.value, allow_formals)?;
         let source = program.primitive_type_reference(source_type?)?;
         let target = program.primitive_type_reference(cast.target_type)?;
         return crate::integer_widen_is_total(source, target)
@@ -186,8 +176,8 @@ fn operand_interval(
     if !path.symbol.is_valid() || path.symbol != path.head_symbol {
         return None;
     }
-    let parameter = program
-        .state_parameters(entry)
+    let parameter = callee
+        .parameters
         .iter()
         .find(|parameter| parameter.symbol == path.symbol)?;
     if parameter.is_mutable || parameter.is_const {
@@ -208,7 +198,7 @@ fn operand_interval(
 
 fn builtin(
     program: &TypedTrees,
-    machine: &Machine,
+    scope: SymbolHandle,
     expression: ExpressionHandle,
     operator: BinaryOperator,
     operand_types: &[Option<TypeReferenceHandle>],
@@ -224,7 +214,7 @@ fn builtin(
     };
     typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
-        machine.symbol,
+        scope,
         expression,
         spelling,
         operand_types,

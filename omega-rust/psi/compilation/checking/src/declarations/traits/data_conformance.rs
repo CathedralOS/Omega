@@ -274,6 +274,20 @@ fn validate_closed_rows(
             &arguments,
             diagnostics,
         );
+        // Authored rows choose their machine; a default or synthesized row is
+        // the requirement's own declaration instantiated for this map.
+        if matches!(
+            row.source,
+            ConformanceRowSource::Inline | ConformanceRowSource::Reference
+        ) {
+            crate::proof_contracts::contract_entailment::check_contract_refinement(
+                program,
+                machine,
+                declaring_trait,
+                requirement,
+                diagnostics,
+            );
+        }
     }
 }
 

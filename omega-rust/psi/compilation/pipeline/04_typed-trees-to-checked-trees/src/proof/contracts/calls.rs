@@ -20,11 +20,21 @@ pub(crate) fn build_contract_call_facts(
 
     for state in borrow.states.iter().map(|(_, state)| state) {
         for call in borrow.calls.span_or_empty(state.calls) {
-            let Some((target_machine_symbol, target_state_symbol)) =
+            let Some(contract_owner) =
                 contract_target_from_state_symbol(program, call.target_symbol)
             else {
                 continue;
             };
+            // A selector call's operands pair with its slot's roster, selector
+            // first; the requirement the slot instantiates owns the contract.
+            // Naming the requirement as the target would pair its formals with
+            // operands one position early.
+            let (target_machine_symbol, target_state_symbol) =
+                if program.dynamic_slot_by_symbol(call.target_symbol).is_some() {
+                    (call.target_symbol, call.target_symbol)
+                } else {
+                    contract_owner
+                };
 
             let call_site = crate::semantic::calls::find_call_site(
                 program,
@@ -37,7 +47,7 @@ pub(crate) fn build_contract_call_facts(
                 .as_ref()
                 .and_then(crate::semantic::calls::CallSite::static_requirement_dispatch)
                 .map(|dispatch| (dispatch.declaring_trait, dispatch.requirement))
-                .unwrap_or((target_machine_symbol, target_state_symbol));
+                .unwrap_or(contract_owner);
             append_contract_call(
                 contract_facts,
                 &mut fact_refs,

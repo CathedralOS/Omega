@@ -79,6 +79,7 @@ mod arithmetic_judgment;
 mod call_requirements;
 mod citations;
 mod const_ranges;
+mod contract_refinement;
 mod exit_coverage;
 mod inductive_judgment;
 mod law_conformance;
@@ -104,6 +105,7 @@ pub(crate) use const_ranges::{
     const_range_bound_is_supported, selected_const_call_result_bounds, symbolic_range_contains,
     validate_const_range_call, validate_const_range_call_in_environment,
 };
+pub(crate) use contract_refinement::check_contract_refinement;
 pub(crate) use exit_coverage::entailment_covers_all_exits;
 pub use law_conformance::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,

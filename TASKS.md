@@ -355,21 +355,22 @@ helper that passes does not close an item.
     customers execute natively on macOS ARM64; interpretation still needs
     **TERMINAL-RUNTIME-DRIVERS**' closed ProcessExit invocation and exact entry/
     provider provisions, not a selector-specific execution adapter.
-  - Next: a requirement with `requires`/`ensures`, a suspending requirement, a
-    structural result through a selector, a selector call inside a staged
-    argument group and a finite-family selector call (which keeps its
-    requirement target, unslotted) each decline at planning; a requirement
-    with published crash routes keeps no crash-refinement row because its
-    operands lead with the selector. Termination treats a selector call as an
-    edge to every implementation selected for its slot, so a recursion cycle
-    through runtime selection rejects (`fail/traits/dyn_selector_reentry_unranked`)
-    until a ranking crosses a dispatch edge. Requirement contracts at a
-    selector call are not yet paired with the slot's operands by checking.
-    Inside `Loop satisfies Walk<Node> { machine walk(...) }`, a selector call
-    `Walk::walk(again, subject)` reaches checking with `Loop::walk` as its
-    target (stage 02 resolves the trait receiver's requirement; a later pass
-    rebinds it), so it reports "`Walk` declares no requirement named `walk`"
-    plus non-tail self-recursion. Package review does not yet consume the new records, and
+  - Requirement contracts hold at selector calls: checking discharges the
+    requirement's `requires` against the slot's operands and imports its
+    `ensures` (`pass/traits/runtime_dyn_requirement_contract_exit`), and a
+    closed-row member must restate each non-law conclusion and add no premise
+    (`contract_entailment/contract_refinement.rs`). That correspondence is
+    exact spelling, not entailment, and does not unfold proposition premises.
+  - Next: a suspending requirement, a structural result through a selector, a
+    selector call inside a staged argument group and a finite-family selector
+    call (which keeps its requirement target, unslotted) each decline at
+    planning; a requirement with published crash routes keeps no
+    crash-refinement row because its operands lead with the selector.
+    Termination treats a selector call as an edge to every implementation
+    selected for its slot, so a recursion cycle through runtime selection
+    rejects (`fail/traits/dyn_selector_reentry_unranked`,
+    `fail/traits/dyn_selector_self_reentry_unranked`) until a ranking crosses a
+    dispatch edge. Package review does not yet consume the new records, and
     `source/psi/` has no producer parity.
   - Own Psi dynamic checking/facts and stages 04/05/07, Terminal selection/call
     representation and codec, the interpreter, and corresponding `source/psi/`

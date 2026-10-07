@@ -8,8 +8,10 @@
 //! evaluator against the slot's formals. Every selectable implementation is
 //! a checked body, so the data operands keep checked-body custody.
 //!
-//! A requirement contract or a suspending requirement declines here: the
-//! dispatch route does not yet carry the selected table's contract evidence.
+//! The requirement's contract needs no evidence on the route: checking
+//! discharged its `requires` against these operands and every selectable
+//! implementation refines it where its conformance is checked. A suspending
+//! requirement declines here; the route carries no suspension frontier.
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     PrimitiveType,
@@ -39,7 +41,7 @@ impl Builder<'_, '_> {
                     .iter()
                     .find(|signature| signature.symbol == slot.requirement)
             })?;
-        if requirement.suspends || !program.state_signature_contracts(requirement).is_empty() {
+        if requirement.suspends {
             return None;
         }
         let (source_call, call_ordinal) = self.call_ordinal(expression, call.target_symbol)?;

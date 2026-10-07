@@ -62,18 +62,13 @@ pub(crate) fn ensured_call_result_interval(
     call: &TableCallExpression,
     actuals: &[(SymbolHandle, Interval)],
 ) -> Option<Interval> {
-    let (machine, state) =
-        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
-    if program.machine_states(machine).first()?.symbol != state.symbol {
-        return None;
-    }
+    let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
     // One contract projector serves every selected call. The old static-call
     // shortcut and the weaker ordinary-call parser disagreed on the same
     // result guarantee solely because of receiver spelling.
     let interval = super::call_result_bounds::normal_return_interval(
         program,
-        machine,
-        state,
+        &callee,
         Interval::UNBOUNDED,
         actuals,
     );

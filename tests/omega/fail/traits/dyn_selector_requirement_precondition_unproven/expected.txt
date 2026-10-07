@@ -1,0 +1,1 @@
+cannot prove requires contract for call dyn Shrink<Scale>::shrink from probe: 200 >= 3 && 200 <= 100

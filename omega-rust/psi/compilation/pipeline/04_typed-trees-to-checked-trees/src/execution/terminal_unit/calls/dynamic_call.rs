@@ -10,10 +10,12 @@
 //! implementation's body is inspected to plan them.
 //!
 //! Unit and scalar results are planned. A structural result, an erased or
-//! mutable owned scalar formal, a suspending requirement and a requirement
-//! contract decline at the named phase: their dispatch obligations (result
-//! custody per row, proof lanes, the selected table's contract commitment)
-//! are not yet carried by the dynamic route.
+//! mutable owned scalar formal and a suspending requirement decline at the
+//! named phase: their dispatch obligations (result custody per row, proof
+//! lanes, a suspension frontier) are not yet carried by the dynamic route.
+//! A requirement contract needs no route evidence: checking discharged its
+//! `requires` against these operands, and every selectable implementation
+//! refines it where its conformance is checked.
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::argument_paths::checked_call_scalar_arguments;
@@ -67,7 +69,7 @@ pub(super) fn build(
     if !result_matches {
         return None;
     }
-    phase("call operation: dynamic requirement contract");
+    phase("call operation: dynamic requirement suspension");
     let requirement = program
         .traits()
         .iter()
@@ -78,7 +80,7 @@ pub(super) fn build(
                 .iter()
                 .find(|signature| signature.symbol == slot.requirement)
         })?;
-    if requirement.suspends || !program.state_signature_contracts(requirement).is_empty() {
+    if requirement.suspends {
         return None;
     }
     phase("call operation: dynamic structural arguments");
