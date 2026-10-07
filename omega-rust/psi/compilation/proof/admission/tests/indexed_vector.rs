@@ -107,10 +107,7 @@ fn branching(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let tag = fst(arena, bound);
     let body = case_two(arena, motive, empty, unit, tag);
-    let domain = {
-        let payload_fn = payload(arena);
-        carrier(arena, payload_fn)
-    };
+    let domain = carrier(arena, payload);
     lambda(arena, domain, body)
 }
 
@@ -153,10 +150,7 @@ fn out_index(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let payload_component = snd(arena, bound);
     let body = apply(arena, selected, payload_component);
-    let domain = {
-        let payload_fn = payload(arena);
-        carrier(arena, payload_fn)
-    };
+    let domain = carrier(arena, payload);
     lambda(arena, domain, body)
 }
 
@@ -215,10 +209,7 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let payload_component = snd(arena, bound);
     let body = apply(arena, selected, payload_component);
-    let domain = {
-        let payload_fn = payload(arena);
-        carrier(arena, payload_fn)
-    };
+    let domain = carrier(arena, payload);
     lambda(arena, domain, body)
 }
 
@@ -228,10 +219,7 @@ fn vector_family(arena: &mut TermArena) -> IndexedFamily {
     IndexedFamily {
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: nat(arena),
-        carrier: {
-            let payload_fn = payload(arena);
-            carrier(arena, payload_fn)
-        },
+        carrier: carrier(arena, payload),
         children: branching(arena),
         out: out_index(arena),
         next: next_index(arena),
@@ -355,10 +343,7 @@ fn eliminator_context(arena: &mut TermArena, family: &IndexedFamily) -> Context 
         };
         let inner = pi(arena, hypothesis_type, result);
         let middle = pi(arena, g_type, inner);
-        let domain = {
-        let payload_fn = payload(arena);
-        carrier(arena, payload_fn)
-    };
+        let domain = carrier(arena, payload);
         pi(arena, domain, middle)
     };
     let element_type = elem(arena);
@@ -512,10 +497,7 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
         let bound = variable(&mut arena, 0);
         let payload_component = snd(&mut arena, bound);
         let body = apply(&mut arena, selected, payload_component);
-        let domain = {
-            let payload_fn = payload(&mut arena);
-            carrier(&mut arena, payload_fn)
-        };
+        let domain = carrier(&mut arena, payload);
         lambda(&mut arena, domain, body)
     };
     let length = variable(&mut arena, 1);
@@ -541,10 +523,7 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
         let bound = variable(&mut arena, 0);
         let tag = fst(&mut arena, bound);
         let body = case_two(&mut arena, motive, empty, unit, tag);
-        let domain = {
-            let payload_fn = payload(&mut arena);
-            carrier(&mut arena, payload_fn)
-        };
+        let domain = carrier(&mut arena, payload);
         lambda(&mut arena, domain, body)
     };
     let length = variable(&mut arena, 1);

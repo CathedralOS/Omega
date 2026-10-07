@@ -242,9 +242,13 @@ pub(crate) fn step_type(
 
 /// The constructor carrier `A = Σ(tag : Two). Payload tag` shared by the
 /// tagged-family fixtures; `payload` is the family's own `Payload` lambda.
-pub(crate) fn carrier(arena: &mut TermArena, payload: TermHandle) -> TermHandle {
+pub(crate) fn carrier(
+    arena: &mut TermArena,
+    payload: fn(&mut TermArena) -> TermHandle,
+) -> TermHandle {
     let tag = variable(arena, 0);
-    let codomain = apply(arena, payload, tag);
+    let payload_fn = payload(arena);
+    let codomain = apply(arena, payload_fn, tag);
     let domain = two(arena);
     sigma(arena, domain, codomain)
 }

@@ -288,10 +288,7 @@ fn branching(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let tag = fst(arena, bound);
     let body = case_two(arena, motive, empty, positions, tag);
-    let domain = {
-        let payload_fn = payload(arena);
-        carrier(arena, payload_fn)
-    };
+    let domain = carrier(arena, payload);
     lambda(arena, domain, body)
 }
 
@@ -335,10 +332,7 @@ fn out_index(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let payload_component = snd(arena, bound);
     let body = apply(arena, selected, payload_component);
-    let domain = {
-        let payload_fn = payload(arena);
-        carrier(arena, payload_fn)
-    };
+    let domain = carrier(arena, payload);
     lambda(arena, domain, body)
 }
 
@@ -399,10 +393,7 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let payload_component = snd(arena, bound);
     let body = apply(arena, selected, payload_component);
-    let domain = {
-        let payload_fn = payload(arena);
-        carrier(arena, payload_fn)
-    };
+    let domain = carrier(arena, payload);
     lambda(arena, domain, body)
 }
 
@@ -412,10 +403,7 @@ fn nested_family(arena: &mut TermArena) -> IndexedFamily {
     IndexedFamily {
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: nat(arena),
-        carrier: {
-            let payload_fn = payload(arena);
-            carrier(arena, payload_fn)
-        },
+        carrier: carrier(arena, payload),
         children: branching(arena),
         out: out_index(arena),
         next: next_index(arena),
@@ -570,10 +558,7 @@ fn nested_applications_reject_wrong_indices_and_malformed_descriptions() {
         let bound = variable(&mut arena, 0);
         let tag = fst(&mut arena, bound);
         let body = case_two(&mut arena, motive, empty, positions, tag);
-        let domain = {
-            let payload_fn = payload(&mut arena);
-            carrier(&mut arena, payload_fn)
-        };
+        let domain = carrier(&mut arena, payload);
         lambda(&mut arena, domain, body)
     };
     let level = variable(&mut arena, 3);
@@ -637,10 +622,7 @@ fn nested_applications_reject_wrong_indices_and_malformed_descriptions() {
         let bound = variable(&mut arena, 0);
         let payload_component = snd(&mut arena, bound);
         let body = apply(&mut arena, selected, payload_component);
-        let domain = {
-            let payload_fn = payload(&mut arena);
-            carrier(&mut arena, payload_fn)
-        };
+        let domain = carrier(&mut arena, payload);
         lambda(&mut arena, domain, body)
     };
     // Rebuild the g binding under the *broken* next: `g : Π(b : Nat).
