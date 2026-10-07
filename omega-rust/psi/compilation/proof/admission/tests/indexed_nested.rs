@@ -176,14 +176,8 @@ fn vec_out(arena: &mut TermArena) -> TermHandle {
         let body = nat_succ(arena, predecessor);
         lambda(arena, domain, body)
     };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
-    let bound = variable(arena, 0);
-    let payload_component = snd(arena, bound);
-    let body = apply(arena, selected, payload_component);
-    let domain = vec_carrier(arena);
-    lambda(arena, domain, body)
+    let carrier_handle = vec_carrier(arena);
+    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
 }
 
 /// `next_v = λ(a : A_v). caseTwo(M, λp.λ_. zeroN, λp.λ_. snd p, fst a)
@@ -226,14 +220,8 @@ fn vec_next(arena: &mut TermArena) -> TermHandle {
         let inner = lambda(arena, position_domain, body);
         lambda(arena, payload_domain, inner)
     };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
-    let bound = variable(arena, 0);
-    let payload_component = snd(arena, bound);
-    let body = apply(arena, selected, payload_component);
-    let domain = vec_carrier(arena);
-    lambda(arena, domain, body)
+    let carrier_handle = vec_carrier(arena);
+    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
 }
 
 /// The length-indexed vector family, reused as the nested payload:
@@ -326,14 +314,8 @@ fn out_index(arena: &mut TermArena) -> TermHandle {
         let body = fst(arena, bound);
         lambda(arena, domain, body)
     };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
-    let bound = variable(arena, 0);
-    let payload_component = snd(arena, bound);
-    let body = apply(arena, selected, payload_component);
-    let domain = carrier(arena, payload);
-    lambda(arena, domain, body)
+    let carrier_handle = carrier(arena, payload);
+    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
 }
 
 /// `next = λ(a : A). caseTwo(M, λp.λ_. zeroN, λp.λ_. succN (fst p), fst
@@ -387,14 +369,8 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
         let inner = lambda(arena, position_domain, body);
         lambda(arena, payload_domain, inner)
     };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
-    let bound = variable(arena, 0);
-    let payload_component = snd(arena, bound);
-    let body = apply(arena, selected, payload_component);
-    let domain = carrier(arena, payload);
-    lambda(arena, domain, body)
+    let carrier_handle = carrier(arena, payload);
+    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
 }
 
 /// The nested rose-tree family: `Rose n = IW Nat A B out next n` with

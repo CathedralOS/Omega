@@ -221,14 +221,8 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
         let payload_domain = uniform_payload(arena);
         lambda(arena, payload_domain, selected)
     };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
-    let bound = variable(arena, 0);
-    let payload = snd(arena, bound);
-    let body = apply(arena, selected, payload);
-    let domain = carrier(arena);
-    lambda(arena, domain, body)
+    let carrier_handle = carrier(arena);
+    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
 }
 
 /// The mutual `Tree`/`Forest` family: `IW Two A B out next` where index

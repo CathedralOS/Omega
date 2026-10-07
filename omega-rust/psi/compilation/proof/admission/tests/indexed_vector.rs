@@ -144,14 +144,8 @@ fn out_index(arena: &mut TermArena) -> TermHandle {
         let body = nat_succ(arena, predecessor);
         lambda(arena, domain, body)
     };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
-    let bound = variable(arena, 0);
-    let payload_component = snd(arena, bound);
-    let body = apply(arena, selected, payload_component);
-    let domain = carrier(arena, payload);
-    lambda(arena, domain, body)
+    let carrier_handle = carrier(arena, payload);
+    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
 }
 
 /// `next = λ(a : A). caseTwo(M, λp.λ_. zeroN, λp.λ_. snd p, fst a)
@@ -203,14 +197,8 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
         let inner = lambda(arena, position_domain, body);
         lambda(arena, payload_domain, inner)
     };
-    let bound = variable(arena, 0);
-    let tag = fst(arena, bound);
-    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
-    let bound = variable(arena, 0);
-    let payload_component = snd(arena, bound);
-    let body = apply(arena, selected, payload_component);
-    let domain = carrier(arena, payload);
-    lambda(arena, domain, body)
+    let carrier_handle = carrier(arena, payload);
+    tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
 }
 
 /// The length-indexed vector family over the assumed `Nat`/`Elem`:
