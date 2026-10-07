@@ -37,8 +37,9 @@ pub(super) fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
     tables.type_reference_table = source.tables.type_reference_table.clone();
     let mut projected =
         TypedTrees::with_roots(source.roots.clone(), tables, source.symbols.clone());
-    projected
-        .retain_authored_declaration_selections(source.authored_declaration_selections().clone());
+    projected.retain_authored_declaration_selections(
+        compilation.authored_declaration_selections().clone(),
+    );
     projected.plan_laid_layouts = source.plan_laid_layouts.clone();
     projected.placed_view_plans = source.placed_view_plans.clone();
     projected.semantic_domains = source.semantic_domains.clone();

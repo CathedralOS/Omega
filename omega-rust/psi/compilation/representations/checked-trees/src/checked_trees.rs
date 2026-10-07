@@ -236,6 +236,24 @@ impl CheckedTrees {
     pub fn with_roots(typed: impl Into<typed_trees::FrozenTypedTrees>, facts: CheckFacts) -> Self {
         Self { typed: typed.into(), facts }
     }
+
+    /// Checked choices are independent of the pre-check typed resolution ledger.
+    pub fn authored_declaration_selections(
+        &self,
+    ) -> &language_semantics::declaration_selection::AuthoredDeclarationSelections {
+        self.facts.authored_declaration_selections()
+    }
+
+    /// Exact authored occurrences, including proof views admitted by checking.
+    pub fn authored_selection_occurrences(
+        &self,
+        expression: expression::ExpressionHandle,
+    ) -> impl Iterator<
+        Item = language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    > + '_ {
+        self.facts
+            .authored_selection_occurrences(&self.typed, expression)
+    }
 }
 
 impl std::ops::Deref for CheckedTrees {

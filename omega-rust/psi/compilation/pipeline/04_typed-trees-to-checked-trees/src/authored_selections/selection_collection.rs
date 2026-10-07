@@ -124,7 +124,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
 /// syntax-trees-to-symbol-resolved-trees). Such spellings cannot be bound
 /// here because there is nothing to bind; instead they are reported through
 /// `unoccurred_view_calls` so finalization can mint a finalized ProofView row
-/// directly and attach it to the call expression.
+/// directly and retain its call-expression association in checked facts.
 pub(crate) fn collect_checked_proof_view_call_selections(
     program: &dyn ::validation::CheckingInput,
     resolutions: &mut Vec<CheckedResolution>,

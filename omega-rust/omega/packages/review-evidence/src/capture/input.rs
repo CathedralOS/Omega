@@ -26,7 +26,7 @@ impl<'a> PackageReviewInput<'a> {
         Self {
             program,
             custody,
-            checking_input: &program.typed,
+            checking_input: program,
         }
     }
 

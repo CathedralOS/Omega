@@ -236,7 +236,6 @@ pub(crate) fn exact_checked_contract_call_target(
     };
 
     let selections = compilation
-        .expression_table
         .authored_selection_occurrences(expression)
         .filter_map(|occurrence| {
             compilation

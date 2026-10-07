@@ -29,10 +29,7 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
         .map(|argument| argument.symbol)
         .collect::<Vec<_>>();
     let mut retained = Vec::new();
-    for occurrence in compilation
-        .expression_table
-        .authored_selection_occurrences(expression)
-    {
+    for occurrence in compilation.authored_selection_occurrences(expression) {
         let Some(selection) = compilation
             .authored_declaration_selections()
             .get(occurrence)

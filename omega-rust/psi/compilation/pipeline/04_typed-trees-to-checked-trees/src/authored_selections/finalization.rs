@@ -30,16 +30,16 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionFinalizationError,
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
-    AuthoredDeclarationSelectionTarget, BuildOperation,
+    AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections, BuildOperation,
 };
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
 pub(crate) fn finalize_checked_authored_selections(
-    program: &mut TypedTrees,
-    facts: &CheckFacts,
-) -> Result<(), Diagnostic> {
+    program: &TypedTrees,
+    facts: &mut CheckFacts,
+) -> Result<AuthoredDeclarationSelections, Diagnostic> {
     let mut resolutions = Vec::new();
     let mut inferred_conformances = Vec::new();
     let expressions = &program.tables.expression_table;
@@ -411,7 +411,9 @@ pub(crate) fn finalize_checked_authored_selections(
     // for it because it names no declaration. Once checking admits the atom
     // as a proof view, the checked ledger still owes the spelling explicit
     // compiler-owned custody: mint one finalized ProofView row per exact call
-    // site and attach it as the expression's occurrence.
+    // site and retain its expression association in checked facts. Typed
+    // resolution data stays frozen, including its original occurrence roster.
+    let mut finalized_selection_occurrences = arena::Arena::new();
     let mut minted_view_calls: Vec<(
         source::SourceSpan,
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
@@ -454,9 +456,12 @@ pub(crate) fn finalize_checked_authored_selections(
                 occurrence
             }
         };
-        program
-            .expression_table
-            .attach_authored_selection_occurrences(expression, [occurrence]);
+        if !finalized_selection_occurrences
+            .iter()
+            .any(|(_, retained)| *retained == (expression, Some(occurrence)))
+        {
+            finalized_selection_occurrences.insert((expression, Some(occurrence)));
+        }
     }
     for (source_span, exposure, selected_symbol) in inferred_conformances {
         let already_retained = selections.iter().any(|selection| {
@@ -531,8 +536,8 @@ pub(crate) fn finalize_checked_authored_selections(
         ))
         .with_source_span(selection.source_span()));
     }
-    program.retain_authored_declaration_selections(selections);
-    Ok(())
+    facts.finalized_selection_occurrences = finalized_selection_occurrences;
+    Ok(selections)
 }
 
 fn late_binding_ordinal(

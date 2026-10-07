@@ -28,7 +28,6 @@ pub(super) fn is_case_membership(
 ) -> bool {
     binary.operator == BinaryOperator::CaseMembership
         || compilation
-            .expression_table
             .authored_selection_occurrences(expression)
             .any(|occurrence| {
                 compilation
@@ -135,7 +134,6 @@ pub(super) fn checked_case_classifier(
     };
     if !exact_meaning
         || compilation
-            .expression_table
             .authored_selection_occurrences(expression)
             .any(|occurrence| {
                 compilation

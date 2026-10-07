@@ -22,7 +22,8 @@ pub fn project_checked_package_policy<'a>(
     let input = input.into();
     // The checked program is read-only for the whole projection; its
     // program-pure tables are shared across every declaration's projection.
-    let checking_context = ::validation::CheckingContext::new(&input.program.typed);
+    let checking_context = ::validation::CheckingContext::new(&input.program.typed)
+        .with_authored_declaration_selections(input.program.authored_declaration_selections());
     let compilation = &PackageReviewInput {
         checking_input: &checking_context,
         ..input

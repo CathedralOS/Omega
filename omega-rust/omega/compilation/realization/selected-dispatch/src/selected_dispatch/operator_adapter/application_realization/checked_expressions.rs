@@ -250,15 +250,8 @@ fn has_exact_authored_selection(
         CheckedOperatorAuthoredUseKind::FixedToken(_) => AuthoredDeclarationSelectionKind::Operator,
     };
     checked
-        .typed
-        .expression_table
         .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            checked
-                .typed
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .filter_map(|occurrence| checked.authored_declaration_selections().get(occurrence))
         .any(|selection| {
             selection.kind() == expected_kind
                 && matches!(

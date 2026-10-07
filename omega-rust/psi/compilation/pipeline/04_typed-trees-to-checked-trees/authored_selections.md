@@ -14,6 +14,10 @@ captures paths while they are still attached to source. Typing records exact
 nominal selections and enclosing public/private position.
 [Checked finalization](src/authored_selections.rs) settles late receiver calls,
 overloads, operators, and inferred conformances after checking succeeds.
+The typed ledger retains its pre-check resolution data. `CheckFacts` owns the
+finalized ledger and the exact expression associations for proof-view occurrences
+minted by checking. Checked consumers read both through `CheckedTrees`; no checked
+target is recovered from the typed ledger.
 
 | Source use | Custody |
 | --- | --- |

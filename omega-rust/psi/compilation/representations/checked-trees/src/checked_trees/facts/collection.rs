@@ -12,6 +12,16 @@ use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedVi
 pub struct CheckFacts {
     /// Portable specialization identities derived from checked machine contracts.
     pub specialization_identities: crate::CheckedSpecializationIdentities,
+    /// Authored declaration choices finalized by checking. The typed ledger
+    /// retains resolution data; checked consumers read this ledger exclusively.
+    pub finalized_selections:
+        language_semantics::declaration_selection::AuthoredDeclarationSelections,
+    /// Checking-minted proof-view occurrences and their exact expression handles.
+    /// The optional occurrence supplies the arena's empty row, not semantic absence.
+    pub finalized_selection_occurrences: arena::Arena<(
+        typed_trees::expression::ExpressionHandle,
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    )>,
     /// Frozen executable place/result types and type-reference carriers.
     /// Lowering consumes these decisions instead of reconstructing them.
     pub resolved_types: crate::ResolvedTypeFacts,
@@ -125,6 +135,32 @@ pub struct DecidedCallRequires {
 }
 
 impl CheckFacts {
+    /// The finalized ledger never falls back to unresolved typed selections.
+    pub fn authored_declaration_selections(
+        &self,
+    ) -> &language_semantics::declaration_selection::AuthoredDeclarationSelections {
+        &self.finalized_selections
+    }
+
+    /// Retain typed occurrence identities and append checking-minted associations.
+    /// Targets for both kinds of occurrence belong to the finalized ledger.
+    pub fn authored_selection_occurrences<'input>(
+        &'input self,
+        program: &'input typed_trees::TypedTrees,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> impl Iterator<
+        Item = language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    > + 'input {
+        program
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .chain(self.finalized_selection_occurrences.iter().filter_map(
+                move |(_, (owner, occurrence))| {
+                    (*owner == expression).then_some(*occurrence).flatten()
+                },
+            ))
+    }
+
     pub fn byte_write_is_proven(&self, target: typed_trees::expression::ExpressionHandle) -> bool {
         self.proven_byte_writes
             .binary_search_by_key(&crate::operators::handle_position(target), |proven| {

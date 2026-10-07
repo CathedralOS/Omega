@@ -13,6 +13,7 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };
 use crate::value_custody::content_conservation::ContentConservationSourcePlan;
+use language_semantics::declaration_selection::AuthoredDeclarationSelections;
 use std::fmt;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -22,6 +23,7 @@ use typed_trees::proof_only::ProofOnlyClassification;
 mod sealed {
     pub trait Sealed {}
     impl Sealed for typed_trees::TypedTrees {}
+    impl Sealed for checked_trees::CheckedTrees {}
     impl Sealed for super::CheckingContext<'_> {}
     impl Sealed for super::CheckingProjection<'_> {}
     impl Sealed for typed_trees::FrozenTypedTrees {}
@@ -35,6 +37,12 @@ mod sealed {
 /// permission to retain this scratch in a compilation product.
 pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn typed_program(&self) -> &TypedTrees;
+
+    /// Source preparation reads resolution data. A checked input or a context
+    /// carrying finalized selections reads checked choices over the same trees.
+    fn authored_declaration_selections(&self) -> &AuthoredDeclarationSelections {
+        self.typed_program().authored_declaration_selections()
+    }
 
     #[doc(hidden)]
     fn checking_memos(&self) -> Option<&CheckingMemos>;
@@ -77,10 +85,25 @@ impl CheckingInput for typed_trees::FrozenTypedTrees {
     }
 }
 
+impl CheckingInput for checked_trees::CheckedTrees {
+    fn typed_program(&self) -> &TypedTrees {
+        &self.typed
+    }
+
+    fn authored_declaration_selections(&self) -> &AuthoredDeclarationSelections {
+        self.facts.authored_declaration_selections()
+    }
+
+    fn checking_memos(&self) -> Option<&CheckingMemos> {
+        None
+    }
+}
+
 /// Borrows one immutable program and owns invocation-local query state. Moving
 /// or nesting contexts preserves memos without installing ambient state.
 pub struct CheckingContext<'program> {
     program: &'program TypedTrees,
+    finalized_selections: Option<&'program AuthoredDeclarationSelections>,
     memos: CheckingMemos,
 }
 
@@ -88,8 +111,19 @@ impl<'program> CheckingContext<'program> {
     pub fn new(program: &'program TypedTrees) -> Self {
         Self {
             program,
+            finalized_selections: None,
             memos: CheckingMemos::default(),
         }
+    }
+
+    /// Borrow checked selections for final visibility and cleanup judgments
+    /// without replacing or cloning the immutable typed program or its memos.
+    pub fn with_authored_declaration_selections(
+        mut self,
+        selections: &'program AuthoredDeclarationSelections,
+    ) -> Self {
+        self.finalized_selections = Some(selections);
+        self
     }
 
     /// End checking without attaching scratch to the durable typed program.
@@ -120,6 +154,11 @@ impl CheckingInput for CheckingContext<'_> {
         self.program
     }
 
+    fn authored_declaration_selections(&self) -> &AuthoredDeclarationSelections {
+        self.finalized_selections
+            .unwrap_or_else(|| self.program.authored_declaration_selections())
+    }
+
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         Some(&self.memos)
     }
@@ -143,8 +182,15 @@ impl<'input> CheckingProjection<'input> {
     }
 
     pub fn program_mut(&mut self) -> &mut TypedTrees {
-        self.projected
-            .get_or_insert_with(|| self.original.typed_program().clone())
+        self.projected.get_or_insert_with(|| {
+            let mut projected = self.original.typed_program().clone();
+            // The private mutation copy retains the input's authoritative
+            // selections, which may live outside its original typed tables.
+            projected.retain_authored_declaration_selections(
+                self.original.authored_declaration_selections().clone(),
+            );
+            projected
+        })
     }
 }
 
@@ -161,6 +207,13 @@ impl CheckingInput for CheckingProjection<'_> {
         self.projected
             .as_ref()
             .unwrap_or_else(|| self.original.typed_program())
+    }
+
+    fn authored_declaration_selections(&self) -> &AuthoredDeclarationSelections {
+        match &self.projected {
+            Some(projected) => projected.authored_declaration_selections(),
+            None => self.original.authored_declaration_selections(),
+        }
     }
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {

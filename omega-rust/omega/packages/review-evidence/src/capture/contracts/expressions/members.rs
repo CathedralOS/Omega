@@ -53,7 +53,6 @@ pub(crate) fn contract_member_collection_measure(
     };
 
     compilation
-        .expression_table
         .authored_selection_occurrences(expression)
         .filter_map(|occurrence| {
             compilation
@@ -100,7 +99,6 @@ pub(crate) fn exact_checked_contract_nominal_member(
     };
 
     let selections = compilation
-        .expression_table
         .authored_selection_occurrences(expression)
         .filter_map(|occurrence| {
             compilation
@@ -144,7 +142,6 @@ pub(crate) fn require_exact_checked_contract_collection_measure(
     };
 
     let selections = compilation
-        .expression_table
         .authored_selection_occurrences(expression)
         .filter_map(|occurrence| {
             compilation

@@ -40,7 +40,7 @@ pub fn validate_authored_declaration_selections(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
-    for selection in program.authored_declaration_selections() {
+    for selection in program.facts.authored_declaration_selections() {
         if skipped.contains(&selection.occurrence_id()) {
             continue;
         }

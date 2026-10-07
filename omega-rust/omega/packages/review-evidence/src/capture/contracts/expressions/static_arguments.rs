@@ -188,10 +188,7 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
     let mut argument_consts = Vec::new();
     collect_argument_consts(compilation, arguments, &mut argument_consts);
     let mut selected_consts = Vec::new();
-    for occurrence in compilation
-        .expression_table
-        .authored_selection_occurrences(expression)
-    {
+    for occurrence in compilation.authored_selection_occurrences(expression) {
         let Some(selection) = compilation
             .authored_declaration_selections()
             .get(occurrence)
