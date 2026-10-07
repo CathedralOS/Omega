@@ -92,6 +92,69 @@ type CallArgumentDestinationsSlot = Option<
     )>,
 >;
 
+/// Per-scoped-program keyed memo's read/write cycle: the slot holds a
+/// `(program, key -> value)` map for the program currently under check —
+/// `compute` runs on a miss and writes back only while that same scope is
+/// open. Outer `None` means no scope is open and calls compute unmemoized.
+pub(super) fn scoped_keyed_memo<K, V>(
+    program: &typed_trees::TypedTrees,
+    slot: &'static std::thread::LocalKey<
+        std::cell::RefCell<Option<Option<(ProgramKey, HashMap<K, V>)>>>,
+    >,
+    key: K,
+    compute: impl FnOnce() -> V,
+) -> V
+where
+    K: Eq + std::hash::Hash + 'static,
+    V: Clone + 'static,
+{
+    enum SlotState<V> {
+        NoScope,
+        Hit(V),
+        Miss,
+        ForeignProgram,
+    }
+    let program_key = program_key(program);
+    let state = slot.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if *owner == program_key {
+                    map.get(&key)
+                        .cloned()
+                        .map_or(SlotState::Miss, SlotState::Hit)
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(value) = state {
+        return value;
+    }
+    let value = compute();
+    if matches!(state, SlotState::Miss) {
+        slot.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                match scope {
+                    Some((owner, map)) if *owner == program_key => {
+                        map.insert(key, value.clone());
+                    }
+                    slot_none @ None => {
+                        *slot_none = Some((program_key, HashMap::from([(key, value.clone())])));
+                    }
+                    Some(_) => {}
+                }
+            }
+        });
+    }
+    value
+}
+
 /// Per-scoped-program `Rc` map held by a slot — the table built for the
 /// program currently under check.
 type ScopedProgramMapSlot<V> =

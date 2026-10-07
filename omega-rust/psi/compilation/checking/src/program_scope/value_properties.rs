@@ -4,9 +4,8 @@
 //! Declaration answers (drop hooks, definition positions) delegate to the
 //! `TypedTrees`-owned indexes instead of a slot.
 
-use super::{CLAIM_FRONTIER_SLOT, ESTABLISHMENT_SLOT, program_key};
+use super::{CLAIM_FRONTIER_SLOT, ESTABLISHMENT_SLOT};
 use crate::value_custody::claim_frontier::ClaimFrontierClaim;
-use std::collections::HashMap;
 use typed_trees::types::TypeReferenceHandle;
 
 /// The exact linear claim frontier of a type is pure in the program, and
@@ -16,54 +15,12 @@ pub(crate) fn memoized_claim_frontier(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
-    enum SlotState {
-        NoScope,
-        Hit(Vec<ClaimFrontierClaim>),
-        Miss,
-        ForeignProgram,
-    }
-    let key = program_key(program);
-    let state = CLAIM_FRONTIER_SLOT.with(|cell| {
-        let cell = cell.borrow();
-        match cell.as_ref() {
-            None => SlotState::NoScope,
-            Some(None) => SlotState::Miss,
-            Some(Some((owner, map))) => {
-                if *owner == key {
-                    map.get(&type_reference)
-                        .cloned()
-                        .map_or(SlotState::Miss, SlotState::Hit)
-                } else {
-                    SlotState::ForeignProgram
-                }
-            }
-        }
-    });
-    if let SlotState::Hit(claims) = state {
-        return claims;
-    }
-    let claims = crate::value_custody::claim_frontier::linear_claim_frontier_uncached(
-        program,
-        type_reference,
-    );
-    if matches!(state, SlotState::Miss) {
-        CLAIM_FRONTIER_SLOT.with(|cell| {
-            if let Ok(mut slot) = cell.try_borrow_mut()
-                && let Some(scope) = &mut *slot
-            {
-                match scope {
-                    Some((owner, map)) if *owner == key => {
-                        map.insert(type_reference, claims.clone());
-                    }
-                    slot_none @ None => {
-                        *slot_none = Some((key, HashMap::from([(type_reference, claims.clone())])));
-                    }
-                    Some(_) => {}
-                }
-            }
-        });
-    }
-    claims
+    super::scoped_keyed_memo(program, &CLAIM_FRONTIER_SLOT, type_reference, || {
+        crate::value_custody::claim_frontier::linear_claim_frontier_uncached(
+            program,
+            type_reference,
+        )
+    })
 }
 
 /// Whether a machine attached to `symbol` realizes `::drop` — storage
@@ -87,50 +44,5 @@ pub(crate) fn memoized_data_requires_establishment(
     definition: &typed_trees::data::DataDefinition,
     compute: impl FnOnce() -> bool,
 ) -> bool {
-    enum SlotState {
-        NoScope,
-        Hit(bool),
-        Miss,
-        ForeignProgram,
-    }
-    let key = program_key(program);
-    let definition_symbol = definition.symbol;
-    let state = ESTABLISHMENT_SLOT.with(|cell| {
-        let cell = cell.borrow();
-        match cell.as_ref() {
-            None => SlotState::NoScope,
-            Some(None) => SlotState::Miss,
-            Some(Some((owner, map))) => {
-                if *owner == key {
-                    map.get(&definition_symbol)
-                        .copied()
-                        .map_or(SlotState::Miss, SlotState::Hit)
-                } else {
-                    SlotState::ForeignProgram
-                }
-            }
-        }
-    });
-    if let SlotState::Hit(requires) = state {
-        return requires;
-    }
-    let requires = compute();
-    if matches!(state, SlotState::Miss) {
-        ESTABLISHMENT_SLOT.with(|cell| {
-            if let Ok(mut slot) = cell.try_borrow_mut()
-                && let Some(scope) = &mut *slot
-            {
-                match scope {
-                    Some((owner, map)) if *owner == key => {
-                        map.insert(definition_symbol, requires);
-                    }
-                    slot_none @ None => {
-                        *slot_none = Some((key, HashMap::from([(definition_symbol, requires)])));
-                    }
-                    Some(_) => {}
-                }
-            }
-        });
-    }
-    requires
+    super::scoped_keyed_memo(program, &ESTABLISHMENT_SLOT, definition.symbol, compute)
 }

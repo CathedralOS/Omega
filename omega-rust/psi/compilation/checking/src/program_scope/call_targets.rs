@@ -66,54 +66,12 @@ pub(crate) fn memoized_call_argument_destinations(
     argument_count: usize,
     compute: impl FnOnce() -> Option<Vec<TypeReferenceHandle>>,
 ) -> Option<Vec<TypeReferenceHandle>> {
-    enum SlotState {
-        NoScope,
-        Hit(Option<Vec<TypeReferenceHandle>>),
-        Miss,
-        ForeignProgram,
-    }
-    let key = program_key(program);
-    let state = CALL_ARGUMENT_DESTINATIONS_SLOT.with(|cell| {
-        let cell = cell.borrow();
-        match cell.as_ref() {
-            None => SlotState::NoScope,
-            Some(None) => SlotState::Miss,
-            Some(Some((owner, map))) => {
-                if *owner == key {
-                    map.get(&(target, argument_count))
-                        .cloned()
-                        .map_or(SlotState::Miss, SlotState::Hit)
-                } else {
-                    SlotState::ForeignProgram
-                }
-            }
-        }
-    });
-    if let SlotState::Hit(destinations) = state {
-        return destinations;
-    }
-    let destinations = compute();
-    if matches!(state, SlotState::Miss) {
-        CALL_ARGUMENT_DESTINATIONS_SLOT.with(|cell| {
-            if let Ok(mut slot) = cell.try_borrow_mut()
-                && let Some(scope) = &mut *slot
-            {
-                match scope {
-                    Some((owner, map)) if *owner == key => {
-                        map.insert((target, argument_count), destinations.clone());
-                    }
-                    slot_none @ None => {
-                        *slot_none = Some((
-                            key,
-                            HashMap::from([((target, argument_count), destinations.clone())]),
-                        ));
-                    }
-                    Some(_) => {}
-                }
-            }
-        });
-    }
-    destinations
+    super::scoped_keyed_memo(
+        program,
+        &CALL_ARGUMENT_DESTINATIONS_SLOT,
+        (target, argument_count),
+        compute,
+    )
 }
 
 /// The single machine state `symbol` selects, when exactly one state carries
