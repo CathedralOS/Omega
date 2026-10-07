@@ -1925,13 +1925,7 @@ pub fn nested_call_record_argument(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(destination) = program.state_by_symbol(call.target_symbol) else {
-        return false;
-    };
-    if !is_reference_record(program, destination.return_type) {
-        return false;
-    }
-    let Some(sources) = returned_record_sources(program, destination) else {
+    let Some((destination, sources)) = reference_record_call_sources(program, call) else {
         return false;
     };
     !path.is_empty()
@@ -1961,6 +1955,26 @@ pub fn nested_call_record_argument(
         })
 }
 
+
+
+/// The call's reference-record destination state + its returned leaf
+/// sources — `None` when the call does not return a reference record.
+/// Callers then require each source's active leaf loan, filtered per site.
+fn reference_record_call_sources<'program>(
+    program: &'program TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<(
+    &'program typed_trees::state::State,
+    Vec<checked_trees::CheckedReferenceResultSourcePlan>,
+)> {
+    let destination = program.state_by_symbol(call.target_symbol)?;
+    if !is_reference_record(program, destination.return_type) {
+        return None;
+    }
+    let sources = returned_record_sources(program, destination)?;
+    Some((destination, sources))
+}
+
 /// A nested call's anonymous reference-record result has no `let` destination:
 /// `select(forward_outer(outer).inner)` captures `forward_outer`'s returned
 /// leaves directly into the consuming call. Each returned leaf must replay
@@ -1979,13 +1993,7 @@ pub fn nested_call_result_loans(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(destination) = program.state_by_symbol(call.target_symbol) else {
-        return false;
-    };
-    if !is_reference_record(program, destination.return_type) {
-        return false;
-    }
-    let Some(sources) = returned_record_sources(program, destination) else {
+    let Some((destination, sources)) = reference_record_call_sources(program, call) else {
         return false;
     };
     !sources.is_empty()
