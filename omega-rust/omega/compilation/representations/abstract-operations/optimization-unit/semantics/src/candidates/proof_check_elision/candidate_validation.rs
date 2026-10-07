@@ -1,4 +1,5 @@
 //! Proof-certified scalar identity candidate acceptance.
+use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_proof_certified_scalar_identity_accounting;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
@@ -344,17 +345,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
         .iter()
         .find(|output_function| output_function.machine == function.machine)
         .expect("output function exists");
-    for input_block in &function.blocks {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
-                != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
+    validate_outside_region(&function.blocks, output_function, &expected_blocks)?;
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),

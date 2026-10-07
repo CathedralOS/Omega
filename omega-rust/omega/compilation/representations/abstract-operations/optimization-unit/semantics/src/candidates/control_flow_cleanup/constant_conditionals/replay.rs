@@ -1,4 +1,5 @@
 //! Independent constant-conditional replay mechanics.
+use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
 use crate::unit_validation::derived_metadata::reconstruct_declared_places;
 use crate::unit_validation::function_structure::reconstruct_fact_index;
@@ -193,21 +194,14 @@ pub(super) fn validate(
         .iter()
         .find(|function| function.machine == patch.location.machine)
         .expect("output function exists");
-    for input_block in function
-        .blocks
-        .iter()
-        .filter(|block| reachable.contains(&block.id))
-    {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
-                != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
+    validate_outside_region(
+        function
+            .blocks
+            .iter()
+            .filter(|block| reachable.contains(&block.id)),
+        output_function,
+        &expected_blocks,
+    )?;
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),

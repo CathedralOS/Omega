@@ -18,6 +18,7 @@
 //! exactly, rebuilds the output itself, and reconstructs the exact node
 //! custody the folded observations carry.
 
+use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
@@ -707,17 +708,7 @@ pub(super) fn validate(
         .iter()
         .find(|function| function.machine == patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    for input_block in &input_function.blocks {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
-                != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
+    validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
     for input_function_other in &input.functions {
         if input_function_other.machine != patch.machine
             && !output.functions.contains(input_function_other)

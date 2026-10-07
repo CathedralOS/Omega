@@ -1,4 +1,5 @@
 //! Independent dead-node rewrite reconstruction and application.
+use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
 use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::unit_validation::derived_metadata::{
@@ -179,17 +180,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
         .iter()
         .find(|function| function.machine == patch.location.machine)
         .expect("output function exists");
-    for input_block in &function.blocks {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
-                != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
+    validate_outside_region(&function.blocks, output_function, &expected_blocks)?;
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),

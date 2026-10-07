@@ -1,4 +1,5 @@
 //! Independent shared terminal-jump fusion replay mechanics.
+use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
 use crate::candidates::rewrite_accounting::rewrite_scalar_substitutions;
 use crate::candidates::rewrite_accounting::terminal_fusion::reconstruct_shared_terminal_fusion_accounting;
@@ -200,17 +201,7 @@ pub(super) fn validate(
         .iter()
         .find(|function| function.machine == patch.predecessor.machine)
         .expect("output function exists");
-    for input_block in &function.blocks {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
-                != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
+    validate_outside_region(&function.blocks, output_function, &expected_blocks)?;
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),

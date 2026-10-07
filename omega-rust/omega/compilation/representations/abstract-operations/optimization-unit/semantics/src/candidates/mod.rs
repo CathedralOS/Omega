@@ -25,6 +25,7 @@ pub(crate) mod dead_scalar_elimination;
 pub(crate) mod field_value_specialization;
 pub(crate) mod global_value_numbering;
 pub(crate) mod observation;
+mod outside_region;
 pub(crate) mod proof_check_elision;
 pub(crate) mod rewrite_accounting;
 pub(crate) mod sparse_conditional_constant_propagation;

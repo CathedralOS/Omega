@@ -6,6 +6,7 @@
 //! to equal the replayed rows exactly, rebuilds the output itself, and
 //! reconstructs the exact edge custody the fused traversals carry.
 
+use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::validator_scalar_constant_facts;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
@@ -783,17 +784,7 @@ pub(super) fn validate(
         .iter()
         .find(|function| function.machine == patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    for input_block in &input_function.blocks {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
-                != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
+    validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
     for input_function_other in &input.functions {
         if input_function_other.machine != patch.machine
             && !output.functions.contains(input_function_other)

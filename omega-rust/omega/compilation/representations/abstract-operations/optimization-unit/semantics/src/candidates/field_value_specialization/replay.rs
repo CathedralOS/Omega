@@ -23,6 +23,7 @@
 //! replay also recomputes the substitution set, the exact use-site roster,
 //! initializer dominance, and the shifted-custody provenance ledger.
 
+use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
@@ -861,17 +862,7 @@ pub(super) fn validate(
         .iter()
         .find(|function| function.machine == patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    for input_block in &input_function.blocks {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
-                != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
+    validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
     for input_function_other in &input.functions {
         if input_function_other.machine != patch.machine
             && !output.functions.contains(input_function_other)

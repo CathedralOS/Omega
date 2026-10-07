@@ -1,4 +1,5 @@
 //! Independent adjacent block-merge replay mechanics.
+use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::global_value_numbering::{
     independent_reachable_dominators, independently_replacement_dominates_uses,
 };
@@ -223,17 +224,7 @@ pub(super) fn validate(
         .iter()
         .find(|function| function.machine == patch.predecessor.machine)
         .expect("output function exists");
-    for input_block in &function.blocks {
-        if !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
-                != Some(input_block)
-        {
-            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
-        }
-    }
+    validate_outside_region(&function.blocks, output_function, &expected_blocks)?;
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
