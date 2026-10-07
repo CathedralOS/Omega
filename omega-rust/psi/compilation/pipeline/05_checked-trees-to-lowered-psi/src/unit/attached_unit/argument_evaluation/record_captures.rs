@@ -4,7 +4,6 @@
 use super::{Evaluation, LoweringError, StructuralTypeDeclaration, ValueDeclaration};
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::emit_direct_expression;
-use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::place_observations::LoanedSource;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
 use crate::unit::{StructuralPlaceKind, allocate_dense, place_id};
@@ -60,9 +59,6 @@ impl Evaluation {
             let bindings = self
                 .scalar_bindings
                 .clone()
-                .unwrap_or_else(|| {
-                    ScalarBindings::new(values.iter().map(|value| value.scalar_type))
-                })
                 .with_structural_parameters(&self.structural_parameters)
                 .with_resolved_structural_observations(
                     &self.structural_fields,

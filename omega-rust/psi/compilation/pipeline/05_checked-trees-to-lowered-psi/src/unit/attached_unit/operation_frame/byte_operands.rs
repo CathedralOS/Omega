@@ -67,10 +67,6 @@ impl OperationFrame<'_, '_> {
             .evaluation
             .scalar_bindings
             .clone()
-            .unwrap_or_else(|| {
-                self.dense_assignment_namespace()
-                    .with_structural_observations(self.structural_types.declarations())
-            })
             .with_structural_parameters(&self.evaluation.structural_parameters)
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals)

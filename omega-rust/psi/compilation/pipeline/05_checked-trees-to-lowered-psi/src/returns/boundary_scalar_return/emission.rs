@@ -168,6 +168,13 @@ pub(crate) fn emit_boundary_scalar_return(
             .collect(),
         structural_types,
     );
+    evaluation.scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::entry(
+        scalar_parameters.iter().map(|value| value.scalar_type),
+        &evaluation.primitive_storage,
+        &evaluation.structural_parameters,
+        structural_types,
+        &evaluation.place_observations,
+    );
     let mut scalar_values = scalar_parameters.clone();
     let arguments = evaluation.arguments(
         checked,

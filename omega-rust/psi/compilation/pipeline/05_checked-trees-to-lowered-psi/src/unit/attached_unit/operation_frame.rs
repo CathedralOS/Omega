@@ -447,10 +447,10 @@ impl OperationFrame<'_, '_> {
                     "primitive reference ingress lost its carrier",
                 ))?,
         )?;
-        let position = match &self.evaluation.scalar_bindings {
-            Some(bindings) => bindings.immutable_position(parameter_index as usize)?,
-            None => parameter_index as usize,
-        };
+        let position = self
+            .evaluation
+            .scalar_bindings
+            .immutable_position(parameter_index as usize)?;
         let value = self.values.get(position).ok_or(LoweringError::Unsupported(
             "primitive ingress value is absent",
         ))?;

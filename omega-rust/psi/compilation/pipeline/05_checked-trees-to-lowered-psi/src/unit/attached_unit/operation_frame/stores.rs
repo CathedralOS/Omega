@@ -12,7 +12,7 @@ use super::{
     structural_type_declaration,
 };
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
-use crate::emission::indexed_write::{IndexedWriteLeaf, IndexedWriteTarget};
+use crate::emission::indexed_write::IndexedWriteTarget;
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
@@ -384,33 +384,16 @@ impl OperationFrame<'_, '_> {
             &self.evaluation.structural_parameters,
             self.structural_types.declarations(),
         )?;
-        let dense;
-        let bindings = match &self.evaluation.scalar_bindings {
-            Some(bindings) => {
-                // State scalar positions are stable, but earlier operations
-                // may have established owned or borrowed storage since that
-                // namespace was created. Join the current local homes before
-                // lowering either indexed operand.
-                dense = bindings
-                    .clone()
-                    .with_structural_locals(&self.evaluation.structural_locals)
-                    .with_view_locals(&self.evaluation.view_locals)
-                    .with_place_observations(&self.evaluation.place_observations);
-                &dense
-            }
-            None => {
-                let namespace = self.dense_assignment_namespace();
-                dense = match leaf {
-                    IndexedWriteLeaf::ByteField(_) => namespace
-                        .with_resolved_structural_observations(
-                            &self.evaluation.structural_fields,
-                            &self.evaluation.structural_cases,
-                        ),
-                    IndexedWriteLeaf::ByteView(_) | IndexedWriteLeaf::ElementView(_) => namespace,
-                };
-                &dense
-            }
-        };
+        // Scalar positions are stable, but earlier operations may have
+        // established owned or borrowed storage since the namespace began.
+        // Join the current local homes before lowering either indexed operand.
+        let bindings = &self
+            .evaluation
+            .scalar_bindings
+            .clone()
+            .with_structural_locals(&self.evaluation.structural_locals)
+            .with_view_locals(&self.evaluation.view_locals)
+            .with_place_observations(&self.evaluation.place_observations);
         let index = match leaf.index_role(self.checked, self.state)? {
             Some(index_role) => bindings.expression_at(
                 self.checked,
@@ -1075,16 +1058,9 @@ impl OperationFrame<'_, '_> {
             }))
             .cloned()
             .collect::<Vec<_>>();
-        // Case construction uses the same current assignment namespace as
-        // ordinary field stores. A single-state body has no preinstalled
-        // state namespace, including when this case has no scalar payload.
-        let bindings = self.evaluation.scalar_bindings.clone().unwrap_or_else(|| {
-            self.dense_assignment_namespace()
-                .with_resolved_structural_observations(
-                    &self.evaluation.structural_fields,
-                    &self.evaluation.structural_cases,
-                )
-        });
+        // Case construction lowers against the body's scalar namespace, as
+        // ordinary field stores do, even when this case has no scalar payload.
+        let bindings = self.evaluation.scalar_bindings.clone();
         let mut initialized = Vec::new();
         for field_plan in &store.fields {
             let (position, target) = shape_fields

@@ -261,21 +261,13 @@ pub(super) fn emit_call_operations(
                 primitive_locals.push(local);
             }
             None => frame.emit(operation)?,
-            Some((arguments, byte_places)) => {
-                if frame
-                    .emit_call(
-                        operation,
-                        CallInputs {
-                            evaluated_scalar_arguments: arguments.as_deref(),
-                            byte_places,
-                            staged: false,
-                        },
-                    )?
-                    .is_some()
-                {
-                    return unsupported("composed call staged a private scalar result");
-                }
-            }
+            Some((arguments, byte_places)) => frame.emit_call(
+                operation,
+                CallInputs {
+                    evaluated_scalar_arguments: arguments.as_deref(),
+                    byte_places,
+                },
+            )?,
         }
         catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
         if operations.external_completion.is_some() {

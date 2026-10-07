@@ -291,12 +291,7 @@ impl super::argument_evaluation::Evaluation {
                 LoweringError::Unsupported("primitive local statement ordinal overflow")
             })?,
         )?;
-        let bindings = self
-            .scalar_bindings
-            .as_ref()
-            .ok_or(LoweringError::Unsupported(
-                "immutable primitive borrow has no completed scalar namespace",
-            ))?;
+        let bindings = &self.scalar_bindings;
         let position = bindings.immutable_local_value(ordinal as usize, scalar_type)?;
         let value = values.get(position).ok_or(LoweringError::Unsupported(
             "immutable primitive borrow lost its completed scalar value",

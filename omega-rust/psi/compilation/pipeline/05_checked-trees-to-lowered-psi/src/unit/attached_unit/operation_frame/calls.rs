@@ -38,19 +38,15 @@ pub(in crate::unit::attached_unit) struct CallInputs<'i> {
     /// The places of the call's byte-sequence literal and subslice
     /// arguments, in argument order.
     pub(in crate::unit::attached_unit) byte_places: &'i [PlaceId],
-    /// A staged call completes a nested argument group: its scalar result is
-    /// a private temporary the route retains itself, never a source binding.
-    pub(in crate::unit::attached_unit) staged: bool,
 }
 
 impl OperationFrame<'_, '_> {
-    /// Emit one call. Returns the scalar result of a staged scalar call for
-    /// the route to retain; every other result is already published.
+    /// Emit one call and publish its result.
     pub(in crate::unit::attached_unit) fn emit_call(
         mut self,
         operation: &CheckedUnitEffectOperationPlan,
         inputs: CallInputs<'_>,
-    ) -> Result<Option<ValueDeclaration>, LoweringError> {
+    ) -> Result<(), LoweringError> {
         let Some(call) = operation.call() else {
             return unsupported("operation frame call entry received a non-call operation");
         };
@@ -61,30 +57,30 @@ impl OperationFrame<'_, '_> {
                 if !UnitBody::contains(self.callees.plans, call.target.machine) =>
             {
                 self.claim_free_structural_call(operation, &inputs)?;
-                Ok(None)
+                Ok(())
             }
             (
                 CheckedUnitCallRoute::Module { .. },
                 CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
             ) => {
                 self.unit_call(operation, &inputs)?;
-                Ok(None)
+                Ok(())
             }
             (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
                 let value = self.scalar_call(operation, &inputs)?;
-                self.bind_scalar_result(call.coordinate, value, inputs.staged)
+                self.bind_scalar_result(call.coordinate, value)
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
                 self.boundary_call(operation, &inputs)?;
-                Ok(None)
+                Ok(())
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(_)) => {
                 let value = self.boundary_scalar_call(operation, &inputs)?;
-                self.bind_scalar_result(call.coordinate, value, inputs.staged)
+                self.bind_scalar_result(call.coordinate, value)
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Structural { .. }) => {
                 self.boundary_structural_call(operation, &inputs)?;
-                Ok(None)
+                Ok(())
             }
             (CheckedUnitCallRoute::Dynamic { .. }, _) => self.dynamic_call(operation, &inputs),
         }
@@ -96,14 +92,12 @@ impl OperationFrame<'_, '_> {
     /// initializes a declared immutable local also takes an authored slot;
     /// one an assignment stores stays unnamed, or every later local's
     /// authored read would resolve to it. A discarded result keeps its typed
-    /// operation result without occupying a source position; a staged result
-    /// goes back to the route.
+    /// operation result without occupying a source position.
     pub(super) fn bind_scalar_result(
         &mut self,
         coordinate: checked_trees::CheckedUnitCallCoordinate,
         value: ValueDeclaration,
-        staged: bool,
-    ) -> Result<Option<ValueDeclaration>, LoweringError> {
+    ) -> Result<(), LoweringError> {
         let names_local =
             crate::call_sites::initializes_immutable_local(self.checked, self.state, coordinate);
         let value = if names_local {
@@ -111,36 +105,19 @@ impl OperationFrame<'_, '_> {
         } else {
             value
         };
-        if staged {
-            return Ok(Some(value));
-        }
-        self.publish_scalar_result(coordinate, value)?;
-        Ok(None)
-    }
-
-    /// Publish after private argument temporaries have been retired. Refinement
-    /// belongs to call completion; publication joins the checked binding to its
-    /// actual runtime slot, which need not equal its authored ordinal.
-    pub(in crate::unit::attached_unit) fn publish_scalar_result(
-        &mut self,
-        coordinate: checked_trees::CheckedUnitCallCoordinate,
-        value: ValueDeclaration,
-    ) -> Result<(), LoweringError> {
-        let names_local =
-            crate::call_sites::initializes_immutable_local(self.checked, self.state, coordinate);
         if !crate::call_sites::discards_result(self.checked, self.state, coordinate) {
             let position = self.values.len();
             self.values.push(value);
-            if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
-                if names_local {
-                    bindings.append(
-                        checked_trees::CheckedScalarBindingDestination::Immutable,
-                        value.scalar_type,
-                        position,
-                    )?;
-                } else {
-                    bindings.append_unnamed_result(position);
-                }
+            if names_local {
+                self.evaluation.scalar_bindings.append(
+                    checked_trees::CheckedScalarBindingDestination::Immutable,
+                    value.scalar_type,
+                    position,
+                )?;
+            } else {
+                self.evaluation
+                    .scalar_bindings
+                    .append_unnamed_result(position);
             }
         }
         Ok(())
@@ -595,7 +572,6 @@ impl OperationFrame<'_, '_> {
                     CallInputs {
                         evaluated_scalar_arguments: evaluated,
                         byte_places: &[],
-                        staged: false,
                     },
                 )?;
                 let place = results.continuation_place(result.binding_ordinal, operations)?;

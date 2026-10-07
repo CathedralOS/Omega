@@ -70,9 +70,10 @@ pub(crate) struct Evaluation {
         [crate::expression_preparation::bindings::place_observations::PlaceObservation],
     >,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
-    /// State-local storage has its own namespace; it is not an immutable slot.
-    /// Other callers retain the ordinary dense source-prefix mapping.
-    pub scalar_bindings: Option<crate::expression_preparation::bindings::ScalarBindings>,
+    /// The body's scalar binding namespace: authored formals and locals on
+    /// their dense values. Each route installs its entry namespace before it
+    /// emits a statement; state-local storage has its own rows in it.
+    pub scalar_bindings: crate::expression_preparation::bindings::ScalarBindings,
     pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
     pub structural_fields: crate::expression_preparation::bindings::StructuralFieldBindings,
     pub structural_cases:
@@ -784,7 +785,9 @@ impl Evaluation {
             record_fields: Vec::new(),
             place_observations: std::sync::Arc::from([]),
             primitive_storage: Vec::new(),
-            scalar_bindings: None,
+            scalar_bindings: crate::expression_preparation::bindings::ScalarBindings::new(
+                std::iter::empty(),
+            ),
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
@@ -909,14 +912,6 @@ impl Evaluation {
         let source_bindings = self
             .scalar_bindings
             .clone()
-            .unwrap_or_else(|| {
-                crate::expression_preparation::bindings::ScalarBindings::new(
-                    values
-                        .iter()
-                        .take(source_value_count)
-                        .map(|value| value.scalar_type),
-                )
-            })
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
             .with_place_observations(&self.place_observations);
@@ -1062,11 +1057,6 @@ impl Evaluation {
         let bindings = self
             .scalar_bindings
             .clone()
-            .unwrap_or_else(|| {
-                crate::expression_preparation::bindings::ScalarBindings::new(
-                    values.iter().map(|value| value.scalar_type),
-                )
-            })
             .with_primitive_storage(&self.primitive_storage)
             .with_view_locals(&self.view_locals)
             .with_element_views(&self.element_views)

@@ -598,6 +598,26 @@ impl ScalarBindings {
         Self::for_computation_operands(0, parameters)
     }
 
+    /// A body's entry namespace: its scalar formals over the storage and
+    /// observation layers every authored read resolves against. Later scalar
+    /// results append to it, so an unnamed call result or a private slot never
+    /// shifts an authored local onto another value.
+    pub(crate) fn entry(
+        formals: impl IntoIterator<Item = ScalarType>,
+        primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
+        parameters: &[(u32, StructuralParameterDeclaration)],
+        structural_types: &[StructuralTypeDeclaration],
+        place_observations: &std::sync::Arc<
+            [crate::expression_preparation::bindings::place_observations::PlaceObservation],
+        >,
+    ) -> Self {
+        Self::new(formals)
+            .with_primitive_storage(primitive_storage)
+            .with_structural_parameters(parameters)
+            .with_structural_observations(structural_types)
+            .with_place_observations(place_observations)
+    }
+
     pub(crate) fn with_structural_parameters(
         mut self,
         parameters: &[(u32, StructuralParameterDeclaration)],

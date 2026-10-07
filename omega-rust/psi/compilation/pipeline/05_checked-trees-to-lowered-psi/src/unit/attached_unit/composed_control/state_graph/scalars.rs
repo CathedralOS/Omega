@@ -147,14 +147,16 @@ pub(super) fn emit_prefix(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<ScalarBindings, LoweringError> {
-    let mut bindings = ScalarBindings::new(values.iter().map(|value| value.scalar_type))
-        // Prefix initializers read the same independently established referents
-        // as later operations; rebuilding only scalar SSA slots loses borrowed
-        // primitive parameters before their first authored local read.
-        .with_primitive_storage(primitive_storage)
-        .with_structural_parameters(parameters)
-        .with_structural_observations(structural_types)
-        .with_place_observations(place_observations);
+    // Prefix initializers read the same independently established referents
+    // as later operations; rebuilding only scalar SSA slots loses borrowed
+    // primitive parameters before their first authored local read.
+    let mut bindings = ScalarBindings::entry(
+        values.iter().map(|value| value.scalar_type),
+        primitive_storage,
+        parameters,
+        structural_types,
+        place_observations,
+    );
     let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
     for (position, parameter) in state.scalar_parameters.iter().enumerate() {
         let source = &checked.state_parameters(authored)[parameter.source_position as usize];

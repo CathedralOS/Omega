@@ -205,14 +205,6 @@ pub(super) fn stage_range(
     let bindings = evaluation
         .scalar_bindings
         .clone()
-        .unwrap_or_else(|| {
-            crate::expression_preparation::bindings::ScalarBindings::new(
-                values
-                    .iter()
-                    .take(source_value_count)
-                    .map(|value| value.scalar_type),
-            )
-        })
         .with_structural_parameters(&evaluation.structural_parameters)
         .with_resolved_structural_observations(
             &evaluation.structural_fields,

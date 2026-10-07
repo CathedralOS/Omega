@@ -344,10 +344,7 @@ fn arm_call_result(
         .ok_or(LoweringError::Unsupported(
             "Unit graph call arm result ordinal overflows",
         ))?;
-    let position = match &evaluation.scalar_bindings {
-        Some(bindings) => bindings.immutable_position(slot)?,
-        None => slot,
-    };
+    let position = evaluation.scalar_bindings.immutable_position(slot)?;
     let value = values
         .get(position)
         .copied()

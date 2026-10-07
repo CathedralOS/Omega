@@ -1643,20 +1643,11 @@ impl Emission<'_, '_, '_> {
         if fields.len() != reads.len() {
             return unsupported("view element copy does not read every field once");
         }
-        let bindings = match &self.evaluation.scalar_bindings {
-            Some(bindings) => bindings.clone(),
-            None => crate::expression_preparation::bindings::ScalarBindings::new(
-                self.values.iter().map(|value| value.scalar_type),
-            )
-            .with_primitive_storage(&self.evaluation.primitive_storage)
-            .with_element_views(&self.evaluation.element_views)
-            .with_structural_parameters(&self.evaluation.structural_parameters)
-            .with_resolved_structural_observations(
-                &self.evaluation.structural_fields,
-                &self.evaluation.structural_cases,
-            ),
-        }
-        .with_view_locals(&self.evaluation.view_locals);
+        let bindings = self
+            .evaluation
+            .scalar_bindings
+            .clone()
+            .with_view_locals(&self.evaluation.view_locals);
         let mut initialized = Vec::with_capacity(fields.len());
         for (field, read) in fields.iter().zip(reads) {
             let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {

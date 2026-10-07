@@ -146,7 +146,9 @@ impl StateGraphEmission<'_, '_> {
                 &mut self.catalogs.next_place,
             )?,
             primitive_storage: Vec::new(),
-            scalar_bindings: None,
+            scalar_bindings: crate::expression_preparation::bindings::ScalarBindings::new(
+                std::iter::empty(),
+            ),
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
             structural_parameters: state
@@ -216,7 +218,7 @@ impl StateGraphEmission<'_, '_> {
             &mut next_value,
             &mut operations,
         )?;
-        evaluation.scalar_bindings = Some(bindings.clone());
+        evaluation.scalar_bindings = bindings.clone();
         evaluation.structural_types = self.catalogs.structural_types.as_ref().into();
         evaluation.structural_fields =
             crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
@@ -272,12 +274,7 @@ impl StateGraphEmission<'_, '_> {
                 },
             );
         }
-        let bindings = evaluation
-            .scalar_bindings
-            .clone()
-            .ok_or(LoweringError::Unsupported(
-                "graph body lost its scalar namespace",
-            ))?;
+        let bindings = evaluation.scalar_bindings.clone();
         let mut branch_guard = None;
         // The shared scalar decision is recorded under the true arm's
         // transition ordinal — the named successor's for `Conditional`, or the
@@ -498,10 +495,7 @@ impl StateGraphEmission<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph scalar return binding ordinal overflows",
                     ))?;
-                let position = match &evaluation.scalar_bindings {
-                    Some(bindings) => bindings.immutable_position(slot)?,
-                    None => slot,
-                };
+                let position = evaluation.scalar_bindings.immutable_position(slot)?;
                 let value = values
                     .get(position)
                     .copied()

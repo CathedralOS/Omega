@@ -52,11 +52,6 @@ impl Evaluation {
         let bindings = self
             .scalar_bindings
             .clone()
-            .unwrap_or_else(|| {
-                crate::expression_preparation::bindings::ScalarBindings::new(
-                    values.iter().map(|value| value.scalar_type),
-                )
-            })
             .with_primitive_storage(&self.primitive_storage)
             .with_structural_locals(&self.structural_locals)
             .with_view_locals(&self.view_locals)
@@ -220,14 +215,6 @@ impl Evaluation {
         let bindings = self
             .scalar_bindings
             .clone()
-            .unwrap_or_else(|| {
-                crate::expression_preparation::bindings::ScalarBindings::new(
-                    values
-                        .iter()
-                        .take(source_value_count)
-                        .map(|value| value.scalar_type),
-                )
-            })
             .with_primitive_storage(&self.primitive_storage)
             .with_structural_locals(&self.structural_locals)
             .with_view_locals(&self.view_locals)

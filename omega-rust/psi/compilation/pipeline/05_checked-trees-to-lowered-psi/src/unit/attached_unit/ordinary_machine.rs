@@ -121,15 +121,7 @@ pub(super) struct MachineEmission<'a> {
     staged_subslices: Vec<Vec<(usize, PlaceId)>>,
     subslice_places: Vec<StructuralPlaceDeclaration>,
     retained_scalar_prefix: Option<usize>,
-    staged_scalar_result: Option<StagedScalarResult>,
     scalar_calls: CallEmissionContext<'a>,
-}
-
-/// The outer call's completed result waits until private argument cells are
-/// retired before it acquires a checked source binding.
-struct StagedScalarResult {
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    value: ValueDeclaration,
 }
 
 /// What one scheduled operation hands the lowering methods.
@@ -312,17 +304,6 @@ pub(super) fn emit(
     let primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
     let structural_result_places = Vec::<(Option<StructuralPlaceDeclaration>, bool)>::new();
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
-    // Keep authored locals separate from anonymous operation results from the
-    // first statement onward, just as composed states do. Rebuilding bindings
-    // from the growing SSA roster would make a preceding field-store result
-    // occupy the next source local's ordinal.
-    // Captured observations and staged argument cells likewise stay private;
-    // neither establishes an authored formal or local binding.
-    evaluation.scalar_bindings = Some(
-        crate::expression_preparation::bindings::ScalarBindings::new(
-            scalar_parameters.iter().map(|value| value.scalar_type),
-        ),
-    );
     evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
     evaluation.machine = Some(terminal_machine);
     evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
@@ -384,11 +365,22 @@ pub(super) fn emit(
             plan.state,
             &evaluation.structural_parameters,
         )?;
+    // An ordinary body is one state: its namespace starts, like a composed
+    // state's prefix, from its scalar formals before the first statement.
+    // Authored locals then stay separate from anonymous operation results,
+    // captured observations and staged argument cells, none of which takes a
+    // source ordinal.
+    evaluation.scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::entry(
+        scalar_parameters.iter().map(|value| value.scalar_type),
+        &evaluation.primitive_storage,
+        &evaluation.structural_parameters,
+        structural_types,
+        &evaluation.place_observations,
+    );
     let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
     let staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
     let subslice_places = Vec::new();
     let retained_scalar_prefix = None;
-    let staged_scalar_result = None;
     let cleanup_receivers = machine_signatures
         .iter()
         .filter_map(|signature| {
@@ -430,7 +422,6 @@ pub(super) fn emit(
         staged_subslices,
         subslice_places,
         retained_scalar_prefix,
-        staged_scalar_result,
         scalar_calls: CallEmissionContext {
             claims: crate::emission::claim_bindings::ClaimBindings::new(
                 claim_bindings.clone(),
@@ -670,13 +661,7 @@ pub(super) fn emit(
                     .ok_or(LoweringError::Unsupported(
                         "scalar completion binding position overflows",
                     ))?;
-                let position = evaluation
-                    .scalar_bindings
-                    .as_ref()
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar completion has no runtime binding",
-                    ))?
-                    .immutable_position(position)?;
+                let position = evaluation.scalar_bindings.immutable_position(position)?;
                 let source =
                     scalar_result_values
                         .get(position)
@@ -1245,7 +1230,6 @@ impl MachineEmission<'_> {
                     .retained_scalar_prefix
                     .replace(self.scalar_result_values.len())
                     .is_some()
-                    || self.staged_scalar_result.is_some()
                 {
                     return unsupported("nested argument staging has an unfinished group");
                 }
@@ -1258,13 +1242,9 @@ impl MachineEmission<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "nested argument staging has no active group",
                         ))?;
+                // Argument temporaries are never source-local bindings; a
+                // completed call already published its result past them.
                 self.scalar_result_values.truncate(prefix);
-                // Argument temporaries are never source-local bindings.
-                // Only the successful outer result extends that namespace.
-                if let Some(result) = self.staged_scalar_result.take() {
-                    self.frame(prefix)
-                        .publish_scalar_result(result.coordinate, result.value)?;
-                }
                 return Ok(());
             }
             argument_schedule::Step::Argument { operation, ordinal } => {
@@ -1311,13 +1291,6 @@ impl MachineEmission<'_> {
                     .evaluation
                     .scalar_bindings
                     .clone()
-                    .unwrap_or_else(|| {
-                        crate::expression_preparation::bindings::ScalarBindings::new(
-                            self.scalar_result_values[..source_value_count]
-                                .iter()
-                                .map(|value| value.scalar_type),
-                        )
-                    })
                     .with_structural_parameters(&self.evaluation.structural_parameters)
                     .with_structural_observations(self.structural_types)
                     .with_primitive_storage(&self.evaluation.primitive_storage)
@@ -1503,29 +1476,23 @@ impl<'a> MachineEmission<'a> {
             &mut self.next_literal_argument,
             &self.staged_subslices[step.operation_index],
         )?;
-        let staged_result = self.frame(step.source_value_count).emit_call(
+        // A staged call completes its argument group with operands already
+        // copied, so its temporaries retire first and the result it publishes
+        // takes its actual source slot, as in a composed state. The group then
+        // retains that result when it ends.
+        if step.staged {
+            self.scalar_result_values.truncate(step.source_value_count);
+        }
+        self.frame(step.source_value_count).emit_call(
             operation,
             CallInputs {
                 evaluated_scalar_arguments: step.evaluated_scalar_arguments.as_deref(),
                 byte_places: &byte_places,
-                staged: step.staged,
             },
         )?;
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-        if let Some(value) = staged_result {
-            let coordinate = operation
-                .call()
-                .ok_or(LoweringError::Unsupported(
-                    "staged scalar result has no source call",
-                ))?
-                .coordinate;
-            if self
-                .staged_scalar_result
-                .replace(StagedScalarResult { coordinate, value })
-                .is_some()
-            {
-                return unsupported("nested argument group produces more than one scalar binding");
-            }
+        if step.staged {
+            self.retained_scalar_prefix = Some(self.scalar_result_values.len());
         }
         Ok(())
     }

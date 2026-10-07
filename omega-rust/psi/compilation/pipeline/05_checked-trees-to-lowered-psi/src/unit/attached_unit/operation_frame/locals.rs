@@ -63,13 +63,11 @@ impl OperationFrame<'_, '_> {
             return unsupported("Unit scalar expression local type disagrees with its binding");
         }
         let lowered = self.refine_scalar_local_value(result.statement_index, lowered)?;
-        if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
-            bindings.append(
-                checked_trees::CheckedScalarBindingDestination::Immutable,
-                lowered.scalar_type,
-                self.values.len(),
-            )?;
-        }
+        self.evaluation.scalar_bindings.append(
+            checked_trees::CheckedScalarBindingDestination::Immutable,
+            lowered.scalar_type,
+            self.values.len(),
+        )?;
         self.values.push(lowered);
         Ok(())
     }
@@ -561,10 +559,6 @@ impl OperationFrame<'_, '_> {
             .evaluation
             .scalar_bindings
             .clone()
-            .unwrap_or_else(|| {
-                self.dense_assignment_namespace()
-                    .with_structural_observations(self.structural_types.declarations())
-            })
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals)
             .with_place_observations(&self.evaluation.place_observations);

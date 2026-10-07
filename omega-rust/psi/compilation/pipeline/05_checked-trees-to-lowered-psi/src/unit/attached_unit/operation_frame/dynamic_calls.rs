@@ -21,7 +21,7 @@ impl OperationFrame<'_, '_> {
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
         inputs: &CallInputs<'_>,
-    ) -> Result<Option<ValueDeclaration>, LoweringError> {
+    ) -> Result<(), LoweringError> {
         let Some(call) = operation.call() else {
             return unsupported("selector call custody drifted before emission");
         };
@@ -31,9 +31,6 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("selector call lost its dispatch route");
         };
-        if inputs.staged {
-            return unsupported("a staged argument group cannot yet carry a selector call");
-        }
         let Some((selector, data)) = inputs
             .evaluated_scalar_arguments
             .and_then(|evaluated| evaluated.split_first())
@@ -141,8 +138,8 @@ impl OperationFrame<'_, '_> {
             },
         });
         match result {
-            Some(value) => self.bind_scalar_result(call.coordinate, value, inputs.staged),
-            None => Ok(None),
+            Some(value) => self.bind_scalar_result(call.coordinate, value),
+            None => Ok(()),
         }
     }
 }
