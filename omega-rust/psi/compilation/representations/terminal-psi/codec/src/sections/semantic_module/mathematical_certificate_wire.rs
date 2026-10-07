@@ -71,63 +71,28 @@ pub fn encode_mathematical_certificate(
     arena: &TermArena,
     certificate: &MathematicalCertificate,
 ) -> Result<Vec<u8>, CodecError> {
-    let mut nodes = Writer::default();
-    let mut by_handle = HashMap::new();
-    let mut by_bytes = HashMap::new();
-    let mut count = 0u32;
+    let mut term_writer = MathematicalTermWriter::new(arena);
     // Declaration statements and bodies are roots: the signature's terms
     // join the table before the judgment's, in signature order.
     for declaration in &certificate.signature {
-        encode_term(
-            &mut nodes,
-            arena,
-            declaration.ty,
-            &mut by_handle,
-            &mut by_bytes,
-            &mut count,
-            0,
-        )?;
+        term_writer.encode_term(declaration.ty, 0)?;
         if let Some(body) = declaration.body {
-            encode_term(
-                &mut nodes,
-                arena,
-                body,
-                &mut by_handle,
-                &mut by_bytes,
-                &mut count,
-                0,
-            )?;
+            term_writer.encode_term(body, 0)?;
         }
     }
     for &binding in &certificate.context {
-        encode_term(
-            &mut nodes,
-            arena,
-            binding,
-            &mut by_handle,
-            &mut by_bytes,
-            &mut count,
-            0,
-        )?;
+        term_writer.encode_term(binding, 0)?;
     }
-    encode_term(
-        &mut nodes,
-        arena,
-        certificate.term,
-        &mut by_handle,
-        &mut by_bytes,
-        &mut count,
-        0,
-    )?;
-    encode_term(
-        &mut nodes,
-        arena,
-        certificate.expected,
-        &mut by_handle,
-        &mut by_bytes,
-        &mut count,
-        0,
-    )?;
+    term_writer.encode_term(certificate.term, 0)?;
+    term_writer.encode_term(certificate.expected, 0)?;
+
+    let MathematicalTermWriter {
+        nodes,
+        by_handle,
+        by_bytes: _by_bytes,
+        count,
+        ..
+    } = term_writer;
 
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
@@ -243,397 +208,279 @@ pub fn decode_mathematical_certificate(
     Ok(DecodedMathematicalCertificate { arena, certificate })
 }
 
-/// Encode one term and its transitive children, each exactly once and always
-/// before its parents; returns the node's table index.
-///
-/// Table identity is content, not producer handle identity: a node's key is
-/// its own wire bytes (tag plus already-canonical child indices), so two
-/// producers encoding the same judgment emit the same bytes and two distinct
-/// handles holding equal terms share one table entry. `by_handle` only
-/// short-circuits revisits of an already-emitted handle.
-fn encode_term(
-    table: &mut Writer,
-    arena: &TermArena,
-    handle: TermHandle,
-    by_handle: &mut HashMap<TermHandle, u32>,
-    by_bytes: &mut HashMap<Vec<u8>, u32>,
-    count: &mut u32,
-    depth: u32,
-) -> Result<u32, CodecError> {
-    if let Some(&index) = by_handle.get(&handle) {
-        return Ok(index);
+struct MathematicalTermWriter<'arena> {
+    arena: &'arena TermArena,
+    nodes: Writer,
+    by_handle: HashMap<TermHandle, u32>,
+    by_bytes: HashMap<Vec<u8>, u32>,
+    count: u32,
+}
+
+impl<'arena> MathematicalTermWriter<'arena> {
+    fn new(arena: &'arena TermArena) -> Self {
+        Self {
+            arena,
+            nodes: Writer::default(),
+            by_handle: HashMap::new(),
+            by_bytes: HashMap::new(),
+            count: 0,
+        }
     }
-    if depth >= MAX_MATHEMATICAL_TERM_DEPTH {
-        return Err(CodecError::MalformedMathematicalCertificate(
-            "mathematical term nesting too deep",
-        ));
-    }
-    let mut node = Writer::default();
-    match arena.get(handle) {
-        Term::Dummy => {
+
+    /// Encode one term and its transitive children, each exactly once and always
+    /// before its parents; returns the node's table index.
+    ///
+    /// Table identity is content, not producer handle identity: a node's key is
+    /// its own wire bytes (tag plus already-canonical child indices), so two
+    /// producers encoding the same judgment emit the same bytes and two distinct
+    /// handles holding equal terms share one table entry. `by_handle` only
+    /// short-circuits revisits of an already-emitted handle.
+    fn encode_term(&mut self, handle: TermHandle, depth: u32) -> Result<u32, CodecError> {
+        if let Some(&index) = self.by_handle.get(&handle) {
+            return Ok(index);
+        }
+        if depth >= MAX_MATHEMATICAL_TERM_DEPTH {
             return Err(CodecError::MalformedMathematicalCertificate(
-                "dummy term cannot be certified",
+                "mathematical term nesting too deep",
             ));
         }
-        Term::Variable(index) => {
-            node.u8(1);
-            node.u32(index);
-        }
-        Term::Sort(sort) => {
-            node.u8(2);
-            encode_sort(&mut node, sort)?;
-        }
-        Term::Pi { domain, codomain } => {
-            let domain = encode_term(table, arena, domain, by_handle, by_bytes, count, depth + 1)?;
-            let codomain = encode_term(
-                table,
-                arena,
-                codomain,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            node.u8(3);
-            node.u32(domain);
-            node.u32(codomain);
-        }
-        Term::Lambda { domain, body } => {
-            let domain = encode_term(table, arena, domain, by_handle, by_bytes, count, depth + 1)?;
-            let body = encode_term(table, arena, body, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(4);
-            node.u32(domain);
-            node.u32(body);
-        }
-        Term::Apply { function, argument } => {
-            let function = encode_term(
-                table,
-                arena,
-                function,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            let argument = encode_term(
-                table,
-                arena,
-                argument,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            node.u8(5);
-            node.u32(function);
-            node.u32(argument);
-        }
-        Term::Sigma { domain, codomain } => {
-            let domain = encode_term(table, arena, domain, by_handle, by_bytes, count, depth + 1)?;
-            let codomain = encode_term(
-                table,
-                arena,
-                codomain,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            node.u8(6);
-            node.u32(domain);
-            node.u32(codomain);
-        }
-        Term::Pair { first, second } => {
-            let first = encode_term(table, arena, first, by_handle, by_bytes, count, depth + 1)?;
-            let second = encode_term(table, arena, second, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(7);
-            node.u32(first);
-            node.u32(second);
-        }
-        Term::Fst { pair } => {
-            let pair = encode_term(table, arena, pair, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(8);
-            node.u32(pair);
-        }
-        Term::Snd { pair } => {
-            let pair = encode_term(table, arena, pair, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(9);
-            node.u32(pair);
-        }
-        Term::Two => {
-            node.u8(10);
-        }
-        Term::TwoZero => {
-            node.u8(11);
-        }
-        Term::TwoOne => {
-            node.u8(12);
-        }
-        Term::CaseTwo {
-            motive,
-            zero_branch,
-            one_branch,
-            scrutinee,
-        } => {
-            let motive = encode_term(table, arena, motive, by_handle, by_bytes, count, depth + 1)?;
-            let zero_branch = encode_term(
-                table,
-                arena,
+        let mut node = Writer::default();
+        match self.arena.get(handle) {
+            Term::Dummy => {
+                return Err(CodecError::MalformedMathematicalCertificate(
+                    "dummy term cannot be certified",
+                ));
+            }
+            Term::Variable(index) => {
+                node.u8(1);
+                node.u32(index);
+            }
+            Term::Sort(sort) => {
+                node.u8(2);
+                encode_sort(&mut node, sort)?;
+            }
+            Term::Pi { domain, codomain } => {
+                let domain = self.encode_term(domain, depth + 1)?;
+                let codomain = self.encode_term(codomain, depth + 1)?;
+                node.u8(3);
+                node.u32(domain);
+                node.u32(codomain);
+            }
+            Term::Lambda { domain, body } => {
+                let domain = self.encode_term(domain, depth + 1)?;
+                let body = self.encode_term(body, depth + 1)?;
+                node.u8(4);
+                node.u32(domain);
+                node.u32(body);
+            }
+            Term::Apply { function, argument } => {
+                let function = self.encode_term(function, depth + 1)?;
+                let argument = self.encode_term(argument, depth + 1)?;
+                node.u8(5);
+                node.u32(function);
+                node.u32(argument);
+            }
+            Term::Sigma { domain, codomain } => {
+                let domain = self.encode_term(domain, depth + 1)?;
+                let codomain = self.encode_term(codomain, depth + 1)?;
+                node.u8(6);
+                node.u32(domain);
+                node.u32(codomain);
+            }
+            Term::Pair { first, second } => {
+                let first = self.encode_term(first, depth + 1)?;
+                let second = self.encode_term(second, depth + 1)?;
+                node.u8(7);
+                node.u32(first);
+                node.u32(second);
+            }
+            Term::Fst { pair } => {
+                let pair = self.encode_term(pair, depth + 1)?;
+                node.u8(8);
+                node.u32(pair);
+            }
+            Term::Snd { pair } => {
+                let pair = self.encode_term(pair, depth + 1)?;
+                node.u8(9);
+                node.u32(pair);
+            }
+            Term::Two => {
+                node.u8(10);
+            }
+            Term::TwoZero => {
+                node.u8(11);
+            }
+            Term::TwoOne => {
+                node.u8(12);
+            }
+            Term::CaseTwo {
+                motive,
                 zero_branch,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            let one_branch = encode_term(
-                table,
-                arena,
                 one_branch,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            let scrutinee = encode_term(
-                table,
-                arena,
                 scrutinee,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            node.u8(13);
-            node.u32(motive);
-            node.u32(zero_branch);
-            node.u32(one_branch);
-            node.u32(scrutinee);
-        }
-        Term::Id { ty, left, right } => {
-            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
-            let left = encode_term(table, arena, left, by_handle, by_bytes, count, depth + 1)?;
-            let right = encode_term(table, arena, right, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(14);
-            node.u32(ty);
-            node.u32(left);
-            node.u32(right);
-        }
-        Term::Refl { ty, value } => {
-            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
-            let value = encode_term(table, arena, value, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(15);
-            node.u32(ty);
-            node.u32(value);
-        }
-        Term::IdElim {
-            motive,
-            base,
-            endpoint,
-            proof,
-        } => {
-            let motive = encode_term(table, arena, motive, by_handle, by_bytes, count, depth + 1)?;
-            let base = encode_term(table, arena, base, by_handle, by_bytes, count, depth + 1)?;
-            let endpoint = encode_term(
-                table,
-                arena,
+            } => {
+                let motive = self.encode_term(motive, depth + 1)?;
+                let zero_branch = self.encode_term(zero_branch, depth + 1)?;
+                let one_branch = self.encode_term(one_branch, depth + 1)?;
+                let scrutinee = self.encode_term(scrutinee, depth + 1)?;
+                node.u8(13);
+                node.u32(motive);
+                node.u32(zero_branch);
+                node.u32(one_branch);
+                node.u32(scrutinee);
+            }
+            Term::Id { ty, left, right } => {
+                let ty = self.encode_term(ty, depth + 1)?;
+                let left = self.encode_term(left, depth + 1)?;
+                let right = self.encode_term(right, depth + 1)?;
+                node.u8(14);
+                node.u32(ty);
+                node.u32(left);
+                node.u32(right);
+            }
+            Term::Refl { ty, value } => {
+                let ty = self.encode_term(ty, depth + 1)?;
+                let value = self.encode_term(value, depth + 1)?;
+                node.u8(15);
+                node.u32(ty);
+                node.u32(value);
+            }
+            Term::IdElim {
+                motive,
+                base,
                 endpoint,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            let proof = encode_term(table, arena, proof, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(16);
-            node.u32(motive);
-            node.u32(base);
-            node.u32(endpoint);
-            node.u32(proof);
-        }
-        Term::W { carrier, children } => {
-            let carrier =
-                encode_term(table, arena, carrier, by_handle, by_bytes, count, depth + 1)?;
-            let children = encode_term(
-                table,
-                arena,
+                proof,
+            } => {
+                let motive = self.encode_term(motive, depth + 1)?;
+                let base = self.encode_term(base, depth + 1)?;
+                let endpoint = self.encode_term(endpoint, depth + 1)?;
+                let proof = self.encode_term(proof, depth + 1)?;
+                node.u8(16);
+                node.u32(motive);
+                node.u32(base);
+                node.u32(endpoint);
+                node.u32(proof);
+            }
+            Term::W { carrier, children } => {
+                let carrier = self.encode_term(carrier, depth + 1)?;
+                let children = self.encode_term(children, depth + 1)?;
+                node.u8(17);
+                node.u32(carrier);
+                node.u32(children);
+            }
+            Term::Sup {
+                carrier,
                 children,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            node.u8(17);
-            node.u32(carrier);
-            node.u32(children);
-        }
-        Term::Sup {
-            carrier,
-            children,
-            label,
-            function,
-        } => {
-            let carrier =
-                encode_term(table, arena, carrier, by_handle, by_bytes, count, depth + 1)?;
-            let children = encode_term(
-                table,
-                arena,
-                children,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            let label = encode_term(table, arena, label, by_handle, by_bytes, count, depth + 1)?;
-            let function = encode_term(
-                table,
-                arena,
+                label,
                 function,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            node.u8(18);
-            node.u32(carrier);
-            node.u32(children);
-            node.u32(label);
-            node.u32(function);
-        }
-        Term::IndW { motive, step, tree } => {
-            let motive = encode_term(table, arena, motive, by_handle, by_bytes, count, depth + 1)?;
-            let step = encode_term(table, arena, step, by_handle, by_bytes, count, depth + 1)?;
-            let tree = encode_term(table, arena, tree, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(19);
-            node.u32(motive);
-            node.u32(step);
-            node.u32(tree);
-        }
-        Term::Constant {
-            declaration,
-            levels,
-        } => {
-            node.u8(20);
-            node.u32(declaration);
-            node.len("constant level arguments", levels.len())?;
-            for level in levels {
-                encode_level(&mut node, level, 0)?;
+            } => {
+                let carrier = self.encode_term(carrier, depth + 1)?;
+                let children = self.encode_term(children, depth + 1)?;
+                let label = self.encode_term(label, depth + 1)?;
+                let function = self.encode_term(function, depth + 1)?;
+                node.u8(18);
+                node.u32(carrier);
+                node.u32(children);
+                node.u32(label);
+                node.u32(function);
+            }
+            Term::IndW { motive, step, tree } => {
+                let motive = self.encode_term(motive, depth + 1)?;
+                let step = self.encode_term(step, depth + 1)?;
+                let tree = self.encode_term(tree, depth + 1)?;
+                node.u8(19);
+                node.u32(motive);
+                node.u32(step);
+                node.u32(tree);
+            }
+            Term::Constant {
+                declaration,
+                levels,
+            } => {
+                node.u8(20);
+                node.u32(declaration);
+                node.len("constant level arguments", levels.len())?;
+                for level in levels {
+                    encode_level(&mut node, level, 0)?;
+                }
+            }
+            Term::Empty => {
+                node.u8(21);
+            }
+            Term::EmptyElim { ty, scrutinee } => {
+                let ty = self.encode_term(ty, depth + 1)?;
+                let scrutinee = self.encode_term(scrutinee, depth + 1)?;
+                node.u8(22);
+                node.u32(ty);
+                node.u32(scrutinee);
+            }
+            Term::Squash { ty } => {
+                let ty = self.encode_term(ty, depth + 1)?;
+                node.u8(23);
+                node.u32(ty);
+            }
+            Term::SquashIntro { ty, value } => {
+                let ty = self.encode_term(ty, depth + 1)?;
+                let value = self.encode_term(value, depth + 1)?;
+                node.u8(24);
+                node.u32(ty);
+                node.u32(value);
+            }
+            Term::SquashElim {
+                proposition,
+                function,
+                scrutinee,
+            } => {
+                let proposition = self.encode_term(proposition, depth + 1)?;
+                let function = self.encode_term(function, depth + 1)?;
+                let scrutinee = self.encode_term(scrutinee, depth + 1)?;
+                node.u8(25);
+                node.u32(proposition);
+                node.u32(function);
+                node.u32(scrutinee);
+            }
+            Term::Box { ty } => {
+                let ty = self.encode_term(ty, depth + 1)?;
+                node.u8(26);
+                node.u32(ty);
+            }
+            Term::BoxIntro { ty, value } => {
+                let ty = self.encode_term(ty, depth + 1)?;
+                let value = self.encode_term(value, depth + 1)?;
+                node.u8(27);
+                node.u32(ty);
+                node.u32(value);
+            }
+            Term::BoxElim {
+                motive,
+                body,
+                scrutinee,
+            } => {
+                let motive = self.encode_term(motive, depth + 1)?;
+                let body = self.encode_term(body, depth + 1)?;
+                let scrutinee = self.encode_term(scrutinee, depth + 1)?;
+                node.u8(28);
+                node.u32(motive);
+                node.u32(body);
+                node.u32(scrutinee);
             }
         }
-        Term::Empty => {
-            node.u8(21);
+        let bytes = node.finish();
+        if let Some(&index) = self.by_bytes.get(&bytes) {
+            // The same term under another producer handle shares the earlier
+            // table entry; remember the alias so revisits cost one lookup.
+            self.by_handle.insert(handle, index);
+            return Ok(index);
         }
-        Term::EmptyElim { ty, scrutinee } => {
-            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
-            let scrutinee = encode_term(
-                table,
-                arena,
-                scrutinee,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            node.u8(22);
-            node.u32(ty);
-            node.u32(scrutinee);
-        }
-        Term::Squash { ty } => {
-            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(23);
-            node.u32(ty);
-        }
-        Term::SquashIntro { ty, value } => {
-            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
-            let value = encode_term(table, arena, value, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(24);
-            node.u32(ty);
-            node.u32(value);
-        }
-        Term::SquashElim {
-            proposition,
-            function,
-            scrutinee,
-        } => {
-            let proposition = encode_term(
-                table,
-                arena,
-                proposition,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            let function = encode_term(
-                table,
-                arena,
-                function,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            let scrutinee = encode_term(
-                table,
-                arena,
-                scrutinee,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            node.u8(25);
-            node.u32(proposition);
-            node.u32(function);
-            node.u32(scrutinee);
-        }
-        Term::Box { ty } => {
-            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(26);
-            node.u32(ty);
-        }
-        Term::BoxIntro { ty, value } => {
-            let ty = encode_term(table, arena, ty, by_handle, by_bytes, count, depth + 1)?;
-            let value = encode_term(table, arena, value, by_handle, by_bytes, count, depth + 1)?;
-            node.u8(27);
-            node.u32(ty);
-            node.u32(value);
-        }
-        Term::BoxElim {
-            motive,
-            body,
-            scrutinee,
-        } => {
-            let motive = encode_term(table, arena, motive, by_handle, by_bytes, count, depth + 1)?;
-            let body = encode_term(table, arena, body, by_handle, by_bytes, count, depth + 1)?;
-            let scrutinee = encode_term(
-                table,
-                arena,
-                scrutinee,
-                by_handle,
-                by_bytes,
-                count,
-                depth + 1,
-            )?;
-            node.u8(28);
-            node.u32(motive);
-            node.u32(body);
-            node.u32(scrutinee);
-        }
+        // Children already occupy lower table indices, so the node takes the
+        // next position — the postorder the decoder requires.
+        let index = self.count;
+        self.nodes.bytes(&bytes);
+        self.by_bytes.insert(bytes, index);
+        self.by_handle.insert(handle, index);
+        self.count += 1;
+        Ok(index)
     }
-    let bytes = node.finish();
-    if let Some(&index) = by_bytes.get(&bytes) {
-        // The same term under another producer handle shares the earlier
-        // table entry; remember the alias so revisits cost one lookup.
-        by_handle.insert(handle, index);
-        return Ok(index);
-    }
-    // Children already occupy lower table indices, so the node takes the
-    // next position — the postorder the decoder requires.
-    let index = *count;
-    table.bytes(&bytes);
-    by_bytes.insert(bytes, index);
-    by_handle.insert(handle, index);
-    *count += 1;
-    Ok(index)
 }
 
 fn encode_sort(writer: &mut Writer, sort: Sort) -> Result<(), CodecError> {
