@@ -353,11 +353,6 @@ pub(crate) fn lower_structural_scalar_return_machine(
         .iter()
         .any(|action| matches!(action, CheckedNormalCleanupAction::InvokeNominal(_)))
     {
-        effects::validate(
-            checked,
-            StructuralScalarReturnTypes::published(checked),
-            plan,
-        )?;
         return lower_nominal_structural_scalar_return_machine(checked, plan);
     }
     lower_structural_scalar_return_machine_in_namespace(checked, plan, machine_id(1), 0, None)
@@ -406,26 +401,6 @@ impl<'a> StructuralScalarReturnTypes<'a> {
             })
         })
     }
-
-    pub(crate) fn find(self, identity: &str) -> Option<&'a CheckedUnitStructuralTypePlan> {
-        self.iter().find(|plan| plan.identity == identity)
-    }
-}
-
-/// Ordinary structural scalar callees currently use the closed primitive-reference
-/// body: no calls, claims, cleanup, requirements, or crash routes are omitted.
-pub(crate) fn validate_scalar_callee(
-    checked: &CheckedTrees,
-    plan: &CheckedStructuralScalarReturnMachinePlan,
-) -> Result<(), LoweringError> {
-    if !effects::validate(
-        checked,
-        StructuralScalarReturnTypes::published(checked),
-        plan,
-    )? {
-        return unsupported("structural scalar callee needs complete call and contract custody");
-    }
-    Ok(())
 }
 
 pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
@@ -436,7 +411,10 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
     shared_structural_types: Option<&[StructuralTypeDeclaration]>,
 ) -> Result<LoweredPsi, LoweringError> {
     let types = StructuralScalarReturnTypes::shared_with(checked, shared_structural_types);
-    let primitive_reference_return = effects::validate(checked, types, plan)?;
+    // Stage 04 owns signature, permission and complete statement coverage.
+    // Rebuilding a primitive/slice signature here rejected checked fixed-array
+    // borrows. Emit the retained parameter shapes, effects and result instead;
+    // unsupported operations still refuse at their emission boundary.
     if plan
         .cleanup_actions
         .iter()
@@ -454,71 +432,6 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
     } else {
         lower_structural_type_plans(types.published)?
     };
-    if plan.structural_parameters.is_empty() {
-        return unsupported("structural scalar return has no structural parameters");
-    }
-    let mut positions = BTreeSet::new();
-    for parameter in &plan.structural_parameters {
-        if (parameter.multiplicity != Multiplicity::Affine && !primitive_reference_return)
-            || !parameter.qualifications.is_empty()
-            || !positions.insert(parameter.position)
-        {
-            return unsupported(
-                "structural scalar return signature is not claim-free affine custody",
-            );
-        }
-        lookup_type_id(&type_ids, &parameter.type_identity)?;
-    }
-    for parameter in &plan.scalar_parameters {
-        if !positions.insert(parameter.source_position) {
-            return unsupported(
-                "structural scalar return parameter maps overlap or repeat a source position",
-            );
-        }
-        terminal_scalar_type(parameter.primitive_type)?;
-    }
-    let parameter_count = plan
-        .structural_parameters
-        .len()
-        .checked_add(plan.scalar_parameters.len())
-        .ok_or(LoweringError::Unsupported(
-            "structural scalar return parameter count exceeds usize",
-        ))?;
-    if positions.len() != parameter_count
-        || positions
-            .iter()
-            .copied()
-            .enumerate()
-            .any(|(index, position)| u32::try_from(index).ok() != Some(position))
-    {
-        return unsupported(
-            "structural scalar return parameter maps do not partition source positions",
-        );
-    }
-    let expected_cleanup = plan
-        .structural_parameters
-        .iter()
-        .enumerate()
-        .rev()
-        .filter(|(_, parameter)| parameter.multiplicity == Multiplicity::Affine)
-        .map(|(index, parameter)| parameter_discard_action(index as u32, parameter))
-        .collect::<Vec<_>>();
-    if plan.cleanup_actions != expected_cleanup {
-        return unsupported("structural scalar return cleanup does not consume its exact frontier");
-    }
-    let prefix_count =
-        plan.bindings
-            .len()
-            .checked_add(plan.effects.len())
-            .ok_or(LoweringError::Unsupported(
-                "structural scalar return prefix count exceeds usize",
-            ))?;
-    let expected_return_ordinal = u32::try_from(prefix_count).map_err(|_| {
-        LoweringError::Unsupported("structural scalar return binding count exceeds u32")
-    })?;
-    if plan.return_statement_ordinal != expected_return_ordinal {
-        return unsupported("structural scalar return coordinates are not a contiguous prefix");
-    }
     let result_type = terminal_scalar_type(plan.result_type)?;
 
     let mut next_place = identity_base

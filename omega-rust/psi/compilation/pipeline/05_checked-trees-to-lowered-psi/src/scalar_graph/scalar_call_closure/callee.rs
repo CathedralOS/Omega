@@ -92,10 +92,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 )?;
                 Ok(Self::Boundary(boundary))
             }
-            (None, None, Some(plan)) => {
-                crate::returns::structural_scalar_return::validate_scalar_callee(checked, plan)?;
-                Ok(Self::Structural(plan))
-            }
+            (None, None, Some(plan)) => Ok(Self::Structural(plan)),
             (None, None, None) => {
                 // Existing scalar owners retain precedence, including their
                 // contract lowering. A Unit body is borrowed only when it
@@ -340,13 +337,10 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 ),
                 plan,
             }),
-            Self::Structural(plan) => {
-                crate::returns::structural_scalar_return::validate_scalar_callee(checked, plan)?;
-                Ok(PreparedScalarCallee::Structural {
-                    plan,
-                    result_type: terminal_scalar_type(plan.result_type)?,
-                })
-            }
+            Self::Structural(plan) => Ok(PreparedScalarCallee::Structural {
+                plan,
+                result_type: terminal_scalar_type(plan.result_type)?,
+            }),
         }
     }
 }

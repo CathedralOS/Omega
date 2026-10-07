@@ -161,6 +161,14 @@ creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
 
+The edge's explicit trait application binds its contract parameters. A
+realization parameter used in that application, including inside a compound
+argument, specializes the contract rather than adding a member invocation
+parameter. The realization's remaining telescope matches the requirement's
+invocation telescope under [universal callable matching](generics.md#invocation-lifetime-families).
+This does not infer a trait application from a data type or relax value-parameter,
+result, effect, or proof refinement.
+
 [Test-group registration](../build/testing.md) names one exact requirement and
 collects its checked package-local satisfiers as independent test roots. This
 does not select a whole conformance, require implementations of sibling members,

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 2.79, "load1_start": 2.79, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.14, "load1_start": 6.14, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1864,6 +1864,10 @@ fail/traits/exact_application_keeps_parameter_types rejected 324ms expected @b5a
 	machine `identity` state `entry` does not satisfy trait `Identity` machine `identity`: expected return `Element`, got `i32`
 fail/traits/exact_application_keeps_universal_properties rejected 323ms expected @b5a9b4a9eef4+wt
 	machine `select` does not satisfy trait `Select` machine `select`: callable generic parameter 0 demands stronger type properties
+fail/traits/exact_edge_application_cannot_quantify_invocations rejected 321ms expected @774eaac263cb+wt
+	machine `Reader::transform` does not satisfy trait `Transform` machine `transform`: expected 1 callable generic parameter(s), got 0
+fail/traits/exact_edge_invocation_kind_mismatch rejected 321ms expected @774eaac263cb+wt
+	machine `Reader::read` does not satisfy trait `Readable` machine `read`: callable generic parameter 0 has incompatible kinds (`Value` versus `Width`)
 fail/traits/exact_requirement_edge_wrong_data_rejected rejected 385ms expected @e3131e3bcd65+wt
 	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
 	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
@@ -3464,6 +3468,7 @@ pass/traits/equatable_implementation_selection_exit checked 1312ms check-target:
 pass/traits/equatable_mixed_shape_equality_exit checked 3655ms check-target:macos_arm64 @ca8c127c90c5
 pass/traits/equatable_record_equality_exit checked 6146ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/equatable_string_field_equality_exit checked 3111ms check-target:macos_arm64 @11b293f8af86+wt
+pass/traits/exact_edge_application_and_invocation_parameters checked 1639ms check-target:macos_arm64 @774eaac263cb+wt
 pass/traits/generic_reference_forwarding_exit checked 13520ms check-target:macos_arm64 @f3a79ef091a9
 pass/traits/generic_trait_parent_binds_requirement checked 267ms @474542aa7f86
 pass/traits/nominal_generic_reference_forwarding_exit checked 13052ms check-target:macos_arm64 @f3a79ef091a9

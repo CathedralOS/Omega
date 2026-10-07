@@ -83,7 +83,6 @@ pub(super) fn retain_catalog_roots<'checked>(
             continue;
         }
         if let CheckedScalarCallee::Structural(plan) = callee {
-            crate::returns::structural_scalar_return::validate_scalar_callee(checked, plan)?;
             type_roots.extend(plan.attachment_type_identity.iter().cloned());
             type_roots.extend(
                 plan.structural_parameters
