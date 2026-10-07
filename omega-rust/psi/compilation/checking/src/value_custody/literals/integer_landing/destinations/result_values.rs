@@ -212,6 +212,8 @@ fn admit_result_values_inner(
     other_elements: &mut Vec<ExpressionHandle>,
     active: &mut Vec<ExpressionHandle>,
 ) -> bool {
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+
     if !program.expression_table.expression_is_valid(expression) || active.contains(&expression) {
         return false;
     }
