@@ -1,0 +1,4 @@
+owner: leaf/referee-scalar-read-regression
+provenance: psi/interpreter + psi/foundation mechanical dedup wave: malformed-operation ctor fold + scalar_value lookup + poison-tolerant consumption read + paired consumption lock + side-effect-free asm contract + normalized-identity macro route + materialization test rejection probe; isolated (claims.py down)
+ticket: abd0d93cd52746f4b8382bc978a1610a
+published_utc: 2026-10-07T00:08:36.211452+00:00
