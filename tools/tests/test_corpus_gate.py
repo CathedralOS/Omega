@@ -6,6 +6,7 @@ from pathlib import Path
 import contextlib
 import io
 import json
+import os
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -33,6 +34,26 @@ def fake_runner(records: str, stdout: str = ""):
         return SimpleNamespace(stdout=io.StringIO(stdout), stderr=io.StringIO(""),
                                returncode=0, wait=lambda: 0)
     return popen
+
+class RunnerLibrarySelection(unittest.TestCase):
+    def runner_environment(self, environment):
+        rows = corpus_records.render([record("pass/library/selection")])
+        with patch.dict(os.environ, environment, clear=True), \
+             patch.object(corpus_gate.subprocess, "Popen",
+                          side_effect=fake_runner(rows)) as invocation:
+            corpus_gate.run_runner(Path("corpus_runner"))
+        return invocation.call_args.kwargs["env"]
+
+    def test_default_library_belongs_to_the_measured_checkout(self):
+        environment = self.runner_environment({})
+        self.assertEqual(environment["OMEGA_LIBRARY_ROOT"],
+                         str(corpus_gate.ROOT / "source/library"))
+
+    def test_explicit_library_selection_is_preserved(self):
+        explicit = str(Path(tempfile.gettempdir()) / "selected-omega-library")
+        environment = self.runner_environment({"OMEGA_LIBRARY_ROOT": explicit})
+        self.assertEqual(environment["OMEGA_LIBRARY_ROOT"], explicit)
+
 
 class NativeExitExpectations(unittest.TestCase):
     def setUp(self):

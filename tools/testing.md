@@ -209,6 +209,14 @@ One re-record pinned fifteen rows to a diagnostic removed eleven commits
 earlier, and it was caught only because the text contradicted a landed change.
 Reuse a runner only within one tree state.
 
+The gate defaults `OMEGA_LIBRARY_ROOT` to the measured checkout's
+`source/library`, preserving an explicit caller override. Shared Cargo caches
+can retain a different worktree's development library path; a fresh runner can
+otherwise read that old library and falsely reject exact bundled entry contracts.
+Direct runner or CLI invocations should select the matching library explicitly
+when sharing build artifacts across checkouts. Release library validation still
+checks the selected content; this does not waive compiler or package identity.
+
 `--baseline` keys its file on `git rev-parse HEAD` under ignored
 `build/corpus_baselines/`. Use it when the checked-in golden disagrees with
 your checkout over another lane's in-flight movement, which is the usual case:

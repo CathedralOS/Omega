@@ -392,6 +392,9 @@ def shutil_which(name: str):
 def run_runner(binary: Path) -> list[dict]:
     env = dict(os.environ)
     env.pop("NEXTEST", None)
+    # A reused build cache may retain another worktree's development library.
+    # Corpus inputs belong to this checkout; preserve deliberate overrides.
+    env.setdefault("OMEGA_LIBRARY_ROOT", str(ROOT / "source/library"))
     # Records arrive in their own file: a fixture's build log is ordinary
     # compiler output on the runner's stdout and must not parse as a record.
     records_file = tempfile.NamedTemporaryFile(
