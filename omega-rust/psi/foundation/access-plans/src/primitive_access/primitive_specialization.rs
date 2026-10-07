@@ -5,6 +5,87 @@ use crate::{
     LogicalFieldExtent, ObservationModel, PrimitiveAccessRequest, ValidatedPlacementPlan,
 };
 use language_core::atomic::AtomicOrderingPlan;
+
+/// The specialization boundary every primitive access carries: a rejection
+/// carrier returning the sealed request verbatim, plus the
+/// `into_*_access` staging entrypoint that validates and joins the
+/// specialization. `with_operation` models retain the validator's operation;
+/// `no_operation` models retain nothing but the sealed request.
+macro_rules! specialization_boundary {
+    ($request:ident, $rejection:ident, $require:ident, $validator:ident,
+     $rejection_doc:literal, $require_doc:literal,
+     with_operation($operation:ident)) => {
+        #[doc = $rejection_doc]
+        #[derive(Debug)]
+        pub struct $rejection<'view, 'extent> {
+            request: PrimitiveAccessRequest<'view, 'extent>,
+            diagnostic: AccessPlanDiagnostic,
+        }
+
+        impl<'view, 'extent> $rejection<'view, 'extent> {
+            diagnostic_accessor!();
+
+            pub fn into_parts(
+                self,
+            ) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
+                (self.request, self.diagnostic)
+            }
+        }
+
+        impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
+            #[doc = $require_doc]
+            pub fn $require(self) -> Result<$request<'view, 'extent>, $rejection<'view, 'extent>> {
+                let $operation = match $validator(&self) {
+                    Ok(operation) => operation,
+                    Err(diagnostic) => {
+                        return Err($rejection {
+                            request: self,
+                            diagnostic,
+                        });
+                    }
+                };
+                Ok($request {
+                    request: self,
+                    $operation,
+                })
+            }
+        }
+    };
+    ($request:ident, $rejection:ident, $require:ident, $validator:ident,
+     $rejection_doc:literal, $require_doc:literal,
+     no_operation) => {
+        #[doc = $rejection_doc]
+        #[derive(Debug)]
+        pub struct $rejection<'view, 'extent> {
+            request: PrimitiveAccessRequest<'view, 'extent>,
+            diagnostic: AccessPlanDiagnostic,
+        }
+
+        impl<'view, 'extent> $rejection<'view, 'extent> {
+            diagnostic_accessor!();
+
+            pub fn into_parts(
+                self,
+            ) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
+                (self.request, self.diagnostic)
+            }
+        }
+
+        impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
+            #[doc = $require_doc]
+            pub fn $require(self) -> Result<$request<'view, 'extent>, $rejection<'view, 'extent>> {
+                if let Err(diagnostic) = $validator(&self) {
+                    return Err($rejection {
+                        request: self,
+                        diagnostic,
+                    });
+                }
+                Ok($request { request: self })
+            }
+        }
+    };
+}
+
 /// Operation subset accepted by ordinary Stable primitive lowering.
 ///
 /// Compound mutation needs its distinct bounded read-patch-write realization;
@@ -85,46 +166,15 @@ impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
     }
 }
 
-/// Failed specialization returns the exact sealed request so its authority
-/// and content-custody lifetime remain available to the caller.
-#[derive(Debug)]
-pub struct StablePrimitiveAccessRejection<'view, 'extent> {
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> StablePrimitiveAccessRejection<'view, 'extent> {
-    diagnostic_accessor!();
-
-    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
-        (self.request, self.diagnostic)
-    }
-}
-
-impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
-    /// Consume this general request into the narrow contract accepted by
-    /// ordinary Stable read/write lowering.
-    pub fn into_stable_primitive_access(
-        self,
-    ) -> Result<
-        StablePrimitiveAccessRequest<'view, 'extent>,
-        StablePrimitiveAccessRejection<'view, 'extent>,
-    > {
-        let operation = match validate_stable_primitive_request(&self) {
-            Ok(operation) => operation,
-            Err(diagnostic) => {
-                return Err(StablePrimitiveAccessRejection {
-                    request: self,
-                    diagnostic,
-                });
-            }
-        };
-        Ok(StablePrimitiveAccessRequest {
-            request: self,
-            operation,
-        })
-    }
-}
+specialization_boundary!(
+    StablePrimitiveAccessRequest,
+    StablePrimitiveAccessRejection,
+    into_stable_primitive_access,
+    validate_stable_primitive_request,
+    "Failed specialization returns the exact sealed request so its authority and content-custody lifetime remain available to the caller.",
+    "Consume this general request into the narrow contract accepted by ordinary Stable read/write lowering.",
+    with_operation(operation)
+);
 
 fn validate_stable_primitive_request(
     request: &PrimitiveAccessRequest<'_, '_>,
@@ -209,40 +259,15 @@ impl<'view, 'extent> StableCompoundMutationAccessRequest<'view, 'extent> {
     }
 }
 
-/// Failed compound specialization returns the exact sealed request so its
-/// content-custody lifetime and exclusive authority remain available.
-#[derive(Debug)]
-pub struct StableCompoundMutationAccessRejection<'view, 'extent> {
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> StableCompoundMutationAccessRejection<'view, 'extent> {
-    diagnostic_accessor!();
-
-    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
-        (self.request, self.diagnostic)
-    }
-}
-
-impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
-    /// Consume this general request into the exact contract accepted by one
-    /// bounded Stable read-patch-write realization.
-    pub fn into_stable_compound_mutation_access(
-        self,
-    ) -> Result<
-        StableCompoundMutationAccessRequest<'view, 'extent>,
-        StableCompoundMutationAccessRejection<'view, 'extent>,
-    > {
-        if let Err(diagnostic) = validate_stable_compound_mutation_request(&self) {
-            return Err(StableCompoundMutationAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        Ok(StableCompoundMutationAccessRequest { request: self })
-    }
-}
+specialization_boundary!(
+    StableCompoundMutationAccessRequest,
+    StableCompoundMutationAccessRejection,
+    into_stable_compound_mutation_access,
+    validate_stable_compound_mutation_request,
+    "Failed compound specialization returns the exact sealed request so its content-custody lifetime and exclusive authority remain available.",
+    "Consume this general request into the exact contract accepted by one bounded Stable read-patch-write realization.",
+    no_operation
+);
 
 fn validate_stable_compound_mutation_request(
     request: &PrimitiveAccessRequest<'_, '_>,
@@ -356,47 +381,15 @@ impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
     }
 }
 
-/// Failed External specialization returns the exact sealed request so its
-/// range authority and content-custody lifetime remain available to the
-/// caller.
-#[derive(Debug)]
-pub struct ExternalPrimitiveAccessRejection<'view, 'extent> {
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> ExternalPrimitiveAccessRejection<'view, 'extent> {
-    diagnostic_accessor!();
-
-    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
-        (self.request, self.diagnostic)
-    }
-}
-
-impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
-    /// Consume this general request into the narrow contract accepted by one
-    /// exact External read, destructive read, or whole-container write.
-    pub fn into_external_primitive_access(
-        self,
-    ) -> Result<
-        ExternalPrimitiveAccessRequest<'view, 'extent>,
-        ExternalPrimitiveAccessRejection<'view, 'extent>,
-    > {
-        let operation = match validate_external_primitive_request(&self) {
-            Ok(operation) => operation,
-            Err(diagnostic) => {
-                return Err(ExternalPrimitiveAccessRejection {
-                    request: self,
-                    diagnostic,
-                });
-            }
-        };
-        Ok(ExternalPrimitiveAccessRequest {
-            request: self,
-            operation,
-        })
-    }
-}
+specialization_boundary!(
+    ExternalPrimitiveAccessRequest,
+    ExternalPrimitiveAccessRejection,
+    into_external_primitive_access,
+    validate_external_primitive_request,
+    "Failed External specialization returns the exact sealed request so its range authority and content-custody lifetime remain available to the caller.",
+    "Consume this general request into the narrow contract accepted by one exact External read, destructive read, or whole-container write.",
+    with_operation(operation)
+);
 
 fn validate_external_primitive_request(
     request: &PrimitiveAccessRequest<'_, '_>,
@@ -528,46 +521,15 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
     }
 }
 
-/// Failed Atomic specialization returns the exact sealed request so its range
-/// authority and operation-specific custody remain available to the caller.
-#[derive(Debug)]
-pub struct AtomicPrimitiveAccessRejection<'view, 'extent> {
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> AtomicPrimitiveAccessRejection<'view, 'extent> {
-    diagnostic_accessor!();
-
-    pub fn into_parts(self) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
-        (self.request, self.diagnostic)
-    }
-}
-
-impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
-    /// Consume this general request into the narrow contract accepted by one
-    /// exact, explicitly admitted Atomic operation.
-    pub fn into_atomic_primitive_access(
-        self,
-    ) -> Result<
-        AtomicPrimitiveAccessRequest<'view, 'extent>,
-        AtomicPrimitiveAccessRejection<'view, 'extent>,
-    > {
-        let operation = match validate_atomic_primitive_request(&self) {
-            Ok(operation) => operation,
-            Err(diagnostic) => {
-                return Err(AtomicPrimitiveAccessRejection {
-                    request: self,
-                    diagnostic,
-                });
-            }
-        };
-        Ok(AtomicPrimitiveAccessRequest {
-            request: self,
-            operation,
-        })
-    }
-}
+specialization_boundary!(
+    AtomicPrimitiveAccessRequest,
+    AtomicPrimitiveAccessRejection,
+    into_atomic_primitive_access,
+    validate_atomic_primitive_request,
+    "Failed Atomic specialization returns the exact sealed request so its range authority and operation-specific custody remain available to the caller.",
+    "Consume this general request into the narrow contract accepted by one exact, explicitly admitted Atomic operation.",
+    with_operation(operation)
+);
 
 fn validate_atomic_primitive_request(
     request: &PrimitiveAccessRequest<'_, '_>,
