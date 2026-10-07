@@ -371,13 +371,19 @@ pub fn declared_result_field_domain_paths(
         length: FixedArrayLength::Literal(length),
     } = program.type_reference_table.type_reference(reference)
     {
+        // Every element owns the same paths; derive them once and place them
+        // under each index.
+        let element_paths = declared_result_field_domain_paths(program, *element_type);
+        if element_paths.is_empty() {
+            return element_paths;
+        }
         let mut paths = Vec::new();
         for index in 0..*length {
-            for (mut path, domain_symbol, semantic_domain) in
-                declared_result_field_domain_paths(program, *element_type)
-            {
-                path.insert(0, facts::PlaceSegment::FixedIndex { index });
-                paths.push((path, domain_symbol, semantic_domain));
+            for (element_path, domain_symbol, semantic_domain) in &element_paths {
+                let mut path = Vec::with_capacity(element_path.len() + 1);
+                path.push(facts::PlaceSegment::FixedIndex { index });
+                path.extend_from_slice(element_path);
+                paths.push((path, *domain_symbol, *semantic_domain));
             }
         }
         return paths;

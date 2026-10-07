@@ -92,23 +92,58 @@ fn collect_data_field_domain_rows(
         // or a slice view can narrow coverage from it; it is EVIDENCE ONLY
         // (`StatementTransfer`) because the per-element rows already spell the
         // complete obligation.
+        //
+        // Every element declares the same rows, so the element is walked once
+        // and its rows are placed under each index. An element that declares
+        // none adds no row at any index, however long the array.
         if let Some((element_type, length)) =
             readable_fixed_array_elements(program, field.type_reference)
             && let Some(nested) = readable_nominal_definition(program, element_type)
             && !visited.contains(&nested.symbol)
         {
             visited.push(nested.symbol);
-            for index in 0..length {
-                path.push(PlaceSegment::FixedIndex { index });
-                collect_data_field_domain_rows(program, transfer, nested, path, visited, rows);
-                path.pop();
-            }
-            path.push(WHOLE_ELEMENT_EXTENT);
-            collect_data_field_domain_rows(program, true, nested, path, visited, rows);
-            path.pop();
+            let mut element_rows = Vec::new();
+            collect_data_field_domain_rows(
+                program,
+                transfer,
+                nested,
+                &mut Vec::new(),
+                visited,
+                &mut element_rows,
+            );
             visited.pop();
+            if !element_rows.is_empty() {
+                for index in 0..length {
+                    place_element_rows(path, PlaceSegment::FixedIndex { index }, &element_rows, None, rows);
+                }
+                place_element_rows(path, WHOLE_ELEMENT_EXTENT, &element_rows, Some(true), rows);
+            }
         }
         path.truncate(prefix_length);
+    }
+}
+
+/// Place one element's rows below `prefix` at `segment`, exactly as walking
+/// the element there would produce them; `transfer` overrides each row's flag
+/// as the evidence-only whole-element extent does.
+fn place_element_rows(
+    prefix: &[PlaceSegment],
+    segment: PlaceSegment,
+    element_rows: &[FieldDomainRow],
+    transfer: Option<bool>,
+    rows: &mut Vec<FieldDomainRow>,
+) {
+    for row in element_rows {
+        let mut path = Vec::with_capacity(prefix.len() + 1 + row.path.len());
+        path.extend_from_slice(prefix);
+        path.push(segment);
+        path.extend_from_slice(&row.path);
+        rows.push(FieldDomainRow {
+            path,
+            domain_symbol: row.domain_symbol,
+            semantic_domain: row.semantic_domain,
+            transfer: transfer.unwrap_or(row.transfer),
+        });
     }
 }
 
