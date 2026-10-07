@@ -326,6 +326,7 @@ mod tests {
             structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
+            dynamic_dispatch: Default::default(),
             functions: vec![AbstractFunction {
                 machine,
                 attachment: None,
@@ -402,7 +403,7 @@ mod tests {
         assert_eq!(scope.projection().boundary_occurrences().len(), 1);
         assert_eq!(
             scope.projection().boundary_occurrences()[0].operation(),
-            operation(11)
+            Some(operation(11))
         );
         assert_eq!(
             scope.projection().boundary_occurrences()[0].operation_ordinal(),

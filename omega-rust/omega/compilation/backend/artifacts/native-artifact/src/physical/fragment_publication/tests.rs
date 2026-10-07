@@ -20,6 +20,7 @@ fn construction_rejects_detached_final_plan_and_object_terminal() {
         structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        dynamic_dispatch: Default::default(),
         functions: Vec::new(),
     };
     assert!(validate_final_plan(&retained, &retained, psi, psi).is_ok());
@@ -68,6 +69,7 @@ fn admitted_object_binding_rejects_a_different_valid_object() {
                 normalized_imports: Vec::new(),
                 unresolved_normalized_foreign_calls: Vec::new(),
                 unresolved_byte_literal_addresses: Vec::new(),
+                unresolved_implementation_table_addresses: Vec::new(),
                 relocation_record_count: 0,
                 relocation_requirements:
                     object_file::RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
@@ -96,6 +98,7 @@ fn admitted_object_binding_rejects_a_different_valid_object() {
             resolved_internal_machine_calls: Vec::new(),
             unresolved_normalized_foreign_calls: Vec::new(),
             unresolved_byte_literal_addresses: Vec::new(),
+            unresolved_implementation_table_addresses: Vec::new(),
             relocation_requirements:
                 machine_code::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
         }),
