@@ -10,7 +10,8 @@
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
     CheckedStructuralPathQualification, CheckedStructuralReturnedClaimTransferPlan,
-    CheckedUnitClaimTransferPlan, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectOperationPlan,
+    FlowCallFact, CheckedUnitStructuralPathSegment,
     FlowClaimOutcomeEntryFact, FlowClaimOutcomeSource,
 };
 use language_semantics::{
@@ -834,6 +835,52 @@ pub fn shared_slice_view_result(program: &TypedTrees, reference: TypeReferenceHa
 /// The custody the plan already carries is not read. Operand and source
 /// checking own every value binding and projection; this judgment owns the
 /// claim correspondence, not call sequencing.
+/// The authored argument roster of a structural call occurrence: its
+/// authored expression when present, else the authored statement the
+/// coordinate names — each refusing a target drift — arity-checked
+/// against the destination parameter roster.
+fn structural_authored_arguments<'program>(
+    program: &'program TypedTrees,
+    call: &FlowCallFact,
+    source_state: &typed_trees::state::State,
+    coordinate: &CheckedUnitCallCoordinate,
+    target_state: SymbolHandle,
+    parameter_count: usize,
+) -> Result<&'program [typed_trees::expression::ExpressionHandle], &'static str> {
+    let authored_arguments = if call.authored_expression.is_valid() {
+        let ExpressionNode::Call(authored) = program
+            .expression_table
+            .expression(call.authored_expression)
+        else {
+            return Err("structural call occurrence has no authored expression");
+        };
+        if authored.target_symbol != target_state {
+            return Err("structural call expression target changed");
+        }
+        program
+            .expression_table
+            .expression_handles(authored.arguments)
+    } else {
+        let Some(StatementNode::Call(authored)) = program
+            .statement_table
+            .statements(source_state.statement_nodes)
+            .get(coordinate.statement_index as usize)
+        else {
+            return Err("structural call occurrence has no authored statement");
+        };
+        if authored.target_symbol != target_state {
+            return Err("structural call statement target changed");
+        }
+        program
+            .statement_table
+            .expression_handles(authored.arguments)
+    };
+    if authored_arguments.len() != parameter_count {
+        return Err("structural call has no exact explicit argument roster");
+    }
+    Ok(authored_arguments)
+}
+
 pub fn structural_call_custody(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1001,37 +1048,14 @@ pub fn structural_call_custody(
         let mut claim_transfers = Vec::with_capacity(transfers.len());
         if !transfers.is_empty() {
             let parameters = program.state_parameters(destination);
-            let authored_arguments = if call.authored_expression.is_valid() {
-                let ExpressionNode::Call(authored) = program
-                    .expression_table
-                    .expression(call.authored_expression)
-                else {
-                    return Err("structural call occurrence has no authored expression");
-                };
-                if authored.target_symbol != *target_state {
-                    return Err("structural call expression target changed");
-                }
-                program
-                    .expression_table
-                    .expression_handles(authored.arguments)
-            } else {
-                let Some(StatementNode::Call(authored)) = program
-                    .statement_table
-                    .statements(source_state.statement_nodes)
-                    .get(coordinate.statement_index as usize)
-                else {
-                    return Err("structural call occurrence has no authored statement");
-                };
-                if authored.target_symbol != *target_state {
-                    return Err("structural call statement target changed");
-                }
-                program
-                    .statement_table
-                    .expression_handles(authored.arguments)
-            };
-            if authored_arguments.len() != parameters.len() {
-                return Err("structural call has no exact explicit argument roster");
-            }
+            let authored_arguments = structural_authored_arguments(
+                program,
+                call,
+                source_state,
+                coordinate,
+                *target_state,
+                parameters.len(),
+            )?;
             let mut accounted = vec![false; transfers.len()];
             for (parameter_position, authored_argument) in authored_arguments.iter().enumerate() {
                 let ExpressionNode::Name(path) =
@@ -1213,37 +1237,14 @@ pub fn structural_call_custody(
     if argument.access != CheckedStructuralAccess::Owned || !argument.path.is_empty() {
         return Err("structural returned claim requires an owned whole argument");
     }
-    let authored_arguments = if call.authored_expression.is_valid() {
-        let ExpressionNode::Call(authored) = program
-            .expression_table
-            .expression(call.authored_expression)
-        else {
-            return Err("structural call occurrence has no authored expression");
-        };
-        if authored.target_symbol != *target_state {
-            return Err("structural call expression target changed");
-        }
-        program
-            .expression_table
-            .expression_handles(authored.arguments)
-    } else {
-        let Some(StatementNode::Call(authored)) = program
-            .statement_table
-            .statements(source_state.statement_nodes)
-            .get(coordinate.statement_index as usize)
-        else {
-            return Err("structural call occurrence has no authored statement");
-        };
-        if authored.target_symbol != *target_state {
-            return Err("structural call statement target changed");
-        }
-        program
-            .statement_table
-            .expression_handles(authored.arguments)
-    };
-    if authored_arguments.len() != parameters.len() {
-        return Err("structural call has no exact explicit argument roster");
-    }
+        let authored_arguments = structural_authored_arguments(
+        program,
+        call,
+        source_state,
+        coordinate,
+        *target_state,
+        parameters.len(),
+    )?;
     let ExpressionNode::Name(path) = program
         .expression_table
         .expression(authored_arguments[parameter_position])
