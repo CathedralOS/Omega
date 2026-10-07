@@ -54,6 +54,35 @@ struct MutableRecordLeaf {
     arrays: Vec<NormalizedArrayStep>,
 }
 
+/// Replicate `element`'s leaf roster `count` times at `stride` spacing: each
+/// copy prepends its `Element(index)` segment and carries the checked base
+/// offset of its slot — the leaf expansion both array shapes share.
+fn expand_replicated_leaves(
+    element: &MutableRecordRepresentation,
+    count: usize,
+    stride: usize,
+) -> Option<Vec<MutableRecordLeaf>> {
+    let mut leaves = Vec::new();
+    leaves.try_reserve_exact(element.leaves.len().checked_mul(count)?).ok()?;
+    for index in 0..count {
+        let base = stride.checked_mul(index)?;
+        for leaf in &element.leaves {
+            let mut projected = leaf.clone();
+            projected.arrays.push(NormalizedArrayStep {
+                suffix_length: projected.path.len(),
+                stride,
+                extent: count,
+            });
+            projected
+                .path
+                .insert(0, RepresentationSegment::Element(index));
+            projected.offset = base.checked_add(leaf.offset)?;
+            leaves.push(projected);
+        }
+    }
+    Some(leaves)
+}
+
 /// Depth from the scalar leaf, so prepending enclosing fields preserves the
 /// coordinate. Stride comes from normalization, including explicit layout plans.
 #[derive(Debug, Clone)]
@@ -817,22 +846,7 @@ fn mutable_record_type_representation_body(
             let size = element.size.checked_mul(*length)?;
             let leaf_count = element.leaves.len().checked_mul(*length)?;
             budget.consume(leaf_count)?;
-            let mut leaves = Vec::new();
-            leaves.try_reserve_exact(leaf_count).ok()?;
-            for index in 0..*length {
-                let element_offset = element.size.checked_mul(index)?;
-                for leaf in &element.leaves {
-                    let mut projected = leaf.clone();
-                    projected.arrays.push(NormalizedArrayStep {
-                        suffix_length: projected.path.len(),
-                        stride: element.size,
-                        extent: *length,
-                    });
-                    projected.path.insert(0, RepresentationSegment::Element(index));
-                    projected.offset = leaf.offset.checked_add(element_offset)?;
-                    leaves.push(projected);
-                }
-            }
+            let leaves = expand_replicated_leaves(&element, *length, element.size)?;
             Some(MutableRecordRepresentation {
                 size,
                 align: element.align,
@@ -938,25 +952,7 @@ fn repeat_representation_with_stride(
             .checked_mul(count.checked_sub(1)?)?
             .checked_add(element.size)?
     };
-    let leaf_count = element.leaves.len().checked_mul(count)?;
-    let mut leaves = Vec::new();
-    leaves.try_reserve_exact(leaf_count).ok()?;
-    for index in 0..count {
-        let base = stride.checked_mul(index)?;
-        for leaf in &element.leaves {
-            let mut projected = leaf.clone();
-            projected.arrays.push(NormalizedArrayStep {
-                suffix_length: projected.path.len(),
-                stride,
-                extent: count,
-            });
-            projected
-                .path
-                .insert(0, RepresentationSegment::Element(index));
-            projected.offset = base.checked_add(leaf.offset)?;
-            leaves.push(projected);
-        }
-    }
+    let leaves = expand_replicated_leaves(&element, count, stride)?;
     Some(MutableRecordRepresentation {
         size,
         align: element.align,
