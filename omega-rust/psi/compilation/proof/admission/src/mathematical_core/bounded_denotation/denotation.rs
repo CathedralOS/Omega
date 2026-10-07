@@ -115,6 +115,25 @@ pub(super) struct ExactDefinitionBoundTarget<'a> {
     pub(super) right: &'a ScalarTerm,
 }
 
+/// The conclusion of an arithmetic bound check is an `IntegerMathLessOrEqual`
+/// whose operation side is the term being denoted; the checks differ only in
+/// the math term variant, so one predicate-parameterized pass returns the
+/// bound side, the operation side and the direction.
+pub(super) fn math_less_or_equal_sides<'a>(
+    conclusion: &'a Proposition,
+    is_target_operation: fn(&IntegerMathTerm) -> bool,
+) -> Option<(bool, &'a IntegerMathTerm, &'a IntegerMathTerm)> {
+    match conclusion {
+        Proposition::IntegerMathLessOrEqual(bound, operation) if is_target_operation(operation) => {
+            Some((true, bound, operation))
+        }
+        Proposition::IntegerMathLessOrEqual(operation, bound) if is_target_operation(operation) => {
+            Some((false, bound, operation))
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn exact_definition_bound_target<'a>(
     conclusion: &'a Proposition,
     definition: &'a Proposition,

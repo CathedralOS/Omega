@@ -35,6 +35,7 @@ use semantic_vocabulary::{
 };
 
 use super::super::scheme_dsl::{self, apps, pi, scheme_at, v};
+use super::denotation::math_less_or_equal_sides;
 use super::integer_operations::IntegerOperation;
 use super::{
     BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
@@ -391,15 +392,12 @@ impl Denotation {
         if scalar_type.carrier() != IntegerCarrier::Fixed {
             return Ok(None);
         }
-        let (lower, bound, product) = match conclusion {
-            Proposition::IntegerMathLessOrEqual(bound, product @ IntegerMathTerm::Multiply(..)) => {
-                (true, bound, product)
-            }
-            Proposition::IntegerMathLessOrEqual(product @ IntegerMathTerm::Multiply(..), bound) => {
-                (false, bound, product)
-            }
-            _ => return Ok(None),
+        let Some((lower, bound, product)) =
+            math_less_or_equal_sides(conclusion, crate::term_matchers::is_math_multiply)
+        else {
+            return Ok(None);
         };
+
         let IntegerMathTerm::IntegerLiteral(bound_literal) = bound else {
             return Ok(None);
         };
@@ -449,8 +447,7 @@ impl Denotation {
         if bound_evidence != &expected_bound {
             return Ok(None);
         }
-        let Some((expression, definition)) =
-            affine_witness_root_expression(witness, definitions)
+        let Some((expression, definition)) = affine_witness_root_expression(witness, definitions)
         else {
             return Ok(None);
         };

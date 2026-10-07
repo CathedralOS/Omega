@@ -45,7 +45,9 @@ use semantic_vocabulary::{
 };
 
 use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
-use super::denotation::{ExactDefinitionBoundTarget, exact_definition_bound_target};
+use super::denotation::{
+    ExactDefinitionBoundTarget, exact_definition_bound_target, math_less_or_equal_sides,
+};
 use super::{
     BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
     affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
@@ -563,17 +565,12 @@ impl Denotation {
         if scalar_type.carrier() != IntegerCarrier::Fixed {
             return Ok(None);
         }
-        let (lower, bound, difference) = match conclusion {
-            Proposition::IntegerMathLessOrEqual(
-                bound,
-                difference @ IntegerMathTerm::Subtract(..),
-            ) => (true, bound, difference),
-            Proposition::IntegerMathLessOrEqual(
-                difference @ IntegerMathTerm::Subtract(..),
-                bound,
-            ) => (false, bound, difference),
-            _ => return Ok(None),
+        let Some((lower, bound, difference)) =
+            math_less_or_equal_sides(conclusion, crate::term_matchers::is_math_subtract)
+        else {
+            return Ok(None);
         };
+
         // The checked conclusion's bound side is the carrier endpoint
         // literal, so it always evaluates. When the difference side still
         // has a canonical numeral the goal is a decidable `IntLe` between
@@ -779,17 +776,12 @@ impl Denotation {
         {
             return Ok(None);
         }
-        let (lower, bound, difference) = match conclusion {
-            Proposition::IntegerMathLessOrEqual(
-                bound,
-                difference @ IntegerMathTerm::Subtract(..),
-            ) => (true, bound, difference),
-            Proposition::IntegerMathLessOrEqual(
-                difference @ IntegerMathTerm::Subtract(..),
-                bound,
-            ) => (false, bound, difference),
-            _ => return Ok(None),
+        let Some((lower, bound, difference)) =
+            math_less_or_equal_sides(conclusion, crate::term_matchers::is_math_subtract)
+        else {
+            return Ok(None);
         };
+
         // The mapped bound is a canonical math literal; when its
         // magnitude leaves the representable numeral range the denoted
         // endpoint is an opaque `Int` constant no checked

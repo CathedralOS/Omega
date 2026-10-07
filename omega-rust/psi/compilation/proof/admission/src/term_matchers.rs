@@ -3,7 +3,7 @@
 //! operand shape, so a matcher is the only per-variant surface a shared body
 //! needs.
 
-use semantic_vocabulary::{IntegerType, ScalarTerm};
+use semantic_vocabulary::{IntegerMathTerm, IntegerType, ScalarTerm};
 
 pub(crate) type TermMatcher = fn(&ScalarTerm) -> Option<(&IntegerType, &ScalarTerm, &ScalarTerm)>;
 
@@ -70,4 +70,16 @@ pub(crate) fn exact_integer_divide(
         } => Some((scalar_type, left, right)),
         _ => None,
     }
+}
+
+pub(crate) fn is_math_add(term: &IntegerMathTerm) -> bool {
+    matches!(term, IntegerMathTerm::Add(..))
+}
+
+pub(crate) fn is_math_subtract(term: &IntegerMathTerm) -> bool {
+    matches!(term, IntegerMathTerm::Subtract(..))
+}
+
+pub(crate) fn is_math_multiply(term: &IntegerMathTerm) -> bool {
+    matches!(term, IntegerMathTerm::Multiply(..))
 }
