@@ -896,6 +896,13 @@ fn decode_atomic(bytes: &[u8]) -> Option<(DecodedInstruction, usize)> {
     }
 }
 
+/// The divide/remainder custody layout: dividend halves zeroed at
+/// registers 0 and 2, the raw divisor at 1, and the scratch pair
+/// holding quotient and remainder across registers 1 and 3.
+fn divide_register_layout(registers: &[u8]) -> bool {
+    registers[0] == 0 && registers[2] == 0 && registers[3] == 2 && registers[1] != 2
+}
+
 pub(crate) fn validate_decoded(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
@@ -1193,20 +1200,14 @@ pub(crate) fn validate_decoded(
                         || (*base == registers[1] && *index == registers[0])))
         }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
-            registers[0] == 0
-                && registers[2] == 0
-                && registers[3] == 2
-                && registers[1] != 2
+            divide_register_layout(registers)
                 && decoded
                     == [DecodedInstruction::UnsignedDivide {
                         divisor: registers[1],
                     }]
         }
         SelectedInstructionKind::ExactRemainderU64 { .. } => {
-            registers[0] == 0
-                && registers[2] == 0
-                && registers[3] == 2
-                && registers[1] != 2
+            divide_register_layout(registers)
                 && decoded
                     == [
                         DecodedInstruction::Xor {
@@ -1223,10 +1224,7 @@ pub(crate) fn validate_decoded(
                     ]
         }
         SelectedInstructionKind::WrappingDivideI64 { .. } => {
-            registers[0] == 0
-                && registers[2] == 0
-                && registers[3] == 2
-                && registers[1] != 2
+            divide_register_layout(registers)
                 && decoded
                     == [
                         DecodedInstruction::CompareSignedImmediate8 {
@@ -1243,10 +1241,7 @@ pub(crate) fn validate_decoded(
                     ]
         }
         SelectedInstructionKind::ExactDivideI64 { .. } => {
-            registers[0] == 0
-                && registers[2] == 0
-                && registers[3] == 2
-                && registers[1] != 2
+            divide_register_layout(registers)
                 && decoded
                     == [
                         DecodedInstruction::SignExtendDividend,
@@ -1256,10 +1251,7 @@ pub(crate) fn validate_decoded(
                     ]
         }
         SelectedInstructionKind::ExactRemainderI64 { .. } => {
-            registers[0] == 0
-                && registers[2] == 0
-                && registers[3] == 2
-                && registers[1] != 2
+            divide_register_layout(registers)
                 && decoded
                     == [
                         DecodedInstruction::SignExtendDividend,
@@ -1273,10 +1265,7 @@ pub(crate) fn validate_decoded(
                     ]
         }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
-            registers[0] == 0
-                && registers[2] == 0
-                && registers[3] == 2
-                && registers[1] != 2
+            divide_register_layout(registers)
                 && decoded
                     == [
                         DecodedInstruction::Xor {
