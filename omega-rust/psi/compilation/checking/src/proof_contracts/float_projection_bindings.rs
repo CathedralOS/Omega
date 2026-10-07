@@ -42,23 +42,11 @@ fn has_exact_toolchain_float_projection_owner(
     {
         return false;
     }
-    let Some(span) = program.symbols.symbol_source_span(symbol) else {
-        return false;
-    };
-    let Some(source) = program.symbols.source_file(span) else {
-        return false;
-    };
-    source.origin == source::SourceOrigin::Toolchain
-        && source
-            .path
-            .strip_prefix(&source.package_root)
-            .ok()
-            .is_some_and(|relative| {
-                relative
-                    == std::path::Path::new(
-                        numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
-                    )
-            })
+    symbol_in_toolchain_source(
+        program,
+        symbol,
+        std::path::Path::new(numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE),
+    )
 }
 
 /// Recognize the sealed proof-only `FloatMeaning` carrier by exact toolchain
@@ -82,25 +70,14 @@ pub fn is_exact_toolchain_float_meaning_type(
     {
         return false;
     }
-    let Some(span) = program.symbols.symbol_source_span(*symbol) else {
-        return false;
-    };
-    let Some(source) = program.symbols.source_file(span) else {
-        return false;
-    };
-    source.origin == source::SourceOrigin::Toolchain
-        && source
-            .path
-            .strip_prefix(&source.package_root)
-            .ok()
-            .is_some_and(|relative| {
-                relative
-                    == std::path::Path::new(numerics::float_projection::FLOAT_MEANING_CORE_SOURCE)
-            })
-        && program
-            .data_definitions()
-            .iter()
-            .any(|data| data.symbol == *symbol && data.name.as_str() == "FloatMeaning")
+    symbol_in_toolchain_source(
+        program,
+        *symbol,
+        std::path::Path::new(numerics::float_projection::FLOAT_MEANING_CORE_SOURCE),
+    ) && program
+        .data_definitions()
+        .iter()
+        .any(|data| data.symbol == *symbol && data.name.as_str() == "FloatMeaning")
 }
 
 fn has_exact_toolchain_float_meaning_result(
@@ -198,4 +175,25 @@ pub(crate) fn validate_float_projection_operator_bindings(
             )));
         }
     }
+}
+
+/// `symbol` resolves to a declaration inside a toolchain-owned source file at
+/// `relative` — the source-ownership half of the sealed-type recognizers.
+fn symbol_in_toolchain_source(
+    program: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+    relative: &std::path::Path,
+) -> bool {
+    let Some(span) = program.symbols.symbol_source_span(symbol) else {
+        return false;
+    };
+    let Some(source) = program.symbols.source_file(span) else {
+        return false;
+    };
+    source.origin == source::SourceOrigin::Toolchain
+        && source
+            .path
+            .strip_prefix(&source.package_root)
+            .ok()
+            .is_some_and(|path| path == relative)
 }
