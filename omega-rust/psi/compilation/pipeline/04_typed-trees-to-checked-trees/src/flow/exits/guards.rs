@@ -1,3 +1,27 @@
+/// Wire `context` into the retained context/constraint rosters and record
+/// the flow semantic-context reference and its constraint edge.
+fn retain_semantic_context(
+    build: &mut FlowBuildContext,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+    context: facts::FactContextHandle,
+) {
+    *active_contexts =
+        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
+    *active_constraints =
+        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
+    reference_spans::append_flow_reference(
+        &mut build.contexts.semantic_context_refs,
+        active_contexts,
+        FlowSemanticContextRef { context },
+    );
+    append_constraint_ref(
+        &mut build.contexts.constraint_refs,
+        active_constraints,
+        FlowConstraintKind::SemanticContext { context },
+    );
+}
+
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::reference_spans;
@@ -312,20 +336,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
         return;
     }
     let context = semantic.append_context(point, refs);
-    *active_contexts =
-        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
-    *active_constraints =
-        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    reference_spans::append_flow_reference(
-        &mut build.contexts.semantic_context_refs,
-        active_contexts,
-        FlowSemanticContextRef { context },
-    );
-    append_constraint_ref(
-        &mut build.contexts.constraint_refs,
-        active_constraints,
-        FlowConstraintKind::SemanticContext { context },
-    );
+    retain_semantic_context(build, active_contexts, active_constraints, context);
 }
 
 /// CASE-CONSTRAINTS (ch12): on the matched branch a case-membership guard
@@ -428,20 +439,7 @@ fn append_case_constraint_context(
         return;
     }
     let context = semantic.append_context(point, refs);
-    *active_contexts =
-        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
-    *active_constraints =
-        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    reference_spans::append_flow_reference(
-        &mut build.contexts.semantic_context_refs,
-        active_contexts,
-        FlowSemanticContextRef { context },
-    );
-    append_constraint_ref(
-        &mut build.contexts.constraint_refs,
-        active_constraints,
-        FlowConstraintKind::SemanticContext { context },
-    );
+    retain_semantic_context(build, active_contexts, active_constraints, context);
 }
 
 /// Conjuncts asserted by taking the `true` arm: split `&&` recursively, and
@@ -609,20 +607,7 @@ pub(in crate::flow) fn append_predicate_context(
             point,
             FactOrigin::TransitionGuard,
         );
-        *active_contexts =
-            retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
-        *active_constraints =
-            retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-        reference_spans::append_flow_reference(
-            &mut build.contexts.semantic_context_refs,
-            active_contexts,
-            FlowSemanticContextRef { context },
-        );
-        append_constraint_ref(
-            &mut build.contexts.constraint_refs,
-            active_constraints,
-            FlowConstraintKind::SemanticContext { context },
-        );
+        retain_semantic_context(build, active_contexts, active_constraints, context);
     }
     let occurrences = build.expression_occurrences_at(program, expression);
     append_observation_context(
@@ -854,20 +839,7 @@ fn append_observation_context(
         semantic.append_ref(&mut refs, fact);
     }
     let context = semantic.append_context(point, refs);
-    *active_contexts =
-        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
-    *active_constraints =
-        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    reference_spans::append_flow_reference(
-        &mut build.contexts.semantic_context_refs,
-        active_contexts,
-        FlowSemanticContextRef { context },
-    );
-    append_constraint_ref(
-        &mut build.contexts.constraint_refs,
-        active_constraints,
-        FlowConstraintKind::SemanticContext { context },
-    );
+    retain_semantic_context(build, active_contexts, active_constraints, context);
 }
 
 fn expression_is_stable_predicate(
@@ -937,18 +909,5 @@ fn append_entry_path_context(
     ) else {
         return;
     };
-    *active_contexts =
-        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
-    *active_constraints =
-        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
-    reference_spans::append_flow_reference(
-        &mut build.contexts.semantic_context_refs,
-        active_contexts,
-        FlowSemanticContextRef { context },
-    );
-    append_constraint_ref(
-        &mut build.contexts.constraint_refs,
-        active_constraints,
-        FlowConstraintKind::SemanticContext { context },
-    );
+    retain_semantic_context(build, active_contexts, active_constraints, context);
 }
