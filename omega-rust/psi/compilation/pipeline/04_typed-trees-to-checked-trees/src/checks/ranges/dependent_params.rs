@@ -76,46 +76,27 @@ fn dependent_maximum_of_type_reference(
     program: &TypedTrees,
     handle: typed_trees::types::TypeReferenceHandle,
 ) -> Option<(typed_trees::name::Identifier, i64)> {
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            dependent_maximum_of_type_reference(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let constraints = program.type_reference_table.constraints(*constraints);
-            if constraints.iter().any(|constraint| {
-                matches!(
-                    constraint,
-                    TypeConstraintNode::ArithmeticDomain(domain)
-                        if *domain != numerics::arithmetic::ArithmeticDomain::Exact
-                )
-            }) {
-                return None;
+    use typed_trees::types::TypeConstraintNode;
+    let mut found = None;
+    super::types::exact_domain_shell_constraints(program, handle, |constraints| {
+        found = constraints.iter().find_map(|constraint| match constraint {
+            TypeConstraintNode::Range {
+                maximum,
+                end_inclusive,
+                ..
+            } => {
+                let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
+                    program,
+                    *maximum,
+                    *end_inclusive,
+                )?;
+                Some((symbolic.field, symbolic.offset))
             }
-            constraints
-                .iter()
-                .find_map(|constraint| match constraint {
-                    TypeConstraintNode::Range {
-                        maximum,
-                        end_inclusive,
-                        ..
-                    } => {
-                        let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-                            program,
-                            *maximum,
-                            *end_inclusive,
-                        )?;
-                        Some((symbolic.field, symbolic.offset))
-                    }
-                    _ => None,
-                })
-                .or_else(|| dependent_maximum_of_type_reference(program, *base_type))
-        }
-        _ => None,
-    }
+            _ => None,
+        });
+        found.is_none()
+    })?;
+    found
 }
 
 /// The sibling-length bound of a declared type's Range constraint under
@@ -124,41 +105,22 @@ fn sibling_len_of_type_reference(
     program: &TypedTrees,
     handle: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::dependent_ranges::SiblingLenBound> {
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            sibling_len_of_type_reference(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let constraints = program.type_reference_table.constraints(*constraints);
-            if constraints.iter().any(|constraint| {
-                matches!(
-                    constraint,
-                    TypeConstraintNode::ArithmeticDomain(domain)
-                        if *domain != numerics::arithmetic::ArithmeticDomain::Exact
-                )
-            }) {
-                return None;
-            }
-            constraints
-                .iter()
-                .find_map(|constraint| match constraint {
-                    TypeConstraintNode::Range {
-                        maximum,
-                        end_inclusive,
-                        ..
-                    } => typed_trees::dependent_ranges::sibling_range_maximum(
-                        program,
-                        *maximum,
-                        *end_inclusive,
-                    ),
-                    _ => None,
-                })
-                .or_else(|| sibling_len_of_type_reference(program, *base_type))
-        }
-        _ => None,
-    }
+    use typed_trees::types::TypeConstraintNode;
+    let mut found = None;
+    super::types::exact_domain_shell_constraints(program, handle, |constraints| {
+        found = constraints.iter().find_map(|constraint| match constraint {
+            TypeConstraintNode::Range {
+                maximum,
+                end_inclusive,
+                ..
+            } => typed_trees::dependent_ranges::sibling_range_maximum(
+                program,
+                *maximum,
+                *end_inclusive,
+            ),
+            _ => None,
+        });
+        found.is_none()
+    })?;
+    found
 }

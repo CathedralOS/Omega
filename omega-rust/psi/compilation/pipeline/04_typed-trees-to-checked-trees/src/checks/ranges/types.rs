@@ -288,7 +288,7 @@ fn dependent_range_of_type_reference(
 /// each surviving shell's constraints. A shell carrying a non-Exact
 /// arithmetic domain is deliberately permissive and kills the walk
 /// (`None`); `visit` returning `false` stops early.
-fn exact_domain_shell_constraints(
+pub(in crate::checks::ranges) fn exact_domain_shell_constraints(
     program: &typed_trees::TypedTrees,
     mut handle: TypeReferenceHandle,
     mut visit: impl FnMut(&[typed_trees::types::TypeConstraintNode]) -> bool,
