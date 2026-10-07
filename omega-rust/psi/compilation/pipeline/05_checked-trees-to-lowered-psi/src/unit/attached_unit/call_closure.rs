@@ -32,7 +32,11 @@ pub(crate) fn checked_unit_call_closure_including(
             LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
                 machine: name.to_owned(),
                 reason,
-                omission: crate::unit::unit_plan_omission_explanation(checked, machine_symbol),
+                gap: checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .gap_diagnostic(machine_symbol, &checked.symbols),
             },
             error => error,
         })?;
@@ -171,7 +175,11 @@ fn unique_terminal_selection(
             machine: checked.symbols.name(symbol).to_owned(),
             reason: "is called by this closure but the selected target selects no \
                  terminal machine for it",
-            omission: crate::unit::unit_plan_omission_explanation(checked, symbol),
+            gap: checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .gap_diagnostic(symbol, &checked.symbols),
         })?;
     if matches.next().is_some() || selection.name.is_empty() {
         return unsupported("Unit-effect member has an invalid checked terminal selection");

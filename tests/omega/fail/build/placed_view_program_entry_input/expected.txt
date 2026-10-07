@@ -1,3 +1,2 @@
-selected ProgramEntry establishment rejoins 0 Terminal context identities
-the machine's unit plan was omitted
-an unavailable scalar target (`inspect`)
+`Main::main` has no executable body
+its call of `inspect` reaches no executable callee plan

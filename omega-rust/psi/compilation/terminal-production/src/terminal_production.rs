@@ -165,27 +165,15 @@ pub enum TerminalArtifactProductionError {
 }
 
 impl TerminalArtifactProductionError {
-    /// The refusal as the diagnostic compilation reports.
+    /// The refusal as the diagnostic compilation reports. A body this
+    /// compiler cannot lower yet reports its plan gap: the construct at its
+    /// source span, as an `Incomplete` coverage provision.
     pub fn diagnostic(&self) -> Diagnostic {
-        Diagnostic::error(self.diagnostic_message())
-    }
-
-    /// Report the production verdict without making a consumer classify a
-    /// lowerer's private failures.
-    pub fn diagnostic_message(&self) -> String {
-        if let Some(report) = self.unimplemented_report() {
-            return report.to_owned();
-        }
-        format!("terminal-artifact production failed: {self}")
-    }
-
-    /// The `unimplemented:` report of a refusal caused by a missing
-    /// compiler route rather than by the program, when this is one.
-    pub fn unimplemented_report(&self) -> Option<&str> {
         match self {
-            Self::Lowering(error) => error.unimplemented_report(),
+            Self::Lowering(error) => error.plan_gap().cloned(),
             _ => None,
         }
+        .unwrap_or_else(|| Diagnostic::error(format!("terminal-artifact production failed: {self}")))
     }
 }
 

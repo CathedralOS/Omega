@@ -10,6 +10,7 @@ name = "checked_trees_to_lowered_psi"
 path = "src/lib.rs"
 
 [dependencies]
+diagnostics = { path = "../../../foundation/diagnostics" }
 lowered-psi = { path = "../../representations/lowered-psi" }
 arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }

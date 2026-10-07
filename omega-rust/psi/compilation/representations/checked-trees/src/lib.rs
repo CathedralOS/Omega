@@ -137,7 +137,7 @@ pub use checked_trees::{
     CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitPlan, CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage,
+    CheckedUnitPlan, CheckedUnitPlanGap, CheckedUnitPlanGapReason,
     CheckedUnitScalarControlPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralCasePlan, CheckedUnitStructuralDomainPlan,

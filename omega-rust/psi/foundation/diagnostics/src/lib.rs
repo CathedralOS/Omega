@@ -14,6 +14,6 @@ mod diagnostic;
 mod phase_snapshot;
 mod reporter;
 
-pub use diagnostic::{Diagnostic, DiagnosticSeverity, ExceededProvision};
+pub use diagnostic::{CoverageForm, Diagnostic, DiagnosticSeverity, ExceededProvision};
 pub use phase_snapshot::PhaseSnapshot;
 pub use reporter::format_diagnostics;

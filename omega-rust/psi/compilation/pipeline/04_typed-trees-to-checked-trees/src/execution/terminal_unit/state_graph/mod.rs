@@ -334,9 +334,9 @@ pub(super) fn build_traced(
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
     let mut state_requires = Vec::new();
-    for (state_index, &(owner, state)) in fused.iter().enumerate() {
+    for &(owner, state) in fused.iter() {
         trace.phase("state graph: state signature: result and contracts");
-        trace.state(u32::try_from(state_index).ok());
+        trace.state(Some(state.symbol));
         if returns::signature(program, shapes, state.return_type)? != result {
             trace.phase("state graph: state signature: result differs");
             return None;
@@ -428,7 +428,7 @@ pub(super) fn build_traced(
     let mut planned = Vec::new();
     for (state_index, &(owner, state)) in fused.iter().enumerate() {
         trace.phase("state graph: prefix initializers");
-        trace.state(u32::try_from(state_index).ok());
+        trace.state(Some(state.symbol));
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
         // A body containing structural bindings is not a scalar-only prefix.
@@ -686,7 +686,7 @@ pub(super) fn build_traced(
         if !live_states[state_index] {
             continue;
         }
-        trace.state(u32::try_from(state_index).ok());
+        trace.state(Some(state.symbol));
         for (parameter_index, parameter) in planned[state_index]
             .structural_parameters
             .iter()

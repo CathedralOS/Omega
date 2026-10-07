@@ -34,14 +34,13 @@
 //! own availability checks. Only after
 //! pruning do we retain the referenced structural types and their transitive shapes.
 //!
-//! When a downstream error says a checked transitive machine plan is missing,
-//! read the record's `omissions` roster first: every checked-body machine without
-//! a plan carries the stage that dropped it (local construction,
-//! builder overlap, or closure pruning with the direct dependency
-//! that was unavailable). Following the closure rows reaches the machine whose own
-//! body failed local construction; the Option-based builders still do not retain
-//! which local requirement failed there, so that machine's body is where to look
-//! before changing lowering.
+//! Every checked-body machine left without a plan carries one gap
+//! (`plan_gaps.rs`): the construct its builder could not lower, the cleanup a
+//! state owed, or the call whose callee has no body, at its authored span.
+//! Lowering and entry establishment report the gap of a body they demand,
+//! following callee gaps to the construct that removed the chain. The
+//! builders still return `Option`; the construction trace names the phase
+//! and statement where they stopped.
 //!
 //! Partial and nominal cleanup retain separate plan owners because their
 //! residual fields and destructor obligations cannot become trivial root discards.
@@ -104,6 +103,7 @@ use crate::execution::terminal_unit::control::{
     LocalConstructionTrace, build_boundary_machine, build_checked_machine_traced,
     build_static_boundary_requirements,
 };
+use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
 use crate::execution::terminal_unit::types::ShapeCollector;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -136,7 +136,7 @@ use checked_trees::{
     CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitPlanGap, CheckedUnitPlanGapReason, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
@@ -168,6 +168,7 @@ mod candidate_closure;
 pub(crate) mod cleanup;
 mod composed_control;
 pub(crate) mod control;
+pub(crate) mod plan_gaps;
 mod providers;
 mod receiver_aliases;
 use validation::reference_result_custody as reference_results;
@@ -217,7 +218,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         .map(|plan| plan.machine)
         .collect::<Vec<_>>();
     let mut candidates = Vec::new();
-    let mut local_construction = BTreeMap::new();
+    let mut sequence_gaps = BTreeMap::new();
     for machine in program
         .machines()
         .iter()
@@ -237,18 +238,21 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         ) {
             Some(plan) => candidates.push(plan),
             None => {
-                local_construction.insert(omission_key(machine.symbol), trace.stage());
+                sequence_gaps.insert(
+                    gap_key(machine.symbol),
+                    (trace.phase_name(), trace.gap(program, machine.symbol)),
+                );
             }
         }
     }
-    let mut composed_construction = BTreeMap::new();
+    let mut graph_gaps = BTreeMap::new();
     let mut composed_machines = build_checked_composed_unit_control_machines_traced(
         program,
         facts,
         scalar_callees,
         &mut shapes,
         call_frames,
-        &mut composed_construction,
+        &mut graph_gaps,
     );
     let targets = candidates
         .iter()
@@ -302,10 +306,10 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         })
         .collect::<Vec<_>>();
 
-    let mut omissions = OmissionLedger::new(
+    let mut gaps = construction_gaps(
         program,
-        &local_construction,
-        &composed_construction,
+        &sequence_gaps,
+        &graph_gaps,
         &candidates,
         &composed_machines,
     );
@@ -353,47 +357,74 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                         state.state,
                         &state.structural_parameters,
                         &state.operations,
-                    )?;
+                    )
+                    .ok_or((state.state, "temporary cleanup actions"))?;
                     let normal = cleanup::normal_edges::state_cleanups(
                         program,
                         facts,
                         &targets,
                         &mut shapes,
                         state,
-                    )?;
-                    Some((temporary, normal))
+                    )
+                    .ok_or((state.state, "normal-exit cleanup"))?;
+                    Ok((temporary, normal))
                 })
-                .collect::<Option<Vec<_>>>()
+                .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Vec<_>>()
         .into_iter();
     drop(targets);
-    composed_machines.retain_mut(|plan| {
-        let Some(Some(selected)) = composed_selections.next() else {
-            return false;
-        };
-        for (state, (selected, normal)) in plan.states.iter_mut().zip(selected) {
-            cleanup::temporary_actions::install(&mut state.operations, selected);
-            state.normal_exit_cleanups = normal;
+    // A body dropped here keeps the cleanup refusal of the state that owed it.
+    // A machine whose other body survives has no gap.
+    let mut cleanup_gaps = BTreeMap::new();
+    composed_machines.retain_mut(|plan| match composed_selections.next() {
+        Some(Ok(selected)) => {
+            for (state, (selected, normal)) in plan.states.iter_mut().zip(selected) {
+                cleanup::temporary_actions::install(&mut state.operations, selected);
+                state.normal_exit_cleanups = normal;
+            }
+            true
         }
-        true
+        Some(Err((state, construct))) => {
+            cleanup_gaps
+                .entry(gap_key(plan.machine))
+                .or_insert_with(|| {
+                    plan_gap(
+                        program,
+                        plan.machine,
+                        GapSite::State(state),
+                        CheckedUnitPlanGapReason::Unsupported(construct),
+                    )
+                });
+            false
+        }
+        None => false,
     });
-    candidates.retain_mut(|plan| {
-        let Some(Some(selected)) = temporary_selections.next() else {
-            return false;
-        };
-        cleanup::temporary_actions::install(&mut plan.operations, selected);
-        true
+    candidates.retain_mut(|plan| match temporary_selections.next() {
+        Some(Some(selected)) => {
+            cleanup::temporary_actions::install(&mut plan.operations, selected);
+            true
+        }
+        _ => {
+            cleanup_gaps
+                .entry(gap_key(plan.machine))
+                .or_insert_with(|| {
+                    plan_gap(
+                        program,
+                        plan.machine,
+                        GapSite::State(plan.state),
+                        CheckedUnitPlanGapReason::Unsupported("temporary cleanup actions"),
+                    )
+                });
+            false
+        }
     });
-    // Attribute the cleanup-planning drop before overlap resolution runs, so
-    // a row names the one stage that removed the machine. Overlap resolution
-    // below only chooses between two descriptions of the same entry; a
-    // machine it leaves with neither keeps the closure stage's
-    // competing-candidate row.
-    omissions.record_dropped(
-        &candidates,
-        &composed_machines,
-        CheckedUnitPlanOmissionStage::NormalExitCleanup,
+    let planned = planned_machines(&candidates, &composed_machines);
+    gaps.extend(
+        cleanup_gaps
+            .into_iter()
+            .filter(|(key, _)| !planned.contains(key))
+            .map(|(_, gap)| gap),
     );
     // Prefer a complete general state graph when both builders describe the
     // same structural-result body, including a returned parameter or call.
@@ -443,7 +474,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         })
     });
 
-    let closure_omissions = candidate_closure::retain_available(
+    let closure_gaps = candidate_closure::retain_available(
         program,
         facts,
         scalar_callees,
@@ -452,7 +483,8 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &mut composed_machines,
         &nominal_cleanup_edges,
     );
-    omissions.record_closure(&candidates, &composed_machines, closure_omissions);
+    gaps.extend(closure_gaps);
+    gaps.sort_by_key(|gap| gap_key(gap.machine));
     // Closure admission is final: do not delete a callee because it also has
     // a specialized return plan. Ordinary and composed callers consume the
     // same exact executable entry, including a body containing only Complete.
@@ -850,165 +882,74 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         boundary_machines,
         machines: candidates,
         composed_machines,
-        omissions: omissions.into_rows(),
+        gaps,
     }
 }
 
-/// Omission evidence gathered while the roster is built: which checked-body
-/// machines never received a body, and which admitted bodies each later stage
-/// dropped. Rows are diagnostic; they never reinstate a body.
-struct OmissionLedger {
-    rows: Vec<CheckedUnitPlanOmission>,
-    named: BTreeSet<(u32, u32)>,
-    admitted: BTreeSet<(u32, u32)>,
-}
-
-fn omission_key(symbol: SymbolHandle) -> (u32, u32) {
+fn gap_key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
-impl OmissionLedger {
-    fn new(
-        program: &TypedTrees,
-        local_construction: &BTreeMap<(u32, u32), CheckedUnitPlanOmissionStage>,
-        composed_construction: &BTreeMap<(u32, u32), CheckedUnitPlanOmissionStage>,
-        candidates: &[CheckedUnitEffectMachinePlan],
-        composed_machines: &[CheckedComposedUnitControlMachinePlan],
-    ) -> Self {
-        let admitted = Self::planned(candidates, composed_machines);
-        let mut ledger = Self {
-            rows: Vec::new(),
-            named: BTreeSet::new(),
-            admitted,
-        };
-        let unplanned = program
-            .machines()
-            .iter()
-            // Same roster as the candidate scan above: a bodied `boundary
-            // machine` adapter competes as an ordinary candidate, so its
-            // local-construction failure must name a row too.
-            .filter(|machine| machine.supplies_checked_body())
-            .filter(|machine| !ledger.admitted.contains(&omission_key(machine.symbol)))
-            .map(|machine| machine.symbol)
-            .collect::<Vec<_>>();
-        for machine in unplanned {
-            // A multi-state body never reaches the ordinary builder's later
-            // phases; the general state-graph route's trace explains it.
-            let key = omission_key(machine);
-            // Authored transitions belong to the general graph even in a
-            // single state. Its refusal names the actual control/value join;
-            // an ordinary sequence's generic completion refusal does not.
-            let has_transition = program.machine_by_symbol(machine).is_some_and(|owner| {
-                program.machine_states(owner).iter().any(|state| {
-                    program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .iter()
-                        .any(|statement| {
-                            matches!(
-                                statement,
-                                typed_trees::statement::StatementNode::Transition(_)
-                            )
-                        })
-                })
-            });
-            let preferred = if has_transition {
-                None
-            } else {
-                local_construction.get(&key)
-            };
-            let stage = match preferred {
-                Some(CheckedUnitPlanOmissionStage::LocalConstruction {
-                    phase: "single-state body",
-                    ..
-                })
-                | None => composed_construction.get(&key).copied().unwrap_or(
-                    CheckedUnitPlanOmissionStage::LocalConstruction {
-                        phase: "composed control",
-                        state_index: None,
-                        statement_index: None,
-                    },
-                ),
-                Some(stage) => *stage,
-            };
-            ledger.name(CheckedUnitPlanOmission { machine, stage });
-        }
-        ledger
-    }
+fn planned_machines(
+    candidates: &[CheckedUnitEffectMachinePlan],
+    composed_machines: &[CheckedComposedUnitControlMachinePlan],
+) -> BTreeSet<(u32, u32)> {
+    candidates
+        .iter()
+        .map(|plan| gap_key(plan.machine))
+        .chain(composed_machines.iter().map(|plan| gap_key(plan.machine)))
+        .collect()
+}
 
-    fn planned(
-        candidates: &[CheckedUnitEffectMachinePlan],
-        composed_machines: &[CheckedComposedUnitControlMachinePlan],
-    ) -> BTreeSet<(u32, u32)> {
-        candidates
-            .iter()
-            .map(|plan| omission_key(plan.machine))
-            .chain(
-                composed_machines
+/// The gap of each checked-body machine neither builder admitted. Authored
+/// transitions belong to the general graph even in a single state, and a
+/// multi-state body never reaches the sequence builder's later phases: the
+/// graph builder's refusal names the actual control or value join there. A
+/// single-state body without transitions keeps the sequence builder's own
+/// refusal.
+fn construction_gaps(
+    program: &TypedTrees,
+    sequence_gaps: &BTreeMap<(u32, u32), (&'static str, CheckedUnitPlanGap)>,
+    graph_gaps: &BTreeMap<(u32, u32), CheckedUnitPlanGap>,
+    candidates: &[CheckedUnitEffectMachinePlan],
+    composed_machines: &[CheckedComposedUnitControlMachinePlan],
+) -> Vec<CheckedUnitPlanGap> {
+    let planned = planned_machines(candidates, composed_machines);
+    program
+        .machines()
+        .iter()
+        // Same roster as the candidate scan: a bodied `boundary machine`
+        // adapter competes as an ordinary candidate, so its construction
+        // refusal must name a gap too.
+        .filter(|machine| machine.supplies_checked_body())
+        .filter(|machine| !planned.contains(&gap_key(machine.symbol)))
+        .map(|machine| {
+            let key = gap_key(machine.symbol);
+            let has_transition = program.machine_states(machine).iter().any(|state| {
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
                     .iter()
-                    .map(|plan| omission_key(plan.machine)),
-            )
-            .collect()
-    }
-
-    /// The first row for a machine wins; later stages cannot rename it.
-    fn name(&mut self, row: CheckedUnitPlanOmission) {
-        if self.named.insert(omission_key(row.machine)) {
-            self.rows.push(row);
-        }
-    }
-
-    /// Every previously admitted machine that no longer has a body left at
-    /// `stage`.
-    fn record_dropped(
-        &mut self,
-        candidates: &[CheckedUnitEffectMachinePlan],
-        composed_machines: &[CheckedComposedUnitControlMachinePlan],
-        stage: CheckedUnitPlanOmissionStage,
-    ) {
-        let planned = Self::planned(candidates, composed_machines);
-        let dropped = self
-            .admitted
-            .difference(&planned)
-            .copied()
-            .collect::<Vec<_>>();
-        for (arena_index, generation) in dropped {
-            self.name(CheckedUnitPlanOmission {
-                machine: SymbolHandle::from_parts(arena_index, generation),
-                stage,
+                    .any(|statement| {
+                        matches!(
+                            statement,
+                            typed_trees::statement::StatementNode::Transition(_)
+                        )
+                    })
             });
-        }
-        self.admitted = planned;
-    }
-
-    /// Closure pruning reports its own rows; a machine it did not name but
-    /// that still vanished was one of two competing bodies for one entry --
-    /// either the ordinary/composed overlap resolution left it with neither
-    /// description, or closure pruning removed both.
-    fn record_closure(
-        &mut self,
-        candidates: &[CheckedUnitEffectMachinePlan],
-        composed_machines: &[CheckedComposedUnitControlMachinePlan],
-        closure_omissions: Vec<CheckedUnitPlanOmission>,
-    ) {
-        let planned = Self::planned(candidates, composed_machines);
-        for row in closure_omissions {
-            if !planned.contains(&omission_key(row.machine)) {
-                self.name(row);
+            match sequence_gaps.get(&key) {
+                Some((phase, gap)) if !has_transition && *phase != "single-state body" => *gap,
+                _ => graph_gaps.get(&key).copied().unwrap_or_else(|| {
+                    plan_gap(
+                        program,
+                        machine.symbol,
+                        GapSite::Machine,
+                        CheckedUnitPlanGapReason::Unsupported("composed control"),
+                    )
+                }),
             }
-        }
-        self.record_dropped(
-            candidates,
-            composed_machines,
-            CheckedUnitPlanOmissionStage::CompetingCandidates,
-        );
-    }
-
-    fn into_rows(mut self) -> Vec<CheckedUnitPlanOmission> {
-        self.rows
-            .sort_by_key(|row| (row.machine.arena_index(), row.machine.generation()));
-        self.rows
-    }
+        })
+        .collect()
 }
 
 /// Build the checked front of direct-record path-sensitive affine cleanup.

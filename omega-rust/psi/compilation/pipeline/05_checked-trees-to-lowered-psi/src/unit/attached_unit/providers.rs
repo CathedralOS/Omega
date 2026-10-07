@@ -41,7 +41,11 @@ fn callable_candidate<'program>(
         LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
             machine: machine.name.as_str().to_owned(),
             reason,
-            omission: crate::unit::unit_plan_omission_explanation(checked, machine.symbol),
+            gap: checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .gap_diagnostic(machine.symbol, &checked.symbols),
         },
         error => error,
     })

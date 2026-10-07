@@ -577,8 +577,13 @@ def jev_advise(diffs: list) -> None:
 
 # Status ranks for the pass/run tiers: built means the artifact exists,
 # checked means compilation succeeded, anything else is a non-movement
-# floor. Fail tiers invert the goal: rejected is success there.
+# floor. Fail tiers invert the goal: refusing is success there.
 STATUS_RANK = {"built": 3, "checked": 2}
+
+# A fail fixture is pinned when the compiler refuses it: a rejection, or an
+# Incomplete coverage refusal for a body this compiler cannot lower yet. Its
+# expected fragment, checked separately, names which refusal it pins.
+REFUSALS = ("rejected", "incomplete")
 
 
 def classify(before: dict | None, after: dict | None) -> tuple[str, list[str]]:
@@ -599,12 +604,14 @@ def classify(before: dict | None, after: dict | None) -> tuple[str, list[str]]:
     tier = after["tier"]
     old_status, new_status = before["status"], after["status"]
     if tier == "fail":
-        # rejected is the goal here; a fail fixture that stopped rejecting
-        # is a soundness regression, never an improvement.
-        if old_status == "rejected" and new_status != "rejected":
+        # Refusal is the goal here; a fail fixture that stopped refusing is a
+        # soundness regression, never an improvement.
+        if old_status in REFUSALS and new_status not in REFUSALS:
             regressed.append("fail fixture stopped rejecting")
-        elif old_status != "rejected" and new_status == "rejected":
+        elif old_status not in REFUSALS and new_status in REFUSALS:
             improved.append(f"status {old_status} -> {new_status}")
+        elif old_status != new_status:
+            moved.append(f"status {old_status} -> {new_status}")
     else:
         old_rank = STATUS_RANK.get(old_status, 0)
         new_rank = STATUS_RANK.get(new_status, 0)

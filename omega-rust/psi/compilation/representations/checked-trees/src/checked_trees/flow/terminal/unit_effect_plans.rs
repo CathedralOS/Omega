@@ -18,8 +18,10 @@ use crate::{
     CheckedStructuralCaseFieldStorePlan, CheckedStructuralCaseLiteralFieldStorePlan,
     CheckedStructuralScalarFieldStorePlan,
 };
+use diagnostics::{CoverageForm, Diagnostic};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
-use symbols::SymbolHandle;
+use source::SourceSpan;
+use symbols::{SymbolHandle, SymbolTable};
 use typed_trees::types::PrimitiveType;
 
 /// Cleanup follows an evaluated call, retires an assignment's old value after
@@ -44,55 +46,36 @@ pub struct CheckedUnitEffectPlans {
     /// Multi-state Unit machines whose exact control and effect rows were
     /// admitted as one atomic executable plan.
     pub composed_machines: Vec<CheckedComposedUnitControlMachinePlan>,
-    /// One row per checked-body machine that has neither an ordinary nor a
-    /// composed plan, naming the stage that omitted it and, for closure
-    /// pruning, the direct dependency that was unavailable. Rows are
-    /// diagnostic evidence for the producer that later reports a missing
-    /// transitive plan; they grant nothing and select no fallback body.
-    pub omissions: Vec<CheckedUnitPlanOmission>,
+    /// One row per checked-body machine without an executable Unit plan: the
+    /// construct plan construction could not lower, at its authored site, or
+    /// the call whose callee has no body. A gap is reported only where
+    /// lowering or entry establishment demands that body
+    /// ([`Self::gap_diagnostic`]); it grants nothing and selects no fallback.
+    pub gaps: Vec<CheckedUnitPlanGap>,
 }
 
-/// Why one checked-body machine has no Unit plan. `machine` never appears in
-/// `machines` or `composed_machines` of the same record.
+/// Why one checked-body machine has no executable Unit plan. `machine` never
+/// appears in `machines` or `composed_machines` of the same record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckedUnitPlanOmission {
+pub struct CheckedUnitPlanGap {
     pub machine: SymbolHandle,
-    pub stage: CheckedUnitPlanOmissionStage,
+    pub reason: CheckedUnitPlanGapReason,
+    /// The authored construct or call the reason names. A compiler-generated
+    /// site keeps its enclosing state's or machine's declaration span.
+    pub source_span: SourceSpan,
+    /// The coverage provision a demand for this body exceeds.
+    pub coverage: CoverageForm,
 }
 
-/// The planning stage at which a machine left the Unit plan roster. Closure
-/// stages name the direct dependency that was unavailable; following
-/// `UnavailableCallee` rows through the same record reaches the machine whose
-/// own body failed local construction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedUnitPlanOmissionStage {
-    /// No ordinary or composed builder admitted the machine's own body.
-    /// `phase` names the last phase the ordinary builder (single-state
-    /// bodies) or the general state-graph builder (multi-state bodies)
-    /// entered before it gave up, `state_index` the state and
-    /// `statement_index` the statement it was planning, when known.
-    LocalConstruction {
-        phase: &'static str,
-        state_index: Option<u32>,
-        statement_index: Option<u32>,
-    },
-    /// The body was admitted, then dropped because one of its states had no
-    /// normal-exit cleanup plan: nothing could describe the affine cleanup
-    /// every normal edge out of that state owes.
-    NormalExitCleanup,
-    /// Two builders described the same entry and neither survived the
-    /// overlap resolution.
-    CompetingCandidates,
-    /// A composed body used an operation outside the composed vocabulary.
-    ComposedVocabulary,
-    /// A Unit, structural, or ordinary scalar call targets a machine that has
-    /// no admitted body in the roster.
-    UnavailableCallee { target: SymbolHandle },
-    /// A boundary call targets a machine with no boundary plan.
-    MissingBoundaryTarget { target: SymbolHandle },
-    /// A scalar call has neither a registered scalar target nor an ordinary
-    /// body to borrow.
-    UnavailableScalarTarget { target: SymbolHandle },
+pub enum CheckedUnitPlanGapReason {
+    /// Plan construction has no lowering for this construct yet; the text
+    /// names the construct, outermost first.
+    Unsupported(&'static str),
+    /// The body calls `target`, which has no executable body of its own.
+    Callee(SymbolHandle),
+    /// The body calls boundary `target`, which has no boundary plan.
+    BoundaryTarget(SymbolHandle),
 }
 
 impl CheckedUnitEffectPlans {
@@ -130,9 +113,82 @@ impl CheckedUnitEffectPlans {
             .find(|plan| plan.machine == machine)
     }
 
-    /// The omission row for a machine that has no plan in this record.
-    pub fn omission_for_machine(&self, machine: SymbolHandle) -> Option<&CheckedUnitPlanOmission> {
-        self.omissions.iter().find(|row| row.machine == machine)
+    /// The gap row for a machine that has no plan in this record.
+    pub fn gap_for_machine(&self, machine: SymbolHandle) -> Option<&CheckedUnitPlanGap> {
+        self.gaps.iter().find(|row| row.machine == machine)
+    }
+
+    /// The refusal for demanding `machine`'s body when it has none. Callee
+    /// rows are followed to the body whose own construct is unsupported; the
+    /// diagnostic sits at that construct and names the call chain from
+    /// `machine`. A chain that returns to a machine it already passed stops
+    /// at the cycle. `None` when the record names no gap for `machine`.
+    pub fn gap_diagnostic(
+        &self,
+        machine: SymbolHandle,
+        symbols: &SymbolTable,
+    ) -> Option<Diagnostic> {
+        let name = |symbol: SymbolHandle| symbols.display_path(symbol, "::");
+        let mut gap = self.gap_for_machine(machine)?;
+        let mut chain = vec![machine];
+        while let CheckedUnitPlanGapReason::Callee(target) = gap.reason {
+            let Some(next) = self.gap_for_machine(target) else {
+                break;
+            };
+            if chain.contains(&target) {
+                break;
+            }
+            chain.push(target);
+            gap = next;
+        }
+        let construct = match gap.coverage {
+            CoverageForm::MachineHeader => "its declaration",
+            CoverageForm::EntrySignature => "its signature",
+            CoverageForm::StateSignature => "a state",
+            CoverageForm::StatementForm => "a statement",
+            CoverageForm::CallForm => "a call",
+            CoverageForm::ExpressionForm => "an expression",
+            CoverageForm::TransitionForm => "a transition",
+        };
+        let reason = match gap.reason {
+            CheckedUnitPlanGapReason::Unsupported(detail) => format!(
+                "`{}` has no executable body: this compiler does not lower {construct} of it yet ({detail})",
+                name(gap.machine)
+            ),
+            // The chain ended at a callee without a gap row of its own: it
+            // has a body, but none this call can use (a scalar body this
+            // call shape cannot enter, say).
+            CheckedUnitPlanGapReason::Callee(target) => format!(
+                "`{}` has no executable body: its call of `{}` reaches no executable callee plan",
+                name(gap.machine),
+                name(target)
+            ),
+            CheckedUnitPlanGapReason::BoundaryTarget(target) => format!(
+                "`{}` has no executable body: it calls boundary `{}`, which has no boundary plan",
+                name(gap.machine),
+                name(target)
+            ),
+        };
+        let message = if chain.len() == 1 {
+            reason
+        } else {
+            format!(
+                "`{}` calls {}; {reason}",
+                name(machine),
+                chain[1..]
+                    .iter()
+                    .map(|symbol| format!("`{}`", name(*symbol)))
+                    .collect::<Vec<_>>()
+                    .join(", which calls ")
+            )
+        };
+        Some(
+            Diagnostic::incomplete(
+                message,
+                gap.coverage.exceeded(gap.source_span.span.start as u64),
+            )
+            .with_source_span(gap.source_span),
+        )
     }
 }
 

@@ -3,6 +3,7 @@
 //! Unsupported constructs fail closed with a static reason; structured
 //! variants retain the identity a caller needs to report or test the refusal.
 
+use diagnostics::Diagnostic;
 use language_semantics::PermissionClaimIdentity;
 use semantic_vocabulary::{
     ContentProjectionIdentity, PlaceId, PropositionError, StructuralPlaceKind,
@@ -25,10 +26,10 @@ pub enum LoweringError {
     InvalidUnitMachinePlan {
         machine: String,
         reason: &'static str,
-        /// Why the checked stage left the named machine (or the machine its
-        /// closure reached) without a Unit plan, rendered from the checked
-        /// record's omission roster when that roster names it.
-        omission: Option<String>,
+        /// The checked gap of the named machine (or of the body its call
+        /// chain reached first without one): the unsupported construct at its
+        /// source span, when the checked record names one.
+        gap: Option<Diagnostic>,
     },
     Unsupported(&'static str),
     /// A borrowed-storage restoration window the checked facts do not pin to
@@ -100,15 +101,11 @@ pub enum LoweringError {
 }
 
 impl LoweringError {
-    /// The `unimplemented:` report when a Unit plan is missing because the
-    /// compiler has no route for what the body does, not because the body is
-    /// invalid.
-    pub fn unimplemented_report(&self) -> Option<&str> {
+    /// The refusal for a body this compiler cannot lower yet, reported at the
+    /// unsupported construct's source span rather than as this lowering error.
+    pub fn plan_gap(&self) -> Option<&Diagnostic> {
         match self {
-            Self::InvalidUnitMachinePlan {
-                omission: Some(omission),
-                ..
-            } if omission.starts_with("unimplemented:") => Some(omission),
+            Self::InvalidUnitMachinePlan { gap: Some(gap), .. } => Some(gap),
             _ => None,
         }
     }

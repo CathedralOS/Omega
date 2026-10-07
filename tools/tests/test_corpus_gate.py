@@ -141,6 +141,15 @@ class Classify(unittest.TestCase):
         self.assertEqual(reasons, ["fail fixture stopped rejecting"])
         self.assertEqual(self.verdict(checked, rejected)[0], "improved")
 
+    def test_fail_tier_incomplete_is_a_refusal(self):
+        rejected = record("fail/a/x", status="rejected")
+        incomplete = record("fail/a/x", status="incomplete")
+        checked = record("fail/a/x", status="checked")
+        self.assertEqual(self.verdict(rejected, incomplete),
+                         ("moved", ["status rejected -> incomplete"]))
+        self.assertEqual(self.verdict(incomplete, checked),
+                         ("regressed", ["fail fixture stopped rejecting"]))
+
     def test_expected_fragment_flip(self):
         satisfied = record("fail/a/x", status="rejected", expected=True)
         wrong = record("fail/a/x", status="rejected", expected=False)

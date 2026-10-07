@@ -34,6 +34,46 @@ pub struct ExceededProvision {
     pub coordinate: u64,
 }
 
+/// The compiler request's coverage provisions (scalar-resource codes 17 to
+/// 23): a valid construct this compiler does not implement yet. Each has limit
+/// zero and is anchored at the first canonical-source byte of the refused
+/// construct, so a refusal at one names no verdict on the source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CoverageForm {
+    MachineHeader,
+    EntrySignature,
+    StateSignature,
+    StatementForm,
+    CallForm,
+    ExpressionForm,
+    TransitionForm,
+}
+
+impl CoverageForm {
+    /// The resource name the outcome table publishes.
+    pub const fn resource(self) -> &'static str {
+        match self {
+            Self::MachineHeader => "coverage_machine_headers",
+            Self::EntrySignature => "coverage_entry_signatures",
+            Self::StateSignature => "coverage_state_signatures",
+            Self::StatementForm => "coverage_statement_forms",
+            Self::CallForm => "coverage_call_forms",
+            Self::ExpressionForm => "coverage_expression_forms",
+            Self::TransitionForm => "coverage_transition_forms",
+        }
+    }
+
+    /// One refused construct starting at canonical-source byte `first_byte`.
+    pub const fn exceeded(self, first_byte: u64) -> ExceededProvision {
+        ExceededProvision {
+            resource: self.resource(),
+            limit: 0,
+            requested: 1,
+            coordinate: first_byte,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticSeverity {
     Error,

@@ -11,9 +11,9 @@
 //! then rejects the entry for the missing Fused selection.
 
 use super::{
-    CheckedTrees, CheckedUnitPlanOmissionStage, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypeShape, CompositionMode, DataDefinition, DataField, DataMember,
-    Diagnostic, SelectedProviderReviewProvenance, data_field_identity,
+    CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, CompositionMode,
+    DataDefinition, DataField, DataMember, Diagnostic, SelectedProviderReviewProvenance,
+    data_field_identity,
 };
 use checked_trees::{CheckedUnitStructuralFieldPlan, CheckedUnitStructuralTypePlan};
 use typed_trees::service::ExactServiceCarrier;
@@ -227,22 +227,19 @@ pub fn derive_fused_program_entry_establishments(
         )
         .collect::<Vec<_>>();
     let [attachment_type_identity] = attachment_identities.as_slice() else {
-        let mut message = format!(
-            "selected ProgramEntry establishment rejoins {} Terminal context identities; expected one",
-            attachment_identities.len(),
-        );
-        if let Some(omission) = checked
+        // An entry with no plan reports the construct that removed it.
+        if let Some(gap) = checked
             .facts
             .flow
             .terminal_unit_effects
-            .omission_for_machine(machine.symbol)
+            .gap_diagnostic(machine.symbol, &checked.symbols)
         {
-            message.push_str(&format!(
-                "; the machine's unit plan was omitted at {}",
-                describe_omission_chain(checked, omission.stage),
-            ));
+            return Err(vec![gap]);
         }
-        return Err(vec![Diagnostic::error(message)]);
+        return Err(vec![Diagnostic::error(format!(
+            "selected ProgramEntry establishment rejoins {} Terminal context identities; expected one",
+            attachment_identities.len(),
+        ))]);
     };
 
     let structural_types = checked
@@ -526,93 +523,6 @@ fn checked_field_for_path<'a>(
         };
     }
     Err("route has no field segments".to_owned())
-}
-
-/// The unit-effects omission ledger already records where a machine left the
-/// plan roster; surface that stage so an empty establishment rejoin names the
-/// plan admission failure rather than only its count.
-///
-/// A caller dropped for an unavailable callee is one hop from its own reason:
-/// the callee has its own ledger row, and reporting only "unavailable callee
-/// `X`" sends the reader to X's body, which is usually fine. Follow the chain
-/// instead and name the reason the roster actually recorded. `seen` bounds the
-/// walk, so a dependency cycle reports the hops it made rather than looping.
-fn describe_omission_chain(checked: &CheckedTrees, stage: CheckedUnitPlanOmissionStage) -> String {
-    let mut description = describe_omission_stage(checked, stage);
-    let mut seen: Vec<Option<symbols::SymbolHandle>> = vec![omission_target(stage)];
-    let mut current = stage;
-    while let Some(target) = omission_target(current) {
-        let Some(next) = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .omission_for_machine(target)
-        else {
-            break;
-        };
-        description.push_str(&format!(
-            ", which was itself omitted at {}",
-            describe_omission_stage(checked, next.stage),
-        ));
-        let following = omission_target(next.stage);
-        if following.is_some() && seen.contains(&following) {
-            description.push_str(" (dependency cycle)");
-            break;
-        }
-        seen.push(following);
-        current = next.stage;
-    }
-    description
-}
-
-/// The machine an omission stage blames, when it blames one. These are the
-/// stages whose reason lives in another machine's ledger row.
-fn omission_target(stage: CheckedUnitPlanOmissionStage) -> Option<symbols::SymbolHandle> {
-    match stage {
-        CheckedUnitPlanOmissionStage::UnavailableCallee { target }
-        | CheckedUnitPlanOmissionStage::MissingBoundaryTarget { target }
-        | CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target } => Some(target),
-        _ => None,
-    }
-}
-
-fn describe_omission_stage(checked: &CheckedTrees, stage: CheckedUnitPlanOmissionStage) -> String {
-    match stage {
-        CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase,
-            state_index,
-            statement_index,
-        } => match (state_index, statement_index) {
-            (Some(state_index), Some(statement_index)) => format!(
-                "local construction at `{phase}` (state {state_index}, statement {statement_index})",
-            ),
-            (Some(state_index), None) => {
-                format!("local construction at `{phase}` (state {state_index})")
-            }
-            _ => format!("local construction at `{phase}`"),
-        },
-        CheckedUnitPlanOmissionStage::NormalExitCleanup => {
-            "normal-exit cleanup planning".to_owned()
-        }
-        CheckedUnitPlanOmissionStage::CompetingCandidates => {
-            "competing-candidate overlap resolution".to_owned()
-        }
-        CheckedUnitPlanOmissionStage::ComposedVocabulary => {
-            "composed vocabulary admission".to_owned()
-        }
-        CheckedUnitPlanOmissionStage::UnavailableCallee { target } => format!(
-            "an unavailable callee (`{}`)",
-            checked.symbols.display_path(target, "::"),
-        ),
-        CheckedUnitPlanOmissionStage::MissingBoundaryTarget { target } => format!(
-            "a missing boundary target (`{}`)",
-            checked.symbols.display_path(target, "::"),
-        ),
-        CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target } => format!(
-            "an unavailable scalar target (`{}`)",
-            checked.symbols.display_path(target, "::"),
-        ),
-    }
 }
 
 fn unconstrained_type_identity(

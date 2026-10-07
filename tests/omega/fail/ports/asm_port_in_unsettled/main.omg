@@ -1,7 +1,7 @@
 // `in` resolves its declared `u8` result type, but no checked unit operation
-// arm exists for a port read yet: the machine is omitted at the
-// `call: call operation` planning phase rather than carrying a settled port
-// effect into the artifact.
+// arm exists for a port read yet: the machine reports an Incomplete plan gap
+// at the call's planning phase rather than carrying a settled port effect
+// into the artifact.
 use omega::language::core::assembly;
 
 data Main {

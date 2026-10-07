@@ -3,8 +3,8 @@
 // lends it to `inspect`, and observes the read through the process exit
 // code. Admission is closed until call-bound custody can supply the call's
 // `view` argument from the caller's own input -- the checked unit plan for
-// `main` has no source plan for that argument, so establishment finds no
-// Terminal attachment and refuses before native input admission runs.
+// `main` has no source plan for that argument, so establishment reports that
+// plan gap as an Incomplete refusal before native input admission runs.
 use omega::language::core::layout;
 use omega_language_std::console;
 use omega::language::core::binding;

@@ -450,8 +450,8 @@ fail/build/package_local_calling_copy rejected 72ms expected @c3ad5f6e051f+wt
 	duplicate data `BoundaryEntryPlan`
 	duplicate data `CallingPolicyRejection`
 	duplicate data `BoundaryPlanResult`
-fail/build/placed_view_program_entry_input rejected 3197ms expected @c47f8652484
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`inspect`)
+fail/build/placed_view_program_entry_input incomplete 2781ms expected @47d3b5bbd8c+wt
+	`Main::main` has no executable body: its call of `inspect` reaches no executable callee plan
 fail/build/product_description_forged_provider_path rejected 387ms expected @5d467687f505+wt
 	build-time evaluation of `build` failed: product-provider path access requires a compiler-issued ProductProviderRef
 fail/build/product_description_forged_schema_path rejected 385ms expected @5d467687f505+wt
@@ -1326,8 +1326,8 @@ fail/parse/machine_clause_garbage_rejected rejected 0ms expected @3a2d2f7aa797+w
 	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:22: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
 fail/parser/nesting_exceeds_max_depth rejected 1ms expected @c08960bee2b1+wt
 	tests/omega/fail/parser/nesting_exceeds_max_depth/main.omg:7:1076: expression or type nesting is too deep (exceeds the maximum of 1024 levels)
-fail/ports/asm_port_in_unsettled rejected 360ms expected @c08960bee2b1+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: target state, statement 0)") })
+fail/ports/asm_port_in_unsettled incomplete 4855ms expected @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state)
 fail/proofs/accepted_axiom_engine_veto rejected 264ms expected @2d8ed253669f
 	accepted boundary machine `false_axiom` claims `Nat == Nat`, which the engine REFUTES structurally -- a refutable statement is a compile error, grants notwithstanding (chapter 10 engine veto)
 fail/proofs/accumulator_guarantee_unbounded_formals rejected 230ms expected @2d8ed253669f
@@ -2444,8 +2444,8 @@ pass/control_flow/termination_index_distance_compile checked 978ms check-target:
 pass/control_flow/transition_operand_schedule checked 314ms @2d8ed253669f
 pass/control_flow/transition_tail_self_call checked 295ms @2d8ed253669f
 pass/core/carry_permission_provider_adapter checked 663ms check-target:macos_arm64 @2d8ed253669f
-pass/core/content_conservation_contract rejected 1032ms check-target:macos_arm64 @c47f8652484
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: linear structural result`
+pass/core/content_conservation_contract incomplete 1541ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: linear structural result)
 pass/core/content_retained_custody_round_trip checked 387ms check-target:macos_arm64 @2d8ed253669f
 pass/core/extent_core_surface checked 283ms @2d8ed253669f
 pass/core/extent_root_provider_adapter checked 679ms check-target:macos_arm64 @2d8ed253669f
@@ -2682,8 +2682,8 @@ pass/filesystem/native_filetype checked 5147ms check-target:macos_arm64 @e01f73c
 pass/filesystem/native_fs_workflow checked 6702ms check-target:macos_arm64 @e01f73c689de+wt
 pass/filesystem/native_metadata_blocks checked 11359ms check-target:macos_arm64 @e01f73c689de+wt
 pass/filesystem/native_metadata_ctime_dev checked 25811ms check-target:macos_arm64 @e01f73c689de+wt
-pass/filesystem/native_metadata_ino incomplete 59435ms check-target:macos_arm64 @e01f73c689de+wt
-	incomplete: terminal-artifact production stopped at the private `proof_search_result_guarantee_work` proof-search capacity (provision 4096) with obligation 105 unproved; the module is not shown invalid
+pass/filesystem/native_metadata_ino incomplete 4299ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`PosixFilesystemNativeProvider::read_metadata` has no executable body: this compiler does not lower a call of it yet (call operation: structural arguments: caller structural result)
 pass/filesystem/native_metadata_nlink checked 5611ms check-target:macos_arm64 @e01f73c689de+wt
 pass/filesystem/native_read_dir_iter checked 5138ms check-target:macos_arm64 @e01f73c689de+wt
 pass/filesystem/native_wrapper_write_all_result rejected 17172ms check-target:macos_arm64 @e01f73c689de+wt
@@ -2808,15 +2808,15 @@ pass/host/runtime_gui_foreground_window_exit rejected 1982ms check-target:macos_
 pass/host/runtime_gui_window_lifecycle_exit rejected 2073ms check-target:macos_arm64 @c47f8652484
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/std_clock_sleep_exit checked 1478ms check-target:macos_arm64 @27fbba584bed
-pass/inline_asm/asm_aarch64_system_registers_compile rejected 763ms check-target:macos_arm64 @c47f8652484
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: target state, statement 0)") })
+pass/inline_asm/asm_aarch64_system_registers_compile incomplete 2262ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state)
 pass/inline_asm/asm_block_jmp_state checked 381ms check-target:macos_arm64 @2d8ed253669f
 pass/inline_asm/asm_machine_control_wrapper_reach checked 365ms @2d8ed253669f
 pass/inline_asm/asm_memory_transfer_compile checked 397ms check-target:macos_arm64 @2d8ed253669f
-pass/inline_asm/asm_port_out_final_validation rejected 1902ms check-target:linux_x86_64 @693920652f41
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at call operation: call site, statement 0)") })
-pass/inline_asm/asm_runtime_port_msr_final_validation rejected 701ms check-target:linux_x86_64 @c47f8652484
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: call site, statement 0)") })
+pass/inline_asm/asm_port_out_final_validation incomplete 2785ms check-target:linux_x86_64 @47d3b5bbd8c+wt
+	`main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
+pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 3232ms check-target:linux_x86_64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
 pass/inline_asm/asm_where_exact_clobbers_compile checked 353ms @4e4bfed13aee+wt
 pass/layouts/access_plan_inaccessible_seed checked 444ms @2d8ed253669f
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 276ms @d1ebe54629b8
@@ -3322,8 +3322,8 @@ pass/text/runtime_carrier_indexed_read_exit checked 878ms check-target:macos_arm
 pass/text/runtime_chained_string_append_exit checked 1690ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_element_guard_bounds_parse_exit checked 1678ms check-target:macos_arm64 @954364ed064e
 pass/text/runtime_later_arm_guard_reads_exit checked 1807ms check-target:macos_arm64 @954364ed064e
-pass/text/runtime_local_struct_string_field_concat_exit rejected 991ms check-target:macos_arm64 @42ea16c25de8+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field: descriptor source` (state 1, statement 3)
+pass/text/runtime_local_struct_string_field_concat_exit incomplete 860ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: borrowed view field: descriptor source)
 pass/text/runtime_mixed_byte_field_equality_exit checked 2124ms check-target:macos_arm64 @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 3696ms check-target:macos_arm64 @c773c4ad3c3
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "borrowed reference source changes its incoming type" }))
@@ -3335,8 +3335,8 @@ pass/text/runtime_slice_indexed_string_guard_exit checked 5408ms check-target:ma
 pass/text/runtime_stdin_command_branch_exit checked 15897ms check-target:macos_arm64 @dac9585f443
 pass/text/runtime_stdin_line_buffering_exit checked 7984ms check-target:macos_arm64 @dac9585f443
 pass/text/runtime_string_concat_two_fields_exit checked 1760ms check-target:macos_arm64 @2d8ed253669f
-pass/text/runtime_string_stored_suffix_exit rejected 935ms check-target:macos_arm64 @42ea16c25de8+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field: descriptor source` (state 1, statement 3)
+pass/text/runtime_string_stored_suffix_exit incomplete 945ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: borrowed view field: descriptor source)
 pass/text/runtime_text_builder checked 1509ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_text_not_equals_exit checked 2795ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/text/runtime_utf16_literal_exit checked 1329ms check-target:macos_arm64 @2d8ed253669f
@@ -3372,18 +3372,18 @@ pass/traits/generic_trait_parent_binds_requirement checked 267ms @474542aa7f86
 pass/traits/nominal_generic_reference_forwarding_exit checked 13052ms check-target:macos_arm64 @f3a79ef091a9
 pass/traits/nominal_machine_binder_static_dispatch checked 675ms check-target:macos_arm64 @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit checked 3090ms check-target:macos_arm64 @2d8ed253669f
-pass/traits/runtime_dyn_data_argument_counts_exit rejected 1004ms check-target:macos_arm64 @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
-pass/traits/runtime_dyn_joined_selector_exit rejected 1020ms check-target:macos_arm64 @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: structural parameter type` (state 1)
-pass/traits/runtime_dyn_local_selection_exit rejected 1011ms check-target:macos_arm64 @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 0)
-pass/traits/runtime_dyn_rebound_selector_forwarded_exit rejected 981ms check-target:macos_arm64 @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
-pass/traits/runtime_dyn_selector_record_field_exit rejected 1010ms check-target:macos_arm64 @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
-pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 994ms check-target:macos_arm64 @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
+pass/traits/runtime_dyn_data_argument_counts_exit incomplete 1124ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
+pass/traits/runtime_dyn_joined_selector_exit incomplete 1199ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (state graph: state signature: parameter signature: structural parameter type)
+pass/traits/runtime_dyn_local_selection_exit incomplete 1056ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data: structural call binding)
+pass/traits/runtime_dyn_rebound_selector_forwarded_exit incomplete 1139ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
+pass/traits/runtime_dyn_selector_record_field_exit incomplete 871ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
+pass/traits/runtime_dyn_two_impl_dispatch_exit incomplete 635ms check-target:macos_arm64 @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
 pass/traits/runtime_exact_requirement_edge_exit checked 2044ms check-target:macos_arm64 @e3131e3bcd65+wt
 pass/traits/runtime_inherited_trait_default_exit checked 3274ms check-target:macos_arm64 @c4e45d3dda38+wt
 pass/traits/runtime_named_implementation_selection_exit checked 1127ms check-target:macos_arm64 @65c3b89f46f4+wt

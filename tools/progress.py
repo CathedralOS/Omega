@@ -282,7 +282,8 @@ def parse_corpus_outcomes(path: Path) -> dict:
                 family["fixtures"].append(member)
         elif tier == "fail":
             fail_members += 1
-            if record["status"] != "rejected" or record.get("expected_satisfied") is False:
+            if (record["status"] not in ("rejected", "incomplete")
+                    or record.get("expected_satisfied") is False):
                 fail_failed.append(member)
     return {
         "pass": {

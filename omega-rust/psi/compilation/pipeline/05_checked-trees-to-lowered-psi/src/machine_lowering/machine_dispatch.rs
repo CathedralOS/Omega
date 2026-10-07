@@ -124,14 +124,17 @@ pub(crate) fn lower_selected_machine(
             .unwrap_or("machine has no source-independent checked scalar control plan");
         // The scalar decline can be a by-design deferral (e.g. multi-state
         // structural formals); the operative wall then lives in the Unit
-        // plan's local construction, which the omission ledger names.
-        if let Some(omission) =
-            crate::unit::unit_plan_omission_explanation(checked, selection.machine)
+        // plan's gap, which names the construct at its source.
+        if let Some(gap) = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .gap_diagnostic(selection.machine, &checked.symbols)
         {
             return Err(LoweringError::InvalidUnitMachinePlan {
                 machine: checked.symbols.display_path(selection.machine, "::"),
                 reason,
-                omission: Some(omission),
+                gap: Some(gap),
             });
         }
         return unsupported(reason);

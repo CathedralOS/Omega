@@ -12,10 +12,7 @@ mod root;
 
 pub use root::{derive_fused_program_entry_establishments, program_entry_service_requirements};
 
-use checked_trees::{
-    CheckedTrees, CheckedUnitPlanOmissionStage, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypeShape,
-};
+use checked_trees::{CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape};
 use diagnostics::Diagnostic;
 use provider_planning::CompositionMode;
 use provider_planning::SelectedProviderReviewProvenance;

@@ -8,17 +8,18 @@ use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::execution::terminal_unit::ScalarCalleePlans;
 
 use crate::execution::terminal_unit::control;
-use checked_trees::CheckedUnitPlanOmissionStage;
+use checked_trees::CheckedUnitPlanGap;
 use std::collections::BTreeMap;
 
-/// Records where state-graph construction stopped for each declined machine.
+/// Records the gap where state-graph construction stopped for each declined
+/// machine.
 pub(in crate::execution::terminal_unit) fn build_all_traced(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-    declined: &mut BTreeMap<(u32, u32), CheckedUnitPlanOmissionStage>,
+    declined: &mut BTreeMap<(u32, u32), CheckedUnitPlanGap>,
 ) -> Vec<CheckedComposedUnitControlMachinePlan> {
     let mut plans = Vec::new();
     for machine in program
@@ -41,7 +42,7 @@ pub(in crate::execution::terminal_unit) fn build_all_traced(
             None => {
                 declined.insert(
                     (machine.symbol.arena_index(), machine.symbol.generation()),
-                    trace.stage(),
+                    trace.gap(program, machine.symbol),
                 );
             }
         }

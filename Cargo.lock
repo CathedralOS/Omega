@@ -331,6 +331,7 @@ version = "0.1.0"
 dependencies = [
  "access-plans",
  "arena",
+ "diagnostics",
  "facts",
  "flow-effects",
  "language-core",
@@ -350,6 +351,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "checked-trees",
+ "diagnostics",
  "facts",
  "language-core",
  "language-semantics",

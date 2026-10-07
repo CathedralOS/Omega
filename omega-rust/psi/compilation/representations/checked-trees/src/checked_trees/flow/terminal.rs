@@ -121,7 +121,7 @@ pub use unit_call_plans::{
 pub use unit_effect_plans::{
     CheckedOperandSequence, CheckedStructuralValueCall, CheckedUnitCallableEntry,
     CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage,
+    CheckedUnitEffectPlans, CheckedUnitPlanGap, CheckedUnitPlanGapReason,
     CheckedUnitScalarControlPlan,
 };
 pub use unit_plans::CheckedUnitPlan;

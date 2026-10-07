@@ -616,8 +616,8 @@ pass/control_flow/termination_index_distance_compile built 525ms exit:0 @d62a4e2
 pass/control_flow/transition_operand_schedule checked 189ms
 pass/control_flow/transition_tail_self_call checked 199ms
 pass/core/carry_permission_provider_adapter built 274ms
-pass/core/content_conservation_contract rejected 1894ms @693920652f41
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: linear structural result`
+pass/core/content_conservation_contract incomplete 1953ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: linear structural result)
 pass/core/content_retained_custody_round_trip built 311ms
 pass/core/extent_core_surface checked 196ms
 pass/core/extent_root_provider_adapter built 3863ms exit:0 @693920652f41
@@ -853,8 +853,8 @@ pass/filesystem/native_filetype built 5239ms exit:0 stdout:match @e01f73c689de+w
 pass/filesystem/native_fs_workflow built 6991ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_metadata_blocks built 11535ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_metadata_ctime_dev built 26003ms exit:0 stdout:match @e01f73c689de+wt
-pass/filesystem/native_metadata_ino incomplete 59397ms @e01f73c689de+wt
-	incomplete: terminal-artifact production stopped at the private `proof_search_result_guarantee_work` proof-search capacity (provision 4096) with obligation 105 unproved; the module is not shown invalid
+pass/filesystem/native_metadata_ino incomplete 3447ms @47d3b5bbd8c+wt
+	`PosixFilesystemNativeProvider::read_metadata` has no executable body: this compiler does not lower a call of it yet (call operation: structural arguments: caller structural result)
 pass/filesystem/native_metadata_nlink built 5648ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_read_dir_iter built 5345ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_wrapper_write_all_result rejected 17438ms @e01f73c689de+wt
@@ -963,15 +963,15 @@ pass/host/runtime_gui_foreground_window_exit rejected 839ms @48008365d839
 pass/host/runtime_gui_window_lifecycle_exit rejected 1032ms @48008365d839
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/std_clock_sleep_exit built 1894ms exit:70 @27fbba584bed+wt
-pass/inline_asm/asm_aarch64_system_registers_compile rejected 264ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: target state, statement 0)") })
+pass/inline_asm/asm_aarch64_system_registers_compile incomplete 1867ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state)
 pass/inline_asm/asm_block_jmp_state built 301ms
 pass/inline_asm/asm_machine_control_wrapper_reach checked 218ms
 pass/inline_asm/asm_memory_transfer_compile built 259ms
-pass/inline_asm/asm_port_out_final_validation rejected 3190ms @693920652f41
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at call operation: call site, statement 0)") })
-pass/inline_asm/asm_runtime_port_msr_final_validation rejected 208ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: call site, statement 0)") })
+pass/inline_asm/asm_port_out_final_validation incomplete 1860ms @47d3b5bbd8c+wt
+	`main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
+pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 1809ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
 pass/inline_asm/asm_where_exact_clobbers_compile checked 225ms
 pass/layouts/access_plan_inaccessible_seed checked 263ms
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 702ms @693920652f41
@@ -1477,8 +1477,8 @@ pass/text/runtime_carrier_indexed_read_exit built 681ms exit:70
 pass/text/runtime_chained_string_append_exit built 1941ms exit:70 @fb2178def922
 pass/text/runtime_element_guard_bounds_parse_exit built 1706ms exit:70 @954364ed064e
 pass/text/runtime_later_arm_guard_reads_exit built 1892ms exit:70 @954364ed064e
-pass/text/runtime_local_struct_string_field_concat_exit rejected 932ms @42ea16c25de8+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field: descriptor source` (state 1, statement 3)
+pass/text/runtime_local_struct_string_field_concat_exit incomplete 629ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: borrowed view field: descriptor source)
 pass/text/runtime_mixed_byte_field_equality_exit built 2672ms exit:70 @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 2079ms @693920652f41
 	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentReferenceCustodyViolation { machine: MachineId(1), block: BlockId(2), node: Some(6), reason: "borrowed reference source has no exact incoming storage" }))
@@ -1490,8 +1490,8 @@ pass/text/runtime_slice_indexed_string_guard_exit built 2657ms exit:70 @1df89900
 pass/text/runtime_stdin_command_branch_exit built 6815ms exit:0 stdout:match @4ffed225fc45+wt
 pass/text/runtime_stdin_line_buffering_exit built 1407ms exit:0 stdout:match @2a68bc887d99+wt
 pass/text/runtime_string_concat_two_fields_exit built 1859ms exit:70 @fb2178def922
-pass/text/runtime_string_stored_suffix_exit rejected 910ms @42ea16c25de8+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field: descriptor source` (state 1, statement 3)
+pass/text/runtime_string_stored_suffix_exit incomplete 657ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: borrowed view field: descriptor source)
 pass/text/runtime_text_builder built 1781ms exit:0 @bed5f45e9185+wt
 pass/text/runtime_text_not_equals_exit built 2123ms exit:70 @d0c1840f255b
 pass/text/runtime_utf16_literal_exit built 705ms exit:70
@@ -1527,18 +1527,18 @@ pass/traits/generic_trait_parent_binds_requirement checked 173ms
 pass/traits/nominal_generic_reference_forwarding_exit built 2081ms exit:1 @9beb2be72f2d+wt
 pass/traits/nominal_machine_binder_static_dispatch built 829ms exit:1 @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit built 683ms exit:70
-pass/traits/runtime_dyn_data_argument_counts_exit rejected 951ms @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
-pass/traits/runtime_dyn_joined_selector_exit rejected 956ms @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: structural parameter type` (state 1)
-pass/traits/runtime_dyn_local_selection_exit rejected 946ms @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 0)
-pass/traits/runtime_dyn_rebound_selector_forwarded_exit rejected 953ms @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
-pass/traits/runtime_dyn_selector_record_field_exit rejected 985ms @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
-pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 945ms @7f068b5c82b8
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
+pass/traits/runtime_dyn_data_argument_counts_exit incomplete 1177ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
+pass/traits/runtime_dyn_joined_selector_exit incomplete 1318ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (state graph: state signature: parameter signature: structural parameter type)
+pass/traits/runtime_dyn_local_selection_exit incomplete 1291ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data: structural call binding)
+pass/traits/runtime_dyn_rebound_selector_forwarded_exit incomplete 1168ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
+pass/traits/runtime_dyn_selector_record_field_exit incomplete 1114ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
+pass/traits/runtime_dyn_two_impl_dispatch_exit incomplete 1137ms @47d3b5bbd8c+wt
+	`Main::main` has no executable body: this compiler does not lower a state of it yet (scalar field store sequence: write frame agreement)
 pass/traits/runtime_exact_requirement_edge_exit built 2028ms exit:1 @e3131e3bcd65+wt
 pass/traits/runtime_inherited_trait_default_exit built 3776ms exit:70 @c4e45d3dda38+wt
 pass/traits/runtime_named_implementation_selection_exit built 1238ms exit:70 @65c3b89f46f4+wt

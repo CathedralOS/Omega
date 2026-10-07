@@ -97,8 +97,6 @@ use crate::unit::unit_cleanup::{
 pub(crate) mod attached_unit;
 pub(crate) mod crash_interface;
 pub(crate) use crash_interface::effective_crash_routes;
-pub(crate) mod plan_omissions;
-pub(crate) use plan_omissions::unit_plan_omission_explanation;
 pub(crate) mod runtime_requirements;
 pub(crate) mod structural_unit_control;
 pub(crate) mod unit_cleanup;
