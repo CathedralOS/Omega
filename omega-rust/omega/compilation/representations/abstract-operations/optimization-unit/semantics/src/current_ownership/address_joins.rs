@@ -512,25 +512,6 @@ impl AddressJoinPins {
         // A later state's loan chain ends on an edge: discarding the
         // suspended home there is sound once nothing at or below the target
         // names the home or a join carrying it (the shared pin's rule).
-        let exclusive_read_after = |place: &PlaceId| {
-            let mut names = BTreeSet::from([*place]);
-            for (name, roots) in &self.origins {
-                if roots.contains(place) {
-                    names.insert(*name);
-                }
-            }
-            names.iter().any(|name| {
-                self.readers.get(name).is_some_and(|blocks| {
-                    blocks.iter().any(|reader| {
-                        *reader == edge.target
-                            || self
-                                .dominators
-                                .get(reader)
-                                .is_some_and(|dominating| dominating.contains(&edge.target))
-                    })
-                })
-            })
-        };
         if let Some(pinned) = self.exclusive.get(&block)
             && let Some(place) = edge
                 .structural_bindings
@@ -541,7 +522,7 @@ impl AddressJoinPins {
                         .iter()
                         .filter_map(|action| match action {
                             terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
-                                exclusive_read_after(place).then_some(*place)
+                                self.read_after(place, edge.target).then_some(*place)
                             }
                             action => Some(action.place()),
                         }),
@@ -565,25 +546,6 @@ impl AddressJoinPins {
         // A discard (or exclusive hand-off) on this edge disturbs the loan
         // only when a block at or below the target still names the place,
         // a join that carries it, or a descriptor aliased to it.
-        let read_after = |place: &PlaceId| {
-            let mut names = BTreeSet::from([*place]);
-            for (name, roots) in &self.origins {
-                if roots.contains(place) {
-                    names.insert(*name);
-                }
-            }
-            names.iter().any(|name| {
-                self.readers.get(name).is_some_and(|blocks| {
-                    blocks.iter().any(|reader| {
-                        *reader == edge.target
-                            || self
-                                .dominators
-                                .get(reader)
-                                .is_some_and(|dominating| dominating.contains(&edge.target))
-                    })
-                })
-            })
-        };
         let disturbed = edge
             .structural_bindings
             .iter()
@@ -603,7 +565,8 @@ impl AddressJoinPins {
                 action => (action.place(), &[][..]),
             }))
             .find(|(place, path)| {
-                self.borrowed_regions.overlaps(pinned, *place, path) && read_after(place)
+                self.borrowed_regions.overlaps(pinned, *place, path)
+                    && self.read_after(place, edge.target)
             })
             .map(|(place, _)| place);
         match disturbed {
@@ -617,6 +580,28 @@ impl AddressJoinPins {
             ),
             None => Ok(()),
         }
+    }
+
+    /// Whether `place` (or a name rooted at it) is still read at or below
+    /// `target`: a reader block equal to `target` or dominated by it.
+    fn read_after(&self, place: &PlaceId, target: BlockId) -> bool {
+        let mut names = BTreeSet::from([*place]);
+        for (name, roots) in &self.origins {
+            if roots.contains(place) {
+                names.insert(*name);
+            }
+        }
+        names.iter().any(|name| {
+            self.readers.get(name).is_some_and(|blocks| {
+                blocks.iter().any(|reader| {
+                    *reader == target
+                        || self
+                            .dominators
+                            .get(reader)
+                            .is_some_and(|dominating| dominating.contains(&target))
+                })
+            })
+        })
     }
 }
 
