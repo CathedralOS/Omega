@@ -56,7 +56,7 @@ pub use float_ranges::{closed_float_range_endpoint, ieee_float_range_ordered};
 mod integer_ranges;
 pub use integer_ranges::{
     closed_integer_range_bound, closed_integer_range_maximum, declared_integer_range,
-    is_arithmetic_policy_only_integer, is_plain_scalar_storage, unrestricted_builtin_primitive,
+    constrained_range_bounds, is_arithmetic_policy_only_integer, is_plain_scalar_storage, unrestricted_builtin_primitive,
 };
 pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 

@@ -9,7 +9,7 @@
 use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// An arithmetic-policy-only integer result changes future operation meaning,
 /// not the set of representable payloads. It owes no extra range predicate.
@@ -26,6 +26,44 @@ pub fn is_plain_scalar_storage(program: &TypedTrees, reference: TypeReferenceHan
             program.type_reference_table.type_reference(reference),
             TypeReferenceNode::Named { .. } | TypeReferenceNode::DynamicTrait { .. }
         ) || is_arithmetic_policy_only_integer(program, reference))
+}
+
+/// The closed (minimum, maximum) of every `Range` constraint on `carrier`'s
+/// `Constrained` shells. `strict` decides whether a non-Range constraint node
+/// aborts the walk (true) or is skipped (false); a bound that does not close
+/// aborts either way.
+pub fn constrained_range_bounds(
+    program: &TypedTrees,
+    mut carrier: typed_trees::types::TypeReferenceHandle,
+    strict: bool,
+) -> Option<Vec<(BigInt, BigInt)>> {
+    let mut bounds = Vec::new();
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(carrier)
+    {
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            let typed_trees::types::TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
+                if strict {
+                    return None;
+                }
+                continue;
+            };
+            bounds.push(
+                closed_integer_range_bound(program, *minimum).zip(
+                    closed_integer_range_maximum(program, *maximum, *end_inclusive),
+                )?,
+            );
+        }
+        carrier = *base_type;
+    }
+    Some(bounds)
 }
 
 pub fn is_arithmetic_policy_only_integer(

@@ -376,29 +376,12 @@ pub fn exact_byte_read_result_type(
     }
     // Ranges may narrow the carrier but must include every input byte. Other
     // domain/proof promises cannot be established by this host operation.
-    let mut carrier = field.type_reference;
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(carrier)
+    for (minimum, maximum) in
+        crate::constrained_range_bounds(program, field.type_reference, true)?
     {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                return None;
-            };
-            let minimum = crate::closed_integer_range_bound(program, *minimum)?.to_i64()?;
-            let maximum =
-                crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?.to_i64()?;
-            if minimum > 0 || maximum < 255 {
-                return None;
-            }
+        if minimum.to_i64()? > 0 || maximum.to_i64()? < 255 {
+            return None;
         }
-        carrier = *base_type;
     }
     Some(symbol)
 }

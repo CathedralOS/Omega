@@ -366,33 +366,13 @@ fn literal_satisfies_declared_const(
         return false;
     }
     let exact = BigInt::from_i128(value);
-    let mut carrier = declared;
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(carrier)
-    {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                continue;
-            };
-            let Some((minimum, maximum)) =
-                crate::closed_integer_range_bound(program, *minimum).zip(
-                    crate::closed_integer_range_maximum(program, *maximum, *end_inclusive),
-                )
-            else {
-                return false;
-            };
-            if exact < minimum || exact > maximum {
-                return false;
-            }
+    let Some(bounds) = crate::constrained_range_bounds(program, declared, false) else {
+        return false;
+    };
+    for (minimum, maximum) in bounds {
+        if exact < minimum || exact > maximum {
+            return false;
         }
-        carrier = *base_type;
     }
     true
 }
