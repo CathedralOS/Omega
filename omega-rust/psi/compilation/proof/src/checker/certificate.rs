@@ -189,14 +189,13 @@ pub(crate) fn bounded_integer_value_verdict(
 /// conditions' literal facts on the return atom. Malformed obligations, a
 /// missed arrival bound, contract operand folds and every other shape stay
 /// uncovered and keep the ordinary derivation.
-pub(crate) fn state_return_integer_verdict<'program>(
-    proof_plan: &ProofPlan<'program>,
-    obligation: &BoundedStateReturnObligation,
-    context: &AssignmentRangeContext<'program>,
-    target: &IntegerRange,
-    seed: u64,
+/// The measured certificate-verdict orchestration every producer shares:
+/// a prior consultation's recheck short-circuits before the producer runs,
+/// and a verified certificate is retained back into it.
+fn certificate_verdict_measured(
     measurements: &mut ProofPlanMeasurements,
     mut derivations: Option<&mut DerivationConsultation<'_>>,
+    produce: impl FnOnce() -> Option<BoundedValueCertificate>,
 ) -> CertificateVerdict {
     if let Some(consultation) = derivations.as_deref_mut()
         && let Some(fact) = consultation.recheck()
@@ -205,8 +204,7 @@ pub(crate) fn state_return_integer_verdict<'program>(
         measurements.record_certificate_verdict(CertificateVerdict::Certified);
         return CertificateVerdict::Certified;
     }
-    let Some(certificate) = state_return_certificate(proof_plan, obligation, context, target, seed)
-    else {
+    let Some(certificate) = produce() else {
         measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
@@ -225,6 +223,20 @@ pub(crate) fn state_return_integer_verdict<'program>(
         consultation.retain(certificate);
     }
     verdict
+}
+
+pub(crate) fn state_return_integer_verdict<'program>(
+    proof_plan: &ProofPlan<'program>,
+    obligation: &BoundedStateReturnObligation,
+    context: &AssignmentRangeContext<'program>,
+    target: &IntegerRange,
+    seed: u64,
+    measurements: &mut ProofPlanMeasurements,
+    derivations: Option<&mut DerivationConsultation<'_>>,
+) -> CertificateVerdict {
+    certificate_verdict_measured(measurements, derivations, || {
+        state_return_certificate(proof_plan, obligation, context, target, seed)
+    })
 }
 
 fn state_return_certificate<'program>(
@@ -451,35 +463,11 @@ pub(crate) fn guarded_transition_integer_verdict_measured(
     target: &IntegerRange,
     seed: u64,
     measurements: &mut ProofPlanMeasurements,
-    mut derivations: Option<&mut DerivationConsultation<'_>>,
+    derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> CertificateVerdict {
-    if let Some(consultation) = derivations.as_deref_mut()
-        && let Some(fact) = consultation.recheck()
-    {
-        measurements.record_accepted_fact(&fact);
-        measurements.record_certificate_verdict(CertificateVerdict::Certified);
-        return CertificateVerdict::Certified;
-    }
-    let Some(certificate) = guarded_transition_certificate(proof_plan, obligation, target, seed)
-    else {
-        measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
-        return CertificateVerdict::Uncovered;
-    };
-    measurements.record_emitted_certificate(&certificate.envelope.proof);
-    let verdict = match certificate.verify() {
-        Ok(fact) => {
-            measurements.record_accepted_fact(&fact);
-            CertificateVerdict::Certified
-        }
-        Err(_) => CertificateVerdict::Rejected,
-    };
-    measurements.record_certificate_verdict(verdict);
-    if verdict == CertificateVerdict::Certified
-        && let Some(consultation) = derivations
-    {
-        consultation.retain(certificate);
-    }
-    verdict
+    certificate_verdict_measured(measurements, derivations, || {
+        guarded_transition_certificate(proof_plan, obligation, target, seed)
+    })
 }
 
 /// The kernel-facing package for a guarded transition argument, in the order
