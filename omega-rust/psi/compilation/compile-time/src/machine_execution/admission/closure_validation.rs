@@ -39,51 +39,23 @@ pub(super) fn closure_has_authored_requires(
     program: &TypedTrees,
     root: SymbolHandle,
 ) -> bool {
-    let mut pending = vec![root];
-    let mut visited = Vec::new();
-    while let Some(machine_symbol) = pending.pop() {
-        if visited.contains(&machine_symbol) {
-            continue;
-        }
-        visited.push(machine_symbol);
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)
-        else {
-            continue;
-        };
-        if has_authored_requires(program.machine_contracts(machine))
-            || program
-                .machine_states(machine)
-                .iter()
-                .any(|state| has_authored_requires(program.state_contracts(state)))
-        {
-            return true;
-        }
-        for call in call_edges
-            .iter()
-            .filter(|call| call.source_machine_symbol == machine_symbol)
-        {
-            let target_machine_symbol = if call.target_machine_symbol.is_valid() {
-                Some(call.target_machine_symbol)
-            } else if call.target_state_symbol.is_valid()
-                && program.symbols.get(call.target_state_symbol).kind == SymbolKind::Machine
-            {
-                Some(call.target_state_symbol)
-            } else {
-                None
-            };
-            match target_machine_symbol {
-                Some(target) => pending.push(target),
-                None if callable_has_authored_requires(program, call.target_state_symbol) => {
-                    return true;
-                }
-                None => {}
-            }
-        }
-    }
-    false
+    each_closure_machine(
+        call_edges,
+        program,
+        root,
+        |machine| {
+            (has_authored_requires(program.machine_contracts(machine))
+                || program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| has_authored_requires(program.state_contracts(state))))
+            .then_some(())
+        },
+        |callable| {
+            callable_has_authored_requires(program, callable).then_some(())
+        },
+    )
+    .is_some()
 }
 
 /// Whether every authored `requires` premise in `root`'s call-edge closure is
@@ -100,6 +72,47 @@ pub(super) fn closure_requires_are_root_parameter_domains(
     program: &TypedTrees,
     root: SymbolHandle,
 ) -> bool {
+    each_closure_machine(
+        call_edges,
+        program,
+        root,
+        |machine| {
+            if has_authored_requires(program.machine_contracts(machine)) {
+                return Some(());
+            }
+            for state in program.machine_states(machine) {
+                for contract in program.state_contracts(state) {
+                    if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+                        continue;
+                    }
+                    if machine.symbol != root
+                        || !is_parameter_domain_premise(program, state, contract)
+                    {
+                        return Some(());
+                    }
+                }
+            }
+            None
+        },
+        |callable| {
+            callable_has_authored_requires(program, callable).then_some(())
+        },
+    )
+    .is_none()
+}
+
+/// The call-edge-closure walk both premise checks share: a DFS from `root`
+/// through `call_edges` where each visited machine first answers `machine`
+/// (Some = the walk's outcome) and each non-machine callable edge target
+/// answers `callable`. An unmeasured terminal recursion edge keeps its
+/// machine symbol; anything else goes through `callable`.
+fn each_closure_machine(
+    call_edges: &[BuildTimeCallEdge],
+    program: &TypedTrees,
+    root: SymbolHandle,
+    mut machine: impl FnMut(&Machine) -> Option<()>,
+    mut callable: impl FnMut(SymbolHandle) -> Option<()>,
+) -> Option<()> {
     let mut pending = vec![root];
     let mut visited = Vec::new();
     while let Some(machine_symbol) = pending.pop() {
@@ -107,26 +120,15 @@ pub(super) fn closure_requires_are_root_parameter_domains(
             continue;
         }
         visited.push(machine_symbol);
-        let Some(machine) = program
+        let Some(found) = program
             .machines()
             .iter()
-            .find(|machine| machine.symbol == machine_symbol)
+            .find(|candidate| candidate.symbol == machine_symbol)
         else {
             continue;
         };
-        if has_authored_requires(program.machine_contracts(machine)) {
-            return false;
-        }
-        for state in program.machine_states(machine) {
-            for contract in program.state_contracts(state) {
-                if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
-                    continue;
-                }
-                if machine_symbol != root || !is_parameter_domain_premise(program, state, contract)
-                {
-                    return false;
-                }
-            }
+        if machine(found).is_some() {
+            return Some(());
         }
         for call in call_edges
             .iter()
@@ -143,14 +145,15 @@ pub(super) fn closure_requires_are_root_parameter_domains(
             };
             match target_machine_symbol {
                 Some(target) => pending.push(target),
-                None if callable_has_authored_requires(program, call.target_state_symbol) => {
-                    return false;
+                None => {
+                    if callable(call.target_state_symbol).is_some() {
+                        return Some(());
+                    }
                 }
-                None => {}
             }
         }
     }
-    true
+    None
 }
 
 /// A generated (keyword-less, unbound) premise whose every fact is the
