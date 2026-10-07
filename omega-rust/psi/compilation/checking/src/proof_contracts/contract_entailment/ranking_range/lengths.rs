@@ -641,6 +641,27 @@ impl<'program> SliceCoordinate<'program> {
     /// A telescope names a role, not record compatibility or equality between
     /// copies. Only a unique formal with the exact declaration can carry this
     /// coordinate; duplicated record roles need independent length facts.
+    /// The coordinate rebound to its arrival when the judgment carries an
+    /// entry-edge parameter roster, or itself without one.
+    pub(super) fn at_entry_arrival(
+        self,
+        program: &'program TypedTrees,
+        state: &State,
+        entry_parameters: Option<&[SymbolHandle]>,
+    ) -> Option<Self> {
+        match entry_parameters {
+            Some(entries) => self.at_arrival(
+                program,
+                RankingRangeState {
+                    state,
+                    entry_parameters: entries,
+                },
+                self.parameter.symbol,
+            ),
+            None => Some(self),
+        }
+    }
+
     pub(super) fn at_arrival(
         &self,
         program: &'program TypedTrees,

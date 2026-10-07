@@ -500,17 +500,8 @@ fn prove_edge(
         RankingRangeMeasure::SliceLength(subject) => {
             match lengths::SliceCoordinate::resolve(program, root, subject) {
                 Some(coordinate) => {
-                    let coordinate = match entry_parameters {
-                        Some(entries) => coordinate.at_arrival(
-                            program,
-                            RankingRangeState {
-                                state,
-                                entry_parameters: entries,
-                            },
-                            coordinate.parameter.symbol,
-                        )?,
-                        None => coordinate,
-                    };
+                    let coordinate =
+                        coordinate.at_entry_arrival(program, state, entry_parameters)?;
                     Some(lengths::SliceCoordinates::new(coordinate))
                 }
                 // A bare slice formal can name a coordinate at this state
