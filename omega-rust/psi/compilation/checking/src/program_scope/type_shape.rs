@@ -42,6 +42,29 @@ pub(crate) fn exact_integer_primitive(
     Some(primitive)
 }
 
+/// A fixed-array or slice type reference's element type plus its
+/// statically-known element count (`None` for slices and non-literal array
+/// lengths); any other shape has neither.
+pub(crate) fn collection_element_and_length(
+    program: &TypedTrees,
+    collection_type: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, Option<usize>)> {
+    match program.type_reference_table.type_reference(collection_type) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => Some((
+            *element_type,
+            match length {
+                typed_trees::types::FixedArrayLength::Literal(length) => Some(*length),
+                _ => None,
+            },
+        )),
+        TypeReferenceNode::Slice { element_type } => Some((*element_type, None)),
+        _ => None,
+    }
+}
+
 pub(crate) fn has_slice_base(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
     let mut visited = Vec::new();
     while reference.is_valid() && !visited.contains(&reference) {

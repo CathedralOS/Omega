@@ -32,21 +32,14 @@ pub(super) fn admit_assignment_value<'p>(
         ) else {
             return false;
         };
-        let (element_type, length) =
-            match program.type_reference_table.type_reference(collection_type) {
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length,
-                } => (
-                    *element_type,
-                    match length {
-                        FixedArrayLength::Literal(length) => Some(*length),
-                        _ => None,
-                    },
-                ),
-                TypeReferenceNode::Slice { element_type } => (*element_type, None),
-                _ => return false,
-            };
+        let Some((element_type, length)) =
+            crate::program_scope::type_shape::collection_element_and_length(
+                program,
+                collection_type,
+            )
+        else {
+            return false;
+        };
         // Constructors retain their own field destinations. Owning a record
         // subtree here would let a rejected element exclude those valid grants.
         if !has_scalar_array_element_shape(program, element_type) {

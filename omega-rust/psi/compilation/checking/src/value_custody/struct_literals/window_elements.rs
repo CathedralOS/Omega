@@ -46,21 +46,14 @@ pub(crate) fn validate_array_window_elements<'p>(
     }) else {
         return;
     };
-    let (element_type, collection_length) =
-        match program.type_reference_table.type_reference(collection_type) {
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => (
-                *element_type,
-                match length {
-                    FixedArrayLength::Literal(length) => Some(*length),
-                    _ => None,
-                },
-            ),
-            TypeReferenceNode::Slice { element_type } => (*element_type, None),
-            _ => return,
-        };
+    let Some((element_type, collection_length)) =
+        crate::program_scope::type_shape::collection_element_and_length(
+            program,
+            collection_type,
+        )
+    else {
+        return;
+    };
     let start = if range.start.is_valid() {
         crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, range.start)
     } else {
