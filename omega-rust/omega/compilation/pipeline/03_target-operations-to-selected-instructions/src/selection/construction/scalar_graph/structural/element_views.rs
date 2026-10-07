@@ -208,6 +208,16 @@ fn element_view_read(
     )?;
     let address =
         super::runtime_address::scale(builder, row, source, byte_offset, address, indices)?;
+    // A leaf deep inside a large element lies past the target's direct
+    // displacement; the address step precedes the access records below.
+    let (address, displacement) = super::memory_pointer(
+        builder,
+        row,
+        source,
+        address,
+        byte_offset,
+        u32::from(byte_count),
+    )?;
     memory(
         builder,
         row,
@@ -236,19 +246,27 @@ fn element_view_read(
     }
     let (kind, constraint) = match byte_count {
         1 => (
-            SelectedInstructionKind::Load8 { byte_offset },
+            SelectedInstructionKind::Load8 {
+                byte_offset: displacement,
+            },
             builder.constraints.keys.load8.ok_or_else(|| invalid())?,
         ),
         2 => (
-            SelectedInstructionKind::Load16 { byte_offset },
+            SelectedInstructionKind::Load16 {
+                byte_offset: displacement,
+            },
             builder.constraints.keys.load16.ok_or_else(|| invalid())?,
         ),
         4 => (
-            SelectedInstructionKind::Load32 { byte_offset },
+            SelectedInstructionKind::Load32 {
+                byte_offset: displacement,
+            },
             builder.constraints.keys.load32.ok_or_else(|| invalid())?,
         ),
         8 => (
-            SelectedInstructionKind::Load64 { byte_offset },
+            SelectedInstructionKind::Load64 {
+                byte_offset: displacement,
+            },
             builder.constraints.keys.load64.ok_or_else(|| invalid())?,
         ),
         _ => return Err(invalid()),

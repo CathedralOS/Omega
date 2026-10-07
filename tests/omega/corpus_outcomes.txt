@@ -2557,6 +2557,7 @@ pass/control_flow/runtime_computed_case_subject_single_evaluation_exit checked 1
 pass/control_flow/runtime_entry_loan_with_view_field_forwarded_exit checked 1020ms check-target:macos_arm64 @c3ad5f6e051f+wt
 pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit checked 656ms check-target:macos_arm64 @e7c13a0f55b2+wt
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 868ms check-target:macos_arm64 @5ce122a775ca+wt
+pass/control_flow/runtime_far_case_tag_dispatch_exit checked 1145ms check-target:macos_arm64
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 1341ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 1215ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_later_state_shared_array_loan checked 1509ms check-target:macos_arm64 @3f6c649ef545

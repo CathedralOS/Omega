@@ -54,6 +54,11 @@ pub(in crate::selection) fn observe(
         // certificate; a static tag reads its exact place extent.
         let pointer =
             super::runtime_address::scale(builder, row, place, *tag_byte_offset, pointer, indices)?;
+        // A tag deep inside a large home lies past the target's direct
+        // displacement; the address step precedes the recorded footprint so
+        // that footprint still names the load.
+        let (pointer, displacement) =
+            super::memory_pointer(builder, row, place, pointer, *tag_byte_offset, 4)?;
         super::runtime_address::footprint(
             builder,
             row,
@@ -65,7 +70,7 @@ pub(in crate::selection) fn observe(
         )?;
         builder.emit(
             SelectedInstructionKind::Load32 {
-                byte_offset: *tag_byte_offset,
+                byte_offset: displacement,
             },
             builder.constraints.keys.load32.ok_or_else(|| invalid())?,
             &[pointer, tag],
