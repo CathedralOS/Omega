@@ -154,39 +154,17 @@ pub(crate) fn derive_provider_plans(
                 &semantic_requirement_identity,
             ) {
                 let plan_name = satisfies_plan_name(&target, &schema_trait, &provider_type);
-                let position = plans
-                    .iter()
-                    .position(|derived| {
-                        derived.plan.name == plan_name
-                            && derived.plan.provider_type_package_identity
-                                == provider_type_package_identity
-                            && derived.plan.origin_package_identity == origin_package_identity
-                            && derived.provenance.schema == schema_declaration
-                            && derived.provenance.provider_type == provider_type_symbol
-                    })
-                    .unwrap_or_else(|| {
-                        plans.push(DerivedProviderPlan {
-                            plan: ProviderPlan {
-                                name: plan_name.clone(),
-                                provider_type: provider_type.clone(),
-                                provider_type_package_identity,
-                                target: target.clone(),
-                                schema,
-                                rows: Vec::new(),
-                                origin_package_identity,
-                                origin_package: String::new(),
-                                digest_memo: Default::default(),
-                            },
-                            provenance: ProviderPlanProvenance {
-                                schema: schema_declaration,
-                                provider_type: provider_type_symbol,
-                                row_requirements: Vec::new(),
-                                row_realizations: Vec::new(),
-                                row_target_machine_origins: Vec::new(),
-                            },
-                        });
-                        plans.len() - 1
-                    });
+                let position = derived_plan_position(
+                    &mut plans,
+                    plan_name,
+                    provider_type.clone(),
+                    provider_type_package_identity,
+                    target.clone(),
+                    schema,
+                    schema_declaration,
+                    provider_type_symbol,
+                    origin_package_identity,
+                );
                 debug_assert_eq!(plans[position].provenance.schema, schema_declaration);
                 debug_assert_eq!(
                     plans[position].provenance.provider_type,
@@ -486,42 +464,17 @@ fn derive_top_level_requirement_plans(
             };
             let target = selected_target.unwrap_or_default().to_owned();
             let plan_name = satisfies_plan_name(&target, &schema.trait_name, &provider_type);
-            let position = plans
-                .iter()
-                .position(|derived| {
-                    derived.plan.name == plan_name
-                        && derived.plan.provider_type_package_identity
-                            == provider_type_package_identity
-                        && derived.plan.origin_package_identity == origin_package_identity
-                        && derived.provenance.schema
-                            == ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol)
-                        && derived.provenance.provider_type == Some(provider_type_symbol)
-                })
-                .unwrap_or_else(|| {
-                    plans.push(DerivedProviderPlan {
-                        plan: ProviderPlan {
-                            name: plan_name.clone(),
-                            provider_type: provider_type.clone(),
-                            provider_type_package_identity,
-                            target: target.clone(),
-                            schema: schema.clone(),
-                            rows: Vec::new(),
-                            origin_package_identity,
-                            origin_package: String::new(),
-                            digest_memo: Default::default(),
-                        },
-                        provenance: ProviderPlanProvenance {
-                            schema: ProviderSchemaDeclaration::BoundaryRequirement(
-                                requirement.symbol,
-                            ),
-                            provider_type: Some(provider_type_symbol),
-                            row_requirements: Vec::new(),
-                            row_realizations: Vec::new(),
-                            row_target_machine_origins: Vec::new(),
-                        },
-                    });
-                    plans.len() - 1
-                });
+            let position = derived_plan_position(
+                &mut plans,
+                plan_name,
+                provider_type.clone(),
+                provider_type_package_identity,
+                target.clone(),
+                schema.clone(),
+                ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol),
+                Some(provider_type_symbol),
+                origin_package_identity,
+            );
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: schema_method.name.clone(),
                 requirement_identity,
@@ -708,40 +661,17 @@ fn derive_boundary_operator_plans(
             let target = selected_target.unwrap_or_default().to_owned();
             let provider_type = typed.attached_data_path(machine).unwrap_or_default();
             let plan_name = satisfies_plan_name(&target, &schema.trait_name, &provider_type);
-            let position = plans
-                .iter()
-                .position(|derived| {
-                    derived.plan.name == plan_name
-                        && derived.plan.provider_type_package_identity
-                            == provider_type_package_identity
-                        && derived.plan.origin_package_identity == origin_package_identity
-                        && derived.provenance.schema
-                            == ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
-                        && derived.provenance.provider_type == provider_type_symbol
-                })
-                .unwrap_or_else(|| {
-                    plans.push(DerivedProviderPlan {
-                        plan: ProviderPlan {
-                            name: plan_name.clone(),
-                            provider_type: provider_type.clone(),
-                            provider_type_package_identity,
-                            target: target.clone(),
-                            schema: schema.clone(),
-                            rows: Vec::new(),
-                            origin_package_identity,
-                            origin_package: String::new(),
-                            digest_memo: Default::default(),
-                        },
-                        provenance: ProviderPlanProvenance {
-                            schema: ProviderSchemaDeclaration::BoundaryOperator(operator.symbol),
-                            provider_type: provider_type_symbol,
-                            row_requirements: Vec::new(),
-                            row_realizations: Vec::new(),
-                            row_target_machine_origins: Vec::new(),
-                        },
-                    });
-                    plans.len() - 1
-                });
+            let position = derived_plan_position(
+                &mut plans,
+                plan_name,
+                provider_type,
+                provider_type_package_identity,
+                target,
+                schema.clone(),
+                ProviderSchemaDeclaration::BoundaryOperator(operator.symbol),
+                provider_type_symbol,
+                origin_package_identity,
+            );
             debug_assert_eq!(
                 plans[position].provenance.schema,
                 ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
@@ -798,4 +728,53 @@ fn evaluated_via_binding(
     let row = evaluated_bindings
         .and_then(|table| table.exact(machine.symbol, clause.symbol, clause.requirement_symbol))?;
     Some(row.evaluated().provider_binding())
+}
+
+/// The position of the derived plan keyed by its name, provider and origin
+/// package identities, schema declaration and provider symbol — inserting the
+/// empty plan when absent.
+#[allow(clippy::too_many_arguments)]
+fn derived_plan_position(
+    plans: &mut Vec<DerivedProviderPlan>,
+    plan_name: String,
+    provider_type: String,
+    provider_type_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    target: String,
+    schema: ServiceSchema,
+    schema_declaration: ProviderSchemaDeclaration,
+    provider_type_symbol: Option<symbols::SymbolHandle>,
+    origin_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+) -> usize {
+    plans
+        .iter()
+        .position(|derived| {
+            derived.plan.name == plan_name
+                && derived.plan.provider_type_package_identity == provider_type_package_identity
+                && derived.plan.origin_package_identity == origin_package_identity
+                && derived.provenance.schema == schema_declaration
+                && derived.provenance.provider_type == provider_type_symbol
+        })
+        .unwrap_or_else(|| {
+            plans.push(DerivedProviderPlan {
+                plan: ProviderPlan {
+                    name: plan_name,
+                    provider_type,
+                    provider_type_package_identity,
+                    target,
+                    schema,
+                    rows: Vec::new(),
+                    origin_package_identity,
+                    origin_package: String::new(),
+                    digest_memo: Default::default(),
+                },
+                provenance: ProviderPlanProvenance {
+                    schema: schema_declaration,
+                    provider_type: provider_type_symbol,
+                    row_requirements: Vec::new(),
+                    row_realizations: Vec::new(),
+                    row_target_machine_origins: Vec::new(),
+                },
+            });
+            plans.len() - 1
+        })
 }
