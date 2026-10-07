@@ -905,19 +905,17 @@ pub(crate) fn exclusive_reference(
     }
 }
 
-pub(super) fn fixed_index_element_type(
+/// Peel reference and constraint shells down to the indexed carrier's node.
+/// A byte carrier (a borrowed `&[u8]` or `&[u8; N]`, or a domain-qualified
+/// bounded owner) declares no element row: its extent is observed through the
+/// carrier, so an index selects no static element
+/// (wiki/spec/language/domains.md, "Byte containers and encoding domains").
+fn peeled_indexed_carrier(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
-    element_index: u64,
 ) -> Option<TypeReferenceHandle> {
     loop {
         match program.type_reference_table.type_reference(reference) {
-            // A byte carrier (a borrowed `&[u8]` or `&[u8; N]`, or a
-            // domain-qualified bounded owner) declares no element row: its
-            // extent is observed through the carrier, so a literal index
-            // selects no static element (wiki/spec/language/domains.md,
-            // "Byte containers and encoding domains"). The read stays a
-            // byte read against the observed length.
             TypeReferenceNode::Reference { .. } | TypeReferenceNode::Constrained { .. }
                 if validation::byte_sequence_carrier(program, reference, &[]).is_some() =>
             {
@@ -927,17 +925,28 @@ pub(super) fn fixed_index_element_type(
             | TypeReferenceNode::Constrained {
                 base_type: referee, ..
             } => reference = *referee,
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => {
-                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
-                    return None;
-                };
-                return (element_index < u64::try_from(*length).ok()?).then_some(*element_type);
-            }
-            _ => return None,
+            _ => return Some(reference),
         }
+    }
+}
+
+pub(super) fn fixed_index_element_type(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    element_index: u64,
+) -> Option<TypeReferenceHandle> {
+    let carrier = peeled_indexed_carrier(program, reference)?;
+    match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                return None;
+            };
+            (element_index < u64::try_from(*length).ok()?).then_some(*element_type)
+        }
+        _ => None,
     }
 }
 
@@ -946,29 +955,17 @@ pub(super) fn fixed_index_element_type(
 /// against the extent — the read's own obligation checks the bound.
 pub(super) fn runtime_index_element_type(
     program: &TypedTrees,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Constrained { .. }
-                if validation::byte_sequence_carrier(program, reference, &[]).is_some() =>
-            {
-                return None;
-            }
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => reference = *referee,
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-                ..
-            } => {
-                return matches!(length, typed_trees::types::FixedArrayLength::Literal(_))
-                    .then_some(*element_type);
-            }
-            _ => return None,
-        }
+    let carrier = peeled_indexed_carrier(program, reference)?;
+    match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+            ..
+        } => matches!(length, typed_trees::types::FixedArrayLength::Literal(_))
+            .then_some(*element_type),
+        _ => None,
     }
 }
 
