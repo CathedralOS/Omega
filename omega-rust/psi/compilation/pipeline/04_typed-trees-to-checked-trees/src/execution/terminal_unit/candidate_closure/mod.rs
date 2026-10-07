@@ -397,34 +397,13 @@ pub(super) fn retain_available(
                 // Composed bodies have a narrower operation vocabulary and no
                 // ordinary structural-return fallback. Keep that admission explicit.
                 match operation {
-                    CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
-                        (CheckedUnitCallRoute::Boundary, _) => {
-                            if boundaries
-                                .binary_search(&symbol_key(call.target.machine))
-                                .is_err()
-                            {
-                                closure.drop_candidate(
-                                    caller_index,
-                                    CheckedUnitPlanGapReason::BoundaryTarget(call.target.machine),
-                                    call_site(call.coordinate),
-                                );
-                            }
-                        }
-                        (
-                            CheckedUnitCallRoute::Module { .. },
-                            CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
-                        ) => closure.require_entry(
-                            caller_index,
-                            call.target.machine,
-                            call.target.state,
-                            call_site(call.coordinate),
-                        ),
-                        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
-                        apply_scalar_target_verdict(
-                            &mut closure,
-                            candidates.len(),
-                            caller_index,
-                            call.target.machine,
+                    CheckedUnitEffectOperationPlan::Call(call) => admit_call_target(
+                        &mut closure,
+                        &boundaries,
+                        candidates.len(),
+                        caller_index,
+                        call,
+                        || {
                             scalar_targets::ScalarCallSite::of_composed_operation(
                                 plan.machine,
                                 state,
@@ -440,12 +419,10 @@ pub(super) fn retain_available(
                                     &site,
                                     operation,
                                 )
-                            }),
-                            call_site(call.coordinate),
-                        )
-                        }
-                        (CheckedUnitCallRoute::Dynamic { .. }, _) => {}
-                    },
+                            })
+                        },
+                        call_site(call.coordinate),
+                    ),
                     CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)

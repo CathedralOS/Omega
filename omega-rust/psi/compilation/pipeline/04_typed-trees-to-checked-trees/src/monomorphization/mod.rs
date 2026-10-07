@@ -56,13 +56,9 @@ mod body_cloning;
 mod const_arguments;
 mod dynamic_families;
 pub(crate) use dynamic_families::generate_dynamic_family_specializations;
-<<<<<<< HEAD
 mod dynamic_slots;
 pub(crate) use dynamic_slots::instantiate_dynamic_slots;
-||||||| parent of 31dab1f18a (psi: share type-reference tree walk across monomorphization passes)
-=======
 pub(crate) use type_reference_walk::for_each_type_reference;
->>>>>>> 31dab1f18a (psi: share type-reference tree walk across monomorphization passes)
 mod const_values;
 mod range_arguments;
 mod result_locals;
