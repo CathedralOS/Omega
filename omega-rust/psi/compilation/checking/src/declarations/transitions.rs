@@ -182,29 +182,15 @@ pub(crate) fn validate_transition_target_node(
 
     let path = program.statement_table.name_path_members(path.members);
 
-    if path.len() == 1 {
-        let Some(state) = machine_symbols.state(path[0].as_str()) else {
-            return;
-        };
-
-        validate_transition_arguments_handles(
-            program,
-            current_machine,
-            current_state,
-            value_environment,
-            argument_environments,
-            arguments,
-            state.name.as_str(),
-            program.state_parameters(state),
-            writable_roots,
-            diagnostics,
-        );
-
-        return;
-    }
-
-    if path.len() == 2 && path[0].is_self_receiver() {
-        let Some(state) = machine_symbols.state(path[1].as_str()) else {
+    let state_member = if path.len() == 1 {
+        Some(0)
+    } else if path.len() == 2 && path[0].is_self_receiver() {
+        Some(1)
+    } else {
+        None
+    };
+    if let Some(member_index) = state_member {
+        let Some(state) = machine_symbols.state(path[member_index].as_str()) else {
             return;
         };
 
