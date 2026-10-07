@@ -2,7 +2,7 @@
 
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 /// The transported value is its landed representation, not host arithmetic
 /// and not an integer encoding of a float interval. Bitwise equality gives
@@ -138,7 +138,6 @@ pub(super) fn fold_with_valuation(
     born_zero: bool,
     expression: ExpressionHandle,
 ) -> Option<i128> {
-    use typed_trees::expression::BinaryOperator;
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let last = program
@@ -277,7 +276,6 @@ pub(super) fn expression_symbolic_value(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<SymbolicValue> {
-    use typed_trees::expression::BinaryOperator;
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) if path.symbol.is_valid() => {
             Some(SymbolicValue::Atom(path.symbol))
@@ -287,18 +285,9 @@ pub(super) fn expression_symbolic_value(
             .parse::<i128>()
             .ok()
             .map(SymbolicValue::Integer),
-        ExpressionNode::Binary(binary) => {
-            let left = expression_symbolic_value(program, binary.left)?;
-            let right = expression_symbolic_value(program, binary.right)?;
-            match binary.operator {
-                BinaryOperator::Add => Some(commutative_symbolic_value(true, left, right)),
-                BinaryOperator::Multiply => Some(commutative_symbolic_value(false, left, right)),
-                BinaryOperator::Subtract => {
-                    Some(SymbolicValue::Subtract(Box::new(left), Box::new(right)))
-                }
-                _ => None,
-            }
-        }
+        ExpressionNode::Binary(binary) => symbolic_binary_shape(binary, |expression| {
+            expression_symbolic_value(program, expression)
+        }),
         _ => None,
     }
 }
@@ -357,7 +346,6 @@ fn symbolic_operand(
     symbols: &[(String, SymbolicValue)],
     expression: ExpressionHandle,
 ) -> Option<SymbolicValue> {
-    use typed_trees::expression::BinaryOperator;
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let field = program
@@ -380,18 +368,9 @@ fn symbolic_operand(
             .parse::<i128>()
             .ok()
             .map(SymbolicValue::Integer),
-        ExpressionNode::Binary(binary) => {
-            let left = symbolic_operand(program, symbols, binary.left)?;
-            let right = symbolic_operand(program, symbols, binary.right)?;
-            match binary.operator {
-                BinaryOperator::Add => Some(commutative_symbolic_value(true, left, right)),
-                BinaryOperator::Multiply => Some(commutative_symbolic_value(false, left, right)),
-                BinaryOperator::Subtract => {
-                    Some(SymbolicValue::Subtract(Box::new(left), Box::new(right)))
-                }
-                _ => None,
-            }
-        }
+        ExpressionNode::Binary(binary) => symbolic_binary_shape(binary, |expression| {
+            symbolic_operand(program, symbols, expression)
+        }),
         _ => None,
     }
 }
@@ -467,5 +446,23 @@ pub(super) fn expression_contains_call(program: &TypedTrees, expression: Express
                     })
         }
         _ => false,
+    }
+}
+
+/// The arithmetic binary shape shared by operand sources: commutative
+/// Add/Multiply canonicalization and ordered Subtract.
+fn symbolic_binary_shape(
+    binary: &typed_trees::expression::TableBinaryExpression,
+    operand: impl Fn(ExpressionHandle) -> Option<SymbolicValue>,
+) -> Option<SymbolicValue> {
+    let left = operand(binary.left)?;
+    let right = operand(binary.right)?;
+    match binary.operator {
+        BinaryOperator::Add => Some(commutative_symbolic_value(true, left, right)),
+        BinaryOperator::Multiply => Some(commutative_symbolic_value(false, left, right)),
+        BinaryOperator::Subtract => {
+            Some(SymbolicValue::Subtract(Box::new(left), Box::new(right)))
+        }
+        _ => None,
     }
 }
