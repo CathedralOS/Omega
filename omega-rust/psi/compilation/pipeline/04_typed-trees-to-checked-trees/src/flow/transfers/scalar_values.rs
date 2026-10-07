@@ -18,6 +18,47 @@ use calls::capture_call;
 use captured::{CapturedValue, LiveValues};
 use conversions::{selected_call, selected_operand};
 
+/// A statement's written value source, when it carries one.
+fn statement_value_source(
+    statement: &StatementNode,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    Some(match statement {
+        StatementNode::LocalData(local) => local.initial_value,
+        StatementNode::Assignment(assignment) => assignment.value,
+        _ => return None,
+    })
+}
+
+/// The value `source`'s selected call captures, when the cast context
+/// selects one. `None` means no call was selected.
+#[allow(clippy::too_many_arguments)]
+fn selected_call_capture<Value: CapturedValue>(
+    program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    semantic: &FactPlan,
+    context: &mut FlowBuildContext,
+    state: SymbolHandle,
+    statement_index: usize,
+    source: typed_trees::expression::ExpressionHandle,
+    active: HandleSpan<FlowSemanticContextRef>,
+) -> Option<Option<Value>> {
+    let selected = selected_call(program, context.exact_integer_casts, source)?;
+    Some(
+        capture_call(
+            program,
+            borrow,
+            semantic,
+            context,
+            state,
+            statement_index,
+            selected.expression,
+            selected.call,
+            active,
+        )
+        .and_then(|value| selected.convert(value)),
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture_statement(
     program: &typed_trees::TypedTrees,
@@ -30,27 +71,21 @@ pub(super) fn capture_statement(
     statement: &StatementNode,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<ScalarValue> {
-    let source = match statement {
-        StatementNode::LocalData(local) => local.initial_value,
-        StatementNode::Assignment(assignment) => assignment.value,
-        _ => return None,
-    };
+    let source = statement_value_source(statement)?;
     if !program.expression_table.expression_is_valid(source) {
         return None;
     }
-    if let Some(selected) = selected_call(program, context.exact_integer_casts, source) {
-        return capture_call(
-            program,
-            borrow,
-            semantic,
-            context,
-            state,
-            statement_index,
-            selected.expression,
-            selected.call,
-            active,
-        )
-        .and_then(|value| selected.convert(value));
+    if let Some(captured) = selected_call_capture(
+        program,
+        borrow,
+        semantic,
+        context,
+        state,
+        statement_index,
+        source,
+        active,
+    ) {
+        return captured;
     }
     let builtin = builtin_bound_meaning_source(program, context, machine_symbol, state, source);
     if let Some((expression, symbols)) =
@@ -112,24 +147,18 @@ pub(super) fn capture_bounds(
     statement: &StatementNode,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<facts::IntegerRange> {
-    let source = match statement {
-        StatementNode::LocalData(local) => local.initial_value,
-        StatementNode::Assignment(assignment) => assignment.value,
-        _ => return None,
-    };
-    if let Some(selected) = selected_call(program, context.exact_integer_casts, source) {
-        return capture_call(
-            program,
-            borrow,
-            semantic,
-            context,
-            state,
-            statement_index,
-            selected.expression,
-            selected.call,
-            active,
-        )
-        .and_then(|value| selected.convert(value));
+    let source = statement_value_source(statement)?;
+    if let Some(captured) = selected_call_capture(
+        program,
+        borrow,
+        semantic,
+        context,
+        state,
+        statement_index,
+        source,
+        active,
+    ) {
+        return captured;
     }
     let builtin = builtin_bound_meaning_source(program, context, machine_symbol, state, source);
     let located = context.state_location(program, state);
