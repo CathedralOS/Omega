@@ -111,18 +111,6 @@ pub struct RedundantCompareReceipt {
 }
 
 impl RedundantCompareReceipt {
-    pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
     /// The transformed function index that carried the removed compare.
     pub const fn function_index(&self) -> usize {
         self.function_index
@@ -138,6 +126,8 @@ impl RedundantCompareReceipt {
         redundant_compare_identity(self)
     }
 }
+
+receipt_selected_identities!(RedundantCompareReceipt);
 
 /// Canonical identity of one validated redundant-compare removal: every
 /// receipt field — the coordinate, both plan identities, and the proof

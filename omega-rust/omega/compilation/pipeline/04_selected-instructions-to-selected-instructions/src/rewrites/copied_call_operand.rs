@@ -166,12 +166,6 @@ pub struct CopiedCallOperandReceipt {
 }
 
 impl CopiedCallOperandReceipt {
-    pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
     pub const fn function_index(&self) -> usize {
         self.function_index
     }
@@ -183,12 +177,6 @@ impl CopiedCallOperandReceipt {
     pub const fn call(&self) -> SelectedInstructionId {
         self.call
     }
-    pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
     /// The durable transformation identity the post-allocation manifest
     /// ledger records: the receipt's exact fields under the
     /// copied-call-operand domain separator.
@@ -196,6 +184,8 @@ impl CopiedCallOperandReceipt {
         copied_call_operand_identity(self)
     }
 }
+
+receipt_selected_identities!(CopiedCallOperandReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CopiedCallOperandError {

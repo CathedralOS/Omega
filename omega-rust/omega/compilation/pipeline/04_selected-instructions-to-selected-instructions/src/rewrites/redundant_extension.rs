@@ -97,18 +97,6 @@ pub struct RedundantExtensionReceipt {
 }
 
 impl RedundantExtensionReceipt {
-    pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
     /// The function the redundant extension was rewritten in.
     pub const fn function_index(&self) -> usize {
         self.function_index
@@ -124,6 +112,8 @@ impl RedundantExtensionReceipt {
         redundant_extension_identity(self)
     }
 }
+
+receipt_selected_identities!(RedundantExtensionReceipt);
 
 /// Canonical identity of one validated redundant-extension removal: every
 /// receipt field — the coordinate, both plan identities, and the proof

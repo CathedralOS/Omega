@@ -31,6 +31,34 @@
 //! isolation, and reached by no production route. See its module doc for the
 //! disposition roster.
 
+/// Every selected-rewrite receipt exposes the same four identities: the
+/// selected plan before and after, plus the optimization-unit and fuel
+/// identities the rewrite carried. One declarative row per receipt expands
+/// those accessors; receipts with extra accessors keep them in their own
+/// impl.
+macro_rules! receipt_selected_identities {
+    ($name:ident) => {
+        impl $name {
+            /// Identity of the selected plan the rewrite consumed.
+            pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
+                self.source_selected
+            }
+            /// Identity of the selected plan the rewrite produced.
+            pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
+                self.transformed_selected
+            }
+            /// Optimization unit the rewrite's evidence belongs to.
+            pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
+                self.optimization_unit
+            }
+            /// Fuel schedule the rewrite ran under.
+            pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
+                self.fuel_schedule
+            }
+        }
+    };
+}
+
 mod address_fold;
 mod allocation_recovery;
 mod block_edges;

@@ -84,20 +84,7 @@ pub struct RuntimeSplitReceipt {
     fuel_schedule: FuelScheduleIdentity,
 }
 
-impl RuntimeSplitReceipt {
-    pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
-}
+receipt_selected_identities!(RuntimeSplitReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeSplitError {

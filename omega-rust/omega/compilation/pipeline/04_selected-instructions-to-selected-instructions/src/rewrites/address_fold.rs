@@ -101,18 +101,6 @@ pub struct AddressFoldReceipt {
 }
 
 impl AddressFoldReceipt {
-    pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.source_selected
-    }
-    pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
-        self.optimization_unit
-    }
-    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
-        self.fuel_schedule
-    }
     /// The function the fold was committed in.
     pub const fn function_index(&self) -> usize {
         self.function_index
@@ -128,6 +116,8 @@ impl AddressFoldReceipt {
         address_fold_identity(self)
     }
 }
+
+receipt_selected_identities!(AddressFoldReceipt);
 
 /// Canonical identity of one validated address fold: every receipt field —
 /// the coordinate, both plan identities, and the proof inputs — is part of
