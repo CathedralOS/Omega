@@ -956,6 +956,34 @@ where
 /// closed rather than guessing the referent survived. The referent itself
 /// may ride through further reference bindings; each hop repeats the scan at
 /// the position where it was captured.
+
+/// The statement's own storage writes must not touch `slot`; `false`
+/// reports an untracked touch that fails the walk.
+#[allow(clippy::too_many_arguments)]
+fn statement_writes_miss_slot(
+    program: &TypedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    index: usize,
+    statement: &StatementNode,
+    frames: &validation::CallFrameResolver<'_>,
+    slot: &CanonicalPlace,
+) -> Option<bool> {
+    let writes = flow::statement_storage_writes(
+        program,
+        machine_symbol,
+        state_symbol,
+        index,
+        statement,
+        Some(frames),
+    )?;
+    Some(
+        writes
+            .iter()
+            .all(|write| !places_may_overlap(program, slot, write)),
+    )
+}
+
 fn exclusive_reference_root_place<Resolve>(
     program: &TypedTrees,
     frames: &validation::CallFrameResolver<'_>,
@@ -1082,18 +1110,15 @@ where
                     return None;
                 }
             }
-            let writes = flow::statement_storage_writes(
+            if !statement_writes_miss_slot(
                 program,
                 machine.symbol,
                 state.state_symbol,
                 index,
                 statement,
-                Some(frames),
-            )?;
-            if writes
-                .iter()
-                .any(|write| places_may_overlap(program, &slot, write))
-            {
+                frames,
+                &slot,
+            )? {
                 return None;
             }
             if let StatementNode::Call(call_statement) = statement {
@@ -1517,18 +1542,15 @@ where
                         program, frames, machine, state, index, candidate,
                     )?)
                 } else {
-                    let writes = flow::statement_storage_writes(
+                    if !statement_writes_miss_slot(
                         program,
                         machine.symbol,
                         state.state_symbol,
                         index,
                         statement,
-                        Some(frames),
-                    )?;
-                    if writes
-                        .iter()
-                        .any(|write| places_may_overlap(program, &slot, write))
-                    {
+                        frames,
+                        &slot,
+                    )? {
                         return None;
                     }
                     None
@@ -1552,18 +1574,15 @@ where
                 None
             }
             _ => {
-                let writes = flow::statement_storage_writes(
+                if !statement_writes_miss_slot(
                     program,
                     machine.symbol,
                     state.state_symbol,
                     index,
                     statement,
-                    Some(frames),
-                )?;
-                if writes
-                    .iter()
-                    .any(|write| places_may_overlap(program, &slot, write))
-                {
+                    frames,
+                    &slot,
+                )? {
                     return None;
                 }
                 None
