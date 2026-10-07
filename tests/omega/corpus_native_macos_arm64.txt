@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 5.09, "load1_start": 5.09, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 7.15, "load1_start": 7.15, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -299,6 +299,8 @@ pass/calls/requires_operand_flip_discharge built 3161ms exit:70 @527c7c316c6f+wt
 pass/calls/retained_receiver_argument_order_exit built 915ms exit:70 @bd26d3a01ac1+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 568ms exit:70 @76bba5577e21+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
+pass/calls/runtime_authored_numeric_guard_result_exit built 1809ms exit:0 @6979b7c65a9e+wt
+pass/calls/runtime_authored_numeric_names_exit built 1809ms exit:0 @6979b7c65a9e+wt
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 966ms exit:70 stdout:match @bea382792161+wt
 pass/calls/runtime_boundary_computed_selector_order_exit built 2770ms exit:70 @cba4afbf6f2f+wt
 pass/calls/runtime_boundary_loop_projected_subslice_exit built 1367ms exit:70 @6197860b335c+wt

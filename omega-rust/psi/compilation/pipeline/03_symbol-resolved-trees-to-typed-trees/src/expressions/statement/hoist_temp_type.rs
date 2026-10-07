@@ -67,7 +67,10 @@ pub(super) fn infer_hoist_temp_type(
     {
         ExpressionNode::Call(call)
             if !call.receiver.is_valid()
-                && BuiltinFunction::from_name(call.target.as_str())
+                && lowerer
+                    .source_trees
+                    .symbols
+                    .builtin_function_for_symbol(call.target_symbol)
                     .is_some_and(BuiltinFunction::is_scalar_computation) =>
         {
             Some(
@@ -847,7 +850,10 @@ fn operand_declared_interval(
 fn exact_domain_constraints<'t>(
     source_trees: &'t resolved::SymbolResolvedTrees,
     type_reference: &'t TypeReference,
-) -> Option<(&'t resolved::types::ConstrainedTypeReference, &'t [TypeConstraint])> {
+) -> Option<(
+    &'t resolved::types::ConstrainedTypeReference,
+    &'t [TypeConstraint],
+)> {
     let TypeReference::Constrained(constrained) = type_reference else {
         return None;
     };

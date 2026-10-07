@@ -1,5 +1,11 @@
+//! Calls select a source-visible declaration before the root builtin roster.
+//! A builtin is the receiverless default, not authority attached to a spelling:
+//! choosing it before an authored machine erased that machine's implementation
+//! and contracts during intrinsic normalization. Keep ambiguity distinct from
+//! absence so competing authored declarations cannot fall back to an intrinsic.
+
 use language_semantics::declaration_selection::BuildOperation;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
 use crate::symbols::lookup::{
     call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
@@ -258,34 +264,28 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return proposition_parameter;
     }
 
-    let builtin =
-        top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str());
-    if builtin.is_valid() {
-        return builtin;
+    match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+        target.as_str(),
+        &[
+            SymbolKind::Machine,
+            SymbolKind::Operator,
+            SymbolKind::Proposition,
+        ],
+        target.source_span(),
+        |_| true,
+    ) {
+        SymbolLookup::Unique(declaration) => {
+            if symbols.get(declaration).kind == SymbolKind::Machine {
+                machine_entry_symbol(symbols, declaration, target.as_str())
+            } else {
+                declaration
+            }
+        }
+        SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
+        SymbolLookup::NotFound => {
+            top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str())
+        }
     }
-
-    let proposition = top_level_symbol_for_source(symbols, SymbolKind::Proposition, target);
-    if proposition.is_valid() {
-        return proposition;
-    }
-
-    // A receiverless call to a FREE top-level machine (`machine compute(item:
-    // &Item) -> i32 { ... }`, called as `compute(item)`): resolve to the free
-    // machine's entry state so downstream passes (contract call obligations,
-    // state-call planning) see a resolved target instead of an invalid symbol.
-    let free_machine = resolve_free_machine_entry_state_symbol(symbols, target);
-    if free_machine.is_valid() {
-        return free_machine;
-    }
-
-    // A bare call to a free named operator keeps the operator's declaration
-    // identity for typed named-call validation. The source-aware lookup
-    // applies the module name law: inside the declaring module or through an
-    // exposing import a module-owned operator selects exactly, and a same-
-    // spelled unmoduled operator wins bare spellings elsewhere. Ambiguous or
-    // invisible candidates stay unresolved, where typed named-call selection
-    // still reaches module siblings by leaf and arity as before.
-    top_level_symbol_for_source(symbols, SymbolKind::Operator, target)
 }
 
 /// The entry-state symbol of the free top-level machine named `target`, or
@@ -301,12 +301,15 @@ pub(in crate::symbols) fn resolve_free_machine_entry_state_symbol(
         return SymbolHandle::invalid();
     }
 
-    let named = child_symbol_by_kinds(
-        symbols,
-        machine_symbol,
-        &[SymbolKind::State],
-        target.as_str(),
-    );
+    machine_entry_symbol(symbols, machine_symbol, target.as_str())
+}
+
+fn machine_entry_symbol(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    target: &str,
+) -> SymbolHandle {
+    let named = child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target);
     if named.is_valid() {
         return named;
     }

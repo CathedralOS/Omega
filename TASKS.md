@@ -3165,6 +3165,8 @@ deletions, which the commit lists.
   `proven_byte_writes` and `decided_call_requires`, carried through
   `formation_decided`/`SourceChecked`. Bounds alone do not establish a byte
   domain, and inferred additions to an arrival withdraw its source-checked mark.
+  Call conditions and result facts belong to the selected callable identity,
+  not to a builtin-like spelling.
   Remaining:
   - Carry decisions through generated selectors and remaining
     semantic-to-storage casts. Synthesized widenings and generated scalar-graph
@@ -3222,6 +3224,10 @@ deletions, which the commit lists.
   signed endpoints and scoped-out intermediaries. Different-subject and
   missing-arrival guards must not gain bounds; non-strict count chains and
   composed `!=` observations must not prove a strict bound or nonzero divisor.
+  `calls/runtime_authored_numeric_{names,guard_result}_exit` (0),
+  `calls/authored_numeric_name_requires`, `arithmetic/authored_max_result_bound`
+  and `modules/ambiguous_numeric_callable_not_builtin` constrain selected-call
+  behavior, declared contracts, result bounds and fail-closed ambiguity.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.

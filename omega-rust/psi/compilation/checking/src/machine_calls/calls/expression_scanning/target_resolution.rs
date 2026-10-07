@@ -7,7 +7,6 @@
 use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionViewOperation;
-use symbols::BuiltinFunction;
 use typed_trees::TypedTrees;
 use typed_trees::expression::TableCallExpression;
 use typed_trees::machine::Machine;
@@ -164,12 +163,14 @@ pub(super) fn report_unresolved_value_call(
         // value-position asm intrinsics (`asm { in dest, port }` desugars to
         // `dest = asm#port_in(port)`; the names are unnameable from source)
         // and the register reads their catalogs own.
-        if BuiltinFunction::from_name(target).is_some_and(|builtin| {
-            builtin.is_scalar_computation() || builtin.is_value_position_asm_intrinsic()
-        }) || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
-            target,
-        )
-        .is_some()
+        if program
+            .symbols
+            .builtin_function_for_symbol(call.target_symbol)
+            .is_some_and(|builtin| {
+                builtin.is_scalar_computation() || builtin.is_value_position_asm_intrinsic()
+            })
+            || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(target)
+                .is_some()
             || language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(target)
                 .is_some()
         {

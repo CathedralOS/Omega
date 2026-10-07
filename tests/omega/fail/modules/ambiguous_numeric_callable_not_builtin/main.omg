@@ -1,0 +1,4 @@
+use left::max;
+use right::max;
+
+machine main() -> i32 { max(2i32, 3i32) }

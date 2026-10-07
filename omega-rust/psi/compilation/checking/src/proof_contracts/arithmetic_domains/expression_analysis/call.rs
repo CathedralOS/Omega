@@ -131,12 +131,16 @@ fn selected_const_call_result(
 /// S4: the `min`/`max` builtins bound their result by their operands' intervals
 /// (`max(0, x)` is >= 0, `min(x, 100)` is <= 100), so a clamped value can feed
 /// exact arithmetic instead of poisoning the enclosing op. Reserved-builtin
-/// name + a free (receiverless) call + exactly two arguments. The caller checks
-/// all arguments before result inference. This query independently requires
+/// identity + a free (receiverless) call + exactly two arguments. A same-named
+/// authored machine contributes its own checked result, not an operand bound.
+/// The caller checks all arguments before result inference. This query requires
 /// clean operand analyses before using their intervals, without duplicating
 /// the diagnostics already emitted by that common argument walk.
 fn bounding_builtin_result(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
-    let builtin = BuiltinFunction::from_name(call.target.as_str());
+    let builtin = walk
+        .program
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol);
     if call.receiver.is_valid()
         || !matches!(builtin, Some(BuiltinFunction::Min | BuiltinFunction::Max))
     {

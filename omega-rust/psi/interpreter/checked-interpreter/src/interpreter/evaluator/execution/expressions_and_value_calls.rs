@@ -752,15 +752,17 @@ impl<'program> Evaluator<'program> {
         // The tree walker has no architectural flags register. Preserve the
         // value-flow shape with the architecturally fixed RFLAGS bit 1 set;
         // the matching restore statement is a no-op above.
-        if BuiltinFunction::from_name(target) == Some(BuiltinFunction::AsmSnapshotFlags)
-            && !call.receiver.is_valid()
-        {
+        let builtin = self
+            .program
+            .symbols
+            .builtin_function_for_symbol(call.target_symbol);
+        // Authored numeric names retain ordinary machine dispatch below;
+        // only the selected intrinsic owns builtin evaluation and bounds.
+        if builtin == Some(BuiltinFunction::AsmSnapshotFlags) && !call.receiver.is_valid() {
             return Ok(Value::Int(2));
         }
         // Builtins: max / min over two integer/float operands.
-        if let Some(builtin @ (BuiltinFunction::Max | BuiltinFunction::Min)) =
-            BuiltinFunction::from_name(target)
-        {
+        if let Some(builtin @ (BuiltinFunction::Max | BuiltinFunction::Min)) = builtin {
             let arguments = self
                 .program
                 .expression_table
@@ -875,9 +877,7 @@ impl<'program> Evaluator<'program> {
         // Builtin: sqrt over a single float operand. The interpreter consumes
         // the same exact semantic function used as the native
         // sqrtsd/sqrtss contract oracle.
-        if BuiltinFunction::from_name(target) == Some(BuiltinFunction::Sqrt)
-            && call.receiver == ExpressionHandle::invalid()
-        {
+        if builtin == Some(BuiltinFunction::Sqrt) && call.receiver == ExpressionHandle::invalid() {
             let arguments = self
                 .program
                 .expression_table

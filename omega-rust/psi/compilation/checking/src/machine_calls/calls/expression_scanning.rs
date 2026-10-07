@@ -345,7 +345,9 @@ fn validate_expression_call_bounds(
         // still visits its operand, including any nested ordinary call.
         return;
     }
-    let builtin = BuiltinFunction::from_name(call.target.as_str());
+    let builtin = program
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol);
     if (builtin == Some(BuiltinFunction::AsmSnapshotFlags)
         || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
             call.target.as_str(),

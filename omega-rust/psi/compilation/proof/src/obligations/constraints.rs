@@ -1,5 +1,7 @@
 //! Deriving the constraints an expression carries: primitives, literals,
-//! binary operators, builtin, extrema and range calls, and named facts.
+//! binary operators, selected builtin extrema, and named facts. Authored
+//! lookalikes supply only their own checked result guarantees; a leaf spelling
+//! never licenses builtin operand closure.
 
 use crate::obligations::plan::ConstraintBuffer;
 use crate::obligations::ranges::{
@@ -375,10 +377,16 @@ fn derived_builtin_call_constraints(
     state: &State,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<ConstraintBuffer> {
-    match call.target.as_str() {
-        "max" => derived_extrema_call_constraints(program, machine, state, call, true),
-        "min" => derived_extrema_call_constraints(program, machine, state, call, false),
-        "range" => derived_range_call_constraints(program, machine, state, call),
+    match program
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol)
+    {
+        Some(symbols::BuiltinFunction::Max) => {
+            derived_extrema_call_constraints(program, machine, state, call, true)
+        }
+        Some(symbols::BuiltinFunction::Min) => {
+            derived_extrema_call_constraints(program, machine, state, call, false)
+        }
         _ => None,
     }
 }
@@ -494,33 +502,6 @@ fn extrema_integer_range(
         }),
         _ => None,
     }
-}
-
-fn derived_range_call_constraints(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    call: &typed_trees::expression::TableCallExpression,
-) -> Option<ConstraintBuffer> {
-    let [_, exclusive_max] = program.expression_table.expression_handles(call.arguments) else {
-        return None;
-    };
-
-    let upper_constraints = expression_constraints(program, machine, state, *exclusive_max);
-    let mut constraints = ConstraintBuffer::new();
-    constraints.push(ProofConstraint::Named(Identifier::generated_static(
-        "exact",
-    )));
-
-    if let Some(upper_range) = integer_range_from_constraints(&upper_constraints) {
-        constraints.push(ProofConstraint::IntegerRange {
-            minimum: BigInt::zero(),
-            maximum: upper_range.maximum,
-        });
-    }
-
-    augment_constraints_with_named_facts(&mut constraints);
-    Some(constraints)
 }
 
 fn augment_constraints_with_named_facts(constraints: &mut ConstraintBuffer) {

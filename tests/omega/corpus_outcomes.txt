@@ -7,12 +7,15 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 5.09, "load1_start": 5.09, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 7.15, "load1_start": 7.25, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
 	partial exact division in array literal element of type `i64`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 	partial exact division in machine `make` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/authored_max_result_bound rejected 206ms expected @6979b7c65a9e+wt
+	Exact integer cast in machine `main` state `entry` cast expression from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `main` state `entry` terminal expression from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
 	exact arithmetic in machine `subtract` state `entry` cast expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `subtract` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -527,6 +530,8 @@ fail/build/wire_compatibility_unknown_fact rejected 561ms expected @8899cb25e748
 	unknown wire compatibility fact `Imaginary`
 fail/calls/affine_constructor_result_reuse rejected 428ms expected @41c7c3df5137+wt
 	cannot use `item` in machine `Worker::check` state `check` (statement 2) after `item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
+fail/calls/authored_numeric_name_requires rejected 384ms expected @6979b7c65a9e+wt
+	cannot prove requires contract for call abs from main: 100 >= -3 && 100 <= 3 (needs fact `value >= -3 && value <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/boundary_computed_selector_out_of_bounds rejected 430ms expected @cba4afbf6f2f+wt
 	cannot prove index `choose()` is within length 4 in main::entry
 fail/calls/boundary_nested_argument_conflicting_loan rejected 1030ms expected @cfe60a3a242
@@ -1235,6 +1240,8 @@ fail/memory/weak_vacant_qualifier_drop rejected 279ms expected @2d8ed253669f
 fail/modules/ambiguous_imported_data rejected 215ms expected @2d8ed253669f
 	duplicate data `Point`
 	data `Main` field `p` references unknown data type `Point`
+fail/modules/ambiguous_numeric_callable_not_builtin rejected 394ms expected @6979b7c65a9e+wt
+	call `max` selects no declaration: `max` is not a declared machine, data, or proof definition
 fail/modules/array_extent_ambiguous_imports rejected 196ms expected @226c4c4b57b1+wt
 	data `Storage` field `bytes` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
 fail/modules/array_extent_dependency_cycle rejected 9ms expected @226c4c4b57b1+wt
@@ -2119,6 +2126,8 @@ pass/calls/requires_operand_flip_discharge checked 3157ms check-target:macos_arm
 pass/calls/retained_receiver_argument_order_exit checked 886ms check-target:macos_arm64 @bd26d3a01ac1+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/runtime_authored_numeric_guard_result_exit checked 1936ms check-target:macos_arm64 @6979b7c65a9e+wt
+pass/calls/runtime_authored_numeric_names_exit checked 1936ms check-target:macos_arm64 @6979b7c65a9e+wt
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 1050ms check-target:macos_arm64 @bea382792161+wt
 pass/calls/runtime_boundary_computed_selector_order_exit checked 1177ms check-target:macos_arm64 @cba4afbf6f2f+wt
 pass/calls/runtime_boundary_loop_projected_subslice_exit checked 1148ms check-target:macos_arm64 @6197860b335c+wt
