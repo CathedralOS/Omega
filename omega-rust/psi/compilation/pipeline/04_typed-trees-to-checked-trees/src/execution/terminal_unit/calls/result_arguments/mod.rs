@@ -21,6 +21,7 @@ use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::calls::argument_paths::{
     projected_argument_path_with_identity, projected_borrowed_path,
 };
+use crate::execution::terminal_unit::calls::argument_presentation::ArgumentPresentation;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
 
 mod anonymous_shared;
@@ -107,7 +108,6 @@ pub(super) fn argument(
     // than from an owned-projection permission, so this lane is separate
     // from `allow_projection`: no custody moves.
     let projected_borrow = projected && access != CheckedStructuralAccess::Owned;
-    let local_type = receiver_local_type(program, source_state, place, result);
     // A range lends the original array's window, not the element type that
     // generic indexing projects. Reuse the parameter operand's range walk,
     // including omitted endpoints resolved from the declared backing extent.
@@ -143,68 +143,73 @@ pub(super) fn argument(
             })
         })
         .flatten();
-    // The window is projected, but its result binding still owns the entire
-    // local. Match that root's declaration for storage custody; the range
-    // walk above separately proves the selected backing and presentation.
-    let local_type = local_type.or_else(|| {
-        byte_window.as_ref()?;
-        receiver_local_type(
-            program,
-            source_state,
-            &crate::flow::CanonicalPlace {
-                root: place.root,
-                segments: Vec::new(),
-            },
-            result,
-        )
-    });
+    // Root custody and selected storage are different coordinates. A result
+    // owns the declared local even when an argument lends an array field or
+    // one of its windows; presentation checks the selected storage instead.
+    // Resolve that storage and path once for every projected loan.
+    let borrowed_storage = if projected_borrow {
+        byte_window.or_else(|| {
+            projected_borrowed_path(program, machine, state, call.statement_index, place)
+        })
+    } else {
+        None
+    };
+    let storage_type = if projected {
+        borrowed_storage.as_ref().map(|(storage, _)| *storage)
+    } else {
+        whole_local_storage_type(program, source_state, place, result)
+    };
     // A local array lends the same element view as an array parameter or
     // field. The local keeps its backing identity; the call presents only
     // the checked view, with its exact loan replayed below.
-    let array_view = byte_window.is_some()
-        || (access != CheckedStructuralAccess::Owned
-            && local_type.is_some_and(|source| {
-                super::boundary_admission::fixed_array_slice_view_is_admitted(
-                    program,
-                    source,
-                    parameter.type_reference,
-                )
-            }));
+    let presentation = storage_type.and_then(|storage| {
+        super::argument_presentation::classify(
+            program,
+            storage,
+            parameter.type_reference,
+            target_identity,
+            &[],
+        )
+    });
+    let array_view = access != CheckedStructuralAccess::Owned
+        && presentation == Some(ArgumentPresentation::FixedArraySlice);
     // A projected owned-record operand carries its subtree's captured leaves
     // into the call; the same resolved path both proves that custody and
     // names the argument's projected edge below. A projected borrow resolves
     // the same path to name the loaned subtree.
-    let projected_path = if projected {
-        if projected_borrow {
-            // An element or field borrow resolves runtime selectors the way
-            // the parameter lanes do: the segment carries the checked
-            // `RuntimeIndex` coordinate Terminal re-proves against the
-            // container's extent.
-            byte_window.or_else(|| {
-                projected_borrowed_path(program, machine, state, call.statement_index, place)
-                    .filter(|(projected, _)| {
-                        super::argument_presentation::is_admitted(
-                            program,
-                            *projected,
-                            parameter.type_reference,
-                            target_identity,
-                            &[],
-                        )
-                    })
-                    .map(|(_, path)| path)
-            })
+    let projected_path =
+        if projected {
+            if projected_borrow {
+                // An element or field borrow resolves runtime selectors the way
+                // the parameter lanes do: the segment carries the checked
+                // `RuntimeIndex` coordinate Terminal re-proves against the
+                // container's extent.
+                let (_, path) = borrowed_storage?;
+                let presentation = presentation?;
+                // Raw array views retain initialized field-only backing. Indexing
+                // a collection of arrays does not acquire this presentation.
+                if presentation == ArgumentPresentation::FixedArraySlice
+                && !path.iter().all(|segment| {
+                    matches!(segment,
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                        | checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { .. })
+                })
+            {
+                return None;
+            }
+                Some(path)
+            } else {
+                projected_argument_path_with_identity(
+                    program,
+                    state,
+                    call.statement_index,
+                    place,
+                    target_identity,
+                )
+            }
         } else {
-            projected_argument_path_with_identity(
-                program,
-                state,
-                call.statement_index,
-                place,
-                target_identity,
-            )
-        }
-    } else {
-        None
-    };
+            None
+        };
     let owned_reference_record = access == CheckedStructuralAccess::Owned
         && validation::reference_result_custody::is_reference_record(
             program,
@@ -411,7 +416,7 @@ pub(super) fn argument(
                 expression,
                 parameter.type_reference,
             )?;
-            let referee = if array_view { local_type? } else { referee };
+            let referee = if array_view { storage_type? } else { referee };
             match place.root {
                 facts::PlaceRoot::Symbol(_) => {
                     if exact_structural_argument_access(
@@ -471,7 +476,7 @@ pub(super) fn argument(
             }
             (
                 borrow.target,
-                if array_view { local_type? } else { *referee },
+                if array_view { storage_type? } else { *referee },
             )
         }
     };
@@ -846,7 +851,7 @@ fn names_whole_local(
 
 /// The declared type of the local that binds `result` when the receiver
 /// place is exactly that whole local.
-fn receiver_local_type(
+fn whole_local_storage_type(
     program: &dyn ::validation::CheckingInput,
     source_state: &typed_trees::state::State,
     place: &crate::flow::CanonicalPlace,

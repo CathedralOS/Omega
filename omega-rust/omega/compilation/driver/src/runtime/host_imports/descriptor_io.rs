@@ -1,8 +1,9 @@
 //! Trusted descriptor implementations over finite input and private streams.
 //! Exact normalized locators, declarations and target ABI authenticate
 //! compatibility, not semantic authority inferred from export names. Integer
-//! loans expose only their primitive extent; readonly views supply exact copied
-//! bytes and their retained pointer/length ABI. Neither grants allocation tails.
+//! loans expose only their primitive extent; views supply their exact live range
+//! and retained pointer/length ABI. Mutable views stage fixed-extent writes into
+//! the original backing. Neither protocol grants allocation tails or resizing.
 //! The host explicitly assumes equivalence of these offered implementations;
 //! checked library wrappers remain guest code, and no real host I/O occurs here.
 
@@ -75,7 +76,7 @@ impl DescriptorImplementation {
 #[derive(Clone, Copy)]
 enum DescriptorBuffer {
     Integer(IntegerType),
-    ReadonlyBytes,
+    Bytes,
 }
 
 pub(super) struct DescriptorIoImport<'input> {
@@ -145,11 +146,12 @@ impl<'input> DescriptorIoImport<'input> {
             }
             Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access,
-            })) if matches!(implementation, DescriptorImplementation::DarwinWrite)
-                && formal.access == StructuralAccess::SharedBorrow
-                && access.is_none_or(|access| access == StructuralAccess::SharedBorrow) =>
+            })) if matches!(
+                implementation,
+                DescriptorImplementation::DarwinRead | DescriptorImplementation::DarwinWrite
+            ) && access.is_none_or(|access| access == formal.access) =>
             {
-                DescriptorBuffer::ReadonlyBytes
+                DescriptorBuffer::Bytes
             }
             _ => return Err(invalid()),
         };
@@ -177,7 +179,7 @@ impl<'input> DescriptorIoImport<'input> {
                     ValueShape::integer(u32::from(width / 8), width / 8),
                 ],
             ),
-            DescriptorBuffer::ReadonlyBytes => (
+            DescriptorBuffer::Bytes => (
                 vec![ScalarType::Integer(descriptor_type)],
                 vec![
                     BoundaryParameterKind::Scalar,
@@ -325,19 +327,33 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 .descriptor_type
                 .admits(IntegerValue::Signed(*descriptor))
             || structural_arguments.len() != 1
-            || !byte_buffers.is_empty()
             || structural_arguments[0].structural_type != formal.structural_type
         {
             return Err(invalid_operands());
         }
         let mut primitive_bytes = [0u8; 16];
         let (bytes, count) = match self.buffer {
-            DescriptorBuffer::ReadonlyBytes => {
+            DescriptorBuffer::Bytes => {
                 let [Some(bytes)] = byte_sequence_arguments.as_slice() else {
                     return Err(invalid_operands());
                 };
                 if arguments.len() != 1 || !scalar_buffers.is_empty() {
                     return Err(invalid_operands());
+                }
+                match formal.access {
+                    StructuralAccess::SharedBorrow if byte_buffers.is_empty() => {}
+                    StructuralAccess::MutableBorrow => {
+                        let [buffer] = byte_buffers else {
+                            return Err(invalid_operands());
+                        };
+                        if buffer.argument_index() != 0
+                            || buffer.bytes() != bytes.as_slice()
+                            || u128::from(buffer.capacity()) != bytes.len() as u128
+                        {
+                            return Err(invalid_operands());
+                        }
+                    }
+                    _ => return Err(invalid_operands()),
                 }
                 (bytes.as_slice(), bytes.len())
             }
@@ -355,7 +371,8 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 else {
                     return Err(invalid_operands());
                 };
-                if *scalar_type != self.count_type
+                if !byte_buffers.is_empty()
+                    || *scalar_type != self.count_type
                     || !self.count_type.admits(IntegerValue::Unsigned(*count))
                     || buffer.argument_index() != 0
                     || buffer.access() != formal.access
@@ -416,7 +433,16 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     .lock()
                     .map_err(|_| TerminalEffectRejection::new("stdin snapshot lock is poisoned"))?;
                 let mut transferred = [0u8; 16];
-                let moved = match input.read(&mut transferred[..count]) {
+                let destination = match self.buffer {
+                    DescriptorBuffer::Integer(_) => &mut transferred[..count],
+                    DescriptorBuffer::Bytes => {
+                        let [buffer] = byte_buffers else {
+                            return Err(invalid_operands());
+                        };
+                        buffer.bytes_mut()
+                    }
+                };
+                let moved = match input.read(destination) {
                     Ok(moved) if moved <= count => moved,
                     Ok(_) => {
                         return Err(TerminalEffectRejection::new(
@@ -427,14 +453,13 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 };
                 drop(input);
                 let result = self.result(i128::try_from(moved).map_err(|_| invalid_operands())?)?;
-                primitive_bytes[..moved].copy_from_slice(&transferred[..moved]);
-                let DescriptorBuffer::Integer(integer) = self.buffer else {
-                    return Err(invalid_operands());
-                };
-                let [buffer] = scalar_buffers else {
-                    return Err(invalid_operands());
-                };
-                buffer.replace(integer_from_bytes(primitive_bytes, integer))?;
+                if let DescriptorBuffer::Integer(integer) = self.buffer {
+                    primitive_bytes[..moved].copy_from_slice(&transferred[..moved]);
+                    let [buffer] = scalar_buffers else {
+                        return Err(invalid_operands());
+                    };
+                    buffer.replace(integer_from_bytes(primitive_bytes, integer))?;
+                }
                 Ok(result)
             }
         }

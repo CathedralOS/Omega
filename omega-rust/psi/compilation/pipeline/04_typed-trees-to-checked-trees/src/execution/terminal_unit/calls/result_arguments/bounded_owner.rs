@@ -65,13 +65,14 @@ pub(super) fn loan(
         )
         && structural_access_for_type_reference(program, local.type_reference)
             == Some(CheckedStructuralAccess::Owned)
-        && super::super::argument_presentation::is_admitted(
+        && super::super::argument_presentation::classify(
             program,
             local.type_reference,
             parameter.type_reference,
             target_identity,
             &[],
-        );
+        )
+        .is_some();
     // Exclusive access cannot erase a qualified owner's invariants by turning
     // it into a bare mutable byte view. Its existing same-carrier loan remains.
     if !shared_view && formal_carrier != (CheckedByteSequenceCarrier::BoundedOwned { capacity }) {

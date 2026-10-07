@@ -8,7 +8,17 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode};
 
-/// Whether caller storage may be presented at an ordinary or boundary
+/// A representation relation, not authority to lend the selected storage.
+/// Array views additionally need initialized, unqualified backing and an
+/// admitted projection at the consuming operation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ArgumentPresentation {
+    SameIdentity,
+    ByteSequence,
+    FixedArraySlice,
+}
+
+/// Classify caller storage's presentation at an ordinary or boundary
 /// parameter. The identity rule is the transitive lane's: the
 /// projected type carries the parameter's exact normalized identity.
 ///
@@ -17,24 +27,34 @@ use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode};
 /// descriptor over that storage's live extent. This is the same representation
 /// relation for ordinary helpers and boundary requirements, independent of
 /// whether the call returns a scalar or Unit. Equal element types alone do not
-/// establish it; both types must classify as byte-sequence carriers. Source
+/// establish it. Raw fixed arrays instead retain their exact element type and
+/// literal extent while lending a slice descriptor. Source
 /// access and predicate custody must independently admit the call, including
 /// preservation of a mutable owner's invariants. Whole parameters and
 /// projections share this relation.
-pub(crate) fn is_admitted(
+pub(crate) fn classify(
     program: &dyn ::validation::CheckingInput,
     projected_type: typed_trees::types::TypeReferenceHandle,
     parameter_type: typed_trees::types::TypeReferenceHandle,
     target_identity: &str,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-) -> bool {
+) -> Option<ArgumentPresentation> {
     if base_type_identity(program, projected_type, &[])
         .is_some_and(|identity| identity == target_identity)
     {
-        return true;
+        return Some(ArgumentPresentation::SameIdentity);
     }
     let formal = substituted_formal_type(program, parameter_type, substitutions);
-    match (
+    if super::boundary_admission::fixed_array_slice_view_is_admitted(
+        program,
+        projected_type,
+        formal,
+    ) && base_type_identity_with_substitutions(program, formal, &[], substitutions)
+        .is_some_and(|identity| identity == target_identity)
+    {
+        return Some(ArgumentPresentation::FixedArraySlice);
+    }
+    let admitted = match (
         byte_sequence_carrier(program, projected_type, &[]),
         byte_sequence_carrier(program, formal, substitutions),
     ) {
@@ -71,7 +91,8 @@ pub(crate) fn is_admitted(
                 ) == Some(checked_trees::CheckedStructuralAccess::SharedBorrow)
         }
         _ => false,
-    }
+    };
+    admitted.then_some(ArgumentPresentation::ByteSequence)
 }
 
 /// Whether a declared field type is a shared `&[u8]` view, through any

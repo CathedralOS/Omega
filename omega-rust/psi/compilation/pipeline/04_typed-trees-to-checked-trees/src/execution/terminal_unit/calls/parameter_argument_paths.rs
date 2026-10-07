@@ -9,11 +9,10 @@ use crate::execution::terminal_unit::calls::argument_paths::{
     fixed_byte_array_range_path, open_byte_range_path, projected_argument_path,
     projected_argument_path_with_identity, projected_borrowed_path,
 };
-use crate::execution::terminal_unit::calls::boundary_admission::{
-    fixed_array_slice_view_is_admitted, fixed_byte_array_view_is_admitted,
-};
+use crate::execution::terminal_unit::calls::argument_presentation::ArgumentPresentation;
+use crate::execution::terminal_unit::calls::boundary_admission::fixed_byte_array_view_is_admitted;
 use crate::execution::terminal_unit::types::{
-    base_type_identity, borrowed_slice_view_element, byte_sequence_carrier, parameter_is_root,
+    base_type_identity, byte_sequence_carrier, parameter_is_root,
 };
 use crate::execution::terminal_unit::{
     CheckedStructuralAccess, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
@@ -293,19 +292,24 @@ impl ParameterArgument<'_> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> bool {
         source.plan.type_identity == self.target_identity
-            || super::argument_presentation::is_admitted(
+            || super::argument_presentation::classify(
                 self.program,
                 source.declaration.type_reference,
                 self.target,
                 self.target_identity,
                 substitutions,
             )
-            || (byte_view
-                && fixed_byte_array_view_is_admitted(
-                    self.program,
-                    source.declaration.type_reference,
-                    self.target,
-                ))
+            .is_some_and(|presentation| match presentation {
+                ArgumentPresentation::FixedArraySlice => {
+                    byte_view
+                        && fixed_byte_array_view_is_admitted(
+                            self.program,
+                            source.declaration.type_reference,
+                            self.target,
+                        )
+                }
+                _ => true,
+            })
     }
 
     fn target_is_byte_view(self) -> bool {
@@ -321,6 +325,7 @@ impl ParameterArgument<'_> {
     fn fixed_range_path(self) -> Option<ArgumentPath> {
         let (program, place, target) = (self.program, self.place, self.target);
         fixed_byte_array_range_path(program, self.state, self.statement_index, place, target)
+            .map(|(_, path)| path)
     }
 
     fn exact_projection_path(self) -> Option<ArgumentPath> {
@@ -344,10 +349,14 @@ impl ParameterArgument<'_> {
             self.statement_index,
             self.place,
         )?;
-        (base_type_identity(program, projected, &[])? == self.target_identity
-            || (borrowed_slice_view_element(program, target, &[]).is_some()
-                && fixed_array_slice_view_is_admitted(program, projected, target)))
-        .then_some(path)
+        let presentation = super::argument_presentation::classify(
+            program,
+            projected,
+            target,
+            self.target_identity,
+            &[],
+        )?;
+        (presentation != ArgumentPresentation::ByteSequence).then_some(path)
     }
 
     /// A projection the formal presents through the carrier presentation
@@ -360,13 +369,19 @@ impl ParameterArgument<'_> {
         let (program, target) = (self.program, self.target);
         let (projected, path) =
             projected_argument_path(program, self.state, self.statement_index, self.place)?;
-        (super::argument_presentation::is_admitted(
+        super::argument_presentation::classify(
             program,
             projected,
             target,
             self.target_identity,
             substitutions,
-        ) || (byte_view && fixed_byte_array_view_is_admitted(program, projected, target)))
+        )
+        .is_some_and(|presentation| match presentation {
+            ArgumentPresentation::FixedArraySlice => {
+                byte_view && fixed_byte_array_view_is_admitted(program, projected, target)
+            }
+            _ => true,
+        })
         .then_some(path)
     }
 
@@ -381,7 +396,7 @@ impl ParameterArgument<'_> {
         let (program, state, statement_index, place) =
             (self.program, self.state, self.statement_index, self.place);
         if custody.lends_unrestricted_borrow()
-            && let Some(path) =
+            && let Some((_, path)) =
                 open_byte_range_path(program, state, statement_index, place, self.target)
         {
             return Some(path);

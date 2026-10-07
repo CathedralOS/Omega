@@ -213,12 +213,14 @@ not make bounded storage generally interchangeable with views. The exact
 mutable field-to-byte-view presentation is also available to ordinary Unit
 helpers on the verifier's admitted field-only paths; it retains the same field
 loan rather than copying or owning bytes. Missing backing still rejects.
-`TerminalEffectHandler::handle_effect_with_byte_buffers` receives the pre-call
-bytes and stages whole live-sequence replacements through
-`TerminalBoundaryByteBuffer::replace`. Oversized replacements reject without
-changing the staged value. All buffers and the declared response must validate
-before any field writeback or completion is committed. The effect trace records
-pre-call bytes; `structural_byte_sequence_field` observes committed replacements.
+`TerminalEffectHandler::handle_effect_with_byte_buffers` receives pre-call
+bytes and staged writable storage. An ordinary mutable view uses
+`TerminalBoundaryByteBuffer::bytes_mut`: its slice cannot resize storage or
+expose unused capacity. `replace` belongs only to a whole bounded owner and
+rejects ordinary views, including equally sized replacements. All captured
+loans, buffer extents and the declared response validate before writeback or
+completion commits. The effect trace records pre-call bytes;
+`structural_byte_sequence_field` observes committed writes.
 Handlers without this callback reject mutable buffers before performing an
 effect. Missing backing remains an error, including for an opaque entry object.
 
@@ -267,9 +269,13 @@ an admitted record-field array as a mutable byte view. Argument preparation
 shares the exact initialized-array binding rather than staging a field replacement.
 Calls and block transfers retain that binding; length remains `N` and indexed
 writes preserve all other elements through fuel
-suspension. A fieldless array binding is distinct from the bounded-field loan,
-so the external `replace` callback cannot resize an array. This host-input route
-does not implement source-owned array construction or native array/view storage.
+suspension. External calls stage the selected initialized range, including
+array storage in suspended caller frames. `bytes_mut` writes that fixed extent;
+successful completion commits it to the captured array and offset, never a
+newly resolved equal-looking place. Short reads preserve the unread suffix.
+A fieldless array binding is distinct from the bounded-field loan, so the
+external `replace` callback cannot resize an array. This input establishment
+route does not itself implement source-owned construction or native storage.
 
 ## Boundary responses
 

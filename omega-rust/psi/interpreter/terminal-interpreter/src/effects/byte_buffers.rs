@@ -1,10 +1,11 @@
-//! Exact array/field loans and separately staged external byte-field replacement.
+//! Prepare ordinary boundary loans, then stage exact external byte writeback.
+mod writeback;
+
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::calls::arguments::StructuralCallArguments;
 use crate::custody::bind_structural_arguments;
 use crate::custody::resolve_structural_arguments;
-use crate::effects::TerminalEffectRejection;
 use crate::effects::scalar_loans::BoundaryScalarLoans;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -20,50 +21,8 @@ use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
-
-/// One mutable boundary argument's live bytes and original inline capacity.
-/// Replacement is staged: the interpreter commits it only after the handler
-/// succeeds and its declared result is validated. This grants no qualifications.
-#[derive(Debug)]
-pub struct TerminalBoundaryByteBuffer {
-    argument_index: usize,
-    capacity: u64,
-    bytes: Vec<u8>,
-}
-
-impl TerminalBoundaryByteBuffer {
-    /// Index in the effect's structural arguments, not its scalar arguments.
-    pub fn argument_index(&self) -> usize {
-        self.argument_index
-    }
-
-    pub fn capacity(&self) -> u64 {
-        self.capacity
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    /// Replace the entire live sequence, including its length. An oversized
-    /// replacement rejects without changing the staged value.
-    pub fn replace(&mut self, bytes: &[u8]) -> Result<(), TerminalEffectRejection> {
-        if bytes.len() as u128 > u128::from(self.capacity) {
-            return Err(TerminalEffectRejection::new(
-                "boundary byte replacement exceeds inline capacity",
-            ));
-        }
-        self.bytes.clear();
-        self.bytes.extend_from_slice(bytes);
-        Ok(())
-    }
-}
-
-struct BoundaryByteBufferBinding {
-    argument_index: usize,
-    capacity: u64,
-    field: StructuralByteSequenceRuntimeField,
-}
+pub use writeback::TerminalBoundaryByteBuffer;
+use writeback::{BoundaryByteBufferBinding, BoundaryByteWriteScope};
 
 pub(crate) struct BoundaryArguments {
     local_identity_cursor: Option<u64>,
@@ -172,18 +131,11 @@ impl BoundaryArguments {
         &self,
         execution: &TerminalExecution,
     ) -> Result<(), TerminalInterpretError> {
-        if self.buffers.len() != self.bindings.len()
-            || self
-                .buffers
-                .iter()
-                .zip(&self.bindings)
-                .any(|(buffer, binding)| {
-                    buffer.argument_index != binding.argument_index
-                        || buffer.capacity != binding.capacity
-                        || buffer.bytes.len() as u128 > u128::from(binding.capacity)
-                })
-        {
+        if self.buffers.len() != self.bindings.len() {
             return Err(malformed());
+        }
+        for (buffer, binding) in self.buffers.iter().zip(&self.bindings) {
+            binding.validate(execution, buffer)?;
         }
         self.scalar_loans.validate_writeback(execution)
     }
@@ -196,9 +148,7 @@ impl BoundaryArguments {
             .local_structural_identities
             .commit_cursor(self.local_identity_cursor);
         for (buffer, binding) in self.buffers.into_iter().zip(self.bindings) {
-            execution
-                .structural_byte_sequence_fields
-                .insert(binding.field, ByteSequenceView::new(buffer.bytes));
+            binding.commit(execution, buffer)?;
         }
         self.scalar_loans.commit(execution)
     }
@@ -219,7 +169,6 @@ impl TerminalExecution {
         // identity association, then restore the original structural order.
         let mut ordinary_parameters = Vec::new();
         let mut ordinary_arguments = Vec::new();
-        let mut ordinary_indices = Vec::new();
         let mut scalar_indices = Vec::new();
         for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate()
         {
@@ -236,16 +185,10 @@ impl TerminalExecution {
             } else {
                 ordinary_parameters.push(parameter.clone());
                 ordinary_arguments.push(argument.clone());
-                ordinary_indices.push(argument_index);
             }
         }
         let mut resolved =
             self.prepare_boundary_arguments(&ordinary_parameters, &ordinary_arguments)?;
-        for binding in &mut resolved.bindings {
-            binding.argument_index = *ordinary_indices
-                .get(binding.argument_index)
-                .ok_or_else(malformed)?;
-        }
         for argument_index in scalar_indices {
             let value = resolved.scalar_loans.capture(
                 self,
@@ -262,26 +205,33 @@ impl TerminalExecution {
         for (argument_index, binding) in resolved.byte_sequences.iter().enumerate() {
             match binding {
                 None => resolved.bytes.push(None),
-                Some(ByteSequenceBinding::MutableArray { .. }) => {
-                    return Err(malformed());
-                }
                 Some(ByteSequenceBinding::Immutable(view)) => {
                     resolved.bytes.push(Some(view.bytes().to_vec()));
                 }
-                Some(ByteSequenceBinding::MutableField {
-                    field, capacity, ..
-                }) => {
-                    let bytes = self
-                        .structural_byte_sequence_fields
-                        .get(field)
-                        .ok_or(malformed())?
-                        .bytes();
-                    resolved.bytes.push(Some(bytes.to_vec()));
-                    resolved.buffers.push(TerminalBoundaryByteBuffer {
-                        argument_index,
-                        capacity: *capacity,
-                        bytes: bytes.to_vec(),
-                    });
+                Some(
+                    binding @ (ByteSequenceBinding::MutableArray { .. }
+                    | ByteSequenceBinding::MutableField { .. }),
+                ) => {
+                    let parameter = &parameters[argument_index];
+                    let declaration = self
+                        .program
+                        .structural_types
+                        .get(&parameter.structural_type)
+                        .ok_or_else(malformed)?;
+                    let scope = match declaration.shape {
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                            ..
+                        }) => BoundaryByteWriteScope::View,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                            ..
+                        }) => BoundaryByteWriteScope::Owner,
+                        _ => return Err(malformed()),
+                    };
+                    let (binding, buffer) =
+                        BoundaryByteBufferBinding::capture(self, argument_index, binding, scope)?;
+                    resolved.bytes.push(Some(buffer.bytes().to_vec()));
+                    resolved.buffers.push(buffer);
+                    resolved.bindings.push(binding);
                 }
             }
         }
@@ -308,8 +258,7 @@ impl TerminalExecution {
             element_views: Vec::with_capacity(arguments.len()),
         };
         let mut local_array_roots = BTreeMap::new();
-        for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate()
-        {
+        for (parameter, argument) in parameters.iter().zip(arguments) {
             if matches!(
                 self.program
                     .structural_types
@@ -340,8 +289,8 @@ impl TerminalExecution {
                 continue;
             }
             // Reuse the ordinary call's exact initialized-array binding. It can
-            // enter a checked provider and be forwarded again, but never enters
-            // the external field-replacement staging/writeback protocol.
+            // enter a checked provider and be forwarded again. External staging
+            // lends its exact range, never field-replacement authority.
             if let Some((referent, binding)) = self.prepare_array_view_argument_staged(
                 parameter,
                 argument,
@@ -439,11 +388,6 @@ impl TerminalExecution {
                     return Err(malformed());
                 }
                 resolved.values.push(referent.clone());
-                resolved.bindings.push(BoundaryByteBufferBinding {
-                    argument_index,
-                    capacity: *capacity,
-                    field: destination.clone(),
-                });
                 resolved.byte_sequences.push(Some(binding));
                 resolved.element_views.push(None);
             } else {

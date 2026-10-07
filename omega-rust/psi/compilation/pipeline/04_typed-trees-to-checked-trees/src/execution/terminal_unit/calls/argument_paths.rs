@@ -775,7 +775,7 @@ pub(crate) fn fixed_byte_array_range_path(
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
     target: TypeReferenceHandle,
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
     let (facts::PlaceSegment::FixedRange { start, end }, fields) = place.segments.split_last()?
     else {
         return None;
@@ -805,7 +805,7 @@ pub(crate) fn open_byte_range_path(
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
     target: TypeReferenceHandle,
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
     let (facts::PlaceSegment::Index { expression }, fields) = place.segments.split_last()? else {
         return None;
     };
@@ -846,7 +846,7 @@ fn byte_array_range_path(
     start: usize,
     end: Option<usize>,
     target: TypeReferenceHandle,
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
     if !fields
         .iter()
         .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
@@ -877,7 +877,7 @@ fn byte_array_range_path(
         start: u64::try_from(start).ok()?,
         end: u64::try_from(end).ok()?,
     });
-    Some(path)
+    Some((backing_type, path))
 }
 
 /// Argument formation owns storage identity, path geometry, exact access and

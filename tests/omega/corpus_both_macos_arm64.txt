@@ -280,7 +280,9 @@ pass/host/runtime_console_bounded_line_lf_exit built 1331ms exit:13 stdout:match
 pass/host/runtime_console_bounded_line_middle_window_exit built 1289ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @65bf3438e399+wt
 pass/host/runtime_console_bounded_line_partial_eof_exit built 1282ms exit:22 stdout:match interpreter-exit:22 interpreter-stdout:match interpreter:agrees @65bf3438e399+wt
 pass/host/runtime_descriptor_direct_array_exit built 14250ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @c6603d3fbbc8+wt
+pass/host/runtime_descriptor_mutable_view_input_exit built 15268ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @46782946f3c8+wt
 pass/host/runtime_descriptor_output_streams_exit built 11567ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @c6603d3fbbc8+wt
+pass/host/runtime_descriptor_record_array_input_exit built 15464ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @46782946f3c8+wt
 pass/host/runtime_descriptor_scalar_input_exit built 11699ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d4c9839eb53d+wt
 pass/host/std_clock_sleep_exit built 14521ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/layouts/runtime_callee_integer_at_fitting_write_exit built 1758ms exit:0 interpreter-exit:0 interpreter:agrees @acdf102c21ea+wt

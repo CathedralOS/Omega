@@ -1720,7 +1720,7 @@ then independent claimed restoration slices -> final closure.
   isolated instance. Complete external demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar entry arguments, placed host
-  loans, writable host byte/record buffers, non-hosted roots and required
+  loans, writable host record buffers, non-hosted roots and required
   receiver qualifications. Hosted byte input uses
   an explicit finite replay stream shared by selected input slots; CLI and
   corpus give each engine the same authored bytes with independent positions.
@@ -1735,9 +1735,12 @@ then independent claimed restoration slices -> final closure.
   (`computed case field requires its exact scalar carrier`); shared atomic
   payloads then need original-cell backing, never a scalar snapshot.
   Qualify the ordinary `omega run --both` route for
-  `borrows/indexed_record_field_replacement_exit` after its full-stdlib package
-  review: the initial graph requests 277 decisions, including `FilesystemHost`;
-  corpus agreement does not settle that package admission.
+  `borrows/indexed_record_field_replacement_exit` and
+  `host/runtime_descriptor_{mutable_view,record_array}_input_exit` after their
+  full-stdlib package review: the first graph requests 277 decisions, the
+  mutable-view graph 278, including `FilesystemHost`. Unlocked mutable-view
+  execution refuses the dependency-owned program-entry binding; corpus
+  agreement does not settle that package admission.
   Complete clock imports beyond the admitted Darwin nanosecond reads and
   descriptorless finite poll waits: descriptor readiness needs actual custody,
   CPU clocks need accounting, and other target locators need exact adapters.
@@ -1753,6 +1756,9 @@ then independent claimed restoration slices -> final closure.
   Preserve `host/runtime_descriptor_scalar_input_exit`: canonical boundary-trait
   supplies share one finite input cursor across import slots, retain untouched
   bytes on short reads, and leave caller storage unchanged on zero-count/EOF.
+  Preserve the mutable-view and record-array input fixtures too: original
+  array/field windows retain exact live extents and unread/outside bytes;
+  field presentation cannot substitute the record owner's type or grant resizing.
   The original
   `runtime_float_integer_conversion_boundaries_exit` has no exact established
   root ProcessExit Binding occurrence and declines before effects; resolve its

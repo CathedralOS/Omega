@@ -1082,13 +1082,18 @@ fn projected_loan_transfer(
                 | CheckedUnitStructuralPathSegment::Case(_)
                 | CheckedUnitStructuralPathSegment::FixedIndex(_)
         )
-    }) || !calls::argument_presentation::is_admitted(
+    }) || !calls::argument_presentation::classify(
         program,
         projected_type,
         target_type_reference,
         &target.type_identity,
         &[],
-    ) {
+    )
+    .is_some_and(|presentation| {
+        // A raw-array-to-slice edge still needs its descriptor formation;
+        // compatibility alone does not establish that incoming carrier.
+        presentation != calls::argument_presentation::ArgumentPresentation::FixedArraySlice
+    }) {
         return None;
     }
     let identity = borrowed_identity
