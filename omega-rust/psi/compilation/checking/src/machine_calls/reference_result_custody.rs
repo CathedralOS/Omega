@@ -2391,18 +2391,11 @@ pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State)
     else {
         return None;
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(*expression) else {
+    let Some(symbol) =
+        crate::expression_traversal::single_segment_name_symbol(program, *expression)
+    else {
         return None;
     };
-    if path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
     // The same ingress reconstruction serves bare returns and stored reference
     // initializers. Parameter identity is explicit; attached-machine identity
     // cannot stand in for an authored argument.
@@ -2410,7 +2403,7 @@ pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State)
     program
         .state_parameters(state)
         .iter()
-        .position(|parameter| parameter.symbol == path.symbol && !parameter.is_const)
+        .position(|parameter| parameter.symbol == symbol && !parameter.is_const)
 }
 
 /// A bare reference result may also name one projected leaf of an owned
@@ -2457,23 +2450,16 @@ fn expression_source_leaf(
     if members.is_empty() {
         return None;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(current) else {
+    let Some(symbol) =
+        crate::expression_traversal::single_segment_name_symbol(program, current)
+    else {
         return None;
     };
-    if path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
     let (position, parameter) = program
         .state_parameters(state)
         .iter()
         .enumerate()
-        .find(|(_, parameter)| parameter.symbol == path.symbol)?;
+        .find(|(_, parameter)| parameter.symbol == symbol)?;
     if parameter.is_const
         || program
             .primitive_type_reference(parameter.type_reference)
