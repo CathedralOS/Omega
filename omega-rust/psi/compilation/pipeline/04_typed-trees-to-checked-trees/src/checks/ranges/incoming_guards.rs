@@ -1173,22 +1173,8 @@ fn expression_in_stable_scope(
     parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
     expression: ExpressionHandle,
 ) -> bool {
-    let eligible = |expression| {
-        expression_in_stable_scope(
-            program,
-            machine,
-            state,
-            evaluation_state,
-            parameter_argument_places,
-            expression,
-        )
-    };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) => {
-            let Some(place) = crate::flow::canonical_place_from_expression(program, expression)
-            else {
-                return false;
-            };
+    expression_tail_eligible(program, expression, &|expression| {
+        crate::flow::canonical_place_from_expression(program, expression).is_some_and(|place| {
             match place.root {
                 facts::PlaceRoot::Symbol(symbol) if symbol == machine.symbol => true,
                 facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() => {
@@ -1202,19 +1188,8 @@ fn expression_in_stable_scope(
                 }
                 _ => false,
             }
-        }
-        ExpressionNode::Member(member) => eligible(member.receiver),
-        ExpressionNode::Indexed(indexed) => eligible(indexed.collection) && eligible(indexed.index),
-        ExpressionNode::Binary(binary) => eligible(binary.left) && eligible(binary.right),
-        ExpressionNode::Unary(unary) => eligible(unary.operand),
-        ExpressionNode::Cast(cast) => eligible(cast.value),
-        ExpressionNode::Borrow(borrow) => eligible(borrow.target),
-        ExpressionNode::Integer(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::String(_) => true,
-        _ => false,
-    }
+        })
+    })
 }
 
 /// Whether `source` — a parameter of the state where the guard was
@@ -1273,18 +1248,37 @@ fn guard_uses_machine_storage_only(
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> bool {
-    let eligible = |expression| guard_uses_machine_storage_only(program, machine, expression);
+    expression_tail_eligible(program, expression, &|expression| {
+        crate::flow::canonical_place_from_expression(program, expression)
+            .is_some_and(|place| (place.root) == facts::PlaceRoot::Symbol(machine.symbol))
+    })
+}
+
+/// The expression-tail walk both machine-storage eligibility tests share:
+/// names delegate to `name_test`, every other node recurses, literals pass.
+fn expression_tail_eligible(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    name_test: &dyn Fn(ExpressionHandle) -> bool,
+) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) => {
-            crate::flow::canonical_place_from_expression(program, expression)
-                .is_some_and(|place| (place.root) == facts::PlaceRoot::Symbol(machine.symbol))
+        ExpressionNode::Name(_) => name_test(expression),
+        ExpressionNode::Member(member) => {
+            expression_tail_eligible(program, member.receiver, name_test)
         }
-        ExpressionNode::Member(member) => eligible(member.receiver),
-        ExpressionNode::Indexed(indexed) => eligible(indexed.collection) && eligible(indexed.index),
-        ExpressionNode::Binary(binary) => eligible(binary.left) && eligible(binary.right),
-        ExpressionNode::Unary(unary) => eligible(unary.operand),
-        ExpressionNode::Cast(cast) => eligible(cast.value),
-        ExpressionNode::Borrow(borrow) => eligible(borrow.target),
+        ExpressionNode::Indexed(indexed) => {
+            expression_tail_eligible(program, indexed.collection, name_test)
+                && expression_tail_eligible(program, indexed.index, name_test)
+        }
+        ExpressionNode::Binary(binary) => {
+            expression_tail_eligible(program, binary.left, name_test)
+                && expression_tail_eligible(program, binary.right, name_test)
+        }
+        ExpressionNode::Unary(unary) => expression_tail_eligible(program, unary.operand, name_test),
+        ExpressionNode::Cast(cast) => expression_tail_eligible(program, cast.value, name_test),
+        ExpressionNode::Borrow(borrow) => {
+            expression_tail_eligible(program, borrow.target, name_test)
+        }
         ExpressionNode::Integer(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
