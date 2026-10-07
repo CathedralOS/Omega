@@ -8,7 +8,7 @@ use super::*;
 /// binder — including the intermediate ones a nested `caseTwo` adds that
 /// are not themselves cited premises.
 pub(super) struct Elaboration<'a> {
-    denotation: Denotation,
+    pub(super) denotation: Denotation,
     context: &'a PropositionContext,
     /// The ambient assumption roster — the shared checkers read it for
     /// the citations the bound rules record.
