@@ -332,6 +332,32 @@ pub(crate) fn constraint_slug(
 
 /// Classify only arguments the existing closed-shape gate has admitted. Open
 /// binders remain on the ordinary generic path; no unresolved name is an atom.
+/// The shared parameter-argument zip: each argument's closed identity —
+/// `Const`-kinded binders marking it const — or `None` when lengths disagree
+/// or any argument stays open.
+fn closed_argument_identities(
+    syntax: &SyntaxTrees,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    parameters: &[TypeParameter],
+    arguments: &[TypeReferenceHandle],
+) -> Option<Vec<ClosedArgumentIdentity>> {
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+    parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            closed_argument_identity(
+                syntax,
+                selection,
+                *argument,
+                matches!(parameter.kind, TypeParameterKind::Const { .. }),
+            )
+        })
+        .collect::<Option<Vec<_>>>()
+}
+
 pub(crate) fn closed_argument_identity(
     syntax: &SyntaxTrees,
     selection: Option<&declaration_selection::ConstantSelection>,
@@ -354,21 +380,7 @@ pub(crate) fn closed_argument_identity(
         };
         let parameters = syntax.items.type_parameters(data.type_parameters);
         let arguments = syntax.type_references.type_reference_handles(*arguments);
-        if parameters.len() != arguments.len() {
-            return None;
-        }
-        let identities = parameters
-            .iter()
-            .zip(arguments)
-            .map(|(parameter, argument)| {
-                closed_argument_identity(
-                    syntax,
-                    selection,
-                    *argument,
-                    matches!(parameter.kind, TypeParameterKind::Const { .. }),
-                )
-            })
-            .collect::<Option<Vec<_>>>()?;
+        let identities = closed_argument_identities(syntax, selection, parameters, arguments)?;
         return Some(ClosedArgumentIdentity::Instance(declaration, identities));
     }
     match syntax.type_references.type_reference(handle) {
@@ -422,23 +434,9 @@ pub(crate) fn closed_argument_identity(
             };
             let parameters = syntax.items.type_parameters(data.type_parameters);
             let arguments = syntax.type_references.type_reference_handles(*arguments);
-            if parameters.len() != arguments.len() {
-                return None;
-            }
             Some(ClosedArgumentIdentity::Instance(
                 declaration,
-                parameters
-                    .iter()
-                    .zip(arguments)
-                    .map(|(parameter, argument)| {
-                        closed_argument_identity(
-                            syntax,
-                            selection,
-                            *argument,
-                            matches!(parameter.kind, TypeParameterKind::Const { .. }),
-                        )
-                    })
-                    .collect::<Option<Vec<_>>>()?,
+                closed_argument_identities(syntax, selection, parameters, arguments)?,
             ))
         }
         TypeReferenceNode::Named(name) if is_constant => {
@@ -677,21 +675,7 @@ fn indexed_domain_identity(
         return None;
     }
     let arguments = syntax.type_references.type_reference_handles(arguments);
-    if index_parameters.len() != arguments.len() {
-        return None;
-    }
-    let indices = index_parameters
-        .iter()
-        .zip(arguments)
-        .map(|(parameter, argument)| {
-            closed_argument_identity(
-                syntax,
-                selection,
-                *argument,
-                matches!(parameter.kind, TypeParameterKind::Const { .. }),
-            )
-        })
-        .collect::<Option<Vec<_>>>()?;
+    let indices = closed_argument_identities(syntax, selection, &index_parameters, arguments)?;
     Some(ClosedConstraintIdentity::IndexedDeclaration(
         declaration,
         indices,
