@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use access_plans::{AccessExposure, ExternalRead, FieldAccess, ValidatedPlacementPlan};
-use arena::{Handle, HandleSpan};
+use arena::{Arena, Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::{DataSupplyMode, Multiplicity};
 use syntax_trees::SyntaxTrees;
@@ -228,27 +228,21 @@ fn accessor_name(
 }
 
 pub(super) fn retire_accessor_templates(syntax: &mut SyntaxTrees) {
-    let templates = syntax
-        .root_item_handles()
-        .iter()
-        .filter_map(|handle| {
-            let Item::Machine(machine) = syntax.root_item(*handle) else {
-                return None;
-            };
-            (machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|attached| attached.as_str() == "PlacedField"))
-            .then_some((*handle, machine.clone()))
-        })
-        .collect::<Vec<_>>();
-    for (handle, mut machine) in templates {
-        machine.target = Some(Identifier::generated("#compiler_placed_template"));
-        syntax
-            .tables
-            .items
-            .replace_item(handle, Item::Machine(machine));
+    // These generic declarations are elaboration inputs, not unrealized target
+    // bodies. Retire their declaration roots after cloning exact accessors;
+    // a synthetic target tag would keep them in all-target source checking and
+    // package disclosure. Item handles for all surviving declarations stay
+    // unchanged, including the generated accessors and authored target members.
+    let mut retained_roots = Arena::with_capacity(syntax.root_item_count());
+    for handle in syntax.root_item_handles() {
+        let is_template = matches!(syntax.root_item(*handle), Item::Machine(machine)
+            if machine.attached_data.as_ref()
+                .is_some_and(|attached| attached.as_str() == "PlacedField"));
+        if !is_template {
+            retained_roots.append(*handle);
+        }
     }
+    syntax.roots.items = retained_roots;
 }
 
 pub(super) fn accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
