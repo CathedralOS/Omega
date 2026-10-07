@@ -268,19 +268,25 @@ helper that passes does not close an item.
     selects the implementation for visibility; an unknown or ambiguous row
     name rejects naming the rows. Nominal machine binders take a trait
     application (`where machine Step satisfies Visitor<Context>::visit;`)
-    and instantiate the requirement's signature under it. The ordinary trait
-    fixtures (`tests/omega/{pass,fail}/traits/` other than Equatable and
-    `dyn`, plus `calls/generic_reference_forwarding_exit` and
-    `modules/use_imports_sibling_trait`) use named implementations with
-    explicit trait arguments and keep their authored exits natively;
-    `pass/traits/runtime_named_implementation_selection_exit` exits 70.
+    and instantiate the requirement's signature under it. Ordinary trait
+    fixtures, Equatable synthesis, `Content` projections, algebra laws
+    (`core/algebra.omg`), placed access (`core/layout.omg`), CallingPolicy
+    targets, OpaqueRepresentation and PrivateCallbackSlot layouts use named
+    implementations with explicit trait arguments.
     Remaining data-subject conformances (`Name: Data satisfies Trait`,
-    bodyless attached-machine maps) and `Self`: Equatable synthesis,
-    CallingPolicy targets, OpaqueRepresentation, PrivateCallbackSlot layouts,
-    placed access (`core/layout.omg`), `Content` projections, algebra laws
-    (`core/algebra.omg`), boundary providers and the `dyn` fixtures; then
-    delete `ConformanceSubject::Carrier`, `carrier_symbol`, `SelfType` and
-    `AttachedRequirementMachines`. `Trait::member<Args, Impl>(...)`
+    bodyless attached-machine maps): the interrupt and secondary-processor
+    canary boundary roots (`FatalExceptionRoot`, `TimerRoot`,
+    `InterruptMaskControl`, ...), whose in-package approval in
+    `checking/src/machine_calls/boundary_calls.rs` still keys on a carrier
+    subject, as do the provider matches in review-evidence
+    `capture/semantics/services/calling.rs` and provider-planning
+    `provenance_replay/` and reflection's carrier coverage in
+    `compile-time/src/reflection/selection/requirement_resolution.rs`; and
+    the `dyn` fixtures (owned by
+    **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**). Then delete
+    `ConformanceSubject::Carrier`, `carrier_symbol`, `SelfType` and
+    `AttachedRequirementMachines`, and the product lexer's `Self` keyword
+    (`source/psi/lex/lexer.omg`). `Trait::member<Args, Impl>(...)`
     explicit-application calls are unimplemented. Trait-header evidence
     binders parse but have no positional application, so std's `Calling<C>`
     names the policy type and plan computation checks its exact
