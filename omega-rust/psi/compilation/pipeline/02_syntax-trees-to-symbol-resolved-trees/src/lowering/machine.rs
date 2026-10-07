@@ -152,10 +152,10 @@ pub(crate) fn lower_machine_into(
     // source when trait requirements reach this record; TopLevelRequirement is
     // the explicit `boundary requirement` marker or a bodyless token-bearing
     // boundary machine. Both declare required callable supply, not a proof axiom.
-    // AdmissionClaim is the bodyless `boundary machine` proof form (CH10
-    // GR6d); a bodyless
-    // NON-boundary machine with a `via` clause is PRV4's external leaf (the
-    // item parser refuses every other bodyless shape). Computed before the
+    // An explicit bodyless `satisfies ... via ...` supplies an external leaf,
+    // including a `boundary machine`: boundary marks a crossing, not an axiom.
+    // Only a declaration without an external realization can instead author
+    // an admission claim. Supply is decided before the
     // push so the interner borrow does not overlap the machines borrow.
     let supply_mode = {
         let via_binding = syntax_trees
@@ -173,6 +173,18 @@ pub(crate) fn lower_machine_into(
             || crate::lowering::operator::is_token_bearing_boundary_signature(machine)
         {
             language_semantics::MachineSupplyMode::TopLevelRequirement
+        } else if machine.bodyless && (via_binding.is_some() || has_via_expression) {
+            let (binding, mechanism) = via_binding
+                .map(|identity| {
+                    let mechanism = identity.mechanism();
+                    let binding = lowerer
+                        .symbol_resolved_trees
+                        .external_bindings
+                        .intern(identity);
+                    (Some(binding), Some(mechanism))
+                })
+                .unwrap_or((None, None));
+            language_semantics::MachineSupplyMode::ExternalRealization { binding, mechanism }
         } else if machine.bodyless && machine.boundary {
             // A bodyless boundary declaration is an admission claim only when it
             // actually authors a fact. Claim-free symbols such as the
@@ -193,18 +205,6 @@ pub(crate) fn lower_machine_into(
             } else {
                 language_semantics::MachineSupplyMode::Boundary
             }
-        } else if machine.bodyless && (via_binding.is_some() || has_via_expression) {
-            let (binding, mechanism) = via_binding
-                .map(|identity| {
-                    let mechanism = identity.mechanism();
-                    let binding = lowerer
-                        .symbol_resolved_trees
-                        .external_bindings
-                        .intern(identity);
-                    (Some(binding), Some(mechanism))
-                })
-                .unwrap_or((None, None));
-            language_semantics::MachineSupplyMode::ExternalRealization { binding, mechanism }
         } else if machine.boundary {
             language_semantics::MachineSupplyMode::Boundary
         } else {

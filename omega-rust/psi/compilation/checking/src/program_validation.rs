@@ -362,7 +362,7 @@ fn validate(
 
         // PRV4 step 1: a `via <Binding>` clause is the EXTERNAL LEAF's
         // realization -- it must never parse and then silently drop. Exactly
-        // one via clause, on a bodyless non-boundary machine, populates
+        // one via clause, on a bodyless realizing machine, populates
         // ExternalRealization; every other carrier refuses here.
         {
             let conformances = program.machine_trait_conformances(machine);
@@ -395,7 +395,7 @@ fn validate(
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` carries a `via` binding but is not an external \
                      leaf: `satisfies Requirement via <Binding>;` belongs on a \
-                     BODYLESS non-boundary machine (a composite lowering is an \
+                     BODYLESS external realization (a composite lowering is an \
                      ordinary checked body; an accepted axiom carries no \
                      realization)",
                     machine.name,

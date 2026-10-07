@@ -1741,6 +1741,9 @@ then independent claimed restoration slices -> final closure.
   and stdout/stderr oracles remain independent. Preserve
   `borrows/runtime_direct_immutable_scalar_loan_exit` too: computed loans,
   captures, assignments and helper writes must share original scalar backing.
+  Preserve `host/runtime_descriptor_scalar_input_exit`: canonical boundary-trait
+  supplies share one finite input cursor across import slots, retain untouched
+  bytes on short reads, and leave caller storage unchanged on zero-count/EOF.
   The original
   `runtime_float_integer_conversion_boundaries_exit` has no exact established
   root ProcessExit Binding occurrence and declines before effects; resolve its

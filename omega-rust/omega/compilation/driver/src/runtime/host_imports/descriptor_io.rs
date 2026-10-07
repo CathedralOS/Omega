@@ -32,21 +32,25 @@ enum DescriptorOperation {
 enum DescriptorImplementation {
     WindowsRead,
     WindowsWrite,
+    DarwinRead,
     DarwinWrite,
 }
 impl DescriptorImplementation {
     fn operation(self) -> DescriptorOperation {
         match self {
-            Self::WindowsRead => DescriptorOperation::Read,
+            Self::WindowsRead | Self::DarwinRead => DescriptorOperation::Read,
             _ => DescriptorOperation::Write,
         }
     }
     fn locator(self) -> Result<target::NormalizedForeignLocator, TerminalRuntimeError> {
         let (candidate, target) = match self {
-            Self::DarwinWrite => (
+            Self::DarwinRead | Self::DarwinWrite => (
                 target::ForeignLocatorCandidate::MachODylibSymbol {
                     install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
-                    symbol: b"_write".to_vec(),
+                    symbol: match self {
+                        Self::DarwinRead => b"_read".to_vec(),
+                        _ => b"_write".to_vec(),
+                    },
                 },
                 target::TargetProfile::MacosArm64,
             ),
@@ -104,6 +108,7 @@ impl<'input> DescriptorIoImport<'input> {
         for offered in [
             DescriptorImplementation::WindowsRead,
             DescriptorImplementation::WindowsWrite,
+            DescriptorImplementation::DarwinRead,
             DescriptorImplementation::DarwinWrite,
         ] {
             if offered.locator()? == *locator {
@@ -120,7 +125,7 @@ impl<'input> DescriptorIoImport<'input> {
         let operation = implementation.operation();
         let descriptor_type = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
         let width: u16 = match implementation {
-            DescriptorImplementation::DarwinWrite => 64,
+            DescriptorImplementation::DarwinRead | DescriptorImplementation::DarwinWrite => 64,
             _ => 32,
         };
         let count_type = IntegerType::new(IntegerSign::Unsigned, width).map_err(|_| invalid())?;
@@ -396,6 +401,11 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
             }
             DescriptorOperation::Read => {
                 if *descriptor != 0 {
+                    if matches!(self.implementation, DescriptorImplementation::DarwinRead) {
+                        return Err(TerminalEffectRejection::new(
+                            "input descriptor is not the admitted finite stream",
+                        ));
+                    }
                     return self.result(-1);
                 }
                 if count == 0 {
