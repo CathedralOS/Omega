@@ -2,7 +2,7 @@
 //!
 //! Semantic admission is required with or without package inputs. Package
 //! authority is an additional obligation, not the switch that enables checking.
-//! Transfer the checker-transformed typed program: checking one clone and
+//! Transfer the prepared and checked typed program: checking one clone and
 //! interpreting a separately specialized clone would not bind execution to
 //! the admitted bodies. Provider planning uses the Build declaration context
 //! and admitted execution profile, never the current product's unfinished
@@ -110,16 +110,21 @@ pub(crate) fn prepare_checked_build(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
             let started = std::time::Instant::now();
-            let result = typed_trees_to_checked_trees::lower_typed_trees_reusing(
-                typed_trees_to_checked_trees::project_build_program(typed, entry)?,
-                &typed_trees_to_checked_trees::CheckingRequest::settled()
-                    .with_declaration_authority(
-                        packages
-                            .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-                    ),
-                prior,
-                retain,
-            );
+            let program = typed_trees_to_checked_trees::project_build_program(typed, entry)?;
+            let checking = typed_trees_to_checked_trees::CheckingRequest::settled()
+                .with_declaration_authority(
+                    packages.map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+                );
+            let result = typed_trees_to_checked_trees::prepare_typed_trees(program, &checking)
+                .and_then(|(program, preparation)| {
+                    typed_trees_to_checked_trees::lower_typed_trees_reusing(
+                        program,
+                        preparation,
+                        &checking,
+                        prior,
+                        retain,
+                    )
+                });
             if !result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
                 artifacts::compile_timings::counters::record_settled_check(started.elapsed());
             }

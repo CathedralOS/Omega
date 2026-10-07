@@ -88,10 +88,15 @@ pub(super) fn zero_argument_invocation_discharges(
     // owning program has not reached settlement, so the probe lowers in the
     // same mode. Contract checking is not gated on the mode, so authored
     // `requires` premises are still decided at the synthesized call.
-    let Ok(checked) = typed_trees_to_checked_trees::lower_typed_trees(
-        probe,
-        &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
-    ) else {
+    let checking = typed_trees_to_checked_trees::CheckingRequest::preliminary();
+    let Ok((probe, preparation)) =
+        typed_trees_to_checked_trees::prepare_typed_trees(probe, &checking)
+    else {
+        return false;
+    };
+    let Ok(checked) =
+        typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking)
+    else {
         return false;
     };
     matches!(
@@ -119,14 +124,16 @@ pub(super) fn argument_independent_closure_discharges(
     if !entry_is_unconditional {
         return false;
     }
-    let mut checked = program.clone();
+    let mut probe = program.clone();
     // Same preliminary-package window as the zero-argument probe above.
-    checked.pending_const_range_endpoints.clear();
-    typed_trees_to_checked_trees::lower_typed_trees(
-        checked,
-        &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
-    )
-    .is_ok()
+    probe.pending_const_range_endpoints.clear();
+    let checking = typed_trees_to_checked_trees::CheckingRequest::preliminary();
+    let Ok((probe, preparation)) =
+        typed_trees_to_checked_trees::prepare_typed_trees(probe, &checking)
+    else {
+        return false;
+    };
+    typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, &checking).is_ok()
 }
 
 /// The state an invocation of `machine` enters: the one named by the
@@ -232,9 +239,13 @@ pub(crate) fn snapshot_arguments_discharge(
         .expression_table
         .set_source_span(concrete, program.expression_table.source_span(expression));
     let owner = append_invocation_probe(&mut probe, owner, probe_name, concrete, return_type);
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(probe, checking).map_err(
-        |diagnostics| format!("constant invocation of `{callee}` failed checking: {diagnostics:?}"),
-    )?;
+    let checked = typed_trees_to_checked_trees::prepare_typed_trees(probe, checking)
+        .and_then(|(probe, preparation)| {
+            typed_trees_to_checked_trees::lower_typed_trees(probe, preparation, checking)
+        })
+        .map_err(|diagnostics| {
+            format!("constant invocation of `{callee}` failed checking: {diagnostics:?}")
+        })?;
     let causes = typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
         &checked.typed,
         &checked.facts,

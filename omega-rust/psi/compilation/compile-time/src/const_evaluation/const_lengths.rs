@@ -335,13 +335,14 @@ impl<'selection> LengthJobs<'selection> {
             },
             &EvaluationDomain::all(),
         )?;
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            execution,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )?;
+        let checking = typed_trees_to_checked_trees::CheckingRequest::settled();
+        let (execution, preparation) =
+            typed_trees_to_checked_trees::prepare_typed_trees(execution, &checking)?;
+        let checked =
+            typed_trees_to_checked_trees::lower_typed_trees(execution, preparation, &checking)?;
         // Admission sees the selected operation's executable meaning, not a
         // bodyless requirement introduced by ordinary call normalization.
-        // Derive that semantic view from the fully checked graph: checking
+        // Derive that semantic view from the fully checked graph: preparation
         // also resolves member meaning such as a newly-known array length.
         // The executed checked graph and all its facts remain immutable.
         let admitted = crate::machine_execution::selected_operators::prepare_selected_execution(
