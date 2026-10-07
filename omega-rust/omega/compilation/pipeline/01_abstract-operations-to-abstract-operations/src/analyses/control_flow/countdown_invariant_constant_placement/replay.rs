@@ -233,29 +233,8 @@ fn reconstruct_constant(
             semantic_vocabulary::IntegerValue::Unsigned(1),
         ),
     };
-    let mut matches = function
-        .blocks
-        .iter()
-        .flat_map(|block| {
-            block
-                .nodes
-                .iter()
-                .enumerate()
-                .map(move |(node, value)| (block.id, node, value))
-        })
-        .filter(|(_, _, node)| {
-            node.provenance
-                .first()
-                .is_some_and(|source| *source == PsiProvenance::Operation(operation))
-        });
-    let Some((block, node_index, node)) = matches.next() else {
-        return Err(unsupported(function.machine, operation));
-    };
-    if matches.next().is_some() {
-        return Err(unsupported(function.machine, operation));
-    }
-    let node_index =
-        u32::try_from(node_index).map_err(|_| unsupported(function.machine, operation))?;
+    let (block, node_index, node) =
+        sole_provenance_node(function.blocks.iter(), function.machine, operation)?;
     let O::IntegerConstant {
         psi_operation,
         result: actual_result,
@@ -389,30 +368,14 @@ fn reconstruct_consumer(
             certificate.descent.subtract_operation
         }
     };
-    let mut matches = function
-        .blocks
-        .iter()
-        .filter(|block| component.members.contains(&block.id))
-        .flat_map(|block| {
-            block
-                .nodes
-                .iter()
-                .enumerate()
-                .map(move |(node, value)| (block.id, node, value))
-        })
-        .filter(|(_, _, node)| {
-            node.provenance
-                .first()
-                .is_some_and(|source| *source == PsiProvenance::Operation(operation))
-        });
-    let Some((block, node_index, node)) = matches.next() else {
-        return Err(unsupported(function.machine, operation));
-    };
-    if matches.next().is_some() {
-        return Err(unsupported(function.machine, operation));
-    }
-    let node_index =
-        u32::try_from(node_index).map_err(|_| unsupported(function.machine, operation))?;
+    let (block, node_index, node) = sole_provenance_node(
+        function
+            .blocks
+            .iter()
+            .filter(|block| component.members.contains(&block.id)),
+        function.machine,
+        operation,
+    )?;
     let value_uses = function
         .blocks
         .iter()
@@ -558,4 +521,41 @@ fn unsupported(
     operation: OperationId,
 ) -> CountdownInvariantConstantPlacementAnalysisError {
     CountdownInvariantConstantPlacementAnalysisError::UnsupportedPlacement { machine, operation }
+}
+
+/// The unique node carrying `operation`'s provenance, or `unsupported` when
+/// none or several carry it.
+fn sole_provenance_node<'function>(
+    blocks: impl Iterator<Item = &'function optimization_unit::OptimizationBlock>,
+    machine: semantic_vocabulary::MachineId,
+    operation: semantic_vocabulary::OperationId,
+) -> Result<
+    (
+        semantic_vocabulary::BlockId,
+        u32,
+        &'function optimization_unit::OptimizationNode,
+    ),
+    CountdownInvariantConstantPlacementAnalysisError,
+> {
+    let mut matches = blocks
+        .flat_map(|block| {
+            block
+                .nodes
+                .iter()
+                .enumerate()
+                .map(move |(node, value)| (block.id, node, value))
+        })
+        .filter(|(_, _, node)| {
+            node.provenance
+                .first()
+                .is_some_and(|source| *source == PsiProvenance::Operation(operation))
+        });
+    let Some((block, node_index, node)) = matches.next() else {
+        return Err(unsupported(machine, operation));
+    };
+    if matches.next().is_some() {
+        return Err(unsupported(machine, operation));
+    }
+    let node_index = u32::try_from(node_index).map_err(|_| unsupported(machine, operation))?;
+    Ok((block, node_index, node))
 }
