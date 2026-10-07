@@ -588,20 +588,7 @@ fn argument_sources<'program>(
                         *argument,
                         coordinate.borrowed,
                     );
-                    values
-                        .iter()
-                        .map(|value| {
-                            engine.requires_unsatisfiable
-                                || matches!((&carried, value),
-                                (Some(carried), Some(value))
-                                    if comparison_proven(
-                                        &engine,
-                                        BinaryOperator::Equal,
-                                        carried,
-                                        value,
-                                    ))
-                        })
-                        .collect()
+                    carried_equals_each(&engine, carried, values)
                 })
                 .collect();
             let lengths = length_dependencies
@@ -617,20 +604,7 @@ fn argument_sources<'program>(
                         *argument,
                         &length_bindings,
                     );
-                    values
-                        .iter()
-                        .map(|value| {
-                            engine.requires_unsatisfiable
-                                || matches!((&carried, value),
-                                (Some(carried), Some(value))
-                                    if comparison_proven(
-                                        &engine,
-                                        BinaryOperator::Equal,
-                                        carried,
-                                        value,
-                                    ))
-                        })
-                        .collect()
+                    carried_equals_each(&engine, carried, values)
                 })
                 .collect();
             Some(SlotEvidence {
@@ -638,6 +612,29 @@ fn argument_sources<'program>(
                 projections,
                 lengths,
             })
+        })
+        .collect()
+}
+
+/// Whether `carried` provably equals each candidate source value — an
+/// unsatisfiable requires edge already proves every equality.
+fn carried_equals_each(
+    engine: &Engine<'_>,
+    carried: Option<Polynomial>,
+    values: &[Option<Polynomial>],
+) -> Vec<bool> {
+    values
+        .iter()
+        .map(|value| {
+            engine.requires_unsatisfiable
+                || matches!((&carried, value),
+                (Some(carried), Some(value))
+                    if comparison_proven(
+                        &engine,
+                        BinaryOperator::Equal,
+                        carried,
+                        value,
+                    ))
         })
         .collect()
 }
