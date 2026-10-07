@@ -40,7 +40,6 @@ use target_operations::{BoundarySettlementBinding, TargetFunction, TargetOperati
 
 mod installed_provider_calls;
 pub(crate) mod native_callbacks;
-mod projected_qualifications;
 mod settlement_roster;
 
 pub(super) fn lower_to_target_operations_with_settlements_and_installation(
@@ -50,7 +49,10 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     installation: Option<&dyn ProviderInstallationEvidence>,
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
 ) -> Result<TargetOperationPlan, LoweringError> {
-    projected_qualifications::reject_unsupported(plan)?;
+    // Root and projected memberships are target-neutral source judgments.
+    // They stay on the retained abstract contracts; field paths select the
+    // ordinary storage ABI and do not require a target instruction or another
+    // proof replay. Lowering still owns access, layout and transfer semantics.
     if !plan
         .functions
         .iter()

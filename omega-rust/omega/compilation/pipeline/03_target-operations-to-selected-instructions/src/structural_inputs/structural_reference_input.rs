@@ -403,10 +403,8 @@ pub(crate) fn parameter_shape<'declaration>(
     let parameter = parameter.into();
     // Whole-root domain qualifications are signature preconditions the caller
     // or root installation discharges at invocation; they do not change the
-    // parameter's storage shape. Projected qualifications still decline.
-    if !parameter.projected_qualifications.is_empty() {
-        return None;
-    }
+    // parameter's storage shape. Projected memberships are the same semantic
+    // contract on a selected child, not an extra runtime permission carrier.
     if parameter.access == StructuralAccess::Owned
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
     {

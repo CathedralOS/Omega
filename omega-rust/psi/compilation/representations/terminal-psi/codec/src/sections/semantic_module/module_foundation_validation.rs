@@ -409,18 +409,12 @@ fn validate_structural_parameters(
         if !has_structural_type(module, parameter.structural_type) {
             return malformed("structural parameter references an unknown type");
         }
-        for qualification in &parameter.qualifications {
-            let Some(domain) = module
-                .structural_domains
-                .iter()
-                .find(|domain| domain.id == *qualification)
-            else {
-                return malformed("structural parameter references an unknown qualification");
-            };
-            if domain.carrier != parameter.structural_type {
-                return malformed("structural parameter qualification has the wrong carrier");
-            }
-        }
+        validate_structural_qualifications(
+            module,
+            parameter.structural_type,
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+        )?;
     }
     Ok(())
 }
@@ -430,6 +424,14 @@ fn validate_operation_foundation(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
+    if let Some(result) = operation.result.structural() {
+        validate_structural_qualifications(
+            module,
+            result.structural_type,
+            &result.qualifications,
+            &result.projected_qualifications,
+        )?;
+    }
     match &operation.kind {
         OperationKind::EstablishReference { .. } => {
             storage_foundations::validate_establish_reference(module, machine, operation)?
@@ -677,6 +679,49 @@ fn validate_operation_foundation(
             if !matches!(operation.result, OperationResult::Scalar(_)) {
                 return malformed("scalar operation declares a Unit result");
             }
+        }
+    }
+    Ok(())
+}
+
+/// Membership rows are semantic metadata, not access permissions. Codec
+/// admission checks their exact catalog, carrier and occurrence-relative path;
+/// source checking owns their proof rather than a second compiler replay.
+fn validate_structural_qualifications(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    whole: &[semantic_vocabulary::StructuralDomainId],
+    projected: &[terminal_psi::StructuralPathQualification],
+) -> Result<(), CodecError> {
+    if whole.windows(2).any(|pair| pair[0] >= pair[1])
+        || projected.windows(2).any(|pair| pair[0] >= pair[1])
+    {
+        return malformed("structural qualifications are noncanonical");
+    }
+    for (domain, carrier) in whole
+        .iter()
+        .map(|domain| (*domain, Ok(structural_type)))
+        .chain(projected.iter().map(|row| {
+            (
+                row.domain,
+                if row.path.is_empty() {
+                    malformed("projected qualification requires a child path")
+                } else {
+                    validate_structural_path(module, structural_type, &row.path)
+                },
+            )
+        }))
+    {
+        let carrier = carrier?;
+        let Some(declaration) = module
+            .structural_domains
+            .iter()
+            .find(|row| row.id == domain)
+        else {
+            return malformed("structural qualification references an unknown domain");
+        };
+        if declaration.carrier != carrier {
+            return malformed("structural qualification has the wrong carrier");
         }
     }
     Ok(())

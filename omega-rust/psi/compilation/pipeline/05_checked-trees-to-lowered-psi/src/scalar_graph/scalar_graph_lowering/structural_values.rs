@@ -146,6 +146,7 @@ enum AggregateContents {
     Fields {
         kind: AggregateKind,
         fields: Vec<(StructuralFieldId, Field)>,
+        declarations: Vec<terminal_psi::StructuralFieldDeclaration>,
     },
     Elements(Vec<PlaceId>),
 }
@@ -401,12 +402,24 @@ impl Preparation<'_> {
         if let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } = &node.kind {
             let (machine, state) =
                 crate::declarations::state_declaration(self.checked, self.state)?;
-            let source = self.bindings.copied_place_source(
+            let mut source = self.bindings.copied_place_source(
                 source,
                 machine,
                 self.checked.state_parameters(state),
                 self.types,
             )?;
+            source.formation_qualifications = self
+                .checked
+                .facts
+                .qualifications
+                .value_formations
+                .span(node.qualification_decisions)
+                .ok_or(LoweringError::Unsupported(
+                    "copied membership decisions are stale",
+                ))?
+                .iter()
+                .map(|decision| decision.semantic_domain)
+                .collect();
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Establish {
                 effect: LoweredScalarEffect::CopyStructuralValue {
@@ -842,6 +855,10 @@ impl Preparation<'_> {
                 contents: AggregateContents::Fields {
                     kind,
                     fields: initialized.into_iter().map(|(_, field)| field).collect(),
+                    declarations: declared_fields
+                        .iter()
+                        .map(|(_, field, _)| (*field).clone())
+                        .collect(),
                 },
             },
             prefix: self.prefix.clone(),
@@ -1078,8 +1095,12 @@ pub(crate) fn emit(
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<(), LoweringError> {
     let claims = emit_establishment_claims(&construction.claims, &mut calls.claims)?;
-    let (kind, selected_fields) = match &construction.contents {
-        AggregateContents::Fields { kind, fields } => (kind, fields),
+    let (kind, selected_fields, declarations) = match &construction.contents {
+        AggregateContents::Fields {
+            kind,
+            fields,
+            declarations,
+        } => (kind, fields, declarations),
         AggregateContents::Elements(elements) => {
             crate::unit::attached_unit::structural_values::fixed_array::emit_completed(
                 construction.place,
@@ -1158,8 +1179,9 @@ pub(crate) fn emit(
                 construction.structural_type,
                 construction.multiplicity,
                 fields,
+                declarations,
                 operations,
-            )
+            )?
         }
         AggregateKind::Case(case) => {
             crate::unit::attached_unit::structural_values::structural_case::emit_completed(

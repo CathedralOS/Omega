@@ -16,7 +16,6 @@ pub(super) fn is_owned_parameter(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
     parameter.access == StructuralAccess::Owned
-        && parameter.projected_qualifications.is_empty()
         && super::aggregate_results::value_home_layout(parameter.structural_type, types).is_ok()
 }
 
@@ -48,7 +47,6 @@ pub(super) fn argument(
         // of the unvalidated core remain responsible for supplying that proof.
         if home.access() != StructuralAccess::Owned
             || home.multiplicity() != declaration.multiplicity
-            || home.projected_qualifications() != declaration.projected_qualifications.as_slice()
         {
             return Err(invalid());
         }
@@ -99,11 +97,11 @@ pub(super) fn argument(
         live.trivial_affine_locals.get(&argument.place)
     {
         // An empty-record local has no bytes to transport; its establishment
-        // is the producer the call replays. It is affine and unqualified.
+        // is the producer the call replays. Membership adds no payload bytes
+        // and is independent of its affine transfer.
         if !argument.path.is_empty()
             || *structural_type != declaration.structural_type
             || declaration.multiplicity != StructuralMultiplicity::Affine
-            || !declaration.qualifications.is_empty()
             || expected_shape.byte_size != 0
         {
             return Err(invalid());

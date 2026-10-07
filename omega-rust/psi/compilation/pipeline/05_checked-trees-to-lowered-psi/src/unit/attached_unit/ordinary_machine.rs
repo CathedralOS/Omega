@@ -423,6 +423,7 @@ pub(super) fn emit(
         subslice_places,
         retained_scalar_prefix,
         scalar_calls: CallEmissionContext {
+            domain_ids,
             claims: crate::emission::claim_bindings::ClaimBindings::new(
                 claim_bindings.clone(),
                 dense_identity(claim_bindings.len())?,

@@ -5,6 +5,8 @@
 
 pub mod checked_trees;
 
+pub use checked_trees::CheckedValueQualification;
+
 pub use checked_trees::{
     CheckedStoredIntegerWrite, ContextualCleanupApplication, ContextualCleanupDisposition,
     ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,

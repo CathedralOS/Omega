@@ -51,11 +51,7 @@ pub(in crate::legalization) fn source_owner(
             .map(move |parameter| (block.id, parameter))
     });
     let (block, declaration) = parameters.next().ok_or(LegalizationError::custody())?;
-    if parameters.next().is_some()
-        || declaration.access != terminal_psi::StructuralAccess::Owned
-        || !declaration.qualifications.is_empty()
-        || !declaration.projected_qualifications.is_empty()
-    {
+    if parameters.next().is_some() || declaration.access != terminal_psi::StructuralAccess::Owned {
         return Err(LegalizationError::custody());
     }
     Ok(
@@ -146,8 +142,6 @@ fn source_identity(
     if let Ok((_, result)) = source_result(function, source) {
         if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !result.claims.is_empty()
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());
         }
@@ -166,8 +160,6 @@ fn source_identity(
         .ok_or(LegalizationError::custody())?;
     if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
         || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
         || !function.entry_claims.is_empty()
     {
         return Err(LegalizationError::custody());
@@ -240,7 +232,8 @@ pub(in crate::legalization) fn membership_layout(
 
 /// Resolve the copied leaf's byte offset inside the readable root and its
 /// canonical shape. The path's endpoint type must be the declared result type
-/// and the result must keep the copy's unrestricted empty custody.
+/// and the result must keep the copy's unrestricted, claim-free custody.
+/// Domain memberships neither change storage geometry nor grant ownership.
 /// `RuntimeIndex` segments additionally yield their runtime elements in path
 /// order: each index must resolve to a dominating integer scalar source no
 /// wider than the address model — an incoming parameter, a block parameter,
@@ -260,54 +253,13 @@ pub(in crate::legalization) fn leaf_copy_layout(
     ),
     LegalizationError,
 > {
-    // Byte snapshots retain established qualifications rather than demand the
-    // empty contract of case observations. Rejoin the exact source roster here;
-    // this layout layer has no authority to establish a new predicate.
-    let whole_bytes = matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
-        && plan.structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
-        });
-    let identity = if whole_bytes {
-        let exact = if let Ok((_, previous)) = source_result(function, source) {
-            previous.structural_type == result.structural_type
-                && previous.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && previous.qualifications == result.qualifications
-                && previous.projected_qualifications.is_empty()
-                && previous.qualification_establishments.is_empty()
-                && previous.claims.is_empty()
-        } else {
-            function
-                .structural_parameters
-                .iter()
-                .chain(
-                    function
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.structural_parameters),
-                )
-                .any(|parameter| {
-                    parameter.place == source
-                        && parameter.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-                        && parameter.structural_type == result.structural_type
-                        && parameter.multiplicity
-                            == terminal_psi::StructuralMultiplicity::Unrestricted
-                        && parameter.qualifications == result.qualifications
-                        && parameter.projected_qualifications.is_empty()
-                })
-        };
-        if !exact || !result.qualification_establishments.is_empty() {
-            return Err(LegalizationError::custody());
-        }
-        result.structural_type
-    } else {
-        source_identity(function, source)?
-    };
+    // Every copy retains source-checked memberships independently of geometry.
+    // This layout join checks readable storage and the selected carrier; it
+    // neither invents predicates nor imposes a separate byte-only proof mode.
+    let identity = source_identity(function, source)?;
+    if !result.qualification_establishments.is_empty() {
+        return Err(LegalizationError::custody());
+    }
     let (endpoint, byte_offset, indices) = match path {
         abstract_operations::StructuralCopyPath::Case(path) => {
             let (endpoint, offset) =
@@ -339,8 +291,6 @@ pub(in crate::legalization) fn leaf_copy_layout(
     if (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         && !owned_case_copy)
         || !result.claims.is_empty()
-        || (!whole_bytes && !result.qualifications.is_empty())
-        || !result.projected_qualifications.is_empty()
     {
         return Err(LegalizationError::custody());
     }

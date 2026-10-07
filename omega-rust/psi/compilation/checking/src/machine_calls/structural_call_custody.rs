@@ -481,21 +481,39 @@ pub fn view_result_carrier_qualifications(
 
 /// Reconstruct exact nested domain rows from a source structural type. Root
 /// constraints remain owned by `structural_result_qualifications`; this route
-/// only emits nonempty fixed-index paths and rejects malformed spans.
+/// emits finite record/fixed-index paths and rejects malformed spans.
 pub fn structural_result_projected_qualifications(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Result<Vec<CheckedStructuralPathQualification>, &'static str> {
+    structural_qualification_contract(program, type_reference).map(|(rows, _)| rows)
+}
+
+/// Inventory the same exact source contract for path rows and domain theories.
+/// Theory registration describes a domain; it never proves membership. Closed
+/// instances supply substituted members, and active references bound recursion.
+pub fn structural_qualification_contract(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Result<
+    (
+        Vec<CheckedStructuralPathQualification>,
+        Vec<(SemanticDomainId, TypeReferenceHandle)>,
+    ),
+    &'static str,
+> {
     fn collect(
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
         is_root: bool,
         path: &mut Vec<CheckedUnitStructuralPathSegment>,
         output: &mut Vec<CheckedStructuralPathQualification>,
+        carriers: &mut Vec<(SemanticDomainId, TypeReferenceHandle)>,
+        active: &mut Vec<TypeReferenceHandle>,
     ) -> Result<(), &'static str> {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => {
-                collect(program, *referee, is_root, path, output)
+                collect(program, *referee, is_root, path, output, carriers, active)
             }
             TypeReferenceNode::Constrained {
                 base_type,
@@ -512,6 +530,9 @@ pub fn structural_result_projected_qualifications(
                     if !domain.semantic_id.is_valid() {
                         return Err("projected qualification has no exact identity");
                     }
+                    if !carriers.contains(&(domain.semantic_id, reference)) {
+                        carriers.push((domain.semantic_id, reference));
+                    }
                     if !is_root || !path.is_empty() {
                         output.push(CheckedStructuralPathQualification {
                             path: path.clone(),
@@ -519,7 +540,7 @@ pub fn structural_result_projected_qualifications(
                         });
                     }
                 }
-                collect(program, *base_type, is_root, path, output)
+                collect(program, *base_type, is_root, path, output, carriers, active)
             }
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -535,6 +556,8 @@ pub fn structural_result_projected_qualifications(
                     false,
                     &mut Vec::new(),
                     &mut element_rows,
+                    carriers,
+                    active,
                 )?;
                 if element_rows.is_empty() {
                     return Ok(());
@@ -555,23 +578,76 @@ pub fn structural_result_projected_qualifications(
                         qualified
                             .path
                             .insert(0, CheckedUnitStructuralPathSegment::FixedIndex(index));
+                        qualified.path.splice(0..0, path.iter().cloned());
                         output.push(qualified);
                     }
                 }
+                Ok(())
+            }
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                let Some(record) = program.closed_data_definition(reference) else {
+                    return Ok(());
+                };
+                if active.contains(&reference) {
+                    return Ok(());
+                }
+                active.push(reference);
+                for member in program.data_members(record) {
+                    let typed_trees::data::DataMember::Field(field) = member else {
+                        continue;
+                    };
+                    if field.relevance.is_erased()
+                        || program
+                            .primitive_type_reference(field.type_reference)
+                            .is_some()
+                        // Byte fields embed their predicate contract in the
+                        // field's carrier, like refined scalar fields. They
+                        // are not nominal structural children, and duplicating
+                        // that contract as a structural path would erase this
+                        // represented/nominal boundary.
+                        || crate::byte_sequence_carrier(program, field.type_reference, &[])
+                            .is_some()
+                    {
+                        continue;
+                    }
+                    path.push(CheckedUnitStructuralPathSegment::Field(
+                        field.path_identity(),
+                    ));
+                    collect(
+                        program,
+                        field.type_reference,
+                        false,
+                        path,
+                        output,
+                        carriers,
+                        active,
+                    )?;
+                    path.pop();
+                }
+                active.pop();
                 Ok(())
             }
             _ => Ok(()),
         }
     }
     let mut output = Vec::new();
-    collect(program, type_reference, true, &mut Vec::new(), &mut output)?;
+    let mut carriers = Vec::new();
+    collect(
+        program,
+        type_reference,
+        true,
+        &mut Vec::new(),
+        &mut output,
+        &mut carriers,
+        &mut Vec::new(),
+    )?;
     output.sort_by(|left, right| {
         left.path
             .cmp(&right.path)
             .then(left.domain.0.cmp(&right.domain.0))
     });
     output.dedup();
-    Ok(output)
+    Ok((output, carriers))
 }
 
 /// Replays a complete identity-preserving return of one whole owned parameter.

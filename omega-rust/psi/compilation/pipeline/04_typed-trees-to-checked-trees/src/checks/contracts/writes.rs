@@ -13,6 +13,13 @@
 //! `&[u8]` with no domain fact) is rejected. This is the encoding-domain analog
 //! of the #63 assignment range-check; without it the field-read narrowing would
 //! rest on an unenforced refinement (the #40 trap).
+//!
+//! Successful membership judgments retain their exact operand occurrence in
+//! `QualificationFacts::value_formations`. Constructor operands advance the
+//! live contexts in authored order, so an earlier snapshot keeps its proof
+//! even when a later operand withdraws membership from the original storage.
+//! The record describes source membership only, not permission to copy or
+//! transfer its carrier, and supplies no independent Terminal certificate.
 
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -36,6 +43,7 @@ pub(super) fn check_domain_field_writes(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
+    decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
@@ -102,6 +110,14 @@ pub(super) fn check_domain_field_writes(
                         "cannot prove initializer of `{}` in {} is in domain `{}`; an annotation cannot establish routed qualification",
                         local.name, machine_name(program, state_flow.machine_symbol), symbol_name(program, domain_symbol),
                     )));
+                } else {
+                    record_qualification(
+                        decisions,
+                        state_flow,
+                        statement_index,
+                        local.initial_value,
+                        semantic_domain,
+                    );
                 }
             }
         }
@@ -157,6 +173,14 @@ pub(super) fn check_domain_field_writes(
                         symbol_name(program, domain_symbol),
                         symbol_name(program, domain_symbol),
                     )));
+                } else {
+                    record_qualification(
+                        decisions,
+                        state_flow,
+                        statement_index,
+                        assignment.value,
+                        domain.semantic_id,
+                    );
                 }
             }
         }
@@ -290,6 +314,7 @@ pub(super) fn check_domain_field_writes(
                     statement_index,
                     guard,
                     &mut contexts,
+                    decisions,
                     diagnostics,
                 );
             }
@@ -331,6 +356,7 @@ pub(super) fn check_domain_field_writes(
                         statement_index,
                         expression,
                         &mut branch_contexts,
+                        decisions,
                         diagnostics,
                     );
                 }
@@ -345,6 +371,7 @@ pub(super) fn check_domain_field_writes(
                 statement_index,
                 expression,
                 &mut contexts,
+                decisions,
                 diagnostics,
             );
         }
@@ -387,6 +414,7 @@ fn scan_construction_field_domains(
     statement_index: usize,
     expression: ExpressionHandle,
     contexts: &mut Vec<facts::FactContextHandle>,
+    decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -400,6 +428,7 @@ fn scan_construction_field_domains(
             statement_index,
             atomic.value,
             contexts,
+            decisions,
             diagnostics,
         ),
         ExpressionNode::Match(dispatch) => {
@@ -410,6 +439,7 @@ fn scan_construction_field_domains(
                 statement_index,
                 dispatch.subject,
                 contexts,
+                decisions,
                 diagnostics,
             );
             let mut joined_contexts: Option<Vec<facts::FactContextHandle>> = None;
@@ -423,6 +453,7 @@ fn scan_construction_field_domains(
                         statement_index,
                         pattern,
                         &mut arm_contexts,
+                        decisions,
                         diagnostics,
                     );
                 }
@@ -433,6 +464,7 @@ fn scan_construction_field_domains(
                     statement_index,
                     arm.value,
                     &mut arm_contexts,
+                    decisions,
                     diagnostics,
                 );
                 match &mut joined_contexts {
@@ -454,6 +486,7 @@ fn scan_construction_field_domains(
                     statement_index,
                     field.value,
                     contexts,
+                    decisions,
                     diagnostics,
                 );
                 for (domain_symbol, semantic_domain) in construction_field_domain_identities(
@@ -483,6 +516,14 @@ fn scan_construction_field_domains(
                             symbol_name(program, domain_symbol),
                             symbol_name(program, domain_symbol),
                         )));
+                    } else {
+                        record_qualification(
+                            decisions,
+                            state_flow,
+                            statement_index,
+                            field.value,
+                            semantic_domain,
+                        );
                     }
                     // (b) CAPACITY: a bounded `[u8; N]` text carrier field must not be
                     // constructed with a value longer than N -- the construction parallel
@@ -549,6 +590,7 @@ fn scan_construction_field_domains(
                     statement_index,
                     *element,
                     contexts,
+                    decisions,
                     diagnostics,
                 );
             }
@@ -561,6 +603,7 @@ fn scan_construction_field_domains(
                 statement_index,
                 binary.left,
                 contexts,
+                decisions,
                 diagnostics,
             );
             scan_construction_field_domains(
@@ -570,6 +613,7 @@ fn scan_construction_field_domains(
                 statement_index,
                 binary.right,
                 contexts,
+                decisions,
                 diagnostics,
             );
         }
@@ -580,6 +624,7 @@ fn scan_construction_field_domains(
             statement_index,
             cast.value,
             contexts,
+            decisions,
             diagnostics,
         ),
         ExpressionNode::Call(call) => {
@@ -590,6 +635,7 @@ fn scan_construction_field_domains(
                 statement_index,
                 call.receiver,
                 contexts,
+                decisions,
                 diagnostics,
             );
             for argument in program.expression_table.expression_handles(call.arguments) {
@@ -600,6 +646,7 @@ fn scan_construction_field_domains(
                     statement_index,
                     *argument,
                     contexts,
+                    decisions,
                     diagnostics,
                 );
             }
@@ -634,6 +681,7 @@ fn scan_construction_field_domains(
                 statement_index,
                 indexed.collection,
                 contexts,
+                decisions,
                 diagnostics,
             );
             scan_construction_field_domains(
@@ -643,6 +691,7 @@ fn scan_construction_field_domains(
                 statement_index,
                 indexed.index,
                 contexts,
+                decisions,
                 diagnostics,
             );
         }
@@ -653,6 +702,7 @@ fn scan_construction_field_domains(
             statement_index,
             member.receiver,
             contexts,
+            decisions,
             diagnostics,
         ),
         ExpressionNode::Borrow(inner) => scan_construction_field_domains(
@@ -662,6 +712,7 @@ fn scan_construction_field_domains(
             statement_index,
             inner.target,
             contexts,
+            decisions,
             diagnostics,
         ),
         ExpressionNode::Range(range) => {
@@ -672,6 +723,7 @@ fn scan_construction_field_domains(
                 statement_index,
                 range.start,
                 contexts,
+                decisions,
                 diagnostics,
             );
             scan_construction_field_domains(
@@ -681,6 +733,7 @@ fn scan_construction_field_domains(
                 statement_index,
                 range.end,
                 contexts,
+                decisions,
                 diagnostics,
             );
         }
@@ -691,6 +744,7 @@ fn scan_construction_field_domains(
             statement_index,
             unary.operand,
             contexts,
+            decisions,
             diagnostics,
         ),
         ExpressionNode::Boolean(_)
@@ -799,4 +853,25 @@ fn construction_field_type(
             }
             _ => None,
         })
+}
+
+/// Retain the successful source judgment, not the field annotation. The walk
+/// calls this before advancing through the next operand's mutation contexts.
+fn record_qualification(
+    decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
+    state: &FlowStateFact,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) {
+    let Ok(statement_index) = u32::try_from(statement_index) else {
+        return;
+    };
+    decisions.append(checked_trees::CheckedValueQualification {
+        machine: state.machine_symbol,
+        state: state.state_symbol,
+        statement_index,
+        expression,
+        semantic_domain,
+    });
 }

@@ -205,13 +205,12 @@ impl ScalarBindings {
         };
         // A shared read retains the established place and its qualifications;
         // it cannot invalidate them. Mutable borrowing still needs a separate
-        // preservation contract, and projected qualification custody is not
-        // represented by this join.
+        // preservation contract for both root and descendant memberships.
         let supports_parameter = |source: &StructuralParameterDeclaration| {
             supports_borrow(source.access)
-                && (source.qualifications.is_empty()
+                && ((source.qualifications.is_empty()
+                    && source.projected_qualifications.is_empty())
                     || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
-                && source.projected_qualifications.is_empty()
         };
         let storage_root = argument
             .structural_storage_root()

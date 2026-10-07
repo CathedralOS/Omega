@@ -37,7 +37,7 @@ impl TerminalExecution {
         result: &terminal_psi::StructuralOperationResult,
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
-        if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
+        if !result.qualifications.is_empty() {
             return Err(malformed());
         }
         let declaration = self
@@ -57,10 +57,11 @@ impl TerminalExecution {
         if fields.len() != declarations.clone().count() {
             return Err(malformed());
         }
-        let value = TerminalStructuralValue {
+        let mut value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         let mut staged = BTreeMap::new();
@@ -96,6 +97,32 @@ impl TerminalExecution {
                         vec![StructuralPathSegment::Field(declaration.identity.clone())],
                     ));
                     let child = ConstructorValue::resolve(self, argument)?;
+                    // The child already completed in authored order. Rebase
+                    // its actual memberships, never the destination field's
+                    // declared requirements, onto this new record occurrence.
+                    if matches!(declaration.field_type, StructuralFieldType::Structural(_))
+                        && let ConstructorValue::Placed(child) = &child
+                    {
+                        let prefix = StructuralPathSegment::Field(declaration.identity.clone());
+                        for domain in &child.qualifications {
+                            value.projected_qualifications.push(
+                                terminal_psi::StructuralPathQualification {
+                                    path: vec![prefix.clone()],
+                                    domain: *domain,
+                                },
+                            );
+                        }
+                        for row in &child.projected_qualifications {
+                            let mut path = vec![prefix.clone()];
+                            path.extend(row.path.iter().cloned());
+                            value.projected_qualifications.push(
+                                terminal_psi::StructuralPathQualification {
+                                    path,
+                                    domain: row.domain,
+                                },
+                            );
+                        }
+                    }
                     if matches!(
                         declaration.field_type.byte_sequence_carrier(),
                         Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -202,7 +229,6 @@ impl TerminalExecution {
                         continue;
                     }
                     if argument.access != StructuralAccess::Owned
-                        || !child.qualifications().is_empty()
                         || declaration.field_type
                             != StructuralFieldType::Structural(child.structural_type())
                     {
@@ -230,6 +256,15 @@ impl TerminalExecution {
                 }
             }
         }
+        value.projected_qualifications.sort();
+        value.projected_qualifications.dedup();
+        if result
+            .projected_qualifications
+            .iter()
+            .any(|row| !value.projected_qualifications.contains(row))
+        {
+            return Err(malformed());
+        }
         let claims = self.stage_constructor_claims(result, &claim_operands, &mut frontier)?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged);
@@ -251,8 +286,6 @@ impl TerminalExecution {
         for parameter in parameters {
             if parameter.access != StructuralAccess::Owned
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
                 || !self.plain_aggregate_type(parameter.structural_type)
             {
                 continue;

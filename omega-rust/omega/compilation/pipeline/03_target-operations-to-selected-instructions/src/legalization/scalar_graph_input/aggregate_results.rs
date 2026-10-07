@@ -391,7 +391,7 @@ pub(super) fn header(
             || retained.structural_type != declared.structural_type
             || retained.access != declared.access
             || retained.multiplicity != declared.multiplicity
-            || !retained.projected_qualifications.is_empty()
+            || retained.projected_qualifications != declared.projected_qualifications
             || retained.shape != expected.parameters[abstracted.parameters.len() + position].shape
             || retained.placement != expected.parameters[abstracted.parameters.len() + position]
         {

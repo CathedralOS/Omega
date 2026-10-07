@@ -559,54 +559,11 @@ pub(in crate::execution::terminal_unit) fn projected_parameter_qualifications(
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<Vec<CheckedStructuralPathQualification>> {
-    fn collect(
-        program: &dyn ::validation::CheckingInput,
-        type_reference: TypeReferenceHandle,
-        shapes: &mut ShapeCollector<'_>,
-        binders: &[(SymbolHandle, String)],
-    ) -> Option<()> {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. } => {
-                collect(program, *referee, shapes, binders)
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    let TypeConstraintNode::Domain(domain) = constraint else {
-                        continue;
-                    };
-                    if !domain.semantic_id.is_valid() {
-                        return None;
-                    }
-                    shapes.add_domain(domain.semantic_id, *base_type, binders)?;
-                }
-                collect(program, *base_type, shapes, binders)
-            }
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => {
-                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
-                    return None;
-                };
-                if *length != 0 {
-                    collect(program, *element_type, shapes, binders)?;
-                }
-                Some(())
-            }
-            TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::Unit
-            | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. } => Some(()),
-        }
+    let (output, carriers) =
+        validation::structural_qualification_contract(program, type_reference).ok()?;
+    for (domain, carrier) in carriers {
+        shapes.add_domain(domain, carrier, binders)?;
     }
-    let output =
-        validation::structural_result_projected_qualifications(program, type_reference).ok()?;
-    collect(program, type_reference, shapes, binders)?;
     Some(output)
 }
 

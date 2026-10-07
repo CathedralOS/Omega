@@ -99,7 +99,9 @@ pub use nominal_machine_uses::{
     CheckedNominalMachineUse, NominalMachineUseFacts, NominalMachineUseSite,
 };
 pub use placement::CheckedPlacedViewInput;
-pub use qualifications::{MachineQualifications, QualificationFacts, VacuousQualificationUse};
+pub use qualifications::{
+    CheckedValueQualification, MachineQualifications, QualificationFacts, VacuousQualificationUse,
+};
 pub use reference_custody::{ReferenceCustodyFacts, ReferenceCustodyRow};
 pub use requirement_call_specializations::{
     CheckedRequirementCallMachineSelection, CheckedRequirementCallSpecialization,

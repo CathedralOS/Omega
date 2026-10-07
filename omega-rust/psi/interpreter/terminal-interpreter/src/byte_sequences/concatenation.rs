@@ -39,6 +39,7 @@ impl TerminalExecution {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: result.qualifications.clone(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         self.byte_sequence_values.insert(

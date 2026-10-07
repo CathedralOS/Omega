@@ -381,6 +381,10 @@ pub(crate) fn bind_structural_arguments(
             .qualifications
             .windows(2)
             .any(|pair| pair[0] >= pair[1])
+            || argument
+                .projected_qualifications
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
         {
             return Err(TerminalInterpretError::StructuralQualificationsNonCanonical);
         }
@@ -395,6 +399,10 @@ pub(crate) fn bind_structural_arguments(
             .qualifications
             .iter()
             .any(|domain| !argument.qualifications.contains(domain))
+            || parameter
+                .projected_qualifications
+                .iter()
+                .any(|row| !argument.projected_qualifications.contains(row))
         {
             return Err(TerminalInterpretError::StructuralQualificationMissing(
                 parameter.place,
@@ -858,9 +866,12 @@ fn project_structural_value_with_leaf(
         path,
         leaf_shape,
     )?;
-    if !path.is_empty() {
-        value.qualifications.clear();
-    }
+    (value.qualifications, value.projected_qualifications) =
+        terminal_psi::StructuralPathQualification::select(
+            &root.qualifications,
+            &root.projected_qualifications,
+            path,
+        );
     value.path.extend(
         path.iter()
             .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))

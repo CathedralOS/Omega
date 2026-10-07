@@ -113,6 +113,7 @@ pub(crate) fn build_scalar_graph_module(
         &[],
         &[],
         &[],
+        &[],
         &scalar_contracts::ContractViewNamespace::EMPTY,
         literal_places,
         loop_plan,
@@ -141,6 +142,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     requirement_counts: &[(symbols::SymbolHandle, usize)],
     cleanup_receivers: &[(symbols::SymbolHandle, semantic_vocabulary::PlaceId)],
     boundary_parameters: &[crate::unit::attached_unit::BoundaryParameters],
+    domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
     view_parameters: &[(u32, StructuralParameterDeclaration)],
     views: &scalar_contracts::ContractViewNamespace<'_>,
     literal_places: &[crate::scalar_graph::scalar_computations::literals::Slot],
@@ -258,6 +260,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .checked_add(TERMINAL_MACHINE_IDENTITY_STRIDE / 2)
         .expect("call obligation range fits the machine identity namespace");
     let call_emission = CallEmissionContext {
+        domain_ids,
         claims: crate::emission::claim_bindings::ClaimBindings::new(Vec::new(), 1),
         cleanup_receivers,
         machine_ids,

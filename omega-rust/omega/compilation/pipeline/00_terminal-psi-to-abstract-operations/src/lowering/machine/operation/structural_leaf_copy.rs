@@ -35,24 +35,9 @@ pub(super) fn lower(
     let invalid = || LoweringError::InvalidStructuralLeafCopy(operation.id);
     let result = operation.result.structural().ok_or_else(invalid)?;
     let signature = source_signature(machine, source).ok_or_else(invalid)?;
-    // A whole byte snapshot retains the source's exact admitted predicates,
-    // not qualifications requested by its eventual record member. This is
-    // fresh unrestricted storage, with no new evidence or projected custody.
-    let whole_byte_copy = matches!(&path, StructuralCopyPath::Ordinary(path) if path.is_empty())
-        && result.multiplicity == StructuralMultiplicity::Unrestricted
-        && result.structural_type == signature.structural_type
-        && result.qualification_establishments.is_empty()
-        && signature.has_exact_qualifications(&result.qualifications)
-        && structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
-        });
-    // Other copies retain their existing empty qualification contract.
+    // Membership metadata was decided on the exact source occurrence in Psi.
+    // It survives every snapshot without changing storage or copy permission;
+    // bytes are not a separate qualification-custody mode.
     // A case-qualified path also admits the verifier's owned-copy shape: an
     // `Affine` result over a non-reference leaf is an owned copy the
     // successor takes custody of — copying out of a proven-active case
@@ -79,8 +64,7 @@ pub(super) fn lower(
     if (result.multiplicity != StructuralMultiplicity::Unrestricted
         && !owned_case_copy
         && !shared_borrow_loan)
-        || (!result.qualifications.is_empty() && !whole_byte_copy)
-        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()
         || !matches!(
             machine

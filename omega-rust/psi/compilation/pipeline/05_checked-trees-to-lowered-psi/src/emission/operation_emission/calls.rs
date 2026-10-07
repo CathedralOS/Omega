@@ -119,6 +119,7 @@ pub(crate) enum ScalarCallCrashScope {
 }
 
 pub(crate) struct CallEmissionContext<'a> {
+    pub(crate) domain_ids: &'a [crate::terminal_identities::StructuralDomainBinding],
     pub(crate) claims: crate::emission::claim_bindings::ClaimBindings<'a>,
     pub(crate) cleanup_receivers: &'a [(symbols::SymbolHandle, semantic_vocabulary::PlaceId)],
     pub(crate) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],

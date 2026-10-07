@@ -82,6 +82,11 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use writes::check_domain_field_writes;
 
+pub(super) struct ContractDecisions {
+    pub(super) call_requires: Vec<checked_trees::DecidedCallRequires>,
+    pub(super) value_qualifications: arena::Arena<checked_trees::CheckedValueQualification>,
+}
+
 pub(super) fn check_flow_call_contracts(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -89,10 +94,11 @@ pub(super) fn check_flow_call_contracts(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     proven_machine_contracts: &[(SymbolHandle, Vec<ExpressionHandle>)],
     expression_intervals: &[validation::ExpressionInterval],
-) -> Result<Vec<checked_trees::DecidedCallRequires>, Vec<Diagnostic>> {
+) -> Result<ContractDecisions, Vec<Diagnostic>> {
     let mut diagnostics =
         crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts);
     let mut decided = Vec::new();
+    let mut value_qualifications = arena::Arena::default();
     let content_plans = validation::content_conservation_plans(program);
     let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
     let mut owned_call_frames = None;
@@ -216,11 +222,20 @@ pub(super) fn check_flow_call_contracts(
         // #66 write-enforcement: every assignment into a domain-refined field must
         // establish the value in that domain (the soundness floor for trusting the
         // field's declared domain on read).
-        check_domain_field_writes(program, facts, state_flow, &mut diagnostics);
+        check_domain_field_writes(
+            program,
+            facts,
+            state_flow,
+            &mut value_qualifications,
+            &mut diagnostics,
+        );
     }
 
     if diagnostics.is_empty() {
-        Ok(decided)
+        Ok(ContractDecisions {
+            call_requires: decided,
+            value_qualifications,
+        })
     } else {
         Err(diagnostics)
     }

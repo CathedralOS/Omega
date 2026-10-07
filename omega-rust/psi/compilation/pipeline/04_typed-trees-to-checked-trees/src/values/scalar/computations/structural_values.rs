@@ -542,10 +542,23 @@ impl Builder<'_, '_> {
                 arms: self.structural_values.dispatch_arms.insert_many(arms),
             }
         };
-        Some(
-            self.structural_values
-                .nodes
-                .append(CheckedStructuralValue { expression, kind }),
-        )
+        self.publish_structural_value(expression, expected, kind)
+    }
+
+    pub(super) fn publish_structural_value(
+        &mut self,
+        expression: ExpressionHandle,
+        type_reference: TypeReferenceHandle,
+        kind: CheckedStructuralValueKind,
+    ) -> Option<CheckedStructuralValueHandle> {
+        Some(self.structural_values.nodes.append(CheckedStructuralValue {
+            machine: self.machine,
+            state: self.state,
+            statement_index: u32::try_from(self.statement_index).ok()?,
+            expression,
+            type_reference,
+            qualification_decisions: Default::default(),
+            kind,
+        }))
     }
 }

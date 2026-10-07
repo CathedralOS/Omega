@@ -372,8 +372,7 @@ pub(super) fn validate_establish_record(
     // record can carry disjoint linear descendants. Source custody owns their
     // identities and transfers; this codec checks the result's storage shape,
     // not a second ownership eligibility rule.
-    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
-        || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
+    if !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
         return malformed("record result custody is noncanonical");
     }
     let Some(declaration) = module

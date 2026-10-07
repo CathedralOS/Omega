@@ -37,7 +37,14 @@ pub struct CheckedStructuralValueRoot {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralValue {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_index: u32,
     pub expression: ExpressionHandle,
+    /// Complete occurrence type, including its receiving obligations. The
+    /// linked source judgments, not this annotation, prove membership.
+    pub type_reference: TypeReferenceHandle,
+    pub qualification_decisions: HandleSpan<crate::CheckedValueQualification>,
     pub kind: CheckedStructuralValueKind,
 }
 

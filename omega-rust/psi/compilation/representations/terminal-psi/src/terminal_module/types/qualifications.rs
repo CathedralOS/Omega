@@ -91,3 +91,38 @@ pub struct StructuralPathQualification {
     pub path: Vec<StructuralPathSegment>,
     pub domain: StructuralDomainId,
 }
+
+impl StructuralPathQualification {
+    /// Select the exact subtree's memberships. A descendant's domain becomes
+    /// whole-value membership only when the selected path ends at that row;
+    /// disjoint siblings and ancestor domains do not qualify the selection.
+    pub fn select(
+        whole: &[StructuralDomainId],
+        projected: &[Self],
+        path: &[StructuralPathSegment],
+    ) -> (Vec<StructuralDomainId>, Vec<Self>) {
+        let mut qualifications = if path.is_empty() {
+            whole.to_vec()
+        } else {
+            Vec::new()
+        };
+        let mut descendants = Vec::new();
+        for row in projected {
+            if let Some(suffix) = row.path.strip_prefix(path) {
+                if suffix.is_empty() {
+                    qualifications.push(row.domain);
+                } else {
+                    descendants.push(Self {
+                        path: suffix.to_vec(),
+                        domain: row.domain,
+                    });
+                }
+            }
+        }
+        qualifications.sort();
+        qualifications.dedup();
+        descendants.sort();
+        descendants.dedup();
+        (qualifications, descendants)
+    }
+}

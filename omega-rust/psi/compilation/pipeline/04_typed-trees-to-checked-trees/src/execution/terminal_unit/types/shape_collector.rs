@@ -985,6 +985,19 @@ impl<'program> ShapeCollector<'program> {
                 }
             }
         };
+        if !field.relevance.is_erased()
+            && matches!(
+                field_type,
+                CheckedUnitStructuralFieldType::Structural { .. }
+            )
+        {
+            super::signature_contracts::parameter_qualifications(
+                self.program,
+                self,
+                field_type_reference,
+                binders,
+            )?;
+        }
         Some(CheckedUnitStructuralFieldPlan {
             identity: field.path_identity(),
             relevance: field.relevance,

@@ -43,6 +43,7 @@ impl TerminalExecution {
                 .allocate_staged(&mut cursor)?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         let mut staged = ConstructorStorage::default();

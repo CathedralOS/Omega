@@ -112,6 +112,7 @@ impl TerminalExecution {
             opaque_identity: result.place.get(),
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         match (

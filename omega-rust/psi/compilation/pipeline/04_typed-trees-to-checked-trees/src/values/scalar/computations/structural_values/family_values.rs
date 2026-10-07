@@ -6,7 +6,7 @@ use super::super::{
     ExpressionNode, TypeReferenceNode,
 };
 use super::value_predicates::{zeroed_integer_literal, zeroed_scalar_array_parts};
-use checked_trees::{CheckedStructuralValue, CheckedStructuralValueKind};
+use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
 impl Builder<'_, '_> {
@@ -265,12 +265,13 @@ impl Builder<'_, '_> {
                 ) {
                     return None;
                 }
-                let node = self.structural_values.nodes.append(CheckedStructuralValue {
-                    expression: initializer.value,
-                    kind: CheckedStructuralValueKind::ByteLiteralView {
+                let node = self.publish_structural_value(
+                    initializer.value,
+                    member_type(field),
+                    CheckedStructuralValueKind::ByteLiteralView {
                         bytes: bytes.to_vec(),
                     },
-                });
+                )?;
                 fields.push(checked_trees::CheckedStructuralRecordField {
                     field: field.symbol,
                     expression: initializer.value,
@@ -317,10 +318,11 @@ impl Builder<'_, '_> {
             if zeroed_scalar_array_parts(self.program, declared).is_none() {
                 // Structural members carry no element roster: the emitted
                 // EstablishZeroedStructural owns the whole shape's zeros.
-                let node = self.structural_values.nodes.append(CheckedStructuralValue {
+                let node = self.publish_structural_value(
                     expression,
-                    kind: CheckedStructuralValueKind::ZeroedStructural {},
-                });
+                    declared,
+                    CheckedStructuralValueKind::ZeroedStructural {},
+                )?;
                 fields.push(checked_trees::CheckedStructuralRecordField {
                     field: field.symbol,
                     expression,
@@ -344,13 +346,14 @@ impl Builder<'_, '_> {
             // This literal has no authored scalar occurrence. The zeroed array
             // owns its node; structural replay checks the declared carrier,
             // element count and literal zero before emission.
-            let node = self.structural_values.nodes.append(CheckedStructuralValue {
+            let node = self.publish_structural_value(
                 expression,
-                kind: CheckedStructuralValueKind::ZeroedScalarArray {
+                declared,
+                CheckedStructuralValueKind::ZeroedScalarArray {
                     element,
                     element_count,
                 },
-            });
+            )?;
             fields.push(checked_trees::CheckedStructuralRecordField {
                 field: field.symbol,
                 expression,

@@ -192,20 +192,20 @@ pub(super) fn lower(
     // Whole-root domain qualifications are signature preconditions the caller or
     // root installation discharges at invocation; admission binds the roster and
     // checks it again wherever a call edge or structural return transfers it.
-    // Projected (path-beneath-root) qualifications still decline admission.
+    // Projected memberships use the same source-checked contract and retain
+    // their exact paths; neither roster changes the parameter's storage ABI.
     if !matches!(
         function.result,
         AbstractFunctionResult::Unit
             | AbstractFunctionResult::Scalar(_)
             | AbstractFunctionResult::Structural(_)
     ) || !function.structural_parameters.iter().all(|parameter| {
-        parameter.projected_qualifications.is_empty()
-            && ((parameter.access != StructuralAccess::Owned
-                && matches!(
-                    parameter.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                ))
-                || owned_arguments::is_owned_parameter(parameter, structural_types))
+        (parameter.access != StructuralAccess::Owned
+            && matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ))
+            || owned_arguments::is_owned_parameter(parameter, structural_types)
     }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

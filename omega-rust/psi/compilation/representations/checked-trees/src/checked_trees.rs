@@ -42,6 +42,8 @@ pub use borrow::{
     CheckedReborrowRestoredCallUseCertificate, CheckedRetiredParentResourceDispositionStep,
     ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
+pub use facts::CheckedValueQualification;
+
 pub use facts::{
     CheckedStoredIntegerWrite, ContextualCleanupApplication, ContextualCleanupDisposition,
     ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,

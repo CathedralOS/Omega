@@ -28,6 +28,9 @@ pub struct TerminalStructuralValue {
     pub opaque_identity: u64,
     pub structural_type: StructuralTypeId,
     pub qualifications: Vec<StructuralDomainId>,
+    /// Exact occurrence-relative child memberships, retained independently
+    /// of storage identity and selected again whenever the value is projected.
+    pub projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     pub path: Vec<StructuralPathSegment>,
 }
 

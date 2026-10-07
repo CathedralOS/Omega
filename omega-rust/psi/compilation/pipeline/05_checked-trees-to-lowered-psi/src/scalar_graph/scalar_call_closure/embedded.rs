@@ -16,6 +16,7 @@ pub(crate) use discovery::{
 };
 
 pub(crate) struct EmbeddedScalarCalls {
+    domain_ids: Vec<crate::terminal_identities::StructuralDomainBinding>,
     claim_bindings: Vec<(
         language_semantics::PermissionClaimIdentity,
         semantic_vocabulary::ClaimId,
@@ -40,6 +41,7 @@ impl EmbeddedScalarCalls {
         dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     ) -> Self {
         Self {
+            domain_ids: Vec::new(),
             claim_bindings: Vec::new(),
             cleanup_receivers: Vec::new(),
             machine_ids,
@@ -55,15 +57,18 @@ impl EmbeddedScalarCalls {
     pub(crate) fn with_callable_namespace(
         mut self,
         boundaries: &[crate::unit::attached_unit::BoundaryParameters],
+        domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
         cleanup_receivers: Vec<(symbols::SymbolHandle, semantic_vocabulary::PlaceId)>,
     ) -> Self {
         self.boundaries = boundaries.to_vec();
+        self.domain_ids = domain_ids.to_vec();
         self.cleanup_receivers = cleanup_receivers;
         self
     }
 
     pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
         CallEmissionContext {
+            domain_ids: &self.domain_ids,
             claims: crate::emission::claim_bindings::ClaimBindings::Fixed(&self.claim_bindings),
             cleanup_receivers: &self.cleanup_receivers,
             machine_ids: &self.machine_ids,
@@ -280,6 +285,7 @@ impl EmbeddedScalarCalls {
             .map(|symbol| (symbol, machine_id(1)))
             .collect();
         let mut selected = EmbeddedScalarCalls {
+            domain_ids: Vec::new(),
             claim_bindings: Vec::new(),
             cleanup_receivers: Vec::new(),
             machine_ids,

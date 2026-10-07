@@ -237,8 +237,6 @@ pub(super) fn read_geometry(
             let structural_type = if let Some(parameter) = read_parameter(source, argument.place) {
                 if parameter.access != argument.access
                     || parameter.access == StructuralAccess::WriteOnlyBorrow
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
                 {
                     return None;
                 }
@@ -249,10 +247,6 @@ pub(super) fn read_geometry(
                 // operations. Replaying geometry cannot create permissions.
                 let (_, result) =
                     super::aggregate_result_input::operation_result(source, argument.place)?;
-                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
-                {
-                    return None;
-                }
                 let expected_access = match signature
                     .structural_types
                     .iter()

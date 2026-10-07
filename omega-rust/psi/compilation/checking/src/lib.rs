@@ -33,9 +33,9 @@ pub use machine_calls::structural_call_custody::{
     reconstruct_structural_parameter_return_claims, restates_structural_parameter_qualification,
     shared_slice_view_result, state_declaration_predicates, state_finite_predicate,
     structural_call_custody, structural_claim_path, structural_owned_path,
-    structural_result_contract, structural_result_projected_qualifications,
-    structural_result_qualifications, structural_state_contract_scalar_predicates,
-    view_result_carrier_qualifications,
+    structural_qualification_contract, structural_result_contract,
+    structural_result_projected_qualifications, structural_result_qualifications,
+    structural_state_contract_scalar_predicates, view_result_carrier_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,

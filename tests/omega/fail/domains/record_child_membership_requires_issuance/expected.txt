@@ -1,0 +1,2 @@
+construction of `Envelope` field `ticket` is not proven in domain
+Ticket::Issued

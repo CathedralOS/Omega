@@ -446,6 +446,7 @@ impl TerminalExecution {
                 opaque_identity: result.place.get(),
                 structural_type: result.structural_type,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
                 path: Vec::new(),
             };
             if descriptor.is_borrowed_byte_view() {
@@ -542,6 +543,7 @@ impl TerminalExecution {
                     opaque_identity: result.place.get(),
                     structural_type: result.structural_type,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                     path: Vec::new(),
                 },
             );
@@ -597,6 +599,7 @@ impl TerminalExecution {
             opaque_identity: result.place.get(),
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         match descriptor {
@@ -1075,6 +1078,7 @@ impl TerminalExecution {
             opaque_identity: result.place.get(),
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         match (

@@ -16,6 +16,7 @@ pub(crate) struct PreparedStructuralCopy {
     pub(crate) length_observation: Option<LoweredDirectExpression>,
     pub(crate) qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub(crate) projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    pub(crate) formation_qualifications: Vec<language_semantics::SemanticDomainId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -161,6 +162,7 @@ impl ScalarBindings {
             place,
             path,
             length_observation,
+            formation_qualifications: Vec::new(),
             qualifications: contract
                 .map_or_else(Vec::new, |parameter| parameter.qualifications.clone()),
             projected_qualifications: contract.map_or_else(Vec::new, |parameter| {

@@ -97,7 +97,9 @@ pub enum ContentsRequirement {
     /// Bounded byte members also retain represented primitive predicates; the
     /// constructor must prove these from each completed operand, independently
     /// of this storage classification. Other `CleanupOwned` callers keep
-    /// refusing declared domains.
+    /// refusing declared domains. A declared domain on nominal data leaves
+    /// the physical contents unchanged; checking proves the completed child's
+    /// membership separately and lowering retains that occurrence's decision.
     StructuralConstruction,
     /// `NumericOwned` contents that may carry shared-view members at any
     /// depth: a `&[T]` or `&'a V` member resolves to a terminal
@@ -470,6 +472,23 @@ fn resolve(
                 // Exact type correspondence remains the caller's obligation.
                 typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => true,
                 typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                    // These operations retain the complete structural type and
+                    // its independent membership/custody judgments. A routed
+                    // atom changes those judgments, not the recursively owned
+                    // carrier. Copy, erasure and stable-observation permission
+                    // remain separate; scalar predicates keep their codecs below.
+                    if matches!(requirement,
+                        ContentsRequirement::StructuralConstruction
+                            | ContentsRequirement::RepresentedOwned
+                            | ContentsRequirement::BorrowedStorage
+                            | ContentsRequirement::BorrowFree)
+                        && matches!(contents, ContentType::Data(_, _))
+                        && domain.subject == typed_trees::types::DomainConstraintSubject::Declared
+                        && domain.semantic_id.is_valid()
+                        && typed_trees::domain::domain_by_symbol(program, domain.symbol).is_some()
+                    {
+                        return true;
+                    }
                     // Predicate-only value facts have no semantic atom, new
                     // storage or cleanup action. Every content judgment keeps
                     // the same carrier; invariant-window checking still owns

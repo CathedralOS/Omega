@@ -253,7 +253,12 @@ pub(crate) fn build_checked_value_computation_plans(
                 {
                     let root = builder.structural_values.nodes.append(
                         checked_trees::CheckedStructuralValue {
+                            machine: machine.symbol,
+                            state: state.symbol,
+                            statement_index: statement_ordinal,
                             expression: local.initial_value,
+                            type_reference: local.type_reference,
+                            qualification_decisions: Default::default(),
                             kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {},
                         },
                     );

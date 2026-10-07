@@ -94,8 +94,6 @@ pub(super) fn validate_owned_arguments(
                 if actual_producer != psi_operation
                     || result.place != semantic.place
                     || result.structural_type != target.root_structural_type
-                    || !result.projected_qualifications.is_empty()
-                    || (!semantic.path.is_empty() && !result.qualifications.is_empty())
                 {
                     return None;
                 }
@@ -115,7 +113,6 @@ pub(super) fn validate_owned_arguments(
                     || place != semantic.place
                     || parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != target.root_structural_type
-                    || !parameter.projected_qualifications.is_empty()
                     || (!semantic.path.is_empty() && !parameter.qualifications.is_empty())
                     || !source
                         .structural
@@ -144,7 +141,6 @@ pub(super) fn validate_owned_arguments(
                 if !semantic.path.is_empty()
                     || parameter.semantic.access != StructuralAccess::Owned
                     || parameter.semantic.structural_type != target.structural_type
-                    || !parameter.semantic.projected_qualifications.is_empty()
                     || placement != &parameter.target.placement
                     || placement.shape != shape
                     || !crate::selection::aggregate_result_input::owned_argument_placement(

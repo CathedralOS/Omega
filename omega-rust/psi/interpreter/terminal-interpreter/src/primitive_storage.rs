@@ -209,6 +209,7 @@ impl TerminalExecution {
                     opaque_identity,
                     structural_type: parameter.structural_type,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                     path,
                 },
                 storage,
@@ -819,6 +820,7 @@ impl TerminalExecution {
             opaque_identity: identity,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         // A reentered definition replaces this activation's old local only.

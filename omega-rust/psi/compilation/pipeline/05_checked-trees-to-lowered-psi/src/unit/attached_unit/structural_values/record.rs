@@ -1,7 +1,7 @@
 //! Complete fields in authored order before committing a declaration-ordered record.
 //! Byte members retain their complete owned value, including live length and
 //! qualifications. A destination declaration never supplies missing source proof:
-//! Terminal replay checks each completed operand before establishing the record.
+//! the result rebases memberships from its completed operands, not field types.
 use super::super::super::StructuralFieldType;
 use super::super::{
     CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId, ScalarType,
@@ -247,8 +247,9 @@ impl emission::Emission<'_, '_, '_> {
             self.structural_type,
             self.multiplicity,
             initialized.into_iter().map(|(_, field)| field).collect(),
+            &shape_fields,
             self.operations,
-        ));
+        )?);
         Ok(place)
     }
 }
@@ -261,23 +262,74 @@ pub(crate) fn emit_completed(
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
     fields: Vec<terminal_psi::RecordFieldInitializer>,
+    declarations: &[terminal_psi::StructuralFieldDeclaration],
     operations: &mut OperationBuffer,
-) -> StructuralPlaceDeclaration {
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
+    let mut projected_qualifications = Vec::new();
+    for field in &fields {
+        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+            continue;
+        };
+        let Some(source) = operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == argument.place)
+        else {
+            continue;
+        };
+        let declaration = declarations
+            .iter()
+            .find(|declaration| declaration.id == field.field)
+            .ok_or(LoweringError::Unsupported(
+                "completed record field has no declaration",
+            ))?;
+        // Inline byte fields already retain their represented predicates in
+        // the carrier contract; projected rows describe nominal children.
+        if !matches!(declaration.field_type, StructuralFieldType::Structural(_)) {
+            continue;
+        }
+        let identity = &declaration.identity;
+        let (whole, projected) = terminal_psi::StructuralPathQualification::select(
+            &source.qualifications,
+            &source.projected_qualifications,
+            &argument.path,
+        );
+        for domain in whole {
+            projected_qualifications.push(terminal_psi::StructuralPathQualification {
+                path: vec![terminal_psi::StructuralPathSegment::Field(identity.clone())],
+                domain,
+            });
+        }
+        for row in projected {
+            let mut path = vec![terminal_psi::StructuralPathSegment::Field(identity.clone())];
+            path.extend(row.path);
+            projected_qualifications.push(terminal_psi::StructuralPathQualification {
+                path,
+                domain: row.domain,
+            });
+        }
+    }
+    projected_qualifications.sort();
+    projected_qualifications.dedup();
+    let mut result = structural_result_declaration(place, structural_type, multiplicity);
+    if let terminal_psi::OperationResult::Structural(result) = &mut result {
+        result.projected_qualifications = projected_qualifications;
+    }
     let operation = operations.allocate();
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
         id: operation,
-        result: structural_result_declaration(place, structural_type, multiplicity),
+        result,
         kind: OperationKind::EstablishRecord { fields },
     });
-    StructuralPlaceDeclaration {
+    Ok(StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::OperationResult {
             producer: operation,
             structural_type,
         },
-    }
+    })
 }
 
 /// The declared scalar type's zero as one constant operation: the value

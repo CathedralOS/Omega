@@ -155,6 +155,7 @@ pub(super) fn establish(
                 opaque_identity: 1,
                 structural_type: receiver.terminal_receiver_type(),
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
                 path: Vec::new(),
             });
             arrival.zero_initialized.push(0);

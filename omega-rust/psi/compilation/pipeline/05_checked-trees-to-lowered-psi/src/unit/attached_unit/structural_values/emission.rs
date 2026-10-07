@@ -1082,7 +1082,11 @@ impl Emission<'_, '_, '_> {
                     // appending the projection and publish one fresh leaf.
                     let mut argument = self.copied_place_argument(copied)?;
                     argument.path.extend(lower_structural_path(&path)?);
-                    return self.copied_leaf_place(&argument, continuation);
+                    return self.copied_leaf_place(
+                        &argument,
+                        node.qualification_decisions,
+                        continuation,
+                    );
                 }
                 let continuation = continuation.ok_or(LoweringError::Unsupported(
                     "projected selection requires a structural continuation",
@@ -1123,7 +1127,7 @@ impl Emission<'_, '_, '_> {
             }
             CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 let argument = self.copied_place_argument(&source)?;
-                self.copied_leaf_place(&argument, continuation)
+                self.copied_leaf_place(&argument, node.qualification_decisions, continuation)
             }
             CheckedStructuralValueKind::ZeroedScalarArray {
                 element,
@@ -1271,7 +1275,11 @@ impl Emission<'_, '_, '_> {
                     return Ok(place);
                 }
                 if let Some(source) = self.copied_parameter(&argument)? {
-                    return self.copied_leaf_place(&source, continuation);
+                    return self.copied_leaf_place(
+                        &source,
+                        node.qualification_decisions,
+                        continuation,
+                    );
                 }
                 if self.sources.is_empty() && continuation.is_none() {
                     // An ordinary constructor consumes this whole source place,
@@ -1695,8 +1703,9 @@ impl Emission<'_, '_, '_> {
             self.structural_type,
             self.multiplicity,
             initialized,
+            &fields,
             self.operations,
-        ));
+        )?);
         let Some(continuation) = continuation else {
             return Ok(place);
         };
@@ -1707,53 +1716,78 @@ impl Emission<'_, '_, '_> {
     fn copied_leaf_place(
         &mut self,
         argument: &StructuralArgument,
+        qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let path = self.copied_place_path(argument)?;
-        // Snapshot whole byte operands before later record members execute.
-        // Copy the source's exact established roster, not the destination's
-        // requested predicates; the independent copy checker rejoins both.
-        let qualifications = if argument.path.is_empty()
-            && self.structural_types.iter().any(|declaration| {
-                declaration.id == self.structural_type
-                    && matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+        // Ordinary records and bytes retain the same occurrence-relative
+        // source roster. Receiving annotations never manufacture membership.
+        let source_contract = self
+            .operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == argument.place)
+            .map(|result| (&result.qualifications, &result.projected_qualifications))
+            .or_else(|| {
+                self.evaluation
+                    .structural_parameters
+                    .iter()
+                    .map(|(_, parameter)| parameter)
+                    .chain(self.evaluation.block_structural_parameters.iter())
+                    .find(|parameter| parameter.place == argument.place)
+                    .map(|parameter| {
+                        (
+                            &parameter.qualifications,
+                            &parameter.projected_qualifications,
                         )
-                    )
-            }) {
-            self.evaluation
-                .structural_parameters
-                .iter()
-                .map(|(_, parameter)| parameter)
-                .chain(self.evaluation.block_structural_parameters.iter())
-                .find(|parameter| parameter.place == argument.place)
-                .map(|parameter| parameter.qualifications.clone())
-                .or_else(|| {
-                    self.operations
-                        .iter()
-                        .filter_map(|operation| operation.result.structural())
-                        .find(|result| result.place == argument.place)
-                        .map(|result| result.qualifications.clone())
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "copied byte operand has no established source contract",
-                ))?
-        } else {
-            Vec::new()
-        };
-        let (place, operation) = allocate_structural_result(
-            self.operations,
-            self.next_place,
-            self.structural_type,
-            self.multiplicity,
-            qualifications,
-            OperationKind::StructuralLeafCopy {
+                    })
+            });
+        let (mut qualifications, projected_qualifications) = source_contract
+            .map(|(whole, projected)| {
+                terminal_psi::StructuralPathQualification::select(whole, projected, &path)
+            })
+            .unwrap_or_default();
+        // The checker proved these exact memberships at this operand's
+        // evaluation point, before a later constructor child may mutate the
+        // source home. This is decision transport, not a second proof replay.
+        let decisions = self
+            .checked
+            .facts
+            .qualifications
+            .value_formations
+            .span(qualification_decisions)
+            .ok_or(LoweringError::Unsupported(
+                "copied membership decisions are stale",
+            ))?;
+        for decision in decisions {
+            qualifications.push(crate::terminal_identities::lookup_domain_id_for_carrier(
+                self.domain_ids,
+                decision.semantic_domain,
+                self.structural_type,
+            )?);
+        }
+        qualifications.sort();
+        qualifications.dedup();
+        let place = place_id(allocate_dense(self.next_place)?);
+        let operation = self.operations.allocate();
+        self.operations.push(terminal_psi::Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place,
+                structural_type: self.structural_type,
+                multiplicity: self.multiplicity,
+                qualifications,
+                projected_qualifications,
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::StructuralLeafCopy {
                 source: argument.place,
                 path,
             },
-        )?;
+        });
         self.temporary_places.push(operation_result_declaration(
             place,
             operation,

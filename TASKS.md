@@ -473,12 +473,12 @@ defines the complete product bar.
     engines). Use ordinary expression continuations for selected payload returns,
     not raw jump arguments.
     Structural arrays and value dispatch still need their full construction
-    schedule. Transport routed child
-    qualifications through record construction for
-    `pending/calls/runtime_constructor_child_declared_membership_exit`.
-    It passes source checking, but native production rejects `Main::main` as
-    an unconsumed nested call in a call statement. Preserve issuer provenance
-    and exact child observations; repeated syntax cannot establish membership.
+    schedule. Preserve occurrence-bound routed memberships through completed
+    children, copies and nested projections:
+    `pass/calls/runtime_constructor_child_declared_membership_exit` and
+    `pass/domains/runtime_nested_record_membership_transport_exit` stay at 0
+    in both engines; `fail/domains/record_child_membership_requires_issuance`
+    must reject literal forgery, stale source epochs and sibling substitution.
     Keep `pass/calls/runtime_constructor_child_pure_calls_exit` at 0 in both
     engines without adding an ensures clause or a Terminal certificate.
     Keep stored snapshot controls
@@ -3019,7 +3019,8 @@ deletions, which the commit lists.
     and remaining bounded stores outside bounded-integer field replacements
     and interval/finite-refined element-view writes, including generated indexed
     stores. Finish the formation audit outside statement-level concrete scalar
-    constructor first stores across aggregate and proposition positions; unify
+    constructor first stores and occurrence-bound nominal child memberships
+    across remaining aggregate and proposition positions; unify
     abstract declaration-contract carrier resolution with the ordinary formation walk.
   - Carry source decisions for invocation-entry, scalar-graph,
     local-refinement and inferred arrival obligations, and conditional cleanup
@@ -3031,6 +3032,9 @@ deletions, which the commit lists.
     unsupported independently of this work.
   Regression controls: `arithmetic/runtime_short_circuit_cast_decisions_exit`
   (70), `arithmetic/runtime_qualified_cast_decision_exit` (0),
+  `calls/runtime_constructor_child_declared_membership_exit` and
+  `domains/runtime_nested_record_membership_transport_exit` (0 in both
+  engines; literal, stale-epoch and sibling membership forgeries reject),
   `arithmetic/runtime_returned_constructor_operation_exit` and
   `structural/runtime_nested_constructor_payload_exit` (0 in both engines),
   `samples/cli/collections/heat_grid` (45), nested projected stores and

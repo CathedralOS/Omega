@@ -430,6 +430,7 @@ pub(crate) fn build_qualification_facts(
         }
     }
     checked_trees::QualificationFacts {
+        value_formations: Default::default(),
         machines,
         vacuous_uses,
         content: checked_trees::ContentProjectionFacts {

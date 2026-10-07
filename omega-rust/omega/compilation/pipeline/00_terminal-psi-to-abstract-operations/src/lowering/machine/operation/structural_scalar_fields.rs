@@ -379,10 +379,8 @@ fn readable_source_type(
         return (parameter.access != StructuralAccess::WriteOnlyBorrow
             && (owned_storage(parameter.structural_type, parameter.access)
                 || (parameter.multiplicity != StructuralMultiplicity::Linear
-                    && !has_entry_claim))
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty())
-        .then_some((parameter.structural_type, parameter.access));
+                    && !has_entry_claim)))
+            .then_some((parameter.structural_type, parameter.access));
     }
     // The verified producer and availability checks retain the actual result root;
     // it never acquires an incoming-parameter identity merely to be observed.
@@ -392,13 +390,11 @@ fn readable_source_type(
         .flat_map(|block| &block.operations)
         .filter_map(|operation| operation.result.structural())
         .find(|result| result.place == source)?;
-    ((owned_storage(result.structural_type, StructuralAccess::Owned)
+    (owned_storage(result.structural_type, StructuralAccess::Owned)
         || (result.multiplicity != StructuralMultiplicity::Linear
             && result.claims.is_empty()
             && !has_entry_claim))
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty())
-    .then_some((result.structural_type, StructuralAccess::Owned))
+        .then_some((result.structural_type, StructuralAccess::Owned))
 }
 
 pub(super) fn exact_parameter(

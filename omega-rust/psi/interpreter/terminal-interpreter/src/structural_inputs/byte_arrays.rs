@@ -229,6 +229,7 @@ impl TerminalExecution {
                             .allocate_staged(identity_cursor)?,
                         structural_type: array.structural_type,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                         path: Vec::new(),
                     })
                 }
@@ -364,6 +365,7 @@ impl TerminalExecution {
                         opaque_identity: source.place.get(),
                         structural_type: view_type,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                         path: Vec::new(),
                     },
                     ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
@@ -401,6 +403,7 @@ impl TerminalExecution {
                     opaque_identity: source.place.get(),
                     structural_type: view_type,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                     path: Vec::new(),
                 },
                 ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),

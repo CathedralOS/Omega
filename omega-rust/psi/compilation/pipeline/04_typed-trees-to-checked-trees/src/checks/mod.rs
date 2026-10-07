@@ -116,7 +116,10 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         proven_machine_contracts,
         expression_intervals,
     ) {
-        Ok(decided) => facts.decided_call_requires = decided,
+        Ok(decided) => {
+            facts.decided_call_requires = decided.call_requires;
+            facts.qualifications.value_formations = decided.value_qualifications;
+        }
         Err(mut contract_diagnostics) => diagnostics.append(&mut contract_diagnostics),
     }
 
@@ -183,6 +186,9 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
     }
 
     if diagnostics.is_empty() {
+        facts
+            .qualifications
+            .link_value_formations(&mut facts.values.structural_values);
         Ok(())
     } else {
         Err(diagnostics)

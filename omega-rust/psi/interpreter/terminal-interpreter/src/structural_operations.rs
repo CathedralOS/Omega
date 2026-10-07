@@ -150,6 +150,7 @@ impl TerminalExecution {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         let member_root = StructuralRuntimePlace::from(&value);
@@ -319,6 +320,7 @@ impl TerminalExecution {
                     opaque_identity: destination.get(),
                     structural_type: *structural_type,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                     path: Vec::new(),
                 },
             );
@@ -356,6 +358,7 @@ impl TerminalExecution {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         self.materialize_zeroed_structural_storage(&value)?;
@@ -578,6 +581,7 @@ impl TerminalExecution {
                 opaque_identity: self.local_structural_identities.allocate()?,
                 structural_type: result.structural_type,
                 qualifications: result.qualifications.clone(),
+                projected_qualifications: Vec::new(),
                 path: Vec::new(),
             },
         );
@@ -625,6 +629,7 @@ impl TerminalExecution {
                 opaque_identity: destination.get(),
                 structural_type: *structural_type,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
                 path: Vec::new(),
             },
         );
@@ -797,6 +802,7 @@ impl TerminalExecution {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         self.relocate_subtree(&hole, &StructuralRuntimePlace::from(&moved));
@@ -1152,6 +1158,7 @@ impl TerminalExecution {
                 opaque_identity: self.local_structural_identities.allocate()?,
                 structural_type: result.structural_type,
                 qualifications: result.qualifications.clone(),
+                projected_qualifications: Vec::new(),
                 path: Vec::new(),
             };
             self.byte_sequence_values.insert(
@@ -1172,8 +1179,7 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
         }
         if result.multiplicity != StructuralMultiplicity::Unrestricted
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
         {
@@ -1228,7 +1234,8 @@ impl TerminalExecution {
         let copied = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
-            qualifications: Vec::new(),
+            qualifications: result.qualifications.clone(),
+            projected_qualifications: result.projected_qualifications.clone(),
             path: Vec::new(),
         };
         if self
@@ -1435,6 +1442,7 @@ impl TerminalExecution {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         let parent = StructuralRuntimePlace::from(&copied);

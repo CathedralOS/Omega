@@ -56,30 +56,17 @@ pub(crate) fn emit(
                     .find(|result| result.place == source.place)
                     .map(|result| (&result.qualifications, &result.projected_qualifications))
                     .unwrap_or((&source.qualifications, &source.projected_qualifications));
-                let mut qualifications = if path.is_empty() {
-                    whole.clone()
-                } else {
-                    Vec::new()
-                };
-                let mut projected_qualifications = Vec::new();
-                for qualification in projected {
-                    if let Some(suffix) = qualification.path.strip_prefix(path.as_slice()) {
-                        if suffix.is_empty() {
-                            qualifications.push(qualification.domain);
-                        } else {
-                            projected_qualifications.push(
-                                terminal_psi::StructuralPathQualification {
-                                    path: suffix.to_vec(),
-                                    domain: qualification.domain,
-                                },
-                            );
-                        }
-                    }
+                let (mut qualifications, projected_qualifications) =
+                    terminal_psi::StructuralPathQualification::select(whole, projected, &path);
+                for domain in &source.formation_qualifications {
+                    qualifications.push(crate::terminal_identities::lookup_domain_id_for_carrier(
+                        calls.domain_ids,
+                        *domain,
+                        *structural_type,
+                    )?);
                 }
                 qualifications.sort();
                 qualifications.dedup();
-                projected_qualifications.sort();
-                projected_qualifications.dedup();
                 let id = operations.allocate();
                 operations.push(Operation {
                     static_reach_binding: None,

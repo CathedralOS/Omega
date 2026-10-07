@@ -483,18 +483,12 @@ pub(in crate::legalization) fn read(
         )
         .find(|parameter| parameter.place == place)
     {
-        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
+        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
             return None;
         }
         (parameter.structural_type, parameter.access)
     } else {
         let (_, result) = super::structural_case::source_result(function, place).ok()?;
-        if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
-            return None;
-        }
         // A view or reference lends storage through its descriptor; an owned
         // aggregate instead observes its own value storage.
         let (structural_type, access) = match types

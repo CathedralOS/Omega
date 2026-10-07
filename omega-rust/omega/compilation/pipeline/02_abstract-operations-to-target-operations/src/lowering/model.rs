@@ -22,9 +22,6 @@ pub enum LoweringError {
     UnconsumedOptimizationPhase(optimization_core::OptimizationExecutionPhase),
     UnsupportedIeeeFloatFmaRealization(OperationId),
     TranslationValidation(crate::AbstractToTargetTranslationValidationError),
-    /// Parameter-rooted path qualifications are preserved through the
-    /// prephysical optimizer boundary but have no target-operation carrier yet.
-    UnsupportedProjectedStructuralQualifications,
     PlacedViewInput(PlacedViewInputTranslationError),
     EntryFunctionMissing(MachineId),
     ProviderInstallationIdentityMismatch,

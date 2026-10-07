@@ -428,10 +428,6 @@ pub(super) fn lower(
                 through_reference = true;
                 (referent, access)
             } else if let Some(home) = live.structural_homes.get(&place) {
-                if !home.qualifications().is_empty() || !home.projected_qualifications().is_empty()
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
                 (home.structural_type(), StructuralAccess::Owned)
             } else {
                 let source = function
@@ -451,9 +447,7 @@ pub(super) fn lower(
                     StructuralAccess::Owned
                         | StructuralAccess::SharedBorrow
                         | StructuralAccess::MutableBorrow
-                ) || !source.qualifications.is_empty()
-                    || !source.projected_qualifications.is_empty()
-                {
+                ) {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 (source.structural_type, source.access)

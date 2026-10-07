@@ -295,8 +295,6 @@ pub(super) fn establish(
                         || home.access() != StructuralAccess::Owned
                         || (!argument.path.is_empty()
                             && home.multiplicity() != StructuralMultiplicity::Affine)
-                        || (byte_carrier.is_none() && !home.qualifications().is_empty())
-                        || !home.projected_qualifications().is_empty()
                     {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
@@ -314,8 +312,6 @@ pub(super) fn establish(
                         || (!argument.path.is_empty()
                             && parameter.multiplicity != StructuralMultiplicity::Affine)
                         || parameter.access != StructuralAccess::Owned
-                        || (byte_carrier.is_none() && !parameter.qualifications.is_empty())
-                        || !parameter.projected_qualifications.is_empty()
                     {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }

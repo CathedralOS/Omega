@@ -101,6 +101,7 @@ pub(in crate::unit::attached_unit) fn emit(
         )
         .with_callable_namespace(
             shared.boundary_parameters,
+            shared.domain_ids,
             shared
                 .signatures
                 .iter()

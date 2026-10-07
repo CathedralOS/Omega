@@ -30,27 +30,6 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         unreachable!("dispatched validate_structural_leaf_copy")
     };
     if operation.result.structural().is_none_or(|result| {
-        // A whole byte snapshot retains primitive declaration qualifications;
-        // it does not establish a new domain or change a projected leaf.
-        let qualified_byte_copy = matches!(&operation.kind,
-            OperationKind::StructuralLeafCopy { path, .. } if path.is_empty())
-            && result.multiplicity == StructuralMultiplicity::Unrestricted
-            && result.qualification_establishments.is_empty()
-            && module.structural_types.iter().any(|declaration| {
-                declaration.id == result.structural_type
-                    && matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                    )
-            })
-            && terminal_semantics::byte_qualification_predicates_in(
-                module.structural_domains.iter(),
-                result.structural_type,
-                &result.qualifications,
-            )
-            .is_some();
         (result.multiplicity != StructuralMultiplicity::Unrestricted
             // A case-payload copy may instead mint the transfer's `Affine`
             // result shape: a `SharedBorrow` reference descriptor relocating
@@ -61,8 +40,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 && module.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
                 })))
-            || (!result.qualifications.is_empty() && !qualified_byte_copy)
-            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
     }) {
         return malformed("leaf copy has invalid multiplicity or qualification custody");
@@ -672,8 +650,6 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 | terminal_psi::StructuralAccess::SharedBorrow
                 | terminal_psi::StructuralAccess::MutableBorrow
         )
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
         || (!owned_observation
             && machine
                 .entry_claims

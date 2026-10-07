@@ -206,6 +206,7 @@ impl TerminalExecution {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
         self.reference_referents.insert(

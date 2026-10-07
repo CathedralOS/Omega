@@ -35,10 +35,9 @@ pub(super) fn reconstruct(
     // Whole-root domain qualifications are signature preconditions whose
     // discharge was verified at the call edge upstream; admission binds the
     // roster and re-checks it exactly wherever an argument binds to a
-    // parameter. Projected (path-beneath-root) qualifications still decline.
-    if destination.access != terminal_psi::StructuralAccess::Owned
-        || !destination.projected_qualifications.is_empty()
-    {
+    // parameter. Projected memberships retain the same exact source contract
+    // without introducing a new native carrier or qualification equality rule.
+    if destination.access != terminal_psi::StructuralAccess::Owned {
         return Err(LegalizationError::custody());
     }
     let shape = crate::structural_inputs::structural_reference_input::parameter_shape(
@@ -74,7 +73,6 @@ pub(super) fn reconstruct(
             || parameter.structural_type != destination.structural_type
             || parameter.access != destination.access
             || parameter.multiplicity != destination.multiplicity
-            || !parameter.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());
         }
@@ -94,7 +92,7 @@ pub(super) fn reconstruct(
             || retained.multiplicity != parameter.multiplicity
             || retained.shape != shape
             || retained.placement.shape != shape
-            || !retained.projected_qualifications.is_empty()
+            || retained.projected_qualifications != parameter.projected_qualifications
         {
             return Err(LegalizationError::custody());
         }
@@ -113,7 +111,6 @@ pub(super) fn reconstruct(
             || parameter.access != destination.access
             || argument.access != parameter.access
             || parameter.multiplicity != destination.multiplicity
-            || !parameter.projected_qualifications.is_empty()
             || !target::control_flow::sources::dominates(caller, block, call_site.0)
             || !caller.structural_places.iter().any(|place| {
                 place.id == parameter.place
@@ -149,7 +146,6 @@ pub(super) fn reconstruct(
         if !argument.path.is_empty()
             || structural_type != destination.structural_type
             || destination.multiplicity != StructuralMultiplicity::Affine
-            || !destination.qualifications.is_empty()
             || shape.byte_size != 0
             || !precedes(caller, producer_site, call_operation, argument)?
         {
@@ -164,9 +160,7 @@ pub(super) fn reconstruct(
         )
     } else {
         let (producer, result) = structural_case::source_result(caller, argument.place)?;
-        if result.multiplicity != destination.multiplicity
-            || !result.projected_qualifications.is_empty()
-        {
+        if result.multiplicity != destination.multiplicity {
             return Err(LegalizationError::custody());
         }
         let offset = owned_projection(

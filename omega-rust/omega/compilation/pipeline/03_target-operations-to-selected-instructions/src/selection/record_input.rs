@@ -20,11 +20,9 @@ pub(super) fn fields(
         return None;
     };
     let declarations = &source.structural.as_ref()?.structural_types;
-    // Claims retain source ownership identities but add no bytes. Geometry
+    // Claims and memberships retain source identities but add no bytes. Geometry
     // follows the complete carrier, including affine records with linear fields.
     if row.result.is_some()
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
         || crate::structural_inputs::structural_reference_input::shape(
             result.structural_type,
             declarations,
@@ -252,9 +250,7 @@ pub(super) fn structural_operand_shape(
                         parameter.structural_type,
                         parameter.access == terminal_psi::StructuralAccess::Owned
                             && (parent.multiplicity != StructuralMultiplicity::Unrestricted
-                                || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
-                            && parameter.qualifications.is_empty()
-                            && parameter.projected_qualifications.is_empty(),
+                                || parameter.multiplicity == StructuralMultiplicity::Unrestricted),
                     )
                 })
                 .chain(
@@ -267,9 +263,7 @@ pub(super) fn structural_operand_shape(
                             (result.place == argument.place).then_some((
                                 result.structural_type,
                                 (parent.multiplicity != StructuralMultiplicity::Unrestricted
-                                    || result.multiplicity == StructuralMultiplicity::Unrestricted)
-                                    && result.qualifications.is_empty()
-                                    && result.projected_qualifications.is_empty(),
+                                    || result.multiplicity == StructuralMultiplicity::Unrestricted),
                             ))
                         }),
                 );
