@@ -26,9 +26,11 @@ pub fn project_checked_external_supply_policy<'a>(
     };
     let conformances = compilation.machine_trait_conformances(machine);
     let [conformance] = conformances else {
-        return Err(rejected(
-            "external leaf must have one exact realization edge",
-        ));
+        return Err(rejected(&format!(
+            "external leaf `{}` has {} realization edges; exactly one is required",
+            machine.name,
+            conformances.len()
+        )));
     };
     let binding = bindings::project(compilation, machine, conformance)?;
     let (binders, signature) = signatures::project(compilation, machine)?;
