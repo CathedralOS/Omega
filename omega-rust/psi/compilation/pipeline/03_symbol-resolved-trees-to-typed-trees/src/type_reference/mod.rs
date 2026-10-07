@@ -139,6 +139,76 @@ pub(super) fn retain_type_reference_selection(
         })
 }
 
+/// The `DynamicTrait` leaf shared by the direct and table-backed type
+/// reference lowerings — both enums carry the same field payload here.
+pub(super) fn lower_dynamic_trait_type_reference(
+    source_trees: &resolved::SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    symbol: symbols::SymbolHandle,
+    name: &resolved::name::DiagnosticName,
+    conformance: Option<symbols::SymbolHandle>,
+    conformance_carrier: Option<&resolved::name::DiagnosticName>,
+    conformance_name: Option<&resolved::name::DiagnosticName>,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    retain_type_reference_selection(
+        source_trees,
+        typed_trees,
+        name,
+        symbol,
+        exposure,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+    )?;
+    if let (Some(conformance), Some(conformance_name)) = (conformance, conformance_name) {
+        retain_type_reference_selection(
+            source_trees,
+            typed_trees,
+            conformance_name,
+            conformance,
+            exposure,
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance,
+        )?;
+    }
+    Ok(typed_trees.type_reference_table.insert(
+        typed::types::TypeReferenceNode::DynamicTrait {
+            symbol,
+            name: crate::lowerer::name::lower_name(name),
+            conformance,
+            conformance_carrier: conformance_carrier.map(crate::lowerer::name::lower_name),
+            conformance_name: conformance_name.map(crate::lowerer::name::lower_name),
+        },
+    ))
+}
+
+/// The `Named` leaf shared by the direct and table-backed type reference
+/// lowerings.
+pub(super) fn lower_named_type_reference(
+    source_trees: &resolved::SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    symbol: symbols::SymbolHandle,
+    name: &resolved::name::DiagnosticName,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    retain_type_reference_selection(
+        source_trees,
+        typed_trees,
+        name,
+        symbol,
+        exposure,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+    )?;
+    Ok(typed_trees
+        .type_reference_table
+        .insert(typed::types::TypeReferenceNode::Named {
+            symbol,
+            name: crate::lowerer::name::lower_name(name),
+        }))
+}
+
 pub(crate) fn retain_static_path_selection(
     typed_trees: &mut typed::TypedTrees,
     path: &[resolved::name::DiagnosticName],

@@ -148,55 +148,25 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             conformance_carrier,
             conformance_name,
         } => {
-            super::retain_type_reference_selection(
+            super::lower_dynamic_trait_type_reference(
                 source_trees,
                 typed_trees,
-                name,
                 *symbol,
+                name,
+                *conformance,
+                conformance_carrier.as_ref(),
+                conformance_name.as_ref(),
                 exposure,
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
-            )?;
-            if let (Some(conformance), Some(conformance_name)) =
-                (*conformance, conformance_name.as_ref())
-            {
-                super::retain_type_reference_selection(
-                    source_trees,
-                    typed_trees,
-                    conformance_name,
-                    conformance,
-                    exposure,
-                    language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance,
-                )?;
-            }
-            Ok(typed_trees.type_reference_table.insert(
-                typed::types::TypeReferenceNode::DynamicTrait {
-                    symbol: *symbol,
-                    name: crate::lowerer::name::lower_name(name),
-                    conformance: *conformance,
-                    conformance_carrier: conformance_carrier
-                        .as_ref()
-                        .map(crate::lowerer::name::lower_name),
-                    conformance_name: conformance_name
-                        .as_ref()
-                        .map(crate::lowerer::name::lower_name),
-                },
-            ))
+            )
         }
         resolved::types::TypeReferenceNode::Named { symbol, name } => {
-            super::retain_type_reference_selection(
+            super::lower_named_type_reference(
                 source_trees,
                 typed_trees,
-                name,
                 *symbol,
+                name,
                 exposure,
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
-            )?;
-            Ok(typed_trees
-                .type_reference_table
-                .insert(typed::types::TypeReferenceNode::Named {
-                    symbol: *symbol,
-                    name: crate::lowerer::name::lower_name(name),
-                }))
+            )
         }
         resolved::types::TypeReferenceNode::SelfType { symbol } => Ok(typed_trees
             .type_reference_table
