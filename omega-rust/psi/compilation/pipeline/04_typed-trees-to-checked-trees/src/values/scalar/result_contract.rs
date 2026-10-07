@@ -685,7 +685,7 @@ pub(super) fn lower_integer_contract_comparison(
     }) {
         return None;
     }
-    let spelling = crate::operators::comparison_operator_spelling(binary.operator)?;
+    let spelling = validation::comparison_operator_spelling(binary.operator)?;
     let operand_types =
         [(binary.left, &subjects[0]), (binary.right, &subjects[1])].map(|(expression, subject)| {
             subject

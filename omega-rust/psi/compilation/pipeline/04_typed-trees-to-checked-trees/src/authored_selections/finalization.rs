@@ -368,7 +368,7 @@ pub(crate) fn finalize_checked_authored_selections(
                         ))
                         .or_else(|| {
                             declaration_target(
-                                crate::operators::token_bound_machine_call_target(program, call)
+                                validation::token_bound_machine_call_target(program, call)
                                     .unwrap_or_else(SymbolHandle::invalid),
                             )
                         })

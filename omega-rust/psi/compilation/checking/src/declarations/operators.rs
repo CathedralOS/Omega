@@ -1,6 +1,22 @@
+//! Operator declaration admission and shared immutable use queries.
+//! Receiver typing and selection preserve the authored executable context;
+//! typed-call mutation and checked proof/application extraction stay in the pipeline.
+
 mod applications;
 pub(crate) mod namespaces;
+mod receiver;
+mod requirement_uses;
+mod selection;
 mod signatures;
+mod uses;
+
+pub use receiver::expression_type_reference_for_origin;
+pub use requirement_uses::{collect_named_requirement_uses, token_bound_machine_call_target};
+pub use selection::select_pending_domain_operator_meanings;
+pub use uses::{
+    build_operator_uses, builtin_float_operator_selection, checked_operator_candidate,
+    indexed_operand_types,
+};
 
 pub(crate) use applications::retain_validated_boundary_operator_application;
 pub(crate) use applications::validate_named_statement_operator_application;
@@ -18,6 +34,23 @@ use crate::value_custody::type_references::{
 };
 use diagnostics::Diagnostic;
 use signatures::{operator_name, operator_operand_key, operator_signature_key};
+
+/// The spelled comparisons a bounds or contract read may treat as one
+/// class. Arithmetic and bitwise operators carry no ordering judgment.
+pub fn comparison_operator_spelling(
+    operator: typed_trees::expression::BinaryOperator,
+) -> Option<language_core::OperatorSpelling> {
+    use typed_trees::expression::BinaryOperator;
+    match operator {
+        BinaryOperator::Equal
+        | BinaryOperator::NotEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual => typed_trees::operator::binary_operator_spelling(operator),
+        _ => None,
+    }
+}
 
 pub(crate) fn validate_operator_declarations(
     program: &dyn crate::CheckingInput,

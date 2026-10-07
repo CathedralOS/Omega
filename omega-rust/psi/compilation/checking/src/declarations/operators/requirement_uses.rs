@@ -7,6 +7,7 @@
 //! target's selected plan joins either spelling by requirement identity and
 //! the intrinsic execution bridge resolves both through one requirement view.
 
+use super::uses::{builtin_float_operator_selection, named_float_policy_adapter};
 use arena::Arena;
 use checked_trees::{
     CheckedArithmeticPolicyAdapter, CheckedNamedRequirementUseFact, CheckedValueFacts,
@@ -14,6 +15,7 @@ use checked_trees::{
 };
 use numerics::float_semantics::FloatFormat;
 use std::collections::HashSet;
+use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::types::PrimitiveType;
 
@@ -25,7 +27,7 @@ use typed_trees::types::PrimitiveType;
 /// Lexical resolution owns visibility; a private same-package requirement
 /// uses the same selected-provider route as a public one.
 fn directly_callable_requirement(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     entry_symbol: symbols::SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
     if !entry_symbol.is_valid() {
@@ -42,8 +44,9 @@ fn directly_callable_requirement(
     })
 }
 
-pub(crate) fn collect_named_requirement_uses(
-    program: &dyn ::validation::CheckingInput,
+/// Discover named requirement uses once per enclosing executable origin.
+pub fn collect_named_requirement_uses(
+    program: &dyn crate::CheckingInput,
     values: &CheckedValueFacts,
 ) -> Arena<CheckedNamedRequirementUseFact> {
     let mut uses = Arena::default();
@@ -64,7 +67,7 @@ pub(crate) fn collect_named_requirement_uses(
 }
 
 fn collect(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
@@ -108,7 +111,7 @@ fn collect(
 }
 
 fn named_requirement_use_fact(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
@@ -116,8 +119,7 @@ fn named_requirement_use_fact(
     let requirement = directly_callable_requirement(program, call.target_symbol).or_else(|| {
         // `min`/`max`/`sqrt` shorthand for a requirement-spelled
         // `F32::minimum`-family slot retains the same use the direct call does.
-        let (selected, _) =
-            super::builtin_float_operator_selection(program, expression, origin, call)?;
+        let (selected, _) = builtin_float_operator_selection(program, expression, origin, call)?;
         program.machines().iter().find(|machine| {
             machine.symbol == selected
                 && machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -126,10 +128,10 @@ fn named_requirement_use_fact(
     let entry = program.machine_states(requirement).first()?;
     let policy_adapter = match program.primitive_type_reference(entry.return_type) {
         Some(PrimitiveType::F32) => {
-            super::named_float_policy_adapter(program, call, origin, FloatFormat::BINARY32)
+            named_float_policy_adapter(program, call, origin, FloatFormat::BINARY32)
         }
         Some(PrimitiveType::F64) => {
-            super::named_float_policy_adapter(program, call, origin, FloatFormat::BINARY64)
+            named_float_policy_adapter(program, call, origin, FloatFormat::BINARY64)
         }
         _ => CheckedArithmeticPolicyAdapter::None,
     };
@@ -139,4 +141,31 @@ fn named_requirement_use_fact(
         requirement_symbol: requirement.symbol,
         policy_adapter,
     })
+}
+
+/// The token-bearing machine whose entry state a compiler-synthesized call
+/// targets, if the call is one bound by `bind_selected_operator_calls`.
+/// Finalization uses it to settle the retained `Operator` occurrence on the
+/// rewritten node to the exact declaration.
+pub fn token_bound_machine_call_target(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> Option<SymbolHandle> {
+    if call.operational_acknowledgement.origin
+        != language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
+        || !call.target_symbol.is_valid()
+    {
+        return None;
+    }
+    program
+        .machines()
+        .iter()
+        .filter(|machine| machine.spelling.is_some())
+        .find(|machine| {
+            program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == call.target_symbol)
+        })
+        .map(|machine| machine.symbol)
 }

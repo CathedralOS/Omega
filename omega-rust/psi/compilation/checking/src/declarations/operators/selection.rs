@@ -25,8 +25,9 @@ use super::receiver::expression_type_reference_for_origin;
 /// Rewrites every `DomainPending` use from static binding-site selections. No
 /// proof/fact environment is accepted here, making the activation law hard to
 /// violate accidentally.
-pub(crate) fn select_pending_domain_operator_meanings(
-    program: &dyn ::validation::CheckingInput,
+/// The typed program is immutable; only the caller's use-status records change.
+pub fn select_pending_domain_operator_meanings(
+    program: &dyn crate::CheckingInput,
     operators: &mut CheckedOperatorFacts,
 ) {
     let pending: Vec<_> = operators
@@ -50,7 +51,7 @@ pub(crate) fn select_pending_domain_operator_meanings(
 }
 
 fn finalize_pending_use(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     operator_use: &CheckedOperatorUseFact,
     candidates: &[CheckedOperatorCandidateFact],
 ) -> (CheckedOperatorResolutionStatus, SymbolHandle) {
@@ -80,7 +81,7 @@ fn finalize_pending_use(
 /// primitive left operand keeps its builtin operation. A non-primitive operand
 /// with only inadmissible domain meanings has no meaning at all.
 fn inadmissible_domain_fallback(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     operator_use: &CheckedOperatorUseFact,
     candidates: &[CheckedOperatorCandidateFact],
 ) -> (CheckedOperatorResolutionStatus, SymbolHandle) {
@@ -112,7 +113,7 @@ fn inadmissible_domain_fallback(
 /// Whether any operand binding statically selects `domain_symbol`'s semantic
 /// facet. This intentionally has no route to flow facts.
 fn domain_is_active_at_use(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     operator_use: &CheckedOperatorUseFact,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -124,7 +125,7 @@ fn domain_is_active_at_use(
 }
 
 fn operand_selects_domain(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     origin: CheckedValueOrigin,
     operand: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -136,7 +137,7 @@ fn operand_selects_domain(
 }
 
 fn expression_mint_selects_domain(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     origin: CheckedValueOrigin,
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -161,7 +162,7 @@ fn expression_mint_selects_domain(
 }
 
 fn cast_selects_domain(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     cast: &TableCastExpression,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -190,7 +191,7 @@ fn cast_selects_domain(
 }
 
 fn local_initializer_selects_domain(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     origin: CheckedValueOrigin,
     symbol: SymbolHandle,
     binding_name: &str,
@@ -204,7 +205,7 @@ fn local_initializer_selects_domain(
     else {
         return false;
     };
-    let Some(state) = crate::semantic::calls::find_state(program, state_symbol) else {
+    let Some(state) = program.state_by_symbol(state_symbol) else {
         return false;
     };
     program
@@ -227,7 +228,7 @@ fn local_initializer_selects_domain(
 }
 
 fn signature_selects_domain(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     origin: CheckedValueOrigin,
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -239,7 +240,9 @@ fn signature_selects_domain(
         return false;
     };
     let binding_name = program.expression_table.display_name(expression);
-    let resolved = crate::semantic::calls::find_state_with_machine(program, state_symbol);
+    let resolved = program
+        .machine_holding_state(state_symbol)
+        .zip(program.state_by_symbol(state_symbol));
     resolved
         .into_iter()
         .flat_map(|(machine, _)| program.machine_contracts(machine))
@@ -269,7 +272,7 @@ fn signature_selects_domain(
 }
 
 fn direct_binding_symbol(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     match program.expression_table.expression(expression) {
@@ -288,7 +291,7 @@ fn direct_binding_symbol(
 /// primitive scalar does, a user data type does not. Indexed core surfaces
 /// normally retain their root candidate and therefore do not need this path.
 fn builtin_meaning_exists(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     operator_use: &CheckedOperatorUseFact,
 ) -> bool {
     if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
@@ -307,7 +310,7 @@ fn builtin_meaning_exists(
 }
 
 fn type_is_primitive(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {

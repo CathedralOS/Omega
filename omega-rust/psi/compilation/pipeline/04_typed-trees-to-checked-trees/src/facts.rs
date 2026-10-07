@@ -77,10 +77,7 @@ use crate::facts::placed_views_and_uses::{
 use crate::facts::qualification_facts::{build_qualification_facts, build_service_reach_facts};
 use crate::facts::requirement_call_specializations::build_requirement_call_specialization_facts;
 use crate::flow::{build_domain_facts, build_flow_facts_with_service_reaches};
-use crate::operators::{
-    bind_boundary_operator_application_demands, build_operator_facts,
-    select_pending_domain_operator_meanings,
-};
+use crate::operators::{bind_boundary_operator_application_demands, build_operator_facts};
 use crate::proof::build_proof_facts_with_operators;
 use crate::semantic::facts::build_semantic_facts;
 use crate::values::build_value_facts;
@@ -88,6 +85,7 @@ use checked_trees::CheckFacts;
 use flow_effects::OperationalPlan;
 use proof::obligations::ProofPlan;
 use symbols::SymbolHandle;
+use validation::select_pending_domain_operator_meanings;
 
 #[derive(Clone, Copy)]
 struct MachineSuspensionRow {

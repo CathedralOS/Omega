@@ -328,12 +328,13 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
             )
         }
         ExpressionNode::Binary(binary)
-            if crate::operators::binary_operator_spelling(binary.operator).is_none() =>
+            if typed_trees::operator::binary_operator_spelling(binary.operator).is_none() =>
         {
             return true;
         }
         ExpressionNode::Binary(binary) => {
-            let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+            else {
                 unreachable!("handled above")
             };
             let operand_types = [

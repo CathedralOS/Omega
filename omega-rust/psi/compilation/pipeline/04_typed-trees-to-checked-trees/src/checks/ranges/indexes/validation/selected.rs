@@ -58,7 +58,7 @@ pub(super) fn obligation(
     if selected.spelling != spelling {
         return Err(failure("does not match its checked operator spelling"));
     }
-    let operands = crate::operators::indexed_operand_types(program, indexed, selected.origin);
+    let operands = validation::indexed_operand_types(program, indexed, selected.origin);
     let live = resolve_indexed_spelling_for_operands(
         program,
         spelling,
@@ -111,7 +111,7 @@ pub(super) fn obligation(
         .next()
         .ok_or_else(|| failure("selected declaration does not match its actual operands"))?;
     if matching.next().is_some()
-        || crate::operators::checked_candidate(program, candidate) != *retained
+        || validation::checked_operator_candidate(program, candidate) != *retained
     {
         return Err(failure(
             "selected candidate no longer matches its exact declaration and contracts",
@@ -167,7 +167,7 @@ pub(in crate::checks) fn ranges_seam_owns(
     indexed: &typed_trees::expression::TableIndexedExpression,
     origin: checked_trees::CheckedValueOrigin,
 ) -> bool {
-    crate::operators::indexed_operand_types(program, indexed, origin)
+    validation::indexed_operand_types(program, indexed, origin)
         .first()
         .copied()
         .flatten()
@@ -211,7 +211,7 @@ fn replay_selection(
     let mut candidates = arena::Arena::with_capacity(live.len());
     let mut first = arena::Handle::invalid();
     for candidate in live {
-        let handle = candidates.append(crate::operators::checked_candidate(program, candidate));
+        let handle = candidates.append(validation::checked_operator_candidate(program, candidate));
         if !first.is_valid() {
             first = handle;
         }
@@ -225,7 +225,7 @@ fn replay_selection(
     let handle = uses.append(use_fact);
     let mut replay =
         checked_trees::CheckedOperatorFacts::with_roots(uses, arena::Arena::default(), candidates);
-    crate::operators::select_pending_domain_operator_meanings(program, &mut replay);
+    validation::select_pending_domain_operator_meanings(program, &mut replay);
     let selected = replay.uses.get(handle);
     Some((selected.status, selected.selected_operator_symbol))
 }

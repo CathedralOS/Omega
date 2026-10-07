@@ -90,7 +90,7 @@ pub(crate) fn build_value_facts(
         program,
         &mut |expression, origin, expected_primitive| {
             let type_reference =
-                crate::operators::expression_type_reference_for_origin(program, expression, origin)
+                validation::expression_type_reference_for_origin(program, expression, origin)
                     .unwrap_or_else(typed_trees::types::TypeReferenceHandle::invalid);
             let primitive_type = program
                 .primitive_type_reference(type_reference)

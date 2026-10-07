@@ -126,7 +126,7 @@ impl ExitScalars<'_, '_> {
         else {
             return None;
         };
-        let spelling = crate::operators::comparison_operator_spelling(binary.operator)?;
+        let spelling = validation::comparison_operator_spelling(binary.operator)?;
         // A result operand is the bare return reference or a member
         // projection through it (`result.first`); both carry the selected
         // constructor expression's immutable bounds in the same namespace.

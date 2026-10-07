@@ -1,3 +1,9 @@
+//! Operator receiver typing under the exact executable statement origin.
+//!
+//! Destination landing, first-derivable match arms and direct cast target types
+//! are selection semantics here. General selected-result typing has different
+//! joins and cannot replace this query.
+
 use checked_trees::CheckedValueOrigin;
 use numerics::literals::FloatFormat;
 use symbols::{BuiltinFunction, SymbolHandle};
@@ -5,8 +11,10 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) fn expression_type_reference_for_origin(
-    program: &dyn ::validation::CheckingInput,
+/// Recover an existing operand type handle in its executable statement context.
+/// Non-statement origins have no receiver-typing context and return absence.
+pub fn expression_type_reference_for_origin(
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
 ) -> Option<TypeReferenceHandle> {
@@ -24,7 +32,7 @@ pub(crate) fn expression_type_reference_for_origin(
 }
 
 fn expression_type_reference_in_state(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -84,48 +92,45 @@ fn expression_type_reference_in_state(
         )
         .and_then(|collection| indexed_element_type_reference(program, collection)),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
-        ExpressionNode::Call(call) => {
-            crate::semantic::calls::find_state_with_machine(program, state_symbol)
-                .and_then(|(machine, state)| {
-                    validation::expression_result_type_reference(
-                        program, machine, state, expression,
-                    )
+        ExpressionNode::Call(call) => program
+            .machine_holding_state(state_symbol)
+            .zip(program.state_by_symbol(state_symbol))
+            .and_then(|(machine, state)| {
+                crate::expression_result_type_reference(program, machine, state, expression)
+            })
+            .or_else(|| {
+                typed_trees::operator::resolve_named_expression_call(program, call)
+                    .map(|operator| operator.return_type)
+            })
+            .or_else(|| {
+                [
+                    BuiltinFunction::Min,
+                    BuiltinFunction::Max,
+                    BuiltinFunction::Sqrt,
+                ]
+                .into_iter()
+                .any(|function| {
+                    program.symbols.builtin_function_symbol(function) == Some(call.target_symbol)
                 })
+                .then(|| {
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .find_map(|argument| {
+                            expression_type_reference_in_state(
+                                program,
+                                state_symbol,
+                                statement_index,
+                                *argument,
+                            )
+                        })
+                })
+                .flatten()
                 .or_else(|| {
-                    typed_trees::operator::resolve_named_expression_call(program, call)
-                        .map(|operator| operator.return_type)
+                    contextual_type_reference_in_state(program, state_symbol, statement_index)
                 })
-                .or_else(|| {
-                    [
-                        BuiltinFunction::Min,
-                        BuiltinFunction::Max,
-                        BuiltinFunction::Sqrt,
-                    ]
-                    .into_iter()
-                    .any(|function| {
-                        program.symbols.builtin_function_symbol(function)
-                            == Some(call.target_symbol)
-                    })
-                    .then(|| {
-                        program
-                            .expression_table
-                            .expression_handles(call.arguments)
-                            .iter()
-                            .find_map(|argument| {
-                                expression_type_reference_in_state(
-                                    program,
-                                    state_symbol,
-                                    statement_index,
-                                    *argument,
-                                )
-                            })
-                    })
-                    .flatten()
-                    .or_else(|| {
-                        contextual_type_reference_in_state(program, state_symbol, statement_index)
-                    })
-                })
-        }
+            }),
         ExpressionNode::Binary(binary) => {
             let operands = [
                 expression_type_reference_in_state(
@@ -141,7 +146,8 @@ fn expression_type_reference_in_state(
                     binary.right,
                 ),
             ];
-            if let Some(spelling) = super::binary_operator_spelling(binary.operator) {
+            if let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+            {
                 let candidates = typed_trees::operator::resolve_spelling_for_operands(
                     program,
                     spelling,
@@ -161,7 +167,7 @@ fn expression_type_reference_in_state(
                         {
                             use checked_trees::CheckedArithmeticPolicyAdapter;
                             use numerics::arithmetic::ArithmeticDomain;
-                            let domain = match super::arithmetic_policy_adapter(
+                            let domain = match super::uses::arithmetic_policy_adapter(
                                 program, spelling, &operands,
                             ) {
                                 CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
@@ -232,9 +238,7 @@ fn expression_type_reference_in_state(
         ExpressionNode::StructLiteral(literal) => program
             .type_reference_table
             .find_named_type_reference(literal.type_symbol),
-        ExpressionNode::ArrayLiteral(_) => {
-            validation::declared_constant_array_type(program, expression)
-        }
+        ExpressionNode::ArrayLiteral(_) => crate::declared_constant_array_type(program, expression),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
@@ -248,11 +252,11 @@ fn expression_type_reference_in_state(
 /// not invent standalone type references; their assignment/local declaration
 /// is the checker-owned source of truth.
 fn contextual_type_reference_in_state(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
 ) -> Option<TypeReferenceHandle> {
-    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     match program
         .statement_table
         .statements(state.statement_nodes)
@@ -272,7 +276,7 @@ fn contextual_type_reference_in_state(
 }
 
 fn float_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     format: FloatFormat,
 ) -> Option<TypeReferenceHandle> {
     let primitive = match format {
@@ -288,7 +292,7 @@ fn float_type_reference(
 }
 
 fn symbol_type_reference_in_state(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -298,7 +302,7 @@ fn symbol_type_reference_in_state(
         return None;
     }
 
-    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
     program
         .state_parameters(state)
         .iter()
@@ -313,7 +317,7 @@ fn symbol_type_reference_in_state(
 }
 
 fn local_type_reference_before_statement(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -344,14 +348,16 @@ fn local_type_reference_before_statement(
 /// was keyed to `StateParameter::is_self`, which stage 01 rejects, so it
 /// refused for every program.
 fn data_binding_field_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<TypeReferenceHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
         return None;
     };
-    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = program
+        .machine_holding_state(state_symbol)
+        .zip(program.state_by_symbol(state_symbol))?;
     let data_binding = program.data_binding_parameter(machine, program.state_parameters(state))?;
     let path_members = program.expression_table.name_path_members(path.members);
     // The binding is an ordinary parameter, so resolution carries its symbol;
@@ -363,7 +369,7 @@ fn data_binding_field_type_reference(
         return None;
     }
 
-    let data = crate::lookup::data_definition_by_symbol(program, machine.attached_data_symbol)?;
+    let data = program.data_definition_by_symbol(machine.attached_data_symbol)?;
     program.data_members(data).iter().find_map(|data_member| {
         let typed_trees::data::DataMember::Field(field) = data_member else {
             return None;
@@ -375,7 +381,7 @@ fn data_binding_field_type_reference(
 }
 
 fn field_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     field_symbol: SymbolHandle,
     field_name: &typed_trees::name::Identifier,
@@ -436,7 +442,7 @@ fn field_type_reference(
 }
 
 fn data_field_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     field_symbol: SymbolHandle,
     field_name: &typed_trees::name::Identifier,
@@ -454,7 +460,7 @@ fn data_field_type_reference(
 }
 
 fn indexed_element_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -473,7 +479,7 @@ fn indexed_element_type_reference(
 }
 
 fn builtin_type_reference(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     atom: symbols::BuiltinTypeAtom,
 ) -> Option<TypeReferenceHandle> {
     let symbol = program

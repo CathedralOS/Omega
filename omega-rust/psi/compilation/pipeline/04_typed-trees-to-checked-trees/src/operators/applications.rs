@@ -10,7 +10,7 @@ use typed_trees::operator::ClosedOperatorApplicationArgument;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
-use super::{expression_type_reference_for_origin, indexed_operand_types};
+use validation::{expression_type_reference_for_origin, indexed_operand_types};
 
 pub(crate) fn bind_boundary_operator_application_demands(
     program: &dyn ::validation::CheckingInput,
@@ -226,7 +226,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     .first()
                     .is_some_and(|entry| entry.symbol == call.target_symbol)
             })
-            || super::builtin_float_operator_selection(
+            || validation::builtin_float_operator_selection(
                 program,
                 requirement_use.expression,
                 requirement_use.origin,

@@ -65,7 +65,7 @@ use typed_trees::expression::{
 };
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
-use super::expression_type_reference_for_origin;
+use validation::expression_type_reference_for_origin;
 
 /// Bind resolved token machines and float shorthand to calls, retaining
 /// canonical bodyless float comparisons on their selected-comparison route.
@@ -82,8 +82,8 @@ pub(crate) fn bind_selected_operator_calls(
     }
     // Binding reads the operator uses and their candidates only.
     let values = validation::collect_executable_value_origins(program);
-    let mut facts = crate::operators::build_operator_uses(program, &values);
-    let named = super::requirement_uses::collect_named_requirement_uses(program, &values);
+    let mut facts = validation::build_operator_uses(program, &values);
+    let named = validation::collect_named_requirement_uses(program, &values);
     let shorthand_count = super::float_shorthand_calls::bind(program, &facts, &named)?;
     // A domain-homed binding (`machine + Quantity::Additive::add`) is a
     // `DomainPending` candidate until binding-site selection settles it. That
@@ -91,7 +91,7 @@ pub(crate) fn bind_selected_operator_calls(
     // signature `requires` -- never flow facts -- so it can run here, before
     // validation, and an unselected domain meaning keeps the builtin surface
     // exactly as a domain-homed `operator` declaration did.
-    crate::operators::select_pending_domain_operator_meanings(program, &mut facts);
+    validation::select_pending_domain_operator_meanings(program, &mut facts);
     let mut diagnostics = Vec::new();
     let mut bindings: Vec<(ExpressionHandle, SymbolHandle, CheckedValueOrigin)> = Vec::new();
     for (use_handle, operator_use) in facts.uses.iter().filter(|(_, operator_use)| {
@@ -294,33 +294,6 @@ pub(crate) fn bind_selected_operator_calls(
     } else {
         Err(diagnostics)
     }
-}
-
-/// The token-bearing machine whose entry state a compiler-synthesized call
-/// targets, if the call is one bound by [`bind_selected_operator_calls`].
-/// Finalization uses it to settle the retained `Operator` occurrence on the
-/// rewritten node to the exact declaration.
-pub(crate) fn token_bound_machine_call_target(
-    program: &dyn ::validation::CheckingInput,
-    call: &TableCallExpression,
-) -> Option<SymbolHandle> {
-    if call.operational_acknowledgement.origin
-        != language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
-        || !call.target_symbol.is_valid()
-    {
-        return None;
-    }
-    program
-        .machines()
-        .iter()
-        .filter(|machine| machine.spelling.is_some())
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|entry| entry.symbol == call.target_symbol)
-        })
-        .map(|machine| machine.symbol)
 }
 
 fn machine_name(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> String {

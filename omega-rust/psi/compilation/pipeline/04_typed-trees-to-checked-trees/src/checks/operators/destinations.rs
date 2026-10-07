@@ -357,7 +357,7 @@ fn result_primitive(
                 })
                 .and_then(|reference| primitive(program, reference))
         }
-        _ => crate::operators::expression_type_reference_for_origin(program, expression, origin)
+        _ => validation::expression_type_reference_for_origin(program, expression, origin)
             .and_then(|reference| primitive(program, reference)),
     }
 }

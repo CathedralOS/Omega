@@ -114,7 +114,7 @@ pub(super) fn collect_operand_reads<'a, 'b>(
         _ => return false,
     };
     let Some(spelling) =
-        crate::operators::binary_operator_spelling(binary.operator).filter(|spelling| {
+        typed_trees::operator::binary_operator_spelling(binary.operator).filter(|spelling| {
             use language_core::OperatorSpelling;
             matches!(
                 spelling,

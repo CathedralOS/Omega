@@ -29,7 +29,7 @@ fn intrinsic_operator_operand_is_primitive(
         ExpressionNode::Unary(unary) => unary.operand,
         _ => return false,
     };
-    crate::operators::expression_type_reference_for_origin(program, operand, origin)
+    validation::expression_type_reference_for_origin(program, operand, origin)
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
         .is_some()
         || expression_is_intrinsic_primitive_without_origin(program, operand, None)
@@ -93,7 +93,7 @@ pub(crate) fn checked_generic_operator_target(
     // An open generic requirement has no selected concrete provider, so the
     // executable operator fact producer may not emit a row for this expression.
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
-        && let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator)
+        && let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
     {
         for origin in value_origins.origins(expression) {
             let selected_use = (spelling, *origin);
@@ -129,7 +129,7 @@ pub(crate) fn checked_generic_operator_target(
         let operand_types = operands
             .into_iter()
             .map(|operand| {
-                crate::operators::expression_type_reference_for_origin(program, operand, origin)
+                validation::expression_type_reference_for_origin(program, operand, origin)
             })
             .collect::<Vec<_>>();
         let requirement = validation::generic_bound_operator_requirement(
@@ -389,7 +389,8 @@ fn resolve_authored_operator_without_use_fact<'program>(
 
     let (spelling, operand_types) = match node {
         ExpressionNode::Binary(binary) => {
-            let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+            else {
                 return None;
             };
             (
@@ -558,7 +559,7 @@ pub(crate) fn authored_operand_type(
         ExpressionNode::Call(call) => exact_named_operator_call(program, call)
             .map(|operator| operator.return_type)
             // A builtin `min`, `max` or `sqrt` returns its operands' carrier,
-            // as the checked operand typing in `operators::receiver` reads it.
+            // as `validation::expression_type_reference_for_origin` reads it.
             .or_else(|| {
                 matches!(
                     program
@@ -653,7 +654,8 @@ fn operator_has_no_authored_spelling_candidate(
     use language_core::OperatorSpelling;
     let spelling = match node {
         ExpressionNode::Binary(binary) => {
-            let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+            else {
                 return true;
             };
             spelling
@@ -730,7 +732,8 @@ fn candidate_operators<'program>(
 
     let (spelling, operand_types) = match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
-            let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+            else {
                 return Vec::new();
             };
             (

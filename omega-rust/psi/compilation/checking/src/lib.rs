@@ -169,6 +169,12 @@ pub use declarations::operators::{
     checked_operator_application_matches_realization, landed_integer_literal_type_reference,
     validate_closed_operator_application, validate_named_operator_application,
 };
+pub use declarations::operators::{
+    build_operator_uses, builtin_float_operator_selection, checked_operator_candidate,
+    collect_named_requirement_uses, comparison_operator_spelling,
+    expression_type_reference_for_origin, indexed_operand_types,
+    select_pending_domain_operator_meanings, token_bound_machine_call_target,
+};
 pub use declarations::traits::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
     collect_dynamic_slot_demands, compose_forwarded_trait_arguments, dynamic_call_demand,

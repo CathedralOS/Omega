@@ -138,7 +138,7 @@ fn checked_spelled_operator_resolution(
     let ExpressionNode::Binary(binary) = node else {
         return None;
     };
-    let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+    let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator) else {
         return None;
     };
     let operand_types = [

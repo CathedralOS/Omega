@@ -605,7 +605,8 @@ fn selected_operator_application_at_expression(
                 (operands, Some(call.machine_arguments.as_ref()))
             }
             ExpressionNode::Binary(binary) => {
-                let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator)
+                let Some(spelling) =
+                    typed_trees::operator::binary_operator_spelling(binary.operator)
                 else {
                     return Ok(None);
                 };
@@ -634,7 +635,7 @@ fn selected_operator_application_at_expression(
     let operand_types = operands
         .iter()
         .map(|operand| {
-            crate::operators::expression_type_reference_for_origin(program, *operand, origin)
+            validation::expression_type_reference_for_origin(program, *operand, origin)
                 .or_else(|| {
                     validation::declared_place_type_raw(program, machine, Some(state), *operand)
                 })

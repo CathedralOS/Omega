@@ -679,7 +679,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                         && self.comparison_is_admitted(binary.right, leaf_only);
                 }
                 let Some(spelling) =
-                    crate::operators::comparison_operator_spelling(binary.operator)
+                    validation::comparison_operator_spelling(binary.operator)
                 else {
                     return false;
                 };

@@ -540,7 +540,7 @@ pub(super) fn has_builtin_index_meaning(
     } else {
         OperatorSpelling::Index
     };
-    let operands = crate::operators::indexed_operand_types(
+    let operands = validation::indexed_operand_types(
         program,
         indexed,
         CheckedValueOrigin::StateStatement {

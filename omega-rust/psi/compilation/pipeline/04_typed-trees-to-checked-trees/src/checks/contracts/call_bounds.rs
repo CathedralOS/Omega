@@ -58,7 +58,7 @@ fn prove(
                 || proves(program, facts, caller, call, contexts, binary.right, guard),
         );
     }
-    let spelling = crate::operators::comparison_operator_spelling(binary.operator)?;
+    let spelling = validation::comparison_operator_spelling(binary.operator)?;
     let site = crate::semantic::calls::find_call_site(
         program,
         caller.machine_symbol,
