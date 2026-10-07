@@ -1315,6 +1315,21 @@ fn exact_extension_machine_symbol(
     }
 }
 
+/// The parameter-identity conjuncts both machine-parameter exact-extension
+/// probes share: default bounds, a valid MachineParameter symbol owned by the
+/// machine, and the authored name restated in the symbol table.
+fn exact_extension_parameter_identity(
+    source: &SymbolResolvedTrees,
+    machine: &symbol_resolved_trees::machine::Machine,
+    parameter: &symbol_resolved_trees::data::TypeParameter,
+) -> bool {
+    parameter.bounds == symbol_resolved_trees::data::DataProperties::default()
+        && parameter.symbol.is_valid()
+        && source.symbols.get(parameter.symbol).kind == symbols::SymbolKind::MachineParameter
+        && source.symbols.get(parameter.symbol).parent == machine.symbol
+        && source.symbols.name(parameter.symbol) == parameter.name.as_str()
+}
+
 fn exact_extension_structural_machine_parameter(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
@@ -1328,11 +1343,7 @@ fn exact_extension_structural_machine_parameter(
     else {
         return false;
     };
-    parameter.bounds == symbol_resolved_trees::data::DataProperties::default()
-        && parameter.symbol.is_valid()
-        && source.symbols.get(parameter.symbol).kind == symbols::SymbolKind::MachineParameter
-        && source.symbols.get(parameter.symbol).parent == machine.symbol
-        && source.symbols.name(parameter.symbol) == parameter.name.as_str()
+    exact_extension_parameter_identity(source, machine, parameter)
         && signature.symbol == parameter.symbol
         && signature.name.as_str() == parameter.name.as_str()
         && signature.lifetime_parameters.is_empty()
@@ -1415,11 +1426,7 @@ fn exact_extension_nominal_machine_parameter(
     let [requirement] = requirements.as_slice() else {
         return false;
     };
-    parameter.bounds == symbol_resolved_trees::data::DataProperties::default()
-        && parameter.symbol.is_valid()
-        && source.symbols.get(parameter.symbol).kind == symbols::SymbolKind::MachineParameter
-        && source.symbols.get(parameter.symbol).parent == machine.symbol
-        && source.symbols.name(parameter.symbol) == parameter.name.as_str()
+    exact_extension_parameter_identity(source, machine, parameter)
         && owner_type_parameters
             .iter()
             .filter(|candidate| {
