@@ -28,6 +28,7 @@ optimization = { path = "../../../psi/foundation/optimization-selections" }
 optimization-core = { path = "../../foundation/optimization-core" }
 abstract-operations-to-target-operations = { path = "../pipeline/02_abstract-operations-to-target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+numerics = { path = "../../../psi/foundation/numerics" }
 symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }

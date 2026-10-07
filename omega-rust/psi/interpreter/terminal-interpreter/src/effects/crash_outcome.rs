@@ -40,7 +40,9 @@ pub fn validate_boundary_crash_outcome(
             .any(|(argument, expected)| {
                 !matches!(
                     argument,
-                    ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. }
+                    ScalarTerm::Boolean(_)
+                        | ScalarTerm::Integer { .. }
+                        | ScalarTerm::IeeeFloatLiteral(_)
                 ) || argument.scalar_type() != *expected
                     || argument.validate().is_err()
             })
@@ -150,6 +152,27 @@ fn closed_guard(
     Ok(match proposition {
         Proposition::Truth => Some(true),
         Proposition::Falsehood => Some(false),
+        Proposition::ScalarIeeeFloatComparison {
+            kind, left, right, ..
+        } => {
+            let (ScalarTerm::IeeeFloatLiteral(left), ScalarTerm::IeeeFloatLiteral(right)) =
+                (left, right)
+            else {
+                return Ok(None);
+            };
+            use semantic_vocabulary::{
+                IeeeFloatComparisonKind as Kind, IeeeFloatComparisonOperation as Operation,
+            };
+            let (operation, negate) = match kind {
+                Kind::Equal => (Operation::Equal, false),
+                Kind::NotEqual => (Operation::NotEqual, false),
+                Kind::LessThan => (Operation::Less, false),
+                Kind::LessOrEqual => (Operation::LessOrEqual, false),
+                Kind::NotLessThan => (Operation::Less, true),
+                Kind::NotLessOrEqual => (Operation::LessOrEqual, true),
+            };
+            Some(crate::scalar_operations::ieee_float_compare(operation, *left, *right) != negate)
+        }
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => left
             .boolean_value()
             .zip(right.boolean_value())

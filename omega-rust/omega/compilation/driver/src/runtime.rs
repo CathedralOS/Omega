@@ -8,6 +8,9 @@
 //! and host output is copied into an observation rather than performed on a
 //! surviving process. Those are the domain-death premises of this runtime, not
 //! permissions inferred from a provider name or from a reach declaration.
+//! Selected numeric imports reuse exact shared IEEE semantics, including directed
+//! rounding and integer conversion. Their trapping responses still require the
+//! core's published same-cause guard under the actual invocation snapshot.
 
 mod entry;
 mod host_imports;

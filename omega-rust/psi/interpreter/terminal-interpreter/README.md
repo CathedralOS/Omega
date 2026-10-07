@@ -249,6 +249,8 @@ does not implement source-owned array construction or native array/view storage.
 structural values from an explicit `Crash(Trap | Abort)` response. A crash is
 admitted only against the published same-cause route with the invocation's
 already evaluated scalar inputs. A true guard permits normal completion too.
+Closed IEEE comparisons use those exact landed operand bits, including unordered
+NaN comparisons; the host's report cannot manufacture a permitted crash route.
 Mathematical-integer guards reuse proof admission's exact closed denotation,
 including intermediates beyond the fixed-width input carrier. Input traversal
 and cumulative arithmetic growth/work are bounded before allocation; exhausting

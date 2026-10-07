@@ -1758,7 +1758,11 @@ then independent claimed restoration slices -> final closure.
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar arguments, placed host loans,
   non-hosted roots and required receiver qualifications. General host bindings
-  still need stdin/read-byte, virtual clocks, float imports and stderr support.
+  still need stdin/read-byte, virtual clocks and stderr support. The original
+  `runtime_float_integer_conversion_boundaries_exit` has no exact established
+  root ProcessExit Binding occurrence and declines before effects; resolve its
+  source authority contract under [Process-exit contract](#process-exit-contract),
+  rather than granting authority from its Console reach.
   Selected-reference backing retains its separate capability attribution.
   CLI comparison consumes the exact native report before publication; missing
   imports decline without reinterpreting trees or rerunning source/Build.

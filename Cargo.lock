@@ -447,6 +447,7 @@ dependencies = [
  "machine-emission",
  "mimalloc",
  "native-artifact",
+ "numerics",
  "object-file",
  "optimization",
  "optimization-core",

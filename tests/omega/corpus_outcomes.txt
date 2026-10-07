@@ -2791,6 +2791,9 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 15645ms check-target:macos_a
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 22102ms check-target:macos_arm64 @693920652f41
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/float/admitted_float_conversion_crash checked 4848ms check-target:macos_arm64 @673b838f6d76+wt
+pass/float/admitted_float_lower_boundary_crash checked 4847ms check-target:macos_arm64 @673b838f6d76+wt
+pass/float/admitted_numeric_imports_preserve_semantics checked 7827ms check-target:macos_arm64 @673b838f6d76+wt
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 9115ms check-target:windows_x86_64 @d83ae44b78cd
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_finite(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_finite(named(name(f32)))->named(name(bool))` has no native boundary realization

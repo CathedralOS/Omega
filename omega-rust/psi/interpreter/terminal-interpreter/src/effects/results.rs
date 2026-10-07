@@ -55,14 +55,16 @@ impl TerminalExecution {
             .iter()
             .map(|argument| match *argument {
                 TerminalScalarValue::Boolean(value) => {
-                    Ok(semantic_vocabulary::ScalarTerm::Boolean(value))
+                    semantic_vocabulary::ScalarTerm::Boolean(value)
                 }
                 TerminalScalarValue::Integer { scalar_type, value } => {
-                    Ok(semantic_vocabulary::ScalarTerm::Integer { scalar_type, value })
+                    semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
                 }
-                TerminalScalarValue::IeeeFloat(_) => Err(malformed()),
+                TerminalScalarValue::IeeeFloat(value) => {
+                    semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value)
+                }
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
         super::crash_outcome::validate_boundary_crash_outcome(declaration, &arguments, cause)
             .map_err(|reason| TerminalInterpretError::BoundaryCrashNotPermitted {
                 operation: *operation,

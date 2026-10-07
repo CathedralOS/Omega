@@ -2,6 +2,8 @@
 //! A slot's realization selects semantics; its complete declaration selects
 //! the typed adapter. No source-name dispatch or stdout-driven exit exists.
 
+mod numeric;
+
 use compilation_products::TerminalRuntimeProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
@@ -44,6 +46,21 @@ pub(super) fn bind(
             }
             BoundarySettlementRealization::Builtin(BoundaryRealization::HostedWriteByteI32(_)) => {
                 OutputKind::Byte
+            }
+            BoundarySettlementRealization::Builtin(
+                BoundaryRealization::NearestIeeeFloatArithmetic(realization),
+            ) => {
+                let declaration =
+                    instance
+                        .import(*slot)
+                        .ok_or(TerminalRuntimeError::InvalidProvision(
+                            "numeric host provision names no demanded import",
+                        ))?;
+                let adapter = numeric::NumericImport::for_import(declaration, realization)?;
+                instance
+                    .bind_import(*slot, adapter)
+                    .map_err(TerminalRuntimeError::Binding)?;
+                continue;
             }
             _ => {
                 return Err(TerminalRuntimeError::missing(

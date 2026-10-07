@@ -583,6 +583,9 @@ ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BI
 // Destination-owned float-to-integer conversion. Unqualified results require
 // proof that the finite toward-zero result fits; Trapping and Saturating are
 // exact result-domain overloads. Wrapping deliberately has no declaration.
+// Trap guards are the complements of the finite toward-zero admission ranges.
+// Use minimum minus one only when representable: wider signed carriers have
+// no floating value between their minimum and the next lower integer.
 
 pub boundary operator I8::from_f32(value: f32) -> i8
 requires
@@ -592,7 +595,9 @@ ensures
 
 pub boundary operator I8::from_f32(value: f32) -> i8 in Trapping
 ensures
-    result == FloatSemantics::to_i8(Float::meaning32(value));
+    result == FloatSemantics::to_i8(Float::meaning32(value))
+crashes Trap
+    value != value || value <= -129.0f32 || value >= 128.0f32;
 
 pub boundary operator I8::from_f32(value: f32) -> i8 in Saturating
 ensures
@@ -606,7 +611,9 @@ ensures
 
 pub boundary operator I8::from_f64(value: f64) -> i8 in Trapping
 ensures
-    result == FloatSemantics::to_i8(Float::meaning64(value));
+    result == FloatSemantics::to_i8(Float::meaning64(value))
+crashes Trap
+    value != value || value <= -129.0 || value >= 128.0;
 
 pub boundary operator I8::from_f64(value: f64) -> i8 in Saturating
 ensures
@@ -620,7 +627,9 @@ ensures
 
 pub boundary operator I16::from_f32(value: f32) -> i16 in Trapping
 ensures
-    result == FloatSemantics::to_i16(Float::meaning32(value));
+    result == FloatSemantics::to_i16(Float::meaning32(value))
+crashes Trap
+    value != value || value <= -32769.0f32 || value >= 32768.0f32;
 
 pub boundary operator I16::from_f32(value: f32) -> i16 in Saturating
 ensures
@@ -634,7 +643,9 @@ ensures
 
 pub boundary operator I16::from_f64(value: f64) -> i16 in Trapping
 ensures
-    result == FloatSemantics::to_i16(Float::meaning64(value));
+    result == FloatSemantics::to_i16(Float::meaning64(value))
+crashes Trap
+    value != value || value <= -32769.0 || value >= 32768.0;
 
 pub boundary operator I16::from_f64(value: f64) -> i16 in Saturating
 ensures
@@ -648,7 +659,9 @@ ensures
 
 pub boundary operator I32::from_f32(value: f32) -> i32 in Trapping
 ensures
-    result == FloatSemantics::to_i32(Float::meaning32(value));
+    result == FloatSemantics::to_i32(Float::meaning32(value))
+crashes Trap
+    value != value || value < -2147483648.0f32 || value >= 2147483648.0f32;
 
 pub boundary operator I32::from_f32(value: f32) -> i32 in Saturating
 ensures
@@ -662,7 +675,9 @@ ensures
 
 pub boundary operator I32::from_f64(value: f64) -> i32 in Trapping
 ensures
-    result == FloatSemantics::to_i32(Float::meaning64(value));
+    result == FloatSemantics::to_i32(Float::meaning64(value))
+crashes Trap
+    value != value || value <= -2147483649.0 || value >= 2147483648.0;
 
 pub boundary operator I32::from_f64(value: f64) -> i32 in Saturating
 ensures
@@ -676,7 +691,9 @@ ensures
 
 pub boundary operator I64::from_f32(value: f32) -> i64 in Trapping
 ensures
-    result == FloatSemantics::to_i64(Float::meaning32(value));
+    result == FloatSemantics::to_i64(Float::meaning32(value))
+crashes Trap
+    value != value || value < -9223372036854775808.0f32 || value >= 9223372036854775808.0f32;
 
 pub boundary operator I64::from_f32(value: f32) -> i64 in Saturating
 ensures
@@ -690,7 +707,9 @@ ensures
 
 pub boundary operator I64::from_f64(value: f64) -> i64 in Trapping
 ensures
-    result == FloatSemantics::to_i64(Float::meaning64(value));
+    result == FloatSemantics::to_i64(Float::meaning64(value))
+crashes Trap
+    value != value || value < -9223372036854775808.0 || value >= 9223372036854775808.0;
 
 pub boundary operator I64::from_f64(value: f64) -> i64 in Saturating
 ensures
@@ -704,7 +723,9 @@ ensures
 
 pub boundary operator U8::from_f32(value: f32) -> u8 in Trapping
 ensures
-    result == FloatSemantics::to_u8(Float::meaning32(value));
+    result == FloatSemantics::to_u8(Float::meaning32(value))
+crashes Trap
+    value != value || value <= -1.0f32 || value >= 256.0f32;
 
 pub boundary operator U8::from_f32(value: f32) -> u8 in Saturating
 ensures
@@ -718,7 +739,9 @@ ensures
 
 pub boundary operator U8::from_f64(value: f64) -> u8 in Trapping
 ensures
-    result == FloatSemantics::to_u8(Float::meaning64(value));
+    result == FloatSemantics::to_u8(Float::meaning64(value))
+crashes Trap
+    value != value || value <= -1.0 || value >= 256.0;
 
 pub boundary operator U8::from_f64(value: f64) -> u8 in Saturating
 ensures
@@ -732,7 +755,9 @@ ensures
 
 pub boundary operator U16::from_f32(value: f32) -> u16 in Trapping
 ensures
-    result == FloatSemantics::to_u16(Float::meaning32(value));
+    result == FloatSemantics::to_u16(Float::meaning32(value))
+crashes Trap
+    value != value || value <= -1.0f32 || value >= 65536.0f32;
 
 pub boundary operator U16::from_f32(value: f32) -> u16 in Saturating
 ensures
@@ -746,7 +771,9 @@ ensures
 
 pub boundary operator U16::from_f64(value: f64) -> u16 in Trapping
 ensures
-    result == FloatSemantics::to_u16(Float::meaning64(value));
+    result == FloatSemantics::to_u16(Float::meaning64(value))
+crashes Trap
+    value != value || value <= -1.0 || value >= 65536.0;
 
 pub boundary operator U16::from_f64(value: f64) -> u16 in Saturating
 ensures
@@ -760,7 +787,9 @@ ensures
 
 pub boundary operator U32::from_f32(value: f32) -> u32 in Trapping
 ensures
-    result == FloatSemantics::to_u32(Float::meaning32(value));
+    result == FloatSemantics::to_u32(Float::meaning32(value))
+crashes Trap
+    value != value || value <= -1.0f32 || value >= 4294967296.0f32;
 
 pub boundary operator U32::from_f32(value: f32) -> u32 in Saturating
 ensures
@@ -774,7 +803,9 @@ ensures
 
 pub boundary operator U32::from_f64(value: f64) -> u32 in Trapping
 ensures
-    result == FloatSemantics::to_u32(Float::meaning64(value));
+    result == FloatSemantics::to_u32(Float::meaning64(value))
+crashes Trap
+    value != value || value <= -1.0 || value >= 4294967296.0;
 
 pub boundary operator U32::from_f64(value: f64) -> u32 in Saturating
 ensures
@@ -788,7 +819,9 @@ ensures
 
 pub boundary operator U64::from_f32(value: f32) -> u64 in Trapping
 ensures
-    result == FloatSemantics::to_u64(Float::meaning32(value));
+    result == FloatSemantics::to_u64(Float::meaning32(value))
+crashes Trap
+    value != value || value <= -1.0f32 || value >= 18446744073709551616.0f32;
 
 pub boundary operator U64::from_f32(value: f32) -> u64 in Saturating
 ensures
@@ -802,7 +835,9 @@ ensures
 
 pub boundary operator U64::from_f64(value: f64) -> u64 in Trapping
 ensures
-    result == FloatSemantics::to_u64(Float::meaning64(value));
+    result == FloatSemantics::to_u64(Float::meaning64(value))
+crashes Trap
+    value != value || value <= -1.0 || value >= 18446744073709551616.0;
 
 pub boundary operator U64::from_f64(value: f64) -> u64 in Saturating
 ensures
