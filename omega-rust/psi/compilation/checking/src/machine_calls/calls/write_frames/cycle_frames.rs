@@ -525,19 +525,16 @@ fn build_cycle_frame_equation<'program>(
                         inference.record_local(&origins);
                         stored.push(origins);
                     }
-                } else if stored_origins::has_aggregate_case_shape(program, local.type_reference)
-                    && let Some(origins) = stored_origins::declaration_origins(
+                } else {
+                    stored_origins::record_declaration_origins(
                         program,
                         machine,
                         local,
                         &local_alias_origins,
-                        &stored,
+                        &mut stored,
                         symbols,
                         &mut inference,
-                    )
-                {
-                    inference.record_local(&origins);
-                    stored.push(origins);
+                    );
                 }
                 if type_is_caller_isolated_local(program, local.type_reference) {
                     isolated_local_roots.push(local.name.as_str().to_owned());

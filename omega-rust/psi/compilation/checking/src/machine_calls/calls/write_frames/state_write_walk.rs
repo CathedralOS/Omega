@@ -1233,22 +1233,19 @@ fn walk_state_write_prefix_inner(
                         inference.record_local(&origins);
                         stored.push(origins);
                     }
-                } else if stored_origins::has_aggregate_case_shape(program, local.type_reference)
-                    && let Some(origins) = stored_origins::declaration_origins(
+                } else {
+                    // Failure to recover a no-write value's cases does not
+                    // invalidate its writes. A later payload projection still
+                    // requires positive case evidence from this same transfer.
+                    stored_origins::record_declaration_origins(
                         program,
                         machine,
                         local,
                         &local_alias_origins,
-                        &stored,
+                        &mut stored,
                         symbols,
                         inference,
-                    )
-                {
-                    // Failure to recover a no-write value's cases does not
-                    // invalidate its writes. A later payload projection still
-                    // requires positive case evidence from this same transfer.
-                    inference.record_local(&origins);
-                    stored.push(origins);
+                    );
                 }
                 if type_is_caller_isolated_local(program, local.type_reference)
                     && !local_alias_origins

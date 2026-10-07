@@ -210,6 +210,28 @@ fn local_declaration_state<'program>(
     .then_some(state)
 }
 
+/// Recover a declared local's aggregate-case origins and record them into
+/// the local and stored rosters — a no-write value's missing case recovery
+/// does not invalidate its writes.
+pub(super) fn record_declaration_origins(
+    program: &TypedTrees,
+    machine: &Machine,
+    local: &TableLocalData,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &mut Vec<StoredLocalOrigins>,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) {
+    if has_aggregate_case_shape(program, local.type_reference)
+        && let Some(origins) = declaration_origins(
+            program, machine, local, aliases, stored, symbols, inference,
+        )
+    {
+        inference.record_local(&origins);
+        stored.push(origins);
+    }
+}
+
 pub(super) fn declaration_origins(
     program: &TypedTrees,
     machine: &Machine,
