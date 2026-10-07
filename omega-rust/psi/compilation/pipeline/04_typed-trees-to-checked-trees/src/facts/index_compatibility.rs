@@ -1646,18 +1646,7 @@ pub(crate) fn bound_index_expressions_equal(
         }
         (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-            left.head_symbol == right.head_symbol
-                && left.symbol == right.symbol
-                && program
-                    .expression_table
-                    .name_path_members(left.members)
-                    .iter()
-                    .map(|member| member.as_str())
-                    .eq(program
-                        .expression_table
-                        .name_path_members(right.members)
-                        .iter()
-                        .map(|member| member.as_str()))
+            name_paths_equal(program, left, right)
         }
         (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
             left.operator == right.operator
@@ -1801,18 +1790,7 @@ fn substituted_expressions_equal(
         (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
         (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-            left.head_symbol == right.head_symbol
-                && left.symbol == right.symbol
-                && program
-                    .expression_table
-                    .name_path_members(left.members)
-                    .iter()
-                    .map(|member| member.as_str())
-                    .eq(program
-                        .expression_table
-                        .name_path_members(right.members)
-                        .iter()
-                        .map(|member| member.as_str()))
+            name_paths_equal(program, left, right)
         }
         (ExpressionNode::Borrow(left), ExpressionNode::Borrow(right)) => {
             left.access == right.access
@@ -2377,4 +2355,26 @@ fn point_label(program: &TypedTrees, point: ProgramPoint) -> String {
             ..
         } => format!("{}:statement-{statement_index}", symbol(state_symbol)),
     }
+}
+
+/// Structural equality of two name paths: same head and tail symbols plus the
+/// same member segments in order — shared by the bound-index and
+/// substituted-expression equality walks.
+fn name_paths_equal(
+    program: &TypedTrees,
+    left: &typed_trees::expression::TableNamePath,
+    right: &typed_trees::expression::TableNamePath,
+) -> bool {
+    left.head_symbol == right.head_symbol
+        && left.symbol == right.symbol
+        && program
+            .expression_table
+            .name_path_members(left.members)
+            .iter()
+            .map(|member| member.as_str())
+            .eq(program
+                .expression_table
+                .name_path_members(right.members)
+                .iter()
+                .map(|member| member.as_str()))
 }
