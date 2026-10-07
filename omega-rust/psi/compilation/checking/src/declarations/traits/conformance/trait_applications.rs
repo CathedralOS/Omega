@@ -2,8 +2,8 @@
 //! proposition family arguments and indexed carrier parameters.
 
 use crate::declarations::traits::conformance::signature_matching::{
-    TraitTypeBinding, TraitTypeBindingTarget, required_trait_type_parameter,
-    type_references_match_with_trait_bindings,
+    TraitTypeBinding, TraitTypeBindingTarget, carrier_data_definition_for_argument,
+    required_trait_type_parameter, type_references_match_with_trait_bindings,
 };
 use crate::value_custody::type_references::type_references_match;
 use diagnostics::Diagnostic;
@@ -269,22 +269,11 @@ fn indexed_carrier_parameter_matches(
     binder_offset: &mut usize,
 ) -> Option<bool> {
     let carrier_parameter = required_trait_type_parameter(program, expected, trait_parameters)?;
-    let carrier_index = trait_parameters
-        .iter()
-        .position(|parameter| parameter.symbol == carrier_parameter.symbol)?;
-    let carrier_argument = *applied_arguments.get(carrier_index)?;
-    let TypeReferenceNode::Named {
-        symbol: carrier_symbol,
-        ..
-    } = program
-        .type_reference_table
-        .type_reference(carrier_argument)
-    else {
-        return None;
-    };
-    let carrier = crate::program_scope::data_definitions::data_definition_by_symbol(
+    let carrier = carrier_data_definition_for_argument(
         program,
-        *carrier_symbol,
+        trait_parameters,
+        applied_arguments,
+        carrier_parameter,
     )?;
     let carrier_telescope = program.data_type_parameters(carrier);
     if carrier_telescope.is_empty() {

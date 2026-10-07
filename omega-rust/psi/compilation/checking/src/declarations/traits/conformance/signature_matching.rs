@@ -1063,22 +1063,11 @@ fn indexed_law_callable_telescope_groups<'program>(
                 representative.type_reference,
                 trait_parameters,
             )?;
-            let carrier_index = trait_parameters
-                .iter()
-                .position(|parameter| parameter.symbol == carrier_parameter.symbol)?;
-            let carrier_argument = *explicit_type_arguments.get(carrier_index)?;
-            let TypeReferenceNode::Named {
-                symbol: carrier_symbol,
-                ..
-            } = program
-                .type_reference_table
-                .type_reference(carrier_argument)
-            else {
-                return None;
-            };
-            let carrier = crate::program_scope::data_definitions::data_definition_by_symbol(
+            let carrier = carrier_data_definition_for_argument(
                 program,
-                *carrier_symbol,
+                trait_parameters,
+                explicit_type_arguments,
+                carrier_parameter,
             )?;
             let telescope = program.data_type_parameters(carrier);
             (!telescope.is_empty()).then_some(telescope)
@@ -1101,6 +1090,31 @@ pub(crate) fn required_trait_type_parameter<'program>(
     trait_type_parameters
         .iter()
         .find(|parameter| parameter.symbol.is_valid() && parameter.symbol == *symbol)
+}
+
+/// The named data definition a trait type parameter's applied argument
+/// resolves to: positionally zip the parameter to its argument, then require
+/// a `Named` head resolving to exactly one definition.
+pub(crate) fn carrier_data_definition_for_argument<'program>(
+    program: &'program dyn crate::CheckingInput,
+    trait_parameters: &[TypeParameter],
+    applied_arguments: &[TypeReferenceHandle],
+    carrier_parameter: &TypeParameter,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    let carrier_index = trait_parameters
+        .iter()
+        .position(|parameter| parameter.symbol == carrier_parameter.symbol)?;
+    let carrier_argument = *applied_arguments.get(carrier_index)?;
+    let TypeReferenceNode::Named {
+        symbol: carrier_symbol,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(carrier_argument)
+    else {
+        return None;
+    };
+    crate::program_scope::data_definitions::data_definition_by_symbol(program, *carrier_symbol)
 }
 
 pub(crate) fn parameter_shape_label(
