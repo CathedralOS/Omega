@@ -183,7 +183,7 @@ pub struct TableAssignment {
     pub value: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TableCall {
     pub receiver: HandleSpan<Identifier>,
     pub target: Identifier,
@@ -198,22 +198,7 @@ pub struct TableCall {
     pub discards_result: bool,
 }
 
-impl Default for TableCall {
-    fn default() -> Self {
-        Self {
-            receiver: HandleSpan::empty(),
-            target: Identifier::default(),
-            target_is_static: false,
-            machine_arguments: Box::default(),
-            arguments: HandleSpan::empty(),
-            evidence_arguments: Box::default(),
-            operational_acknowledgement: Default::default(),
-            discards_result: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TableLocalData {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -224,18 +209,6 @@ pub struct TableLocalData {
     /// `let name [erased]: T` -- a proof-side local with no runtime storage;
     /// the same binding-occurrence marker as an erased data field.
     pub relevance: language_core::BindingRelevance,
-}
-
-impl Default for TableLocalData {
-    fn default() -> Self {
-        Self {
-            name: Identifier::default(),
-            type_reference: crate::types::TypeReferenceHandle::invalid(),
-            initial_value: crate::expression::ExpressionHandle::invalid(),
-            is_mutable: false,
-            relevance: language_core::BindingRelevance::Relevant,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

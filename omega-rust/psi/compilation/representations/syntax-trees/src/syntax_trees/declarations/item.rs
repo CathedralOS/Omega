@@ -115,17 +115,9 @@ impl Default for Item {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct UseItem {
     pub path: HandleSpan<Identifier>,
-}
-
-impl Default for UseItem {
-    fn default() -> Self {
-        Self {
-            path: HandleSpan::empty(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

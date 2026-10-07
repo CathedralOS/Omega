@@ -132,7 +132,7 @@ impl Default for MathematicalTypeNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MeasureDefinition {
     /// Fully-qualified declaration path, e.g. `Card::PowerOrder`.
     pub name: HandleSpan<Identifier>,
@@ -148,19 +148,6 @@ pub struct MeasureDefinition {
     pub token_count: usize,
 }
 
-impl Default for MeasureDefinition {
-    fn default() -> Self {
-        Self {
-            name: HandleSpan::empty(),
-            parameter: StateParameterHandle::invalid(),
-            return_type: crate::types::TypeReferenceHandle::invalid(),
-            lexicographic: false,
-            body: HandleSpan::empty(),
-            token_count: 0,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofFact {
     Expression(crate::expression::ExpressionHandle),
@@ -173,7 +160,7 @@ impl Default for ProofFact {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
@@ -181,16 +168,6 @@ pub struct ProofMembershipFact {
     /// read with the same type-position grammar a domain constraint uses.
     /// Empty for an unindexed membership.
     pub domain_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
-}
-
-impl Default for ProofMembershipFact {
-    fn default() -> Self {
-        Self {
-            value: crate::expression::ExpressionHandle::invalid(),
-            domain: HandleSpan::empty(),
-            domain_arguments: HandleSpan::empty(),
-        }
-    }
 }
 
 /// One `satisfies` binding on a machine (rearrange settle 2026-07-18):

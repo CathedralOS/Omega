@@ -46,7 +46,7 @@ pub struct CapabilityState {
     pub contracts: HandleSpan<CapabilityContract>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CapabilityContract {
     pub kind: CapabilityContractKind,
     /// Exact authored `requires`, `ensures`, or `crashes` keyword anchor.
@@ -57,18 +57,6 @@ pub struct CapabilityContract {
     pub binding: Option<Identifier>,
     pub facts: HandleSpan<ProofFact>,
     pub token_count: usize,
-}
-
-impl Default for CapabilityContract {
-    fn default() -> Self {
-        Self {
-            kind: CapabilityContractKind::default(),
-            keyword_source_span: None,
-            binding: None,
-            facts: HandleSpan::empty(),
-            token_count: 0,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
