@@ -75,7 +75,10 @@ machine Parser::source_span(
     start: u64 in Trapping,
     end: u64 in Trapping
 ) -> SourceSpan {
-    Parser::source_span(parser, start, end)
+    SourceSpan {
+        source: parser.source,
+        span: Span { start: start, end: end }
+    }
 }
 
 machine Parser::identifier_span(
