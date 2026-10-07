@@ -25,7 +25,7 @@ use crate::results::{
 };
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{BlockId, ClaimId, EdgeId, PlaceId, StructuralTypeId, ValueId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
@@ -72,19 +72,16 @@ impl TerminalExecution {
         )
     }
 
-    fn prepare_cleanup_partition(
+    fn prepare_cleanup_geometry(
         &self,
         structural_arguments: &[StructuralArgument],
         actions: &[terminal_psi::TerminalAffineCleanupAction],
-    ) -> Result<BTreeSet<PlaceId>, TerminalInterpretError> {
-        // Projected owned arguments open partial custody on their
-        // roots: each moves an exact affine child while the
-        // residual list closes every dying root's untouched
-        // complement. Replay the splits on a scratch frontier so
-        // the whole edge validates before charging or mutating
-        // state.
+    ) -> Result<(), TerminalInterpretError> {
+        // Projected owned arguments move exact affine children; cleanup
+        // actions select the established remainder. Check selected
+        // storage on a scratch frontier before charging or mutating state;
+        // source checking, not reserved storage geometry, owns completeness.
         let mut projected_frontier = None;
-        let mut residual_roots = BTreeSet::new();
         for argument in structural_arguments.iter().filter(|argument| {
             argument.access == StructuralAccess::Owned && !argument.path.is_empty()
         }) {
@@ -146,20 +143,8 @@ impl TerminalExecution {
                     access: StructuralAccess::Owned,
                 },
             )?;
-            residual_roots.insert(place);
         }
-        let replayed = projected_frontier
-            .as_ref()
-            .unwrap_or(&self.live_affine_frontier);
-        // Every root this edge disposes must be left with exactly its
-        // declared residual rows: projected transfers opened the
-        // holes, and the listed complement is the only remainder.
-        for place in &residual_roots {
-            if replayed.iter().any(|entry| entry.place == *place) {
-                return Err(TerminalInterpretError::AffineFrontierMismatch);
-            }
-        }
-        Ok(residual_roots)
+        Ok(())
     }
 
     fn settle_successor(
@@ -175,7 +160,7 @@ impl TerminalExecution {
             structural_arguments,
             cleanup_actions,
         } = successor;
-        self.prepare_cleanup_partition(structural_arguments, cleanup_actions)?;
+        self.prepare_cleanup_geometry(structural_arguments, cleanup_actions)?;
         let bindings = self.prepare_block_bindings(target, arguments, structural_arguments)?;
         bindings.validate_cleanup_actions(self, cleanup_actions)?;
         if let Err(error) = meter.charge_edge(edge, terminator) {
@@ -300,7 +285,7 @@ impl TerminalExecution {
             bindings.push((parameter.id, scalar));
         }
         let bindings = block_bindings::BlockBindings::from_scalars(bindings);
-        self.prepare_cleanup_partition(&[], &successor.cleanup_actions)?;
+        self.prepare_cleanup_geometry(&[], &successor.cleanup_actions)?;
         bindings.validate_cleanup_actions(self, &successor.cleanup_actions)?;
         if let Err(error) = meter.charge_edge(successor.edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
@@ -333,7 +318,7 @@ impl TerminalExecution {
         if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
             return Err(malformed());
         }
-        self.prepare_cleanup_partition(&[], cleanup_actions)?;
+        self.prepare_cleanup_geometry(&[], cleanup_actions)?;
         block_bindings::BlockBindings::default().validate_cleanup_actions(self, cleanup_actions)?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
@@ -365,7 +350,7 @@ impl TerminalExecution {
         if machine.result != TerminalMachineResult::Unit {
             return Err(malformed());
         }
-        self.prepare_cleanup_partition(&[], cleanup_actions)?;
+        self.prepare_cleanup_geometry(&[], cleanup_actions)?;
         block_bindings::BlockBindings::default().validate_cleanup_actions(self, cleanup_actions)?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);

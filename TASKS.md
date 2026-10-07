@@ -719,10 +719,7 @@ defines the complete product bar.
     Keep `pass/drops/runtime_cleanup_helper_normal_guarantee_exit` as the
     pre-cleanup scalar-capture and surviving call-contract control when
     extending these edges.
-    The abandoned-prefix witness
-    `pass/drops/runtime_abandoned_record_construction_prefix_exit` exits 0
-    natively but Terminal execution reaches `AffineFrontierMismatch` on macOS
-    ARM64. `runtime_empty_array_owner_cleanup_exit` still fails Terminal
+    `runtime_empty_array_owner_cleanup_exit` still fails Terminal
     production with `Optimization(InvalidSemantic(MalformedStructuralFoundation(
     "zeroed structural establishment has an invalid result shape")))`.
     Keep `runtime_record_construction_cleanup_order_exit` as the authored-output
@@ -732,7 +729,9 @@ defines the complete product bar.
     **TERMINAL-RUNTIME-DRIVERS**. Keep
     `runtime_nested_cleanup_postcondition_exit` and
     `runtime_generic_reserved_construction_exit` as parent-first guarantee and
-    construction controls, and `runtime_borrowed_nominal_replacement_exit` with
+    construction controls. Keep `runtime_abandoned_record_construction_prefix_exit`
+    as the reserved-home versus established-value control; unwritten fields owe
+    no cleanup. Keep `runtime_borrowed_nominal_replacement_exit` with
     `fail/drops/borrowed_replacement_old_hook_prerequisite` as the old-value
     prerequisite control. Preserve exact source-window call occurrences until
     cleanup effects finish; an incomplete effect table cannot decide whether

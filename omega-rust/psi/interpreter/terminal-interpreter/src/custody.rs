@@ -2,6 +2,10 @@
 //! hook borrows its receiver; it does not dispose the receiver's descendants.
 //! Recursive actions are contiguous, so the following action determines when
 //! storage can retire without inventing runtime liveness or a second plan.
+//! Each dying root's final action releases its frame binding. Reserved home
+//! geometry can include fields that never became values, so it cannot decide
+//! which children owe cleanup. Captured outgoing projections retain their
+//! backing independently of that obsolete root binding.
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::ExecutableMachine;
@@ -106,9 +110,13 @@ pub(crate) fn commit_cleanup_action(
             element_views.retain(|carrier, _| {
                 carrier.opaque_identity != root.opaque_identity || !carrier.path.starts_with(&path)
             });
-            if !frontier.iter().any(|entry| entry.place == discard.place) {
-                structural_values.remove(&discard.place);
-            }
+            retire_completed_cleanup_root(
+                structural_values,
+                frontier,
+                live_claims,
+                discard.place,
+                next,
+            )?;
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             validate_nominal_cleanup_action(
@@ -285,13 +293,29 @@ pub(crate) fn complete_nominal_cleanup(
     } {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
-    if !frontier.iter().any(|entry| entry.place == cleanup.place)
-        && !claims
-            .values()
-            .any(|claim| claim.place == Some(cleanup.place))
-    {
-        values.remove(&cleanup.place);
+    retire_completed_cleanup_root(values, frontier, claims, cleanup.place, next)
+}
+
+/// The checked normal-edge schedule groups each dying root's actions together.
+/// Its last action releases the frame's home, after outgoing values were
+/// captured. A reservation may include fields that never became values;
+/// geometric frontier fragments cannot invent obligations for those fields.
+/// Retiring this binding does not prune the backing of transferred siblings.
+fn retire_completed_cleanup_root(
+    values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    claims: &BTreeMap<ClaimId, LiveClaim>,
+    place: PlaceId,
+    next: Option<&TerminalAffineCleanupAction>,
+) -> Result<(), TerminalInterpretError> {
+    if next.is_some_and(|action| action.place() == place) {
+        return Ok(());
     }
+    if claims.values().any(|claim| claim.place == Some(place)) {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    }
+    frontier.retain(|entry| entry.place != place);
+    values.remove(&place);
     Ok(())
 }
 
