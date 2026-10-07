@@ -500,11 +500,14 @@ pub(super) fn valid_nominal_cleanup(
             .published_service_ceiling
             .iter()
             .all(|service| caller.published_service_ceiling.contains(service))
-        && target.verified_contract.as_ref().is_none_or(|contract| {
-            contract.ensures.is_empty()
-                && contract.outcome_specific_ensures.is_empty()
-                && contract.crash_routes.is_empty()
-        })
+        // A hook's postconditions describe its dying receiver's final state;
+        // no continuation consumes them, so they carry no custody obligation.
+        // A crash route would add an abnormal exit the cleanup edge cannot
+        // represent. Requirement sites were erased at the Terminal firewall.
+        && target
+            .verified_contract
+            .as_ref()
+            .is_none_or(|contract| contract.crash_routes.is_empty())
 }
 
 pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape) -> bool {
