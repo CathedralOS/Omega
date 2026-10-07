@@ -8,6 +8,11 @@ pub enum TargetFrameLayoutError {
     MissingLinkRegisterView,
     GeometryOverflow,
     NonCanonicalLayout,
+    /// The activation is larger than the largest frame every target can
+    /// address: [`MAX_FRAME_BYTES`](super::MAX_FRAME_BYTES).
+    FrameExceedsAddressableExtent {
+        frame_size_bytes: u64,
+    },
 }
 
 impl std::fmt::Display for TargetFrameLayoutError {

@@ -50,23 +50,12 @@ pub fn encode_hosted_write_byte_i32_from_w9() -> Result<Vec<u8>, Diagnostic> {
     Ok(bytes)
 }
 
-/// `add x1, sp, #payload`: one word inside the first 4 KiB of the frame and a
-/// shifted add, then the unshifted remainder when nonzero, past it. This is
-/// the reach `FrameAddress` and the frame protocol's `sp` adjustment share, so
-/// a read-byte home anywhere in a committable frame is addressable.
-pub(crate) fn read_byte_payload_address(payload_byte_offset: u32) -> Option<Vec<u32>> {
-    let high = payload_byte_offset >> 12;
-    let low = payload_byte_offset & 4095;
-    if high > 4095 {
-        return None;
-    }
-    Some(if high == 0 {
-        vec![0x9100_03e1 | (low << 10)]
-    } else if low == 0 {
-        vec![0x9140_03e1 | (high << 10)]
-    } else {
-        vec![0x9140_03e1 | (high << 10), 0x9100_0021 | (low << 10)]
-    })
+/// `add x1, sp, #payload`: one word inside the first 4 KiB of the frame, then
+/// shifted page steps and the unshifted remainder when nonzero past it. These
+/// are the steps `FrameAddress` and the frame protocol's `sp` adjustment
+/// share, so a read-byte home anywhere in a `u32` frame is addressable.
+pub(crate) fn read_byte_payload_address(payload_byte_offset: u32) -> Vec<u32> {
+    crate::immediate_offset::address_words(1, 31, u64::from(payload_byte_offset))
 }
 
 /// The `x1` payload address for a `ByteRead` home whose tag word sits at
@@ -83,11 +72,7 @@ fn read_byte_home_address(
             "{host} AArch64 read-byte home is not a word-aligned tag and payload"
         )));
     }
-    read_byte_payload_address(payload_byte_offset).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "{host} AArch64 read-byte home lies beyond the frame's addressable reach"
-        ))
-    })
+    Ok(read_byte_payload_address(payload_byte_offset))
 }
 
 /// Import-free Linux `read(0, &byte, 1)` realization into one canonical

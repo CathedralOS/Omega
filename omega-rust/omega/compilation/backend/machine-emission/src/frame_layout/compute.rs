@@ -363,6 +363,10 @@ fn function_layout(
         }
     };
 
+    if frame_size_bytes > super::MAX_FRAME_BYTES {
+        return Err(TargetFrameLayoutError::FrameExceedsAddressableExtent { frame_size_bytes });
+    }
+
     // Only the committed extent needs stack-commit probing; red-zone-resident
     // bytes are already below the unadjusted stack pointer.
     let committed_bytes = frame_size_bytes - red_zone_resident_bytes;

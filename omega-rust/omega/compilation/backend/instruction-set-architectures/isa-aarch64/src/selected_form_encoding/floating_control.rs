@@ -13,6 +13,30 @@ use selected_instructions::{
     SelectedInstructionKind,
 };
 
+/// `x9` carries the FPCR; a save past the direct `sp` reach also forms its
+/// address in IP0. The constraint and the encoded effects declare the same
+/// units, so both reaches stay inside one declaration.
+pub(crate) fn clobbers(restore: bool) -> Vec<register_model::RegisterUnitId> {
+    let physical = crate::aarch64_physical_register_model();
+    let mut units = physical
+        .view_named("x9")
+        .expect("canonical floating-control scratch")
+        .units
+        .clone();
+    if !restore {
+        units.extend(
+            physical
+                .view_named("x16")
+                .expect("canonical floating-control address scratch")
+                .units
+                .iter()
+                .copied(),
+        );
+    }
+    units.sort_unstable();
+    units
+}
+
 pub(crate) fn effects(restore: bool) -> MachineEncodedEffects {
     let physical = crate::aarch64_physical_register_model();
     let view = |name| {
@@ -34,7 +58,7 @@ pub(crate) fn effects(restore: bool) -> MachineEncodedEffects {
         } else {
             Vec::new()
         },
-        implicit_unit_clobbers: view("x9").units.clone(),
+        implicit_unit_clobbers: clobbers(restore),
         memory: if restore {
             MachineEncodedMemoryEffect::ReadFrameStorageV1 {
                 stack_pointer: view("sp").id,
@@ -75,7 +99,10 @@ pub(crate) fn declaration(
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(8),
+            size: MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 8,
+                maximum_bytes: Some(crate::floating_control::MAX_FPCR_SEQUENCE_BYTES),
+            },
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: effects(restore),
         }],
@@ -105,7 +132,7 @@ fn request(
                 family: semantic.into(),
                 variant: 0,
             })
-        || !(0..=32760).contains(&displacement)
+        || u32::try_from(displacement).is_err()
         || displacement % 8 != 0
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
@@ -162,18 +189,35 @@ pub fn validate_aarch64_selected_floating_control_form(
     })
 }
 
+/// Decode the direction and slot offset, then require the canonical bytes:
+/// the access word carries the low bits and any page steps the rest.
 fn decode(bytes: &[u8]) -> Option<(bool, i64)> {
-    let words: [u8; 8] = bytes.try_into().ok()?;
-    let first = u32::from_le_bytes(words[..4].try_into().ok()?);
-    let second = u32::from_le_bytes(words[4..].try_into().ok()?);
-    let (restore, access) = if first == 0xd53b_4409 && second & 0xffc0_03ff == 0xf900_03e9 {
-        (false, second)
-    } else if second == 0xd51b_4409 && first & 0xffc0_03ff == 0xf940_03e9 {
-        (true, first)
-    } else {
+    let (chunks, tail) = bytes.as_chunks::<4>();
+    if !tail.is_empty() {
         return None;
+    }
+    let words = chunks
+        .iter()
+        .map(|word| u32::from_le_bytes(*word))
+        .collect::<Vec<_>>();
+    let (restore, steps, access, address) = match words.as_slice() {
+        [steps @ .., access, 0xd51b_4409] => (true, steps, *access, 9),
+        [0xd53b_4409, steps @ .., access] => (false, steps, *access, 16),
+        _ => return None,
     };
-    Some((restore, i64::from((access >> 10) & 0xfff) * 8))
+    let pages = if steps.is_empty() {
+        0
+    } else {
+        crate::immediate_offset::decode_address_words(steps, address, 31)?
+    };
+    let offset = u32::try_from(pages + u64::from((access >> 10) & 0xfff) * 8).ok()?;
+    let expected = if restore {
+        crate::encode_restore_fpcr_from_sp_displacement(offset)
+    } else {
+        crate::encode_save_fpcr_to_sp_displacement(offset)
+    }
+    .ok()?;
+    (expected == bytes).then_some((restore, i64::from(offset)))
 }
 
 #[cfg(test)]
@@ -209,7 +253,9 @@ mod tests {
                 family: semantic.into(),
                 variant: 0,
             };
-            for displacement in [0, 24, 32760] {
+            // Inside the direct reach, then page steps past 32 KiB and
+            // past 16 MiB.
+            for displacement in [0, 24, 32760, 32768, 65_544, 33_554_440] {
                 let encoded = encode_aarch64_selected_floating_control_form(
                     &physical,
                     kind,
@@ -260,7 +306,7 @@ mod tests {
                     .is_err()
                 );
             }
-            for displacement in [-8, 4, 32768] {
+            for displacement in [-8, 4, i64::from(u32::MAX) + 1] {
                 assert!(
                     encode_aarch64_selected_floating_control_form(
                         &physical,

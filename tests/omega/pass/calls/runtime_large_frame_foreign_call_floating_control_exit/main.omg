@@ -1,0 +1,42 @@
+// A foreign call above a 64 KiB local: the FPCR save and restore slot around
+// the call lies past the 32760 bytes `str`/`ldr` reach from `sp` on AArch64.
+// The restore forms the slot address in `x9` before loading the saved FPCR
+// into it; the save keeps the FPCR in `x9` and forms the address in IP0.
+// Exits with `abs(-70)`, 70, once the saved FPCR is restored.
+use omega::language::core::external_binding;
+use omega_language_std::console;
+
+pub boundary trait Magnitude {
+    machine absolute(value: i32) -> i32;
+}
+
+macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    }
+}
+
+macos_arm64 machine external_absolute(value: i32) -> i32
+    satisfies Magnitude::absolute via absolute_binding();
+
+data Big {
+    bytes: [u8; 65536] in Trapping;
+    length: u64 in Trapping;
+}
+
+machine Big::fill(big: &mut Big, value: u8) {
+    big.bytes[65535] = value;
+    big.length = 65536;
+}
+
+machine main() reaches Console + Magnitude
+crashes Trap
+{
+    let mut big: Big;
+    Big::fill(&mut big, 70);
+    let magnitude: i32 = external_absolute(0 - (big.bytes[65535] as i32));
+    Console::exit_process(magnitude);
+}

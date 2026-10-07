@@ -2,6 +2,10 @@
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 
+use crate::immediate_offset::{
+    ADD_IMMEDIATE, SUBTRACT_IMMEDIATE, append_offset_steps, append_page_steps,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Aarch64FrameSlot {
     pub view: RegisterViewId,
@@ -24,14 +28,10 @@ pub struct Aarch64StackProbe {
     pub touches: u32,
 }
 
-/// One `add`/`sub` immediate pair covers any adjustment through 16 MiB - 1:
-/// `op sp, sp, #(amount >> 12), lsl #12` then `op sp, sp, #(amount & 0xfff)`.
-/// Probed frames subtract one granule chunk per instruction pair, so the
-/// bound also caps the largest commit granule the codec can emit. The same
-/// pair bounds `FrameAddress` displacements: an address one shifted plus one
-/// unshifted `add` away from `sp` is exactly as far as the protocol can move
-/// `sp`.
-pub(crate) const MAX_STACK_POINTER_ADJUST_BYTES: u64 = (4095 << 12) | 4095;
+/// A commit granule is one translation page, and 64 KiB is the largest
+/// AArch64 translation granule. A roster probing at a coarser interval could
+/// step over a whole guard page between touches.
+pub(crate) const MAX_STACK_PROBE_INTERVAL_BYTES: u64 = 65_536;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Aarch64FrameProtocolError {
@@ -77,12 +77,12 @@ pub fn encode_aapcs64_frame_protocol(
     let mut prologue = Vec::new();
     let mut epilogue = Vec::new();
     if probe.touches == 0 {
-        append_stack_adjust(&mut prologue, frame_size_bytes, true)?;
+        append_stack_adjust(&mut prologue, frame_size_bytes, true);
     } else {
         let mut remaining = frame_size_bytes;
         loop {
             let chunk = remaining.min(probe.interval_bytes);
-            append_stack_adjust(&mut prologue, chunk, true)?;
+            append_stack_adjust(&mut prologue, chunk, true);
             append_probe_touch(&mut prologue);
             remaining -= chunk;
             if remaining == 0 {
@@ -108,21 +108,20 @@ pub fn encode_aapcs64_frame_protocol(
             true,
         )?;
     }
-    append_stack_adjust(&mut epilogue, frame_size_bytes, false)?;
+    append_stack_adjust(&mut epilogue, frame_size_bytes, false);
     Ok((prologue, epilogue))
 }
 
 /// The roster must be the exact commit schedule for this frame size: no
 /// touches inside one granule, and exactly one touch per granule chunk past
 /// it so the emitted prologue cannot skip or pad the commit sequence. The
-/// granule itself must be a page-shaped interval a single subtract pair can
-/// carry.
+/// granule itself must be a translation-page-shaped interval.
 fn validate_probe(
     frame_size_bytes: u64,
     probe: Aarch64StackProbe,
 ) -> Result<(), Aarch64FrameProtocolError> {
     if !probe.interval_bytes.is_power_of_two()
-        || probe.interval_bytes > MAX_STACK_POINTER_ADJUST_BYTES
+        || probe.interval_bytes > MAX_STACK_PROBE_INTERVAL_BYTES
     {
         return Err(Aarch64FrameProtocolError::NonCanonicalProbe);
     }
@@ -143,30 +142,21 @@ fn append_probe_touch(bytes: &mut Vec<u8>) {
     append_word(bytes, 0xf940_03ff);
 }
 
-/// Emit `sub`/`add sp, sp, #amount` across the shifted then unshifted
-/// immediate forms, keeping the single-instruction encoding byte-identical
-/// for every amount the existing protocol already admitted.
-fn append_stack_adjust(
-    bytes: &mut Vec<u8>,
-    amount: u64,
-    subtract: bool,
-) -> Result<(), Aarch64FrameProtocolError> {
-    if amount == 0 {
-        return Ok(());
+/// Emit `sub`/`add sp, sp, #amount` as shifted page steps then the unshifted
+/// remainder. Amounts through 16 MiB - 1 keep their one- or two-instruction
+/// encoding; a larger release continues with further page steps, each of
+/// which only moves `sp` toward the caller's activation.
+fn append_stack_adjust(bytes: &mut Vec<u8>, amount: u64, subtract: bool) {
+    let mut words = Vec::new();
+    let opcode = if subtract {
+        SUBTRACT_IMMEDIATE
+    } else {
+        ADD_IMMEDIATE
+    };
+    append_offset_steps(&mut words, opcode, 31, 31, amount);
+    for word in words {
+        append_word(bytes, word);
     }
-    if amount > MAX_STACK_POINTER_ADJUST_BYTES {
-        return Err(Aarch64FrameProtocolError::InvalidFrameSize);
-    }
-    let base = if subtract { 0xd100_03ff } else { 0x9100_03ff };
-    let high = (amount >> 12) as u32;
-    if high != 0 {
-        append_word(bytes, base | (1 << 22) | (high << 10));
-    }
-    let low = (amount & 4095) as u32;
-    if low != 0 {
-        append_word(bytes, base | (low << 10));
-    }
-    Ok(())
 }
 
 fn validate_slots(
@@ -255,20 +245,22 @@ fn append_memory(
     scratch: Option<u8>,
     load: bool,
 ) -> Result<(), Aarch64FrameProtocolError> {
-    if !offset_bytes.is_multiple_of(8) || offset_bytes > MAX_STACK_POINTER_ADJUST_BYTES {
+    if !offset_bytes.is_multiple_of(8) {
         return Err(Aarch64FrameProtocolError::OffsetOutOfRange);
     }
     let (base_register, displacement) = if offset_bytes / 8 <= 4095 {
         (31, offset_bytes)
     } else {
         let scratch = scratch.ok_or(Aarch64FrameProtocolError::NonCanonicalSlots)?;
-        // add xIP, sp, #(offset >> 12), lsl #12; the memory operation
-        // carries the aligned low 12 bits. SP remains at the committed base
-        // throughout, so earlier saves stay inside the live activation.
-        append_word(
-            bytes,
-            0x9140_03e0 | (((offset_bytes >> 12) as u32) << 10) | u32::from(scratch),
-        );
+        // add xIP, sp, #pages, lsl #12, one step per 4095 pages; the memory
+        // operation carries the aligned low 12 bits. SP remains at the
+        // committed base throughout, so earlier saves stay inside the live
+        // activation.
+        let mut words = Vec::new();
+        append_page_steps(&mut words, ADD_IMMEDIATE, scratch, 31, offset_bytes >> 12);
+        for word in words {
+            append_word(bytes, word);
+        }
         (scratch, offset_bytes & 4095)
     };
     let scaled = (displacement / 8) as u32;
@@ -293,7 +285,7 @@ fn append_word(bytes: &mut Vec<u8>, word: u32) {
 mod tests {
     use super::{
         Aarch64FrameProtocolError, Aarch64FrameSlot, Aarch64StackProbe,
-        MAX_STACK_POINTER_ADJUST_BYTES, encode_aapcs64_frame_protocol,
+        MAX_STACK_PROBE_INTERVAL_BYTES, encode_aapcs64_frame_protocol,
     };
     use register_model::validate_physical_register_model;
 
@@ -483,6 +475,66 @@ mod tests {
     }
 
     #[test]
+    fn frame_past_sixteen_mebibytes_steps_its_release_and_slot_addresses() {
+        let model =
+            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        // 32 MiB + 32: 2048 full Darwin granules and a 32-byte tail chunk.
+        let slots = [("x19", 33_554_448), ("x30", 33_554_456)].map(|(name, offset_bytes)| {
+            Aarch64FrameSlot {
+                view: model.model().view_named(name).unwrap().id,
+                offset_bytes,
+                size_bytes: 8,
+            }
+        });
+        let (prologue, epilogue) = encode_aapcs64_frame_protocol(
+            &model,
+            33_554_464,
+            Aarch64StackProbe {
+                touches: 2_049,
+                ..DARWIN_PROBE
+            },
+            &slots,
+        )
+        .unwrap();
+        let words = |bytes: &[u8]| {
+            bytes
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|word| u32::from_le_bytes(*word))
+                .collect::<Vec<_>>()
+        };
+        let prologue = words(&prologue);
+        // sub sp, sp, #4, lsl #12; ldr xzr, [sp] per granule, then the tail.
+        assert!(
+            prologue[..4_096]
+                .chunks(2)
+                .all(|pair| pair == [0xd140_13ff, 0xf940_03ff])
+        );
+        assert_eq!(&prologue[4_096..4_098], &[0xd100_83ff, 0xf940_03ff]);
+        // x16 = sp + 8192 pages in three steps; the access carries the low bits.
+        let address = [0x917f_fff0, 0x917f_fe10, 0x9140_0a10];
+        assert_eq!(&prologue[4_098..4_101], &address);
+        assert_eq!(prologue[4_101], 0xf900_0a13);
+        assert_eq!(&prologue[4_102..4_105], &address);
+        assert_eq!(prologue[4_105], 0xf900_0e1e);
+        assert_eq!(prologue.len(), 4_106);
+        // Restores reverse the saves; the release steps sp back by whole
+        // 4095-page steps, the partial page step, and the 32-byte remainder.
+        assert_eq!(
+            words(&epilogue),
+            [
+                address.as_slice(),
+                &[0xf940_0e1e],
+                &address,
+                &[0xf940_0a13],
+                &[0x917f_ffff, 0x917f_ffff, 0x9140_0bff, 0x9100_83ff],
+            ]
+            .concat()
+        );
+    }
+
+    #[test]
     fn large_slot_address_never_clobbers_a_saved_scratch() {
         let model =
             validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
@@ -579,7 +631,7 @@ mod tests {
                 "size {frame_size} touches {touches}"
             );
         }
-        for interval in [0_u64, 1, 4_000, MAX_STACK_POINTER_ADJUST_BYTES + 1] {
+        for interval in [0_u64, 1, 4_000, MAX_STACK_PROBE_INTERVAL_BYTES * 2] {
             let probe = Aarch64StackProbe {
                 interval_bytes: interval,
                 touches: 1,

@@ -1,0 +1,33 @@
+// A 32 MiB record as a field of the entry-binding record: the field's last
+// byte is 33554431 bytes from the record pointer, past the 16 MiB a shifted
+// `add` pair reaches on AArch64, so the address offset continues in page
+// steps from the destination register. Exits 70 when the byte written through
+// `Big::fill` reads back through `main.big`.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Big {
+    bytes: [u8; 33554432] in Trapping;
+    length: u64 in Trapping;
+}
+
+data Main {
+    console: Binding<Console>;
+    big: Big;
+}
+
+machine Big::fill(big: &mut Big, value: u8) {
+    big.bytes[33554431] = value;
+    big.length = 33554432;
+}
+
+machine Main::main(main: &mut Main) reaches Console
+crashes Trap
+{
+    Big::fill(&mut main.big, 70);
+    transition { _ -> finish(main) }
+
+    state finish(main: &mut Main) {
+        main.console.exit_process(main.big.bytes[33554431] as i32);
+    }
+}

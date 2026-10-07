@@ -36,7 +36,7 @@ pub(super) enum FrameProtocolCodec {
     /// The canonical fixed-frame AArch64 codec
     /// (`encode_aapcs64_frame_protocol`): `sub sp` commits with an exact
     /// probe roster, `[sp + offset]` saves and restores including a saved
-    /// link register, and one `add sp` release.
+    /// link register, and an `add sp` release in shifted page steps.
     Aarch64,
 }
 

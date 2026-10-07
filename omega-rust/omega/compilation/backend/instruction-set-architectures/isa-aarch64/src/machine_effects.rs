@@ -837,7 +837,11 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(4),
         // The allocated address scratch is always written before the store,
         // including small offsets; its early-clobber contract is not optional.
-        MachineSemanticKind::Store64 => MachineSizeKnowledge::ExactBytes(8),
+        // One page step reaches 16 MiB; each further 4095 pages adds a step.
+        MachineSemanticKind::Store64 => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 8,
+            maximum_bytes: Some(crate::immediate_offset::MAX_STORE64_BYTES),
+        },
         MachineSemanticKind::CopyBytes => MachineSizeKnowledge::ExactBytes(28),
         MachineSemanticKind::ZeroBytes => MachineSizeKnowledge::ExactBytes(24),
         MachineSemanticKind::LoadEncodedScalar | MachineSemanticKind::StoreEncodedScalar => {
@@ -900,12 +904,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::SaturatingMultiply(carrier) => MachineSizeKnowledge::ExactBytes(
             SaturatingRealization::of(SaturatingOperation::Multiply, carrier).byte_size(),
         ),
-        // One unshifted `add` inside the first granule; a shifted plus
-        // unshifted pair past it.
+        // One unshifted `add` inside the first page; shifted page steps and
+        // the unshifted remainder past it.
         MachineSemanticKind::FrameAddress | MachineSemanticKind::AddressOffset => {
             MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 4,
-                maximum_bytes: Some(8),
+                maximum_bytes: Some(crate::immediate_offset::MAX_ADDRESS_BYTES),
             }
         }
         // Conditional branches resolve to a 4-byte `B.cond` when the taken

@@ -1083,7 +1083,16 @@ pub fn aarch64_register_constraint_catalog(
             } else {
                 Vec::new()
             },
-            clobbers: view("x9").units.clone(),
+            // x9 carries the FPCR; a save past the direct `sp` reach also
+            // forms its slot address in IP0.
+            clobbers: {
+                let mut units = view("x9").units.clone();
+                if !restore {
+                    units.extend(view("x16").units.iter().copied());
+                }
+                units.sort_unstable();
+                units
+            },
         });
     }
     constraints.sort_by_key(|constraint| constraint.key);

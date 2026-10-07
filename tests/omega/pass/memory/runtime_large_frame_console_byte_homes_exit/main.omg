@@ -1,0 +1,44 @@
+// Console byte homes above a 32 MiB local: the `read_byte` result home and
+// the `write_byte` argument home are frame slots past 16 MiB, beyond both the
+// byte store's twelve-bit reach and one shifted `add` pair on AArch64. The
+// read forms its buffer address in page steps; the write copies its value
+// before forming `x1`, since the value may live there. `input.txt` supplies
+// "F" (70); the program echoes the record's last byte, also 70, and exits
+// with the byte it read.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Big {
+    bytes: [u8; 33554432] in Trapping;
+    length: u64 in Trapping;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Big::fill(big: &mut Big, value: u8) {
+    big.bytes[33554431] = value;
+    big.length = 33554432;
+}
+
+machine Main::main(main: &mut Main) reaches Console
+crashes Trap
+{
+    let mut big: Big;
+    Big::fill(&mut big, 70);
+    let read: ByteRead = block main.console.read_byte();
+    main.console.write_byte(big.bytes[33554431] as i32);
+    transition read {
+        ByteRead::Byte { value } -> echoed(main, value)
+        _ -> missing(main)
+    }
+
+    state echoed(main: &mut Main, value: i32) {
+        main.console.exit_process(value);
+    }
+
+    state missing(main: &mut Main) {
+        main.console.exit_process(71);
+    }
+}

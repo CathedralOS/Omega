@@ -124,8 +124,15 @@ fn floating_control_storage_binds_exact_architectural_state_on_every_target() {
             } else {
                 Vec::new()
             };
+            // x9 carries the FPCR; a save past the direct `sp` reach also
+            // forms its slot address in IP0.
             let clobbers = if case.target.architecture == Architecture::Aarch64 {
-                model.view_named("x9").unwrap().units.clone()
+                let mut units = model.view_named("x9").unwrap().units.clone();
+                if !restore {
+                    units.extend(&model.view_named("x16").unwrap().units);
+                }
+                units.sort_unstable();
+                units
             } else {
                 Vec::new()
             };
@@ -407,8 +414,10 @@ fn expected_size(
                 MachineSizeKnowledge::ExactBytes((2 * packed_load_width(semantic) - 1) * 4)
             }
             StorePacked => resolved(24, 56),
-            FrameAddress | AddressOffset => resolved(4, 8),
-            Store64 => MachineSizeKnowledge::ExactBytes(8),
+            // Page steps past 16 MiB reach every `u32` displacement: 257
+            // shifted steps and one remainder, or the store itself.
+            FrameAddress | AddressOffset => resolved(4, 1_032),
+            Store64 => resolved(8, 1_032),
             Store | Load8Indexed | Load8 | Load16 | Load32 | Load64 => {
                 MachineSizeKnowledge::ExactBytes(4)
             }

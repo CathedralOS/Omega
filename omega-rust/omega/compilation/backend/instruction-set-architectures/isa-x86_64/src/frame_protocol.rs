@@ -58,7 +58,10 @@ pub fn encode_system_v_amd64_frame_protocol(
     if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
     }
-    if frame_size_bytes > u64::from(u32::MAX) {
+    // `sub`/`add rsp, imm32` sign-extend their immediate, so a frame past
+    // `i32::MAX` would release in the wrong direction. Frame layout refuses
+    // such an activation by name before any protocol is encoded.
+    if frame_size_bytes > i32::MAX as u64 {
         return Err(X86_64FrameProtocolError::InvalidFrameSize);
     }
     validate_probe(frame_size_bytes, probe)?;
@@ -192,7 +195,7 @@ fn append_stack_adjust(
         bytes.extend_from_slice(&[0x48, 0x83, operation, amount as u8]);
     } else {
         let amount =
-            u32::try_from(amount).map_err(|_| X86_64FrameProtocolError::InvalidFrameSize)?;
+            i32::try_from(amount).map_err(|_| X86_64FrameProtocolError::InvalidFrameSize)?;
         bytes.extend_from_slice(&[0x48, 0x81, operation]);
         bytes.extend_from_slice(&amount.to_le_bytes());
     }
@@ -269,6 +272,26 @@ mod tests {
         assert_eq!(&prologue[..4], &[0x48, 0x83, 0xec, 24]);
         assert_eq!(&epilogue[epilogue.len() - 4..], &[0x48, 0x83, 0xc4, 24]);
         assert_ne!(prologue, epilogue);
+    }
+
+    #[test]
+    fn frame_release_never_sign_extends_past_i32() {
+        let model =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let probe = |frame_size: u64| X86_64StackProbe {
+            interval_bytes: X86_64_STACK_PROBE_INTERVAL_BYTES,
+            touches: u32::try_from(frame_size.div_ceil(X86_64_STACK_PROBE_INTERVAL_BYTES)).unwrap(),
+        };
+        // The last page under 2 GiB releases with one positive imm32.
+        let (_, epilogue) =
+            encode_system_v_amd64_frame_protocol(&model, 0x7fff_f000, probe(0x7fff_f000), &[])
+                .unwrap();
+        assert_eq!(epilogue, [0x48, 0x81, 0xc4, 0x00, 0xf0, 0xff, 0x7f]);
+        // `add rsp, 0x80000000` would encode `add rsp, -2 GiB`.
+        assert_eq!(
+            encode_system_v_amd64_frame_protocol(&model, 0x8000_0000, probe(0x8000_0000), &[]),
+            Err(X86_64FrameProtocolError::InvalidFrameSize)
+        );
     }
 
     #[test]

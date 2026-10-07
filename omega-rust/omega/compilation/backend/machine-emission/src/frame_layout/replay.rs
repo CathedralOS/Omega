@@ -202,6 +202,11 @@ pub(super) fn validate_layout(
         // requires the leaf System V form, no preservation storage, and only
         // allocator spill slots, so every below-RSP access still resolves
         // through signed frame displacements.
+        if row.frame_size_bytes > super::MAX_FRAME_BYTES {
+            return Err(Error::FrameExceedsAddressableExtent {
+                frame_size_bytes: row.frame_size_bytes,
+            });
+        }
         let resident = row.red_zone_resident_bytes;
         let committed = row
             .frame_size_bytes

@@ -16,17 +16,19 @@ use selected_instructions::{
 };
 use target::NativeTarget;
 
-/// One or two payload-address words; Darwin forms the address twice.
+/// Fixed words around the payload-address steps; Darwin forms the address
+/// twice because its system call return writes `x1`.
 fn size(target: NativeTarget) -> MachineSizeKnowledge {
+    let address = crate::immediate_offset::MAX_ADDRESS_BYTES;
     if target == NativeTarget::macos_arm64() {
         MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 64,
-            maximum_bytes: Some(72),
+            maximum_bytes: Some(56 + 2 * address),
         }
     } else {
         MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 56,
-            maximum_bytes: Some(60),
+            maximum_bytes: Some(52 + address),
         }
     }
 }
@@ -102,8 +104,8 @@ fn request(
     displacement: i64,
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     // Hosted structural storage is committed caller frame space: its
-    // displacement is a nonnegative word offset whose payload lies within the
-    // frame reach the `sp` adjustment admits.
+    // displacement is a nonnegative word offset whose payload lies within a
+    // `u32` frame.
     if (target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64())
         || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || !matches!(
@@ -120,9 +122,9 @@ fn request(
         || !operands.is_empty()
         || displacement < 0
         || displacement % 4 != 0
-        || displacement.checked_add(4).is_none_or(|payload| {
-            payload as u64 > crate::frame_protocol::MAX_STACK_POINTER_ADJUST_BYTES
-        })
+        || displacement
+            .checked_add(4)
+            .is_none_or(|payload| u32::try_from(payload).is_err())
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -194,26 +196,22 @@ pub fn decode_aarch64_selected_hosted_read_byte(target: NativeTarget, bytes: &[u
         .iter()
         .map(|word| u32::from_le_bytes(*word))
         .collect::<Vec<_>>();
-    // The payload address in `x1`: one unshifted `add x1, sp, #imm`, or a
-    // shifted add followed by its nonzero unshifted remainder.
-    let first = *words.first()?;
-    let (payload, reach) = if first & 0xffc0_03ff == 0x9100_03e1 {
-        ((first >> 10) & 4095, 1)
-    } else if first & 0xffc0_03ff == 0x9140_03e1 {
-        let high = ((first >> 10) & 4095) << 12;
-        match words.get(1) {
-            Some(second) if second & 0xffc0_03ff == 0x9100_0021 => {
-                (high | ((second >> 10) & 4095), 2)
-            }
-            _ => (high, 1),
-        }
-    } else {
-        return None;
-    };
+    // The payload address in `x1`: one unshifted `add x1, sp, #imm`, or
+    // shifted page steps followed by their nonzero unshifted remainder. The
+    // prefix ends at the first word that is not an `add` into `x1`; the tag
+    // store that follows never is.
+    let reach = words
+        .iter()
+        .take_while(|word| *word & 0xff80_001f == 0x9100_0001)
+        .count();
     let address = &words[..reach];
+    let payload = u32::try_from(crate::immediate_offset::decode_address_words(
+        address, 1, 31,
+    )?)
+    .ok()?;
     if !payload.is_multiple_of(4)
         || payload < 4
-        || crate::hosted_sequences::read_byte_payload_address(payload)?.as_slice() != address
+        || crate::hosted_sequences::read_byte_payload_address(payload).as_slice() != address
     {
         return None;
     }
@@ -295,8 +293,21 @@ mod tests {
         };
         for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
             // Inside the first 4 KiB, at the shifted boundary, past it with and
-            // without a remainder, and at the frame's last addressable home.
-            for displacement in [0, 32, 4088, 4092, 4096, 1_048_572, 900_000, 16_777_208] {
+            // without a remainder, past 16 MiB in further page steps, and at
+            // the last home whose payload a `u32` frame can hold.
+            for displacement in [
+                0,
+                32,
+                4088,
+                4092,
+                4096,
+                1_048_572,
+                900_000,
+                16_777_208,
+                16_777_212,
+                33_554_428,
+                u32::MAX - 7,
+            ] {
                 let encoded = encode_aarch64_selected_hosted_read_byte_form(
                     target,
                     &physical,
@@ -341,7 +352,7 @@ mod tests {
                         "decoder bit {bit}"
                     );
                 }
-                for invalid_offset in [1, 3, 16_777_212, u32::MAX] {
+                for invalid_offset in [1, 3, u32::MAX - 3, u32::MAX] {
                     assert!(
                         encode_aarch64_selected_hosted_read_byte_form(
                             target,
@@ -505,13 +516,9 @@ mod tests {
         assert_eq!(&words[13..], &golden[11..]);
         // Past the first 4 KiB the address is a shifted add and its remainder.
         assert_eq!(&darwin_words(900_000)[..2], &[0x9143_6fe1, 0x912e_9021]);
-        for (home, payload) in [
-            (0, 0),
-            (0, 8),
-            (2, 6),
-            (16_777_212, 16_777_216),
-            (u32::MAX, 3),
-        ] {
+        // Past 16 MiB the address continues in page steps from `x1`.
+        assert_eq!(&darwin_words(33_554_428)[..2], &[0x917f_ffe1, 0x917f_fc21]);
+        for (home, payload) in [(0, 0), (0, 8), (2, 6), (u32::MAX, 3)] {
             assert!(crate::encode_macos_read_byte_to_stack(home, payload).is_err());
             assert!(crate::encode_linux_read_byte_to_stack(home, payload).is_err());
         }
@@ -628,10 +635,12 @@ mod tests {
                     } else {
                         64
                     },
+                    // 258 address words past the fixed sequence; Darwin
+                    // forms the address twice.
                     maximum_bytes: Some(if target == NativeTarget::linux_arm64() {
-                        60
+                        52 + 1_032
                     } else {
-                        72
+                        56 + 2 * 1_032
                     }),
                 }
             );

@@ -2363,6 +2363,7 @@ pass/calls/runtime_guarded_terminal_structural_result_exit checked 928ms check-t
 pass/calls/runtime_heterogeneous_case_argument_exit checked 11361ms check-target:macos_arm64 @b0e82acb332e+wt
 pass/calls/runtime_indexed_scalar_calls_exit checked 4149ms check-target:macos_arm64 @c773c4ad3c3
 pass/calls/runtime_inherited_membership_argument_snapshot_exit checked 1798ms check-target:macos_arm64 @cfbb6c8709b4+wt
+pass/calls/runtime_large_frame_foreign_call_floating_control_exit checked 1175ms check-target:macos_arm64 @3ce19b649c88+wt
 pass/calls/runtime_large_structural_frame_exit checked 2451ms check-target:macos_arm64 @48547351f382+wt
 pass/calls/runtime_let_mut_reassign_exit checked 1342ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_lifetime_only_constructor_result_exit checked 1883ms check-target:macos_arm64 @2d8ed253669f
@@ -3082,6 +3083,9 @@ pass/memory/address_translation_canary checked 435ms @9a54cbcf1d68+wt
 pass/memory/bump_allocator_canary checked 1011ms check-target:linux_x86_64 @2d8ed253669f
 pass/memory/interrupt_table_canary rejected 952ms @693920652f41
 	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
+pass/memory/runtime_large_entry_record_field_exit checked 1175ms check-target:macos_arm64 @3ce19b649c88+wt
+pass/memory/runtime_large_frame_console_byte_homes_exit checked 1018ms check-target:macos_arm64 @3ce19b649c88+wt
+pass/memory/runtime_large_local_record_exit checked 1010ms check-target:macos_arm64 @3ce19b649c88+wt
 pass/memory/secondary_processor_canary rejected 11424ms check-target:macos_arm64 @9befc0d31f1a+wt
 	selected overload `named-callable(path(StartupEnvelope::confirm),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(StartupEnvelope\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/weak_vacant_qualifier_satisfied checked 291ms @2d8ed253669f

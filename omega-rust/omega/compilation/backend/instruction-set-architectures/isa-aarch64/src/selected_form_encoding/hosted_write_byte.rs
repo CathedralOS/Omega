@@ -1,8 +1,16 @@
 //! Hosted write-one-byte leaf: caller frame storage, no hidden stack adjustment.
+//!
+//! A boundary home inside the byte store's twelve-bit reach is written with
+//! `strb wValue, [sp, #home]` and `x1` formed after the descriptor. A home past
+//! it first copies the value into `w2` — the operand may live in `x1` or `x0`,
+//! both of which the sequence writes — then forms `x1` in the page steps
+//! `FrameAddress` uses and stores the copy through it, so any `u32` frame
+//! offset is reachable without a hidden scratch register.
 use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
+use crate::immediate_offset::{MAX_ADDRESS_BYTES, address_words, decode_address_words};
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
@@ -72,11 +80,17 @@ pub(crate) fn declaration(
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(if target == NativeTarget::macos_arm64() {
-                40
-            } else {
-                36
-            }),
+            size: {
+                let short = if target == NativeTarget::macos_arm64() {
+                    40
+                } else {
+                    36
+                };
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes: short,
+                    maximum_bytes: Some(short + MAX_ADDRESS_BYTES),
+                }
+            },
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: effects(target),
         }],
@@ -92,7 +106,7 @@ fn request(
     displacement: i64,
 ) -> Result<u8, Aarch64SelectedFormEncodingError> {
     // Hosted boundary storage is committed caller frame space: its
-    // displacement is always a nonnegative unsigned-immediate offset.
+    // displacement is always a nonnegative `u32` frame offset.
     if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
         || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || !matches!(
@@ -106,7 +120,7 @@ fn request(
                 family: MachineAlternativeFamily::HostedWriteByteI32,
                 variant: 0,
             })
-        || !(0..=4095).contains(&displacement)
+        || u32::try_from(displacement).is_err()
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -128,34 +142,10 @@ pub fn encode_aarch64_selected_hosted_write_byte_form(
     let register = request(target, physical, kind, alternative, operands, displacement)?;
     let displacement = u32::try_from(displacement)
         .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-    let mut words = vec![
-        0x3900_03e0 | (displacement << 10) | u32::from(register),
-        0xd280_0020,
-        0x9100_03e1 | (displacement << 10),
-        0xd280_0022,
-    ];
-    if target == NativeTarget::macos_arm64() {
-        // Darwin returns errors via carry. Test it before CMP overwrites NZCV.
-        // Apple ABI: x16 selects write(4), SVC #0x80 enters the kernel.
-        // https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/custom/SYS.h
-        // https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/syscalls.master
-        words.extend([
-            0xd280_0090,
-            0xd400_1001,
-            0x5400_0062,
-            0xf100_041f,
-            0x5400_0040,
-            0xd420_0000,
-        ]);
-    } else {
-        words.extend([
-            0xd280_0808,
-            0xd400_0001,
-            0xf100_001f,
-            0x5400_004c,
-            0xd420_0000,
-        ]);
-    }
+    let mut words = store_and_buffer_words(register, displacement);
+    words.extend_from_slice(
+        system_call_words(target).ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?,
+    );
     let bytes = words
         .into_iter()
         .flat_map(u32::to_le_bytes)
@@ -197,48 +187,95 @@ pub fn validate_aarch64_selected_hosted_write_byte_form(
     })
 }
 
-fn decode(target: NativeTarget, bytes: &[u8]) -> Option<(u8, u32)> {
-    let suffix: &[u32] = if target == NativeTarget::linux_arm64() {
-        &[
-            0xd280_0022,
+/// The value store, descriptor, buffer and count words before the system
+/// call. See the module comment for the two reaches.
+fn store_and_buffer_words(register: u8, displacement: u32) -> Vec<u32> {
+    let register = u32::from(register);
+    if displacement <= 4095 {
+        return vec![
+            0x3900_03e0 | (displacement << 10) | register, // strb wValue, [sp, #home]
+            0xd280_0020,                                   // mov x0, #1
+            0x9100_03e1 | (displacement << 10),            // add x1, sp, #home
+            0xd280_0022,                                   // mov x2, #1
+        ];
+    }
+    let mut words = vec![0x2a00_03e2 | (register << 16)]; // mov w2, wValue
+    words.extend(address_words(1, 31, u64::from(displacement)));
+    words.extend([
+        0x3900_0022, // strb w2, [x1]
+        0xd280_0020, // mov x0, #1
+        0xd280_0022, // mov x2, #1
+    ]);
+    words
+}
+
+/// The system call and its failure branch. Darwin returns errors via carry,
+/// tested before CMP overwrites NZCV; its ABI selects write(4) through x16
+/// and enters the kernel with SVC #0x80.
+/// https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/custom/SYS.h
+/// https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/syscalls.master
+fn system_call_words(target: NativeTarget) -> Option<&'static [u32]> {
+    if target == NativeTarget::linux_arm64() {
+        Some(&[
             0xd280_0808,
             0xd400_0001,
             0xf100_001f,
             0x5400_004c,
             0xd420_0000,
-        ]
+        ])
     } else if target == NativeTarget::macos_arm64() {
-        &[
-            0xd280_0022,
+        Some(&[
             0xd280_0090,
             0xd400_1001,
             0x5400_0062,
             0xf100_041f,
             0x5400_0040,
             0xd420_0000,
-        ]
+        ])
     } else {
-        return None;
-    };
-    if bytes.len() != (3 + suffix.len()) * 4 {
+        None
+    }
+}
+
+/// Exact byte width of the write leaf for a boundary home at `displacement`.
+pub fn aarch64_hosted_write_byte_i32_byte_count(
+    target: NativeTarget,
+    displacement: u32,
+) -> Option<usize> {
+    Some((store_and_buffer_words(0, displacement).len() + system_call_words(target)?.len()) * 4)
+}
+
+fn decode(target: NativeTarget, bytes: &[u8]) -> Option<(u8, u32)> {
+    let system_call = system_call_words(target)?;
+    let (chunks, tail) = bytes.as_chunks::<4>();
+    if !tail.is_empty() {
         return None;
     }
-    let words = bytes
-        .as_chunks::<4>()
-        .0
+    let words = chunks
         .iter()
         .map(|word| u32::from_le_bytes(*word))
         .collect::<Vec<_>>();
-    if words[0] & 0xffc0_03e0 != 0x3900_03e0
-        || words[0] & 31 == 31
-        || words[2] & 0xffc0_03ff != 0x9100_03e1
-        || ((words[2] >> 10) & 4095) != ((words[0] >> 10) & 4095)
-        || words[1] != 0xd280_0020
-        || &words[3..] != suffix
-    {
+    let first = *words.first()?;
+    let (register, displacement) = if first & 0xffc0_03e0 == 0x3900_03e0 {
+        (first & 31, (first >> 10) & 4095)
+    } else if first & 0xffe0_ffff == 0x2a00_03e2 {
+        let reach = words[1..]
+            .iter()
+            .take_while(|word| *word & 0xff80_001f == 0x9100_0001)
+            .count();
+        let displacement = decode_address_words(&words[1..=reach], 1, 31)?;
+        ((first >> 16) & 31, u32::try_from(displacement).ok()?)
+    } else {
+        return None;
+    };
+    // The zero register is never an allocated value.
+    if register == 31 {
         return None;
     }
-    Some(((words[0] & 31) as u8, (words[0] >> 10) & 4095))
+    let register = register as u8;
+    let mut expected = store_and_buffer_words(register, displacement);
+    expected.extend_from_slice(system_call);
+    (words == expected).then_some((register, displacement))
 }
 
 /// Independently decode the complete returning write leaf for object custody replay.
@@ -283,7 +320,9 @@ mod tests {
         for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
             for name in ["x0", "x1", "x2", "x8", "x9", "x16", "x28"] {
                 let operands = [physical.model().view_named(name).unwrap().id];
-                for displacement in [0, 31, 4095] {
+                // Both store reaches: the twelve-bit immediate, then `x1`
+                // page steps past 4 KiB and past 16 MiB.
+                for displacement in [0, 31, 4095, 4096, 16_777_223, 33_554_448] {
                     let encoded = encode_aarch64_selected_hosted_write_byte_form(
                         target,
                         &physical,
@@ -390,6 +429,13 @@ mod tests {
                         )
                         .is_err()
                     );
+                    assert_eq!(
+                        super::aarch64_hosted_write_byte_i32_byte_count(
+                            target,
+                            displacement as u32
+                        ),
+                        Some(encoded.bytes().len())
+                    );
                     assert!(
                         encode_aarch64_selected_hosted_write_byte_form(
                             target,
@@ -397,7 +443,7 @@ mod tests {
                             kind,
                             alternative,
                             &operands,
-                            4096
+                            i64::from(u32::MAX) + 1
                         )
                         .is_err()
                     );

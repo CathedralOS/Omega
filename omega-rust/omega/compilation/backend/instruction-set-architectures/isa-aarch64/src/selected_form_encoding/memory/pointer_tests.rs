@@ -84,20 +84,27 @@ fn pointer_store_known_bytes_preserve_the_requested_width() {
         wide_address.bytes(),
         [0x89, 0x11, 0x40, 0x91, 0x29, 0x41, 0x00, 0x91]
     );
-    assert!(
-        encode_aarch64_selected_memory_form(
-            &physical,
-            SelectedInstructionKind::AddressOffset {
-                byte_offset: 0x0100_0000
-            },
-            MachineAlternativeKey {
-                family: MachineAlternativeFamily::AddressOffset,
-                variant: 0
-            },
-            &operands,
-            0x0100_0000,
-        )
-        .is_err()
+    // 16 MiB is 4096 pages: a full 4095-page step from the base, then one
+    // page from the destination.
+    let paged_address = encode_aarch64_selected_memory_form(
+        &physical,
+        SelectedInstructionKind::AddressOffset {
+            byte_offset: 0x0100_0000,
+        },
+        MachineAlternativeKey {
+            family: MachineAlternativeFamily::AddressOffset,
+            variant: 0,
+        },
+        &operands,
+        0x0100_0000,
+    )
+    .unwrap();
+    assert_eq!(
+        paged_address.bytes(),
+        [0x917f_fd89_u32, 0x9140_0529]
+            .into_iter()
+            .flat_map(u32::to_le_bytes)
+            .collect::<Vec<_>>()
     );
 }
 
@@ -125,7 +132,17 @@ fn pointer_stores_and_offsets_replay_every_bit_and_operand() {
                     );
                 }
             }
-            for byte_offset in [0, 2, 4095, 4096, 16400, 0x00ff_ffff] {
+            for byte_offset in [
+                0,
+                2,
+                4095,
+                4096,
+                16400,
+                0x00ff_ffff,
+                0x0100_0000,
+                33_554_431,
+                u32::MAX,
+            ] {
                 check_replay(
                     &physical,
                     SelectedInstructionKind::AddressOffset { byte_offset },

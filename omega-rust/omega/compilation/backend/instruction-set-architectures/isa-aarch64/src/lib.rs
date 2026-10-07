@@ -6,6 +6,7 @@
 mod floating_control;
 mod frame_protocol;
 mod hosted_sequences;
+mod immediate_offset;
 mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
@@ -103,7 +104,9 @@ pub use selected_form_encoding::hosted_read_byte::{
     decode_aarch64_selected_hosted_read_byte, encode_aarch64_selected_hosted_read_byte_form,
     validate_aarch64_selected_hosted_read_byte_form,
 };
-pub use selected_form_encoding::hosted_write_byte::decode_aarch64_selected_hosted_write_byte_i32;
+pub use selected_form_encoding::hosted_write_byte::{
+    aarch64_hosted_write_byte_i32_byte_count, decode_aarch64_selected_hosted_write_byte_i32,
+};
 pub use selected_form_encoding::system_call::{
     encode_aarch64_selected_system_call_form, validate_aarch64_selected_system_call_form,
 };

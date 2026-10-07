@@ -324,6 +324,62 @@ fn large_frames_commit_through_an_exact_probe_roster() {
 }
 
 #[test]
+fn frames_past_the_shared_displacement_reach_are_refused_by_name() {
+    for (target, abi) in [
+        (
+            target::NativeTarget::linux_x64(),
+            FrameAbiPreservationConvention::SystemVAMD64,
+        ),
+        (
+            target::NativeTarget::windows_x64(),
+            FrameAbiPreservationConvention::MicrosoftX64,
+        ),
+        (
+            target::NativeTarget::linux_arm64(),
+            FrameAbiPreservationConvention::Aapcs64,
+        ),
+        (
+            target::NativeTarget::macos_arm64(),
+            FrameAbiPreservationConvention::DarwinAapcs64,
+        ),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let layout = |byte_size: u32| {
+            function_layout(
+                &environment,
+                abi,
+                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+                semantic_vocabulary::MachineId::new(1).unwrap(),
+                false,
+                false,
+                &[],
+                &[selected_instructions::SelectedLocalStorageSlot {
+                    id: selected_instructions::LocalStorageSlotId::Structural {
+                        operation: semantic_vocabulary::OperationId::new(7).unwrap(),
+                        place: semantic_vocabulary::PlaceId::new(11).unwrap(),
+                    },
+                    byte_size,
+                    alignment: 8,
+                }],
+                Vec::new(),
+                0,
+                Vec::new(),
+            )
+        };
+        // 32 MiB and the last page under 2 GiB lay out; 2 GiB does not.
+        assert!(layout(33_554_440).unwrap().frame_size_bytes >= 33_554_440);
+        assert!(layout(0x7fff_f000).unwrap().frame_size_bytes <= super::super::MAX_FRAME_BYTES);
+        assert!(matches!(
+            layout(0x8000_0000),
+            Err(TargetFrameLayoutError::FrameExceedsAddressableExtent {
+                frame_size_bytes
+            }) if frame_size_bytes > super::super::MAX_FRAME_BYTES
+        ));
+    }
+}
+
+#[test]
 fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
     let environment = register_environment::baseline_target_register_environment(
         target::NativeTarget::linux_x64(),

@@ -69,19 +69,29 @@ pub(crate) fn selected_byte_output_shape_is_exact(
     let [argument] = settlement.runtime_scalar_arguments.as_slice() else {
         return false;
     };
-    let InternalUnitScalarArgumentSourceRecord::SelectedBoundary { scalar_type, .. } =
-        argument.source
+    let InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
+        scalar_type,
+        scratch_byte_offset,
+        ..
+    } = argument.source
     else {
         return false;
     };
-    // Darwin x86-64 adds one two-byte carry branch to the Linux leaf.
-    let byte_count = if target == NativeTarget::linux_x64() || target == NativeTarget::macos_arm64()
-    {
+    // Darwin x86-64 adds one two-byte carry branch to the Linux leaf. An
+    // AArch64 leaf whose home lies past the byte store's immediate reach
+    // forms its address in page steps, so its width follows the home.
+    let byte_count = if target == NativeTarget::linux_x64() {
         40
     } else if target == NativeTarget::macos_x64() {
         42
-    } else if target == NativeTarget::linux_arm64() {
-        36
+    } else if target == NativeTarget::linux_arm64() || target == NativeTarget::macos_arm64() {
+        let Some(byte_count) = u32::try_from(scratch_byte_offset)
+            .ok()
+            .and_then(|home| isa_aarch64::aarch64_hosted_write_byte_i32_byte_count(target, home))
+        else {
+            return false;
+        };
+        byte_count
     } else {
         return false;
     };

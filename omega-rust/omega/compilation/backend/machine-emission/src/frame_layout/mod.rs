@@ -46,6 +46,13 @@ use selected_instructions_to_register_homes::{
 };
 use target::NativeTarget;
 
+/// The largest activation every supported target can address. Frame
+/// coordinates resolve to nonnegative `i32` displacements — x86-64 encodes
+/// them as `disp32`, and the shared frame-address resolution admits no wider
+/// one — so layout refuses a larger frame by name instead of leaving one of
+/// its accesses to fail at encoding.
+pub const MAX_FRAME_BYTES: u64 = i32::MAX as u64;
+
 pub fn stage_target_frame_layout(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,

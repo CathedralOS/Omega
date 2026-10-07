@@ -357,6 +357,7 @@ pass/calls/runtime_guarded_terminal_structural_result_exit built 4355ms exit:0 @
 pass/calls/runtime_heterogeneous_case_argument_exit built 11452ms exit:0 @b0e82acb332e+wt
 pass/calls/runtime_indexed_scalar_calls_exit built 1627ms exit:70 @63377f7122bb+wt
 pass/calls/runtime_inherited_membership_argument_snapshot_exit built 2072ms exit:0 @cfbb6c8709b4+wt
+pass/calls/runtime_large_frame_foreign_call_floating_control_exit built 1339ms exit:70 @3ce19b649c88+wt
 pass/calls/runtime_large_structural_frame_exit built 2593ms exit:70 @48547351f382+wt
 pass/calls/runtime_let_mut_reassign_exit built 591ms exit:2
 pass/calls/runtime_lifetime_only_constructor_result_exit built 1050ms exit:70
@@ -1059,6 +1060,9 @@ pass/memory/address_translation_canary rejected 2012ms regressed-from:checked @8
 pass/memory/bump_allocator_canary built 732ms
 pass/memory/interrupt_table_canary rejected 1746ms regressed-from:checked @693920652f41
 	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
+pass/memory/runtime_large_entry_record_field_exit built 1425ms exit:70 @3ce19b649c88+wt
+pass/memory/runtime_large_frame_console_byte_homes_exit built 1251ms exit:70 stdout:match @3ce19b649c88+wt
+pass/memory/runtime_large_local_record_exit built 1251ms exit:70 @3ce19b649c88+wt
 pass/memory/secondary_processor_canary rejected 998ms regressed-from:built @693920652f41
 	selected overload `named-callable(path(StartupEnvelope::confirm),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(StartupEnvelope\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/weak_vacant_qualifier_satisfied checked 158ms
