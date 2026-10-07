@@ -348,6 +348,34 @@ fn family_boundary_overloads<'program>(
         .collect()
 }
 
+/// The provisional-identity overload admission shared by the statement and
+/// expression named-callable paths: resolves the family boundary overloads
+/// visible from `source_span` and reports whether they cover every visible
+/// candidate.
+fn visible_boundary_overload_family<'program>(
+    program: &'program TypedTrees,
+    candidates: &[&'program typed_trees::operator::OperatorDefinition],
+    source_span: SourceSpan,
+    provisional: &'program typed_trees::operator::OperatorDefinition,
+) -> (CallableIdentityId, Vec<(SymbolHandle, CallableIdentityId)>, usize) {
+    let provisional_identity = program.operator_callable_identity(provisional);
+    let visible_candidate_count = candidates
+        .iter()
+        .filter(|operator| {
+            program
+                .symbols
+                .source_reference_can_see_symbol(source_span, operator.symbol)
+        })
+        .count();
+    let overloads = family_boundary_overloads(
+        program,
+        candidates.iter().copied(),
+        source_span,
+        provisional_identity,
+    );
+    (provisional_identity, overloads, visible_candidate_count)
+}
+
 fn selected_named_statement_callable_symbol(
     program: &TypedTrees,
     machine_overloads: &MachineOverloadIndex,
@@ -389,21 +417,8 @@ fn selected_named_statement_callable_symbol(
 
     let candidates = typed_trees::operator::named_statement_call_candidates(program, call);
     if let Some(provisional) = candidates.first() {
-        let provisional_identity = program.operator_callable_identity(provisional);
-        let visible_candidate_count = candidates
-            .iter()
-            .filter(|operator| {
-                program
-                    .symbols
-                    .source_reference_can_see_symbol(source_span, operator.symbol)
-            })
-            .count();
-        let overloads = family_boundary_overloads(
-                program,
-                candidates.iter().copied(),
-                source_span,
-                provisional_identity,
-            );
+        let (provisional_identity, overloads, visible_candidate_count) =
+            visible_boundary_overload_family(program, &candidates, source_span, provisional);
         if overloads.len() == visible_candidate_count {
             if let [(symbol, _)] = overloads.as_slice() {
                 return Some(*symbol);
@@ -473,21 +488,8 @@ fn selected_named_expression_callable_symbol(
             diagnostics,
         );
     };
-    let provisional_identity = program.operator_callable_identity(provisional);
-    let visible_candidate_count = candidates
-        .iter()
-        .filter(|operator| {
-            program
-                .symbols
-                .source_reference_can_see_symbol(source_span, operator.symbol)
-        })
-        .count();
-    let overloads = family_boundary_overloads(
-        program,
-        candidates.iter().copied(),
-        source_span,
-        provisional_identity,
-    );
+    let (provisional_identity, overloads, visible_candidate_count) =
+        visible_boundary_overload_family(program, &candidates, source_span, provisional);
     if overloads.len() != visible_candidate_count {
         // Path/arity alone still spans distinct parameter overload groups.
         // Leave those calls to ordinary operand-directed resolution.
