@@ -199,8 +199,7 @@ echo "executable entries: a one-byte change or truncation is refused with its re
 
 for record in \
   tests/bootstrap/omega-parser/gate.py \
-  tests/bootstrap/omega-outcome/gate.py \
-  tests/bootstrap/omega-request/gate.py \
+  tests/bootstrap/gate_lib.py \
   tests/bootstrap/source-closure.py \
   tests/epsilon/d-composition/customers.py
 do
