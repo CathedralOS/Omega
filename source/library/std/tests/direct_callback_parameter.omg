@@ -77,6 +77,22 @@ RegistrarPolicyCallingPolicy satisfies CallingPolicy {
     CallingPolicy::plan = RegistrarPolicy::plan;
 }
 
+machine BoundaryEntryPlan::write_integer_register_parameter(
+    output: &mut BoundaryEntryPlan,
+    index: u64 [0..=31],
+    register: MachineRegister
+) {
+    output.call.parameters[index].shape.class = AbiValueClass::Integer;
+    output.call.parameters[index].shape.byte_size = 8;
+    output.call.parameters[index].shape.alignment = 8;
+    output.call.parameters[index].location_count = 1;
+    output.call.parameters[index].locations[0] = ValueLocation::Register {
+        register: register,
+        value_byte_offset: 0,
+        byte_size: 8,
+    };
+}
+
 machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
@@ -103,24 +119,8 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::MicrosoftX64;
         output.call.parameter_count = 2;
-        output.call.parameters[0].shape.class = AbiValueClass::Integer;
-        output.call.parameters[0].shape.byte_size = 8;
-        output.call.parameters[0].shape.alignment = 8;
-        output.call.parameters[0].location_count = 1;
-        output.call.parameters[0].locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86Rcx,
-            value_byte_offset: 0,
-            byte_size: 8,
-        };
-        output.call.parameters[1].shape.class = AbiValueClass::Integer;
-        output.call.parameters[1].shape.byte_size = 8;
-        output.call.parameters[1].shape.alignment = 8;
-        output.call.parameters[1].location_count = 1;
-        output.call.parameters[1].locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86Rdx,
-            value_byte_offset: 0,
-            byte_size: 8,
-        };
+        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 0, MachineRegister::X86Rcx);
+        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 1, MachineRegister::X86Rdx);
         output.call.stack_alignment = 16;
         output.call.shadow_bytes = 32;
         output.call.entry_control = EntryControl::CallReturn;
@@ -134,33 +134,9 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::MicrosoftX64;
         output.call.parameter_count = 3;
-        output.call.parameters[0].shape.class = AbiValueClass::Integer;
-        output.call.parameters[0].shape.byte_size = 8;
-        output.call.parameters[0].shape.alignment = 8;
-        output.call.parameters[0].location_count = 1;
-        output.call.parameters[0].locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86Rcx,
-            value_byte_offset: 0,
-            byte_size: 8,
-        };
-        output.call.parameters[1].shape.class = AbiValueClass::Integer;
-        output.call.parameters[1].shape.byte_size = 8;
-        output.call.parameters[1].shape.alignment = 8;
-        output.call.parameters[1].location_count = 1;
-        output.call.parameters[1].locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86Rdx,
-            value_byte_offset: 0,
-            byte_size: 8,
-        };
-        output.call.parameters[2].shape.class = AbiValueClass::Integer;
-        output.call.parameters[2].shape.byte_size = 8;
-        output.call.parameters[2].shape.alignment = 8;
-        output.call.parameters[2].location_count = 1;
-        output.call.parameters[2].locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86R8,
-            value_byte_offset: 0,
-            byte_size: 8,
-        };
+        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 0, MachineRegister::X86Rcx);
+        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 1, MachineRegister::X86Rdx);
+        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 2, MachineRegister::X86R8);
         output.call.callback_materialization_count = 1;
         output.call.callback_materializations[0].binder =
             signature.callback_binders[0].binder;
