@@ -322,21 +322,7 @@ pub(super) fn bound_reference_referent_place(
     let resolver = crate::flow::shared_call_frames_or(contexts.call_frames, program, &mut owned)?;
     // The walk records the referent beside the local's own storage entry;
     // only an origin rooted in different storage can be the referent.
-    let mut referents = resolver
-        .local_write_origins_before_statement(machine, before)?
-        .into_iter()
-        .filter(|origin| {
-            origin.local_symbol == local_symbol
-                && origin.local_segments.is_empty()
-                && origin
-                    .source
-                    .as_ref()
-                    .is_none_or(|source| source.root != local_symbol)
-        });
-    let origin = referents.next()?;
-    if referents.next().is_some() {
-        return None;
-    }
+    let origin = crate::flow::sole_local_referent_origin(resolver, machine, before, local_symbol)?;
     let (place, exact) = origin_place(program, state, statement_index, &origin)?;
     if !exact {
         return None;

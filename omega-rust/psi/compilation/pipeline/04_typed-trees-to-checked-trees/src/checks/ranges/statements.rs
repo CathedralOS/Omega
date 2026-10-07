@@ -173,21 +173,8 @@ pub(super) fn bound_reference_referent_extent(
         .statement_table
         .statements(state.statement_nodes)
         .get(facts.statement_index + 1)?;
-    let mut referents = call_frames?
-        .local_write_origins_before_statement(machine, before)?
-        .into_iter()
-        .filter(|origin| {
-            origin.local_symbol == local_symbol
-                && origin.local_segments.is_empty()
-                && origin
-                    .source
-                    .as_ref()
-                    .is_none_or(|source| source.root != local_symbol)
-        });
-    let origin = referents.next()?;
-    if referents.next().is_some() {
-        return None;
-    }
+    let origin =
+        crate::flow::sole_local_referent_origin(call_frames?, machine, before, local_symbol)?;
     let source = origin.source.as_ref()?;
     let (place, exact) = crate::flow::origin_place(program, state, facts.statement_index, &origin)?;
     if !exact {

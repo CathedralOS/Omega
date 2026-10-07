@@ -132,7 +132,6 @@ use exits::append_state_exit_facts;
 use fact_rows::borrow_state_fact;
 pub(crate) use fact_rows::proof_contract_call;
 pub(crate) use mutation::close_storage_places_over_aliases_with_resolver;
-pub(crate) use mutation::origin_place;
 pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_receiver_write_accesses,
@@ -140,6 +139,7 @@ pub(crate) use mutation::{
     place_from_origin_path, signature_ceiling_places, state_storage_writes,
     statement_mutated_place, statement_storage_writes,
 };
+pub(crate) use mutation::{origin_place, sole_local_referent_origin};
 use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,
     resolve_operator_for_call, resolve_operator_statement_call,

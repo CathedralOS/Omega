@@ -22,7 +22,7 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 mod coordinates;
-pub(crate) use coordinates::origin_place;
+pub(crate) use coordinates::{origin_place, sole_local_referent_origin};
 
 pub(crate) fn close_storage_places_over_aliases_with_resolver(
     program: &typed_trees::TypedTrees,

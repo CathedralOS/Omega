@@ -49,3 +49,27 @@ fn structural_origin(
     canonical_place_type_reference(program, state.symbol, statement_index, &place)?;
     Some((place, true))
 }
+
+/// The sole whole-local write origin of `local_symbol` before `statement`,
+/// restricted to referents rooted outside the local's own storage. The range
+/// referent lookup and the projected-binding walk share this admission.
+pub(crate) fn sole_local_referent_origin(
+    resolver: &validation::CallFrameResolver<'_>,
+    machine: &typed_trees::machine::Machine,
+    statement: &typed_trees::statement::StatementNode,
+    local_symbol: symbols::SymbolHandle,
+) -> Option<validation::LocalWriteOrigin> {
+    let mut referents = resolver
+        .local_write_origins_before_statement(machine, statement)?
+        .into_iter()
+        .filter(|origin| {
+            origin.local_symbol == local_symbol
+                && origin.local_segments.is_empty()
+                && origin
+                    .source
+                    .as_ref()
+                    .is_none_or(|source| source.root != local_symbol)
+        });
+    let origin = referents.next()?;
+    (referents.next().is_none()).then_some(origin)
+}
