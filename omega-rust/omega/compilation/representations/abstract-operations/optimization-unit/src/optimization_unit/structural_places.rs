@@ -4,9 +4,9 @@
 
 use abstract_operations::AbstractOperation as O;
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, IntegerType, IntegerValue, OperationId, PlaceId,
-    ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
-    ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, IntegerType, IntegerValue, OperationId,
+    PlaceId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -966,4 +966,48 @@ impl DispatchCondition {
             _ => None,
         }
     }
+}
+
+/// Blocks still reachable after a conditional fold keeps only the
+/// selected edge of `source`.
+pub fn reachable_blocks_after_conditional_fold(
+    function: &PsiOptimizationFunction,
+    source: BlockId,
+    selected_edge: EdgeId,
+) -> Option<BTreeSet<BlockId>> {
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![function.entry];
+    while let Some(block_id) = pending.pop() {
+        if !reachable.insert(block_id) {
+            continue;
+        }
+        let block = function.blocks.iter().find(|block| block.id == block_id)?;
+        for edge in block.nodes.iter().flat_map(|node| &node.successors) {
+            if block_id != source || edge.psi_edge == selected_edge {
+                pending.push(edge.target);
+            }
+        }
+    }
+    Some(reachable)
+}
+
+/// The definition site of `value` across the function's parameters,
+/// block parameters and node definitions.
+pub fn scalar_value_definition(
+    function: &PsiOptimizationFunction,
+    value: ValueId,
+) -> Option<ValueDefinition> {
+    function
+        .parameters
+        .iter()
+        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .flat_map(|node| &node.definitions),
+        )
+        .copied()
+        .find(|definition| definition.value == value)
 }

@@ -41,28 +41,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
-    FuelSettlement, OptimizationEdge, PsiOptimizationFunction, PsiProvenance, ValueDefinition,
+    FuelSettlement, OptimizationEdge, PsiOptimizationFunction, PsiProvenance,
+    scalar_value_definition,
 };
-use semantic_vocabulary::{BlockId, ValueId};
-
-pub(super) fn scalar_value_definition(
-    function: &PsiOptimizationFunction,
-    value: ValueId,
-) -> Option<ValueDefinition> {
-    function
-        .parameters
-        .iter()
-        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .flat_map(|node| &node.definitions),
-        )
-        .copied()
-        .find(|definition| definition.value == value)
-}
+use semantic_vocabulary::BlockId;
 
 pub(super) fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge> {
     match operation {

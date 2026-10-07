@@ -2,8 +2,8 @@
 use optimization_unit::{
     OptimizationEdge, OptimizationFact, PsiOptimizationFunction, PsiProvenance,
     ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
-    SccpValueRow, SccpValueState, ValueDefinition, derived_sccp_scalar_constant_fact_identity,
-    literal_scalar_constant_fact_identity,
+    SccpValueRow, SccpValueState, derived_sccp_scalar_constant_fact_identity,
+    literal_scalar_constant_fact_identity, scalar_value_definition,
 };
 use semantic_vocabulary::{BlockId, EdgeId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -353,25 +353,6 @@ pub(crate) fn validator_sccp_snapshot(
         edges,
         values: snapshot_values,
     }
-}
-
-pub(crate) fn scalar_value_definition(
-    function: &PsiOptimizationFunction,
-    value: ValueId,
-) -> Option<ValueDefinition> {
-    function
-        .parameters
-        .iter()
-        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .flat_map(|node| &node.definitions),
-        )
-        .copied()
-        .find(|definition| definition.value == value)
 }
 
 pub(crate) fn validator_integer_value_type(

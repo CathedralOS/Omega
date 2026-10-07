@@ -10,7 +10,7 @@ use optimization_unit::{
     ConstantConditionalRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationEdge,
     ProvenanceDisposition, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueUse,
-    recompute_psi_optimization_unit_identity,
+    reachable_blocks_after_conditional_fold, recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::BTreeSet;
@@ -216,27 +216,6 @@ pub(super) fn validate(
         ),
         provenance: accepted_provenance,
     })
-}
-
-pub(crate) fn reachable_blocks_after_conditional_fold(
-    function: &PsiOptimizationFunction,
-    source: BlockId,
-    selected_edge: EdgeId,
-) -> Option<BTreeSet<BlockId>> {
-    let mut reachable = BTreeSet::new();
-    let mut pending = vec![function.entry];
-    while let Some(block_id) = pending.pop() {
-        if !reachable.insert(block_id) {
-            continue;
-        }
-        let block = function.blocks.iter().find(|block| block.id == block_id)?;
-        for edge in block.nodes.iter().flat_map(|node| &node.successors) {
-            if block_id != source || edge.psi_edge == selected_edge {
-                pending.push(edge.target);
-            }
-        }
-    }
-    Some(reachable)
 }
 
 pub(crate) fn reconstruct_conditional_fold_accounting(

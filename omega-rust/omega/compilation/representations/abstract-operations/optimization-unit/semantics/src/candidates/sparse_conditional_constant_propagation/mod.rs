@@ -18,9 +18,8 @@ pub use integer_candidate::validate_integer_evaluation_candidate;
 
 pub(crate) use integer_evaluation::literal_boolean_fact;
 pub(crate) use observation::{observation_at, same_closed_scalar_observation};
-pub(crate) use snapshot_reconstruction::{
-    scalar_value_definition, validator_scalar_constant_facts,
-};
+pub(crate) use optimization_unit::scalar_value_definition;
+pub(crate) use snapshot_reconstruction::validator_scalar_constant_facts;
 
 pub(super) fn validate_scalar_evaluation_candidate(
     input: &PsiOptimizationUnit,

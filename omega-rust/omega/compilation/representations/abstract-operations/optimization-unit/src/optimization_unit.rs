@@ -208,8 +208,9 @@ pub use structural_places::{
     constant_definition, declared_structural_type, descended_field, descended_field_id,
     descended_field_matching, descended_type, dominators, establishment_fields,
     establishment_producer, field_evidence, function_analysis, integer_comparison_condition,
-    matches_constant_kind, matches_observed_kind, observed_field_declaration, record_initializer,
-    root_producer, shape, structural_child, zeroed_fold,
+    matches_constant_kind, matches_observed_kind, observed_field_declaration,
+    reachable_blocks_after_conditional_fold, record_initializer, root_producer,
+    scalar_value_definition, shape, structural_child, zeroed_fold,
 };
 
 pub use integer_intervals::{

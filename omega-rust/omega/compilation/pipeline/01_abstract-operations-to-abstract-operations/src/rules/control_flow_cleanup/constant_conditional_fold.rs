@@ -10,6 +10,7 @@ use optimization_core::{
 use optimization_unit::{
     ConstantConditionalRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    reachable_blocks_after_conditional_fold,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 
@@ -92,9 +93,11 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
                         block: block.id,
                         node: u32::try_from(node_index).expect("optimization node indices are u32"),
                     };
-                    let Some(reachable) =
-                        reachable_blocks_after_fold(function, block.id, selected.psi_edge)
-                    else {
+                    let Some(reachable) = reachable_blocks_after_conditional_fold(
+                        function,
+                        block.id,
+                        selected.psi_edge,
+                    ) else {
                         continue;
                     };
                     if function.blocks.iter().any(|block| {
@@ -134,27 +137,6 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
         }
         Ok(candidates)
     }
-}
-
-fn reachable_blocks_after_fold(
-    function: &PsiOptimizationFunction,
-    source: BlockId,
-    selected_edge: EdgeId,
-) -> Option<BTreeSet<BlockId>> {
-    let mut reachable = BTreeSet::new();
-    let mut pending = vec![function.entry];
-    while let Some(block_id) = pending.pop() {
-        if !reachable.insert(block_id) {
-            continue;
-        }
-        let block = function.blocks.iter().find(|block| block.id == block_id)?;
-        for edge in block.nodes.iter().flat_map(|node| &node.successors) {
-            if block_id != source || edge.psi_edge == selected_edge {
-                pending.push(edge.target);
-            }
-        }
-    }
-    Some(reachable)
 }
 
 fn conditional_fold_accounting(
