@@ -321,7 +321,6 @@ impl IntegerType {
         minimum
     }
 
-
     /// Add two admitted values modulo this exact integer width.
     ///
     /// Signed results use two's-complement interpretation of the reduced bit
@@ -361,7 +360,7 @@ impl IntegerType {
             left,
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_add(right)?)),
-            |left, right| Some({ IntegerValue::Signed(left.checked_add(right)?) }),
+            |left, right| Some(IntegerValue::Signed(left.checked_add(right)?)),
         )?;
         self.admits(result).then_some(result)
     }
@@ -375,7 +374,7 @@ impl IntegerType {
             left,
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_sub(right)?)),
-            |left, right| Some({ IntegerValue::Signed(left.checked_sub(right)?) }),
+            |left, right| Some(IntegerValue::Signed(left.checked_sub(right)?)),
         )?;
         self.admits(result).then_some(result)
     }
@@ -389,7 +388,7 @@ impl IntegerType {
             left,
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_mul(right)?)),
-            |left, right| Some({ IntegerValue::Signed(left.checked_mul(right)?) }),
+            |left, right| Some(IntegerValue::Signed(left.checked_mul(right)?)),
         )?;
         self.admits(result).then_some(result)
     }
@@ -404,7 +403,7 @@ impl IntegerType {
             left,
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_div(right)?)),
-            |left, right| Some({ IntegerValue::Signed(left.checked_div(right)?) }),
+            |left, right| Some(IntegerValue::Signed(left.checked_div(right)?)),
         )?;
         self.admits(result).then_some(result)
     }
