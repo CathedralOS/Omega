@@ -1478,9 +1478,11 @@ defines the complete product bar.
   Trapping arithmetic exist (`pass/expressions/mixed_integer_comparison_{widths,places}`,
   `mixed_integer_guard_comparison`, `pass/core/numeric_cross_signed_conversion_surface`
   execute on all three hosts; `pass/core/numeric_trapping_conversion_overflow`
-  traps). Guarded Trap ceilings work:
-  `pass/core/runtime_guarded_trapping_conversion_exit` exits 70 and
-  `fail/core/guarded_trap_ceiling_wider_than_primitive_rejected` rejects.
+  traps). Guarded Trap ceilings run:
+  `pass/core/runtime_guarded_trapping_conversion_exit` exits 70. Since
+  1d2efdb0e2 deleted certificate search, nothing rejects an uncovered site:
+  the four `fail/core/guarded_trap_ceiling_*_rejected` fixtures check; the
+  checker must refuse a Trapping site its `crashes Trap` predicate misses.
   Preserve operation site, operands, carrier, cause and normal-only result
   equation; coordinate **CRASH-CONTRACT** and never invent a Crash edge.
 
