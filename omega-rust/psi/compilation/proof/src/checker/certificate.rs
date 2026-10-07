@@ -659,16 +659,10 @@ fn guarded_bounds_certificate(
             IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.minimum)?),
             IntegerMathTerm::IntegerLiteral(bigint_math_literal(&lower_bound)?),
         )),
-        ProofNode {
-            conclusion: assumptions[lower_index].clone(),
-            rule: ProofRule::Assumption { index: lower_index },
-        },
+        assumption_node(assumptions[lower_index].clone(), lower_index),
     );
     let upper_leg = transitivity_leg(
-        ProofNode {
-            conclusion: assumptions[upper_index].clone(),
-            rule: ProofRule::Assumption { index: upper_index },
-        },
+        assumption_node(assumptions[upper_index].clone(), upper_index),
         closed_relation_node(Proposition::IntegerMathLessOrEqual(
             IntegerMathTerm::IntegerLiteral(bigint_math_literal(&upper_bound)?),
             IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.maximum)?),
@@ -1085,12 +1079,7 @@ fn affine_leg(
     let root_bound = ProofNode {
         conclusion: Proposition::Conjunction(vec![premise.clone(), Proposition::Truth]),
         rule: ProofRule::ConjunctionIntroduction(vec![
-            ProofNode {
-                conclusion: premise,
-                rule: ProofRule::Assumption {
-                    index: anchor_index,
-                },
-            },
+            assumption_node(premise, anchor_index),
             ProofNode {
                 conclusion: Proposition::Truth,
                 rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
@@ -1287,16 +1276,10 @@ fn declared_interval_certificate(
             IntegerMathTerm::IntegerLiteral(lower),
             IntegerMathTerm::IntegerLiteral(declared_lower),
         )),
-        ProofNode {
-            conclusion: lower_premise.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        },
+        assumption_node(lower_premise.clone(), 0),
     );
     let upper_leg = transitivity_leg(
-        ProofNode {
-            conclusion: upper_premise.clone(),
-            rule: ProofRule::Assumption { index: 1 },
-        },
+        assumption_node(upper_premise.clone(), 1),
         closed_relation_node(Proposition::IntegerMathLessOrEqual(
             IntegerMathTerm::IntegerLiteral(declared_upper),
             IntegerMathTerm::IntegerLiteral(upper),
@@ -1343,6 +1326,15 @@ fn bounded_conjunction_certificate(
         assumptions,
         envelope: envelope(seed, proof)?,
     })
+}
+
+/// A premise node: its conclusion is the cited assumption verbatim, and the
+/// kernel resolves the cited context position when checking.
+fn assumption_node(conclusion: Proposition, index: usize) -> ProofNode {
+    ProofNode {
+        conclusion,
+        rule: ProofRule::Assumption { index },
+    }
 }
 
 fn closed_relation_node(conclusion: Proposition) -> ProofNode {
