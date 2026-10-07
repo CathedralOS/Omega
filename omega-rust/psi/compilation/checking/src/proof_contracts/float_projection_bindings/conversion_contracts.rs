@@ -43,6 +43,117 @@ pub fn numeric_float_conversion_contract(
     {
         return None;
     }
+    let resolve = |program: &dyn crate::CheckingInput,
+                   conversion: &typed_trees::expression::TableCallExpression| {
+        let source_kind = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
+            FloatSemanticValueKind::Meaning
+        } else {
+            FloatSemanticValueKind::Integer(
+                numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name())?,
+            )
+        };
+        super::semantic_operations::exact_toolchain_float_semantic_application(
+            program,
+            conversion,
+            &[FloatSemanticValueKind::Format, source_kind],
+        )
+        .map(|semantic| (None, semantic))
+    };
+    scan_conversion_equalities(program, operator, resolve, |candidate| {
+        let (result, result_primitive, meaning_type) = projection(program, candidate.result)?;
+        if result_primitive != target
+            || crate::reserved_result_owner(program, result).map(|owner| owner.0)
+                != Some(operator.symbol)
+            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                operator.symbol,
+                candidate.expression,
+                language_core::OperatorSpelling::Equal,
+                &[Some(meaning_type), Some(meaning_type)],
+            )
+        {
+            return None;
+        }
+        let semantic = candidate.semantic;
+        let [format, value] = program
+            .expression_table
+            .expression_handles(candidate.conversion.arguments)
+        else {
+            return None;
+        };
+        let expected_format = match target {
+            PrimitiveType::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+            PrimitiveType::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+            _ => return None,
+        };
+        if super::semantic_values::exact_toolchain_float_format_const(program, *format)
+            != Some(expected_format)
+        {
+            return None;
+        }
+        let value = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
+            if semantic.name != "convert" {
+                return None;
+            }
+            let (value, source_primitive, _) = projection(program, *value)?;
+            if source_primitive != source {
+                return None;
+            }
+            value
+        } else {
+            let [
+                FloatSemanticValueKind::Format,
+                FloatSemanticValueKind::Integer(carrier),
+            ] = semantic.parameters
+            else {
+                return None;
+            };
+            if semantic.name != "from_integer"
+                || !matches!(semantic.kernel(), FloatSemanticKernel::FromInteger(_))
+                || PrimitiveType::from_name(carrier.spelling()) != Some(source)
+            {
+                return None;
+            }
+            *value
+        };
+        let ExpressionNode::Name(value) = program.expression_table.expression(value) else {
+            return None;
+        };
+        if value.symbol.is_valid() && value.symbol == parameter.symbol {
+            Some((source, target))
+        } else {
+            None
+        }
+    })
+}
+
+/// One resolved equality candidate: a reserved-result side against a named
+/// conversion call whose toolchain semantic contract was selected exactly.
+/// Each caller's `resolve` admits its own conversion catalog; `selected` is
+/// the resolved operator where that catalog names one.
+struct ConversionEqualityCandidate<'program> {
+    expression: ExpressionHandle,
+    result: ExpressionHandle,
+    conversion: &'program typed_trees::expression::TableCallExpression,
+    selected: Option<&'program OperatorDefinition>,
+    semantic: &'static numerics::float_semantics_catalog::FloatSemanticOperation,
+}
+
+/// Scan the operator's ensures equalities for result-vs-conversion pairs in
+/// both operand orders, resolving each call with `resolve` and returning the
+/// first candidate `judge` accepts.
+fn scan_conversion_equalities<'program, R>(
+    program: &'program dyn crate::CheckingInput,
+    operator: &OperatorDefinition,
+    mut resolve: impl FnMut(
+        &'program dyn crate::CheckingInput,
+        &'program typed_trees::expression::TableCallExpression,
+    ) -> Option<(
+        Option<&'program OperatorDefinition>,
+        &'static numerics::float_semantics_catalog::FloatSemanticOperation,
+    )>,
+    mut judge: impl FnMut(&ConversionEqualityCandidate<'_>) -> Option<R>,
+) -> Option<R> {
     for contract in program.operator_contracts(operator) {
         if contract.kind != SignatureContractKind::Ensures {
             continue;
@@ -62,94 +173,22 @@ pub fn numeric_float_conversion_contract(
                 (equality.left, equality.right),
                 (equality.right, equality.left),
             ] {
-                let Some((result, result_primitive, meaning_type)) = projection(program, result)
-                else {
-                    continue;
-                };
-                if result_primitive != target
-                    || crate::reserved_result_owner(program, result).map(|owner| owner.0)
-                        != Some(operator.symbol)
-                    || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                        program,
-                        operator.symbol,
-                        *expression,
-                        language_core::OperatorSpelling::Equal,
-                        &[Some(meaning_type), Some(meaning_type)],
-                    )
-                {
-                    continue;
-                }
                 let ExpressionNode::Call(conversion) =
                     program.expression_table.expression(converted)
                 else {
                     continue;
                 };
-                let source_kind = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
-                    FloatSemanticValueKind::Meaning
-                } else {
-                    FloatSemanticValueKind::Integer(
-                        numerics::float_semantics_catalog::IntegerCarrier::from_spelling(
-                            source.name(),
-                        )?,
-                    )
-                };
-                let Some(semantic) =
-                    super::semantic_operations::exact_toolchain_float_semantic_application(
-                        program,
-                        conversion,
-                        &[FloatSemanticValueKind::Format, source_kind],
-                    )
-                else {
+                let Some((selected, semantic)) = resolve(program, conversion) else {
                     continue;
                 };
-                let [format, value] = program
-                    .expression_table
-                    .expression_handles(conversion.arguments)
-                else {
-                    continue;
-                };
-                let expected_format = match target {
-                    PrimitiveType::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    PrimitiveType::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    _ => return None,
-                };
-                if super::semantic_values::exact_toolchain_float_format_const(program, *format)
-                    != Some(expected_format)
-                {
-                    continue;
-                }
-                let value = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
-                    if semantic.name != "convert" {
-                        continue;
-                    }
-                    let Some((value, source_primitive, _)) = projection(program, *value) else {
-                        continue;
-                    };
-                    if source_primitive != source {
-                        continue;
-                    }
-                    value
-                } else {
-                    let [
-                        FloatSemanticValueKind::Format,
-                        FloatSemanticValueKind::Integer(carrier),
-                    ] = semantic.parameters
-                    else {
-                        continue;
-                    };
-                    if semantic.name != "from_integer"
-                        || !matches!(semantic.kernel(), FloatSemanticKernel::FromInteger(_))
-                        || PrimitiveType::from_name(carrier.spelling()) != Some(source)
-                    {
-                        continue;
-                    }
-                    *value
-                };
-                let ExpressionNode::Name(value) = program.expression_table.expression(value) else {
-                    continue;
-                };
-                if value.symbol.is_valid() && value.symbol == parameter.symbol {
-                    return Some((source, target));
+                if let Some(verdict) = judge(&ConversionEqualityCandidate {
+                    expression: *expression,
+                    result,
+                    conversion,
+                    selected,
+                    semantic,
+                }) {
+                    return Some(verdict);
                 }
             }
         }
@@ -198,88 +237,61 @@ pub fn float_integer_conversion_contract(
         return None;
     }
     let target = program.primitive_type_reference(operator.return_type)?;
-    for contract in program.operator_contracts(operator) {
-        if contract.kind != SignatureContractKind::Ensures {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
-                continue;
-            };
-            let ExpressionNode::Binary(equality) = program.expression_table.expression(*expression)
-            else {
-                continue;
-            };
-            if equality.operator != BinaryOperator::Equal {
-                continue;
-            }
-            for (result, converted) in [
-                (equality.left, equality.right),
-                (equality.right, equality.left),
-            ] {
-                if crate::reserved_result_owner(program, result).map(|owner| owner.0)
-                    != Some(operator.symbol)
-                {
-                    continue;
-                }
-                let ExpressionNode::Call(conversion) =
-                    program.expression_table.expression(converted)
-                else {
-                    continue;
-                };
-                let Some(selected) =
-                    typed_trees::operator::resolve_named_expression_call(program, conversion)
-                else {
-                    continue;
-                };
-                let Some((semantic, _)) =
-                    super::semantic_operations::exact_toolchain_float_semantic_contract(
-                        program, selected,
-                    )
-                else {
-                    continue;
-                };
-                let FloatSemanticValueKind::Integer(carrier) = semantic.result else {
-                    continue;
-                };
-                if PrimitiveType::from_name(carrier.spelling()) != Some(target)
-                    || !matches!(
-                        semantic.kernel(),
-                        FloatSemanticKernel::ToIntegerExact
-                            | FloatSemanticKernel::ToIntegerSaturating
-                    )
-                    || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                        program,
-                        operator.symbol,
-                        *expression,
-                        language_core::OperatorSpelling::Equal,
-                        &[Some(operator.return_type), Some(selected.return_type)],
-                    )
-                {
-                    continue;
-                }
-                let [value] = program
-                    .expression_table
-                    .expression_handles(conversion.arguments)
-                else {
-                    continue;
-                };
-                let Some((value, primitive, _)) = projection(program, *value) else {
-                    continue;
-                };
-                let ExpressionNode::Name(value) = program.expression_table.expression(value) else {
-                    continue;
-                };
-                if primitive == source
-                    && value.symbol.is_valid()
-                    && value.symbol == parameter.symbol
-                {
-                    return Some((source, semantic));
-                }
-            }
-        }
+    fn resolve<'program>(
+        program: &'program dyn crate::CheckingInput,
+        conversion: &'program typed_trees::expression::TableCallExpression,
+    ) -> Option<(
+        Option<&'program OperatorDefinition>,
+        &'static numerics::float_semantics_catalog::FloatSemanticOperation,
+    )> {
+        let selected = typed_trees::operator::resolve_named_expression_call(program, conversion)?;
+        super::semantic_operations::exact_toolchain_float_semantic_contract(program, selected)
+            .map(|(semantic, _)| (Some(selected), semantic))
     }
-    None
+    scan_conversion_equalities(program, operator, resolve, |candidate| {
+        if crate::reserved_result_owner(program, candidate.result).map(|owner| owner.0)
+            != Some(operator.symbol)
+        {
+            return None;
+        }
+        let Some(selected) = candidate.selected else {
+            return None;
+        };
+        let semantic = candidate.semantic;
+        let FloatSemanticValueKind::Integer(carrier) = semantic.result else {
+            return None;
+        };
+        if PrimitiveType::from_name(carrier.spelling()) != Some(target)
+            || !matches!(
+                semantic.kernel(),
+                FloatSemanticKernel::ToIntegerExact | FloatSemanticKernel::ToIntegerSaturating
+            )
+            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                operator.symbol,
+                candidate.expression,
+                language_core::OperatorSpelling::Equal,
+                &[Some(operator.return_type), Some(selected.return_type)],
+            )
+        {
+            return None;
+        }
+        let [value] = program
+            .expression_table
+            .expression_handles(candidate.conversion.arguments)
+        else {
+            return None;
+        };
+        let (value, primitive, _) = projection(program, *value)?;
+        let ExpressionNode::Name(value) = program.expression_table.expression(value) else {
+            return None;
+        };
+        if primitive == source && value.symbol.is_valid() && value.symbol == parameter.symbol {
+            Some((source, semantic))
+        } else {
+            None
+        }
+    })
 }
 
 /// Both admitted integer-conversion kernels are monotone on ordered inputs.
