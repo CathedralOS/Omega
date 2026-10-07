@@ -1132,6 +1132,53 @@ fn boundary_result_origins(
 /// caller's current alias and stored-carrier evidence, kept as the exact
 /// finite union. Union consumers (nested-call arguments) keep every proven
 /// route; single-binding consumers collapse it through `single_place_origin`.
+/// The signature query behind a `*_result_candidate_origins` entry — the
+/// boundary and requirement walks differ only in which resolved signature
+/// they ask.
+type SignatureResultOrigins = fn(
+    &TypedTrees,
+    &Machine,
+    &MachineSymbols<'_>,
+    &TopLevelSymbols<'_>,
+    &TableCallExpression,
+    ExpressionHandle,
+    &mut FrameInference,
+) -> Option<Vec<FramePlaceOrigin>>;
+
+#[allow(clippy::too_many_arguments)]
+fn signature_result_candidate_origins(
+    origins: SignatureResultOrigins,
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    call: &TableCallExpression,
+    expression: ExpressionHandle,
+    inference: &mut FrameInference,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    allow_isolated_local: bool,
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<FramePlaceOrigin>> {
+    canonical_result_origins(
+        origins(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            call,
+            expression,
+            inference,
+        )?,
+        parameters,
+        isolated_local_roots,
+        aliases,
+        allow_isolated_local,
+        stored,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn boundary_result_candidate_origins(
     program: &TypedTrees,
@@ -1147,16 +1194,15 @@ pub(super) fn boundary_result_candidate_origins(
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
-    canonical_result_origins(
-        boundary_result_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            symbols,
-            call,
-            expression,
-            inference,
-        )?,
+    signature_result_candidate_origins(
+        boundary_result_origins,
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        call,
+        expression,
+        inference,
         parameters,
         isolated_local_roots,
         aliases,
@@ -1319,16 +1365,15 @@ pub(super) fn requirement_result_candidate_origins(
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
-    canonical_result_origins(
-        requirement_result_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            symbols,
-            call,
-            expression,
-            inference,
-        )?,
+    signature_result_candidate_origins(
+        requirement_result_origins,
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        call,
+        expression,
+        inference,
         parameters,
         isolated_local_roots,
         aliases,
