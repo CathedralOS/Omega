@@ -392,10 +392,8 @@ pub(super) fn lower(
             source,
         } => {
             live.lengths.insert(result.value, *source);
-            let expression = values
-                .remove(&result.value)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                .into_expression(result.value)?;
+            let expression =
+                removed_scalar_expression(&mut values, function.machine, result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
         }
         AbstractOperation::ElementViewLength {
@@ -404,10 +402,8 @@ pub(super) fn lower(
             source,
         } => {
             live.lengths.insert(result.value, *source);
-            let expression = values
-                .remove(&result.value)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                .into_expression(result.value)?;
+            let expression =
+                removed_scalar_expression(&mut values, function.machine, result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
         }
         AbstractOperation::ByteSequenceRead {
@@ -785,4 +781,17 @@ fn byte_sequence_operand_gate(
         }
     }
     Ok(())
+}
+
+/// The scalar expression `value` built from the map entry `result.value`
+/// owns, consuming the entry.
+fn removed_scalar_expression(
+    values: &mut BTreeMap<ValueId, KnownScalar>,
+    machine: semantic_vocabulary::MachineId,
+    result_value: ValueId,
+) -> Result<TargetScalarExpression, LoweringError> {
+    values
+        .remove(&result_value)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(machine))?
+        .into_expression(result_value)
 }
