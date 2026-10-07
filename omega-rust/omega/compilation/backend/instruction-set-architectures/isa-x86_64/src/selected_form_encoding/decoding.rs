@@ -246,6 +246,15 @@ pub(crate) enum DecodedInstruction {
     },
 }
 
+/// A `DecodedInstruction::Move` shorthand for the expected-sequence
+/// tables.
+fn mov(source: u8, destination: u8) -> DecodedInstruction {
+    DecodedInstruction::Move {
+        source,
+        destination,
+    }
+}
+
 pub(crate) fn decode_all(
     bytes: &[u8],
 ) -> Result<Vec<DecodedInstruction>, X86_64SelectedFormEncodingError> {
@@ -594,10 +603,7 @@ pub(crate) fn decode_one(
             return Err(X86_64SelectedFormEncodingError::MalformedEncoding);
         }
         let decoded = match opcode {
-            0x89 => DecodedInstruction::Move {
-                source: reg,
-                destination: rm,
-            },
+            0x89 => mov(reg, rm),
             0x85 if reg == rm => DecodedInstruction::Test { register: reg },
             0x39 => DecodedInstruction::Compare {
                 left: rm,
@@ -941,10 +947,7 @@ pub(crate) fn validate_decoded(
                 selected_instructions::AtomicOperation::Swap => {
                     decoded
                         == [
-                            DecodedInstruction::Move {
-                                source: registers[1],
-                                destination: registers[2],
-                            },
+                            mov(registers[1], registers[2]),
                             DecodedInstruction::AtomicExchange {
                                 register: registers[2],
                                 base,
@@ -955,10 +958,7 @@ pub(crate) fn validate_decoded(
                 selected_instructions::AtomicOperation::FetchAdd => {
                     decoded
                         == [
-                            DecodedInstruction::Move {
-                                source: registers[1],
-                                destination: registers[2],
-                            },
+                            mov(registers[1], registers[2]),
                             DecodedInstruction::AtomicLockedAdd {
                                 register: registers[2],
                                 base,
@@ -969,10 +969,7 @@ pub(crate) fn validate_decoded(
                 selected_instructions::AtomicOperation::FetchSub => {
                     decoded
                         == [
-                            DecodedInstruction::Move {
-                                source: registers[1],
-                                destination: registers[2],
-                            },
+                            mov(registers[1], registers[2]),
                             DecodedInstruction::Negate {
                                 destination: registers[2],
                             },
@@ -991,10 +988,7 @@ pub(crate) fn validate_decoded(
                                 base,
                                 bits,
                             },
-                            DecodedInstruction::Move {
-                                source: 0,
-                                destination: registers[3],
-                            },
+                            mov(0, registers[3]),
                         ]
                 }
                 operation @ (selected_instructions::AtomicOperation::FetchAnd
@@ -1164,13 +1158,7 @@ pub(crate) fn validate_decoded(
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::CopyI64 => {
-            decoded
-                == [DecodedInstruction::Move {
-                    source: registers[0],
-                    destination: registers[1],
-                }]
-        }
+        SelectedInstructionKind::CopyI64 => decoded == [mov(registers[0], registers[1])],
         SelectedInstructionKind::CompareI64Zero => {
             decoded
                 == [DecodedInstruction::Test {
@@ -1217,10 +1205,7 @@ pub(crate) fn validate_decoded(
                         DecodedInstruction::UnsignedDivide {
                             divisor: registers[1],
                         },
-                        DecodedInstruction::Move {
-                            source: 2,
-                            destination: 0,
-                        },
+                        mov(2, 0),
                     ]
         }
         SelectedInstructionKind::WrappingDivideI64 { .. } => {
@@ -1258,10 +1243,7 @@ pub(crate) fn validate_decoded(
                         DecodedInstruction::SignedDivide {
                             divisor: registers[1],
                         },
-                        DecodedInstruction::Move {
-                            source: 2,
-                            destination: 0,
-                        },
+                        mov(2, 0),
                     ]
         }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
@@ -1281,10 +1263,7 @@ pub(crate) fn validate_decoded(
                         DecodedInstruction::SignedDivide {
                             divisor: registers[1],
                         },
-                        DecodedInstruction::Move {
-                            source: 2,
-                            destination: 0,
-                        },
+                        mov(2, 0),
                     ]
         }
         SelectedInstructionKind::SaturatingAdd { carrier } => {
@@ -1330,10 +1309,7 @@ pub(crate) fn validate_decoded(
             } else {
                 decoded
                     == [
-                        DecodedInstruction::Move {
-                            source: registers[0],
-                            destination: registers[2],
-                        },
+                        mov(registers[0], registers[2]),
                         operation(registers[1], registers[2]),
                     ]
             }
@@ -1365,10 +1341,7 @@ pub(crate) fn validate_decoded(
             } else {
                 decoded
                     == [
-                        DecodedInstruction::Move {
-                            source: registers[0],
-                            destination: registers[1],
-                        },
+                        mov(registers[0], registers[1]),
                         DecodedInstruction::Complement {
                             destination: registers[1],
                         },
@@ -1406,10 +1379,7 @@ pub(crate) fn validate_decoded(
             3 => {
                 decoded
                     == [
-                        DecodedInstruction::Move {
-                            source: registers[0],
-                            destination: registers[2],
-                        },
+                        mov(registers[0], registers[2]),
                         DecodedInstruction::Subtract {
                             source: registers[1],
                             destination: registers[2],
@@ -1444,10 +1414,7 @@ pub(crate) fn validate_decoded(
             3 => {
                 decoded
                     == [
-                        DecodedInstruction::Move {
-                            source: registers[0],
-                            destination: registers[2],
-                        },
+                        mov(registers[0], registers[2]),
                         DecodedInstruction::Multiply {
                             source: registers[1],
                             destination: registers[2],
@@ -1482,15 +1449,7 @@ pub(crate) fn validate_decoded(
                     destination: registers[2],
                 },
             };
-            registers[1] == 1
-                && decoded
-                    == [
-                        DecodedInstruction::Move {
-                            source: registers[0],
-                            destination: registers[2],
-                        },
-                        shift,
-                    ]
+            registers[1] == 1 && decoded == [mov(registers[0], registers[2]), shift]
         }
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
@@ -1603,10 +1562,7 @@ fn expected_saturating(
     match SaturatingForm::of(operation, carrier) {
         SaturatingForm::SubtractUnsigned => vec![
             DecodedInstruction::Compare { left, right },
-            DecodedInstruction::Move {
-                source: left,
-                destination: result,
-            },
+            mov(left, result),
             DecodedInstruction::MoveOnBorrow {
                 source: right,
                 destination: result,
@@ -1617,10 +1573,7 @@ fn expected_saturating(
             },
         ],
         SaturatingForm::AddU64 => vec![
-            DecodedInstruction::Move {
-                source: left,
-                destination: result,
-            },
+            mov(left, result),
             DecodedInstruction::Complement {
                 destination: result,
             },
@@ -1642,13 +1595,7 @@ fn expected_saturating(
         ],
         form @ (SaturatingForm::ClampSignedNarrow | SaturatingForm::ClampUnsignedNarrow) => {
             let scratch = registers[3];
-            let mut expected = vec![
-                DecodedInstruction::Move {
-                    source: left,
-                    destination: result,
-                },
-                arithmetic(right, result),
-            ];
+            let mut expected = vec![mov(left, result), arithmetic(right, result)];
             expected.extend(clamp(result, scratch, carrier.maximum_bits(), true));
             if form == SaturatingForm::ClampSignedNarrow {
                 expected.extend(clamp(result, scratch, carrier.minimum_bits(), false));
@@ -1658,10 +1605,7 @@ fn expected_saturating(
         SaturatingForm::OverflowSelectI64 => {
             let scratch = registers[3];
             vec![
-                DecodedInstruction::Move {
-                    source: left,
-                    destination: scratch,
-                },
+                mov(left, scratch),
                 DecodedInstruction::Complement {
                     destination: scratch,
                 },
@@ -1671,10 +1615,7 @@ fn expected_saturating(
                 DecodedInstruction::ComplementBit63 {
                     destination: scratch,
                 },
-                DecodedInstruction::Move {
-                    source: left,
-                    destination: result,
-                },
+                mov(left, result),
                 arithmetic(right, result),
                 DecodedInstruction::MoveOnOverflow {
                     source: scratch,
@@ -1726,10 +1667,7 @@ fn expected_saturating(
                 destination: 2,
             },
             DecodedInstruction::UnsignedDivide { divisor: right },
-            DecodedInstruction::Move {
-                source: 2,
-                destination: result,
-            },
+            mov(2, result),
         ],
         SaturatingForm::RemainderSigned => vec![
             DecodedInstruction::Xor {
@@ -1743,18 +1681,12 @@ fn expected_saturating(
             DecodedInstruction::JumpEqualShort { displacement: 5 },
             DecodedInstruction::SignExtendDividend,
             DecodedInstruction::SignedDivide { divisor: right },
-            DecodedInstruction::Move {
-                source: 2,
-                destination: result,
-            },
+            mov(2, result),
         ],
         form @ (SaturatingForm::MultiplySignedNarrow | SaturatingForm::MultiplyUnsignedNarrow) => {
             let scratch = registers[3];
             let mut expected = vec![
-                DecodedInstruction::Move {
-                    source: left,
-                    destination: result,
-                },
+                mov(left, result),
                 DecodedInstruction::Multiply {
                     source: right,
                     destination: result,
@@ -1779,10 +1711,7 @@ fn expected_saturating(
         SaturatingForm::MultiplyI64 => {
             let scratch = registers[3];
             vec![
-                DecodedInstruction::Move {
-                    source: left,
-                    destination: scratch,
-                },
+                mov(left, scratch),
                 DecodedInstruction::Xor {
                     source: right,
                     destination: scratch,
@@ -1796,10 +1725,7 @@ fn expected_saturating(
                 DecodedInstruction::ComplementBit63 {
                     destination: scratch,
                 },
-                DecodedInstruction::Move {
-                    source: left,
-                    destination: result,
-                },
+                mov(left, result),
                 DecodedInstruction::Multiply {
                     source: right,
                     destination: result,
@@ -1858,10 +1784,7 @@ fn expected_trapping(form: TrappingForm, registers: &[u8]) -> Vec<DecodedInstruc
                 ]
             }
             RangeCheck::HighBits { shift } => vec![
-                DecodedInstruction::Move {
-                    source: value,
-                    destination: scratch,
-                },
+                mov(value, scratch),
                 DecodedInstruction::ShiftRightLogicalImmediate {
                     destination: scratch,
                     count: shift,
@@ -1874,10 +1797,7 @@ fn expected_trapping(form: TrappingForm, registers: &[u8]) -> Vec<DecodedInstruc
     let arithmetic = |arithmetic: TrappingArithmetic| {
         let (left, right, result) = (registers[0], registers[1], registers[2]);
         vec![
-            DecodedInstruction::Move {
-                source: left,
-                destination: result,
-            },
+            mov(left, result),
             match arithmetic {
                 TrappingArithmetic::Add => DecodedInstruction::Add {
                     source: right,
@@ -1904,10 +1824,7 @@ fn expected_trapping(form: TrappingForm, registers: &[u8]) -> Vec<DecodedInstruc
         expected.extend(trap_unless(DecodedInstruction::JumpBelowShort {
             displacement: 2,
         }));
-        expected.push(DecodedInstruction::Move {
-            source: registers[0],
-            destination: registers[2],
-        });
+        expected.push(mov(registers[0], registers[2]));
         expected
     };
     let shift_right = |destination| {
@@ -1995,10 +1912,7 @@ fn expected_trapping(form: TrappingForm, registers: &[u8]) -> Vec<DecodedInstruc
                 ),
             });
             if remainder {
-                expected.push(DecodedInstruction::Move {
-                    source: 2,
-                    destination: 0,
-                });
+                expected.push(mov(2, 0));
             }
             expected
         }
@@ -2009,10 +1923,7 @@ fn expected_trapping(form: TrappingForm, registers: &[u8]) -> Vec<DecodedInstruc
                 DecodedInstruction::ShiftLeftByCl {
                     destination: result,
                 },
-                DecodedInstruction::Move {
-                    source: result,
-                    destination: scratch,
-                },
+                mov(result, scratch),
                 shift_right(scratch),
                 DecodedInstruction::Compare {
                     left: scratch,
@@ -2040,10 +1951,7 @@ fn expected_trapping(form: TrappingForm, registers: &[u8]) -> Vec<DecodedInstruc
             let mut expected = check
                 .map(|check| range_check(check, operand, scratch))
                 .unwrap_or_default();
-            expected.push(DecodedInstruction::Move {
-                source: operand,
-                destination: result,
-            });
+            expected.push(mov(operand, result));
             expected
         }
     }
