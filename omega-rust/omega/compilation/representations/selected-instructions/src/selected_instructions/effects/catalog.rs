@@ -91,104 +91,148 @@ impl MachineEffectCatalogIdentity {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum MachineSemanticKind {
-    Crash,
-    CopyBytes,
-    BitwiseAndI64,
-    BitwiseXorI64,
-    CallAggregate,
-    ReturnAggregate,
-    HostedExitProcessI32,
-    LoadPacked3,
-    LoadPacked5,
-    LoadPacked6,
-    LoadPacked7,
-    StorePacked,
-    Load8,
-    Load16,
-    Load32,
-    Float32ToBits,
-    Float64ToBits,
-    BitsToFloat32,
-    BitsToFloat64,
-    Load8Indexed,
-    CompareI64Zero,
-    MaterializeI64,
-    CopyI64,
-    ExactAddI64,
-    ExactAddI64Immediate,
-    ExactSubtractI64,
-    ExactDivideU64,
-    ExactSubtractI64Immediate,
-    ConditionalBranchNonZero,
-    ReturnScalar,
-    ReturnUnit,
-    CompareI64,
-    CompareI64Immediate,
-    ConditionalBranchU64LessThan,
-    ConditionalBranchI64LessThan,
-    CallScalar,
-    Jump,
-    ZeroExtendU8,
-    ZeroExtendU32,
-    ZeroExtendU16,
-    SignExtendI8,
-    SignExtendI16,
-    SignExtendI32,
-    Load64,
-    Store64,
-    FrameAddress,
-    CallUnit,
-    ByteViewAddress,
-    HostedReadByte,
-    HostedWriteByteI32,
-    Store,
-    AddressOffset,
-    MaterializeBooleanEqual,
-    MaterializeBooleanU64LessThan,
-    MaterializeBooleanI64LessThan,
-    MaterializeBooleanU64LessOrEqual,
-    MaterializeBooleanI64LessOrEqual,
-    WrappingRemainderI64,
-    WrappingAddI64,
-    SaturatingAdd(SaturatingCarrier),
-    SaturatingSubtract(SaturatingCarrier),
-    SaturatingDivide(SaturatingCarrier),
-    SaturatingRemainder(SaturatingCarrier),
-    NormalizedForeignCall,
-    ExactMultiplyI64,
-    ExactRemainderU64,
-    WrappingSubtractI64,
-    WrappingMultiplyI64,
-    WrappingDivideI64,
-    BitwiseOrI64,
-    BitwiseNotI64,
-    SaveFloatingControl,
-    RestoreFloatingControl,
-    WrappingShiftLeftI64,
-    WrappingShiftRightI64,
-    WrappingShiftRightU64,
-    ExactShiftLeftI64,
-    ExactShiftRightI64,
-    ExactShiftRightU64,
-    ExactDivideI64,
-    ExactRemainderI64,
-    SaturatingMultiply(SaturatingCarrier),
-    /// PC-relative address of one byte literal's read-only image storage.
-    ByteLiteralImageAddress,
-    /// Evaluate one byte-sequence predicate over `count` bytes at the base
-    /// pointer; the defined operand is the 0/1 verdict.
-    ScanByteSequence,
-    /// Compare two measured byte spans; the defined operand is the 0/1
-    /// verdict, and mismatched counts read no bytes.
-    CompareByteSequences,
-    /// One `Trapping` primitive at one carrier: the exact result, or an
-    /// in-function architectural trap when the policy predicate holds.
-    TrappingInteger(TrappingForm),
-    AtomicAccess(AtomicForm),
-    NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm),
-    FloatResultPolicy(FloatResultPolicyForm),
+/// The `MachineSemanticKind` catalog: a single roster drives the enum and the
+/// fixed-entry table so a variant cannot be declared in only one place.
+/// `fixed` items are unit variants carried into `FIXED`; `family` items are
+/// carrier-scaled variants expanded over that carrier's `ALL`; `dynamic`
+/// items are variants whose forms `ALL` appends after the fixed roster.
+macro_rules! machine_semantic_kinds {
+    (@entry ($fixed:ident, $index:ident) fixed $variant:ident) => {{
+        $fixed[$index] = Self::$variant;
+        $index += 1;
+    }};
+    (@entry ($fixed:ident, $index:ident) family $variant:ident($carrier:ident)) => {{
+        let mut carrier = 0usize;
+        while carrier < $carrier::ALL.len() {
+            $fixed[$index] = Self::$variant($carrier::ALL[carrier]);
+            $index += 1;
+            carrier += 1;
+        }
+    }};
+    (@entry ($fixed:ident, $index:ident) dynamic $variant:ident($form:ident)) => {};
+    ($( { $(#[$doc:meta])* $kind:ident $variant:ident $(($payload:ident))? } ),* $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum MachineSemanticKind {
+            $( $(#[$doc])* $variant $(($payload))?, )*
+        }
+
+        impl MachineSemanticKind {
+            #[allow(unused_assignments)]
+            const FIXED: [Self; 120] = {
+                let mut fixed = [Self::Crash; 120];
+                let mut index = 0usize;
+                $( machine_semantic_kinds!(@entry (fixed, index) $kind $variant $(($payload))?); )*
+                fixed
+            };
+        }
+    };
+}
+
+machine_semantic_kinds! {
+    { fixed Crash },
+    { fixed CopyBytes },
+    { fixed BitwiseAndI64 },
+    { fixed BitwiseXorI64 },
+    { fixed CallAggregate },
+    { fixed ReturnAggregate },
+    { fixed HostedExitProcessI32 },
+    { fixed LoadPacked3 },
+    { fixed LoadPacked5 },
+    { fixed LoadPacked6 },
+    { fixed LoadPacked7 },
+    { fixed StorePacked },
+    { fixed Load8 },
+    { fixed Load16 },
+    { fixed Load32 },
+    { fixed Float32ToBits },
+    { fixed Float64ToBits },
+    { fixed BitsToFloat32 },
+    { fixed BitsToFloat64 },
+    { fixed Load8Indexed },
+    { fixed CompareI64Zero },
+    { fixed MaterializeI64 },
+    { fixed CopyI64 },
+    { fixed ExactAddI64 },
+    { fixed ExactAddI64Immediate },
+    { fixed ExactSubtractI64 },
+    { fixed ExactDivideU64 },
+    { fixed ExactSubtractI64Immediate },
+    { fixed ConditionalBranchNonZero },
+    { fixed ReturnScalar },
+    { fixed ReturnUnit },
+    { fixed CompareI64 },
+    { fixed CompareI64Immediate },
+    { fixed ConditionalBranchU64LessThan },
+    { fixed ConditionalBranchI64LessThan },
+    { fixed CallScalar },
+    { fixed Jump },
+    { fixed ZeroExtendU8 },
+    { fixed ZeroExtendU32 },
+    { fixed ZeroExtendU16 },
+    { fixed SignExtendI8 },
+    { fixed SignExtendI16 },
+    { fixed SignExtendI32 },
+    { fixed Load64 },
+    { fixed Store64 },
+    { fixed FrameAddress },
+    { fixed CallUnit },
+    { fixed ByteViewAddress },
+    { fixed HostedReadByte },
+    { fixed HostedWriteByteI32 },
+    { fixed Store },
+    { fixed AddressOffset },
+    { fixed MaterializeBooleanEqual },
+    { fixed MaterializeBooleanU64LessThan },
+    { fixed MaterializeBooleanI64LessThan },
+    { fixed MaterializeBooleanU64LessOrEqual },
+    { fixed MaterializeBooleanI64LessOrEqual },
+    { fixed WrappingRemainderI64 },
+    { fixed WrappingAddI64 },
+    { family SaturatingAdd(SaturatingCarrier) },
+    { family SaturatingSubtract(SaturatingCarrier) },
+    { family SaturatingDivide(SaturatingCarrier) },
+    { family SaturatingRemainder(SaturatingCarrier) },
+    { fixed NormalizedForeignCall },
+    { fixed ExactMultiplyI64 },
+    { fixed ExactRemainderU64 },
+    { fixed WrappingSubtractI64 },
+    { fixed WrappingMultiplyI64 },
+    { fixed WrappingDivideI64 },
+    { fixed BitwiseOrI64 },
+    { fixed BitwiseNotI64 },
+    { fixed SaveFloatingControl },
+    { fixed RestoreFloatingControl },
+    { fixed WrappingShiftLeftI64 },
+    { fixed WrappingShiftRightI64 },
+    { fixed WrappingShiftRightU64 },
+    { fixed ExactShiftLeftI64 },
+    { fixed ExactShiftRightI64 },
+    { fixed ExactShiftRightU64 },
+    { fixed ExactDivideI64 },
+    { fixed ExactRemainderI64 },
+    { family SaturatingMultiply(SaturatingCarrier) },
+    {
+        /// PC-relative address of one byte literal's read-only image storage.
+        fixed ByteLiteralImageAddress
+    },
+    {
+        /// Evaluate one byte-sequence predicate over `count` bytes at the base
+        /// pointer; the defined operand is the 0/1 verdict.
+        fixed ScanByteSequence
+    },
+    {
+        /// Compare two measured byte spans; the defined operand is the 0/1
+        /// verdict, and mismatched counts read no bytes.
+        fixed CompareByteSequences
+    },
+    {
+        /// One `Trapping` primitive at one carrier: the exact result, or an
+        /// in-function architectural trap when the policy predicate holds.
+        dynamic TrappingInteger(TrappingForm)
+    },
+    { dynamic AtomicAccess(AtomicForm) },
+    { dynamic NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm) },
+    { dynamic FloatResultPolicy(FloatResultPolicyForm) },
 }
 
 impl MachineSemanticKind {
@@ -239,129 +283,6 @@ impl MachineSemanticKind {
         }
         all
     };
-
-    const FIXED: [Self; 120] = [
-        Self::Crash,
-        Self::CopyBytes,
-        Self::BitwiseAndI64,
-        Self::BitwiseXorI64,
-        Self::CallAggregate,
-        Self::ReturnAggregate,
-        Self::HostedExitProcessI32,
-        Self::LoadPacked3,
-        Self::LoadPacked5,
-        Self::LoadPacked6,
-        Self::LoadPacked7,
-        Self::StorePacked,
-        Self::Load8,
-        Self::Load16,
-        Self::Load32,
-        Self::Float32ToBits,
-        Self::Float64ToBits,
-        Self::BitsToFloat32,
-        Self::BitsToFloat64,
-        Self::Load8Indexed,
-        Self::CompareI64Zero,
-        Self::MaterializeI64,
-        Self::CopyI64,
-        Self::ExactAddI64,
-        Self::ExactAddI64Immediate,
-        Self::ExactSubtractI64,
-        Self::ExactDivideU64,
-        Self::ExactSubtractI64Immediate,
-        Self::ConditionalBranchNonZero,
-        Self::ReturnScalar,
-        Self::ReturnUnit,
-        Self::CompareI64,
-        Self::CompareI64Immediate,
-        Self::ConditionalBranchU64LessThan,
-        Self::ConditionalBranchI64LessThan,
-        Self::CallScalar,
-        Self::Jump,
-        Self::ZeroExtendU8,
-        Self::ZeroExtendU32,
-        Self::ZeroExtendU16,
-        Self::SignExtendI8,
-        Self::SignExtendI16,
-        Self::SignExtendI32,
-        Self::Load64,
-        Self::Store64,
-        Self::FrameAddress,
-        Self::CallUnit,
-        Self::ByteViewAddress,
-        Self::HostedReadByte,
-        Self::HostedWriteByteI32,
-        Self::Store,
-        Self::AddressOffset,
-        Self::MaterializeBooleanEqual,
-        Self::MaterializeBooleanU64LessThan,
-        Self::MaterializeBooleanI64LessThan,
-        Self::MaterializeBooleanU64LessOrEqual,
-        Self::MaterializeBooleanI64LessOrEqual,
-        Self::WrappingRemainderI64,
-        Self::WrappingAddI64,
-        Self::SaturatingAdd(SaturatingCarrier::I8),
-        Self::SaturatingAdd(SaturatingCarrier::I16),
-        Self::SaturatingAdd(SaturatingCarrier::I32),
-        Self::SaturatingAdd(SaturatingCarrier::I64),
-        Self::SaturatingAdd(SaturatingCarrier::U8),
-        Self::SaturatingAdd(SaturatingCarrier::U16),
-        Self::SaturatingAdd(SaturatingCarrier::U32),
-        Self::SaturatingAdd(SaturatingCarrier::U64),
-        Self::SaturatingSubtract(SaturatingCarrier::I8),
-        Self::SaturatingSubtract(SaturatingCarrier::I16),
-        Self::SaturatingSubtract(SaturatingCarrier::I32),
-        Self::SaturatingSubtract(SaturatingCarrier::I64),
-        Self::SaturatingSubtract(SaturatingCarrier::U8),
-        Self::SaturatingSubtract(SaturatingCarrier::U16),
-        Self::SaturatingSubtract(SaturatingCarrier::U32),
-        Self::SaturatingSubtract(SaturatingCarrier::U64),
-        Self::SaturatingDivide(SaturatingCarrier::I8),
-        Self::SaturatingDivide(SaturatingCarrier::I16),
-        Self::SaturatingDivide(SaturatingCarrier::I32),
-        Self::SaturatingDivide(SaturatingCarrier::I64),
-        Self::SaturatingDivide(SaturatingCarrier::U8),
-        Self::SaturatingDivide(SaturatingCarrier::U16),
-        Self::SaturatingDivide(SaturatingCarrier::U32),
-        Self::SaturatingDivide(SaturatingCarrier::U64),
-        Self::SaturatingRemainder(SaturatingCarrier::I8),
-        Self::SaturatingRemainder(SaturatingCarrier::I16),
-        Self::SaturatingRemainder(SaturatingCarrier::I32),
-        Self::SaturatingRemainder(SaturatingCarrier::I64),
-        Self::SaturatingRemainder(SaturatingCarrier::U8),
-        Self::SaturatingRemainder(SaturatingCarrier::U16),
-        Self::SaturatingRemainder(SaturatingCarrier::U32),
-        Self::SaturatingRemainder(SaturatingCarrier::U64),
-        Self::NormalizedForeignCall,
-        Self::ExactMultiplyI64,
-        Self::ExactRemainderU64,
-        Self::WrappingSubtractI64,
-        Self::WrappingMultiplyI64,
-        Self::WrappingDivideI64,
-        Self::BitwiseOrI64,
-        Self::BitwiseNotI64,
-        Self::SaveFloatingControl,
-        Self::RestoreFloatingControl,
-        Self::WrappingShiftLeftI64,
-        Self::WrappingShiftRightI64,
-        Self::WrappingShiftRightU64,
-        Self::ExactShiftLeftI64,
-        Self::ExactShiftRightI64,
-        Self::ExactShiftRightU64,
-        Self::ExactDivideI64,
-        Self::ExactRemainderI64,
-        Self::SaturatingMultiply(SaturatingCarrier::I8),
-        Self::SaturatingMultiply(SaturatingCarrier::I16),
-        Self::SaturatingMultiply(SaturatingCarrier::I32),
-        Self::SaturatingMultiply(SaturatingCarrier::I64),
-        Self::SaturatingMultiply(SaturatingCarrier::U8),
-        Self::SaturatingMultiply(SaturatingCarrier::U16),
-        Self::SaturatingMultiply(SaturatingCarrier::U32),
-        Self::SaturatingMultiply(SaturatingCarrier::U64),
-        Self::ByteLiteralImageAddress,
-        Self::ScanByteSequence,
-        Self::CompareByteSequences,
-    ];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
