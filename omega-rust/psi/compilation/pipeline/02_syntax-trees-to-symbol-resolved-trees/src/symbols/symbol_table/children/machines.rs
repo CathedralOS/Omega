@@ -1,7 +1,7 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
-use super::insert_machine_parameter_signature_children;
+use super::insert_machine_type_parameter_children;
 use crate::symbols::symbol_table::names::symbol_seed;
 
 pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
@@ -51,23 +51,13 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     );
     let mut machine_children = SymbolTableBuilder::child_handles(machine_children);
 
-    for parameter in program.machine_type_parameters(machine) {
-        let parameter_symbol = machine_children.next();
-        if let (
-            Some(parameter_symbol),
-            symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
-        ) = (parameter_symbol, &parameter.kind)
-            && let Some(contract) = contract.structural()
-        {
-            insert_machine_parameter_signature_children(
-                builder,
-                program,
-                parameter_symbol,
-                contract,
-                has_sources,
-            );
-        }
-    }
+    insert_machine_type_parameter_children(
+        builder,
+        program,
+        program.machine_type_parameters(machine),
+        &mut machine_children,
+        has_sources,
+    );
     for bound in machine.conformance_bounds.iter() {
         let Some(binder_symbol) = machine_children.next() else {
             break;

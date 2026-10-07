@@ -58,6 +58,34 @@ pub(super) fn insert_measure_symbol_children(
 /// generic parameters precede its value parameters, mirroring ordinary
 /// machine symbol layout. Nested machine parameters recursively own their
 /// own signature children.
+/// Every declaration's type-parameter walk ends the same way: each
+/// Machine-kind parameter's structural contract grows its own children.
+fn insert_machine_type_parameter_children(
+    builder: &mut impl SymbolTableAppender,
+    program: &SymbolResolvedTrees,
+    parameters: &[symbol_resolved_trees::data::TypeParameter],
+    children: &mut impl Iterator<Item = SymbolHandle>,
+    has_sources: bool,
+) {
+    for parameter in parameters {
+        let parameter_symbol = children.next();
+        if let (
+            Some(parameter_symbol),
+            symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
+        ) = (parameter_symbol, &parameter.kind)
+            && let Some(contract) = contract.structural()
+        {
+            insert_machine_parameter_signature_children(
+                builder,
+                program,
+                parameter_symbol,
+                contract,
+                has_sources,
+            );
+        }
+    }
+}
+
 fn insert_machine_parameter_signature_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
@@ -90,23 +118,13 @@ fn insert_machine_parameter_signature_children(
     );
 
     let mut children = SymbolTableBuilder::child_handles(children);
-    for parameter in program.data_type_parameters(signature.type_parameters) {
-        let parameter_symbol = children.next();
-        if let (
-            Some(parameter_symbol),
-            symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
-        ) = (parameter_symbol, &parameter.kind)
-            && let Some(contract) = contract.structural()
-        {
-            insert_machine_parameter_signature_children(
-                builder,
-                program,
-                parameter_symbol,
-                contract,
-                has_sources,
-            );
-        }
-    }
+    insert_machine_type_parameter_children(
+        builder,
+        program,
+        program.data_type_parameters(signature.type_parameters),
+        &mut children,
+        has_sources,
+    );
 }
 
 pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
