@@ -547,6 +547,34 @@ fn exact_structured_const_carrier_is_eligible(
     }
 }
 
+
+/// The data definition a `Named` carrier's decoded node names: an
+/// unresolved or recursive symbol and a declared type name mismatch are
+/// errors; `node_kind` is `record` or `variant` in the diagnostic.
+fn structured_const_carrier_definition<'p>(
+    program: &'p TypedTrees,
+    symbol: &symbols::SymbolHandle,
+    type_name: &str,
+    node_kind: &str,
+    visiting: &[symbols::SymbolHandle],
+) -> Result<&'p typed_trees::data::DataDefinition, String> {
+    if !symbol.is_valid() || visiting.contains(symbol) {
+        return Err("structured const carrier is unresolved or recursive".to_owned());
+    }
+    let definition =
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+            .ok_or_else(|| {
+                "structured const carrier symbol has no data definition".to_owned()
+            })?;
+    if type_name != definition.name.as_str() {
+        return Err(format!(
+            "{node_kind} node names `{type_name}`, expected `{}`",
+            definition.name
+        ));
+    }
+    Ok(definition)
+}
+
 fn validate_decoded_structured_const(
     program: &TypedTrees,
     expected_type: TypeReferenceHandle,
@@ -611,20 +639,13 @@ fn validate_decoded_structured_const(
             TypeReferenceNode::Named { symbol, .. },
             DecodedCanonicalConstValue::Record { type_name, fields },
         ) => {
-            if !symbol.is_valid() || visiting.contains(symbol) {
-                return Err("structured const carrier is unresolved or recursive".to_owned());
-            }
-            let definition =
-                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
-                    .ok_or_else(|| {
-                        "structured const carrier symbol has no data definition".to_owned()
-                    })?;
-            if type_name.as_str() != definition.name.as_str() {
-                return Err(format!(
-                    "record node names `{type_name}`, expected `{}`",
-                    definition.name
-                ));
-            }
+            let definition = structured_const_carrier_definition(
+                program,
+                symbol,
+                type_name.as_str(),
+                "record",
+                visiting,
+            )?;
             let members = program.data_members(definition);
             if typed_trees::data::DataDefinition::shape_kind_from_members(members)
                 != typed_trees::data::DataShapeKind::Record
@@ -665,20 +686,13 @@ fn validate_decoded_structured_const(
                 fields,
             },
         ) => {
-            if !symbol.is_valid() || visiting.contains(symbol) {
-                return Err("structured const carrier is unresolved or recursive".to_owned());
-            }
-            let definition =
-                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
-                    .ok_or_else(|| {
-                        "structured const carrier symbol has no data definition".to_owned()
-                    })?;
-            if type_name.as_str() != definition.name.as_str() {
-                return Err(format!(
-                    "variant node names `{type_name}`, expected `{}`",
-                    definition.name
-                ));
-            }
+            let definition = structured_const_carrier_definition(
+                program,
+                symbol,
+                type_name.as_str(),
+                "variant",
+                visiting,
+            )?;
             let members = program.data_members(definition);
             if typed_trees::data::DataDefinition::shape_kind_from_members(members)
                 != typed_trees::data::DataShapeKind::Enum
