@@ -543,6 +543,14 @@ fn replay_provider_row_binding(
                             plan.name, row.requirement_identity,
                         )));
                     }
+                    if evaluated.evaluated().target().target_name() != plan.target
+                        || evaluated_bindings.target() != Some(evaluated.evaluated().target())
+                    {
+                        return Err(diagnostics::Diagnostic::error(format!(
+                            "ProviderPlan `{}` row `{}` evaluated `via` target does not equal its selected target",
+                            plan.name, row.requirement_identity,
+                        )));
+                    }
                     evaluated.evaluated().provider_binding()
                 }
                 _ => {

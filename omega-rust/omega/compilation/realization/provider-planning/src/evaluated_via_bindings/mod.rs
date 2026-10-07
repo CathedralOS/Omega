@@ -194,11 +194,6 @@ pub fn evaluate_via_bindings(
             rows: Vec::new(),
         });
     }
-    let Some(target) = selected_target else {
-        return Err(vec![Diagnostic::error(
-            "ordinary external `via` evaluation requires one selected target profile",
-        )]);
-    };
     let vocabulary = exact_binding_vocabulary(context)?;
     let selection_authority = package_inputs.cloned().map(|inputs| {
         Arc::new(inputs) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
@@ -208,6 +203,28 @@ pub fn evaluate_via_bindings(
     let mut diagnostics = Vec::new();
 
     for (machine, conformance) in pending {
+        let target = match typed.authored_machine_target(machine.symbol) {
+            Ok(Some(authored)) => TargetProfile::from_canonical_target_name(authored),
+            Ok(None) => selected_target.ok_or_else(|| {
+                Diagnostic::error(
+                    "ordinary external `via` evaluation requires one selected target profile",
+                )
+            }),
+            Err(reason) => Err(Diagnostic::error(reason)),
+        };
+        let target = match target {
+            Ok(target) => target,
+            Err(diagnostic) => {
+                diagnostics.push(
+                    diagnostic.with_source_span(
+                        typed
+                            .expression_table
+                            .source_span(conformance.via_expression),
+                    ),
+                );
+                continue;
+            }
+        };
         match evaluate_one(typed, &admission, &vocabulary, target, machine, conformance) {
             Ok(row) => rows.push(row),
             Err(diagnostic) => diagnostics.push(diagnostic),
@@ -235,7 +252,7 @@ pub fn evaluate_via_bindings(
     if diagnostics.is_empty() {
         Ok(EvaluatedViaBindingTable {
             scope: context.scope,
-            target: Some(target),
+            target: selected_target,
             rows,
         })
     } else {

@@ -9,6 +9,7 @@
 //! `type_reference_queries.rs` answers type reference queries, `placed_plans.rs`
 //! holds placed and plan-laid plans and `commitments.rs` the commitments.
 
+mod authored_targets;
 pub mod calls;
 mod commitments;
 pub mod control_flow;
@@ -620,7 +621,6 @@ impl DerefMut for TypedTrees {
     }
 }
 
-
 /// Symbol-remap lookup shared by the typed-tree copy paths: symbols map
 /// through the pair table, unmapped symbols stay themselves.
 pub(crate) fn remapped(
@@ -632,7 +632,6 @@ pub(crate) fn remapped(
         .find_map(|(source, target)| (*source == symbol).then_some(*target))
         .unwrap_or(symbol)
 }
-
 
 /// Escape `\`, `(`, `)` and `,` with `\` for the normalized type-identity
 /// spelling format shared by const-identity and call-family identity code.

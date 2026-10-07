@@ -103,12 +103,15 @@ pub(crate) fn derive_provider_plans(
                         },
                         None,
                     ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                        let Some(row) = evaluated_bindings.and_then(|table| {
-                            table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)
-                        }) else {
+                        let Some(binding) = evaluated_via_binding(
+                            evaluated_bindings,
+                            machine,
+                            clause,
+                            selected_target,
+                        ) else {
                             continue;
                         };
-                        (row.evaluated().provider_binding(), None)
+                        (binding, None)
                     }
                     (language_semantics::MachineSupplyMode::CheckedBody, None)
                         if machine.body_is_present && !clause.via_expression.is_valid() =>
@@ -446,7 +449,8 @@ fn derive_top_level_requirement_plans(
                     },
                     None,
                 ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                    let Some(binding) = evaluated_via_binding(evaluated_bindings, machine, clause)
+                    let Some(binding) =
+                        evaluated_via_binding(evaluated_bindings, machine, clause, selected_target)
                     else {
                         continue;
                     };
@@ -576,7 +580,8 @@ fn derive_boundary_operator_plans(
                     },
                     None,
                 ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                    let Some(binding) = evaluated_via_binding(evaluated_bindings, machine, clause)
+                    let Some(binding) =
+                        evaluated_via_binding(evaluated_bindings, machine, clause, selected_target)
                     else {
                         continue;
                     };
@@ -658,9 +663,15 @@ fn evaluated_via_binding(
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     machine: &typed_trees::machine::Machine,
     clause: &typed_trees::machine::TraitConformance,
+    selected_target: Option<&str>,
 ) -> Option<ProviderBinding> {
-    let row = evaluated_bindings
-        .and_then(|table| table.exact(machine.symbol, clause.symbol, clause.requirement_symbol))?;
+    let table = evaluated_bindings?;
+    let row = table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)?;
+    if selected_target != Some(row.evaluated().target().target_name())
+        || table.target() != Some(row.evaluated().target())
+    {
+        return None;
+    }
     Some(row.evaluated().provider_binding())
 }
 
