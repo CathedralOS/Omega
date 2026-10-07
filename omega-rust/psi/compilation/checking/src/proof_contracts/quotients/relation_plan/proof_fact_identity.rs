@@ -172,56 +172,40 @@ impl ProofValueSubstitution {
         symbol: SymbolHandle,
         elements: impl IntoIterator<Item = (String, numerics::literals::IntegerLanding)>,
     ) -> Self {
-        let elements = elements.into_iter().collect::<Vec<_>>();
-        Self {
-            symbol,
-            rendered: format!(
-                "[{}]",
-                elements
-                    .iter()
-                    .map(|(spelling, _)| spelling.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            trace: array_trace(
-                elements
-                    .iter()
-                    .map(|(spelling, landing)| integer_trace(spelling, *landing)),
-            ),
-        }
+        Self::flat_array(symbol, elements, integer_trace)
     }
 
     pub(super) fn nested_integer_array(
         symbol: SymbolHandle,
         rows: &[std::sync::Arc<[super::runtime_correspondence::ClosedIntegerArrayElement]>],
     ) -> Self {
-        Self {
-            symbol,
-            rendered: format!(
-                "[{}]",
-                rows.iter()
-                    .map(|row| format!(
-                        "[{}]",
-                        row.iter()
-                            .map(|element| element.spelling.as_str())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            trace: array_trace(rows.iter().map(|row| {
-                array_trace(
-                    row.iter()
-                        .map(|element| integer_trace(&element.spelling, element.landing)),
-                )
-            })),
-        }
+        Self::nested_array(symbol, rows, |element| {
+            integer_trace(&element.spelling, element.landing)
+        })
     }
 
     pub(super) fn float_array(
         symbol: SymbolHandle,
         elements: impl IntoIterator<Item = (String, numerics::literals::FloatFormat)>,
+    ) -> Self {
+        Self::flat_array(symbol, elements, |spelling, landing| {
+            float_trace(spelling, Some(landing))
+        })
+    }
+
+    pub(super) fn nested_float_array(
+        symbol: SymbolHandle,
+        rows: &[std::sync::Arc<[super::runtime_correspondence::ClosedFloatArrayElement]>],
+    ) -> Self {
+        Self::nested_array(symbol, rows, |element| {
+            float_trace(&element.spelling, Some(element.landing))
+        })
+    }
+
+    fn flat_array<L: Copy>(
+        symbol: SymbolHandle,
+        elements: impl IntoIterator<Item = (String, L)>,
+        element_trace: impl Fn(&str, L) -> String,
     ) -> Self {
         let elements = elements.into_iter().collect::<Vec<_>>();
         Self {
@@ -237,35 +221,35 @@ impl ProofValueSubstitution {
             trace: array_trace(
                 elements
                     .iter()
-                    .map(|(spelling, landing)| float_trace(spelling, Some(*landing))),
+                    .map(|(spelling, landing)| element_trace(spelling, *landing)),
             ),
         }
     }
 
-    pub(super) fn nested_float_array(
+    fn nested_array<E: SpelledClosedElement>(
         symbol: SymbolHandle,
-        rows: &[std::sync::Arc<[super::runtime_correspondence::ClosedFloatArrayElement]>],
+        rows: &[std::sync::Arc<[E]>],
+        element_trace: impl Fn(&E) -> String,
     ) -> Self {
         Self {
             symbol,
             rendered: format!(
                 "[{}]",
                 rows.iter()
-                    .map(|row| format!(
-                        "[{}]",
-                        row.iter()
-                            .map(|element| element.spelling.as_str())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ))
+                    .map(|row| {
+                        format!(
+                            "[{}]",
+                            row.iter()
+                                .map(|element| element.spelling())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )
+                    })
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
             trace: array_trace(rows.iter().map(|row| {
-                array_trace(
-                    row.iter()
-                        .map(|element| float_trace(&element.spelling, Some(element.landing))),
-                )
+                array_trace(row.iter().map(|element| element_trace(element)))
             })),
         }
     }
@@ -276,6 +260,24 @@ impl ProofValueSubstitution {
             rendered: self.rendered.clone(),
             trace: self.trace.clone(),
         }
+    }
+}
+
+/// A closed array element's source spelling — the row label the identity
+/// rendering prints.
+trait SpelledClosedElement {
+    fn spelling(&self) -> &str;
+}
+
+impl SpelledClosedElement for super::runtime_correspondence::ClosedIntegerArrayElement {
+    fn spelling(&self) -> &str {
+        &self.spelling
+    }
+}
+
+impl SpelledClosedElement for super::runtime_correspondence::ClosedFloatArrayElement {
+    fn spelling(&self) -> &str {
+        &self.spelling
     }
 }
 
