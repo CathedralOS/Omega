@@ -116,7 +116,14 @@ pub(super) fn validate(
     })
 }
 
-fn register_instruction(bytes: &[u8], opcode: u8, register: u8, destination: u8) -> bool {
+/// Decode one REX.W register-direct instruction `opcode r/m64, r64` and
+/// require its exact register and r/m fields. The byte-loop forms share it.
+pub(super) fn register_instruction(
+    bytes: &[u8],
+    opcode: u8,
+    register: u8,
+    destination: u8,
+) -> bool {
     let [prefix, operation, mode] = bytes else {
         return false;
     };

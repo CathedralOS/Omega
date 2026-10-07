@@ -10,6 +10,8 @@ mod float_conversion_tests;
 mod float_result_policy_tests;
 #[cfg(test)]
 mod floating_control_tests;
+#[cfg(test)]
+mod zero_fill_tests;
 
 use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 use register_model::{RegisterOperandAccess, RegisterUnitId, RegisterViewId};
@@ -336,6 +338,21 @@ pub(in crate::exit_contract) fn validate_non_return(
             None,
         ) => true,
         (
+            SelectedInstructionKind::ZeroBytes,
+            MachineEncodedMemoryEffect::ZeroBytesV1 {
+                destination_pointer_operand: 0,
+                count_operand: 1,
+            },
+            None,
+        ) => {
+            // The destination's address was formed before this operation;
+            // the loop reads destination and count and defines only its
+            // cursor scratch.
+            effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                && effects.external_operand_reads == [0, 1]
+                && effects.external_operand_writes == [2]
+        }
+        (
             SelectedInstructionKind::ScanByteSequence { .. },
             MachineEncodedMemoryEffect::ScanByteSequenceV1 {
                 base_pointer_operand: 0,
@@ -526,6 +543,7 @@ pub(in crate::exit_contract) fn validate_non_return(
         (_, MachineEncodedMemoryEffect::NoneV1, _) => !matches!(
             kind,
             SelectedInstructionKind::CopyBytes
+                | SelectedInstructionKind::ZeroBytes
                 | SelectedInstructionKind::ScanByteSequence { .. }
                 | SelectedInstructionKind::CompareByteSequences
                 | SelectedInstructionKind::FloatResultPolicy { .. }

@@ -133,7 +133,7 @@ pub(super) fn admit<'source>(
             source_value,
         } => {
             let block_index = slot::instruction_block(function, instruction)
-                    .ok_or(RuntimeSpillError::UnsupportedValue)?;
+                .ok_or(RuntimeSpillError::UnsupportedValue)?;
             (
                 VictimLineage::Scalar(source_value),
                 Some(instruction),
@@ -251,7 +251,7 @@ pub(super) fn admit<'source>(
             // provenance is the place and byte offset the origin declares,
             // which the reload's observation origin carries on.
             let block_index = slot::instruction_block(function, instruction)
-                    .ok_or(RuntimeSpillError::UnsupportedValue)?;
+                .ok_or(RuntimeSpillError::UnsupportedValue)?;
             (
                 VictimLineage::Structural { place, byte_offset },
                 Some(instruction),
@@ -376,9 +376,10 @@ pub(super) fn admit<'source>(
     // though: the primitive-local establishment replay binds a `WritePlace`
     // store's address operand to the `AddressLocal` `FrameAddress` result
     // verbatim, so when such an access names this victim's own definition for
-    // an (operation, place) pair, the `WritePlace` store for that same pair
-    // must keep the victim register — substituting a reload register would
-    // orphan the recorded establishment. Reads, snapshot chunk loads, calls,
+    // an (operation, place) pair, the `WritePlace` store — or the zero fill
+    // of a large zeroed home — for that same pair must keep the victim
+    // register; substituting a reload register would orphan the recorded
+    // establishment. Reads, snapshot chunk loads, calls,
     // and the store's value operand are content-bound elsewhere — by source
     // value, by result origin, or by the access's own coordinates — so only
     // the paired store's address use is retained through rewriting.
@@ -669,15 +670,17 @@ pub(super) fn admit<'source>(
                             && !operand.early_clobber
                             && operand.class == victim.class =>
                     {
-                        // A `WritePlace` store paired with the `AddressLocal`
-                        // access on the victim's own definition keeps the
-                        // address operand's register identity verbatim; the
-                        // reload cannot stand in for it there.
+                        // A `WritePlace` store or zero fill paired with the
+                        // `AddressLocal` access on the victim's own definition
+                        // keeps the address operand's register identity
+                        // verbatim; the reload cannot stand in for it there.
+                        // Operand 0 is the destination pointer of both kinds.
                         if established_stores.contains(&instruction.id) {
                             if operand.operand != 0
                                 || !matches!(
                                     instruction.kind,
                                     SelectedInstructionKind::Store { .. }
+                                        | SelectedInstructionKind::ZeroBytes
                                 )
                             {
                                 return Err(RuntimeSpillError::UnsupportedUse);

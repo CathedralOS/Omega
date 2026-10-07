@@ -248,6 +248,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::CopyBytes
+        | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
         | SelectedInstructionKind::CompareByteSequences
         | SelectedInstructionKind::Load8 { .. }

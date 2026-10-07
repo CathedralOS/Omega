@@ -106,6 +106,7 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::WritePointerV1 => 4,
             crate::MachineMemoryEffect::ScanByteSequenceV1 => 10,
             crate::MachineMemoryEffect::CompareByteSequencesV1 => 11,
+            crate::MachineMemoryEffect::ZeroBytesV1 => 12,
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::ExplicitCrashV1 => 5,
@@ -305,6 +306,14 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&right_base_operand.to_le_bytes());
             bytes.identity_bytes(&right_count_operand.to_le_bytes());
         }
+        MachineEncodedMemoryEffect::ZeroBytesV1 {
+            destination_pointer_operand,
+            count_operand,
+        } => {
+            bytes.identity_bytes(&[15]);
+            bytes.identity_bytes(&destination_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&count_operand.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::NoneV1 => bytes.identity_bytes(&[0]),
         MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
             bytes.identity_bytes(&[7]);
@@ -459,6 +468,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::CopyBytes => 59,
         MachineSemanticKind::ScanByteSequence => 233,
         MachineSemanticKind::CompareByteSequences => 234,
+        MachineSemanticKind::ZeroBytes => 235,
         MachineSemanticKind::CallAggregate => 35,
         MachineSemanticKind::ReturnAggregate => 36,
         MachineSemanticKind::CompareI64Zero => 0,
@@ -596,6 +606,7 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
         MachineAlternativeFamily::CopyBytes => 59,
         MachineAlternativeFamily::ScanByteSequence => 233,
         MachineAlternativeFamily::CompareByteSequences => 234,
+        MachineAlternativeFamily::ZeroBytes => 235,
         MachineAlternativeFamily::CallAggregate => 35,
         MachineAlternativeFamily::ReturnAggregate => 36,
         MachineAlternativeFamily::CompareI64Zero => 0,

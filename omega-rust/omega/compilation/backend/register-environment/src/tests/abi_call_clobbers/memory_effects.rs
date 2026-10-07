@@ -48,6 +48,7 @@ fn selected_memory_rules(
     let keys = environment.selected_keys();
     [
         (keys.copy_bytes, MachineSemanticKind::CopyBytes),
+        (keys.zero_bytes, MachineSemanticKind::ZeroBytes),
         (keys.store, MachineSemanticKind::Store),
         (keys.address_offset, MachineSemanticKind::AddressOffset),
         (keys.load64, MachineSemanticKind::Load64),
@@ -203,6 +204,15 @@ fn memory_contract(semantic: MachineSemanticKind, architecture: Architecture) ->
             faulting: true,
             uses_stack_pointer: false,
         },
+        ZeroBytes => MemoryContract {
+            accesses: &[Use, Use, Def],
+            early_clobbers: &[2],
+            reads: &[0, 1],
+            writes: &[2],
+            memory: MachineMemoryEffect::ZeroBytesV1,
+            faulting: true,
+            uses_stack_pointer: false,
+        },
         LoadPacked3 | LoadPacked5 | LoadPacked6 | LoadPacked7 => MemoryContract {
             accesses: &[Use, Def, Def],
             early_clobbers: &[1, 2],
@@ -296,7 +306,7 @@ fn memory_contract(semantic: MachineSemanticKind, architecture: Architecture) ->
 /// transport needs it only for the x86-64 flag-writing forms.
 fn row_clobbers_flags(semantic: MachineSemanticKind, architecture: Architecture) -> bool {
     match semantic {
-        MachineSemanticKind::CopyBytes => true,
+        MachineSemanticKind::CopyBytes | MachineSemanticKind::ZeroBytes => true,
         MachineSemanticKind::LoadPacked3
         | MachineSemanticKind::LoadPacked5
         | MachineSemanticKind::LoadPacked6
@@ -328,6 +338,10 @@ fn expected_encoded_memory(
             source_pointer_operand: 0,
             destination_pointer_operand: 1,
             count_operand: 2,
+        },
+        ZeroBytes => MachineEncodedMemoryEffect::ZeroBytesV1 {
+            destination_pointer_operand: 0,
+            count_operand: 1,
         },
         LoadPacked3 | LoadPacked5 | LoadPacked6 | LoadPacked7 => {
             MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -373,6 +387,7 @@ fn expected_size(
     match architecture {
         Architecture::X86_64 => match semantic {
             CopyBytes => MachineSizeKnowledge::ExactBytes(36),
+            ZeroBytes => MachineSizeKnowledge::ExactBytes(25),
             LoadPacked3 | LoadPacked5 | LoadPacked6 | LoadPacked7 => {
                 let width = packed_load_width(semantic);
                 resolved(width * 8 + (width - 1) * 7, width * 9 + (width - 1) * 7)
@@ -387,6 +402,7 @@ fn expected_size(
         },
         Architecture::Aarch64 => match semantic {
             CopyBytes => MachineSizeKnowledge::ExactBytes(28),
+            ZeroBytes => MachineSizeKnowledge::ExactBytes(24),
             LoadPacked3 | LoadPacked5 | LoadPacked6 | LoadPacked7 => {
                 MachineSizeKnowledge::ExactBytes((2 * packed_load_width(semantic) - 1) * 4)
             }
@@ -429,7 +445,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
         let memory_rules = selected_memory_rules(&environment);
         assert_eq!(
             memory_rules.len(),
-            15,
+            16,
             "{} selects an unexpected memory roster",
             case.convention
         );
@@ -445,6 +461,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 matches!(
                     declaration.memory,
                     MachineMemoryEffect::CopyBytesV1
+                        | MachineMemoryEffect::ZeroBytesV1
                         | MachineMemoryEffect::ReadPointerV1
                         | MachineMemoryEffect::WritePointerV1
                         | MachineMemoryEffect::WriteFrameStorageV1
@@ -709,6 +726,12 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                         source_pointer_operand: 1,
                         destination_pointer_operand: 0,
                         count_operand: 2,
+                    })
+                }
+                MachineEncodedMemoryEffect::ZeroBytesV1 { .. } => {
+                    Some(MachineEncodedMemoryEffect::ZeroBytesV1 {
+                        destination_pointer_operand: 1,
+                        count_operand: 0,
                     })
                 }
                 MachineEncodedMemoryEffect::WriteFrameStorageV1 { stack_pointer, .. } => {

@@ -20,6 +20,7 @@ impl SelectedConstraintKeys {
                 self.atomic_bitwise_update
             },
             self.copy_bytes,
+            self.zero_bytes,
             self.hosted_read_byte,
             self.hosted_write_byte_i32,
             self.save_floating_control,
@@ -154,6 +155,7 @@ impl SelectedConstraintKeys {
                 };
             }
             MachineSemanticKind::CopyBytes => return self.copy_bytes,
+            MachineSemanticKind::ZeroBytes => return self.zero_bytes,
             MachineSemanticKind::ScanByteSequence => return self.scan_byte_sequence,
             MachineSemanticKind::CompareByteSequences => return self.compare_byte_sequences,
             MachineSemanticKind::Float32ToBits => return self.float32_to_bits,

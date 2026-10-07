@@ -149,6 +149,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         copy_bytes: None,
         scan_byte_sequence: None,
         compare_byte_sequences: None,
+        zero_bytes: None,
         store: Some(instruction_key(34)),
         address_offset: Some(instruction_key(35)),
         store64: Some(instruction_key(31)),

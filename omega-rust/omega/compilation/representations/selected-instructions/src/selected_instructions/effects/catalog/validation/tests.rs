@@ -197,6 +197,100 @@ fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
 }
 
 #[test]
+fn zero_fill_catalog_requires_dynamic_operands_and_early_clobber_cursor() {
+    let constraint = RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey {
+            family: RegisterConstraintFamily::Instruction,
+            variant: 43,
+        },
+        operands: (0..3)
+            .map(|operand| RegisterOperandConstraint {
+                operand,
+                access: if operand < 2 {
+                    RegisterOperandAccess::Use
+                } else {
+                    RegisterOperandAccess::Def
+                },
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: operand >= 2,
+            })
+            .collect(),
+        implicit_uses: vec![],
+        implicit_defs: vec![],
+        clobbers: vec![register_model::RegisterUnitId(0)],
+    };
+    let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]);
+    encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
+        destination_pointer_operand: 0,
+        count_operand: 1,
+    };
+    encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    encoded.implicit_unit_clobbers = constraint.clobbers.clone();
+    let source = MachineEffectDeclaration {
+        semantic: MachineSemanticKind::ZeroBytes,
+        constraint: constraint.key,
+        memory: crate::MachineMemoryEffect::ZeroBytesV1,
+        trap: crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        barrier: MachineBarrier::None,
+        call: crate::MachineCallEffect::NoneV1,
+        cleanup: crate::MachineCleanupEffect::NoneV1,
+        alternatives: vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: MachineSemanticKind::ZeroBytes.into(),
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: MachineSizeKnowledge::ExactBytes(24),
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded,
+        }],
+    };
+    validate_declaration(target::Architecture::Aarch64, &constraint, &source).unwrap();
+    for mutation in 0..9 {
+        let mut changed = source.clone();
+        let encoded = &mut changed.alternatives[0].encoded;
+        match mutation {
+            0 => {
+                changed.memory = crate::MachineMemoryEffect::NoneV1;
+                encoded.memory = MachineEncodedMemoryEffect::NoneV1;
+            }
+            1 => {
+                encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
+                    destination_pointer_operand: 1,
+                    count_operand: 0,
+                }
+            }
+            2 => {
+                encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
+                    destination_pointer_operand: 0,
+                    count_operand: 2,
+                }
+            }
+            3 => encoded.implicit_unit_clobbers.clear(),
+            4 => encoded.external_operand_reads.truncate(1),
+            5 => encoded.external_operand_writes.clear(),
+            6 => encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+            7 => {
+                changed.memory = crate::MachineMemoryEffect::CopyBytesV1;
+            }
+            _ => encoded.external_operand_writes.push(0),
+        }
+        assert!(
+            validate_declaration(target::Architecture::Aarch64, &constraint, &changed).is_err(),
+            "mutation {mutation}"
+        );
+    }
+    for operand in 0..3 {
+        let mut changed = constraint.clone();
+        changed.operands[operand].early_clobber = !changed.operands[operand].early_clobber;
+        assert!(validate_declaration(target::Architecture::Aarch64, &changed, &source).is_err());
+    }
+}
+
+#[test]
 fn pointer_load_catalog_requires_the_semantic_exact_width() {
     let constraint = RegisterInstructionConstraint {
         id: RegisterConstraintId(0),

@@ -100,6 +100,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::ScanByteSequence { .. } => 96,
         SelectedInstructionKind::CompareByteSequences => 97,
+        SelectedInstructionKind::ZeroBytes => 235,
         SelectedInstructionKind::BitwiseAndI64 => 48,
         SelectedInstructionKind::BitwiseXorI64 => 49,
         SelectedInstructionKind::BitwiseOrI64 => 93,
@@ -198,7 +199,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
     });
     match instruction.kind {
-        SelectedInstructionKind::CopyBytes => {}
+        SelectedInstructionKind::CopyBytes | SelectedInstructionKind::ZeroBytes => {}
         SelectedInstructionKind::ScanByteSequence { predicate } => {
             bytes.push(predicate.mask_bit());
         }

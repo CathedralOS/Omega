@@ -109,6 +109,10 @@ pub enum SelectedInstructionKind {
     /// are preserved source/destination/count; 3/4 are early-clobber scratch.
     /// Count zero accesses neither pointer. Flags are clobbered.
     CopyBytes,
+    /// Write zero to exactly count bytes at the destination. Inputs 0/1 are
+    /// preserved destination/count; 2 is the early-clobber cursor scratch.
+    /// Count zero accesses no memory. Flags are clobbered.
+    ZeroBytes,
     /// Evaluate `predicate` over `count` bytes beginning at the input base.
     /// Inputs 0/1 are preserved base/count; 2/3/4 are early-clobber because
     /// the prologue seeds all three before the loop reads the inputs;

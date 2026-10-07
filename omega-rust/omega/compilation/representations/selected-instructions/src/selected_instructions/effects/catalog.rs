@@ -118,8 +118,8 @@ macro_rules! machine_semantic_kinds {
 
         impl MachineSemanticKind {
             #[allow(unused_assignments)]
-            const FIXED: [Self; 120] = {
-                let mut fixed = [Self::Crash; 120];
+            const FIXED: [Self; 121] = {
+                let mut fixed = [Self::Crash; 121];
                 let mut index = 0usize;
                 $( machine_semantic_kinds!(@entry (fixed, index) $kind $variant $(($payload))?); )*
                 fixed
@@ -224,6 +224,11 @@ machine_semantic_kinds! {
         /// Compare two measured byte spans; the defined operand is the 0/1
         /// verdict, and mismatched counts read no bytes.
         fixed CompareByteSequences
+    },
+    {
+        /// Write zero to `count` bytes at the destination pointer; the
+        /// cursor scratch is the only defined operand.
+        fixed ZeroBytes
     },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
@@ -373,6 +378,7 @@ pub enum MachineAlternativeFamily {
     ImmutableImageAddress,
     ScanByteSequence,
     CompareByteSequences,
+    ZeroBytes,
     TrappingInteger(TrappingForm),
     NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm),
     FloatResultPolicy(FloatResultPolicyForm),
@@ -457,6 +463,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ImmutableImageAddress => Self::ImmutableImageAddress,
             MachineSemanticKind::ScanByteSequence => Self::ScanByteSequence,
             MachineSemanticKind::CompareByteSequences => Self::CompareByteSequences,
+            MachineSemanticKind::ZeroBytes => Self::ZeroBytes,
             MachineSemanticKind::CallUnit => Self::CallUnit,
             MachineSemanticKind::NormalizedForeignCall => Self::NormalizedForeignCall,
             MachineSemanticKind::ExactMultiplyI64 => Self::ExactMultiplyI64,
@@ -535,6 +542,8 @@ pub enum MachineMemoryEffect {
     /// Reads each span's bytes while comparing them; mismatched counts read
     /// no bytes.
     CompareByteSequencesV1,
+    /// Writes zero to `count` bytes at the destination pointer.
+    ZeroBytesV1,
     /// Initialize an eight-byte structural home and read stdin into its i32 payload.
     HostedReadByteV1,
     /// Private-byte initialization and kernel read, with an observable stdout write.
@@ -692,6 +701,12 @@ pub enum MachineEncodedMemoryEffect {
         left_count_operand: u16,
         right_base_operand: u16,
         right_count_operand: u16,
+    },
+    /// Writes zero to `count` bytes at the destination pointer; the operand
+    /// homes double as the loop's live inputs and a zero count writes none.
+    ZeroBytesV1 {
+        destination_pointer_operand: u16,
+        count_operand: u16,
     },
     /// Zero eight frame bytes, read stdin into payload at offset four, and set the tag at zero.
     HostedReadByteV1 {

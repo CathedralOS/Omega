@@ -77,6 +77,42 @@ fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
     }
 }
 
+#[test]
+fn physical_zero_bytes_codec_binds_dynamic_operand_roles_without_an_address_operation() {
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.alternative.key.family = MachineAlternativeFamily::ZeroBytes;
+    instruction.address = None;
+    instruction.alternative.encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
+        destination_pointer_operand: 0,
+        count_operand: 1,
+    };
+    source.identity = post_allocation_machine_identity(&source);
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+    for role in 0..2 {
+        let mut changed = source.clone();
+        let MachineEncodedMemoryEffect::ZeroBytesV1 {
+            destination_pointer_operand,
+            count_operand,
+        } = &mut changed.functions[0].blocks[0].instructions[0]
+            .alternative
+            .encoded
+            .memory
+        else {
+            panic!("zero fill effect");
+        };
+        *match role {
+            0 => destination_pointer_operand,
+            _ => count_operand,
+        } += 1;
+        assert_ne!(post_allocation_machine_identity(&changed), source.identity);
+        assert!(PostAllocationMachinePlan::decode(&changed.encode()).is_err());
+    }
+}
+
 fn identity(byte: u8) -> [u8; 32] {
     [byte; 32]
 }

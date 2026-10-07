@@ -22,7 +22,7 @@ use crate::register_model::{
     X86_64_SCAN_BYTE_SEQUENCE, X86_64_SHIFT_I64, X86_64_STORE, X86_64_STORE64, X86_64_SUBTRACT_I64,
     X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
     X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, X86_64_TRAPPING_BINARY,
-    X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR, X86_64_TRAPPING_SHIFT,
+    X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR, X86_64_TRAPPING_SHIFT, X86_64_ZERO_BYTES,
     canonical_x86_64_physical_register_model_identity, validated_x86_64_physical_register_model,
     x86_64_microsoft_aggregate_call_keys, x86_64_microsoft_aggregate_return_keys,
     x86_64_microsoft_normalized_foreign_call_keys, x86_64_microsoft_register_call_keys,
@@ -1003,6 +1003,29 @@ pub fn x86_64_register_constraint_catalog(
                 fixed_view: None,
                 tied_to: None,
                 early_clobber: operand >= 3,
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
+    // The zero fill reads its preserved destination/count inputs on every
+    // iteration; the cursor is written before the count guard reads them.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_ZERO_BYTES,
+        operands: (0..3)
+            .map(|operand| RegisterOperandConstraint {
+                operand,
+                access: if operand < 2 {
+                    RegisterOperandAccess::Use
+                } else {
+                    RegisterOperandAccess::Def
+                },
+                class: GPR64,
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: operand >= 2,
             })
             .collect(),
         implicit_uses: Vec::new(),

@@ -194,7 +194,9 @@ pub(in crate::rewrites) fn unrostered_reach(instruction: &SelectedInstruction) -
         | MaterializeBooleanI64LessThan
         | MaterializeBooleanU64LessOrEqual
         | MaterializeBooleanI64LessOrEqual => UnrosteredReach::Private,
-        Store { .. } | StorePacked { .. } | Store64 { .. } | CopyBytes => UnrosteredReach::Store,
+        Store { .. } | StorePacked { .. } | Store64 { .. } | CopyBytes | ZeroBytes => {
+            UnrosteredReach::Store
+        }
         _ => UnrosteredReach::Unaccounted,
     }
 }
@@ -216,6 +218,7 @@ pub(in crate::rewrites) fn speculatable(instruction: &SelectedInstruction) -> bo
     !matches!(
         instruction.kind,
         CopyBytes
+            | ZeroBytes
             | ScanByteSequence { .. }
             | LoadPacked { .. }
             | StorePacked { .. }

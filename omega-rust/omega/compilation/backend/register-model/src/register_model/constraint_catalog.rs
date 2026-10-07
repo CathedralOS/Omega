@@ -60,6 +60,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load32: Option<RegisterConstraintKey>,
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub copy_bytes: Option<RegisterConstraintKey>,
+    pub zero_bytes: Option<RegisterConstraintKey>,
     pub scan_byte_sequence: Option<RegisterConstraintKey>,
     pub compare_byte_sequences: Option<RegisterConstraintKey>,
     pub store: Option<RegisterConstraintKey>,

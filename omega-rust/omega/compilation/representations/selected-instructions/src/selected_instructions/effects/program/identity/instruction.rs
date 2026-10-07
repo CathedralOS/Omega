@@ -36,6 +36,7 @@ pub(super) fn encode_ordinary_instruction(
         MachineMemoryEffect::WritePointerV1 => 4,
         MachineMemoryEffect::ScanByteSequenceV1 => 10,
         MachineMemoryEffect::CompareByteSequencesV1 => 11,
+        MachineMemoryEffect::ZeroBytesV1 => 12,
     });
     encode_effect_tail(bytes, instruction);
 }
@@ -111,6 +112,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::ScanByteSequence { .. } => 96,
         SelectedInstructionKind::CompareByteSequences => 97,
+        SelectedInstructionKind::ZeroBytes => 235,
         SelectedInstructionKind::CopyI64 => 2,
         SelectedInstructionKind::BitwiseAndI64 => 51,
         SelectedInstructionKind::BitwiseXorI64 => 52,
@@ -339,6 +341,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::FloatResultPolicy { form } => bytes.push(form.machine_payload()),
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CopyBytes
+        | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::TrappingInteger { .. }
         | SelectedInstructionKind::AtomicAccess { .. }
         | SelectedInstructionKind::CompareI64

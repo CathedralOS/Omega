@@ -83,9 +83,9 @@
 //! instruction may be an address producer — `FrameAddress`, `AddressOffset`,
 //! or `ByteViewAddress` — since a resolved address round-trips its bits like
 //! any other result; the single exception is the primitive-local
-//! establishment idiom, where the `WritePlace` store paired with the
-//! `AddressLocal` access on that definition keeps the victim register in its
-//! address operand verbatim, and the coordinate stays rejected where a
+//! establishment idiom, where the `WritePlace` store or zero fill paired with
+//! the `AddressLocal` access on that definition keeps the victim register in
+//! its address operand verbatim, and the coordinate stays rejected where a
 //! transport names a different place or field offset.
 //!
 //! A victim whose class cannot sit in the slot's access rows — an

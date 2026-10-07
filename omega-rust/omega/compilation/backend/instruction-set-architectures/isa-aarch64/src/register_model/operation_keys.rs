@@ -86,6 +86,13 @@ pub const AARCH64_COMPARE_BYTE_SEQUENCES: RegisterConstraintKey = RegisterConstr
     variant: 795,
 };
 
+/// Bulk zero fill: preserved destination/count inputs and one early-clobber
+/// cursor. Variant 796 is distinct from every x86-64 instruction key too.
+pub const AARCH64_ZERO_BYTES: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 796,
+};
+
 pub const AARCH64_LOAD8: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 730,
@@ -414,7 +421,7 @@ pub const AARCH64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey = RegisterCo
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 110] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 111] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -630,4 +637,5 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 110] = 
     AARCH64_BYTE_LITERAL_IMAGE_ADDRESS,
     AARCH64_SCAN_BYTE_SEQUENCE,
     AARCH64_COMPARE_BYTE_SEQUENCES,
+    AARCH64_ZERO_BYTES,
 ];

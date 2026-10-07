@@ -97,6 +97,7 @@ pub(super) fn validate_declaration(
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
         MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
         MachineSemanticKind::CopyBytes => crate::MachineMemoryEffect::CopyBytesV1,
+        MachineSemanticKind::ZeroBytes => crate::MachineMemoryEffect::ZeroBytesV1,
         MachineSemanticKind::ScanByteSequence => crate::MachineMemoryEffect::ScanByteSequenceV1,
         MachineSemanticKind::CompareByteSequences => {
             crate::MachineMemoryEffect::CompareByteSequencesV1
@@ -139,6 +140,7 @@ pub(super) fn validate_declaration(
         MachineSemanticKind::HostedReadByte => crate::MachineTrapBehavior::HostedReadFailureV1,
         MachineSemanticKind::HostedWriteByteI32 => crate::MachineTrapBehavior::HostedWriteFailureV1,
         MachineSemanticKind::CopyBytes
+        | MachineSemanticKind::ZeroBytes
         | MachineSemanticKind::ScanByteSequence
         | MachineSemanticKind::CompareByteSequences
         | MachineSemanticKind::Load8
@@ -484,6 +486,19 @@ fn validate_encoded_effects(
             || !matches!(
                 encoded.memory,
                 MachineEncodedMemoryEffect::CopyBytesV1 { .. }
+            )
+            || declaration.call != crate::MachineCallEffect::NoneV1
+            || !constraint.implicit_uses.is_empty()
+            || !constraint.implicit_defs.is_empty()
+            || constraint.clobbers.is_empty())
+    {
+        return Err(());
+    }
+    if declaration.semantic == MachineSemanticKind::ZeroBytes
+        && (declaration.memory != crate::MachineMemoryEffect::ZeroBytesV1
+            || !matches!(
+                encoded.memory,
+                MachineEncodedMemoryEffect::ZeroBytesV1 { .. }
             )
             || declaration.call != crate::MachineCallEffect::NoneV1
             || !constraint.implicit_uses.is_empty()
@@ -845,6 +860,39 @@ fn validate_encoded_effects(
                                 RegisterOperandAccess::Def
                             }
                         && operand.early_clobber == (position >= 3)
+                        && operand.fixed_view.is_none()
+                        && operand.tied_to.is_none()
+                })
+            && encoded.implicit_unit_uses == constraint.implicit_uses
+            && encoded.implicit_unit_defs == constraint.implicit_defs
+            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
+        (
+            MachineEncodedMemoryEffect::ZeroBytesV1 {
+                destination_pointer_operand: 0,
+                count_operand: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::ZeroBytes
+            && declaration.memory == crate::MachineMemoryEffect::ZeroBytesV1
+            && declaration.trap == crate::MachineTrapBehavior::MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes == [2]
+            && constraint.operands.len() == 3
+            && constraint
+                .operands
+                .iter()
+                .enumerate()
+                .all(|(position, operand)| {
+                    operand.operand as usize == position
+                        && operand.access
+                            == if position < 2 {
+                                RegisterOperandAccess::Use
+                            } else {
+                                RegisterOperandAccess::Def
+                            }
+                        && operand.early_clobber == (position >= 2)
                         && operand.fixed_view.is_none()
                         && operand.tied_to.is_none()
                 })

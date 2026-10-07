@@ -37,6 +37,17 @@ pub(super) fn declaration(
             },
             MachineSizeKnowledge::ExactBytes(36),
         ),
+        MachineSemanticKind::ZeroBytes => (
+            MachineMemoryEffect::ZeroBytesV1,
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            vec![0, 1],
+            vec![2],
+            MachineEncodedMemoryEffect::ZeroBytesV1 {
+                destination_pointer_operand: 0,
+                count_operand: 1,
+            },
+            MachineSizeKnowledge::ExactBytes(25),
+        ),
         MachineSemanticKind::ScanByteSequence => (
             MachineMemoryEffect::ScanByteSequenceV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,

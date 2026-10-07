@@ -113,6 +113,7 @@ pub(in crate::text_placement::placement) fn prove_none(
                 }
                 MachineAlternativeFamily::CompareI64Zero
                 | MachineAlternativeFamily::CopyBytes
+                | MachineAlternativeFamily::ZeroBytes
                 | MachineAlternativeFamily::ScanByteSequence
                 | MachineAlternativeFamily::CompareByteSequences
                 | MachineAlternativeFamily::HostedWriteByteI32

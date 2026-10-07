@@ -269,6 +269,7 @@ fn selected_keys(
             .then_some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
         crash: crate::AARCH64_CRASH,
         copy_bytes: Some(crate::AARCH64_COPY_BYTES),
+        zero_bytes: Some(crate::AARCH64_ZERO_BYTES),
         scan_byte_sequence: Some(crate::AARCH64_SCAN_BYTE_SEQUENCE),
         compare_byte_sequences: Some(crate::AARCH64_COMPARE_BYTE_SEQUENCES),
         save_floating_control: Some(crate::AARCH64_SAVE_FLOATING_CONTROL),
@@ -396,6 +397,8 @@ fn declaration(
             .expect("required AArch64 machine semantic has a constraint"),
         memory: if semantic == MachineSemanticKind::CopyBytes {
             MachineMemoryEffect::CopyBytesV1
+        } else if semantic == MachineSemanticKind::ZeroBytes {
+            MachineMemoryEffect::ZeroBytesV1
         } else if semantic == MachineSemanticKind::ScanByteSequence {
             MachineMemoryEffect::ScanByteSequenceV1
         } else if semantic == MachineSemanticKind::CompareByteSequences {
@@ -423,6 +426,7 @@ fn declaration(
         trap: if matches!(
             semantic,
             MachineSemanticKind::CopyBytes
+                | MachineSemanticKind::ZeroBytes
                 | MachineSemanticKind::Load8
                 | MachineSemanticKind::Load16
                 | MachineSemanticKind::Load32
@@ -500,6 +504,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         }
         MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CopyBytes => (vec![0, 1, 2], vec![3, 4]),
+        MachineSemanticKind::ZeroBytes => (vec![0, 1], vec![2]),
         MachineSemanticKind::ScanByteSequence => (vec![0, 1], vec![2, 3, 4]),
         MachineSemanticKind::CompareByteSequences => (vec![0, 1, 2, 3], vec![4, 5, 6, 7]),
         MachineSemanticKind::LoadPacked3
@@ -600,6 +605,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
     };
     let (implicit_uses, implicit_defs, trap, control) = match semantic {
         MachineSemanticKind::CopyBytes
+        | MachineSemanticKind::ZeroBytes
         | MachineSemanticKind::ScanByteSequence
         | MachineSemanticKind::CompareByteSequences => (
             vec![],
@@ -722,6 +728,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         implicit_unit_clobbers: if matches!(
             semantic,
             MachineSemanticKind::CopyBytes
+                | MachineSemanticKind::ZeroBytes
                 | MachineSemanticKind::ScanByteSequence
                 | MachineSemanticKind::CompareByteSequences
         ) {
@@ -734,6 +741,11 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 source_pointer_operand: 0,
                 destination_pointer_operand: 1,
                 count_operand: 2,
+            }
+        } else if semantic == MachineSemanticKind::ZeroBytes {
+            MachineEncodedMemoryEffect::ZeroBytesV1 {
+                destination_pointer_operand: 0,
+                count_operand: 1,
             }
         } else if semantic == MachineSemanticKind::ScanByteSequence {
             MachineEncodedMemoryEffect::ScanByteSequenceV1 {
@@ -803,6 +815,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         // including small offsets; its early-clobber contract is not optional.
         MachineSemanticKind::Store64 => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::CopyBytes => MachineSizeKnowledge::ExactBytes(28),
+        MachineSemanticKind::ZeroBytes => MachineSizeKnowledge::ExactBytes(24),
         MachineSemanticKind::ScanByteSequence => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 20,
             maximum_bytes: None,

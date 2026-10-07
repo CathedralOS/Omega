@@ -831,6 +831,9 @@ fn interferes(
 ///   slot for a place subject, the staging slot itself for a staging one;
 /// - `Store64` into `Local(slot)` carrying `WriteLocal` on that same slot —
 ///   directly into the dead bytes' storage;
+/// - `ZeroBytes` carrying `WritePlace` — the fill writes `count` bytes from
+///   the home's base, so its row starts at offset zero and spans exactly
+///   the count, which must resolve to a clean materialized constant;
 /// - `CopyBytes` carrying the destination `WriteByteSpan` — a dynamic-extent
 ///   row that can cover an exact dead range, and only when the span's reach
 ///   is itself exact: the count register's sole definition must be a clean
@@ -1005,6 +1008,14 @@ fn covering_source(
             }
             (byte_offset, 8)
         }
+        // A zero fill writes its resolved constant count from the home's
+        // base through the referent pointer, like a place store.
+        SelectedInstructionKind::ZeroBytes => {
+            if !write_role_covers_subject(row.role, dead.storage, dead.place, structural_places) {
+                return Err(reject());
+            }
+            (0, zero_fill_count(instruction, function, environment)?)
+        }
         _ => return Err(reject()),
     };
     if row.byte_offset != encoded_offset || row.byte_count != encoded_size {
@@ -1020,6 +1031,34 @@ fn covering_source(
         return Err(reject());
     }
     Ok(())
+}
+
+/// The constant byte count a covering `ZeroBytes` writes from its
+/// destination — the home's base, so its encoded range starts at offset
+/// zero. The target's declared `zero_bytes` row pins operand 1 as the count
+/// use; the register named there must hold its function's sole definition
+/// in a clean `MaterializeI64` that no edge transport or case payload
+/// redefines, or the fill's reach is unproven and it covers nothing.
+fn zero_fill_count(
+    instruction: &SelectedInstruction,
+    function: &SelectedFunction,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<u32, DeadStoreEliminationError> {
+    let reject = || DeadStoreEliminationError::InterveningAccess;
+    if environment.selected_keys().zero_bytes != Some(instruction.constraint) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let count = instruction
+        .operands
+        .iter()
+        .find(|operand| operand.operand == 1 && operand.access == RegisterOperandAccess::Use)
+        .ok_or_else(reject)?
+        .virtual_register;
+    let written = materialized_bits(function, count).map_err(|_| reject())?;
+    if transport_defines(function, count) {
+        return Err(reject());
+    }
+    u32::try_from(written).map_err(|_| reject())
 }
 
 /// The `CopyBytes` covering route: a `WriteByteSpan` row claims `length`

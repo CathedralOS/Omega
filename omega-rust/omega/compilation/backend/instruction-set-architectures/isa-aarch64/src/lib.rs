@@ -73,7 +73,7 @@ pub use register_model::{
     AARCH64_DARWIN_CALL, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT,
     AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_JUMP, AARCH64_LINUX_SYSTEM_CALL,
     AARCH64_MATERIALIZE_I64, AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SCAN_BYTE_SEQUENCE,
-    AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
+    AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE, AARCH64_ZERO_BYTES,
     Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
     aarch64_physical_register_model, aarch64_physical_register_model_ref,
     aarch64_preservation_convention_for_target, aarch64_register_constraint_catalog,

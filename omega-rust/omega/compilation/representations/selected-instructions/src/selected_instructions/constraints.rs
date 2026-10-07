@@ -14,6 +14,9 @@ pub struct SelectedConstraintKeys {
     pub atomic_bitwise_update: Option<RegisterConstraintKey>,
     pub crash: RegisterConstraintKey,
     pub copy_bytes: Option<RegisterConstraintKey>,
+    /// Bulk zero fill: two preserved inputs (destination, count) and one
+    /// early-clobber cursor scratch register.
+    pub zero_bytes: Option<RegisterConstraintKey>,
     /// Byte-sequence predicate scan: two preserved inputs (base, count), two
     /// early-clobber scratch registers, one defined 0/1 result operand.
     pub scan_byte_sequence: Option<RegisterConstraintKey>,

@@ -26,6 +26,7 @@ pub(crate) mod float_result_policy;
 pub(crate) mod floating_control;
 pub(crate) mod ieee_float_arithmetic;
 mod scan_byte_sequence;
+mod zero_bytes;
 pub use floating_control::{
     encode_x86_64_selected_floating_control_form, validate_x86_64_selected_floating_control_form,
 };
@@ -155,6 +156,9 @@ pub fn encode_x86_64_selected_form(
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::encode(physical, alternative, operands, 0);
     }
+    if kind == SelectedInstructionKind::ZeroBytes {
+        return zero_bytes::encode(physical, alternative, operands);
+    }
     if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
         return scan_byte_sequence::encode(physical, predicate, alternative, operands, 0);
     }
@@ -187,6 +191,9 @@ pub fn validate_x86_64_selected_form_encoding(
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::validate(physical, alternative, operands, 0, bytes);
+    }
+    if kind == SelectedInstructionKind::ZeroBytes {
+        return zero_bytes::validate(physical, alternative, operands, bytes);
     }
     if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
         return scan_byte_sequence::validate(physical, predicate, alternative, operands, 0, bytes);

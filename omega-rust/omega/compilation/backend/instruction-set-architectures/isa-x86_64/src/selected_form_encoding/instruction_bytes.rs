@@ -783,6 +783,7 @@ pub(crate) fn encode_unchecked(
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::CopyBytes
+        | SelectedInstructionKind::ZeroBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
         | SelectedInstructionKind::CompareByteSequences
         | SelectedInstructionKind::Load8 { .. }

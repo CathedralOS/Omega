@@ -53,6 +53,7 @@ fn keys() -> SelectedConstraintKeys {
         atomic_bitwise_update: Some(instruction(58)),
         crash: instruction(780),
         copy_bytes: Some(instruction(40)),
+        zero_bytes: Some(instruction(60)),
         scan_byte_sequence: Some(instruction(41)),
         compare_byte_sequences: Some(instruction(42)),
         save_floating_control: Some(instruction(44)),
@@ -172,12 +173,17 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
         constraint,
         memory: if semantic == MachineSemanticKind::CopyBytes {
             MachineMemoryEffect::CopyBytesV1
+        } else if semantic == MachineSemanticKind::ZeroBytes {
+            MachineMemoryEffect::ZeroBytesV1
         } else if semantic == MachineSemanticKind::HostedWriteByteI32 {
             MachineMemoryEffect::HostedWriteByteV1
         } else {
             MachineMemoryEffect::NoneV1
         },
-        trap: if semantic == MachineSemanticKind::CopyBytes {
+        trap: if matches!(
+            semantic,
+            MachineSemanticKind::CopyBytes | MachineSemanticKind::ZeroBytes
+        ) {
             MachineTrapBehavior::MayArchitecturalFaultV1
         } else if semantic == MachineSemanticKind::HostedExitProcessI32 {
             MachineTrapBehavior::HostedExitReturnedV1
@@ -251,6 +257,15 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
                 encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
                 encoded.implicit_unit_clobbers = vec![register_model::RegisterUnitId(0)];
                 encoded
+            } else if semantic == MachineSemanticKind::ZeroBytes {
+                let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]);
+                encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
+                    destination_pointer_operand: 0,
+                    count_operand: 1,
+                };
+                encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+                encoded.implicit_unit_clobbers = vec![register_model::RegisterUnitId(0)];
+                encoded
             } else if semantic == MachineSemanticKind::HostedExitProcessI32 {
                 let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![]);
                 encoded.trap = MachineEncodedTrapBehavior::HostedExitReturnedV1;
@@ -302,6 +317,34 @@ fn byte_copy_catalog_identity_binds_key_and_both_dynamic_pointers() {
                 destination_pointer_operand: if mutation == 2 { 0 } else { 1 },
                 count_operand: 2,
             };
+        }
+        assert_ne!(baseline, machine_effect_catalog_identity(&changed));
+    }
+}
+
+#[test]
+fn zero_fill_catalog_identity_binds_key_and_dynamic_operands() {
+    let source = catalog();
+    let baseline = machine_effect_catalog_identity(&source);
+    for mutation in 0..4 {
+        let mut changed = source.clone();
+        if mutation == 0 {
+            changed.selected_keys.zero_bytes = None;
+        } else {
+            let declaration = changed
+                .declarations
+                .iter_mut()
+                .find(|declaration| declaration.semantic == MachineSemanticKind::ZeroBytes)
+                .unwrap();
+            if mutation == 3 {
+                declaration.memory = MachineMemoryEffect::CopyBytesV1;
+            } else {
+                declaration.alternatives[0].encoded.memory =
+                    MachineEncodedMemoryEffect::ZeroBytesV1 {
+                        destination_pointer_operand: if mutation == 1 { 1 } else { 0 },
+                        count_operand: if mutation == 2 { 2 } else { 1 },
+                    };
+            }
         }
         assert_ne!(baseline, machine_effect_catalog_identity(&changed));
     }
@@ -751,7 +794,7 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 120] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 121] = [
     (MachineAlternativeFamily::Crash, 111),
     (MachineAlternativeFamily::CopyBytes, 59),
     (MachineAlternativeFamily::BitwiseAndI64, 51),
@@ -801,6 +844,7 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 120] = [
     (MachineAlternativeFamily::ImmutableImageAddress, 232),
     (MachineAlternativeFamily::ScanByteSequence, 233),
     (MachineAlternativeFamily::CompareByteSequences, 234),
+    (MachineAlternativeFamily::ZeroBytes, 235),
     (MachineAlternativeFamily::CallUnit, 19),
     (MachineAlternativeFamily::ByteViewAddress, 22),
     (MachineAlternativeFamily::HostedReadByte, 32),

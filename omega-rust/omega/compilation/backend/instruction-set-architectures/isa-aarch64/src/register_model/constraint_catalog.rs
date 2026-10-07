@@ -24,11 +24,12 @@ use crate::register_model::{
     AARCH64_SCAN_BYTE_SEQUENCE, AARCH64_SHIFT_I64, AARCH64_STORE, AARCH64_STORE_PACKED,
     AARCH64_STORE64, AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE, AARCH64_TRAPPING_BINARY,
     AARCH64_TRAPPING_CONVERT, AARCH64_TRAPPING_FIXED_PAIR, AARCH64_TRAPPING_SHIFT,
-    aarch64_aapcs64_normalized_foreign_call_keys, aarch64_aapcs64_register_call_keys,
-    aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_normalized_foreign_call_keys,
-    aarch64_darwin_register_call_keys, aarch64_darwin_register_unit_call_keys,
-    aarch64_register_aggregate_call_keys, aarch64_register_aggregate_return_keys,
-    canonical_aarch64_physical_register_model_identity, validated_aarch64_physical_register_model,
+    AARCH64_ZERO_BYTES, aarch64_aapcs64_normalized_foreign_call_keys,
+    aarch64_aapcs64_register_call_keys, aarch64_aapcs64_register_unit_call_keys,
+    aarch64_darwin_normalized_foreign_call_keys, aarch64_darwin_register_call_keys,
+    aarch64_darwin_register_unit_call_keys, aarch64_register_aggregate_call_keys,
+    aarch64_register_aggregate_return_keys, canonical_aarch64_physical_register_model_identity,
+    validated_aarch64_physical_register_model,
 };
 use crate::register_model::{float_scalar_calls, indirect_results, mixed_calls};
 use crate::{
@@ -675,6 +676,30 @@ pub fn aarch64_register_constraint_catalog(
                     GPR64,
                 );
                 row.early_clobber = operand >= 3;
+                row
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("nzcv").units.clone(),
+    });
+    // The zero fill reads its preserved destination/count inputs on every
+    // iteration; the cursor is written before the count guard reads them.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_ZERO_BYTES,
+        operands: (0..3)
+            .map(|operand| {
+                let mut row = allocatable(
+                    operand,
+                    if operand < 2 {
+                        RegisterOperandAccess::Use
+                    } else {
+                        RegisterOperandAccess::Def
+                    },
+                    GPR64,
+                );
+                row.early_clobber = operand >= 2;
                 row
             })
             .collect(),
