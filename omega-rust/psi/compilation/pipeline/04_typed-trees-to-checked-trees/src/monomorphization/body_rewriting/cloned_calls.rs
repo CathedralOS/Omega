@@ -190,29 +190,22 @@ pub(crate) fn rewrite_cloned_calls(
             // runtime receiver and the rewritten target owns every parameter as
             // an explicit argument. Clearing the receiver leaves the operand
             // roster exactly as authored.
-            if evidence_dispatch.is_some() {
-                call.receiver_root_symbol = SymbolHandle::invalid();
-                call.receiver_symbol = SymbolHandle::invalid();
-                call.receiver = HandleSpan::empty();
-            }
-            if let Some(rewrite) = evidence_dispatch {
-                call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
-                call.machine_arguments = rewrite.application_arguments.clone();
-            }
-            substitute_forwarded_machine_arguments(
+            apply_evidence_dispatch_rewrite(
+                call.target_symbol,
+                &mut call.static_requirement_dispatch,
                 &mut call.machine_arguments,
+                &mut call.arguments,
+                evidence_dispatch,
                 &static_argument_rewrites,
                 &argument_rewrites,
+                state_symbols,
+                clone_state_arguments,
+                || {
+                    call.receiver_root_symbol = SymbolHandle::invalid();
+                    call.receiver_symbol = SymbolHandle::invalid();
+                    call.receiver = HandleSpan::empty();
+                },
             );
-            if state_symbols
-                .iter()
-                .any(|(_, concrete)| *concrete == call.target_symbol)
-            {
-                if let Some(arguments) = clone_state_arguments {
-                    call.arguments = arguments;
-                }
-                call.machine_arguments = Box::default();
-            }
         }
     }
     let runtime_calls =
@@ -292,27 +285,18 @@ pub(crate) fn rewrite_cloned_calls(
         if let Some(receiver) = selected_carrier {
             call.receiver = receiver;
         }
-        if evidence_dispatch.is_some() {
-            call.receiver = ExpressionHandle::invalid();
-        }
-        if let Some(rewrite) = evidence_dispatch {
-            call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
-            call.machine_arguments = rewrite.application_arguments.clone();
-        }
-        substitute_forwarded_machine_arguments(
+        apply_evidence_dispatch_rewrite(
+            call.target_symbol,
+            &mut call.static_requirement_dispatch,
             &mut call.machine_arguments,
+            &mut call.arguments,
+            evidence_dispatch,
             &static_argument_rewrites,
             &argument_rewrites,
+            state_symbols,
+            clone_state_arguments,
+            || call.receiver = ExpressionHandle::invalid(),
         );
-        if state_symbols
-            .iter()
-            .any(|(_, concrete)| *concrete == call.target_symbol)
-        {
-            if let Some(arguments) = clone_state_arguments {
-                call.arguments = arguments;
-            }
-            call.machine_arguments = Box::default();
-        }
     }
 }
 
@@ -416,5 +400,46 @@ pub(crate) fn rewrite_clone_transition_subjects(
             unreachable!("named transition target checked above");
         };
         *arguments = new_arguments;
+    }
+}
+
+/// The shared tail of an evidence-dispatched call rewrite: `invalidate_receiver`
+/// clears the per-node receiver shape, the selected dispatch and its
+/// application arguments replace the placeholder's contract, forwarded statics
+/// substitute, and a call into the specialization's own states demotes its
+/// machine arguments in favor of cloned runtime arguments.
+#[allow(clippy::too_many_arguments)]
+fn apply_evidence_dispatch_rewrite(
+    target_symbol: SymbolHandle,
+    static_requirement_dispatch: &mut Option<typed_trees::typed_trees::StaticRequirementDispatch>,
+    machine_arguments: &mut Box<[typed_trees::expression::StaticMachineArgument]>,
+    arguments: &mut HandleSpan<ExpressionHandle>,
+    evidence_dispatch: Option<&super::evidence_rewrites::EvidenceRequirementRewrite>,
+    static_argument_rewrites: &[(SymbolHandle, typed_trees::expression::StaticMachineArgument)],
+    argument_rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
+    state_symbols: &[(SymbolHandle, SymbolHandle)],
+    clone_state_arguments: Option<HandleSpan<ExpressionHandle>>,
+    mut invalidate_receiver: impl FnMut(),
+) {
+    if evidence_dispatch.is_some() {
+        invalidate_receiver();
+    }
+    if let Some(rewrite) = evidence_dispatch {
+        *static_requirement_dispatch = Some(rewrite.dispatch.clone());
+        *machine_arguments = rewrite.application_arguments.clone();
+    }
+    substitute_forwarded_machine_arguments(
+        machine_arguments,
+        static_argument_rewrites,
+        argument_rewrites,
+    );
+    if state_symbols
+        .iter()
+        .any(|(_, concrete)| *concrete == target_symbol)
+    {
+        if let Some(cloned) = clone_state_arguments {
+            *arguments = cloned;
+        }
+        *machine_arguments = Box::default();
     }
 }
