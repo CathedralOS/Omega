@@ -121,56 +121,7 @@ impl<'program> Evaluator<'program> {
             })
         };
         let qualified = name.split_once("::");
-        let authorized = qualified.and_then(|(alias, _)| {
-            self.product_declarations
-                .symbols
-                .product_dependency_target(occurrence, alias)
-        });
-        let candidates = match (qualified, authorized) {
-            (Some((_, rest)), Some(target)) => self
-                .product_declarations
-                .data_definitions()
-                .iter()
-                .filter(|definition| {
-                    definition.is_public
-                        && is_provider(definition.symbol)
-                        // The dependency alias qualifies a complete path;
-                        // a different module's relative name is not a match.
-                        && self.product_declarations.symbols.display_path(definition.symbol, "::") == rest
-                        && self
-                            .product_declarations
-                            .symbols
-                            .symbol_product_package_identity(definition.symbol)
-                            == Some(target)
-                })
-                .collect::<Vec<_>>(),
-            _ => self
-                .product_declarations
-                .data_definitions()
-                .iter()
-                .filter(|definition| {
-                    (match qualified {
-                        Some(_) => {
-                            self.product_declarations
-                                .symbols
-                                .display_path(definition.symbol, "::")
-                                .as_str()
-                                == name
-                        }
-                        None => definition.name.as_str() == name,
-                    }) && is_provider(definition.symbol)
-                        && self
-                            .product_declarations
-                            .symbols
-                            .symbol_source_span(definition.symbol)
-                            .is_some_and(|span| {
-                                self.product_declarations
-                                    .symbols
-                                    .same_product_package_instance(occurrence, span)
-                            })
-                })
-                .collect::<Vec<_>>(),
-        };
+        let candidates = self.product_data_candidates(name, qualified, occurrence, is_provider);
         let [definition] = candidates.as_slice() else {
             if !candidates.is_empty() {
                 return Err(Halt::Trap(format!(
