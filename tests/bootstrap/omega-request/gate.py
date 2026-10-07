@@ -15,7 +15,8 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from gate_lib import evaluate, require_identity, run  # noqa: E402
+from gate_lib import (env_seconds, evaluate, require_identity,  # noqa: E402
+                    require_receipt_identity, require_rung_identities, run)
 
 
 # The OCOUT V1 failure frame, computed from the assigned tables rather than
@@ -41,23 +42,12 @@ def main():
     directory = Path(argv[0]).resolve()
     adapter = Path(argv[1]).read_bytes()
     gate = Path(__file__).resolve().parent
-    timeout = int(os.environ.get("OMEGA_REQUEST_OBSERVATION_SECONDS", "14400"))
-    if timeout <= 0:
-        raise SystemExit("OMEGA_REQUEST_OBSERVATION_SECONDS must be positive")
-    receipt_seconds = int(os.environ.get("OMEGA_REQUEST_RECEIPT_SECONDS", "1800"))
-    if receipt_seconds <= 0:
-        raise SystemExit("OMEGA_REQUEST_RECEIPT_SECONDS must be positive")
+    timeout = env_seconds("OMEGA_REQUEST_OBSERVATION_SECONDS", "14400")
+    receipt_seconds = env_seconds("OMEGA_REQUEST_RECEIPT_SECONDS", "1800")
 
     # These are whole source closures and an unchanged ordinary Delta adapter.
     # The host frames and compares bytes; the lower chain checks and runs D.
-    epsilon = (directory / "epsilon_compiler.delta").read_bytes()
-    require_identity("Epsilon", epsilon, 617354,
-                     "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e")
-    require_identity("execution adapter", adapter, 2565,
-                     "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
-    compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 569920,
-                     "f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842")
+    compiler = require_rung_identities(directory, adapter)
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("request entry", entry, ENTRY_SIZE, ENTRY_SHA256)
     fixture = (gate / "request.bin").read_bytes()
@@ -84,8 +74,7 @@ def main():
     receipt = evaluate(directory, (directory / "delta_compiler.gamma").read_bytes(),
                        request, receipt_seconds, "Epsilon receipt reconstruction",
                        "no outcome judgment")
-    require_identity("Epsilon execution receipt", receipt, 721484,
-                     "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082")
+    require_receipt_identity(receipt)
 
     def serve(ocreq, label):
         return evaluate(directory, receipt,

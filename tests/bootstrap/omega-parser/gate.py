@@ -8,6 +8,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from gate_lib import env_seconds  # noqa: E402
+
 
 def evaluate(directory, program, sealed_input, timeout, label):
     started = time.monotonic()
@@ -44,9 +47,7 @@ def main():
     directory = Path(argv[0])
     adapter = Path(argv[1]).read_bytes()
     gate = Path(__file__).resolve().parent
-    timeout = int(os.environ.get("OMEGA_PARSER_OBSERVATION_SECONDS", "14400"))
-    if timeout <= 0:
-        raise SystemExit("OMEGA_PARSER_OBSERVATION_SECONDS must be positive")
+    timeout = env_seconds("OMEGA_PARSER_OBSERVATION_SECONDS", "14400")
 
     # These are whole source closures and an unchanged ordinary Delta adapter.
     # The host frames and compares bytes; the lower chain checks and runs D.
@@ -80,9 +81,7 @@ def main():
               f"execution legs need a seed host ({len(request)}-byte receipt "
               f"request, {len(customer)}-byte customer)", flush=True)
         return
-    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "1800"))
-    if receipt_timeout <= 0:
-        raise SystemExit("OMEGA_PARSER_RECEIPT_SECONDS must be positive")
+    receipt_timeout = env_seconds("OMEGA_PARSER_RECEIPT_SECONDS", "1800")
     receipt = evaluate(directory, delta_compiler,
                        request, receipt_timeout, "Epsilon receipt reconstruction")
     require_identity("Epsilon execution receipt", receipt, 721484,

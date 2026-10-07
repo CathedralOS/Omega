@@ -36,10 +36,12 @@ from pathlib import Path
 import signal
 import struct
 import subprocess
+import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from gate_lib import evaluate, require_identity, run  # noqa: E402
+from gate_lib import (env_seconds, evaluate, require_identity,  # noqa: E402
+                    require_receipt_identity, run)
 
 
 def ocreq_request(source, path):
@@ -115,9 +117,7 @@ def main():
     if options.diagnostic and controls:
         arguments.error("the diagnostic adapter does not drive the controls")
     source = b"" if controls else (options.source or gate / "program.omg").read_bytes()
-    limit = int(os.environ.get("OMEGA_EXECUTABLE_OBSERVATION_SECONDS", "14400"))
-    if limit <= 0:
-        raise SystemExit("OMEGA_EXECUTABLE_OBSERVATION_SECONDS must be positive")
+    limit = env_seconds("OMEGA_EXECUTABLE_OBSERVATION_SECONDS", "14400")
     adapter = options.adapter.read_bytes()
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
@@ -185,9 +185,7 @@ def main():
               f"{len(customer)}-byte customer, {len(sealed_input)}-byte sealed "
               f"input)", flush=True)
         return
-    receipt_limit = int(os.environ.get("OMEGA_EXECUTABLE_RECEIPT_SECONDS", "300"))
-    if receipt_limit <= 0:
-        raise SystemExit("OMEGA_EXECUTABLE_RECEIPT_SECONDS must be positive")
+    receipt_limit = env_seconds("OMEGA_EXECUTABLE_RECEIPT_SECONDS", "300")
     # The receipt depends only on the pinned delta compiler and request, so the
     # controls matrix may share one reconstruction through an optional cache;
     # the pinned identity check below still applies to cached bytes.
@@ -200,8 +198,7 @@ def main():
         receipt = evaluate(directory, delta_compiler,
                            request, receipt_limit, "Epsilon receipt reconstruction",
                            "no compiler judgment")
-    require_identity("Epsilon execution receipt", receipt, 721484,
-                     "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082")
+    require_receipt_identity(receipt)
     if receipt_cache and not Path(receipt_cache).exists():
         Path(receipt_cache).write_bytes(receipt)
     observation = evaluate(directory, receipt,
