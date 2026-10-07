@@ -514,42 +514,47 @@ pub(super) fn derive_direct_terminal_plan(
             )
         })
         .transpose()?;
-/// The shared gate for a direct-lift derivation: it runs only absent an
-/// explicit transport, and only once every prerequisite evidence slot is
-/// populated. `derive` receives the four populated prerequisites.
-#[allow(clippy::type_complexity)]
-fn transport_gated_derivation<T>(
-    has_explicit_transport: bool,
-    runtime: Option<&DirectLiftRuntimeCorrespondence>,
-    public: Option<&RepresentativePreconditionPartition>,
-    representative_partition: Option<&RepresentativePreconditionPartition>,
-    verified_theorem: Option<&VerifiedTheoremSchema>,
-    derive: impl FnOnce(
-        &DirectLiftRuntimeCorrespondence,
-        &RepresentativePreconditionPartition,
-        &RepresentativePreconditionPartition,
-        &VerifiedTheoremSchema,
-    ) -> Result<T, RelationPlanError>,
-) -> Result<Option<T>, RelationPlanError> {
-    Ok(
-        match (
-            has_explicit_transport,
-            runtime,
-            public,
-            representative_partition,
-            verified_theorem,
-        ) {
-            (
-                false,
-                Some(runtime),
-                Some(public),
-                Some(representative_partition),
-                Some(verified_theorem),
-            ) => Some(derive(runtime, public, representative_partition, verified_theorem)?),
-            _ => None,
-        },
-    )
-}
+    /// The shared gate for a direct-lift derivation: it runs only absent an
+    /// explicit transport, and only once every prerequisite evidence slot is
+    /// populated. `derive` receives the four populated prerequisites.
+    #[allow(clippy::type_complexity)]
+    fn transport_gated_derivation<T>(
+        has_explicit_transport: bool,
+        runtime: Option<&DirectLiftRuntimeCorrespondence>,
+        public: Option<&RepresentativePreconditionPartition>,
+        representative_partition: Option<&RepresentativePreconditionPartition>,
+        verified_theorem: Option<&VerifiedTheoremSchema>,
+        derive: impl FnOnce(
+            &DirectLiftRuntimeCorrespondence,
+            &RepresentativePreconditionPartition,
+            &RepresentativePreconditionPartition,
+            &VerifiedTheoremSchema,
+        ) -> Result<T, RelationPlanError>,
+    ) -> Result<Option<T>, RelationPlanError> {
+        Ok(
+            match (
+                has_explicit_transport,
+                runtime,
+                public,
+                representative_partition,
+                verified_theorem,
+            ) {
+                (
+                    false,
+                    Some(runtime),
+                    Some(public),
+                    Some(representative_partition),
+                    Some(verified_theorem),
+                ) => Some(derive(
+                    runtime,
+                    public,
+                    representative_partition,
+                    verified_theorem,
+                )?),
+                _ => None,
+            },
+        )
+    }
 
     let has_runtime_correspondence =
         direct_lift_correspondence.is_some() || define_correspondence.is_some();
@@ -1153,18 +1158,23 @@ impl DirectTerminalRelationPlan {
         )
     }
 
+    /// Render one runtime correspondence as `<kind>-runtime=[<indices>]`: the
+    /// position roster shared by the define and direct-lift spellings.
+    fn render_runtime_correspondence<T>(kind: &str, positions: &[T]) -> String {
+        format!(
+            "{kind}-runtime=[{}]",
+            positions
+                .iter()
+                .enumerate()
+                .map(|(position, _)| position.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+
     pub(super) fn render_define_correspondence(&self) -> Option<String> {
         self.define_correspondence.as_ref().map(|correspondence| {
-            format!(
-                "define-runtime=[{}]",
-                correspondence
-                    .positions
-                    .iter()
-                    .enumerate()
-                    .map(|(position, _)| position.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
+            Self::render_runtime_correspondence("define", &correspondence.positions)
         })
     }
 
@@ -1172,16 +1182,7 @@ impl DirectTerminalRelationPlan {
         self.direct_lift_correspondence
             .as_ref()
             .map(|correspondence| {
-                format!(
-                    "direct-lift-runtime=[{}]",
-                    correspondence
-                        .positions
-                        .iter()
-                        .enumerate()
-                        .map(|(position, _)| position.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
+                Self::render_runtime_correspondence("direct-lift", &correspondence.positions)
             })
     }
 

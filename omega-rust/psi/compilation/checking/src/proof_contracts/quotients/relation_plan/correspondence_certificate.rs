@@ -551,20 +551,20 @@ fn push_exact_position_arithmetic_bindings(
     type_reference: TypeReferenceHandle,
     atom_identity: impl FnOnce() -> String,
 ) {
-    let Some((primitive, unsigned)) = exact_integer_parameter(program, type_reference)
-    else {
+    let Some((primitive, unsigned)) = exact_integer_parameter(program, type_reference) else {
         return;
     };
     match &position.source {
-        DirectLiftArgumentSource::PublicParameter(_) | DirectLiftArgumentSource::Literal(_)
-        => push_position_arithmetic_bindings(
-            bindings,
-            position,
-            representative_parameter,
-            primitive,
-            unsigned,
-            atom_identity,
-        ),
+        DirectLiftArgumentSource::PublicParameter(_) | DirectLiftArgumentSource::Literal(_) => {
+            push_position_arithmetic_bindings(
+                bindings,
+                position,
+                representative_parameter,
+                primitive,
+                unsigned,
+                atom_identity,
+            )
+        }
     }
 }
 

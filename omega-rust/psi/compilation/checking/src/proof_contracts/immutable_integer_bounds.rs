@@ -584,18 +584,9 @@ pub fn projected_integer_bound_root(
     let primitive = program
         .type_reference_table
         .primitive_type(field.type_reference)?;
-    if !matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) || program.arithmetic_domain_for_type_reference(field.type_reference)
-        != numerics::arithmetic::ArithmeticDomain::Exact
+    if !primitive.is_fixed_integer()
+        || program.arithmetic_domain_for_type_reference(field.type_reference)
+            != numerics::arithmetic::ArithmeticDomain::Exact
     {
         return None;
     }
@@ -668,18 +659,9 @@ pub fn indexed_integer_bound_root(
         return None;
     };
     let primitive = program.type_reference_table.primitive_type(*element_type)?;
-    if !matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) || program.arithmetic_domain_for_type_reference(*element_type)
-        != numerics::arithmetic::ArithmeticDomain::Exact
+    if !primitive.is_fixed_integer()
+        || program.arithmetic_domain_for_type_reference(*element_type)
+            != numerics::arithmetic::ArithmeticDomain::Exact
     {
         return None;
     }

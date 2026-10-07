@@ -764,7 +764,8 @@ fn closed_recursive_array_element(
                     Ok(ClosedRecursiveArrayElement::Byte(byte))
                 }
                 (primitive, ExpressionNode::Integer(literal))
-                    if crate::value_custody::literals::primitive_landing_type(primitive).is_some() =>
+                    if crate::value_custody::literals::primitive_landing_type(primitive)
+                        .is_some() =>
                 {
                     let landing =
                         exact_integer_landing(program, target_type, primitive, literal, position)?;
@@ -811,15 +812,11 @@ fn nested_literal_rows<'program>(
             let ExpressionNode::ArrayLiteral(row_elements) =
                 program.expression_table.expression(*row)
             else {
-                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
-                    position,
-                ));
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             };
             let row_elements = program.expression_table.expression_handles(*row_elements);
             if row_elements.len() != row_width {
-                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
-                    position,
-                ));
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
             Ok(row_elements)
         })
@@ -949,8 +946,6 @@ pub(super) fn landed_primitive(landed: LandedIntegerType) -> PrimitiveType {
         LandedIntegerType::Addr => PrimitiveType::Addr,
     }
 }
-
-
 
 fn integer_literal_fits(literal: &IntegerLiteral, landed: LandedIntegerType) -> bool {
     let width = landed.bit_width();

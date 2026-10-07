@@ -20,7 +20,6 @@ pub(super) struct ProofValueSubstitution {
     trace: String,
 }
 
-
 /// A fixed-size nested array's `[r1, r2, ...]` display rows — every leaf
 /// element kind renders identically.
 fn nested_array_rendered<T: std::fmt::Debug>(rows: &[std::sync::Arc<[T]>]) -> String {
@@ -249,9 +248,10 @@ impl ProofValueSubstitution {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            trace: array_trace(rows.iter().map(|row| {
-                array_trace(row.iter().map(|element| element_trace(element)))
-            })),
+            trace: array_trace(
+                rows.iter()
+                    .map(|row| array_trace(row.iter().map(|element| element_trace(element)))),
+            ),
         }
     }
 
