@@ -475,42 +475,29 @@ fn validate_trait_effect_ceiling(
     requirement: &StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let allowed_services = program
-        .service_reach_rows
-        .services(requirement.service_reach_row);
-    // The requirement stays fixed while the checked provider's published
-    // service row includes conservative reach through ordinary helpers.
-    let Some(disallowed) = super::disallowed_reached_service_names(
+    super::require_operational_ceiling(
         program,
         service_reaches,
         machine,
-        allowed_services,
+        requirement.service_reach_row,
+        requirement.suspends,
+        requirement.blocks,
+        |breach| match breach {
+            super::OperationalCeilingBreach::ReachedService(service_name) => format!(
+                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: service `{service_name}` is not allowed by the trait requirement",
+                machine.name, state.name, trait_name, requirement.name,
+            ),
+            super::OperationalCeilingBreach::Suspends => format!(
+                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `suspends;` exceeds the trait requirement's operational ceiling",
+                machine.name, state.name, trait_name, requirement.name,
+            ),
+            super::OperationalCeilingBreach::Blocks => format!(
+                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `blocks;` exceeds the trait requirement's operational ceiling",
+                machine.name, state.name, trait_name, requirement.name,
+            ),
+        },
         diagnostics,
-    ) else {
-        return;
-    };
-    for service_name in disallowed {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: service `{service_name}` is not allowed by the trait requirement",
-            machine.name,
-            state.name,
-            trait_name,
-            requirement.name,
-        )));
-    }
-
-    if machine.suspends && !requirement.suspends {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `suspends;` exceeds the trait requirement's operational ceiling",
-            machine.name, state.name, trait_name, requirement.name,
-        )));
-    }
-    if machine.blocks && !requirement.blocks {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `blocks;` exceeds the trait requirement's operational ceiling",
-            machine.name, state.name, trait_name, requirement.name,
-        )));
-    }
+    );
 }
 
 fn validate_trait_parameter_match(

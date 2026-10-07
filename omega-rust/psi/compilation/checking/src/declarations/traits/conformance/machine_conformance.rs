@@ -452,35 +452,26 @@ fn validate_top_level_requirement_effect_ceiling(
     label: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let allowed_services = program
-        .service_reach_rows
-        .services(requirement.service_reach_row);
-    // Checked providers contribute their whole call closure. Comparing only
-    // authored clauses would let an annotation-free helper evade this bound.
-    let Some(disallowed) = super::disallowed_reached_service_names(
+    super::require_operational_ceiling(
         program,
         service_reaches,
         machine,
-        allowed_services,
+        requirement.service_reach_row,
+        requirement.suspends,
+        requirement.blocks,
+        |breach| match breach {
+            super::OperationalCeilingBreach::ReachedService(service_name) => {
+                format!("{label} reaches service `{service_name}` outside the requirement ceiling")
+            }
+            super::OperationalCeilingBreach::Suspends => {
+                format!("{label} declares `suspends;` beyond the requirement ceiling")
+            }
+            super::OperationalCeilingBreach::Blocks => {
+                format!("{label} declares `blocks;` beyond the requirement ceiling")
+            }
+        },
         diagnostics,
-    ) else {
-        return;
-    };
-    for service_name in disallowed {
-        diagnostics.push(Diagnostic::error(format!(
-            "{label} reaches service `{service_name}` outside the requirement ceiling"
-        )));
-    }
-    if machine.suspends && !requirement.suspends {
-        diagnostics.push(Diagnostic::error(format!(
-            "{label} declares `suspends;` beyond the requirement ceiling"
-        )));
-    }
-    if machine.blocks && !requirement.blocks {
-        diagnostics.push(Diagnostic::error(format!(
-            "{label} declares `blocks;` beyond the requirement ceiling"
-        )));
-    }
+    );
 
     let allowed_invocations = program.machine_invokes(requirement);
     for invocation in program.machine_invokes(machine) {
