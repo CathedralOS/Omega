@@ -75,40 +75,13 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
         (false, input)
     };
 
-    if input.at_punctuation(PunctuationKind::Ampersand) {
+    let (receiver_access, input) = if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
         let (access, input) = input.take_reference_access()?;
-
-        if input.at_keyword(KeywordKind::SelfValue) {
-            return Err(input.error_here(
-                "`self` receivers are retired; declare an explicit named parameter and type",
-            ));
-        }
-
-        let (name, input) = input.take_identifier()?;
-        // `[erased]` marks the binding occurrence, so it attaches to the
-        // parameter name exactly as on a data field.
-        let (relevance, input) =
-            crate::parameters::binding_properties::parse_binding_relevance_brackets(
-                input,
-                "parameter",
-            )?;
-        let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-        let (type_reference, borrowed_mutable, input) =
-            parse_parameter_type_reference(syntax_trees, input)?;
-        return Ok((
-            syntax_trees.items.insert_state_parameter_node(
-                syntax_trees::item::StateParameterNode {
-                    name,
-                    type_reference,
-                    is_const,
-                    is_mutable: access.is_exclusive() || is_leading_mutable || borrowed_mutable,
-                    relevance,
-                },
-            ),
-            input,
-        ));
-    }
+        (Some(access), input)
+    } else {
+        (None, input)
+    };
 
     if input.at_keyword(KeywordKind::SelfValue) {
         return Err(input.error_here(
@@ -117,7 +90,9 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
     }
 
     let (name, input) = input.take_identifier()?;
-    // Same binding-occurrence contract as the `&name` arm above.
+    // `[erased]` marks the binding occurrence, so it attaches to the
+    // parameter name exactly as on a data field.
+    // Same binding-occurrence contract for the optional `&name` prefix.
     let (relevance, input) =
         crate::parameters::binding_properties::parse_binding_relevance_brackets(
             input,
@@ -133,7 +108,9 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
                 name,
                 type_reference,
                 is_const,
-                is_mutable: is_leading_mutable || borrowed_mutable,
+                is_mutable: receiver_access.is_some_and(|access| access.is_exclusive())
+                    || is_leading_mutable
+                    || borrowed_mutable,
                 relevance,
             }),
         input,
