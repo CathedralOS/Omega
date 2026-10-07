@@ -239,13 +239,7 @@ fn parses_field_relevance_on_record_and_case_payload_bindings() {
         }
     "#;
     let parsed = super::parse_source(source, "field relevance should parse");
-    let data = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .expect("data declaration");
+    let data = super::root_data(&parsed, "data declaration");
     let members = parsed.items.data_members(data.members);
     let syntax_trees::item::DataMember::Field(value) = &members[0] else {
         panic!("value field");
@@ -452,13 +446,7 @@ fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
 
     let parsed = super::parse_source(source, "parse should succeed");
 
-    let data = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .expect("data declaration");
+    let data = super::root_data(&parsed, "data declaration");
     assert_eq!(data.lifetime_parameters.len(), 1);
     assert_eq!(data.lifetime_parameters[0].as_str(), "buf");
     assert_eq!(data.type_parameters.count(), 1);
@@ -577,13 +565,7 @@ fn parses_generic_standalone_conformance_arguments() {
     "#;
 
     let parsed = super::parse_source(source, "generic conformance should parse");
-    let conformance = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
-            _ => None,
-        })
-        .expect("conformance root item");
+    let conformance = super::root_conformance(&parsed, "conformance root item");
     let arguments = parsed
         .type_references
         .type_reference_handles(conformance.trait_arguments);
@@ -614,13 +596,7 @@ fn parses_name_owned_generic_conformance_telescope() {
     "#;
 
     let parsed = super::parse_source(source, "generic conformance should parse");
-    let conformance = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
-            _ => None,
-        })
-        .expect("conformance root item");
+    let conformance = super::root_conformance(&parsed, "conformance root item");
 
     assert_eq!(conformance.lifetime_parameters.len(), 1);
     assert_eq!(conformance.lifetime_parameters[0].as_str(), "scope");
@@ -661,13 +637,7 @@ fn parses_named_concrete_subjectless_conformance_block() {
     "#;
 
     let parsed = super::parse_source(source, "subjectless conformance should parse");
-    let conformance = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
-            _ => None,
-        })
-        .expect("conformance root item");
+    let conformance = super::root_conformance(&parsed, "conformance root item");
     assert!(matches!(
         conformance.subject,
         syntax_trees::item::ConformanceSubject::Subjectless
@@ -731,13 +701,7 @@ fn parses_closed_conformance_block_members() {
     "#;
 
     let parsed = super::parse_source(source, "closed conformance block should parse");
-    let conformance = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
-            _ => None,
-        })
-        .expect("conformance root item");
+    let conformance = super::root_conformance(&parsed, "conformance root item");
     let syntax_trees::item::ConformanceBody::Closed { members } = conformance.body else {
         panic!("block must remain structurally distinct from bodyless attached-requirement lookup");
     };

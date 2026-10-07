@@ -82,3 +82,89 @@ fn parse_source_error(
         .expect(tokenize_message);
     crate::parser::parse_syntax_trees(&tokens).expect_err(error_message)
 }
+
+/// The first root `trait` item — same shared extraction as `root_machine`.
+fn root_trait<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    message: &str,
+) -> &'p syntax_trees::item::TraitDefinition {
+    parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect(message)
+}
+
+/// The first root `data` item — same shared extraction as `root_machine`.
+fn root_data<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    message: &str,
+) -> &'p syntax_trees::item::DataDefinition {
+    parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Data(definition) => Some(definition),
+            _ => None,
+        })
+        .expect(message)
+}
+
+/// The first root `domain` item — same shared extraction as `root_machine`.
+fn root_domain<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    message: &str,
+) -> &'p syntax_trees::item::DomainDefinition {
+    parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Domain(definition) => Some(definition),
+            _ => None,
+        })
+        .expect(message)
+}
+
+/// The first root `conformance` item — same shared extraction as
+/// `root_machine`.
+fn root_conformance<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    message: &str,
+) -> &'p syntax_trees::item::ConformanceItem {
+    parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Conformance(item) => Some(item),
+            _ => None,
+        })
+        .expect(message)
+}
+
+/// The first root `const` item — same shared extraction as `root_machine`.
+fn root_const<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    message: &str,
+) -> &'p syntax_trees::item::ConstDefinition {
+    parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Const(definition) => Some(definition),
+            _ => None,
+        })
+        .expect(message)
+}
+
+/// The first root `operator` item — same shared extraction as
+/// `root_machine`.
+fn root_operator<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    message: &str,
+) -> &'p syntax_trees::item::OperatorDefinition {
+    parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Operator(definition) => Some(definition),
+            _ => None,
+        })
+        .expect(message)
+}

@@ -166,13 +166,7 @@ fn trait_defaults_share_atomic_binding_dispatch() {
         "trait Updates { machine update(cell: u64) { let prior: u64 = cell.swap(1, NoOrdering); } }",
     ).tokenize().unwrap();
     let parsed = parse_syntax_trees(&tokens).unwrap();
-    let definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .expect("trait");
+    let definition = super::root_trait(&parsed, "trait");
     let signature = parsed
         .items
         .state_signature(parsed.items.state_signatures(definition.machines)[0]);
@@ -491,13 +485,7 @@ fn trait_machine_parameter_is_requirement_identity() {
         .tokenize()
         .expect("tokenize trait machine requirement parameter");
     let parsed = parse_syntax_trees(&tokens).expect("parse trait machine requirement parameter");
-    let trait_definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .expect("PrivateCallbackSlot trait");
+    let trait_definition = super::root_trait(&parsed, "PrivateCallbackSlot trait");
     let [parameter] = parsed
         .items
         .type_parameters(trait_definition.type_parameters)
@@ -818,13 +806,7 @@ fn parses_relevance_on_ordinary_numbered_fields() {
     .tokenize()
     .expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("numbered relevance should parse");
-    let schema = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Data(schema) => Some(schema),
-            _ => None,
-        })
-        .expect("ordinary numbered data");
+    let schema = super::root_data(&parsed, "ordinary numbered data");
     let fields = parsed
         .items
         .data_members(schema.members)
@@ -913,13 +895,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
 fn struct_literal_retains_its_complete_authored_source_span() {
     let source = "const ORIGIN: Point = Point { x: 1, y: 2 };";
     let parsed = super::parse_source_verbose(source, "tokenize structured const declaration", "parse structured const declaration");
-    let declaration = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Const(declaration) => Some(declaration),
-            _ => None,
-        })
-        .expect("structured const declaration");
+    let declaration = super::root_const(&parsed, "structured const declaration");
     let span = parsed.expressions.source_span(declaration.value).span;
     assert_eq!(&source[span.start..span.end], "Point { x: 1, y: 2 }");
 }
@@ -931,13 +907,7 @@ fn array_literal_retains_its_complete_authored_source_span() {
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let source_id = source::SourceId(23);
         let parsed = crate::parser::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-        let declaration = parsed
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Const(declaration) => Some(declaration),
-                _ => None,
-            })
-            .expect("array const declaration");
+        let declaration = super::root_const(&parsed, "array const declaration");
         assert!(matches!(
             parsed.expressions.expression(declaration.value),
             ExpressionNode::ArrayLiteral(_)

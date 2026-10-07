@@ -103,13 +103,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let domain = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain),
-            _ => None,
-        })
-        .expect("domain");
+    let domain = super::root_domain(&parsed, "domain");
 
     assert_eq!(
         domain.predicate_body,
@@ -137,13 +131,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
 fn parses_unqualified_machine_establishment_routes() {
     let source = "domain u64::Issued established by issue, Factory::issue;";
     let parsed = super::parse_source_verbose(source, "tokens", "free and attached issuer paths");
-    let domain = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain),
-            _ => None,
-        })
-        .expect("domain");
+    let domain = super::root_domain(&parsed, "domain");
     let routes = domain
         .authored_routes
         .iter()
@@ -172,13 +160,7 @@ fn parses_explicit_progress_profile_classification() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let domain = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain),
-            _ => None,
-        })
-        .expect("domain");
+    let domain = super::root_domain(&parsed, "domain");
 
     assert_eq!(
         domain.classification,
@@ -326,13 +308,7 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let domain = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain),
-            _ => None,
-        })
-        .expect("alias domain");
+    let domain = super::root_domain(&parsed, "alias domain");
 
     let alias = domain.alias.as_ref().expect("transparent alias record");
     assert!(domain.is_public);
@@ -1005,13 +981,7 @@ fn parses_machine_parameter_on_proof_data_declaration() {
         }
     "#;
     let parsed = super::parse_source(source, "proof-data machine parameter should parse");
-    let data = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .expect("Stream declaration");
+    let data = super::root_data(&parsed, "Stream declaration");
     let parameters = parsed.items.type_parameters(data.type_parameters);
     assert_eq!(parameters.len(), 1);
     let syntax_trees::item::TypeParameterKind::Machine {

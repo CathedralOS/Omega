@@ -215,13 +215,7 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let trait_definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .expect("trait root item");
+    let trait_definition = super::root_trait(&parsed, "trait root item");
     let default_signature = parsed
         .items
         .state_signatures(trait_definition.machines)

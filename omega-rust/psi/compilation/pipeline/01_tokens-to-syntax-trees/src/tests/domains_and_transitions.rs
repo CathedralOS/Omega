@@ -13,13 +13,7 @@ fn explicit_domain_subject_preserves_ordinary_name_operands() {
         machine health(player: Player) -> u64 { player.health }
     "#;
     let parsed = super::parse_source_verbose(source, "tokenize domain subject", "parse explicit domain subject");
-    let domain = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain),
-            _ => None,
-        })
-        .expect("domain");
+    let domain = super::root_domain(&parsed, "domain");
     assert_eq!(
         domain.subject.as_ref().map(|name| name.as_str()),
         Some("player")
@@ -221,13 +215,7 @@ fn parses_trait_requirement_termination_guarantee() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let trait_definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .expect("trait root item");
+    let trait_definition = super::root_trait(&parsed, "trait root item");
 
     let signatures: Vec<_> = parsed
         .items
@@ -281,13 +269,7 @@ fn parses_data_default_domain_where_clause() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let data = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .expect("data root item");
+    let data = super::root_data(&parsed, "data root item");
 
     assert_eq!(parsed.items.proof_facts(data.where_facts).len(), 2);
     assert_eq!(parsed.items.data_members(data.members).len(), 3);
@@ -306,13 +288,7 @@ fn parses_case_local_where_clause() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let data = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .expect("data root item");
+    let data = super::root_data(&parsed, "data root item");
 
     let mut fact_counts =
         parsed
@@ -343,13 +319,7 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let data = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .expect("data root item");
+    let data = super::root_data(&parsed, "data root item");
     let field = parsed
         .items
         .data_members(data.members)
@@ -445,13 +415,7 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let data = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .expect("data root item");
+    let data = super::root_data(&parsed, "data root item");
     let fields = parsed
         .items
         .data_members(data.members)
@@ -660,13 +624,7 @@ fn parses_trait_machine_contract_clauses() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let trait_definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(trait_definition) => Some(trait_definition),
-            _ => None,
-        })
-        .expect("trait root item");
+    let trait_definition = super::root_trait(&parsed, "trait root item");
     let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
     let signature = parsed.items.state_signature(signature_handle);
     let contracts = parsed.items.capability_contracts(signature.contracts);

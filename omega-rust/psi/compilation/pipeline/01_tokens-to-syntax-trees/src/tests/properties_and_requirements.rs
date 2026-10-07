@@ -231,13 +231,7 @@ fn boundary_data_parses_as_an_opaque_carrier_without_a_shape() {
         .tokenize()
         .expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("opaque boundary data should parse");
-    let data = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .expect("data item");
+    let data = super::root_data(&parsed, "data item");
 
     assert_eq!(
         data.supply_mode,
@@ -298,13 +292,7 @@ fn parses_trait_owned_fixed_operator_requirements() {
         }
     "#;
     let parsed = super::parse_source(source, "trait operators should parse");
-    let trait_definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .expect("Ranked trait");
+    let trait_definition = super::root_trait(&parsed, "Ranked trait");
     let requirements = parsed.items.state_signatures(trait_definition.machines);
 
     assert_eq!(requirements.len(), 2);
@@ -343,13 +331,7 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
     assert_eq!(service_reaches.len(), 1);
     assert_eq!(service_reaches[0].as_str(), "Console");
 
-    let trait_definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .expect("trait item");
+    let trait_definition = super::root_trait(&parsed, "trait item");
     let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
     let signature = parsed.items.state_signature(signature_handle);
     assert!(signature.suspends);
@@ -548,13 +530,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
         ExpressionNode::Call(_)
     ));
 
-    let trait_definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .expect("trait item");
+    let trait_definition = super::root_trait(&parsed, "trait item");
     let signature = parsed
         .items
         .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
@@ -629,13 +605,7 @@ fn parses_guarded_crash_buckets_on_machines_and_requirements() {
     assert_eq!(*cause, syntax_trees::item::CrashCause::Abort);
     assert!(parsed.items.proof_facts(contracts[1].facts).is_empty());
 
-    let trait_definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .expect("trait item");
+    let trait_definition = super::root_trait(&parsed, "trait item");
     let signature = parsed
         .items
         .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
@@ -657,13 +627,7 @@ fn parses_guarded_crash_bucket_on_operator_contract() {
             denominator == 0;
     "#;
     let parsed = super::parse_source(source, "operator crash bucket should parse");
-    let operator = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Operator(operator) => Some(operator),
-            _ => None,
-        })
-        .expect("operator item");
+    let operator = super::root_operator(&parsed, "operator item");
     let [contract] = parsed.items.capability_contracts(operator.contracts) else {
         panic!("operator should carry one crash bucket");
     };
@@ -988,13 +952,7 @@ fn parses_installation_bound_reach_on_bodyless_boundary_requirement() {
         .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens)
         .expect("bounded installation reach should parse on a boundary requirement");
-    let trait_definition = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .expect("boundary trait");
+    let trait_definition = super::root_trait(&parsed, "boundary trait");
     let signature = parsed
         .items
         .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
