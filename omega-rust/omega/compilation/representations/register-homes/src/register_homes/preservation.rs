@@ -3,6 +3,7 @@ use optimization_core::{
     OptimizationWorkBudget, OptimizationWorkUsage, PostAllocationOptimizationManifestIdentity,
 };
 use register_model::{
+    write_semantics_tag,
     PhysicalRegisterModelIdentity, RegisterUnitId, RegisterViewId, RegisterWriteSemantics,
     TargetRegisterEnvironmentIdentity,
 };
@@ -88,7 +89,7 @@ pub fn encode_callee_saved_modification_witness_identity(
             hasher.update(operand.to_le_bytes());
             hasher.update(virtual_register.0.to_le_bytes());
             hasher.update(home_view.0.to_le_bytes());
-            hasher.update([write_semantics_identity_tag(write_semantics)]);
+            hasher.update([write_semantics_tag(write_semantics)]);
         }
         CalleeSavedModificationWitness::ImplicitDefinition { block, instruction } => {
             hasher.update([1]);
@@ -105,16 +106,6 @@ pub fn encode_callee_saved_modification_witness_identity(
 
 /// The write-semantics byte embedded in a witness identity. It is part of the
 /// encoding above and shares its stability contract.
-fn write_semantics_identity_tag(value: RegisterWriteSemantics) -> u8 {
-    match value {
-        RegisterWriteSemantics::ExactView => 0,
-        RegisterWriteSemantics::PreservesUnwritten => 1,
-        RegisterWriteSemantics::ZeroExtendsParent => 2,
-        RegisterWriteSemantics::ZeroExtendsWithinUnit => 3,
-        RegisterWriteSemantics::Discards => 4,
-        RegisterWriteSemantics::InstructionDefined => 5,
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllocatedCalleeSavedUnitRequirement {

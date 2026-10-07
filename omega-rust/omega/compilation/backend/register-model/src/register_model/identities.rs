@@ -81,7 +81,7 @@ pub(crate) fn physical_register_model_identity(
         unit_ids(&mut bytes, &view.units);
         unit_ids(&mut bytes, &view.write_units);
         u16_value(&mut bytes, view.bits);
-        byte(&mut bytes, write_semantics(view.write_semantics));
+        byte(&mut bytes, write_semantics_tag(view.write_semantics));
         boolean(&mut bytes, view.allocatable);
     }
     length(&mut bytes, model.classes.len());
@@ -407,7 +407,9 @@ const fn unit_kind(value: RegisterUnitKind) -> u8 {
     }
 }
 
-const fn write_semantics(value: RegisterWriteSemantics) -> u8 {
+/// Identity tag for a register-write semantics — the six-row encoding every
+/// identity codec that names write behavior spells identically.
+pub const fn write_semantics_tag(value: RegisterWriteSemantics) -> u8 {
     match value {
         RegisterWriteSemantics::ExactView => 0,
         RegisterWriteSemantics::PreservesUnwritten => 1,

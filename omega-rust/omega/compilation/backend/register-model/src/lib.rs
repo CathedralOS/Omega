@@ -28,7 +28,7 @@ pub use register_model::constraint_catalog::{
 pub use register_model::identities::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
     RegisterReservationProfileIdentity, TargetRegisterEnvironmentIdentity,
-    target_register_environment_identity,
+    target_register_environment_identity, write_semantics_tag,
 };
 pub use register_model::preservation_storage::{
     FrameAbiPreservationConvention, PreservationStorageCatalog, PreservationStorageCatalogIdentity,
