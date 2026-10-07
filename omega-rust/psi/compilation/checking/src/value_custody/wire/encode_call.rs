@@ -1,6 +1,4 @@
-use super::value_fields::{
-    named_data_definition, validate_nested_value_field, validate_repeated_value_field,
-};
+use super::value_fields::{CodecDirection, validate_value_argument_fields};
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -207,127 +205,24 @@ pub(super) fn validate_wire_encode_call(
     }
 
     // Value argument: its data type must declare every schema field with the
-    // same primitive type.
-    if let Some(value_type) =
-        declared_place_type(program, current_machine, current_state, arguments[0])
-        && let Some(value_data) = named_data_definition(program, value_type)
-    {
-        // Case-bearing value types (sums and mixed shapes) have no wire
-        // encoding yet: the schema field set only describes scalar FIELD
-        // members, so the case tag and payload would silently drop. Reject
-        // loudly until case-aware wire encoding lands.
-        if program
-            .data_members(value_data)
-            .iter()
-            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "`{}::encode` value type `{}` is case-bearing; wire encoding over sums and mixed data shapes is not implemented yet (the case tag and payload have no schema spelling)",
-                schema.name, value_data.name
-            )));
-            return;
-        }
-        for (field, schema_primitive) in &current_fields {
-            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
-                program,
-                value_data,
-                field.name.clone(),
-            ) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::encode` value type `{}` has no field `{}` to encode (schema field {})",
-                    schema.name, value_data.name, field.name, field.number
-                )));
-                continue;
-            };
-            if program.primitive_type_reference(value_field.type_reference)
-                != Some(*schema_primitive)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::encode` value field `{}.{}` is `{}`, but the schema declares field {} as `{}`",
-                    schema.name,
-                    value_data.name,
-                    field.name,
-                    program.display_type_reference(value_field.type_reference),
-                    field.number,
-                    program.display_type_reference(field.type_reference)
-                )));
-            }
-        }
-        // A `&[u8]` schema field encodes a `&[u8]` value field (its raw bytes).
-        for field in &byte_slice_fields {
-            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
-                program,
-                value_data,
-                field.name.clone(),
-            ) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::encode` value type `{}` has no field `{}` to encode (schema field {})",
-                    schema.name, value_data.name, field.name, field.number
-                )));
-                continue;
-            };
-            if !program.is_borrowed_byte_slice(value_field.type_reference) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::encode` value field `{}.{}` is `{}`, but the schema declares field {} as a borrowed `&[u8]`; the value field must also be `&[u8]`",
-                    schema.name,
-                    value_data.name,
-                    field.name,
-                    program.display_type_reference(value_field.type_reference),
-                    field.number
-                )));
-            }
-        }
-        for (field, child) in &nested_fields {
-            validate_nested_value_field(
-                program,
-                schema,
-                "encode",
-                value_data,
-                field,
-                child,
-                diagnostics,
-            );
-        }
-        for (field, repeated) in &repeated_fields {
-            validate_repeated_value_field(
-                program,
-                schema,
-                "encode",
-                value_data,
-                field,
-                *repeated,
-                diagnostics,
-            );
-        }
-        for (field, schema_slice) in &scalar_slice_fields {
-            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
-                program,
-                value_data,
-                field.name.clone(),
-            ) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::encode` value type `{}` has no field `{}` to encode (schema field {} is a borrowed scalar slice)",
-                    schema.name, value_data.name, field.name, field.number
-                )));
-                continue;
-            };
-            let mut runtime_field = (*field).clone();
-            runtime_field.type_reference = value_field.type_reference;
-            if program.wire_field_borrowed_scalar_slice_encoding(&runtime_field)
-                != Some(*schema_slice)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::encode` value field `{}.{}` is `{}`, but the schema declares borrowed scalar slice field {} as `{}`; the value field must use the same borrowed slice element type",
-                    schema.name,
-                    value_data.name,
-                    field.name,
-                    program.display_type_reference(value_field.type_reference),
-                    field.number,
-                    program.display_type_reference(field.type_reference)
-                )));
-            }
-        }
-    }
+    // same primitive type. Case-bearing value types (sums and mixed shapes)
+    // have no wire encoding yet: the schema field set only describes scalar
+    // FIELD members, so the case tag and payload would silently drop.
+    validate_value_argument_fields(
+        program,
+        current_machine,
+        current_state,
+        schema,
+        arguments[0],
+        &current_fields,
+        &byte_slice_fields,
+        &nested_fields,
+        &repeated_fields,
+        CodecDirection::Encode,
+        diagnostics,
+        |_, _, _, _, _, _| {},
+    );
+
 
     // Out argument: `&mut [u8; N]` with N covering the worst case.
     if let Some(out_type) =

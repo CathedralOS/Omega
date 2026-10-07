@@ -1,6 +1,4 @@
-use super::value_fields::{
-    named_data_definition, validate_nested_value_field, validate_repeated_value_field,
-};
+use super::value_fields::{CodecDirection, validate_value_argument_fields};
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -134,50 +132,22 @@ pub(super) fn validate_wire_decode_call(
     }
 
     // Value argument: its data type must declare every schema field with the
-    // same primitive type.
-    if let Some(value_type) =
-        declared_place_type(program, current_machine, current_state, arguments[0])
-        && let Some(value_data) = named_data_definition(program, value_type)
-    {
-        // Mirrors the encoder's case-bearing rejection: the schema field set
-        // only describes scalar FIELD members, so a decoded sum or mixed
-        // value's tag and payload would stay silently unwritten.
-        if program
-            .data_members(value_data)
-            .iter()
-            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "`{}::decode` value type `{}` is case-bearing; wire decoding into sums and mixed data shapes is not implemented yet (the case tag and payload have no schema spelling)",
-                schema.name, value_data.name
-            )));
-            return;
-        }
-        for (field, schema_primitive) in &current_fields {
-            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
-                program,
-                value_data,
-                field.name.clone(),
-            ) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::decode` value type `{}` has no field `{}` to decode into (schema field {})",
-                    schema.name, value_data.name, field.name, field.number
-                )));
-                continue;
-            };
-            if program.primitive_type_reference(value_field.type_reference)
-                != Some(*schema_primitive)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::decode` value field `{}.{}` is `{}`, but the schema declares field {} as `{}`",
-                    schema.name,
-                    value_data.name,
-                    field.name,
-                    program.display_type_reference(value_field.type_reference),
-                    field.number,
-                    program.display_type_reference(field.type_reference)
-                )));
-            }
+    // same primitive type. The case-bearing rejection mirrors the encoder's:
+    // the schema field set only describes scalar FIELD members, so a decoded
+    // sum or mixed value's tag and payload would stay silently unwritten.
+    validate_value_argument_fields(
+        program,
+        current_machine,
+        current_state,
+        schema,
+        arguments[0],
+        &current_fields,
+        &byte_slice_fields,
+        &nested_fields,
+        &repeated_fields,
+        CodecDirection::Decode,
+        diagnostics,
+        |program, field, value_field, schema, value_data, diagnostics| {
             // Decode ESTABLISHES a declared range from hostile bytes. The
             // native and interpreter reads carry the normalized interval and
             // leave the prior field value untouched while clearing the
@@ -196,55 +166,8 @@ pub(super) fn validate_wire_decode_call(
                     program.display_type_reference(value_field.type_reference)
                 )));
             }
-        }
-        // A `&[u8]` schema field decodes into a `&[u8]` value field (a zero-copy
-        // view of the buffer); the value's data field must match.
-        for field in &byte_slice_fields {
-            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
-                program,
-                value_data,
-                field.name.clone(),
-            ) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::decode` value type `{}` has no field `{}` to decode into (schema field {})",
-                    schema.name, value_data.name, field.name, field.number
-                )));
-                continue;
-            };
-            if !program.is_borrowed_byte_slice(value_field.type_reference) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::decode` value field `{}.{}` is `{}`, but the schema declares field {} as a borrowed `&[u8]` (zero-copy view); the value field must also be `&[u8]`",
-                    schema.name,
-                    value_data.name,
-                    field.name,
-                    program.display_type_reference(value_field.type_reference),
-                    field.number
-                )));
-            }
-        }
-        for (field, child) in &nested_fields {
-            validate_nested_value_field(
-                program,
-                schema,
-                "decode",
-                value_data,
-                field,
-                child,
-                diagnostics,
-            );
-        }
-        for (field, repeated) in &repeated_fields {
-            validate_repeated_value_field(
-                program,
-                schema,
-                "decode",
-                value_data,
-                field,
-                *repeated,
-                diagnostics,
-            );
-        }
-    }
+        },
+    );
 
     // Buffer argument: a fixed `[u8; N]` byte array (any length -- the
     // decoder bounds-checks every read against N at runtime).

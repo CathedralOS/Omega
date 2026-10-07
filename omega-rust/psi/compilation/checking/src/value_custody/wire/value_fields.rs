@@ -196,3 +196,177 @@ pub(super) fn named_data_definition(
         .iter()
         .find(|data| data.name == *name)
 }
+
+/// Direction-specific diagnostics vocabulary shared by the codec calls.
+#[derive(Clone, Copy)]
+pub(super) enum CodecDirection {
+    Encode,
+    Decode,
+}
+
+impl CodecDirection {
+    pub(super) fn verb(self) -> &'static str {
+        match self {
+            Self::Encode => "encode",
+            Self::Decode => "decode",
+        }
+    }
+
+    fn sum_phrase(self) -> &'static str {
+        match self {
+            Self::Encode => "encoding over",
+            Self::Decode => "decoding into",
+        }
+    }
+
+    fn missing_field_phrase(self) -> &'static str {
+        match self {
+            Self::Encode => "encode",
+            Self::Decode => "decode into",
+        }
+    }
+
+    fn byte_slice_note(self) -> &'static str {
+        match self {
+            Self::Encode => "",
+            Self::Decode => " (zero-copy view)",
+        }
+    }
+}
+
+/// The codec calls' shared value-argument walk: reject a case-bearing value
+/// type (the schema field set only spells scalar FIELD members), then every
+/// schema field must exist in the value data with the schema's primitive
+/// type, every borrowed `&[u8]` schema field must match a `&[u8]` value
+/// field, and nested/repeated fields defer to their own validators.
+/// `scalar_check` runs a direction-specific tail per surviving scalar pair.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn validate_value_argument_fields(
+    program: &TypedTrees,
+    current_machine: &typed_trees::machine::Machine,
+    current_state: Option<&typed_trees::state::State>,
+    schema: &WireSchema,
+    value_argument: typed_trees::expression::ExpressionHandle,
+    current_fields: &[(&WireField, typed_trees::types::PrimitiveType)],
+    byte_slice_fields: &[&WireField],
+    nested_fields: &[(&WireField, &WireSchema)],
+    repeated_fields: &[(&WireField, typed_trees::wire::WireRepeatedEncoding)],
+    direction: CodecDirection,
+    diagnostics: &mut Vec<Diagnostic>,
+    mut scalar_check: impl FnMut(
+        &TypedTrees,
+        &WireField,
+        &typed_trees::data::DataField,
+        &WireSchema,
+        &typed_trees::data::DataDefinition,
+        &mut Vec<Diagnostic>,
+    ),
+) {
+    if let Some(value_type) = crate::value_custody::places::declared_place_type(
+        program,
+        current_machine,
+        current_state,
+        value_argument,
+    ) && let Some(value_data) = named_data_definition(program, value_type)
+    {
+        if program
+            .data_members(value_data)
+            .iter()
+            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::{}` value type `{}` is case-bearing; wire {} sums and mixed data shapes is not implemented yet (the case tag and payload have no schema spelling)",
+                schema.name,
+                direction.verb(),
+                value_data.name,
+                direction.sum_phrase()
+            )));
+            return;
+        }
+        for (field, schema_primitive) in current_fields {
+            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
+                program,
+                value_data,
+                field.name.clone(),
+            ) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::{}` value type `{}` has no field `{}` to {} (schema field {})",
+                    schema.name,
+                    direction.verb(),
+                    value_data.name,
+                    field.name,
+                    direction.missing_field_phrase(),
+                    field.number
+                )));
+                continue;
+            };
+            if program.primitive_type_reference(value_field.type_reference)
+                != Some(*schema_primitive)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::{}` value field `{}.{}` is `{}`, but the schema declares field {} as `{}`",
+                    schema.name,
+                    direction.verb(),
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(value_field.type_reference),
+                    field.number,
+                    program.display_type_reference(field.type_reference)
+                )));
+            }
+            scalar_check(program, field, value_field, schema, value_data, diagnostics);
+        }
+        for field in byte_slice_fields {
+            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
+                program,
+                value_data,
+                field.name.clone(),
+            ) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::{}` value type `{}` has no field `{}` to {} (schema field {})",
+                    schema.name,
+                    direction.verb(),
+                    value_data.name,
+                    field.name,
+                    direction.missing_field_phrase(),
+                    field.number
+                )));
+                continue;
+            };
+            if !program.is_borrowed_byte_slice(value_field.type_reference) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::{}` value field `{}.{}` is `{}`, but the schema declares field {} as a borrowed `&[u8]`{}; the value field must also be `&[u8]`",
+                    schema.name,
+                    direction.verb(),
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(value_field.type_reference),
+                    field.number,
+                    direction.byte_slice_note()
+                )));
+            }
+        }
+        for (field, child) in nested_fields {
+            validate_nested_value_field(
+                program,
+                schema,
+                direction.verb(),
+                value_data,
+                field,
+                child,
+                diagnostics,
+            );
+        }
+        for (field, repeated) in repeated_fields {
+            validate_repeated_value_field(
+                program,
+                schema,
+                direction.verb(),
+                value_data,
+                field,
+                *repeated,
+                diagnostics,
+            );
+        }
+    }
+}
