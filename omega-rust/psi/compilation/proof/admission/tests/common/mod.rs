@@ -350,3 +350,16 @@ pub(crate) fn zero_nat_branch(arena: &mut TermArena) -> TermHandle {
     let inner = lambda(arena, position_domain, body);
     lambda(arena, payload_domain, inner)
 }
+
+/// `family` indexed at `next label`, applied to the freshly bound index —
+/// the codomain every successor-step type shares.
+pub(crate) fn next_indexed_w(
+    arena: &mut TermArena,
+    family: &IndexedFamily,
+    label: TermHandle,
+) -> TermHandle {
+    let next_a = apply(arena, family.next, label);
+    let bound = variable(arena, 0);
+    let required = apply(arena, next_a, bound);
+    family.indexed_w(arena, required)
+}

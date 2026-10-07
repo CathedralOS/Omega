@@ -553,10 +553,7 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
         let codomain = {
             let dummy = variable(&mut arena, 1);
             let label = fcons_label(&mut arena, dummy);
-            let next_a = apply(&mut arena, family.next, label);
-            let bound = variable(&mut arena, 0);
-            let required = apply(&mut arena, next_a, bound);
-            family.indexed_w(&mut arena, required)
+            next_indexed_w(&mut arena, &family, label)
         };
         pi(&mut arena, domain, codomain)
     });

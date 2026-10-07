@@ -311,10 +311,7 @@ fn indexed_elimination_reaches_a_strict_target_through_boxing() {
         let domain = apply(&mut arena, family.children, a_ambient);
         let codomain = {
             let a = variable(&mut arena, 1);
-            let bound = variable(&mut arena, 0);
-            let next_a = apply(&mut arena, family.next, a);
-            let required = apply(&mut arena, next_a, bound);
-            family.indexed_w(&mut arena, required)
+            next_indexed_w(&mut arena, &family, a)
         };
         pi(&mut arena, domain, codomain)
     };
@@ -360,10 +357,7 @@ fn indexed_elimination_reaches_a_strict_target_through_boxing() {
             let domain = apply(&mut arena, family.children, a_ambient);
             let codomain = {
                 let a = variable(&mut arena, 1);
-                let bound = variable(&mut arena, 0);
-                let next_a = apply(&mut arena, family.next, a);
-                let required = apply(&mut arena, next_a, bound);
-                family.indexed_w(&mut arena, required)
+                next_indexed_w(&mut arena, &family, a)
             };
             pi(&mut arena, domain, codomain)
         };

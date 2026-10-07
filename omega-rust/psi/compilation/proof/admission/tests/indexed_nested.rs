@@ -396,10 +396,7 @@ fn nested_context(arena: &mut TermArena, family: &IndexedFamily) -> Context {
             let arity = variable(arena, 2);
             let elements = variable(arena, 1);
             let node = rnode(arena, arity, elements);
-            let next_a = apply(arena, family.next, node);
-            let bound = variable(arena, 0);
-            let required = apply(arena, next_a, bound);
-            family.indexed_w(arena, required)
+            next_indexed_w(arena, &family, node)
         };
         pi(arena, domain, codomain)
     };

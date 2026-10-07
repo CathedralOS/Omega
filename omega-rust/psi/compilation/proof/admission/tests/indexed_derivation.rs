@@ -535,10 +535,7 @@ fn constructor_context(arena: &mut TermArena, family: &IndexedFamily) -> Context
             let phi = variable(arena, 6);
             let gamma = variable(arena, 4);
             let label = assm_label(arena, phi, gamma);
-            let next_a = apply(arena, family.next, label);
-            let bound = variable(arena, 0);
-            let required = apply(arena, next_a, bound);
-            family.indexed_w(arena, required)
+            next_indexed_w(arena, &family, label)
         };
         pi(arena, domain, codomain)
     };
@@ -594,10 +591,7 @@ fn eliminator_context(arena: &mut TermArena, family: &IndexedFamily) -> Context 
             let psi = variable(arena, 2);
             let gamma = variable(arena, 1);
             let label = impe_label(arena, phi, psi, gamma);
-            let next_a = apply(arena, family.next, label);
-            let bound = variable(arena, 0);
-            let required = apply(arena, next_a, bound);
-            family.indexed_w(arena, required)
+            next_indexed_w(arena, &family, label)
         };
         pi(arena, domain, codomain)
     };
@@ -649,10 +643,7 @@ fn induction_with_a_dependent_motive_proves_the_conclusion_identity() {
             let codomain = {
                 // Under `b`: a = 1.
                 let bound_a = variable(&mut arena, 1);
-                let next_a = apply(&mut arena, family.next, bound_a);
-                let bound = variable(&mut arena, 0);
-                let required = apply(&mut arena, next_a, bound);
-                family.indexed_w(&mut arena, required)
+                next_indexed_w(&mut arena, &family, bound_a)
             };
             pi(&mut arena, b_domain, codomain)
         };
@@ -706,10 +697,7 @@ fn induction_with_a_dependent_motive_proves_the_conclusion_identity() {
             let psi = variable(&mut arena, 2);
             let gamma = variable(&mut arena, 1);
             let label = impe_label(&mut arena, phi, psi, gamma);
-            let next_a = apply(&mut arena, family.next, label);
-            let bound = variable(&mut arena, 0);
-            let required = apply(&mut arena, next_a, bound);
-            family.indexed_w(&mut arena, required)
+            next_indexed_w(&mut arena, &family, label)
         };
         pi(&mut arena, domain, codomain)
     };
@@ -783,10 +771,7 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
                 let psi = variable(arena, 7);
                 let gamma = variable(arena, 6);
                 let label = impe_label(arena, phi, psi, gamma);
-                let next_a = apply(arena, family.next, label);
-                let bound = variable(arena, 0);
-                let required = apply(arena, next_a, bound);
-                let codomain = family.indexed_w(arena, required);
+                let codomain = next_indexed_w(arena, &family, label);
                 let domain = two(arena);
                 lambda(arena, domain, codomain)
             };
@@ -919,10 +904,7 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
                 let psi = variable(&mut arena, 7);
                 let gamma = variable(&mut arena, 6);
                 let label = impe_label(&mut arena, phi, psi, gamma);
-                let next_a = apply(&mut arena, captured.next, label);
-                let bound = variable(&mut arena, 0);
-                let required = apply(&mut arena, next_a, bound);
-                let codomain = captured.indexed_w(&mut arena, required);
+                let codomain = next_indexed_w(&mut arena, &captured, label);
                 let domain = two(&mut arena);
                 lambda(&mut arena, domain, codomain)
             };
