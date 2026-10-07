@@ -57,11 +57,11 @@ impl TerminalExecution {
                         .program
                         .structural_types
                         .get(&root_type)
-                        .ok_or_else(invalid)?
+                        .ok_or_else(malformed)?
                         .shape
                     {
                         StructuralTypeShape::ElementView { element } => element,
-                        _ => return Err(invalid()),
+                        _ => return Err(malformed()),
                     }
                 } else {
                     root_type
