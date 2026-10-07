@@ -804,6 +804,51 @@ fn intersect_declared_place_ranges(
     }
 }
 
+/// Both declared operand types of a guard pair must name the same primitive
+/// with Exact arithmetic; yields that primitive.
+fn shared_exact_primitive(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> Option<PrimitiveType> {
+    let left_type = declared_place_type_raw(program, machine, state, left)?;
+    let right_type = declared_place_type_raw(program, machine, state, right)?;
+    let left_primitive = program.primitive_type_reference(left_type)?;
+    if program.primitive_type_reference(right_type) != Some(left_primitive)
+        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
+        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    Some(left_primitive)
+}
+
+/// Peel `bound` to a built-in exact-domain binary of the given operator whose
+/// right operand shares `left`'s declared primitive; yields the binary node
+/// and that primitive.
+fn exact_bound_binary<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    left: ExpressionHandle,
+    bound: ExpressionHandle,
+    operator: BinaryOperator,
+) -> Option<(
+    &'program typed_trees::expression::TableBinaryExpression,
+    PrimitiveType,
+)> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(bound) else {
+        return None;
+    };
+    if binary.operator != operator || !meaning::builtin_arithmetic(program, machine, state, bound) {
+        return None;
+    }
+    let left_primitive = shared_exact_primitive(program, machine, state, left, binary.right)?;
+    Some((binary, left_primitive))
+}
+
 /// `bound` unwrapped to a built-in exact-domain subtract whose right
 /// operand shares `left`'s declared primitive; yields the subtraction node,
 /// the shared primitive, and the right operand's place path.
@@ -818,23 +863,8 @@ fn exact_place_subtract<'program>(
     PrimitiveType,
     String,
 )> {
-    let ExpressionNode::Binary(subtract) = program.expression_table.expression(bound) else {
-        return None;
-    };
-    if subtract.operator != BinaryOperator::Subtract
-        || !meaning::builtin_arithmetic(program, machine, state, bound)
-    {
-        return None;
-    }
-    let left_type = declared_place_type_raw(program, machine, state, left)?;
-    let right_type = declared_place_type_raw(program, machine, state, subtract.right)?;
-    let left_primitive = program.primitive_type_reference(left_type)?;
-    if program.primitive_type_reference(right_type) != Some(left_primitive)
-        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
-        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
-    {
-        return None;
-    }
+    let (subtract, left_primitive) =
+        exact_bound_binary(program, machine, state, left, bound, BinaryOperator::Subtract)?;
     let right_path = place_path(program, subtract.right)?;
     Some((subtract, left_primitive, right_path))
 }
@@ -954,17 +984,11 @@ fn joint_subtract_guard(
         BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
         _ => return None,
     };
-    let left_type = declared_place_type_raw(program, machine, state, left)?;
-    let right_type = declared_place_type_raw(program, machine, state, right)?;
-    let left_primitive = program.primitive_type_reference(left_type)?;
-    if program.primitive_type_reference(right_type) != Some(left_primitive)
-        || !matches!(
-            left_primitive,
-            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
-        )
-        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
-        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
-    {
+    let left_primitive = shared_exact_primitive(program, machine, state, left, right)?;
+    if !matches!(
+        left_primitive,
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+    ) {
         return None;
     }
     Some((place_path(program, left)?, place_path(program, right)?))
@@ -1006,15 +1030,7 @@ fn signed_joint_subtract_guard(
     } else {
         (add.right, add.left)
     };
-    let left_type = declared_place_type_raw(program, machine, state, left)?;
-    let right_type = declared_place_type_raw(program, machine, state, right)?;
-    let left_primitive = program.primitive_type_reference(left_type)?;
-    if program.primitive_type_reference(right_type) != Some(left_primitive)
-        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
-        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
-    {
-        return None;
-    }
+    let left_primitive = shared_exact_primitive(program, machine, state, left, right)?;
     let right_path = place_path(program, right)?;
     let interval = environment.get(&right_path)?;
     if if lower {
@@ -1057,25 +1073,12 @@ fn joint_multiply_guard(
         BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
         _ => return None,
     };
-    let ExpressionNode::Binary(divide) = program.expression_table.expression(bound) else {
-        return None;
-    };
-    if divide.operator != BinaryOperator::Divide
-        || !meaning::builtin_arithmetic(program, machine, state, bound)
-    {
-        return None;
-    }
-    let left_type = declared_place_type_raw(program, machine, state, left)?;
-    let right_type = declared_place_type_raw(program, machine, state, divide.right)?;
-    let left_primitive = program.primitive_type_reference(left_type)?;
-    if program.primitive_type_reference(right_type) != Some(left_primitive)
-        || !matches!(
-            left_primitive,
-            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
-        )
-        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
-        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
-    {
+    let (divide, left_primitive) =
+        exact_bound_binary(program, machine, state, left, bound, BinaryOperator::Divide)?;
+    if !matches!(
+        left_primitive,
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+    ) {
         return None;
     }
     let right_path = place_path(program, divide.right)?;
@@ -1140,23 +1143,8 @@ fn signed_joint_multiply_quotient_guard(
     bound: ExpressionHandle,
     lower_bound: bool,
 ) -> Option<(String, String)> {
-    let ExpressionNode::Binary(divide) = program.expression_table.expression(bound) else {
-        return None;
-    };
-    if divide.operator != BinaryOperator::Divide
-        || !meaning::builtin_arithmetic(program, machine, state, bound)
-    {
-        return None;
-    }
-    let left_type = declared_place_type_raw(program, machine, state, left)?;
-    let right_type = declared_place_type_raw(program, machine, state, divide.right)?;
-    let left_primitive = program.primitive_type_reference(left_type)?;
-    if program.primitive_type_reference(right_type) != Some(left_primitive)
-        || program.arithmetic_domain_for_type_reference(left_type) != ArithmeticDomain::Exact
-        || program.arithmetic_domain_for_type_reference(right_type) != ArithmeticDomain::Exact
-    {
-        return None;
-    }
+    let (divide, left_primitive) =
+        exact_bound_binary(program, machine, state, left, bound, BinaryOperator::Divide)?;
     let right_path = place_path(program, divide.right)?;
     let interval = environment.get(&right_path)?;
     let positive = interval.low.is_some_and(|low| low >= 1);
