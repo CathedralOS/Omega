@@ -406,32 +406,32 @@ impl TerminalExecution {
         Ok(())
     }
 
+    /// `carrier` survives pruning `from` when it is neither that place nor a
+    /// descendant of it.
+    fn survives_subtree_prune(
+        carrier: &StructuralRuntimePlace,
+        from: &StructuralRuntimePlace,
+    ) -> bool {
+        carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+    }
+
     /// Remove every runtime cell under `from`; paired with subtree copies so
     /// consumed children vacate their source region atomically.
     pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
-        self.structural_scalar_fields.retain(|cell, _| {
-            cell.parent.opaque_identity != from.opaque_identity
-                || !cell.parent.path.starts_with(&from.path)
-        });
-        self.structural_byte_sequence_fields.retain(|cell, _| {
-            cell.parent.opaque_identity != from.opaque_identity
-                || !cell.parent.path.starts_with(&from.path)
-        });
-        self.structural_byte_storage.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
-        self.structural_cases.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
-        self.reference_referents.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
-        self.structural_element_view_fields.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
-        self.structural_primitive_storage.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
+        self.structural_scalar_fields
+            .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
+        self.structural_byte_sequence_fields
+            .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
+        self.structural_byte_storage
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        self.structural_cases
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        self.reference_referents
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        self.structural_element_view_fields
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        self.structural_primitive_storage
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
     }
 
     pub(crate) fn execute_establish_byte_sequence_literal(
@@ -1131,29 +1131,20 @@ impl TerminalExecution {
             .iter()
             .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
             .collect();
-        self.structural_scalar_fields.retain(|cell, _| {
-            cell.parent.opaque_identity != from.opaque_identity
-                || !cell.parent.path.starts_with(&from.path)
-        });
-        self.structural_byte_sequence_fields.retain(|cell, _| {
-            cell.parent.opaque_identity != from.opaque_identity
-                || !cell.parent.path.starts_with(&from.path)
-        });
-        self.structural_byte_storage.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
-        self.structural_cases.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
-        self.reference_referents.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
-        self.structural_element_view_fields.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
-        self.structural_primitive_storage.retain(|carrier, _| {
-            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
-        });
+        self.structural_scalar_fields
+            .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
+        self.structural_byte_sequence_fields
+            .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
+        self.structural_byte_storage
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        self.structural_cases
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        self.reference_referents
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        self.structural_element_view_fields
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        self.structural_primitive_storage
+            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
         self.structural_scalar_fields.extend(staged_scalars);
         self.structural_byte_sequence_fields
             .extend(staged_byte_fields);
