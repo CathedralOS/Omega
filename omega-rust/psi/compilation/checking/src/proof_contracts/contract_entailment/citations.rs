@@ -62,6 +62,26 @@ impl CitationFacts {
 /// expression-call citations: resolve the selected citation machine, bind
 /// each spelled argument under the entry parameter's declared type scope,
 /// and pair the call's own application term under the result binder.
+
+/// Every `ProofFact::Expression` body inside `callee`'s contracts of `kind` —
+/// Requires and Ensures facts read through the same vocabulary.
+fn contract_expressions(
+    program: &TypedTrees,
+    callee: &typed_trees::machine::Machine,
+    kind: typed_trees::signature::SignatureContractKind,
+) -> Vec<ExpressionHandle> {
+    program
+        .machine_contracts(callee)
+        .iter()
+        .filter(|contract| contract.kind == kind)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
+        .filter_map(|fact| match fact {
+            ProofFact::Expression(expression) => Some(*expression),
+            ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
+        })
+        .collect()
+}
+
 fn citation_call_bindings<'program>(
     program: &'program TypedTrees,
     machine: &'program typed_trees::machine::Machine,
@@ -537,16 +557,7 @@ pub(crate) fn intake_citation_for_edge(
     };
 
     let facts = |kind: typed_trees::signature::SignatureContractKind| {
-        program
-            .machine_contracts(callee)
-            .iter()
-            .filter(|contract| contract.kind == kind)
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
-            .filter_map(|fact| match fact {
-                ProofFact::Expression(expression) => Some(*expression),
-                ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
-            })
-            .collect::<Vec<_>>()
+        contract_expressions(program, callee, kind)
     };
     let all_proven = for_each_substituted_contract_fact(
         program,
@@ -616,16 +627,7 @@ pub(crate) fn intake_statement_citation_for_edge(
         return;
     };
     let collect = |kind: typed_trees::signature::SignatureContractKind| {
-        program
-            .machine_contracts(callee)
-            .iter()
-            .filter(|contract| contract.kind == kind)
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
-            .filter_map(|fact| match fact {
-                ProofFact::Expression(expression) => Some(*expression),
-                ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
-            })
-            .collect::<Vec<_>>()
+        contract_expressions(program, callee, kind)
     };
     for fact in collect(typed_trees::signature::SignatureContractKind::Requires) {
         if super::structural_terms::is_case_observation(program, fact) {
