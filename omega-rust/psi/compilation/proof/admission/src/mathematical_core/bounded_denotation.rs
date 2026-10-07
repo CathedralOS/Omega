@@ -153,8 +153,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{
-    ContentAlgebra, ContentTerm, IntegerMathLiteral, IntegerMathTerm, IntegerValue, Proposition,
-    PropositionContext, ScalarTerm, ScalarType, ValueId,
+    ContentAlgebra, ContentTerm, IntegerMathLiteral, IntegerMathTerm, IntegerType, IntegerValue,
+    Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
 use super::certificate::{
@@ -291,6 +291,83 @@ fn propositions_match(retained: &Proposition, requested: &Proposition) -> bool {
 /// included. A literal outside it denotes to an opaque `Int` constant no
 /// checked numeral-operation equation can name, so `None` callers keep
 /// their explicit instance fallback.
+/// Find a prior `Equal` landing `subject` and return the other side, its
+/// proof handle, and the proposition.
+fn affine_equality_for<'a>(
+    definitions: &'a [(Proposition, TermHandle)],
+    subject: &ScalarTerm,
+) -> Option<(&'a ScalarTerm, TermHandle, &'a Proposition)> {
+    definitions.iter().find_map(|(proposition, proof)| {
+        let Proposition::Equal(first, second) = proposition else {
+            return None;
+        };
+        if first == subject {
+            Some((second, *proof, proposition))
+        } else if second == subject {
+            Some((first, *proof, proposition))
+        } else {
+            None
+        }
+    })
+}
+
+/// The witness's affine expression: its own root when the chain records no
+/// axioms, else the expression the single recorded definition axiom lands.
+fn affine_witness_root_expression<'a>(
+    witness: &'a crate::IntegerAffineWitness,
+    definitions: &'a [(Proposition, TermHandle)],
+) -> Option<(&'a ScalarTerm, Option<(TermHandle, &'a Proposition)>)> {
+    if witness.definition_axioms.is_empty() && witness.literal_axioms.is_empty() {
+        Some((&witness.root, None))
+    } else if witness.definition_axioms.len() == 1 {
+        let (expression, proof, proposition) =
+            affine_equality_for(definitions, &witness.root)?;
+        Some((expression, Some((proof, proposition))))
+    } else {
+        None
+    }
+}
+
+/// The `LessOrEqual` premise the witness's root must match, oriented by the
+/// checked bound's side.
+fn affine_root_premise(
+    witness: &crate::IntegerAffineWitness,
+    lower: bool,
+    left: &ScalarTerm,
+) -> Proposition {
+    if lower {
+        Proposition::LessOrEqual(witness.root.clone(), left.clone())
+    } else {
+        Proposition::LessOrEqual(left.clone(), witness.root.clone())
+    }
+}
+
+/// The endpoint literal plus equality evidence: `Some((None, lit))` when
+/// the endpoint already evaluates to it, `Some((Some(..), lit))` the
+/// recorded equality landing `endpoint` there, `None` to give up.
+fn affine_carrier_endpoint_equality<'a>(
+    scalar_type: IntegerType,
+    lower: bool,
+    endpoint: &'a ScalarTerm,
+    definitions: &'a [(Proposition, TermHandle)],
+) -> Option<(Option<(TermHandle, &'a Proposition)>, ScalarTerm)> {
+    let endpoint_value = if lower {
+        scalar_type.minimum_value()
+    } else {
+        scalar_type.maximum_value()
+    };
+    let endpoint_literal = ScalarTerm::integer(scalar_type, endpoint_value)
+        .expect("carrier endpoint is representable");
+    if endpoint.integer_value() == Some((scalar_type, endpoint_value)) {
+        return Some((None, endpoint_literal));
+    }
+    let (literal, proof, proposition) = affine_equality_for(definitions, endpoint)?;
+    if literal != &endpoint_literal {
+        return None;
+    }
+    Some((Some((proof, proposition)), endpoint_literal))
+}
+
 fn math_literal_value(literal: IntegerMathLiteral) -> Option<IntegerValue> {
     if literal.negative() {
         if literal.magnitude() == (i128::MAX as u128) + 1 {
@@ -1568,6 +1645,83 @@ impl Denotation {
         self.declarations.push(Declaration::assumption(0, ty));
         self.decisions.insert(ty, position);
         Ok(self.constant(position))
+    }
+
+    /// The correlated-affine root-equality step: direct the cited equality
+    /// at the witness root's expression and substitute it into the bound.
+    /// `None` means give up; `Some(term)` is the extended evidence.
+    pub(super) fn affine_root_equality_step(
+        &mut self,
+        lower: bool,
+        witness: &crate::IntegerAffineWitness,
+        left_term: TermHandle,
+        expression_term: TermHandle,
+        equality: Option<(TermHandle, &Proposition)>,
+        evidence: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Some((equality, proposition)) = equality else {
+            return Ok(Some(evidence));
+        };
+        let root_term = self.fixed_scalar_term(&witness.root)?;
+        let denoted = self.denote(proposition)?;
+        let Some((_, from, to)) = self.identity_parts(denoted) else {
+            return Ok(None);
+        };
+        let Some(equality) =
+            self.directed_equality(from, to, root_term, expression_term, equality)
+        else {
+            return Ok(None);
+        };
+        Ok(Some(if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[root_term, expression_term, left_term, equality, evidence],
+            )?
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[left_term, root_term, expression_term, equality, evidence],
+            )?
+        }))
+    }
+
+    /// The correlated-affine endpoint-equality tail: direct recorded
+    /// equality evidence at the endpoint literal, then substitute it
+    /// through `swapped_term` (evaluated lazily inside the guard).
+    pub(super) fn affine_endpoint_equality_order(
+        &mut self,
+        lower: bool,
+        endpoint_equality: Option<(TermHandle, &Proposition)>,
+        endpoint_literal: &ScalarTerm,
+        endpoint_term: TermHandle,
+        order: TermHandle,
+        swapped_term: impl Fn(&mut Self) -> Result<TermHandle, BoundedDenotationError>,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Some((equality, proposition)) = endpoint_equality else {
+            return Ok(Some(order));
+        };
+        let literal = self.fixed_scalar_term(endpoint_literal)?;
+        let swapped = swapped_term(self)?;
+        let denoted = self.denote(proposition)?;
+        let Some((_, from, to)) = self.identity_parts(denoted) else {
+            return Ok(None);
+        };
+        let Some(equality) = self.directed_equality(from, to, endpoint_term, literal, equality)
+        else {
+            return Ok(None);
+        };
+        if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[endpoint_term, literal, swapped, equality, order],
+            )
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[swapped, endpoint_term, literal, equality, order],
+            )
+        }
+        .map(Some)
     }
 
     fn denote(&mut self, proposition: &Proposition) -> Result<TermHandle, BoundedDenotationError> {

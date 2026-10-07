@@ -36,7 +36,10 @@ use semantic_vocabulary::{
 
 use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
 use super::binary_numerals;
-use super::{BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle};
+use super::{
+    BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle,
+    affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
+};
 use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
 
 #[cfg(test)]
@@ -275,31 +278,11 @@ impl Denotation {
         if sum_value.is_some() {
             return Ok(None);
         }
-        let equality_for = |subject: &ScalarTerm| {
-            definitions.iter().find_map(|(proposition, proof)| {
-                let Proposition::Equal(first, second) = proposition else {
-                    return None;
-                };
-                if first == subject {
-                    Some((second, *proof, proposition))
-                } else if second == subject {
-                    Some((first, *proof, proposition))
-                } else {
-                    None
-                }
-            })
+        let Some((difference, equality)) =
+            affine_witness_root_expression(witness, definitions)
+        else {
+            return Ok(None);
         };
-        let (difference, equality) =
-            if witness.definition_axioms.is_empty() && witness.literal_axioms.is_empty() {
-                (&witness.root, None)
-            } else if witness.definition_axioms.len() == 1 {
-                let Some((difference, proof, proposition)) = equality_for(&witness.root) else {
-                    return Ok(None);
-                };
-                (difference, Some((proof, proposition)))
-            } else {
-                return Ok(None);
-            };
         let ScalarTerm::ExactIntegerSubtract {
             scalar_type: subtract_type,
             left: endpoint,
@@ -314,60 +297,26 @@ impl Denotation {
         // substitutes the checked numeral-operation equation `add n r = e`
         // — an exact interned assumption — for the cancellation law.
         let closed_difference = difference.integer_value().is_some();
-        let expected_premise = if lower {
-            Proposition::LessOrEqual(witness.root.clone(), left.as_ref().clone())
-        } else {
-            Proposition::LessOrEqual(left.as_ref().clone(), witness.root.clone())
-        };
+        let expected_premise = affine_root_premise(witness, lower, left.as_ref());
         if subtract_type != scalar_type || decrement != right || premise != &expected_premise {
             return Ok(None);
         }
-        let endpoint_value = if lower {
-            scalar_type.minimum_value()
-        } else {
-            scalar_type.maximum_value()
-        };
-        let endpoint_literal = ScalarTerm::integer(*scalar_type, endpoint_value)
-            .expect("carrier endpoint is representable");
-        let endpoint_equality = if endpoint.integer_value() == Some((*scalar_type, endpoint_value))
-        {
-            None
-        } else {
-            let Some((literal, proof, proposition)) = equality_for(endpoint) else {
-                return Ok(None);
-            };
-            if literal != &endpoint_literal {
-                return Ok(None);
-            }
-            Some((proof, proposition))
+        let Some((endpoint_equality, endpoint_literal)) =
+            affine_carrier_endpoint_equality(*scalar_type, lower, endpoint, definitions)
+        else {
+            return Ok(None);
         };
         let left_term = self.fixed_scalar_term(left)?;
         let right_term = self.fixed_scalar_term(right)?;
         let endpoint_term = self.fixed_scalar_term(endpoint)?;
         let difference_term = self.fixed_scalar_term(difference)?;
-        if let Some((equality, proposition)) = equality {
-            let root_term = self.fixed_scalar_term(&witness.root)?;
-            let denoted = self.denote(proposition)?;
-            let Some((_, from, to)) = self.identity_parts(denoted) else {
-                return Ok(None);
-            };
-            let Some(equality) =
-                self.directed_equality(from, to, root_term, difference_term, equality)
-            else {
-                return Ok(None);
-            };
-            evidence = if lower {
-                self.integer_law_application(
-                    IntegerLaw::LessOrEqualSubstituteLeft,
-                    &[root_term, difference_term, left_term, equality, evidence],
-                )?
-            } else {
-                self.integer_law_application(
-                    IntegerLaw::LessOrEqualSubstituteRight,
-                    &[left_term, root_term, difference_term, equality, evidence],
-                )?
-            };
-        }
+        let Some(stepped) = self.affine_root_equality_step(
+            lower, witness, left_term, difference_term, equality, evidence,
+        )?
+        else {
+            return Ok(None);
+        };
+        evidence = stepped;
         let sum = self.add_terms(left_term, right_term)?;
         let cancelled_sum = self.add_terms(difference_term, right_term)?;
         let ordered_terms = if lower {
@@ -415,31 +364,14 @@ impl Denotation {
                 &[sum, cancelled_sum, endpoint_term, equality, order],
             )?
         };
-        if let Some((equality, proposition)) = endpoint_equality {
-            let literal = self.fixed_scalar_term(&endpoint_literal)?;
-            let denoted = self.denote(proposition)?;
-            let Some((_, from, to)) = self.identity_parts(denoted) else {
-                return Ok(None);
-            };
-            let Some(equality) = self.directed_equality(from, to, endpoint_term, literal, equality)
-            else {
-                return Ok(None);
-            };
-            if lower {
-                self.integer_law_application(
-                    IntegerLaw::LessOrEqualSubstituteLeft,
-                    &[endpoint_term, literal, sum, equality, order],
-                )
-            } else {
-                self.integer_law_application(
-                    IntegerLaw::LessOrEqualSubstituteRight,
-                    &[sum, endpoint_term, literal, equality, order],
-                )
-            }
-            .map(Some)
-        } else {
-            Ok(Some(order))
-        }
+        self.affine_endpoint_equality_order(
+            lower,
+            endpoint_equality,
+            &endpoint_literal,
+            endpoint_term,
+            order,
+            |_| Ok(sum),
+        )
     }
 
     /// Denote the checked direct-add bound: a `Conjunction` of the two
