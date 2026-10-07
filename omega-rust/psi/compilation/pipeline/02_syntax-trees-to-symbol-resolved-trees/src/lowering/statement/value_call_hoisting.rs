@@ -2,7 +2,7 @@
 
 use crate::lowering::statement::hoist_temps::{hoist_into_temp, mint_hoist_temp};
 use crate::lowering::statement::indexed_read_hoisting::{
-    is_integer_embedding_call, is_scalar_computation_builtin_call,
+    is_integer_embedding_call, spells_scalar_computation_builtin,
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
@@ -85,7 +85,7 @@ pub(crate) fn hoist_scalar_value_call_comparison(
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let side_is_user_call = |handle: ExpressionHandle| match expressions.expression(handle) {
         ExpressionNode::Call(call) => {
-            !is_integer_embedding_call(lowerer, call) && !is_scalar_computation_builtin_call(call)
+            !is_integer_embedding_call(lowerer, call) && !spells_scalar_computation_builtin(call)
         }
         _ => false,
     };
@@ -190,7 +190,7 @@ pub(crate) fn hoist_terminal_value_machine_call(
     let ExpressionNode::Call(call) = expressions.expression(expression) else {
         return expression;
     };
-    if is_integer_embedding_call(lowerer, call) || is_scalar_computation_builtin_call(call) {
+    if is_integer_embedding_call(lowerer, call) || spells_scalar_computation_builtin(call) {
         return expression;
     }
     if call.receiver.is_valid() {
@@ -304,5 +304,5 @@ pub(crate) fn is_scalar_return_computation(
     // constant probe before its complete application can be checked.
     !call.receiver.is_valid()
         && !is_integer_embedding_call(lowerer, call)
-        && !is_scalar_computation_builtin_call(call)
+        && !spells_scalar_computation_builtin(call)
 }

@@ -288,6 +288,29 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     }
 }
 
+/// The compiler builtin function spelled `target`, or invalid when an authored
+/// top-level declaration of one of `authored_kinds` with that spelling is
+/// visible from the occurrence. Builtins are the outermost receiverless scope,
+/// so every authored candidate shadows them. A candidate the caller's own
+/// lookup left unresolved (ambiguous, or a machine without an entry state)
+/// keeps the call unresolved rather than falling back to the builtin.
+pub(in crate::symbols) fn unshadowed_builtin_function_symbol(
+    symbols: &SymbolTable,
+    target: &symbol_resolved_trees::name::DiagnosticName,
+    authored_kinds: &[SymbolKind],
+) -> SymbolHandle {
+    let authored = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+        target.as_str(),
+        authored_kinds,
+        target.source_span(),
+        |_| true,
+    );
+    if !matches!(authored, SymbolLookup::NotFound) {
+        return SymbolHandle::invalid();
+    }
+    top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str())
+}
+
 /// The entry-state symbol of the free top-level machine named `target`, or
 /// invalid. A free machine's implicit entry state is named `entry` (the parser
 /// generates the name); explicit `entry foo` states are matched by the call

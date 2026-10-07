@@ -234,20 +234,22 @@ fn statement_asm_intrinsic(
     Option<&'static str>,
     language_core::inline_assembly::AsmAuthorityRequirement,
 )> {
-    let target = match statement {
-        StatementNode::Call(call) => call.target.as_str(),
+    let target_symbol = match statement {
+        StatementNode::Call(call) => call.target_symbol,
         StatementNode::Assignment(assignment) => {
             let typed_trees::expression::ExpressionNode::Call(call) =
                 program.expression_table.expression(assignment.value)
             else {
                 return None;
             };
-            call.target.as_str()
+            call.target_symbol
         }
         _ => return None,
     };
 
-    let function = symbols::BuiltinFunction::from_name(target)
+    let function = program
+        .symbols
+        .builtin_function_for_symbol(target_symbol)
         .filter(|function| function.is_asm_intrinsic())?;
     let service_name = function.asm_intrinsic_service_name();
     // Label the diagnostic with the SOURCE mnemonic, not the internal name.

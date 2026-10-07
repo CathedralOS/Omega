@@ -292,12 +292,13 @@ fn is_builtin_call(
     call: &TableCallExpression,
     function: BuiltinFunction,
 ) -> bool {
+    // Resolution decides: a same-spelled authored machine shadows the
+    // builtin, and an unresolved call is no compiler function.
     !call.receiver.is_valid()
-        && call.target.as_str() == function.name()
-        && (!call.target_symbol.is_valid()
-            || (program.symbols.get(call.target_symbol).kind
-                == symbols::SymbolKind::BuiltinFunction
-                && program.symbols.name(call.target_symbol) == function.name()))
+        && program
+            .symbols
+            .builtin_function_for_symbol(call.target_symbol)
+            == Some(function)
 }
 
 fn expression_uses_content_surface(

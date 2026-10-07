@@ -60,7 +60,7 @@ use generic_bounds::{
     validate_machine_call_type_parameter_bounds, validate_resolved_target_type_parameter_bounds,
 };
 pub(crate) use inline_assembly::validate_asm_value_destination;
-use inline_assembly::{user_asm_contract, validate_asm_operand_constraint};
+use inline_assembly::{register_read_mnemonic, user_asm_contract, validate_asm_operand_constraint};
 pub(crate) use recursion::{
     proof_call_has_structural_descent, validate_proof_machine_recursion,
     validate_self_recursive_call_positions,

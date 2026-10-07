@@ -6,7 +6,7 @@
 
 use super::{
     free_machine_entry_state, machine_state_by_symbol,
-    primitive_float_operator_retains_argument_policy, user_asm_contract,
+    primitive_float_operator_retains_argument_policy, register_read_mnemonic, user_asm_contract,
     validate_asm_operand_constraint, validate_call_arguments_with_environments,
     validate_machine_call_type_parameter_bounds, validate_value_call_argument_classes,
 };
@@ -349,14 +349,7 @@ fn validate_expression_call_bounds(
         .symbols
         .builtin_function_for_symbol(call.target_symbol);
     if (builtin == Some(BuiltinFunction::AsmSnapshotFlags)
-        || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
-            call.target.as_str(),
-        )
-        .is_some()
-        || language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(
-            call.target.as_str(),
-        )
-        .is_some())
+        || builtin.and_then(register_read_mnemonic).is_some())
         && !call.receiver.is_valid()
     {
         let arguments = program.expression_table.expression_handles(call.arguments);

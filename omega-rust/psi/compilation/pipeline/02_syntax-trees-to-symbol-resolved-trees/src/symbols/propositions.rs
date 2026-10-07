@@ -6,10 +6,11 @@ use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_struct_literal_symbols;
-use super::lookup::{
-    child_symbol_by_kinds, top_level_symbol_by_kinds, top_level_symbol_for_source,
+use super::lookup::{child_symbol_by_kinds, top_level_symbol_for_source};
+use super::targets::{
+    assign_static_argument_symbols, resolve_free_machine_entry_state_symbol,
+    unshadowed_builtin_function_symbol,
 };
-use super::targets::{assign_static_argument_symbols, resolve_free_machine_entry_state_symbol};
 
 pub(super) fn assign_proposition_expression_symbols(
     program: &mut symbol_resolved_trees::SymbolResolvedTrees,
@@ -71,7 +72,8 @@ fn assign_expression_span_symbols(
 /// Resolve the authored names inside one proof-surface expression.
 /// `owner_symbol` is the declaration whose binder/parameter children are in
 /// scope; `call_kinds` lists the top-level declaration kinds a bare call
-/// target may name, tried in order before builtins and machine entry states.
+/// target may name, tried in order before machine entry states and, last,
+/// compiler builtins that no authored declaration shadows.
 /// Shared by proposition formulas and mathematical `let`/`boundary let`
 /// terms (PROOF-CONTRACT-MIGRATION).
 pub(super) fn assign_expression_symbols(
@@ -169,20 +171,24 @@ pub(super) fn assign_expression_symbols(
                 // could find.
                 SymbolHandle::invalid()
             } else {
+                // Authored declarations shadow a same-spelled compiler
+                // builtin, which is the outermost scope.
                 call_kinds
                     .iter()
                     .map(|kind| top_level_symbol_for_source(symbols, *kind, &call.target))
                     .find(|symbol| symbol.is_valid())
                     .or_else(|| {
-                        let builtin = top_level_symbol_by_kinds(
-                            symbols,
-                            &[SymbolKind::BuiltinFunction],
-                            call.target.as_str(),
-                        );
-                        builtin.is_valid().then_some(builtin)
+                        let machine =
+                            resolve_free_machine_entry_state_symbol(symbols, &call.target);
+                        machine.is_valid().then_some(machine)
                     })
                     .unwrap_or_else(|| {
-                        resolve_free_machine_entry_state_symbol(symbols, &call.target)
+                        let authored_kinds = call_kinds
+                            .iter()
+                            .copied()
+                            .chain([SymbolKind::Machine])
+                            .collect::<Vec<_>>();
+                        unshadowed_builtin_function_symbol(symbols, &call.target, &authored_kinds)
                     })
             };
             if let ExpressionNode::Call(call) = expressions.expression_mut(expression) {

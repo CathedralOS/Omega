@@ -5,5 +5,6 @@ pub(super) use calls::{
     assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
     assign_runtime_subject_argument_symbol, assign_static_argument_symbols, build_operand_route,
     resolve_call_target_symbol, resolve_free_machine_entry_state_symbol,
+    unshadowed_builtin_function_symbol,
 };
 pub(super) use transitions::assign_transition_target_symbols;

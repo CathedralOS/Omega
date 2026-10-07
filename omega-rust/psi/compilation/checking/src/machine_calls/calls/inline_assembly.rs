@@ -12,6 +12,20 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 
+/// The read mnemonic of a control- or system-register read builtin. The call's
+/// resolved symbol supplies the builtin identity; the register catalogs own
+/// the read intrinsics' names and mnemonics, so only that identity's canonical
+/// name is asked of them.
+pub(super) fn register_read_mnemonic(function: symbols::BuiltinFunction) -> Option<&'static str> {
+    let name = function.name();
+    language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(name)
+        .map(|register| register.read_mnemonic())
+        .or_else(|| {
+            language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(name)
+                .map(|register| register.read_mnemonic())
+        })
+}
+
 pub(super) fn user_asm_contract(
     mnemonic: &str,
 ) -> language_core::inline_assembly::AsmInstructionContract {
@@ -113,33 +127,20 @@ pub(crate) fn validate_asm_value_destination(
     let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
         return;
     };
-    let instruction =
-        match language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
-            call.target.as_str(),
-        ) {
-            Some(register) => register.read_mnemonic(),
-            None => {
-                match language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(
-                    call.target.as_str(),
-                ) {
-                    Some(register) => register.read_mnemonic(),
-                    None => {
-                        let Some(instruction) =
-                            symbols::BuiltinFunction::from_name(call.target.as_str())
-                                .filter(|function| function.is_value_position_asm_intrinsic())
-                                .and_then(|function| {
-                                    language_core::inline_assembly::asm_intrinsic_mnemonic(
-                                        function.name(),
-                                    )
-                                })
-                        else {
-                            return;
-                        };
-                        instruction
-                    }
-                }
-            }
-        };
+    let Some(function) = program
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol)
+    else {
+        return;
+    };
+    let Some(instruction) = register_read_mnemonic(function).or_else(|| {
+        function
+            .is_value_position_asm_intrinsic()
+            .then(|| language_core::inline_assembly::asm_intrinsic_mnemonic(function.name()))
+            .flatten()
+    }) else {
+        return;
+    };
     let contract = user_asm_contract(instruction);
     validate_asm_operand_constraint(
         program,

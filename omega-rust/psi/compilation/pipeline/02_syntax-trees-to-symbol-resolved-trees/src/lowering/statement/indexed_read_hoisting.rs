@@ -226,18 +226,22 @@ fn is_hoistable_value_cast_call(lowerer: &Lowerer, expression: ExpressionHandle)
     };
     !call.receiver.is_valid()
         && !is_integer_embedding_call(lowerer, call)
-        && !is_scalar_computation_builtin_call(call)
+        && !spells_scalar_computation_builtin(call)
 }
 
-/// Whether a call spells one of the composing scalar builtins
-/// (`BuiltinFunction::is_scalar_computation` or its source normalization). Calls are
-/// still unresolved at these normalization sites, so the target spelling is
-/// asked of the builtin vocabulary rather than re-listed here. Such a call
-/// keeps its expression lowering: its synthetic result type is inferred from
-/// an operand, not a declared machine return, so no call-result local can
-/// carry it. Normalized operations must stay here too: before resolution they
-/// have no machine signature from which a synthetic result local can be typed.
-pub(crate) fn is_scalar_computation_builtin_call(
+/// Whether a call is spelled like one of the composing scalar builtins
+/// (`BuiltinFunction::is_scalar_computation`) or a source normalization. This
+/// is a lowering-shape choice, never a builtin classification. Statement
+/// lowering runs in `lower_items` before `symbols::assign` builds the table, so
+/// no call has a resolved identity yet, and a same-spelled authored machine
+/// shadows the builtin once resolution runs. Such a call keeps its expression
+/// position: the builtin needs that because its result type comes from an
+/// operand rather than a declared return, a normalized operation has no
+/// machine signature from which a synthetic result local could be typed, and
+/// an authored callee is served in place as well. Every semantic consumer --
+/// hoisted temporary typing, call fences, contracts, proofs and interpretation
+/// -- asks the resolved symbol through `SymbolTable::builtin_function_for_symbol`.
+pub(crate) fn spells_scalar_computation_builtin(
     call: &symbol_resolved_trees::expression::TableCallExpression,
 ) -> bool {
     BuiltinFunction::from_name(call.target.as_str()).is_some_and(|function| {
@@ -534,7 +538,10 @@ pub(crate) fn is_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionH
 /// synthetic temp's type is resolvable from that field. `abs(self.x)` desugars to
 /// `max(self.x, 0 - self.x)` (first arg `self.x`, hoisted); `clamp(self.x, ..)`
 /// desugars to `min(max(self.x, ..), ..)` whose first arg is a call, so it is
-/// left alone (not hoisted) -- the temp would be untypeable.
+/// left alone (not hoisted) -- the temp would be untypeable. The test is the
+/// pre-resolution spelling (`spells_scalar_computation_builtin`); typing
+/// classifies the temp's initializer by its resolved symbol, so a same-spelled
+/// authored callee hoisted here takes its declared return type.
 pub(super) fn is_hoistable_builtin_guard_call(
     lowerer: &Lowerer,
     expression: ExpressionHandle,
@@ -546,7 +553,7 @@ pub(super) fn is_hoistable_builtin_guard_call(
     if call.receiver.is_valid() {
         return false; // a method call, not a free builtin
     }
-    if !is_scalar_computation_builtin_call(call) {
+    if !spells_scalar_computation_builtin(call) {
         return false;
     }
     let arguments = expressions.expression_handles(call.arguments);

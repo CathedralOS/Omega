@@ -231,6 +231,7 @@ pass/calls/borrowed_float_argument_scalar_result_exit built 885ms exit:70 @48008
 pass/calls/borrowed_float_result_exit built 3689ms exit:70 @48008365d839
 pass/calls/borrowed_float_scalar_result_exit built 1177ms exit:70 @48008365d839
 pass/calls/borrowed_scalar_result_with_binding_exit built 1060ms exit:70 @48008365d839
+pass/calls/builtin_named_machine_call_exit built 2550ms exit:7 @e7691b42e321+wt
 pass/calls/by_value_case_param_self_write_exit built 654ms exit:70
 pass/calls/callback_private_materialization rejected 3342ms @693920652f41
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
