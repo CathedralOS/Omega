@@ -2992,21 +2992,6 @@ of a check the same flow already performed, not the check itself.
   for each case the build corpus does not already cover); the build and
   filesystem corpus slices are unchanged.
 
-- **RESTRICTED-REQUEST-GATE-ONCE.** (new-scope) With
-  pending requests now stopping before effects in the compiler API, complete
-  the recoverable package Build-consent transaction. Preserve normalized pending
-  request meaning, occurrence/context and unavailable dependent findings through
-  review; resume must recheck candidate custody and join exact accepted request
-  meaning plus executor grants before effects, then finish the ordinary review.
-  No pending result may enter a completed cache or accepted lock. Today's public
-  audit/update commands issue private snapshot/staging scopes and project no
-  restricted request; do not add live-host grant syntax to manufacture this case.
-  Follow `wiki/spec/packages/review.md` and restricted-build acceptance in
-  `wiki/spec/packages/acceptance.md`. Acceptance: a review with a real scoped
-  request reports it without effects, refusal stays effect-free, exact consent
-  resumes the same candidate before final findings become available; ordinary
-  private review and consuming-compilation grant checks remain unchanged.
-
 - **CONTRACT-IDENTITY-STRUCTURAL.** (split-of:REVIEW-SINGLE-PROJECTION)
   Checked contract identities are still built from hand-rolled byte strings:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/canonical_encoding.rs`
@@ -3017,21 +3002,6 @@ of a check the same flow already performed, not the check itself.
   Derive the identity from the checked contract structure and delete the byte
   encoders. Acceptance: `canonical_encoding.rs` and every `callable_shape`
   vector are gone; corpus `--filter packages` and `--filter contracts` are
-  unchanged.
-
-- **REVIEW-BOUND-PASS-RECHECKS.** (new-scope) Package review's bound pass
-  (`omega-rust/omega/packages/package-manager/src/review/candidate/compilation.rs`)
-  now takes each occurrence's settled product judgment from the discovery
-  pass when settlement arrives at an equal typed program
-  (`typed_trees_to_checked_trees::lower_typed_trees_reusing`). On macOS ARM64
-  (debug build), `OMEGA_REVIEW_TIMINGS=1 omega update --project <copy of
-  samples/cli/basics/print_number> --target macos_arm64 --offline` reports
-  `settled_checks=2` for the bound pass, both of them build-program checks
-  (`build-evaluation/src/admission/checking.rs`, about 7 s together). Remaining:
-  let a build activation take an equal build program's judgment the same way,
-  then the bound pass reports `settled_checks=0`.
-  Acceptance: the bound pass reports `settled_checks=0` for an occurrence whose
-  typed program is unchanged, and review output for that command is
   unchanged.
 
 - **RED-WINDOWS-HOST.** (new-scope)
@@ -5428,6 +5398,12 @@ wait for Cathedral's instruction coverage. The interpreter is
     dependency path, purpose, target profile, operation, scope and bounds.
     Product acceptance cannot grant Build effects. **BUILD-TEST-AUTHORITY**
     owns test/fixture attribution through this gate.
+    Current review APIs accept captured inventories, not non-private executor
+    scopes; named dependency inputs and accepted rows cannot supply those grants.
+    Establish an independently motivated supported restricted execution protocol
+    before adding a command consent phase; the scoped-execution spec defers
+    extensible live-host grants. Do not replace private staging with a live mode
+    or manufacture pending findings merely to exercise recovery.
   Acceptance: initial, added, widened and transitive requests stop before any
   effect, show their coordinates and leave review incomplete; resuming the
   exact candidate with accepted requests runs and reviews the generated

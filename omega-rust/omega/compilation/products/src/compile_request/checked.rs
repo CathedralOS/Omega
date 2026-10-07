@@ -1,6 +1,7 @@
 //! Target-local checking and Build inputs, admitted before source reuse or effects.
 
 use super::ValidatedTargetCompilation;
+use crate::RetainedCompilationChecks;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::build_execution::RestrictedBuildGrants;
@@ -43,11 +44,11 @@ pub struct CheckedCompileRequest {
 }
 
 /// Package review's two passes compile one occurrence twice; the bound pass
-/// hands the discovery pass's settled judgment back. Ordinary compiles leave
-/// both fields empty and check afresh.
+/// hands the discovery pass's Build and Product judgments back separately.
+/// Ordinary compiles retain neither and check afresh.
 #[derive(Debug, Clone, Default)]
 pub struct SettledCheckReuse {
-    pub prior: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    pub prior: RetainedCompilationChecks,
     pub retain: bool,
 }
 

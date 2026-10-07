@@ -147,7 +147,7 @@ pub(crate) fn check_selected_execution(
             let result = typed_trees_to_checked_trees::lower_typed_trees_reusing(
                 typed,
                 &checking,
-                settled_check_reuse.prior.as_ref(),
+                settled_check_reuse.prior.product.as_ref(),
                 settled_check_reuse.retain,
             );
             if !result.as_ref().is_ok_and(|outcome| outcome.took_prior) {

@@ -799,10 +799,10 @@ impl ClosurePass<'_> {
         Ok(true)
     }
 
-    /// The settled judgment this occurrence's compile may take or keep. The
-    /// discovery pass keeps each one, because a bound pass recompiles every
+    /// The separate Build and Product judgments this occurrence may take or keep.
+    /// The discovery pass keeps them because a bound pass recompiles every
     /// occurrence its discovered bindings touch; that pass hands back the
-    /// judgment of the same occurrence. Psi takes it only when settlement
+    /// judgments of the same occurrence. Psi takes each only when settlement
     /// under the bound pass's bindings arrives at an equal typed program, so
     /// the bindings still decide everything after the language judgment.
     fn settled_check_reuse(
@@ -818,9 +818,10 @@ impl ClosurePass<'_> {
                 })
             })
             .and_then(|occurrence| match &occurrence.checked {
-                OccurrenceCompile::Checked(checked) => checked.settled_check().cloned(),
+                OccurrenceCompile::Checked(checked) => Some(checked.settled_checks().clone()),
                 OccurrenceCompile::Cached(_) => None,
-            });
+            })
+            .unwrap_or_default();
         compiler::SettledCheckReuse {
             prior,
             retain: self.discovery == TargetEntryDiscovery::Dependencies,

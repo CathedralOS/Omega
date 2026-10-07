@@ -39,6 +39,10 @@ pub struct BuildEvaluationRequest<'request> {
     pub snapshot: Option<&'request BuildSnapshotRequest>,
     pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     pub artifact_only: bool,
+    /// This occurrence's earlier Build language judgment, not grants or effects.
+    pub prior_check: Option<&'request typed_trees_to_checked_trees::RetainedCheck>,
+    /// Retain a successful judgment only when another review pass will use it.
+    pub retain_check: bool,
 }
 
 /// Evaluated configuration and the exact pre-effect admission observations.
@@ -48,6 +52,8 @@ pub struct EvaluatedBuild {
     pub configuration: Arc<crate::ComputedBuildConfig>,
     pub restricted_build_requests: Vec<RestrictedBuildRequest>,
     pub base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
+    /// Optional invocation-local language judgment, separate from configuration.
+    pub retained_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
 }
 
 /// Admit and execute one Build activation. Errors return before any later step:
@@ -75,6 +81,8 @@ pub fn evaluate_build(
         snapshot,
         mut restricted_build_grants,
         artifact_only,
+        prior_check,
+        retain_check,
     } = request;
     // Source-owned entry selection requires no interpreter or host resources.
     // A package without an entry has nothing to admit or execute: its ordinary
@@ -118,12 +126,13 @@ pub fn evaluate_build(
             }),
             restricted_build_requests: Vec::new(),
             base_source_consumption_commitment,
+            retained_check: None,
         });
     };
     // Every activation checks its helpers before snapshot capture or effects.
     // Package authority adds to that semantic floor; standalone source cannot
     // bypass it. Admission below consumes this exact checked program.
-    let prepared = crate::admission::checking::prepare_checked_build(
+    let (prepared, retained_check) = crate::admission::checking::prepare_checked_build(
         typed,
         pre_checks,
         selected_machine,
@@ -131,6 +140,8 @@ pub fn evaluate_build(
         package_inputs,
         execution_profile,
         timings,
+        prior_check,
+        retain_check,
     )?;
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
@@ -193,6 +204,7 @@ pub fn evaluate_build(
         configuration,
         restricted_build_requests,
         base_source_consumption_commitment,
+        retained_check,
     })
 }
 

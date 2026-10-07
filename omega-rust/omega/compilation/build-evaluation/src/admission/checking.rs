@@ -25,7 +25,15 @@ pub(crate) fn prepare_checked_build(
     packages: Option<&PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<PreparedBuildMachineProgram, Vec<Diagnostic>> {
+    prior: Option<&typed_trees_to_checked_trees::RetainedCheck>,
+    retain: bool,
+) -> Result<
+    (
+        PreparedBuildMachineProgram,
+        Option<typed_trees_to_checked_trees::RetainedCheck>,
+    ),
+    Vec<Diagnostic>,
+> {
     // Pure compiler evaluation settles type-dependent storage before ordinary
     // ownership and contract checking. Its existing admission floor forbids
     // service effects and retains exact declaration-selection authority; it
@@ -95,32 +103,44 @@ pub(crate) fn prepare_checked_build(
         )?
         .evaluate_pending(typed, pending)?;
     }
-    let mut checked = timings.record(
+    // Carry the discovery pass's language judgment only for the exact settled
+    // Build program. Psi still admits this invocation's declaration authority;
+    // provider/comparison settlement and executor grants remain fresh below.
+    let outcome = timings.record(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
             let started = std::time::Instant::now();
-            let result = typed_trees_to_checked_trees::lower_typed_trees(
+            let result = typed_trees_to_checked_trees::lower_typed_trees_reusing(
                 typed_trees_to_checked_trees::project_build_program(typed, entry)?,
                 &typed_trees_to_checked_trees::CheckingRequest::settled()
                     .with_declaration_authority(
                         packages
                             .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
                     ),
+                prior,
+                retain,
             );
-            artifacts::compile_timings::counters::record_settled_check(started.elapsed());
+            if !result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
+                artifacts::compile_timings::counters::record_settled_check(started.elapsed());
+            }
             result
         },
     )?;
+    let typed_trees_to_checked_trees::CheckingOutcome {
+        mut checked,
+        retained,
+        ..
+    } = outcome;
     selected_dispatch::settle_selected_comparison_execution(
         &mut checked,
         source::DependencyScope::Build,
         &provenance,
     )?;
-    // Only successful checked replay discharges this continuation's Build
+    // Only successful Build admission discharges this continuation's Build
     // work. Product keeps its exact complement, not a second full evaluation.
     *pre_checks = pre_checks
         .iter()
         .map(|continuation| continuation.exclude_projection(typed, &checked.typed))
         .collect::<Result<_, _>>()?;
-    Ok(PreparedBuildMachineProgram::from_checked(checked))
+    Ok((PreparedBuildMachineProgram::from_checked(checked), retained))
 }

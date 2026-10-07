@@ -40,6 +40,7 @@ mod runtime_provisions;
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
+    RetainedCompilationChecks,
 };
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{

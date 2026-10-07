@@ -35,7 +35,7 @@ pub(crate) fn evaluate_build_and_continue(
         optimization_rollback: _,
         restricted_build_grants,
         permit_unsettled_fused_service_fields: _,
-        settled_check_reuse: _,
+        settled_check_reuse,
     } = child;
     let TypedCompilationFrontier {
         mut typing,
@@ -52,6 +52,7 @@ pub(crate) fn evaluate_build_and_continue(
         configuration: computed_build_config,
         restricted_build_requests,
         base_source_consumption_commitment,
+        retained_check: retained_build_check,
     } = build_evaluation::evaluate_build(
         build_evaluation::BuildEvaluationRequest {
             pure_build_compilation,
@@ -72,6 +73,8 @@ pub(crate) fn evaluate_build_and_continue(
             artifact_only: application
                 .as_ref()
                 .is_some_and(|application| application.artifact_only),
+            prior_check: settled_check_reuse.prior.build.as_ref(),
+            retain_check: settled_check_reuse.retain,
         },
         timings,
     )?;
@@ -97,6 +100,7 @@ pub(crate) fn evaluate_build_and_continue(
             pending_pre_checks,
             computed_build_config,
             admission,
+            retained_build_check,
         },
         sources,
     ))
@@ -256,6 +260,7 @@ pub(super) fn complete_product_frontend(
         pending_pre_checks,
         computed_build_config,
         admission,
+        retained_build_check: _,
     } = built;
     // Build evaluation may have realized concrete data declarations. Admit
     // their exact generated-symbol suffix before the resolver allocates any

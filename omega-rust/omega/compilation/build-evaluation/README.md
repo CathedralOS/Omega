@@ -17,6 +17,16 @@ normally. Current package audit/update commands supply only that private mode;
 this stop is also exercised by callers of the public compiler/Build API with
 non-private filesystem scopes. It does not add a live-host grant command or
 complete the separate recoverable Build-consent/resume workflow.
+Discovery may retain its successful Build language judgment for the bound
+review pass. Admission uses Psi's exact-input reuse, then freshly settles
+comparison execution, filesystem custody, restricted consent and execution;
+an unchanged language judgment cannot lend an earlier invocation's grants.
+To observe the distinction, set `OMEGA_REVIEW_TIMINGS=1` and run ordinary
+`omega update --project <project> --target macos_arm64 --offline` on a
+disposable copy of `samples/cli/basics/print_number` with its relative std
+dependency preserved. An unchanged bound pass reports `settled_checks=0`;
+discovery still checks Build and Product. This is a macOS observation command,
+not a cross-host execution claim or a separate review mode.
 Without an authored Build entry, it returns default settings and the retained
 source commitment without checking, specializing or capturing an execution
 snapshot. Final product checking still admits all ordinary declarations.

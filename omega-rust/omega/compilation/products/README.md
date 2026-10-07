@@ -21,6 +21,11 @@ uses those same checked provider selections for comparison-custody joins; stage
 execution stay visible in the coordinator, not inside the checked product.
 Package review consumes this product directly, without a production dependency
 on compiler orchestration, and still independently reconstructs evidence.
+For another pass of that occurrence, `RetainedCompilationChecks` carries the
+successful Build and Product language judgments separately. Psi reuses each only
+for its exact program/checkpoint/receipt inputs and still checks invocation
+authority. These optional invocation-local observations are excluded from
+semantic identity and reports; they neither cache effects nor grant execution.
 [`evaluated_build.rs`](src/evaluated_build.rs) owns the shared retained Build
 configuration and execution-result records, plus the per-compilation Build
 admission (application declaration, evaluated machine identity, restricted host

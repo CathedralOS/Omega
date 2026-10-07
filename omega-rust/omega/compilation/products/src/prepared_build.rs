@@ -21,6 +21,9 @@ pub struct BuiltTypedProgram {
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
+    /// The exact successful Build language judgment, only when requested for
+    /// another review pass. This is not an execution or authority checkpoint.
+    pub retained_build_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
 }
 
 /// One completed continuation with its source custody and inclusive timing ladder.

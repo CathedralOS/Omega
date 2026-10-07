@@ -23,6 +23,15 @@ mod terminal;
 
 pub use report::{CheckedProductReport, CompileReportSettlement};
 
+/// Invocation-local language judgments retained for the next review pass of
+/// this occurrence. Build and Product are independent checked programs; neither
+/// judgment carries provider selection, executor resources or consent.
+#[derive(Debug, Clone, Default)]
+pub struct RetainedCompilationChecks {
+    pub build: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    pub product: Option<typed_trees_to_checked_trees::RetainedCheck>,
+}
+
 /// Whole stage products supplied when sealing a checked compilation, each as
 /// the record its producing owner returned. These inputs are not an admission
 /// receipt. Sealing retains them immutably; downstream consumers still
@@ -63,9 +72,9 @@ pub struct CheckedCompilation {
     execution: CheckedCompilationInputs,
     sources: CheckedSourceCustody,
     timings: CompileTimings,
-    /// The settled language judgment and its exact input, kept only when the
+    /// The settled language judgments and their exact inputs, kept only when the
     /// request asked to retain it for a later compile of the same occurrence.
-    settled_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    settled_checks: RetainedCompilationChecks,
 }
 
 // Measurements and a retained judgment are observations, not checked semantic
@@ -94,23 +103,20 @@ impl CheckedCompilation {
             execution,
             sources,
             timings,
-            settled_check: None,
+            settled_checks: RetainedCompilationChecks::default(),
         })
     }
 
-    /// Keep the settled check this compilation ran (or took) for a later
+    /// Keep the settled checks this compilation ran (or took) for a later
     /// compile of the same occurrence to hand back.
-    pub fn with_settled_check(
-        mut self,
-        settled_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
-    ) -> Self {
-        self.settled_check = settled_check;
+    pub fn with_settled_checks(mut self, settled_checks: RetainedCompilationChecks) -> Self {
+        self.settled_checks = settled_checks;
         self
     }
 
-    /// The retained settled check, when the request asked for one.
-    pub const fn settled_check(&self) -> Option<&typed_trees_to_checked_trees::RetainedCheck> {
-        self.settled_check.as_ref()
+    /// The retained settled checks, empty when the request asked for none.
+    pub const fn settled_checks(&self) -> &RetainedCompilationChecks {
+        &self.settled_checks
     }
 }
 

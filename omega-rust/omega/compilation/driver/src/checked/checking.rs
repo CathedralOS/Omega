@@ -368,10 +368,11 @@ fn check_completed_build(
     settled_check_reuse: SettledCheckReuse,
 ) -> CheckedCompileOutcome {
     let PreparedBuild {
-        built,
+        mut built,
         mut build_sources,
         mut timings,
     } = prepared;
+    let retained_build_check = built.retained_build_check.take();
     let independent_components = built.computed_build_config.independent_components();
     let result = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
         execution_settlement::check_selected_execution(
@@ -386,8 +387,12 @@ fn check_completed_build(
         )
     });
     let result = result.and_then(|(execution, settled_check)| {
-        CheckedCompilation::seal(execution, build_sources, package_inputs, timings)
-            .map(|checked| checked.with_settled_check(settled_check))
+        CheckedCompilation::seal(execution, build_sources, package_inputs, timings).map(|checked| {
+            checked.with_settled_checks(compilation_products::RetainedCompilationChecks {
+                build: retained_build_check,
+                product: settled_check,
+            })
+        })
     });
     CheckedCompileOutcome {
         prepared_source: None,
