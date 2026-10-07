@@ -546,6 +546,25 @@ impl FieldValue {
 /// parameter's referent at entry. `&mut self` rides the machine root through
 /// the same join; a named `&mut T` argument is no different one symbol over.
 #[allow(clippy::too_many_arguments)]
+/// The (value handle, byte predicates, integer bounds) row an integer point
+/// carries: no place, no predicates, and the degenerate min == max interval.
+fn point_range_point(
+    value: numerics::bignum::BigInt,
+) -> (
+    ExpressionHandle,
+    Vec<ByteSequencePredicate>,
+    Option<facts::IntegerRange>,
+) {
+    (
+        ExpressionHandle::invalid(),
+        Vec::new(),
+        Some(facts::IntegerRange {
+            minimum: value.clone(),
+            maximum: value,
+        }),
+    )
+}
+
 pub(super) fn capture(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
@@ -632,14 +651,7 @@ pub(super) fn capture(
                             let Some(value) = literal.value_bignum() else {
                                 continue;
                             };
-                            (
-                                ExpressionHandle::invalid(),
-                                Vec::new(),
-                                Some(facts::IntegerRange {
-                                    minimum: value.clone(),
-                                    maximum: value,
-                                }),
-                            )
+                            point_range_point(value.clone())
                         }
                         _ if crate::values::is_assignment_literal(program, value) => {
                             (value, Vec::new(), None)
@@ -652,14 +664,7 @@ pub(super) fn capture(
                     else {
                         continue;
                     };
-                    (
-                        ExpressionHandle::invalid(),
-                        Vec::new(),
-                        Some(facts::IntegerRange {
-                            minimum: value.clone(),
-                            maximum: value.clone(),
-                        }),
-                    )
+                    point_range_point(value.clone())
                 }
                 FactPayload::BytePredicate { predicate: proved } => (
                     ExpressionHandle::invalid(),
