@@ -308,30 +308,25 @@ pub(crate) fn stable_alias_initializer_origins(
             {
                 return None;
             }
-            stable_alias_initializer_origins(
+            projected_indexed_origins(
                 program,
-                current_machine,
-                machine_symbols,
-                inference,
+                stable_alias_initializer_origins(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    inference,
+                    indexed.collection,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    divergent_aliases,
+                    symbols,
+                    allow_isolated_local,
+                    stored,
+                )?,
+                expression,
                 indexed.collection,
-                parameters,
-                isolated_local_roots,
-                aliases,
-                divergent_aliases,
-                symbols,
-                allow_isolated_local,
-                stored,
-            )?
-            .into_iter()
-            .map(|mut collection| {
-                collection.source =
-                    collection
-                        .source
-                        .projected(program, expression, indexed.collection);
-                collection.precision = FramePathPrecision::CollectionCoarse;
-                collection
-            })
-            .collect()
+            )
         }
         ExpressionNode::Member(member) => {
             let Some(receivers) = stable_alias_initializer_origins(
@@ -359,24 +354,7 @@ pub(crate) fn stable_alias_initializer_origins(
                     inference,
                 );
             };
-            receivers
-                .into_iter()
-                .map(|receiver| {
-                    let source = receiver
-                        .source
-                        .projected(program, expression, member.receiver);
-                    match receiver.precision {
-                        FramePathPrecision::Exact => FramePlaceOrigin {
-                            path: format!("{}.{}", receiver.path, member.member.as_str()),
-                            precision: FramePathPrecision::Exact,
-                            source,
-                        },
-                        FramePathPrecision::CollectionCoarse => {
-                            FramePlaceOrigin { source, ..receiver }
-                        }
-                    }
-                })
-                .collect()
+            projected_member_origins(program, receivers, expression, member)
         }
         ExpressionNode::Match(dispatch) => {
             // Every producing arm contributes its own candidates; divergent
@@ -527,52 +505,37 @@ fn stable_alias_expression_origins(
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
                 return None;
             }
+            projected_indexed_origins(
+                program,
+                stable_alias_expression_origins(
+                    program,
+                    indexed.collection,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    divergent_aliases,
+                    symbols,
+                    allow_isolated_local,
+                )?,
+                expression,
+                indexed.collection,
+            )
+        }
+        ExpressionNode::Member(member) => projected_member_origins(
+            program,
             stable_alias_expression_origins(
                 program,
-                indexed.collection,
+                member.receiver,
                 parameters,
                 isolated_local_roots,
                 aliases,
                 divergent_aliases,
                 symbols,
                 allow_isolated_local,
-            )?
-            .into_iter()
-            .map(|mut collection| {
-                collection.source =
-                    collection
-                        .source
-                        .projected(program, expression, indexed.collection);
-                collection.precision = FramePathPrecision::CollectionCoarse;
-                collection
-            })
-            .collect()
-        }
-        ExpressionNode::Member(member) => stable_alias_expression_origins(
-            program,
-            member.receiver,
-            parameters,
-            isolated_local_roots,
-            aliases,
-            divergent_aliases,
-            symbols,
-            allow_isolated_local,
-        )?
-        .into_iter()
-        .map(|receiver| {
-            let source = receiver
-                .source
-                .projected(program, expression, member.receiver);
-            match receiver.precision {
-                FramePathPrecision::Exact => FramePlaceOrigin {
-                    path: format!("{}.{}", receiver.path, member.member.as_str()),
-                    precision: FramePathPrecision::Exact,
-                    source,
-                },
-                FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..receiver },
-            }
-        })
-        .collect(),
+            )?,
+            expression,
+            member,
+        ),
         ExpressionNode::Match(dispatch) => {
             let mut selected = Vec::new();
             for arm in program.expression_table.match_arms(dispatch.arms) {
@@ -640,4 +603,53 @@ pub(crate) fn stable_assignment_target_path(
         )?
         .path,
     )
+}
+
+/// Indexing projects every origin through the collection expression at
+/// collection-coarse precision.
+fn projected_indexed_origins(
+    program: &TypedTrees,
+    origins: Vec<FramePlaceOrigin>,
+    expression: ExpressionHandle,
+    collection: ExpressionHandle,
+) -> Vec<FramePlaceOrigin> {
+    origins
+        .into_iter()
+        .map(|mut collection_origin| {
+            collection_origin.source =
+                collection_origin
+                    .source
+                    .projected(program, expression, collection);
+            collection_origin.precision = FramePathPrecision::CollectionCoarse;
+            collection_origin
+        })
+        .collect()
+}
+
+/// A member projection keeps an exact origin's path and re-projects its
+/// source; a coarse origin carries the new source only.
+fn projected_member_origins(
+    program: &TypedTrees,
+    origins: Vec<FramePlaceOrigin>,
+    expression: ExpressionHandle,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> Vec<FramePlaceOrigin> {
+    origins
+        .into_iter()
+        .map(|receiver| {
+            let source = receiver
+                .source
+                .projected(program, expression, member.receiver);
+            match receiver.precision {
+                FramePathPrecision::Exact => FramePlaceOrigin {
+                    path: format!("{}.{}", receiver.path, member.member.as_str()),
+                    precision: FramePathPrecision::Exact,
+                    source,
+                },
+                FramePathPrecision::CollectionCoarse => {
+                    FramePlaceOrigin { source, ..receiver }
+                }
+            }
+        })
+        .collect()
 }
