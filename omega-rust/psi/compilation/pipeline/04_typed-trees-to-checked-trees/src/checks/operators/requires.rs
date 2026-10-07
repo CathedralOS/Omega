@@ -289,20 +289,18 @@ pub(super) fn selected_binary_requires_diagnostics(
         let operand_labels = operand_labels(program, &operands);
         let invocation_contexts = InvocationContexts::new(facts, operator_use_handle, &operands);
 
-        for fact in requires_facts {
-            let proven = requires_fact_proven(
-                program,
-                &facts.semantic,
-                &facts.operators,
-                &invocation_contexts,
-                parameters,
-                type_parameters,
-                &operands,
-                &operand_labels,
-                fact,
-            );
-            if !proven {
-                diagnostics.push(Diagnostic::error(format!(
+        check_requires_facts(
+            program,
+            facts,
+            &invocation_contexts,
+            parameters,
+            type_parameters,
+            &operands,
+            &operand_labels,
+            requires_facts,
+            &mut diagnostics,
+            |fact| {
+                Diagnostic::error(format!(
                     "cannot prove `{}` — the `requires` of `{}` (spelled `{}`)",
                     requires_clause_label(program, parameters, &operand_labels, fact),
                     operator_path_label(
@@ -312,9 +310,9 @@ pub(super) fn selected_binary_requires_diagnostics(
                         selected.operator_symbol
                     ),
                     operator_use.spelling.symbol(),
-                )));
-            }
-        }
+                ))
+            },
+        );
     }
 
     // Named `Namespace::requirement(...)` calls carry the same selected
@@ -377,20 +375,18 @@ pub(super) fn selected_binary_requires_diagnostics(
             &operands,
         );
 
-        for fact in requires_facts {
-            let proven = requires_fact_proven(
-                program,
-                &facts.semantic,
-                &facts.operators,
-                &invocation_contexts,
-                parameters,
-                type_parameters,
-                &operands,
-                &operand_labels,
-                fact,
-            );
-            if !proven {
-                diagnostics.push(Diagnostic::error(format!(
+        check_requires_facts(
+            program,
+            facts,
+            &invocation_contexts,
+            parameters,
+            type_parameters,
+            &operands,
+            &operand_labels,
+            requires_facts,
+            &mut diagnostics,
+            |fact| {
+                Diagnostic::error(format!(
                     "cannot prove `{}` — the `requires` of `{}` (called `{}`)",
                     requires_clause_label(program, parameters, &operand_labels, fact),
                     operator_path_label(
@@ -400,9 +396,9 @@ pub(super) fn selected_binary_requires_diagnostics(
                         operator.symbol
                     ),
                     program.expression_table.display_name(named_use.expression),
-                )));
-            }
-        }
+                ))
+            },
+        );
     }
 
     // The same residual species for `requires`: a `StatementNode::Call` that
@@ -503,6 +499,39 @@ fn operator_path_label(
 
 /// Whether one instantiated `requires` fact is proven by any context entering
 /// the invocation, or is a closed-literal claim decidable on its own.
+
+/// Push one diagnostic per requires fact the invocation does not prove.
+#[allow(clippy::too_many_arguments)]
+fn check_requires_facts(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    invocation_contexts: &InvocationContexts<'_>,
+    parameters: &[StateParameter],
+    type_parameters: &[typed_trees::data::TypeParameter],
+    operands: &[ExpressionHandle],
+    operand_labels: &[String],
+    requires_facts: Vec<&ProofFact>,
+    diagnostics: &mut Vec<Diagnostic>,
+    report: impl Fn(&ProofFact) -> Diagnostic,
+) {
+    for fact in requires_facts {
+        let proven = requires_fact_proven(
+            program,
+            &facts.semantic,
+            &facts.operators,
+            invocation_contexts,
+            parameters,
+            type_parameters,
+            operands,
+            operand_labels,
+            fact,
+        );
+        if !proven {
+            diagnostics.push(report(fact));
+        }
+    }
+}
+
 fn requires_fact_proven(
     program: &TypedTrees,
     semantic: &FactPlan,
