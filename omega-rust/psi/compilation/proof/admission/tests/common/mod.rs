@@ -340,3 +340,13 @@ pub(crate) fn strict_children_error(
     let malformed = strict.indexed_w(arena, index);
     infer_type(arena, context, malformed, budget).unwrap_err()
 }
+
+/// `λ(p : Two). λ(_ : Id Two zero one). zeroN` — the dead child position's
+/// Nat answer every Two-indexed family reuses.
+pub(crate) fn zero_nat_branch(arena: &mut TermArena) -> TermHandle {
+    let payload_domain = two(arena);
+    let position_domain = empty_positions(arena);
+    let body = nat_zero(arena);
+    let inner = lambda(arena, position_domain, body);
+    lambda(arena, payload_domain, inner)
+}

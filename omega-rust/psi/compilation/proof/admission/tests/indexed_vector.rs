@@ -156,16 +156,9 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
         let domain = two(arena);
         lambda(arena, domain, body)
     };
-    let zero_branch = {
-        // `λ(p : Two). λ(_ : Id Two zero one). zeroN` at
-        // `Π(_ : Payload zero). Π(_ : B' zero). Nat` — the dead position
-        // is answered by any length.
-        let payload_domain = two(arena);
-        let position_domain = empty_positions(arena);
-        let body = nat_zero(arena);
-        let inner = lambda(arena, position_domain, body);
-        lambda(arena, payload_domain, inner)
-    };
+    // `λ(p : Two). λ(_ : Id Two zero one). zeroN` — the dead position is
+    // answered by any length.
+    let zero_branch = zero_nat_branch(arena);
     let one_branch = {
         // `λ(p : Σ(e : Elem). Nat). λ(_ : Id Two zero zero). snd p` —
         // the child's required index is the recorded predecessor.
@@ -436,13 +429,7 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
             let domain = two(&mut arena);
             lambda(&mut arena, domain, body)
         };
-        let zero_branch = {
-            let payload_domain = two(&mut arena);
-            let position_domain = empty_positions(&mut arena);
-            let body = nat_zero(&mut arena);
-            let inner = lambda(&mut arena, position_domain, body);
-            lambda(&mut arena, payload_domain, inner)
-        };
+        let zero_branch = zero_nat_branch(&mut arena);
         let one_branch = {
             // `λp.λ_. fst p : Elem` where `Nat` is required.
             let payload_domain = {
