@@ -75,62 +75,9 @@ pub(super) fn validate_receiverless_call(
     }
 
     // A receiverless call resolved to this machine's entry is recursive
-/// Result use, resolved arguments, and machine type-parameter bounds for a
-/// receiverless call that resolved to `state` of `callee_machine`.
-#[allow(clippy::too_many_arguments)]
-fn validate_resolved_receiverless_call(
-    program: &typed_trees::TypedTrees,
-    call: &typed_trees::statement::TableCall,
-    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
-    callee_machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    current_machine: &typed_trees::machine::Machine,
-    current_state: Option<&typed_trees::state::State>,
-    value_environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
-    arguments: &[ExpressionHandle],
-    writable_roots: &crate::value_custody::locals::WritableRoots<'_, '_>,
-    diagnostics: &mut Vec<Diagnostic>,
-    // The name diagnostics carry: the call as spelled (`compute`) for a
-    // free-machine or sibling resolution, the resolved state's name when a
-    // cross-machine symbol already named the callable.
-    target_name: &str,
-) {
-    validate_result_use(
-        program,
-        call,
-        target_name,
-        state.return_type,
-        diagnostics,
-    );
-    validate_resolved_call_arguments(
-        program,
-        current_machine,
-        current_state,
-        value_environment,
-        arguments,
-        target_name,
-        callee_machine,
-        state,
-        &call.machine_arguments,
-        writable_roots,
-        diagnostics,
-    );
-    validate_machine_call_type_parameter_bounds(
-        program,
-        symbols,
-        callee_machine,
-        state,
-        target_name,
-        arguments,
-        current_machine,
-        current_state,
-        diagnostics,
-    );
-}
-
-    // (`walk(n - 1);` inside `machine walk`). Result
-    // overload rebinding already chose the exact sibling; falling through to
-    // the name lookups below would re-choose the first-declared overload.
+    // (`walk(n - 1);` inside `machine walk`). Result overload rebinding
+    // already chose the exact sibling; falling through to the name lookups
+    // below would re-choose the first-declared overload.
     if let Some((_, state)) = machine_state_by_symbol(program, call.target_symbol)
         .filter(|(callee_machine, _)| callee_machine.symbol == current_machine.symbol)
     {
@@ -205,5 +152,52 @@ fn validate_resolved_receiverless_call(
         writable_roots,
         diagnostics,
         call.target.as_str(),
+    );
+}
+
+/// Result use, resolved arguments, and machine type-parameter bounds for a
+/// receiverless call that resolved to `state` of `callee_machine`.
+#[allow(clippy::too_many_arguments)]
+fn validate_resolved_receiverless_call(
+    program: &typed_trees::TypedTrees,
+    call: &typed_trees::statement::TableCall,
+    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
+    callee_machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    current_machine: &typed_trees::machine::Machine,
+    current_state: Option<&typed_trees::state::State>,
+    value_environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
+    arguments: &[ExpressionHandle],
+    writable_roots: &crate::value_custody::locals::WritableRoots<'_, '_>,
+    diagnostics: &mut Vec<Diagnostic>,
+    // The name diagnostics carry: the call as spelled (`compute`) for a
+    // free-machine or sibling resolution, the resolved state's name when a
+    // cross-machine symbol already named the callable.
+    target_name: &str,
+) {
+    validate_result_use(program, call, target_name, state.return_type, diagnostics);
+    validate_resolved_call_arguments(
+        program,
+        current_machine,
+        current_state,
+        value_environment,
+        arguments,
+        target_name,
+        callee_machine,
+        state,
+        &call.machine_arguments,
+        writable_roots,
+        diagnostics,
+    );
+    validate_machine_call_type_parameter_bounds(
+        program,
+        symbols,
+        callee_machine,
+        state,
+        target_name,
+        arguments,
+        current_machine,
+        current_state,
+        diagnostics,
     );
 }

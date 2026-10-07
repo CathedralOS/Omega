@@ -756,6 +756,8 @@ fail/control_flow/transition_empty_arms_rejected rejected 4ms expected @2d8ed253
 	tests/omega/fail/control_flow/transition_empty_arms_rejected/main.omg:9:18: a transition block must carry at least one arm; an empty dispatch can never proceed
 fail/control_flow/transition_fall_through_bool rejected 76ms expected @2d8ed253669f
 	transition dispatch in `Main::main` can fall through: no arm matches when every guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the `true`/`false` pair)
+fail/control_flow/transition_target_undeclared_state rejected 195ms expected @74a78aefec94+wt
+	machine `Main::main` transitions to `vanished`, which names no state of this machine and no machine entry or requirement
 fail/control_flow/tuple_destructure_duplicate_binding_rejected rejected 8ms expected @2d8ed253669f
 	tests/omega/fail/control_flow/tuple_destructure_duplicate_binding_rejected/main.omg:7:9: tuple destructure binding `value` is introduced by more than one subject; rename one binding with `as`
 fail/core/content_conservation_unqualified_place rejected 326ms expected @2d8ed253669f

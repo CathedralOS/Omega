@@ -180,6 +180,7 @@ pub(crate) fn validate_transition_target_node(
         return;
     }
 
+    let resolved_symbol = path.symbol;
     let path = program.statement_table.name_path_members(path.members);
 
     let state_member = if path.len() == 1 {
@@ -191,6 +192,16 @@ pub(crate) fn validate_transition_target_node(
     };
     if let Some(member_index) = state_member {
         let Some(state) = machine_symbols.state(path[member_index].as_str()) else {
+            // Resolution found no state, machine, parameter or requirement
+            // under this spelling. Lowering would otherwise meet an
+            // unresolved authored call after checking succeeded.
+            if !resolved_symbol.is_valid() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` transitions to `{}`, which names no state of this machine \
+                     and no machine entry or requirement",
+                    current_machine.name, path[member_index]
+                )));
+            }
             return;
         };
 
