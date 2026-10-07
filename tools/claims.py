@@ -251,6 +251,7 @@ class Claims:
         incomplete fetch does not surface as a parse failure.
         """
         if not self.git("cat-file", "-e", version, allow_failure=True).returncode:
+            self.remember_version(version)
             return
         try:
             coordination.fetch_object(self.repository, self.push_url, version,
@@ -262,6 +263,7 @@ class Claims:
         else:
             if not self.git("cat-file", "-e", version,
                             allow_failure=True).returncode:
+                self.remember_version(version)
                 return
         self.git("fetch", "--no-tags", "--no-write-fetch-head",
                  self.push_url, CLAIMS_REF)
@@ -269,6 +271,11 @@ class Claims:
             raise ClaimsError(f"Claims tip {version} is still missing after "
                               f"fetching {CLAIMS_REF}; inspect the remote "
                               "object store before retrying.")
+        self.remember_version(version)
+
+    def remember_version(self, version):
+        coordination.remember_object(self.repository, self.push_url, CLAIMS_REF,
+                                     version, deadline=self.deadline)
 
     def remote_version(self):
         """Current remote value of CLAIMS_REF, retrying short read failures.

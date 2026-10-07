@@ -10,6 +10,7 @@ Nothing here knows a document's shape; each protocol owns its record.
 """
 
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -110,6 +111,26 @@ def remote_refs(repository, url, *references, deadline=None):
 
 def fetch_object(repository, url, identity, *, deadline=None):
     git(repository, "fetch", "--no-tags", "--no-write-fetch-head", url, identity, deadline=deadline)
+
+
+def cache_ref(url, reference):
+    """An opaque local reachability hint, isolated by remote and protocol ref."""
+    identity = hashlib.sha256((url + "\0" + reference).encode("utf-8")).hexdigest()
+    return f"refs/coordination-cache/{identity}"
+
+
+def remember_object(repository, url, reference, identity, *, deadline=None):
+    """Keep a verified tip reachable for subsequent fetch negotiation.
+
+    Raw-object fetches without FETCH_HEAD leave the independent coordination
+    history dangling. Git then walks that whole history on each fresh snapshot.
+    This local ref is only a performance hint: competing readers may move it
+    backwards or fail to lock it without affecting the remote lease or record.
+    The command deadline still bounds this local operation.
+    """
+    object_id(identity, "Cached coordination tip")
+    git(repository, "update-ref", "--no-deref", cache_ref(url, reference), identity,
+        allow_failure=True, deadline=deadline)
 
 
 def commit_record(repository, record, parent, *, deadline=None):

@@ -94,6 +94,9 @@ class RegistrationBudgetTests(unittest.TestCase):
         module = load_claims()
         registry = module.Claims.__new__(module.Claims)
         registry.attempted_claims = []
+        registry.repository = "."
+        registry.push_url = "test-remote"
+        registry.deadline = time.monotonic() + 15
         registry.git = mock.Mock(return_value=SimpleNamespace(returncode=1, stdout=""))
         return module, registry
 
@@ -144,9 +147,21 @@ class RegistrationBudgetTests(unittest.TestCase):
     def test_existing_snapshot_is_not_refetched(self):
         module, registry = self.registry()
         registry.git.return_value = SimpleNamespace(returncode=0, stdout="")
-        with mock.patch.object(module.coordination, "fetch_object") as fetch:
+        with mock.patch.object(module.coordination, "fetch_object") as fetch, \
+                mock.patch.object(module.coordination, "remember_object") as remember:
             registry.fetch_version("b" * 40)
         fetch.assert_not_called()
+        remember.assert_called_once_with(".", "test-remote", CLAIMS_REF, "b" * 40,
+                                         deadline=registry.deadline)
+
+    def test_cache_write_obeys_the_existing_deadline(self):
+        module = load_claims()
+        with mock.patch.object(module.coordination.subprocess, "run") as run:
+            with self.assertRaises(module.coordination.CoordinationTimeout):
+                module.coordination.remember_object(
+                    ".", "test-remote", CLAIMS_REF, "b" * 40,
+                    deadline=time.monotonic() - 1)
+        run.assert_not_called()
 
     def test_git_timeout_is_an_uncertain_outcome_not_success(self):
         module = load_claims()
@@ -243,6 +258,73 @@ class ClaimsTests(unittest.TestCase):
 
     def remote_record(self):
         return json.loads(self.git(self.remote, "show", "-s", "--format=%B", CLAIMS_REF))
+
+    def test_existing_tip_warms_local_cache_without_fetch_or_remote_write(self):
+        module = load_claims()
+        self.claim(self.a)
+        before = self.git(self.remote, "show-ref")
+        registry = module.Claims(self.a, "origin")
+        with mock.patch.object(module.coordination, "fetch_object") as fetch:
+            snapshot = registry.snapshot()
+        fetch.assert_not_called()
+        cache = module.coordination.cache_ref(str(self.remote), CLAIMS_REF)
+        self.assertEqual(self.git(self.a, "rev-parse", cache), snapshot["version"])
+        self.assertEqual(self.git(self.remote, "show-ref"), before)
+
+    def test_missing_and_advancing_tips_refresh_local_cache(self):
+        module = load_claims()
+        first = self.claim(self.a)
+        cache = module.coordination.cache_ref(str(self.remote), CLAIMS_REF)
+        for item in ("ALPHA-ITEM", "BETA-ITEM"):
+            if item == "BETA-ITEM":
+                self.claim(self.a, item, "second owner")
+            version = self.git(self.remote, "rev-parse", CLAIMS_REF)
+            missing = subprocess.run(
+                ["git", "-C", str(self.b), "cat-file", "-e", version],
+                capture_output=True, env=self.environment, timeout=5)
+            self.assertNotEqual(missing.returncode, 0)
+            before = self.git(self.remote, "show-ref")
+            status = self.run_claims(self.b, "status")
+            self.assertEqual(status["version"], version)
+            self.assertIn(first["ticket"], [claim["ticket"] for claim in status["claims"]])
+            self.assertEqual(self.git(self.b, "rev-parse", cache), version)
+            self.assertEqual(self.git(self.remote, "show-ref"), before)
+
+    def test_cache_is_scoped_to_remote_and_protocol_reference(self):
+        module = load_claims()
+        self.claim(self.a)
+        other = self.root / "other remote.git"
+        self.git(self.root, "clone", "--bare", str(self.remote), str(other))
+        self.git(other, "fetch", str(self.remote), f"{CLAIMS_REF}:{CLAIMS_REF}")
+        self.git(self.a, "remote", "add", "other", str(other))
+        first = module.Claims(self.a, "origin").snapshot()
+        second = module.Claims(self.a, "other").snapshot()
+        first_cache = module.coordination.cache_ref(str(self.remote), CLAIMS_REF)
+        second_cache = module.coordination.cache_ref(str(other), CLAIMS_REF)
+        self.assertNotEqual(first_cache, second_cache)
+        self.assertNotEqual(first_cache, module.coordination.cache_ref(
+            str(self.remote), "refs/coordination/omega-landing/main"))
+        self.assertEqual(self.git(self.a, "rev-parse", first_cache), first["version"])
+        self.assertEqual(self.git(self.a, "rev-parse", second_cache), second["version"])
+
+    def test_cache_lock_collision_preserves_successful_snapshot(self):
+        module = load_claims()
+        self.claim(self.a)
+        registry = module.Claims(self.a, "origin")
+        first = registry.snapshot()
+        cache = module.coordination.cache_ref(str(self.remote), CLAIMS_REF)
+        self.claim(self.a, "BETA-ITEM", "second owner")
+        before = self.git(self.remote, "show-ref")
+        lock = Path(self.git(self.a, "rev-parse", "--git-path", cache + ".lock"))
+        if not lock.is_absolute():
+            lock = self.a / lock
+        lock.write_text("concurrent local cache writer\n", encoding="utf-8")
+        second = module.Claims(self.a, "origin").snapshot()
+        self.assertNotEqual(first["version"], second["version"])
+        self.assertEqual(len(second["record"]["claims"]), 2)
+        self.assertEqual(self.git(self.a, "rev-parse", cache), first["version"])
+        self.assertEqual(self.git(self.remote, "show-ref"), before)
+        self.assertTrue(lock.exists())
 
     def test_status_available_then_claim_release_round_trip(self):
         self.assertEqual(self.run_claims(self.a, "status")["state"], "available")

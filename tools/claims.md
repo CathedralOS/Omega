@@ -75,6 +75,11 @@ before the subcommand permits up to 300 seconds. Timed-out claims save
 `build/claims-pending/<ticket>.json`. Inspect status before retrying an
 uncertain write, retaining its ticket. Removed tickets cannot be resurrected.
 
+Snapshots retain verified tips under local `refs/coordination-cache/` refs,
+scoped by remote URL and protocol ref. This keeps Git from repeatedly walking
+the independent claims history. These refs are advisory fetch hints; a local
+cache lock collision does not reject a successful read or change remote claims.
+
 Mutations compare-and-swap the Git reference: distinct concurrent outcomes
 survive, while a same-outcome race admits one owner. Expired claims are reaped
 by the next writer. This serializes registration, not development.
