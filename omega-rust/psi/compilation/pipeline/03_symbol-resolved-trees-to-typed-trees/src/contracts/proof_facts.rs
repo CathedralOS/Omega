@@ -255,3 +255,52 @@ pub(crate) fn intern_proof_membership_instances(
     }
     Ok(())
 }
+
+/// The typed kind of a signature contract — Requires, Ensures, a result-case
+/// EnsuresForResultCase, or a crash-modeled Crashes.
+pub(crate) fn lower_contract_kind(
+    kind: &resolved::signature::SignatureContractKind,
+) -> typed::signature::SignatureContractKind {
+    match kind {
+        resolved::signature::SignatureContractKind::Requires => {
+            typed::signature::SignatureContractKind::Requires
+        }
+        resolved::signature::SignatureContractKind::Ensures => {
+            typed::signature::SignatureContractKind::Ensures
+        }
+        resolved::signature::SignatureContractKind::EnsuresForResultCase {
+            result_data,
+            result_case,
+        } => typed::signature::SignatureContractKind::EnsuresForResultCase {
+            result_data: *result_data,
+            result_case: *result_case,
+        },
+        resolved::signature::SignatureContractKind::Crashes { cause } => {
+            typed::signature::SignatureContractKind::Crashes {
+                cause: match cause {
+                    resolved::signature::CrashCause::Trap => typed::signature::CrashCause::Trap,
+                    resolved::signature::CrashCause::Abort => typed::signature::CrashCause::Abort,
+                },
+            }
+        }
+    }
+}
+
+/// One authored signature contract lowered to its typed row — the literal
+/// every contract loop (`for contract in ..._contracts`) shared.
+pub(crate) fn lower_signature_contract(
+    lowerer: &mut Lowerer,
+    contract: &resolved::signature::SignatureContract,
+) -> Result<typed::signature::SignatureContract, Diagnostic> {
+    let facts = lower_proof_facts(lowerer, contract.facts)?;
+    Ok(typed::signature::SignatureContract {
+        kind: lower_contract_kind(&contract.kind),
+        keyword_source_span: contract.keyword_source_span,
+        binding: contract
+            .binding
+            .as_ref()
+            .map(crate::lowerer::name::lower_name),
+        facts,
+        token_count: contract.token_count,
+    })
+}

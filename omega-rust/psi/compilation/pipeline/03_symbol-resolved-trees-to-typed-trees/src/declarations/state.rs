@@ -1,5 +1,4 @@
 use crate::contracts::parameter_domains::{build_domain_membership_contract, domain_constraints};
-use crate::contracts::proof_facts::lower_proof_facts;
 use crate::expressions::statement::lower_statement_node;
 use crate::lowerer::Lowerer;
 use crate::signatures::parameters::lower_state_parameter;
@@ -60,46 +59,9 @@ pub(crate) fn lower_state_declaration(
     }
 
     for contract in lowerer.source_trees.signature_contracts(state.contracts) {
-        let facts = lower_proof_facts(lowerer, contract.facts)?;
-        lowerer.typed_trees.push_state_contract(
-            &mut typed_state,
-            typed::signature::SignatureContract {
-                kind: match &contract.kind {
-                    resolved::signature::SignatureContractKind::Requires => {
-                        typed::signature::SignatureContractKind::Requires
-                    }
-                    resolved::signature::SignatureContractKind::Ensures => {
-                        typed::signature::SignatureContractKind::Ensures
-                    }
-                    resolved::signature::SignatureContractKind::EnsuresForResultCase {
-                        result_data,
-                        result_case,
-                    } => typed::signature::SignatureContractKind::EnsuresForResultCase {
-                        result_data: *result_data,
-                        result_case: *result_case,
-                    },
-                    resolved::signature::SignatureContractKind::Crashes { cause } => {
-                        typed::signature::SignatureContractKind::Crashes {
-                            cause: match cause {
-                                resolved::signature::CrashCause::Trap => {
-                                    typed::signature::CrashCause::Trap
-                                }
-                                resolved::signature::CrashCause::Abort => {
-                                    typed::signature::CrashCause::Abort
-                                }
-                            },
-                        }
-                    }
-                },
-                keyword_source_span: contract.keyword_source_span,
-                binding: contract
-                    .binding
-                    .as_ref()
-                    .map(crate::lowerer::name::lower_name),
-                facts,
-                token_count: contract.token_count,
-            },
-        );
+        let contract =
+            crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
+        lowerer.typed_trees.push_state_contract(&mut typed_state, contract);
     }
 
     for (

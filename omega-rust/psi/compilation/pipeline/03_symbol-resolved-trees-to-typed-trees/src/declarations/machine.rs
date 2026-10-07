@@ -1,5 +1,4 @@
 use crate::contracts::invocations::lower_authored_invocations;
-use crate::contracts::proof_facts::lower_proof_facts;
 use crate::declarations::state::{complete_state_body, lower_state_declaration};
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
@@ -370,20 +369,9 @@ fn lower_machine_contents(
     }
 
     for contract in lowerer.source_trees.machine_contracts(machine) {
-        let facts = lower_proof_facts(lowerer, contract.facts)?;
-        lowerer.typed_trees.push_machine_contract(
-            &mut typed_machine,
-            typed::signature::SignatureContract {
-                kind: lower_contract_kind(&contract.kind),
-                keyword_source_span: contract.keyword_source_span,
-                binding: contract
-                    .binding
-                    .as_ref()
-                    .map(crate::lowerer::name::lower_name),
-                facts,
-                token_count: contract.token_count,
-            },
-        );
+        let contract =
+            crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
+        lowerer.typed_trees.push_machine_contract(&mut typed_machine, contract);
     }
 
     for (state_index, state) in lowerer
@@ -681,30 +669,3 @@ fn machine_interface_exposure(
     }
 }
 
-fn lower_contract_kind(
-    kind: &resolved::signature::SignatureContractKind,
-) -> typed::signature::SignatureContractKind {
-    match kind {
-        resolved::signature::SignatureContractKind::Requires => {
-            typed::signature::SignatureContractKind::Requires
-        }
-        resolved::signature::SignatureContractKind::Ensures => {
-            typed::signature::SignatureContractKind::Ensures
-        }
-        resolved::signature::SignatureContractKind::EnsuresForResultCase {
-            result_data,
-            result_case,
-        } => typed::signature::SignatureContractKind::EnsuresForResultCase {
-            result_data: *result_data,
-            result_case: *result_case,
-        },
-        resolved::signature::SignatureContractKind::Crashes { cause } => {
-            typed::signature::SignatureContractKind::Crashes {
-                cause: match cause {
-                    resolved::signature::CrashCause::Trap => typed::signature::CrashCause::Trap,
-                    resolved::signature::CrashCause::Abort => typed::signature::CrashCause::Abort,
-                },
-            }
-        }
-    }
-}
