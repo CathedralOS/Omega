@@ -14,10 +14,13 @@ use layout_plans::{
     normalized_conventional_sum_layout_report_fingerprint,
 };
 
-fn hash_sum_array_occurrence(
+/// The array-field layout prelude both occurrence hashes share: member
+/// identity-or-name, element geometry, the normalized element layout, and the
+/// element count.
+fn hash_sum_array_field_layout(
     hash: &mut u64,
     array_layout: &ConventionalSumArrayFieldLayoutReport,
-    elements: &[ValidatedConstRecordSumArrayElementMaterialization],
+    element_count: u64,
 ) {
     match array_layout.member_identity {
         Some(identity) => {
@@ -35,7 +38,15 @@ fn hash_sum_array_occurrence(
         hash,
         normalized_conventional_sum_layout_report_fingerprint(&array_layout.element_layout),
     );
-    hash_u64(hash, elements.len() as u64);
+    hash_u64(hash, element_count);
+}
+
+fn hash_sum_array_occurrence(
+    hash: &mut u64,
+    array_layout: &ConventionalSumArrayFieldLayoutReport,
+    elements: &[ValidatedConstRecordSumArrayElementMaterialization],
+) {
+    hash_sum_array_field_layout(hash, array_layout, elements.len() as u64);
     for element in elements {
         hash_u64(hash, element.literal_index);
         hash_u64(
@@ -60,23 +71,7 @@ pub(crate) fn hash_compact_sum_array_occurrence(
     array_layout: &ConventionalSumArrayFieldLayoutReport,
     elements: &[ValidatedConstRecordSumArrayElementSelection],
 ) {
-    match array_layout.member_identity {
-        Some(identity) => {
-            hash_byte(hash, 1);
-            hash_u64(hash, identity);
-        }
-        None => {
-            hash_byte(hash, 0);
-            hash_text(hash, &array_layout.field);
-        }
-    }
-    hash_u64(hash, array_layout.element_count);
-    hash_u64(hash, array_layout.element_stride);
-    hash_u64(
-        hash,
-        normalized_conventional_sum_layout_report_fingerprint(&array_layout.element_layout),
-    );
-    hash_u64(hash, elements.len() as u64);
+    hash_sum_array_field_layout(hash, array_layout, elements.len() as u64);
     hash_sum_array_element_selections(hash, elements);
 }
 
