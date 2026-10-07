@@ -857,8 +857,7 @@ pass/filesystem/native_filetype built 5239ms exit:0 stdout:match @e01f73c689de+w
 pass/filesystem/native_fs_workflow built 6991ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_metadata_blocks built 11535ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_metadata_ctime_dev built 26003ms exit:0 stdout:match @e01f73c689de+wt
-pass/filesystem/native_metadata_ino incomplete 3447ms @47d3b5bbd8c+wt
-	`PosixFilesystemNativeProvider::read_metadata` has no executable body: this compiler does not lower a call of it yet (call operation: structural arguments: caller structural result)
+pass/filesystem/native_metadata_ino built 14289ms @2740301f86f+wt
 pass/filesystem/native_metadata_nlink built 5648ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_read_dir_iter built 5345ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_wrapper_write_all_result rejected 17438ms @e01f73c689de+wt

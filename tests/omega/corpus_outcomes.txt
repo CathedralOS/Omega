@@ -2701,8 +2701,7 @@ pass/filesystem/native_filetype checked 5147ms check-target:macos_arm64 @e01f73c
 pass/filesystem/native_fs_workflow checked 6702ms check-target:macos_arm64 @e01f73c689de+wt
 pass/filesystem/native_metadata_blocks checked 11359ms check-target:macos_arm64 @e01f73c689de+wt
 pass/filesystem/native_metadata_ctime_dev checked 25811ms check-target:macos_arm64 @e01f73c689de+wt
-pass/filesystem/native_metadata_ino incomplete 4299ms check-target:macos_arm64 @47d3b5bbd8c+wt
-	`PosixFilesystemNativeProvider::read_metadata` has no executable body: this compiler does not lower a call of it yet (call operation: structural arguments: caller structural result)
+pass/filesystem/native_metadata_ino checked 13246ms check-target:macos_arm64 @2740301f86f+wt
 pass/filesystem/native_metadata_nlink checked 5611ms check-target:macos_arm64 @e01f73c689de+wt
 pass/filesystem/native_read_dir_iter checked 5138ms check-target:macos_arm64 @e01f73c689de+wt
 pass/filesystem/native_wrapper_write_all_result rejected 17172ms check-target:macos_arm64 @e01f73c689de+wt
