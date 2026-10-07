@@ -188,12 +188,15 @@ impl VerifiedPsiOptimizationSession {
         )
     }
 
-    /// Exact preheader insertion and consumer coordinates for the authenticated
-    /// countdown constants. This remains analysis-only and cannot move a node.
-    pub fn countdown_invariant_constant_placement_analysis(
+    /// The countdown analysis's inputs: the counted loops and the invariant
+    /// constants they carry.
+    fn countdown_invariant_inputs(
         &self,
     ) -> Result<
-        ValidatedCountdownInvariantConstantPlacementAnalysis,
+        (
+            ValidatedCountedLoopAnalysis,
+            ValidatedCountdownInvariantConstantAnalysis,
+        ),
         CountdownInvariantConstantPlacementAnalysisError,
     > {
         let counted = self
@@ -202,6 +205,18 @@ impl VerifiedPsiOptimizationSession {
         let invariants =
             analyze_countdown_invariant_constants(&self.unit, &self.cycle_components, &counted)
                 .map_err(CountdownInvariantConstantPlacementAnalysisError::InvariantConstant)?;
+        Ok((counted, invariants))
+    }
+
+    /// Exact preheader insertion and consumer coordinates for the authenticated
+    /// countdown constants. This remains analysis-only and cannot move a node.
+    pub fn countdown_invariant_constant_placement_analysis(
+        &self,
+    ) -> Result<
+        ValidatedCountdownInvariantConstantPlacementAnalysis,
+        CountdownInvariantConstantPlacementAnalysisError,
+    > {
+        let (counted, invariants) = self.countdown_invariant_inputs()?;
         analyze_countdown_invariant_constant_placement(
             &self.unit,
             &self.cycle_components,
@@ -218,12 +233,7 @@ impl VerifiedPsiOptimizationSession {
         ValidatedCountdownInvariantConstantPlacementAnalysis,
         CountdownInvariantConstantPlacementAnalysisError,
     > {
-        let counted = self
-            .counted_loop_analysis()
-            .map_err(CountdownInvariantConstantPlacementAnalysisError::CountedLoop)?;
-        let invariants =
-            analyze_countdown_invariant_constants(&self.unit, &self.cycle_components, &counted)
-                .map_err(CountdownInvariantConstantPlacementAnalysisError::InvariantConstant)?;
+        let (counted, invariants) = self.countdown_invariant_inputs()?;
         validate_countdown_invariant_constant_placement_analysis(
             &self.unit,
             &self.cycle_components,
