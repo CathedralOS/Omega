@@ -134,11 +134,18 @@ impl NativeExecutionScope {
                             continue;
                         }
                         let mut matches = candidates.iter().filter(|(_, candidate)| {
-                            selected.iter().any(|row| {
-                                row.requirement_identity == candidate.requirement_identity
-                                    && row.provider_identity == candidate.provider_identity
-                                    && row.machine_identity == candidate.candidate_identity
-                            })
+                            // One portable overload identity covers every
+                            // target body. Match only an actual callable in
+                            // this deployment's projection, without aliasing
+                            // its ID or renumbering the canonical catalog.
+                            function_positions
+                                .binary_search_by_key(&candidate.candidate, |(machine, _)| *machine)
+                                .is_ok()
+                                && selected.iter().any(|row| {
+                                    row.requirement_identity == candidate.requirement_identity
+                                        && row.provider_identity == candidate.provider_identity
+                                        && row.machine_identity == candidate.candidate_identity
+                                })
                         });
                         let candidate = matches.next().ok_or(
                             NativeExecutionScopeError::MissingSelectedCheckedProvider(*boundary),

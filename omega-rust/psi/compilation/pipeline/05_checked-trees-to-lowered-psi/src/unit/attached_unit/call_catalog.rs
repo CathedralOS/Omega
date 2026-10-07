@@ -31,7 +31,7 @@ pub(super) fn discover(
 ) -> Result<CheckedCallCatalog, LoweringError> {
     let mut retained_roots = unit_roots.to_vec();
     let mut family_scalar_roots = Vec::new();
-    let mut family_boundary_roots = Vec::new();
+    let mut retained_boundary_roots = Vec::new();
     // Target families are portable product surface, not entry reachability.
     // Discover every implementation before allocating the shared namespaces;
     // independently lowered modules cannot be merged without changing IDs.
@@ -49,6 +49,22 @@ pub(super) fn discover(
                 .ok_or(LoweringError::Unsupported(
                     "target-family body is absent from checked input",
                 ))?;
+        // A retained body's satisfaction edges are interface roots even
+        // when no operation invokes those requirements. The checked planner
+        // owns their contracts; this join never fabricates a boundary plan
+        // from an implementation's private signature or inferred effects.
+        // Only its published concrete plans can join this catalog; open
+        // generic and named-family applications keep their separate frontier.
+        for conformance in checked.typed.machine_trait_conformances(machine) {
+            if plans
+                .boundary_machines()
+                .iter()
+                .any(|boundary| boundary.machine == conformance.requirement_symbol)
+                && !retained_boundary_roots.contains(&conformance.requirement_symbol)
+            {
+                retained_boundary_roots.push(conformance.requirement_symbol);
+            }
+        }
         if !machine.supplies_checked_body() {
             super::unique_unit_boundary(plans, member.machine).map_err(|error| match error {
                 LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
@@ -62,7 +78,9 @@ pub(super) fn discover(
                 },
                 error => error,
             })?;
-            family_boundary_roots.push(member.machine);
+            if !retained_boundary_roots.contains(&member.machine) {
+                retained_boundary_roots.push(member.machine);
+            }
             continue;
         }
         if UnitBody::contains(plans, member.machine)
@@ -92,7 +110,8 @@ pub(super) fn discover(
         if external.is_some() && closure.contains(&entry) {
             return unsupported("external composed entry overlaps its ordinary Unit closure");
         }
-        let candidates = checked_unit_provider_candidates(checked, plans, &closure)?;
+        let candidates =
+            checked_unit_provider_candidates(checked, plans, &closure, &retained_boundary_roots)?;
         // This catalog contains checked Omega bodies, not opaque realizations.
         // Their stores and atomic operations keep the same checked access and
         // custody as ordinary calls, and their transitive calls join this
@@ -335,7 +354,7 @@ pub(super) fn discover(
             operations: closure,
             providers: candidates,
             scalars: scalar_closure,
-            boundaries: family_boundary_roots,
+            boundaries: retained_boundary_roots,
         });
     }
 }

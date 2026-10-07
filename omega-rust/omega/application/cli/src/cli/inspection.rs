@@ -44,6 +44,18 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             .expect("writing to a String cannot fail");
         }
     }
+    for candidate in &module.provider_candidates {
+        writeln!(
+            output,
+            "provider_candidate boundary=boundary:{} requirement={} provider={} candidate={} callable=machine:{}",
+            candidate.boundary.get(),
+            candidate.requirement_identity,
+            candidate.provider_identity,
+            candidate.candidate_identity,
+            candidate.candidate.get(),
+        )
+        .expect("writing to a String cannot fail");
+    }
     for declaration in &module.structural_types {
         writeln!(
             output,

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.4, "load1_start": 2.4, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.46, "load1_start": 3.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -3293,6 +3293,7 @@ pass/structural/sum_attachment_receiver_compile checked 288ms @2d8ed253669f
 pass/targets/aarch64_hfa_entry_argument checked 1288ms @2d8ed253669f
 pass/targets/efi_vtable_call checked 638ms @2d8ed253669f
 pass/targets/retained_target_family_bodies checked 1604ms check-target:macos_arm64 @2740301f86f2+wt
+pass/targets/retained_target_provider_family_exit checked 1613ms check-target:macos_arm64 @8b63d5091f67
 pass/targets/single_target_internal_package_same_target_caller checked 1208ms check-target:macos_arm64 @2d8ed253669f
 pass/targets/single_target_internal_same_target_caller checked 1238ms check-target:macos_arm64 @2d8ed253669f
 pass/targets/sysv_mixed_aggregate_entry checked 1308ms @2d8ed253669f

@@ -8,6 +8,12 @@
 //! affine-return summary: a summary beside its ordinary body is not a second
 //! implementation. Missing or duplicate ordinary bodies still reject in
 //! `UnitBody::find`; provider signatures and custody are joined separately.
+//!
+//! The catalog records every checked supplier, not the frontend's selected
+//! target. Family retention also roots satisfied requirements without a call:
+//! an unreachable member must not lose its conformance at this boundary.
+//! Omega projects these exact callable IDs onto an execution scope before
+//! installing providers; family membership itself grants no installation.
 
 use super::bodies::UnitPlans;
 use super::operation_frame::BoundaryParameters;
@@ -148,6 +154,7 @@ pub(super) fn checked_unit_provider_candidates(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
+    retained_requirements: &[symbols::SymbolHandle],
 ) -> Result<Vec<CheckedUnitProviderCandidate>, LoweringError> {
     let bodies = closure
         .iter()
@@ -162,6 +169,7 @@ pub(super) fn checked_unit_provider_candidates(
                 .filter(|call| call.is_boundary())
                 .map(|call| call.target.machine)
         })
+        .chain(retained_requirements.iter().copied())
         .collect::<Vec<_>>();
     boundary_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     boundary_symbols.dedup();
@@ -237,7 +245,6 @@ pub(super) fn checked_unit_provider_candidates(
         }
         for machine in checked.typed.machines().iter().filter(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                && machine.target.is_none()
         }) {
             let mut providers = named::provider_identities(checked, machine, requirement)?;
             if machine.attached_data.is_some() {

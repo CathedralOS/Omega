@@ -2144,11 +2144,14 @@ crash and native exit behavior.
     declaration purpose; final Build admission retains every target's effects.
     Entry and private-callback realization share one executable scope for
     bodies, boundary contracts, selected candidates and call occurrences;
-    canonical Terminal storage stays complete.
+    canonical Terminal storage stays complete. Its concrete provider catalog
+    includes foreign checked members and their uncalled satisfied requirements;
+    execution matches candidate IDs present in the selected deployment scope.
   - The frontier: `select_product_target` still swaps roles and retargets
     portable source calls before checking. Replace that selection with explicit
-    portable family-call custody, carry complete per-member conformances, and
-    publish target-default effects in the source-free Build companion. Ensure
+    portable family-call custody, finish generic and named per-member
+    conformance transport, and publish target-default effects in the source-free
+    Build companion. Ensure
     every entry/result lowering route uses the same complete family catalog;
     entry-only producers currently refuse rather than omit retained members.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same

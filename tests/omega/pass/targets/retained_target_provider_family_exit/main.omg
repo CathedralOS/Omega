@@ -1,0 +1,31 @@
+// All target members satisfy one public requirement. Terminal keeps all
+// candidates, while this invocation installs only its own target's body.
+// A distinct competing provider must not donate its body to that selection.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub data Value {}
+pub boundary requirement Value::read(input: i32) -> i32
+ensures result == input;
+
+pub data TargetValue {}
+linux_x86_64 machine TargetValue::read(input: i32) -> i32
+satisfies Value::read ensures result == input { input }
+linux_arm64 machine TargetValue::read(input: i32) -> i32
+satisfies Value::read ensures result == input { input }
+macos_arm64 machine TargetValue::read(input: i32) -> i32
+satisfies Value::read ensures result == input { input }
+windows_x86_64 machine TargetValue::read(input: i32) -> i32
+satisfies Value::read ensures result == input { input }
+reserved_target machine TargetValue::read(input: i32) -> i32
+satisfies Value::read ensures result == input { input }
+
+pub data OtherValue {}
+machine OtherValue::read(input: i32) -> i32
+satisfies Value::read ensures result == input { input }
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let selected: i32 = Value::read(70);
+    main.console.exit_process(selected);
+}

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "3", "load1_end": 3.0, "load1_start": 3.08, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.46, "load1_start": 4.46, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1383,6 +1383,7 @@ pass/structural/sum_attachment_receiver_compile checked 184ms
 pass/targets/aarch64_hfa_entry_argument checked 898ms
 pass/targets/efi_vtable_call checked 224ms
 pass/targets/retained_target_family_bodies built 4049ms exit:0 @2740301f86f2+wt
+pass/targets/retained_target_provider_family_exit built 1564ms exit:70 @8b63d5091f67
 pass/targets/single_target_internal_package_same_target_caller built 923ms exit:70
 pass/targets/single_target_internal_same_target_caller built 903ms exit:70
 pass/targets/sysv_mixed_aggregate_entry checked 885ms
