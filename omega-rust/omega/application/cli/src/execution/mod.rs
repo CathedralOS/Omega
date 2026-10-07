@@ -15,9 +15,8 @@ pub struct RunRequest {
     pub root_path: PathBuf,
     /// An explicit target produces an image without executing it on the host.
     pub target_name: Option<String>,
-    /// Host comparison snapshots process stdin to EOF for native replay.
-    /// Terminal stdin imports currently decline until their exact adapters
-    /// are supplied. Without comparison, native execution inherits stdin.
+    /// Host comparison snapshots process stdin to EOF for independent native
+    /// and Terminal replay. Without comparison, native execution inherits stdin.
     pub compare_interpreter: bool,
     pub keep_artifacts: bool,
 }
@@ -176,7 +175,11 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             build_dir: Some(build_dir.clone()),
             target_name: request.target_name.clone(),
         },
-        replay_input.is_some(),
+        replay_input
+            .as_ref()
+            .map(|input| input.open_input())
+            .transpose()
+            .map_err(RunError::StandardInput)?,
     )
     .map_err(RunError::Compilation)?;
     let (report, executable) =
@@ -186,9 +189,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
         None => {
             let standard_input = match &replay_input {
-                Some(input) => {
-                    Stdio::from(input.open_native_input().map_err(RunError::StandardInput)?)
-                }
+                Some(input) => Stdio::from(input.open_input().map_err(RunError::StandardInput)?),
                 None => Stdio::inherit(),
             };
             let output = Command::new(&executable)

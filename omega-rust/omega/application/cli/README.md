@@ -30,8 +30,9 @@ unsupported interpretation is a decline, not an agreement.
 
 Ordinary host runs inherit the caller's stdin without waiting for EOF upfront.
 Interpreter comparison (`--both`) instead snapshots stdin to EOF before compilation
-for native replay. Use a finite pipe or redirected file for comparison; interactive
-input must be ended with EOF. Temporary input storage is deleted even with `--keep`.
+for independent native and Terminal replay. Use a finite pipe or redirected file
+for comparison; interactive input must be ended with EOF. Temporary input storage
+is deleted even with `--keep`.
 Target-only invocations do not read stdin. Stdout/stderr remain captured until
 native execution ends.
 

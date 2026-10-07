@@ -1,15 +1,18 @@
-//! Pure buffered host bindings for exact admitted native host operation slots.
+//! Explicit host bindings for exact admitted native host operation slots.
 //! A slot's realization selects semantics; its complete declaration selects
 //! the typed adapter. No source-name dispatch or stdout-driven exit exists.
+//! Output stays buffered; input consumes only the caller's finite replay stream
+//! with an instance-private cursor. Checked compound operations remain guest code.
 
 mod numeric;
+mod standard_input;
 
 use compilation_products::TerminalRuntimeProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalImportAdapter,
-    TerminalImportSignature, TerminalInstance, TerminalScalarValue,
+    TerminalImportSignature, TerminalInstance, TerminalProgram, TerminalScalarValue,
 };
 use terminal_psi::BoundaryCompletion;
 
@@ -20,12 +23,17 @@ pub(super) enum OutputKind {
     Byte,
 }
 
-pub(super) fn bind(
-    instance: &mut TerminalInstance<'_>,
+pub(super) fn bind<'host>(
+    program: &TerminalProgram,
+    instance: &mut TerminalInstance<'host>,
     provisions: Option<&TerminalRuntimeProvisions>,
     imports: &[BoundaryMachineId],
+    input: Option<Box<dyn std::io::Read + Send + 'host>>,
 ) -> Result<Vec<(BoundaryMachineId, OutputKind)>, TerminalRuntimeError> {
     let mut output = Vec::new();
+    // Every selected stdin leaf in this instance consumes the same logical
+    // stream. Independent adapter cursors would replay bytes after a slot switch.
+    let input = input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader)));
     for slot in imports {
         let provision = provisions
             .and_then(|provisions| {
@@ -41,6 +49,29 @@ pub(super) fn bind(
                 )
             })?;
         let kind = match provision.realization {
+            BoundarySettlementRealization::Builtin(BoundaryRealization::HostedReadByte(_)) => {
+                let declaration =
+                    instance
+                        .import(*slot)
+                        .ok_or(TerminalRuntimeError::InvalidProvision(
+                            "stdin host provision names no demanded import",
+                        ))?;
+                let reader = input.as_ref().ok_or_else(|| {
+                    TerminalRuntimeError::missing(
+                        "runtime-standard-input",
+                        "no finite replay stream was supplied",
+                    )
+                })?;
+                let adapter = standard_input::ReadByteImport::for_import(
+                    program,
+                    declaration,
+                    std::sync::Arc::clone(reader),
+                )?;
+                instance
+                    .bind_import(*slot, adapter)
+                    .map_err(TerminalRuntimeError::Binding)?;
+                continue;
+            }
             BoundarySettlementRealization::Builtin(BoundaryRealization::LinuxWriteLine(_)) => {
                 OutputKind::Line
             }

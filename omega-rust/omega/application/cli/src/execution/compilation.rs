@@ -25,7 +25,7 @@ pub(super) struct ProbeCompilation {
 
 pub(super) fn compile(
     mut options: CompileOptions,
-    compare_interpreter: bool,
+    reference_input: Option<std::fs::File>,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
     let build_dir = options.retain_build_dir();
     let target = crate::invocation_target_profile(options.target_name.as_deref())
@@ -56,7 +56,7 @@ pub(super) fn compile(
         )
         .and_then(compiler::CompileOutcomes::into_single_report)?
     };
-    let interpretation = compare_interpreter.then(|| interpret_product(&report));
+    let interpretation = reference_input.map(|input| interpret_product(&report, input));
     Ok(ProbeCompilation {
         report,
         interpretation,
@@ -65,6 +65,7 @@ pub(super) fn compile(
 
 fn interpret_product(
     report: &CompileReport,
+    input: std::fs::File,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = report
         .retained_native_artifact()
@@ -81,5 +82,6 @@ fn interpret_product(
         artifact,
         provisions: report.runtime_provisions(),
         fuel_allowance: REFERENCE_EXECUTION_FUEL_ALLOWANCE,
+        standard_input: Some(Box::new(input)),
     })
 }

@@ -24,7 +24,8 @@ impl ReplayInput {
         Ok(Self { directory })
     }
 
-    pub(super) fn open_native_input(&self) -> io::Result<File> {
+    /// Each engine starts at byte zero with an independent stream position.
+    pub(super) fn open_input(&self) -> io::Result<File> {
         File::open(self.directory.path().join("stdin.bin"))
     }
 }

@@ -657,6 +657,19 @@ fn interpreter_leg() -> bool {
     env::var_os("OMEGA_CORPUS_INTERPRET").is_some()
 }
 
+/// Both execution legs read independent handles to the same authored byte
+/// snapshot. Absence means an empty stream, as native fixture execution does;
+/// unreadable existing input is an error, not fabricated EOF.
+fn fixture_input(fixture_dir: &Path) -> std::io::Result<Box<dyn std::io::Read + Send>> {
+    match fs::File::open(fixture_dir.join("input.txt")) {
+        Ok(input) => Ok(Box::new(input)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(Box::new(std::io::empty()))
+        }
+        Err(error) => Err(error),
+    }
+}
+
 /// Produce one canonical Terminal artifact with the fixture's exact reviewed
 /// entry/package inputs and rollback overlay, then drive the shared program and
 /// instance lifecycle. There is no checked-tree interpretation fallback.
@@ -680,11 +693,16 @@ fn interpret_fixture(
         }
     };
     let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
+    let input = match fixture_input(fixture_dir) {
+        Ok(input) => input,
+        Err(error) => return terminal_execution::Observation::failure(error),
+    };
     terminal_execution::interpret(
         leg.artifact.artifact(),
         None,
         expected_stdout.as_deref(),
         1_000_000,
+        input,
     )
 }
 
@@ -709,11 +727,16 @@ fn interpret_native_report(
         );
     };
     let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
+    let input = match fixture_input(fixture_dir) {
+        Ok(input) => input,
+        Err(error) => return terminal_execution::Observation::failure(error),
+    };
     terminal_execution::interpret(
         artifact,
         report.runtime_provisions(),
         expected_stdout.as_deref(),
         1_000_000,
+        input,
     )
 }
 

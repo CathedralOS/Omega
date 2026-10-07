@@ -11,6 +11,9 @@
 //! Selected numeric imports reuse exact shared IEEE semantics, including directed
 //! rounding and integer conversion. Their trapping responses still require the
 //! core's published same-cause guard under the actual invocation snapshot.
+//! Selected hosted byte imports consume an explicit finite replay stream;
+//! absence is not fabricated EOF. Scalar sum completions retain actual case
+//! payloads, so checked line readers execute their own byte-by-byte loop.
 
 mod entry;
 mod host_imports;
@@ -26,6 +29,10 @@ pub struct TerminalRuntimeRequest<'program> {
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
     pub provisions: Option<&'program TerminalRuntimeProvisions>,
     pub fuel_allowance: u64,
+    /// Explicit finite replay stream. A zero read establishes exhaustion of
+    /// this snapshot, never a temporarily empty live pipe. Absence supplies no
+    /// stdin capability; input-demanding imports reject before guest effects.
+    pub standard_input: Option<Box<dyn std::io::Read + Send + 'program>>,
 }
 
 /// The exact semantic outcome and preceding buffered output. An external exit
@@ -138,8 +145,13 @@ pub fn execute(
     let mut instance = program
         .instantiate_installed(&[], inputs, &installation)
         .map_err(TerminalRuntimeError::Artifact)?;
-    let output_slots =
-        host_imports::bind(&mut instance, request.provisions, &requirements.imports)?;
+    let output_slots = host_imports::bind(
+        &program,
+        &mut instance,
+        request.provisions,
+        &requirements.imports,
+        request.standard_input,
+    )?;
     // Each Binding occurrence is established for this containing domain by
     // this host, never by merely selecting the native exit implementation.
     for demand in &requirements.external_completions {

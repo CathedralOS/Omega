@@ -1757,8 +1757,12 @@ then independent claimed restoration slices -> final closure.
   isolated instance. Complete external demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar arguments, placed host loans,
-  non-hosted roots and required receiver qualifications. General host bindings
-  still need stdin/read-byte, virtual clocks and stderr support. The original
+  non-hosted roots and required receiver qualifications. Windows input still
+  needs exact selected foreign read/write bindings and general primitive-loan
+  writeback while executing the checked Console adapter. Hosted byte input uses
+  an explicit finite replay stream shared by selected input slots; CLI and
+  corpus give each engine the same authored bytes with independent positions.
+  Virtual clocks and stderr support remain. The original
   `runtime_float_integer_conversion_boundaries_exit` has no exact established
   root ProcessExit Binding occurrence and declines before effects; resolve its
   source authority contract under [Process-exit contract](#process-exit-contract),

@@ -37,11 +37,13 @@ pub(super) fn interpret(
     provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
     expected_stdout: Option<&str>,
     fuel_allowance: u64,
+    standard_input: Box<dyn std::io::Read + Send>,
 ) -> Observation {
     let result = match compiler::runtime::execute(TerminalRuntimeRequest {
         artifact,
         provisions,
         fuel_allowance,
+        standard_input: Some(standard_input),
     }) {
         Ok(result) => result,
         Err(TerminalRuntimeError::MissingProvision { capability, reason }) => {
