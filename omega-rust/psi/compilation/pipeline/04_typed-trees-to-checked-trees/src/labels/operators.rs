@@ -1,5 +1,5 @@
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::signature::StateParameter;
 
@@ -164,5 +164,35 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
             "zero_value<{}>()",
             program.display_type_reference(*type_reference)
         ),
+    }
+}
+
+/// The Boolean clause's polarity decomposition: `!x` flips, `and`/`or`
+/// distribute, every other leaf defers to the site's proof rule. Both the
+/// operator-use discharge and the statement-entry discharge decompose the
+/// clause tree identically before judging a leaf.
+pub(crate) fn boolean_expression_has_polarity(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    polarity: bool,
+    leaf: &mut impl FnMut(ExpressionHandle, bool) -> bool,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Boolean(value) => *value == polarity,
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            boolean_expression_has_polarity(program, unary.operand, !polarity, leaf)
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+        {
+            let left = boolean_expression_has_polarity(program, binary.left, polarity, leaf);
+            let right = boolean_expression_has_polarity(program, binary.right, polarity, leaf);
+            if (binary.operator == BinaryOperator::And) == polarity {
+                left && right
+            } else {
+                left || right
+            }
+        }
+        _ => leaf(expression, polarity),
     }
 }

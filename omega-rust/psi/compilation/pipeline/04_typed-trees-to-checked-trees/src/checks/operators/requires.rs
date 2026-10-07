@@ -144,50 +144,33 @@ fn expression_has_polarity(
     expression: ExpressionHandle,
     polarity: bool,
 ) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Boolean(value) => return *value == polarity,
-        ExpressionNode::Unary(unary)
-            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
-        {
-            return expression_has_polarity(
+    crate::labels::boolean_expression_has_polarity(
+        program,
+        expression,
+        polarity,
+        &mut |expression, polarity| {
+            leaf_has_polarity(
                 program,
                 semantic,
                 contexts,
                 parameters,
                 operand_labels,
-                unary.operand,
-                !polarity,
-            );
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
-        {
-            let left = expression_has_polarity(
-                program,
-                semantic,
-                contexts,
-                parameters,
-                operand_labels,
-                binary.left,
+                expression,
                 polarity,
-            );
-            let right = expression_has_polarity(
-                program,
-                semantic,
-                contexts,
-                parameters,
-                operand_labels,
-                binary.right,
-                polarity,
-            );
-            return if (binary.operator == BinaryOperator::And) == polarity {
-                left && right
-            } else {
-                left || right
-            };
-        }
-        _ => {}
-    }
+            )
+        },
+    )
+}
+
+fn leaf_has_polarity(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &InvocationContexts<'_>,
+    parameters: &[StateParameter],
+    operand_labels: &[String],
+    expression: ExpressionHandle,
+    polarity: bool,
+) -> bool {
     if polarity {
         return contexts_prove_boolean_leaf(
             program,

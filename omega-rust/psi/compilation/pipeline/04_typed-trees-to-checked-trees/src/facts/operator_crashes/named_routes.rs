@@ -35,7 +35,7 @@ use checked_trees::FlowFacts;
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
 use crate::labels::{
@@ -186,10 +186,12 @@ fn expression_has_polarity(
     expression: ExpressionHandle,
     polarity: bool,
 ) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Boolean(value) => return *value == polarity,
-        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            return expression_has_polarity(
+    crate::labels::boolean_expression_has_polarity(
+        program,
+        expression,
+        polarity,
+        &mut |expression, polarity| {
+            leaf_has_polarity(
                 program,
                 semantic,
                 context_rows,
@@ -199,47 +201,26 @@ fn expression_has_polarity(
                 parameters,
                 operands,
                 operand_labels,
-                unary.operand,
-                !polarity,
-            );
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
-        {
-            let left = expression_has_polarity(
-                program,
-                semantic,
-                context_rows,
-                machine_symbol,
-                state_symbol,
-                before_statement,
-                parameters,
-                operands,
-                operand_labels,
-                binary.left,
+                expression,
                 polarity,
-            );
-            let right = expression_has_polarity(
-                program,
-                semantic,
-                context_rows,
-                machine_symbol,
-                state_symbol,
-                before_statement,
-                parameters,
-                operands,
-                operand_labels,
-                binary.right,
-                polarity,
-            );
-            return if (binary.operator == BinaryOperator::And) == polarity {
-                left && right
-            } else {
-                left || right
-            };
-        }
-        _ => {}
-    }
+            )
+        },
+    )
+}
+
+fn leaf_has_polarity(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    context_rows: &[Vec<FactContextHandle>],
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    parameters: &[StateParameter],
+    operands: &[ExpressionHandle],
+    operand_labels: &[String],
+    expression: ExpressionHandle,
+    polarity: bool,
+) -> bool {
     if !leaf_reads_only_entry_operands(
         program,
         machine_symbol,
