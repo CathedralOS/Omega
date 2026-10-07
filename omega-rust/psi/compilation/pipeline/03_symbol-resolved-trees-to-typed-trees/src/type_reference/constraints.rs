@@ -44,19 +44,7 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let name = crate::lowerer::name::lower_name(&domain.name);
-                typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
-                    subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
-                    name,
-                    arguments,
-                    authored_selection: exposure.filter(|_| domain.name.is_source_backed()).map(
-                        |exposure| typed::types::AuthoredDomainConstraintSelection {
-                            source_span: domain.name.source_span(),
-                            exposure,
-                        },
-                    ),
-                    ..Default::default()
-                })
+                lower_domain_constraint_node(&domain.name, arguments, exposure)
             }
             resolved::types::TypeConstraintNode::Range {
                 minimum,
@@ -158,6 +146,30 @@ pub(crate) fn lower_element_applicable_constraints(
     Ok(span)
 }
 
+/// The typed `Domain` constraint leaf shared by the direct and table-backed
+/// constraint lowerings — both resolved enums carry the same fields here.
+fn lower_domain_constraint_node(
+    domain_name: &resolved::name::DiagnosticName,
+    arguments: Vec<typed::types::TypeReferenceHandle>,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+) -> typed::types::TypeConstraintNode {
+    let name = crate::lowerer::name::lower_name(domain_name);
+    typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
+        subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
+        name,
+        arguments,
+        authored_selection: exposure
+            .filter(|_| domain_name.is_source_backed())
+            .map(|exposure| typed::types::AuthoredDomainConstraintSelection {
+                source_span: domain_name.source_span(),
+                exposure,
+            }),
+        ..Default::default()
+    })
+}
+
 fn lower_type_constraint_node_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
@@ -186,20 +198,10 @@ fn lower_type_constraint_node_with_context(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let name = crate::lowerer::name::lower_name(&domain.name);
-            Ok(typed::types::TypeConstraintNode::Domain(
-                typed::types::DomainConstraint {
-                    subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
-                    name,
-                    arguments,
-                    authored_selection: exposure.filter(|_| domain.name.is_source_backed()).map(
-                        |exposure| typed::types::AuthoredDomainConstraintSelection {
-                            source_span: domain.name.source_span(),
-                            exposure,
-                        },
-                    ),
-                    ..Default::default()
-                },
+            Ok(lower_domain_constraint_node(
+                &domain.name,
+                arguments,
+                exposure,
             ))
         }
         resolved::types::TypeConstraint::Range {
