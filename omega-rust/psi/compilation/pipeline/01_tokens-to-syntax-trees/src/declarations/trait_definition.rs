@@ -179,22 +179,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         };
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         signature.spelling = spelling;
-        let (
-            (
-                service_reaches,
-                service_reach_keyword_source_spans,
-                service_reach_is_installation_bound,
-                invokes,
-                suspends_keyword_source_spans,
-                blocks_keyword_source_spans,
-                suspends,
-                blocks,
-                contracts,
-                terminates_guarantee,
-                where_facts,
-            ),
-            rest,
-        ) = parse_signature_clauses(syntax_trees, rest, true)?;
+        let (clauses, rest) = parse_signature_clauses(syntax_trees, rest, true)?;
         // Body presence = the default marker.
         let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
         if !signature.native_callback_parameters.is_empty() && (!is_boundary || is_default) {
@@ -203,22 +188,22 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             ));
         }
         signature.is_default = is_default;
-        if service_reach_is_installation_bound && (!is_boundary || is_default) {
+        if clauses.service_reach_is_installation_bound && (!is_boundary || is_default) {
             return Err(rest.error_here(
                 "`reaches <= Bound` is permitted only on a bodyless boundary-trait requirement",
             ));
         }
-        signature.service_reach_is_installation_bound = service_reach_is_installation_bound;
-        signature.service_reach_keyword_source_spans = service_reach_keyword_source_spans;
-        signature.service_reaches = service_reaches;
-        signature.invokes = invokes;
-        signature.suspends_keyword_source_spans = suspends_keyword_source_spans;
-        signature.blocks_keyword_source_spans = blocks_keyword_source_spans;
-        signature.suspends = suspends;
-        signature.blocks = blocks;
-        signature.contracts = contracts;
-        signature.terminates_guarantee = terminates_guarantee;
-        signature.where_facts = where_facts;
+        signature.service_reach_is_installation_bound = clauses.service_reach_is_installation_bound;
+        signature.service_reach_keyword_source_spans = clauses.service_reach_keyword_source_spans;
+        signature.service_reaches = clauses.service_reaches;
+        signature.invokes = clauses.invokes;
+        signature.suspends_keyword_source_spans = clauses.suspends_keyword_source_spans;
+        signature.blocks_keyword_source_spans = clauses.blocks_keyword_source_spans;
+        signature.suspends = clauses.suspends;
+        signature.blocks = clauses.blocks;
+        signature.contracts = clauses.contracts;
+        signature.terminates_guarantee = clauses.terminates_guarantee;
+        signature.where_facts = clauses.where_facts;
         let (default_body, next) = if is_default {
             parse_trait_default_machine_body(syntax_trees, rest)?
         } else {

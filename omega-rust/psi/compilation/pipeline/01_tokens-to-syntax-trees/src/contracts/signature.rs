@@ -23,6 +23,27 @@ fn signature_clause_boundary(input: Input<'_, '_>) -> bool {
         || input.tokens.is_empty()
 }
 
+/// The `reaches`/`invokes`/operational/contract/`where` rows parsed after a
+/// bodyless machine signature, field-named so the two owners that fold them
+/// into a `StateSignature` never destructure an eleven-position tuple.
+pub(crate) struct SignatureClauses {
+    pub service_reaches: HandleSpan<syntax_trees::identifier::Identifier>,
+    pub service_reach_keyword_source_spans: Vec<source::SourceSpan>,
+    pub service_reach_is_installation_bound: bool,
+    pub invokes: HandleSpan<syntax_trees::identifier::Identifier>,
+    pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
+    pub suspends: bool,
+    pub blocks: bool,
+    pub contracts: HandleSpan<CapabilityContract>,
+    // TPR4 (decision 23): authored bare `terminates` -- the bodyless
+    // requirement's PUBLIC guarantee.
+    pub terminates_guarantee: bool,
+    // Signature-level `where` proof facts (the finite generic method family
+    // roster is authored here as explicit equality disjunctions).
+    pub where_facts: HandleSpan<syntax_trees::item::ProofFact>,
+}
+
 /// Parses the `reaches`/`requires`/`ensures` clauses that may follow a bodyless
 /// machine signature: trait machine signatures and platform entry signatures
 /// share this clause grammar.
@@ -30,30 +51,8 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
     allow_clauses_after_operational_separator: bool,
-) -> Result<
-    (
-        (
-            HandleSpan<syntax_trees::identifier::Identifier>,
-            Vec<source::SourceSpan>,
-            bool,
-            HandleSpan<syntax_trees::identifier::Identifier>,
-            Vec<source::SourceSpan>,
-            Vec<source::SourceSpan>,
-            bool,
-            bool,
-            HandleSpan<CapabilityContract>,
-            // TPR4 (decision 23): authored bare `terminates` -- the bodyless
-            // requirement's PUBLIC guarantee.
-            bool,
-            // Signature-level `where` proof facts (the finite generic method
-            // family roster is authored here as explicit equality
-            // disjunctions).
-            HandleSpan<syntax_trees::item::ProofFact>,
-        ),
-        Input<'tokens, 'source>,
-    ),
-    crate::diagnostics::parse_error::ParseError,
-> {
+) -> Result<(SignatureClauses, Input<'tokens, 'source>), crate::diagnostics::parse_error::ParseError>
+{
     let mut service_start = Handle::invalid();
     let mut service_count = 0u32;
     let mut service_reach_keyword_source_spans = Vec::new();
@@ -332,7 +331,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         HandleSpan::from_parts(where_fact_start, where_fact_count)
     };
     Ok((
-        (
+        SignatureClauses {
             service_reaches,
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
@@ -344,7 +343,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             contracts,
             terminates_guarantee,
             where_facts,
-        ),
+        },
         input,
     ))
 }

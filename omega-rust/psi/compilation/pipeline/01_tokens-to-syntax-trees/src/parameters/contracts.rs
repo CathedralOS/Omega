@@ -137,27 +137,12 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             after_return,
             false,
         )?;
-        let (
-            (
-                service_reaches,
-                service_reach_keyword_source_spans,
-                service_reach_is_installation_bound,
-                invokes,
-                suspends_keyword_source_spans,
-                blocks_keyword_source_spans,
-                suspends,
-                blocks,
-                contracts,
-                terminates_guarantee,
-                where_facts,
-            ),
-            mut rest,
-        ) = crate::contracts::signature::parse_signature_clauses(
+        let (clauses, mut rest) = crate::contracts::signature::parse_signature_clauses(
             syntax_trees,
             after_nested_contracts,
             false,
         )?;
-        if service_reach_is_installation_bound {
+        if clauses.service_reach_is_installation_bound {
             return Err(rest.error_here(
                 "`reaches <= Bound` is installation-selected and cannot appear on a structural machine parameter",
             ));
@@ -175,16 +160,16 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             parameters,
             native_callback_parameters: Vec::new(),
             return_type,
-            service_reach_keyword_source_spans,
-            service_reaches,
-            invokes,
-            suspends_keyword_source_spans,
-            blocks_keyword_source_spans,
-            suspends,
-            blocks,
-            contracts,
-            terminates_guarantee,
-            where_facts,
+            service_reach_keyword_source_spans: clauses.service_reach_keyword_source_spans,
+            service_reaches: clauses.service_reaches,
+            invokes: clauses.invokes,
+            suspends_keyword_source_spans: clauses.suspends_keyword_source_spans,
+            blocks_keyword_source_spans: clauses.blocks_keyword_source_spans,
+            suspends: clauses.suspends,
+            blocks: clauses.blocks,
+            contracts: clauses.contracts,
+            terminates_guarantee: clauses.terminates_guarantee,
+            where_facts: clauses.where_facts,
             ..crate::parameters::parse_parameters::blank_state_signature()
         };
         let parameter =
