@@ -803,6 +803,29 @@ fn checked_candidate_span(
 }
 
 /// One operator use record; both use-fact builders mint the same shape.
+/// Domain-pending and unique-candidate statuses outrank every caller's own
+/// fallback; `None` defers to that fallback.
+fn domain_or_unique_operator_status(
+    candidates: &[SpelledOperator<'_>],
+) -> Option<(CheckedOperatorResolutionStatus, SymbolHandle)> {
+    if candidates
+        .iter()
+        .any(|candidate| candidate.domain.is_some())
+    {
+        Some((
+            CheckedOperatorResolutionStatus::DomainPending,
+            SymbolHandle::invalid(),
+        ))
+    } else if let [candidate] = candidates {
+        Some((
+            CheckedOperatorResolutionStatus::Resolved,
+            candidate.operator.symbol,
+        ))
+    } else {
+        None
+    }
+}
+
 fn operator_use_record(
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
@@ -858,25 +881,11 @@ fn binary_operator_use_fact(
 
     let (candidate_count, candidate_span) =
         checked_candidate_span(program, candidate_facts, &candidates);
-    let (status, selected_operator_symbol) = if candidates
-        .iter()
-        .any(|candidate| candidate.domain.is_some())
-    {
-        (
-            CheckedOperatorResolutionStatus::DomainPending,
-            SymbolHandle::invalid(),
-        )
-    } else if let [candidate] = candidates.as_slice() {
-        (
-            CheckedOperatorResolutionStatus::Resolved,
-            candidate.operator.symbol,
-        )
-    } else {
-        (
+    let (status, selected_operator_symbol) = domain_or_unique_operator_status(&candidates)
+        .unwrap_or((
             CheckedOperatorResolutionStatus::Ambiguous,
             SymbolHandle::invalid(),
-        )
-    };
+        ));
 
     Some(CheckedOperatorUseFact {
         expression,
@@ -971,59 +980,49 @@ fn operator_use_fact(
     };
     let (candidate_count, candidate_span) =
         checked_candidate_span(program, candidate_facts, &candidates);
-    let (status, selected_operator_symbol) = if candidates
-        .iter()
-        .any(|candidate| candidate.domain.is_some())
-    {
-        (
-            CheckedOperatorResolutionStatus::DomainPending,
-            SymbolHandle::invalid(),
-        )
-    } else if let [candidate] = candidates.as_slice() {
-        (
-            CheckedOperatorResolutionStatus::Resolved,
-            candidate.operator.symbol,
-        )
-    } else if candidates.is_empty() {
-        let builtin_indexed = matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Indexed(indexed)
-                if indexed_operator_spelling(program, indexed.index) == spelling
-        ) && operand_types
-            .first()
-            .copied()
-            .flatten()
-            .and_then(|reference| validation::unwrapped_type_reference(program, reference))
-            .is_some_and(|reference| {
-                matches!(
-                    program.type_reference_table.type_reference(reference),
-                    typed_trees::types::TypeReferenceNode::FixedArray { .. }
-                        | typed_trees::types::TypeReferenceNode::Slice { .. }
-                )
-            })
-            && origin_machine_symbol(origin).is_some_and(|machine_symbol| {
-                typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    program,
-                    machine_symbol,
-                    expression,
-                    spelling,
-                    operand_types,
-                )
-            });
-        (
-            if builtin_indexed {
-                CheckedOperatorResolutionStatus::BuiltinFallback
-            } else {
-                CheckedOperatorResolutionStatus::Missing
-            },
-            SymbolHandle::invalid(),
-        )
-    } else {
-        (
-            CheckedOperatorResolutionStatus::Ambiguous,
-            SymbolHandle::invalid(),
-        )
-    };
+    let (status, selected_operator_symbol) =
+        if let Some(status) = domain_or_unique_operator_status(&candidates) {
+            status
+        } else if candidates.is_empty() {
+            let builtin_indexed = matches!(
+                program.expression_table.expression(expression),
+                ExpressionNode::Indexed(indexed)
+                    if indexed_operator_spelling(program, indexed.index) == spelling
+            ) && operand_types
+                .first()
+                .copied()
+                .flatten()
+                .and_then(|reference| validation::unwrapped_type_reference(program, reference))
+                .is_some_and(|reference| {
+                    matches!(
+                        program.type_reference_table.type_reference(reference),
+                        typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                            | typed_trees::types::TypeReferenceNode::Slice { .. }
+                    )
+                })
+                && origin_machine_symbol(origin).is_some_and(|machine_symbol| {
+                    typed_trees::operator::has_builtin_spelled_expression_meaning(
+                        program,
+                        machine_symbol,
+                        expression,
+                        spelling,
+                        operand_types,
+                    )
+                });
+            (
+                if builtin_indexed {
+                    CheckedOperatorResolutionStatus::BuiltinFallback
+                } else {
+                    CheckedOperatorResolutionStatus::Missing
+                },
+                SymbolHandle::invalid(),
+            )
+        } else {
+            (
+                CheckedOperatorResolutionStatus::Ambiguous,
+                SymbolHandle::invalid(),
+            )
+        };
 
     operator_use_record(
         expression,
