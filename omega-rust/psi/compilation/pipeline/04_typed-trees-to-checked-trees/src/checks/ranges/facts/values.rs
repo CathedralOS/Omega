@@ -3,6 +3,28 @@ use typed_trees::expression::ExpressionHandle;
 
 use super::RangeFacts;
 
+/// Reverse-ordered lookup in one `(symbol, name, value)` roster: exact
+/// symbol first, then a name fallback.
+fn roster_lookup<T: Copy>(
+    roster: &[(SymbolHandle, String, T)],
+    symbol: SymbolHandle,
+    name: Option<&str>,
+) -> Option<T> {
+    if symbol.is_valid()
+        && let Some(value) = roster
+            .iter()
+            .rev()
+            .find_map(|(local, _, value)| (*local == symbol).then_some(*value))
+    {
+        return Some(value);
+    }
+
+    roster.iter().rev().find_map(|(_, local_name, value)| {
+        name.is_some_and(|name| name == local_name)
+            .then_some(*value)
+    })
+}
+
 impl RangeFacts<'_> {
     pub(in crate::checks::ranges) fn field_length(&self, symbol: SymbolHandle) -> Option<usize> {
         if !symbol.is_valid() {
@@ -20,23 +42,7 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<usize> {
-        if symbol.is_valid()
-            && let Some(length) = self
-                .locals
-                .iter()
-                .rev()
-                .find_map(|(local, _, length)| (*local == symbol).then_some(*length))
-        {
-            return Some(length);
-        }
-
-        self.locals
-            .iter()
-            .rev()
-            .find_map(|(_, local_name, length)| {
-                name.is_some_and(|name| name == local_name)
-                    .then_some(*length)
-            })
+        roster_lookup(&self.locals, symbol, name)
     }
 
     pub(in crate::checks::ranges) fn local_integer(
@@ -44,23 +50,7 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<i64> {
-        if symbol.is_valid()
-            && let Some(value) = self
-                .integer_locals
-                .iter()
-                .rev()
-                .find_map(|(local, _, value)| (*local == symbol).then_some(*value))
-        {
-            return Some(value);
-        }
-
-        self.integer_locals
-            .iter()
-            .rev()
-            .find_map(|(_, local_name, value)| {
-                name.is_some_and(|name| name == local_name)
-                    .then_some(*value)
-            })
+        roster_lookup(&self.integer_locals, symbol, name)
     }
 
     pub(in crate::checks::ranges) fn field_integer(
@@ -68,23 +58,7 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<i64> {
-        if symbol.is_valid()
-            && let Some(value) = self
-                .integer_fields
-                .iter()
-                .rev()
-                .find_map(|(field, _, value)| (*field == symbol).then_some(*value))
-        {
-            return Some(value);
-        }
-
-        self.integer_fields
-            .iter()
-            .rev()
-            .find_map(|(_, field_name, value)| {
-                name.is_some_and(|name| name == field_name)
-                    .then_some(*value)
-            })
+        roster_lookup(&self.integer_fields, symbol, name)
     }
 
     pub(in crate::checks::ranges) fn define_local(
@@ -157,23 +131,7 @@ impl RangeFacts<'_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<ExpressionHandle> {
-        if symbol.is_valid()
-            && let Some(guard) = self
-                .boolean_locals
-                .iter()
-                .rev()
-                .find_map(|(local, _, guard)| (*local == symbol).then_some(*guard))
-        {
-            return Some(guard);
-        }
-
-        self.boolean_locals
-            .iter()
-            .rev()
-            .find_map(|(_, local_name, guard)| {
-                name.is_some_and(|name| name == local_name)
-                    .then_some(*guard)
-            })
+        roster_lookup(&self.boolean_locals, symbol, name)
     }
 
     fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {
