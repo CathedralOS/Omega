@@ -25,6 +25,26 @@ pub(crate) enum ProofFactOwner<'program> {
     },
 }
 
+/// `Some(diagnostic)` when the membership names a domain that is neither
+/// resolved, implicit, nor a carried permission — the unknown-domain
+/// rejection both validation loops emit.
+fn unknown_membership_domain_diagnostic(
+    program: &TypedTrees,
+    owner: ProofFactOwner<'_>,
+    membership: &typed_trees::domain::ProofMembershipFact,
+) -> Option<Diagnostic> {
+    if membership.domain_symbol.is_valid()
+        || is_implicit_case_domain(program, membership.domain)
+        || carry_permission(program, membership.domain).is_some()
+    {
+        return None;
+    }
+    Some(Diagnostic::error(format!(
+        "{owner} references unknown domain `{}`",
+        domain_path_label(program, membership.domain)
+    )))
+}
+
 pub(crate) fn validate_proposition_definitions(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
@@ -268,17 +288,11 @@ pub(crate) fn validate_domain_fact_payloads(
     }
 
     for membership in fact_plan.domain_memberships_for_symbol(domain.symbol) {
-        if membership.domain_symbol.is_valid()
-            || is_implicit_case_domain(program, membership.domain)
-            || carry_permission(program, membership.domain).is_some()
+        if let Some(diagnostic) =
+            unknown_membership_domain_diagnostic(program, owner, membership)
         {
-            continue;
+            diagnostics.push(diagnostic);
         }
-
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} references unknown domain `{}`",
-            domain_path_label(program, membership.domain)
-        )));
     }
 }
 
@@ -313,17 +327,11 @@ pub(crate) fn validate_proof_facts(
                 }
             }
             ProofFact::Membership(membership) => {
-                if membership.domain_symbol.is_valid()
-                    || is_implicit_case_domain(program, membership.domain)
-                    || carry_permission(program, membership.domain).is_some()
+                if let Some(diagnostic) =
+                    unknown_membership_domain_diagnostic(program, owner, membership)
                 {
-                    continue;
+                    diagnostics.push(diagnostic);
                 }
-
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} references unknown domain `{}`",
-                    domain_path_label(program, membership.domain)
-                )));
             }
             ProofFact::Proposition(application) => {
                 let declaration = program
