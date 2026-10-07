@@ -20,13 +20,17 @@ pub struct CheckedSpecializationIdentities {
 
 impl CheckedSpecializationIdentities {
     pub fn with_rows(rows: Vec<CheckedMachineSpecializationIdentity>) -> Self {
-        Self { rows: rows.into_boxed_slice() }
+        Self {
+            rows: rows.into_boxed_slice(),
+        }
     }
 
     pub fn for_instance(
         &self,
         instance: symbols::SymbolHandle,
     ) -> Option<&CheckedMachineSpecializationIdentity> {
-        self.rows.iter().find(|row| instance.is_valid() && row.instance == instance)
+        self.rows
+            .iter()
+            .find(|row| instance.is_valid() && row.instance == instance)
     }
 }

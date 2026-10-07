@@ -14,8 +14,9 @@
 //! Wire codec and compatibility admission runs at the entrance for every
 //! request, including a reused judgment; Build supplies demands, not their
 //! verdict.
-//! It prepares the typed program, validates it, builds the facts a checked
-//! machine publishes, analyses its flow and values, and plans its execution:
+//! The preparation phase closes the typed program; checking validates that
+//! immutable result, builds the facts a checked machine publishes, analyses
+//! its flow and values, and plans its execution:
 //!
 //! 1. `proof` elaborates mathematical declarations and signatures.
 //! 2. `lookup` resolves projected receiver calls to their exact owners.
@@ -48,12 +49,12 @@ mod checks;
 mod execution;
 mod facts;
 mod flow;
+#[cfg(test)]
+mod immutable_checking_input;
 mod lookup;
 mod monomorphization;
 mod operators;
 mod preparation;
-#[cfg(test)]
-mod immutable_checking_input;
 mod proof;
 mod semantic;
 mod values;
@@ -106,7 +107,3 @@ pub use conformance::conformance_applications::close_conformance_application;
 pub use monomorphization::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,
 };
-
-// The unit tests allocate heavily across nextest's parallel processes;
-// mimalloc avoids the system allocator's zone locks and free lists.
-// Test-only: the product keeps the system allocator.

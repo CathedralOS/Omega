@@ -2182,7 +2182,6 @@ dependencies = [
  "language-core",
  "language-semantics",
  "layout-plans",
- "mimalloc",
  "numerics",
  "proof",
  "proof-admission",

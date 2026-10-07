@@ -4,7 +4,7 @@
 //!
 //! `lower_typed_trees` is the one entrance; a `CheckingRequest` names the
 //! package checkpoint (preliminary or settled) and carries source admission
-//! evidence. Only the test-only crash-inspection mode omits crash admission.
+//! evidence. Every production request enforces crash admission.
 //!
 //! A request checks its prepared program afresh unless its caller hands back a
 //! [`RetainedCheck`] from earlier in the same invocation. Package review is
@@ -25,8 +25,8 @@ pub(crate) mod program_validation;
 use crate::checking::program_validation::prepare_typed_program;
 use crate::checks;
 use crate::facts::build_check_facts;
-use checked_trees::CheckedTrees;
 use crate::preparation::TypedPreparation;
+use checked_trees::CheckedTrees;
 
 /// One typed->checked lowering request. `settled()` is the final package
 /// checkpoint. Candidate specializations derive from the source itself.
@@ -51,7 +51,8 @@ pub struct CheckingRequest<'a> {
     pub(crate) asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub(crate) opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
     pub(crate) declaration_authority: Option<&'a dyn validation::DeclarationSelectionAuthority>,
-    pub(crate) wire_compatibility_demands: &'a [language_semantics::wire::WireCompatibilityDemand],
+    pub(crate) wire_compatibility_demands:
+        &'a [language_semantics::wire::WireCompatibilityDemand],
 }
 
 impl<'a> CheckingRequest<'a> {
@@ -131,7 +132,8 @@ pub fn lower_typed_trees(
     preparation: TypedPreparation,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_reusing(program, preparation, request, None, false).map(|outcome| outcome.checked)
+    lower_typed_trees_reusing(program, preparation, request, None, false)
+        .map(|outcome| outcome.checked)
 }
 
 /// One language judgment kept with the exact input it judged. Only this module
@@ -309,11 +311,18 @@ fn check_program(
     crate::authored_selections::bind_checked_intrinsic_call_facts(&program, &mut facts)
         .map_err(|diagnostic| vec![diagnostic])?;
     facts.specialization_identities = specialization_identities;
-    // Final selections are checking conclusions, not typed-table rewrites.
-    // The selection contributor replaces this publication call with a readonly
-    // ledger and supplies the checking context used by the visibility checks.
     drop(program);
     let program = typed_program;
+    facts.finalized_selections =
+        crate::authored_selections::finalize_checked_authored_selections(&program, &mut facts)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    // Visibility and cleanup consume checked choices over the same immutable
+    // source. No cloned typed program or consumer fallback supplies this ledger.
+    let finalized = validation::CheckingContext::new(&program)
+        .with_authored_declaration_selections(&facts.finalized_selections);
+    validation::validate_reserved_cleanup_selections(&finalized)?;
+    validation::validate_declaration_visibility(&finalized)?;
+    drop(finalized);
 
     // Classify borrow custody last: `program`'s type, machine and state
     // tables stopped growing in preparation, after monomorphization, so a

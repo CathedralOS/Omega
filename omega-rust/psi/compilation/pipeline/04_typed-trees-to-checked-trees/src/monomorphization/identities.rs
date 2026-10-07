@@ -1,7 +1,7 @@
 //! Canonical template and application commitments. Contract clauses use the
 //! shared declared-contract projection; type leaves are normalized by symbol
 //! before length framing. Diagnostic spelling never supplies binder identity.
-use super::{Diagnostic, Sha256, SymbolHandle, TypeParameterKind, TypedTrees};
+use super::{Diagnostic, Sha256, SymbolHandle, TypeParameterKind};
 use crate::monomorphization::conformance_symbol_identity;
 use crate::monomorphization::normalized_machine_identity;
 use sha2::Digest;

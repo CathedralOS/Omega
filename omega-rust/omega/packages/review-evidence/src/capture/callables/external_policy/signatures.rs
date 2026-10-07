@@ -22,7 +22,7 @@ pub(super) fn project(
     ),
     Vec<Diagnostic>,
 > {
-    let mut prepared = compilation.typed.clone();
+    let mut prepared = validation::CheckingProjection::new(compilation.checking_input);
     let source_parameters = compilation.machine_type_parameters(machine);
     let mut parameters = source_parameters.to_vec();
     let lifetimes = machine
@@ -33,7 +33,7 @@ pub(super) fn project(
         .collect::<Vec<_>>();
     let mut scopes = Vec::new();
     instantiate_static_parameters(
-        &mut prepared,
+        prepared.program_mut(),
         &mut parameters,
         &[],
         &lifetimes,

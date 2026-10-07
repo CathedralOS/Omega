@@ -192,6 +192,18 @@ impl<'input> CheckingProjection<'input> {
             projected
         })
     }
+
+    /// Transfer private elaboration storage, retaining authoritative selections
+    /// even when an unchanged projection must become independently owned.
+    pub fn into_program(self) -> TypedTrees {
+        self.projected.unwrap_or_else(|| {
+            let mut projected = self.original.typed_program().clone();
+            projected.retain_authored_declaration_selections(
+                self.original.authored_declaration_selections().clone(),
+            );
+            projected
+        })
+    }
 }
 
 impl Deref for CheckingProjection<'_> {

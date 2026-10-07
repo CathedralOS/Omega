@@ -75,7 +75,7 @@ pub(crate) fn requirement(
     ),
     Vec<Diagnostic>,
 > {
-    let mut projected = compilation.typed.clone();
+    let mut projected = validation::CheckingProjection::new(compilation.checking_input);
     let mut wrapper = [TypeParameter {
         symbol: owner,
         name: source.name.clone(),
@@ -91,7 +91,7 @@ pub(crate) fn requirement(
         .collect::<Vec<_>>();
     let mut scopes = Vec::new();
     instantiate_static_parameters(
-        &mut projected,
+        projected.program_mut(),
         &mut wrapper,
         &[],
         &substitutions,
@@ -131,7 +131,7 @@ pub(crate) fn requirement(
     )?;
     Ok((
         PreparedRequirement {
-            typed: projected,
+            typed: projected.into_program(),
             signature,
             lifetimes,
             scopes,
@@ -152,7 +152,7 @@ pub(crate) fn parameters(
     if source.is_empty() {
         return Ok((outer_binders.to_vec(), Vec::new()));
     }
-    let mut projected = compilation.typed.clone();
+    let mut projected = validation::CheckingProjection::new(compilation.checking_input);
     let mut parameters = source.to_vec();
     let substitutions = lifetimes
         .iter()
@@ -161,7 +161,7 @@ pub(crate) fn parameters(
         .collect::<Vec<_>>();
     let mut scopes = Vec::new();
     instantiate_static_parameters(
-        &mut projected,
+        projected.program_mut(),
         &mut parameters,
         &[],
         &substitutions,

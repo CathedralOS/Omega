@@ -42,9 +42,13 @@ pub(crate) fn retain_closed_reach_applications(
     let operational = &checked.facts.operational;
     let inferred = &checked.facts.service_reaches;
     for specialization in &checked.machine_specializations {
-        let checked_identity = checked.facts.specialization_identities
+        let checked_identity = checked
+            .facts
+            .specialization_identities
             .for_instance(specialization.instance)
-            .ok_or(LoweringError::Unsupported("closed reach application lost its checked specialization identity"))?;
+            .ok_or(LoweringError::Unsupported(
+                "closed reach application lost its checked specialization identity",
+            ))?;
         let Some(owner) = exact_machine(source_machines, specialization.instance)? else {
             continue;
         };
@@ -109,10 +113,11 @@ pub(crate) fn retain_closed_reach_applications(
         let mut telescope = Vec::with_capacity(parameters.len());
         let mut types = specialization.type_argument_identities.iter();
         let mut constants = specialization.const_argument_identities.iter();
-        let mut machines = specialization
-            .machine_arguments
-            .iter()
-            .zip(checked_identity.machine_argument_contract_commitments.iter());
+        let mut machines = specialization.machine_arguments.iter().zip(
+            checked_identity
+                .machine_argument_contract_commitments
+                .iter(),
+        );
         let mut covered = true;
         for (position, parameter) in parameters.iter().enumerate() {
             telescope.push(match &parameter.kind {
@@ -500,14 +505,19 @@ fn closed_call_application(
             "closed schema call lost its specialization",
         ))?;
     let mut types = specialization.type_argument_identities.iter();
-    let checked_identity = checked.facts.specialization_identities
+    let checked_identity = checked
+        .facts
+        .specialization_identities
         .for_instance(specialization.instance)
-        .ok_or(LoweringError::Unsupported("closed schema call lost its checked specialization identity"))?;
+        .ok_or(LoweringError::Unsupported(
+            "closed schema call lost its checked specialization identity",
+        ))?;
     let mut constants = specialization.const_argument_identities.iter();
-    let mut machines = specialization
-        .machine_arguments
-        .iter()
-        .zip(checked_identity.machine_argument_contract_commitments.iter());
+    let mut machines = specialization.machine_arguments.iter().zip(
+        checked_identity
+            .machine_argument_contract_commitments
+            .iter(),
+    );
     let mut arguments = Vec::with_capacity(specialization.template_parameters.len());
     for parameter in checked
         .data_type_parameters

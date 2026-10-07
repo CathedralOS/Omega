@@ -117,9 +117,15 @@ fn derive_one(
             specializations.len(),
         )));
     };
-    let checked_identity = checked.facts.specialization_identities
+    let checked_identity = checked
+        .facts
+        .specialization_identities
         .for_instance(specialization.instance)
-        .ok_or_else(|| Diagnostic::error("selected generic realization lost its checked specialization identity"))?;
+        .ok_or_else(|| {
+            Diagnostic::error(
+                "selected generic realization lost its checked specialization identity",
+            )
+        })?;
     let retained = specialization
         .operator_realizations
         .iter()

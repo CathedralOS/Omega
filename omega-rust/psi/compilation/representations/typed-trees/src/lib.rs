@@ -37,8 +37,7 @@ pub use language_semantics::declaration_selection::{
 };
 pub use snapshot::TypedTreesSnapshot;
 pub use typed_trees::{
-    BoundaryCompletionDeclaration, PlanLaidBitField, PlanLaidBitFragment, PlanLaidIntegerField,
-    PlanLaidLayout, PlanLaidRepeatedField, ProgramIdentity, TypedTreeRoots, TypedTreeTables,
-    TypedTrees,
-    FrozenTypedTrees,
+    BoundaryCompletionDeclaration, FrozenTypedTrees, PlanLaidBitField, PlanLaidBitFragment,
+    PlanLaidIntegerField, PlanLaidLayout, PlanLaidRepeatedField, ProgramIdentity, TypedTreeRoots,
+    TypedTreeTables, TypedTrees,
 };

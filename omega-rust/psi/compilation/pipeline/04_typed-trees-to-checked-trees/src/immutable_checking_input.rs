@@ -17,4 +17,15 @@ fn checking_does_not_reopen_typed_preparation() {
         assert!(!source.contains(forbidden), "checking restored {forbidden}");
     }
     assert!(source.contains("program: typed_trees::FrozenTypedTrees"));
+
+    // Product pruning is a consuming transform, not permission to reopen the
+    // embedded source in an already constructed checked result.
+    let pruning = include_str!("product_pruning/rewrite.rs");
+    for forbidden in [
+        "&mut checked.typed",
+        "checked.typed =",
+        "&mut program.typed",
+    ] {
+        assert!(!pruning.contains(forbidden), "pruning restored {forbidden}");
+    }
 }

@@ -173,11 +173,14 @@ pub fn prepare_typed_trees(
     // reached requirement under its selector application and retarget the
     // calls to those slots before validation judges the call edges.
     crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
-    Ok((program.into(), TypedPreparation {
-        static_machine_selections,
-        mathematics,
-        opaque_property_receipts,
-    }))
+    Ok((
+        program.into(),
+        TypedPreparation {
+            static_machine_selections,
+            mathematics,
+            opaque_property_receipts,
+        },
+    ))
 }
 
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing

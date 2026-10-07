@@ -127,7 +127,6 @@ fn apply_fact_pruning(
     pruned: &HashSet<SymbolHandle>,
     index: &MachineIndex,
 ) {
-
     facts
         .mutation
         .machines

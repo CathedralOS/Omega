@@ -1,8 +1,12 @@
 # Typed trees to checked trees
 
-This stage checks typed programs and retains checked facts. Start at
-[checking.rs](src/checking.rs): specialization, validation, checked facts,
-execution plans, and publication are visible there in order.
+This stage checks an immutable typed program and retains checked facts. Start at
+[checking.rs](src/checking.rs): validation, checked facts, execution plans, and
+publication are visible there in order. Its caller first invokes
+[preparation.rs](src/preparation.rs) to specialize bodies and settle call
+identities, then transfers the frozen typed owner and preparation judgments.
+Preparation is temporarily housed in this package; independent typed-to-typed
+stage extraction remains unfinished.
 [finalize_execution.rs](src/execution/finalize_execution.rs) consumes completed
 check facts, finalizes scalar graphs, assembles structural control and return
 plans, then completes affine cleanup. It returns the facts only after cleanup
@@ -10,8 +14,8 @@ diagnostics clear; the checker never publishes an intermediate plan set.
 [execution_plans.rs](src/execution/execution_plans.rs) builds independent scalar
 returns, Unit closure, then dependent structural returns. It returns owned plans
 and diagnostics; finalization owns dependent cleanup. There is no production
-re-entry for rebuilding plans after provider settlement. Evidence-mutation tests
-have a private reconstruction helper; [lib.rs](src/lib.rs) wires the public API.
+re-entry for rebuilding plans after provider settlement.
+[lib.rs](src/lib.rs) wires the public API.
 Public borrow requirements are in
 [loan resources and compatibility](../../../../../wiki/spec/terminal-psi/loans.md).
 Authored declaration custody and carried-type dependency production are described
@@ -23,10 +27,11 @@ not a fallback to a template's type.
 At the frozen boundary, `CheckingContext` borrows the prepared program and owns
 its shared query memos. Read-only checking and proof consumers carry that input;
 bare typed programs during construction do not discover invocation state.
-Specialization commitments are computed at their original diagnostic boundary,
-but only published after the immutable context ends. No intervening check reads
-those metadata fields, and the specialization roster cannot change meanwhile.
-This keeps program mutation outside memoized checking without reordering errors.
+Specialization commitments are computed at their original diagnostic boundary
+and published in `CheckFacts`, alongside finalized authored selections. Neither
+conclusion rewrites the typed program. No intervening check reads the commitment
+table, and the specialization roster cannot change meanwhile. This preserves
+diagnostic order while making the checking boundary readonly.
 
 Source obligations are specified by [state contracts](../../../../../wiki/spec/language/state_contracts.md)
 and [numeric values](../../../../../wiki/spec/language/numeric_values.md). Source

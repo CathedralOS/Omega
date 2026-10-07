@@ -56,13 +56,14 @@ pub use facts::{
     CheckedCallbackResourceReceipt, CheckedCrashCallSite, CheckedCrashOperatorSite,
     CheckedCrashSite, CheckedEntryResourceEnvelope, CheckedFactCallProjection,
     CheckedIntrinsicCallFact, CheckedMachineContractEnvelopeIdentity,
-    CheckedMachineContractRefinement, CheckedMachineResourceEnvelopes, CheckedNominalMachineUse,
-    CheckedPlacedViewInput, CheckedProofRankingRelation, CheckedProofRecursiveCallSite,
-    CheckedProofRecursiveComponent, CheckedProofRecursiveEdge, CheckedProofRecursiveMember,
-    CheckedProofRecursiveTransitionLane, CheckedRequirementCallMachineSelection,
-    CheckedRequirementCallSpecialization, CheckedRequirementCallTypeBinding,
-    CheckedResourceAxisAnchor, CheckedResourceDerivationObligation,
-    CheckedRuntimeMembershipSubject, ClaimCarryPolicyFact, ClosedFloatRangeRequirement,
+    CheckedMachineContractRefinement, CheckedMachineResourceEnvelopes,
+    CheckedMachineSpecializationIdentity, CheckedNominalMachineUse, CheckedPlacedViewInput,
+    CheckedProofRankingRelation, CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent,
+    CheckedProofRecursiveEdge, CheckedProofRecursiveMember, CheckedProofRecursiveTransitionLane,
+    CheckedRequirementCallMachineSelection, CheckedRequirementCallSpecialization,
+    CheckedRequirementCallTypeBinding, CheckedResourceAxisAnchor,
+    CheckedResourceDerivationObligation, CheckedRuntimeMembershipSubject,
+    CheckedSpecializationIdentities, ClaimCarryPolicyFact, ClosedFloatRangeRequirement,
     ClosedIntegerRangeRequirement, ClosedScalarContractValue, ClosedScalarValueContractPlan,
     ContentClassFacts, ContentClassRow, ContentIdentityReshuffleFact,
     ContentPartitionCompositionFact, ContentPartitionInputClaimBinding,
@@ -83,7 +84,6 @@ pub use facts::{
     ProgressDemandCallSite, QualificationFacts, RealizedMachineContractEnvelope,
     ReferenceCustodyFacts, ReferenceCustodyRow, RequirementCallSpecializationFacts,
     ResolvedCarrierType, ResolvedExpressionType, ResolvedTypeFacts, RetainedBorrowCustodyFact,
-    CheckedMachineSpecializationIdentity, CheckedSpecializationIdentities,
     ServiceReachFacts, StateReferenceCustodyFacts, StateReferenceCustodyRow, StateServiceReachRows,
     StateWriteFramePlan, SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact,
     SuspensionCrossingStorage, SuspensionCrossingValueOrigin, SuspensionFacts,
@@ -234,7 +234,10 @@ pub struct CheckedTrees {
 
 impl CheckedTrees {
     pub fn with_roots(typed: impl Into<typed_trees::FrozenTypedTrees>, facts: CheckFacts) -> Self {
-        Self { typed: typed.into(), facts }
+        Self {
+            typed: typed.into(),
+            facts,
+        }
     }
 
     /// Checked choices are independent of the pre-check typed resolution ledger.

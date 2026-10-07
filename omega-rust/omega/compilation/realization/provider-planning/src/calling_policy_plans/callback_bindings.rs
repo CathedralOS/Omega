@@ -839,15 +839,13 @@ pub fn close_outbound_callback_materializations(
         realization.callback_context_closed = true;
         realization.materialized_signature = signature;
 
-        closed_plan_identities.push(
-            typed_trees::typed_trees::BoundaryCallingPlanIdentity {
-                boundary_trait: realization.boundary_trait,
-                boundary_arguments: realization.boundary_arguments.clone(),
-                requirement_machine: realization.requirement_machine,
-                report_fingerprint: new_fingerprint,
-                commitment: realization.commitment,
-            },
-        );
+        closed_plan_identities.push(typed_trees::typed_trees::BoundaryCallingPlanIdentity {
+            boundary_trait: realization.boundary_trait,
+            boundary_arguments: realization.boundary_arguments.clone(),
+            requirement_machine: realization.requirement_machine,
+            report_fingerprint: new_fingerprint,
+            commitment: realization.commitment,
+        });
         reconcile_closed_callback_plan_identity(
             &mut checked.facts.nominal_machine_uses.uses,
             realization.boundary_trait,
@@ -865,7 +863,10 @@ pub fn close_outbound_callback_materializations(
     for identity in closed_plan_identities {
         typed.record_boundary_calling_plan(identity);
     }
-    Ok(checked_trees::CheckedTrees::with_roots(typed, checked.facts))
+    Ok(checked_trees::CheckedTrees::with_roots(
+        typed,
+        checked.facts,
+    ))
 }
 
 fn close_direct_callback_parameters(

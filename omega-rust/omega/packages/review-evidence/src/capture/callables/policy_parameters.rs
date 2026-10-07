@@ -17,7 +17,7 @@ pub(super) fn type_parameters(
     if parameters.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
-    let mut projected = compilation.typed.clone();
+    let mut projected = validation::CheckingProjection::new(compilation.checking_input);
     let lifetimes = machine
         .lifetime_parameters
         .iter()
@@ -26,7 +26,7 @@ pub(super) fn type_parameters(
         .collect::<Vec<_>>();
     let mut scopes = Vec::new();
     instantiate_static_parameters(
-        &mut projected,
+        projected.program_mut(),
         &mut parameters,
         &[],
         &lifetimes,
