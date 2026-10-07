@@ -64,6 +64,22 @@ reaches FilesystemHost
     state other(filesystem: &mut Filesystem) -> i32 { filesystem.err_code }
 }
 
+// GetLastError codes classify through one tag table; every syscall tail here
+// records the same mapping before reconstructing the portable kind.
+windows_x86_64 machine Filesystem::win32_kind(code: i32) -> ErrorKind {
+    (match code {
+        2 -> ErrorKind::NotFound,
+        3 -> ErrorKind::NotFound,
+        5 -> ErrorKind::PermissionDenied,
+        6 -> ErrorKind::BadDescriptor,
+        32 -> ErrorKind::WouldBlock,
+        33 -> ErrorKind::WouldBlock,
+        80 -> ErrorKind::AlreadyExists,
+        183 -> ErrorKind::AlreadyExists,
+        _ -> ErrorKind::Other
+    })
+}
+
 pub windows_x86_64 machine Filesystem::open_with(filesystem: &mut Filesystem, path: &[u8] in Path, options: OpenOptions) -> OpenResult
 reaches
     FilesystemHost
@@ -874,17 +890,7 @@ invokes
     // Capture the OPEN leg's GetLastError IMMEDIATELY: any trailing Win32
     // call may overwrite the thread-local value.
     let open_error: i32 = filesystem.host.get_last_error();
-    filesystem.err_kind = match open_error {
-        2 -> ErrorKind::NotFound,
-        3 -> ErrorKind::NotFound,
-        5 -> ErrorKind::PermissionDenied,
-        6 -> ErrorKind::BadDescriptor,
-        32 -> ErrorKind::WouldBlock,
-        33 -> ErrorKind::WouldBlock,
-        80 -> ErrorKind::AlreadyExists,
-        183 -> ErrorKind::AlreadyExists,
-        _ -> ErrorKind::Other
-    };
+    filesystem.err_kind = Filesystem::win32_kind(open_error);
     // CreateFileA fails with INVALID_HANDLE_VALUE, not with every signed
     // negative value. Do not query or close that failed-acquisition sentinel.
     transition handle != -1 { true -> resolve(filesystem, handle, buffer) _ -> err_open(filesystem) }
@@ -893,17 +899,7 @@ invokes
         let resolve_error: i32 = filesystem.host.get_last_error();
         let closed: i32 = filesystem.host.close_handle(handle);
         // Capture the query error before close can change GetLastError.
-        filesystem.win32_error_kind = match resolve_error {
-            2 -> ErrorKind::NotFound,
-            3 -> ErrorKind::NotFound,
-            5 -> ErrorKind::PermissionDenied,
-            6 -> ErrorKind::BadDescriptor,
-            32 -> ErrorKind::WouldBlock,
-            33 -> ErrorKind::WouldBlock,
-            80 -> ErrorKind::AlreadyExists,
-            183 -> ErrorKind::AlreadyExists,
-            _ -> ErrorKind::Other
-        };
+        filesystem.win32_error_kind = Filesystem::win32_kind(resolve_error);
         transition length > 0 { true -> wc_fit(filesystem, length) _ -> err_resolve(filesystem) }
     }
     state wc_fit(filesystem: &mut Filesystem, len: i64) -> UnitResult {
@@ -935,17 +931,7 @@ invokes
 {
     let rc: i32 = filesystem.host.create_hard_link(link, original, 0);
     let code: i32 = filesystem.host.get_last_error();
-    filesystem.win32_error_kind = match code {
-        2 -> ErrorKind::NotFound,
-        3 -> ErrorKind::NotFound,
-        5 -> ErrorKind::PermissionDenied,
-        6 -> ErrorKind::BadDescriptor,
-        32 -> ErrorKind::WouldBlock,
-        33 -> ErrorKind::WouldBlock,
-        80 -> ErrorKind::AlreadyExists,
-        183 -> ErrorKind::AlreadyExists,
-        _ -> ErrorKind::Other
-    };
+    filesystem.win32_error_kind = Filesystem::win32_kind(code);
     transition rc != 0 { true -> ok() _ -> err(filesystem) }
     state ok() -> UnitResult { UnitResult::Ok }
     state err(filesystem: &mut Filesystem) -> UnitResult { let kind: ErrorKind = ErrorKind::reconstruct(&filesystem.win32_error_kind); UnitResult::Error { kind: kind } }
@@ -992,17 +978,7 @@ invokes
     let handle: i64 = filesystem.host.get_osfhandle(filesystem.file_fd);
     let rc: i32 = filesystem.host.set_file_time(handle, 0, &filesystem.access_filetime, &filesystem.modified_filetime);
     let code: i32 = filesystem.host.get_last_error();
-    filesystem.win32_error_kind = match code {
-        2 -> ErrorKind::NotFound,
-        3 -> ErrorKind::NotFound,
-        5 -> ErrorKind::PermissionDenied,
-        6 -> ErrorKind::BadDescriptor,
-        32 -> ErrorKind::WouldBlock,
-        33 -> ErrorKind::WouldBlock,
-        80 -> ErrorKind::AlreadyExists,
-        183 -> ErrorKind::AlreadyExists,
-        _ -> ErrorKind::Other
-    };
+    filesystem.win32_error_kind = Filesystem::win32_kind(code);
     transition rc != 0 { true -> ok(filesystem) _ -> err(filesystem) }
     state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
     state err(filesystem: &mut Filesystem) -> UnitResult {
@@ -1053,17 +1029,7 @@ invokes
     let handle: i64 = filesystem.host.get_osfhandle(filesystem.file_fd);
     let rc: i32 = filesystem.host.lock_file_ex(handle, 2, 0, 4294967295, 4294967295, &mut filesystem.lock_overlapped);
     let code: i32 = filesystem.host.get_last_error();
-    filesystem.win32_error_kind = match code {
-        2 -> ErrorKind::NotFound,
-        3 -> ErrorKind::NotFound,
-        5 -> ErrorKind::PermissionDenied,
-        6 -> ErrorKind::BadDescriptor,
-        32 -> ErrorKind::WouldBlock,
-        33 -> ErrorKind::WouldBlock,
-        80 -> ErrorKind::AlreadyExists,
-        183 -> ErrorKind::AlreadyExists,
-        _ -> ErrorKind::Other
-    };
+    filesystem.win32_error_kind = Filesystem::win32_kind(code);
     transition rc != 0 { true -> ok() _ -> err(filesystem) }
     state ok() -> UnitResult { UnitResult::Ok }
     state err(filesystem: &mut Filesystem) -> UnitResult { let kind: ErrorKind = ErrorKind::reconstruct(&filesystem.win32_error_kind); UnitResult::Error { kind: kind } }
@@ -1079,17 +1045,7 @@ invokes
     let handle: i64 = filesystem.host.get_osfhandle(filesystem.file_fd);
     let rc: i32 = filesystem.host.lock_file_ex(handle, 0, 0, 4294967295, 4294967295, &mut filesystem.lock_overlapped);
     let code: i32 = filesystem.host.get_last_error();
-    filesystem.win32_error_kind = match code {
-        2 -> ErrorKind::NotFound,
-        3 -> ErrorKind::NotFound,
-        5 -> ErrorKind::PermissionDenied,
-        6 -> ErrorKind::BadDescriptor,
-        32 -> ErrorKind::WouldBlock,
-        33 -> ErrorKind::WouldBlock,
-        80 -> ErrorKind::AlreadyExists,
-        183 -> ErrorKind::AlreadyExists,
-        _ -> ErrorKind::Other
-    };
+    filesystem.win32_error_kind = Filesystem::win32_kind(code);
     transition rc != 0 { true -> ok(filesystem) _ -> err(filesystem) }
     state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
     state err(filesystem: &mut Filesystem) -> UnitResult { let kind: ErrorKind = ErrorKind::reconstruct(&filesystem.win32_error_kind); UnitResult::Error { kind: kind } }
@@ -1105,17 +1061,7 @@ invokes
     let handle: i64 = filesystem.host.get_osfhandle(filesystem.file_fd);
     let rc: i32 = filesystem.host.lock_file_ex(handle, 3, 0, 4294967295, 4294967295, &mut filesystem.lock_overlapped);
     filesystem.lock_errno = filesystem.host.get_last_error();
-    filesystem.win32_error_kind = match filesystem.lock_errno {
-        2 -> ErrorKind::NotFound,
-        3 -> ErrorKind::NotFound,
-        5 -> ErrorKind::PermissionDenied,
-        6 -> ErrorKind::BadDescriptor,
-        32 -> ErrorKind::WouldBlock,
-        33 -> ErrorKind::WouldBlock,
-        80 -> ErrorKind::AlreadyExists,
-        183 -> ErrorKind::AlreadyExists,
-        _ -> ErrorKind::Other
-    };
+    filesystem.win32_error_kind = Filesystem::win32_kind(filesystem.lock_errno);
     transition rc != 0 { true -> acquired(filesystem) _ -> contended(filesystem) }
     state acquired(filesystem: &mut Filesystem) -> TryLockResult { TryLockResult::Acquired }
     state contended(filesystem: &mut Filesystem) -> TryLockResult { transition filesystem.lock_errno == 33 { true -> would_block(filesystem) _ -> failed(filesystem) } }
@@ -1133,17 +1079,7 @@ invokes
     let handle: i64 = filesystem.host.get_osfhandle(filesystem.file_fd);
     let rc: i32 = filesystem.host.lock_file_ex(handle, 1, 0, 4294967295, 4294967295, &mut filesystem.lock_overlapped);
     filesystem.lock_errno = filesystem.host.get_last_error();
-    filesystem.win32_error_kind = match filesystem.lock_errno {
-        2 -> ErrorKind::NotFound,
-        3 -> ErrorKind::NotFound,
-        5 -> ErrorKind::PermissionDenied,
-        6 -> ErrorKind::BadDescriptor,
-        32 -> ErrorKind::WouldBlock,
-        33 -> ErrorKind::WouldBlock,
-        80 -> ErrorKind::AlreadyExists,
-        183 -> ErrorKind::AlreadyExists,
-        _ -> ErrorKind::Other
-    };
+    filesystem.win32_error_kind = Filesystem::win32_kind(filesystem.lock_errno);
     transition rc != 0 { true -> acquired(filesystem) _ -> contended(filesystem) }
     state acquired(filesystem: &mut Filesystem) -> TryLockResult { TryLockResult::Acquired }
     state contended(filesystem: &mut Filesystem) -> TryLockResult { transition filesystem.lock_errno == 33 { true -> would_block(filesystem) _ -> failed(filesystem) } }
